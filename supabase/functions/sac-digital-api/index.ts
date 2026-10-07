@@ -2713,8 +2713,53 @@ Deno.serve(async request => {
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       if (!departmentId && !operatorId) return json({ success: false, error: "Escolha um departamento ou operador." }, 400);
 
+      const accessBinding = await resolveMySacAccessBinding();
+      if (!accessBinding) {
+        return json({ success: false, type: "sac_profile_not_linked", error: "Seu usuário não possui Perfil SAC Digital vinculado." }, 409);
+      }
+
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const state = await apiRequest(
+        organizationId,
+        credentials,
+        `/protocol/info?protocol=${encodeURIComponent(protocol)}`,
+        { method: "GET" },
+      );
+      if (!state.response.ok || state.body.status === false || !state.body.info || typeof state.body.info !== "object") {
+        return json({ success: false, error: "Não foi possível confirmar o atendimento na SAC Digital." }, 409);
+      }
+      const info = state.body.info as Record<string, unknown>;
+      if (info.is_open === false || Boolean(info.closed_at) || Boolean(info.finished_at)) {
+        return json({ success: false, error: "Este atendimento já está finalizado." }, 409);
+      }
+
+      const assigned = info.operator && typeof info.operator === "object" && !Array.isArray(info.operator)
+        ? info.operator as Record<string, unknown>
+        : {};
+      const assignedOperatorId = String(assigned.id || info.operator_id || "").trim();
+      const assignedOperatorName = String(assigned.name || info.operator_name || "").trim();
+
+      if (accessBinding.accessMode === "operator") {
+        const ownership = conversationOwnership({
+          accessMode: "operator",
+          boundOperatorId: accessBinding.id,
+          assignedOperatorId,
+          assignedOperatorName,
+        });
+        if (!ownership.allowed || ownership.needsAssignment) {
+          return json({
+            success: false,
+            type: "protocol_owned_by_other_operator",
+            operator_id: assignedOperatorId || null,
+            operator_name: assignedOperatorName || null,
+            error: assignedOperatorId
+              ? `Este atendimento pertence a ${assignedOperatorName || "outro Operador SAC"}.`
+              : "Este atendimento ainda não está atribuído ao seu Operador SAC.",
+          }, 409);
+        }
+      }
 
       const { data: protocolRow, error: protocolError } = await admin
         .from("sac_digital_protocols")
@@ -2723,7 +2768,7 @@ Deno.serve(async request => {
         .eq("external_protocol_id", protocol)
         .maybeSingle();
       if (protocolError || !protocolRow?.contact_id) {
-        return json({ success: false, error: "O protocolo ainda não possui um contato SAC vinculado." }, 400);
+        return json({ success: false, error: "O protocolo ainda não possui um contato SAC vinculado." }, 409);
       }
 
       const { data: contactRow, error: contactError } = await admin
@@ -2734,7 +2779,7 @@ Deno.serve(async request => {
         .maybeSingle();
       const externalContactId = String(contactRow?.external_contact_id || "").trim();
       if (contactError || !externalContactId) {
-        return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 400);
+        return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 409);
       }
 
       const forwardBody: Record<string, unknown> = { id: externalContactId };
@@ -2747,21 +2792,17 @@ Deno.serve(async request => {
         "/contact/forward",
         { method: "POST", body: JSON.stringify(forwardBody) },
       );
-
       if (!result.response.ok || result.body.status === false || result.body.success === false) {
         return json({
           success: false,
+          type: String(result.body.type || "provider_rejected"),
           error: typeof result.body.message === "string" && result.body.message.trim()
             ? `SAC Digital: ${result.body.message.trim()}`
             : "Não foi possível encaminhar o atendimento.",
-        });
+        }, 409);
       }
 
-      try {
-        await enrichProtocol(organizationId, protocol);
-      } catch {
-        // Webhook/realtime também atualizará o protocolo; não invalida a ação externa.
-      }
+      try { await enrichProtocol(organizationId, protocol); } catch {}
 
       await writeSacAudit({
         action: "sac_digital.protocol.forward",
@@ -2773,6 +2814,8 @@ Deno.serve(async request => {
         metadata: {
           department_id: departmentId || null,
           operator_id: operatorId || null,
+          sac_access_mode: accessBinding.accessMode,
+          transport: "client_contact_forward",
         },
       });
 
@@ -2781,60 +2824,117 @@ Deno.serve(async request => {
 
     if (action === "return_to_inbox" || action === "return_to_queue") {
       if (!(await requirePermission("sac_digital.protocols.manage"))) {
-        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+        return json({ success: false, error: "Sem permissão para devolver atendimentos à fila do SAC Digital." }, 403);
       }
 
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
 
+      const accessBinding = await resolveMySacAccessBinding();
+      if (!accessBinding) {
+        return json({ success: false, type: "sac_profile_not_linked", error: "Seu usuário não possui Perfil SAC Digital vinculado." }, 409);
+      }
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      const state = await apiRequest(
+        organizationId,
+        credentials,
+        `/protocol/info?protocol=${encodeURIComponent(protocol)}`,
+        { method: "GET" },
+      );
+      if (!state.response.ok || state.body.status === false || !state.body.info || typeof state.body.info !== "object") {
+        return json({ success: false, error: "Não foi possível confirmar o atendimento na SAC Digital." }, 409);
+      }
+      const info = state.body.info as Record<string, unknown>;
+      if (info.is_open === false || Boolean(info.closed_at) || Boolean(info.finished_at)) {
+        return json({ success: false, error: "Este atendimento já está finalizado." }, 409);
+      }
+
+      const assigned = info.operator && typeof info.operator === "object" && !Array.isArray(info.operator)
+        ? info.operator as Record<string, unknown>
+        : {};
+      const assignedOperatorId = String(assigned.id || info.operator_id || "").trim();
+      const assignedOperatorName = String(assigned.name || info.operator_name || "").trim();
+
+      if (accessBinding.accessMode === "operator") {
+        const ownership = conversationOwnership({
+          accessMode: "operator",
+          boundOperatorId: accessBinding.id,
+          assignedOperatorId,
+          assignedOperatorName,
+        });
+        if (!ownership.allowed || ownership.needsAssignment) {
+          return json({
+            success: false,
+            type: "protocol_owned_by_other_operator",
+            operator_id: assignedOperatorId || null,
+            operator_name: assignedOperatorName || null,
+            error: assignedOperatorId
+              ? `Este atendimento pertence a ${assignedOperatorName || "outro Operador SAC"}.`
+              : "Este atendimento ainda não está atribuído ao seu Operador SAC.",
+          }, 409);
+        }
+      }
+
       let { data: protocolRow, error: protocolError } = await admin
         .from("sac_digital_protocols")
-        .select("sector_id")
+        .select("contact_id,sector_id")
         .eq("organization_id", organizationId)
         .eq("external_protocol_id", protocol)
         .maybeSingle();
-      if (protocolError) throw new Error("Não foi possível consultar o departamento do atendimento.");
 
-      if (!protocolRow?.sector_id) {
+      if (!protocolRow?.sector_id || !protocolRow?.contact_id) {
         try {
           await enrichProtocol(organizationId, protocol);
           const refreshed = await admin
             .from("sac_digital_protocols")
-            .select("sector_id")
+            .select("contact_id,sector_id")
             .eq("organization_id", organizationId)
             .eq("external_protocol_id", protocol)
             .maybeSingle();
           protocolRow = refreshed.data;
           protocolError = refreshed.error;
-        } catch {
-          // A mensagem abaixo explica o requisito caso a SAC ainda não informe o departamento.
-        }
+        } catch {}
       }
 
-      const departmentId = String(protocolRow?.sector_id || "").trim();
-      if (protocolError || !departmentId) {
+      const departmentId = String(body.department_id || protocolRow?.sector_id || "").trim();
+      if (protocolError || !departmentId || !protocolRow?.contact_id) {
+        return json({ success: false, error: "A SAC Digital não informou o departamento/contato deste atendimento." }, 409);
+      }
+
+      const { data: contactRow, error: contactError } = await admin
+        .from("sac_digital_contacts")
+        .select("external_contact_id")
+        .eq("organization_id", organizationId)
+        .eq("id", protocolRow.contact_id)
+        .maybeSingle();
+      const externalContactId = String(contactRow?.external_contact_id || "").trim();
+      if (contactError || !externalContactId) {
+        return json({ success: false, error: "Não foi possível identificar o contato na SAC Digital." }, 409);
+      }
+
+      const result = await apiRequest(
+        organizationId,
+        credentials,
+        "/contact/forward",
+        {
+          method: "POST",
+          body: JSON.stringify({ id: externalContactId, department: departmentId }),
+        },
+      );
+      if (!result.response.ok || result.body.status === false || result.body.success === false) {
         return json({
           success: false,
-          error: "A SAC Digital não informou o departamento deste atendimento. Atualize o protocolo e tente novamente.",
+          type: String(result.body.type || "provider_rejected"),
+          error: typeof result.body.message === "string" && result.body.message.trim()
+            ? `SAC Digital: ${result.body.message.trim()}`
+            : "Não foi possível devolver o atendimento para a fila.",
         }, 409);
       }
 
-      const intentKey = typeof body.intent_key === "string"
-        ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
-        : undefined;
-      const routed = await runResourceOperation(90, {
-        protocol,
-        to: "department",
-        department: departmentId,
-      }, intentKey);
-
-      if (!routed.success) return json(routed as Record<string, unknown>);
-
-      try {
-        await enrichProtocol(organizationId, protocol);
-      } catch {
-        // A fila operacional é consultada diretamente e corrigirá o estado visual.
-      }
+      try { await enrichProtocol(organizationId, protocol); } catch {}
 
       await writeSacAudit({
         action: "sac_digital.protocol.return_to_queue",
@@ -2843,7 +2943,11 @@ Deno.serve(async request => {
         entityId: protocol,
         contextType: "protocol",
         contextId: protocol,
-        metadata: { department_id: departmentId },
+        metadata: {
+          department_id: departmentId,
+          sac_access_mode: accessBinding.accessMode,
+          transport: "client_contact_forward",
+        },
       });
 
       return json({ success: true, protocol, returned_to_queue: true });

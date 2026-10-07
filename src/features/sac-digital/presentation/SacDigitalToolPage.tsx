@@ -1307,11 +1307,11 @@ export function SacDigitalToolPage({
       );
       setRoutingOpen(false);
       setFinishConfirmOpen(false);
-      setMessage({ text: "Atendimento devolvido para a caixa de entrada da SAC Digital." });
+      setMessage({ text: "Atendimento devolvido para a fila do departamento." });
       await reloadSelectedProtocol();
     } catch (error) {
       setMessage({
-        text: systemErrorMessage(error, "Não foi possível devolver o atendimento para a caixa de entrada."),
+        text: systemErrorMessage(error, "Não foi possível devolver o atendimento para a fila."),
         error: true,
       });
     } finally {
@@ -1736,7 +1736,7 @@ export function SacDigitalToolPage({
                       </AdminButton>
                     )}
 
-                    {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
+                    {canManageProtocols && selectedOperationalStatus === "in_att" && (isMyProtocol || isSacManager) && (
                       <>
                         <AdminButton
                           variant="secondary"
@@ -1756,20 +1756,22 @@ export function SacDigitalToolPage({
                         >
                           Devolver à fila
                         </AdminButton>
-                        <AdminButton
-                          variant="secondary"
-                          onClick={() => {
-                            setRoutingOpen(false);
-                            setCustomerLinkOpen(false);
-                            setOrdersPanelOpen(false);
-                            setFinishConfirmOpen(true);
-                          }}
-                          disabled={Boolean(protocolAction)}
-                          className="shrink-0"
-                        >
-                          Finalizar
-                        </AdminButton>
                       </>
+                    )}
+                    {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => {
+                          setRoutingOpen(false);
+                          setCustomerLinkOpen(false);
+                          setOrdersPanelOpen(false);
+                          setFinishConfirmOpen(true);
+                        }}
+                        disabled={Boolean(protocolAction)}
+                        className="shrink-0"
+                      >
+                        Finalizar
+                      </AdminButton>
                     )}
                     {canManageProtocols && selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager && (
                       <span className="shrink-0 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300">

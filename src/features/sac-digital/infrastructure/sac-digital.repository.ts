@@ -837,21 +837,13 @@ export function forwardSacDigitalProtocol(
   protocol: string,
   input: { departmentId?: string; operatorId?: string },
 ) {
-  if (input.operatorId) {
-    return operateSacDigitalResource(organizationId, 90, {
-      protocol,
-      to: "operator",
-      operator: input.operatorId,
-    });
-  }
-  if (input.departmentId) {
-    return operateSacDigitalResource(organizationId, 90, {
-      protocol,
-      to: "department",
-      department: input.departmentId,
-    });
-  }
-  throw new Error("Escolha um departamento ou operador.");
+  return invokeSacDigitalApi({
+    action: "forward_protocol",
+    organization_id: organizationId,
+    protocol,
+    department_id: input.departmentId || "",
+    operator_id: input.operatorId || "",
+  });
 }
 
 export function returnSacDigitalProtocolToQueue(
@@ -859,13 +851,11 @@ export function returnSacDigitalProtocolToQueue(
   protocol: string,
   departmentId: string | null | undefined,
 ) {
-  if (!departmentId) {
-    throw new Error("A SAC Digital não informou o departamento deste atendimento. Atualize o protocolo e tente novamente.");
-  }
-  return operateSacDigitalResource(organizationId, 90, {
+  return invokeSacDigitalApi({
+    action: "return_to_queue",
+    organization_id: organizationId,
     protocol,
-    to: "department",
-    department: departmentId,
+    department_id: departmentId || "",
   });
 }
 
