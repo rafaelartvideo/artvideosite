@@ -2773,6 +2773,7 @@ Deno.serve(async request => {
       }
 
       const protocol = String(body.protocol || "").trim();
+      const orderId = String(body.order_id || "").trim();
       const text = String(body.text || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const { data: mediaProtocol, error: mediaProtocolError } = await admin
@@ -2796,6 +2797,22 @@ Deno.serve(async request => {
 
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+
+      let fromOrder = false;
+      if (orderId) {
+        if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
+        const canViewOrder = await hasOrganizationPermission("orders.view")
+          || await hasOrganizationPermission("orders.details.view");
+        if (!canViewOrder) return json({ success: false, error: "Sem permissão para acessar esta OS." }, 403);
+        const { data: sourceOrder, error: sourceOrderError } = await admin
+          .from("service_orders")
+          .select("id")
+          .eq("organization_id", organizationId)
+          .eq("id", orderId)
+          .maybeSingle();
+        if (sourceOrderError || !sourceOrder?.id) return json({ success: false, error: "OS não encontrada nesta empresa." }, 404);
+        fromOrder = true;
+      }
 
       const mediaType = uploadFile.type.startsWith("image/") ? "image"
         : uploadFile.type.startsWith("video/") ? "video"
@@ -2864,16 +2881,35 @@ Deno.serve(async request => {
       };
       if (text) apiPayload.text = text;
 
-      let mediaTransport = "url";
-      let apiResult = await apiRequest(
-        organizationId,
-        credentials,
-        "/protocol/send",
-        {
-          method: "POST",
-          body: JSON.stringify(apiPayload),
-        },
-      );
+      let mediaTransport = fromOrder ? "company-client-url" : "url";
+      let apiResult;
+      if (fromOrder) {
+        // Anexo enviado a partir da OS segue a mesma regra da mensagem da OS:
+        // usa a conta SAC da empresa e não se passa pelo Operador atribuído ao protocolo.
+        const companySession = await login(organizationId, credentials);
+        apiResult = await fetchJson(
+          `${SAC_API_BASE_URL}/protocol/send`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${companySession.token}`,
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(apiPayload),
+          },
+        );
+      } else {
+        apiResult = await apiRequest(
+          organizationId,
+          credentials,
+          "/protocol/send",
+          {
+            method: "POST",
+            body: JSON.stringify(apiPayload),
+          },
+        );
+      }
       let response = apiResult.response;
       let apiBody = apiResult.body;
 
@@ -3276,11 +3312,22 @@ Deno.serve(async request => {
           // Pode haver atraso até o protocolo ser projetado; reconciliar no webhook.
         }
 
-        const outgoing = await apiRequest(
-          organizationId,
-          credentials,
-          "/protocol/send",
-          { method: "POST", body: JSON.stringify({ protocol: openedProtocol, type: "text", text }) },
+        // Mensagens iniciadas pela OS usam a conta SAC da empresa (sessão Client/Gestor),
+        // como já funcionava antes do roteamento operacional. Não assumir a identidade
+        // do Operador vinculado ao usuário: o protocolo pode estar atribuído a outro
+        // atendente da SAC e a ação da OS é institucional, não uma resposta "como operador".
+        const companySession = await login(organizationId, credentials);
+        const outgoing = await fetchJson(
+          `${SAC_API_BASE_URL}/protocol/send`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${companySession.token}`,
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ protocol: openedProtocol, type: "text", text }),
+          },
         );
         if (!outgoing.response.ok || outgoing.body.status === false || outgoing.body.success === false) {
           return json({
