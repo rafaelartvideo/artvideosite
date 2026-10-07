@@ -135,19 +135,19 @@ function deliveryStatus(message: SacDigitalMessage) {
 function messageKind(message: SacDigitalMessage) {
   switch (message.message_type) {
     case "audio":
-      return { label: "Áudio recebido", Icon: Volume2 };
+      return { label: "Áudio", Icon: Volume2 };
     case "image":
-      return { label: "Imagem recebida", Icon: ImageIcon };
+      return { label: "Imagem", Icon: ImageIcon };
     case "video":
-      return { label: "Vídeo recebido", Icon: FileText };
+      return { label: "Vídeo", Icon: FileText };
     case "file":
-      return { label: "Arquivo recebido", Icon: FileText };
+      return { label: "Arquivo", Icon: FileText };
     case "location":
-      return { label: "Localização recebida", Icon: MapPin };
+      return { label: "Localização", Icon: MapPin };
     case "vcard":
-      return { label: "Contato recebido", Icon: UserRound };
+      return { label: "Contato", Icon: UserRound };
     default:
-      return { label: "Mensagem recebida", Icon: MessageCircle };
+      return { label: "Mensagem", Icon: MessageCircle };
   }
 }
 
@@ -157,6 +157,37 @@ function sacMessagePayload(message: SacDigitalMessage): Record<string, any> {
   if (raw.message && typeof raw.message === "object") return raw.message;
   if (raw.data?.message && typeof raw.data.message === "object") return raw.data.message;
   return raw;
+}
+
+function effectiveMessageDirection(message: SacDigitalMessage): "incoming" | "outgoing" {
+  const raw = message.raw_metadata || {};
+  if (raw.sent_via_union === true) return "outgoing";
+  const history = raw.sac_history && typeof raw.sac_history === "object"
+    ? raw.sac_history as Record<string, unknown>
+    : null;
+  const by = String(history?.by || "").trim().toLowerCase();
+  if (by === "operator") return "outgoing";
+  if (by === "contact" || by === "channel") return "incoming";
+  return message.direction;
+}
+
+function messageOperatorName(
+  message: SacDigitalMessage,
+  protocol: SacDigitalProtocolListItem | null,
+) {
+  if (effectiveMessageDirection(message) !== "outgoing") return "";
+  const explicit = String(message.sender_name || "").trim();
+  if (explicit) return explicit;
+
+  const raw = message.raw_metadata || {};
+  const history = raw.sac_history && typeof raw.sac_history === "object"
+    ? raw.sac_history as Record<string, unknown>
+    : {};
+  const operatorId = String(history.operator || "").trim();
+  if (operatorId && protocol?.operator_id === operatorId && protocol.operator_name?.trim()) {
+    return protocol.operator_name.trim();
+  }
+  return "Operador SAC";
 }
 
 function messageLocation(message: SacDigitalMessage) {
@@ -1268,7 +1299,13 @@ export function SacDigitalToolPage({
                     </p>
                   </div>
                 </div>
-                <div className="min-h-0 flex-1 overflow-y-auto bg-muted/25 px-3 py-4 sm:px-5">
+                <div
+                  className="min-h-0 flex-1 overflow-y-auto bg-muted/25 px-3 py-4 sm:px-5"
+                  style={{
+                    backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0)",
+                    backgroundSize: "22px 22px",
+                  }}
+                >
                   <div className="mx-auto max-w-4xl">
                     <div className="flex justify-end">
                       <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
@@ -1677,24 +1714,40 @@ export function SacDigitalToolPage({
                 <div
                   ref={messagesScrollRef}
                   className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
+                  style={{
+                    backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148, 163, 184, 0.18) 1px, transparent 0)",
+                    backgroundSize: "22px 22px",
+                  }}
                 >
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
                       Nenhuma mensagem registrada neste protocolo.
                     </div>
                   ) : (
-                    <div className="mx-auto max-w-4xl space-y-2">
-                      {messages.map(item => {
-                        const outgoing = item.direction === "outgoing";
+                    <div className="mx-auto max-w-4xl">
+                      {messages.map((item, index) => {
+                        const outgoing = effectiveMessageDirection(item) === "outgoing";
+                        const previous = index > 0 ? messages[index - 1] : null;
+                        const previousOutgoing = previous ? effectiveMessageDirection(previous) === "outgoing" : null;
+                        const operatorName = messageOperatorName(item, selectedProtocol);
+                        const previousOperatorName = previous ? messageOperatorName(previous, selectedProtocol) : "";
+                        const grouped = Boolean(previous)
+                          && previousOutgoing === outgoing
+                          && (!outgoing || previousOperatorName === operatorName);
                         const kind = messageKind(item);
                         const KindIcon = kind.Icon;
                         return <div
                           key={item.id}
-                          className={`flex ${outgoing ? "justify-end" : "justify-start"}`}
+                          className={`flex ${grouped ? "mt-1" : index === 0 ? "" : "mt-3"} ${outgoing ? "justify-end" : "justify-start"}`}
                         >
                           <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${outgoing
                             ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50"
                             : "border border-border bg-card text-foreground"}`}>
+                            {outgoing && operatorName && (
+                              <p className="mb-1 text-[10px] font-black leading-4 opacity-80">
+                                {operatorName}
+                              </p>
+                            )}
                             {(() => {
                               const mediaUrl = sacDigitalMediaUrl(item.media_url);
                               return <div className="space-y-2">
@@ -1773,7 +1826,6 @@ export function SacDigitalToolPage({
                               </div>;
                             })()}
                             <div className="mt-1 flex items-center justify-end gap-2 text-[9px] opacity-60">
-                              {outgoing && item.sender_name && <span>{item.sender_name}</span>}
                               {outgoing && deliveryStatus(item) && <span>{deliveryStatus(item)}</span>}
                               <span>{formatCompactDate(item.sent_at)}</span>
                             </div>
