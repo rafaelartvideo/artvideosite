@@ -287,10 +287,14 @@ export function OrderSignatureRequestsSection({
       printedBy={printedBy}
       onClose={() => setCreateOpen(false)}
       onCreated={result => {
-        const warning = result.email_warning || result.finalization_warning;
+        const warning = result.whatsapp_warning || result.email_warning || result.finalization_warning;
         const signed = result.request?.status === "signed";
         setMessage({
-          text: warning ? `Solicitação criada. Atenção: ${warning}` : signed ? "Documento gerado e assinado com sucesso." : "Solicitação criada e convite preparado.",
+          text: warning
+            ? `Solicitação criada. Atenção: ${warning}`
+            : signed
+              ? "Documento gerado e assinado com sucesso."
+              : "Solicitação criada e link enviado pelo WhatsApp.",
           type: warning ? "error" : "success",
         });
         void load();
