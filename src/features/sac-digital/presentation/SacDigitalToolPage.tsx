@@ -117,6 +117,50 @@ function protocolInitials(protocol: SacDigitalProtocolListItem) {
   return `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}`.toUpperCase();
 }
 
+function safeSacAvatar(value?: string | null) {
+  const avatar = String(value || "").trim();
+  if (!avatar) return "";
+  const lower = avatar.toLowerCase();
+  return lower.startsWith("https://") || lower.startsWith("http://") || lower.startsWith("data:image/")
+    ? avatar
+    : "";
+}
+
+function ProtocolAvatar({
+  protocol,
+  compact = false,
+  selected = false,
+}: {
+  protocol: SacDigitalProtocolListItem;
+  compact?: boolean;
+  selected?: boolean;
+}) {
+  const avatar = safeSacAvatar(protocol.contact?.avatar_url);
+  const sizeClass = compact ? "h-10 w-10" : "h-11 w-11";
+  return (
+    <div
+      className={`relative flex ${sizeClass} shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black ${
+        selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+      }`}
+      aria-label={`Avatar de ${protocolDisplayName(protocol)}`}
+    >
+      <span>{protocolInitials(protocol)}</span>
+      {avatar && (
+        <img
+          src={avatar}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          className="absolute inset-0 h-full w-full object-cover"
+          onError={event => {
+            event.currentTarget.style.display = "none";
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 function deliveryStatus(message: SacDigitalMessage) {
   if (message.direction !== "outgoing") return "";
   const raw = message.raw_metadata || {};
@@ -1250,11 +1294,7 @@ export function SacDigitalToolPage({
                     : unread > 0 ? "border-l-2 border-l-primary bg-primary-soft/45 hover:bg-primary-soft/65"
                       : "bg-card hover:bg-muted/55"}`}
                 >
-                  <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black ${selected
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted text-muted-foreground"}`}>
-                    {protocolInitials(protocol)}
-                  </div>
+                  <ProtocolAvatar protocol={protocol} selected={selected} />
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(protocol)}</p>
@@ -1292,9 +1332,7 @@ export function SacDigitalToolPage({
             {selectedProtocol?.is_pending ? (
               <div className="flex h-full min-h-0 flex-col">
                 <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-black text-primary">
-                    {protocolInitials(selectedProtocol)}
-                  </div>
+                  <ProtocolAvatar protocol={selectedProtocol} compact />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(selectedProtocol)}</p>
                     <p className="text-xs text-muted-foreground">
@@ -1330,9 +1368,7 @@ export function SacDigitalToolPage({
             ) : selectedProtocol ? (
               <>
                 <div className="flex min-w-0 items-center gap-3 border-b border-border bg-card px-4 py-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-black text-primary">
-                    {protocolInitials(selectedProtocol)}
-                  </div>
+                  <ProtocolAvatar protocol={selectedProtocol} compact />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(selectedProtocol)}</p>
                     <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
