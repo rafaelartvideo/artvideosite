@@ -91,6 +91,8 @@ export type SacDigitalProtocolListItem = {
   opened_at: string | null;
   closed_at: string | null;
   last_message_at: string | null;
+  is_pending?: boolean;
+  pending_message?: string | null;
   contact: {
     id: string;
     name: string | null;
@@ -148,7 +150,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
 
   if (error) throw error;
 
-  return (data || []).map((row: any) => {
+  const protocols = (data || []).map((row: any) => {
     const contact = normalizeRelation<any>(row.contact);
     return {
       ...row,
@@ -160,6 +162,69 @@ export async function listSacDigitalProtocols(organizationId: string) {
         : null,
     };
   }) as SacDigitalProtocolListItem[];
+
+  // A primeira mensagem pode ser aceita pela SAC sem abrir protocolo.
+  // Exibir o registro pendente com identidade propria, sem fabricar protocolo.
+  const { data: pendingRows, error: pendingError } = await supabase
+    .from("sac_digital_outbound_starts")
+    .select(`
+      id,
+      contact_id,
+      external_contact_id,
+      message_text,
+      sent_at,
+      contact:sac_digital_contacts(
+        id,
+        name,
+        phone,
+        customer_id,
+        customer:customers(id,full_name)
+      )
+    `)
+    .eq("organization_id", organizationId)
+    .order("sent_at", { ascending: false })
+    .limit(100);
+
+  // Compatibilidade enquanto a migracao ainda nao foi aplicada: nao quebrar
+  // os protocolos reais so porque o recurso de pendentes nao esta disponivel.
+  if (pendingError) return protocols;
+
+  const pending = (pendingRows || []).filter((row: any) => {
+    const sentAt = new Date(String(row.sent_at)).getTime();
+    return !protocols.some(protocol =>
+      protocol.contact?.id === row.contact_id
+      && Boolean(protocol.opened_at)
+      && Number.isFinite(sentAt)
+      && new Date(String(protocol.opened_at)).getTime() >= sentAt - 30_000,
+    );
+  }).map((row: any): SacDigitalProtocolListItem => {
+    const contact = normalizeRelation<any>(row.contact);
+    return {
+      id: `pending:${row.id}`,
+      external_protocol_id: "",
+      status: "pending",
+      operator_id: null,
+      operator_name: null,
+      department_name: null,
+      channel_number: null,
+      opened_at: null,
+      closed_at: null,
+      last_message_at: row.sent_at,
+      is_pending: true,
+      pending_message: String(row.message_text || ""),
+      contact: contact
+        ? {
+            ...contact,
+            customer: normalizeRelation<any>(contact.customer),
+          }
+        : null,
+    };
+  });
+
+  return [...protocols, ...pending].sort((left, right) =>
+    new Date(String(right.last_message_at || right.opened_at || 0)).getTime()
+    - new Date(String(left.last_message_at || left.opened_at || 0)).getTime()
+  );
 }
 
 export async function listSacDigitalMessages(organizationId: string, protocolId: string) {
@@ -366,6 +431,7 @@ export async function startSacDigitalNewConversation(
     success: true;
     mode: "protocol" | "notification";
     protocol: string | null;
+    pending_start_id: string | null;
     external_contact_id: string;
   };
 }
