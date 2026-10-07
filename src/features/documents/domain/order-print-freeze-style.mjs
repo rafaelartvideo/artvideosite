@@ -2,14 +2,21 @@ function rounded(value) {
   return Number(Number(value).toFixed(3));
 }
 
+const UNSUPPORTED_CAPTURE_COLOR = /(?:^|[\\s,(])(?:oklch|oklab|lab|lch|color|color-mix)\\(/i;
+
 export function copyComputedStyle(sourceStyle, targetStyle) {
   const length = Number(sourceStyle?.length) || 0;
   for (let index = 0; index < length; index += 1) {
     const name = sourceStyle.item(index);
-    if (!name) continue;
+    if (!name || name.startsWith("--")) continue;
+    const value = sourceStyle.getPropertyValue(name);
+    // html2canvas usado pelo html2pdf ainda falha ao interpretar funções de cor
+    // modernas (ex.: oklch). O documento de impressão usa cores clássicas; essas
+    // propriedades vêm do tema global e não devem contaminar a captura isolada.
+    if (UNSUPPORTED_CAPTURE_COLOR.test(String(value || ""))) continue;
     targetStyle.setProperty(
       name,
-      sourceStyle.getPropertyValue(name),
+      value,
       sourceStyle.getPropertyPriority(name),
     );
   }
