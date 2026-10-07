@@ -259,6 +259,16 @@ export function OrderDetailsPage(props: Props) {
     };
   };
 
+  const buildSacTemplateDocument = async (templateId: string) => {
+    const template = printTemplates.templates.find(item => item.id === templateId);
+    if (!template) throw new Error("Documento não encontrado ou não está mais ativo.");
+    const prepared = await prepareTemplateDocument(template);
+    const frozen = await freezeOrderPrintPdf(prepared.configuredTemplate, prepared.context);
+    const safeTemplateName = String(template.name || "documento").replace(/[^a-z0-9._-]+/gi, "-");
+    const safeOrderNumber = String(detail?.os_number || "OS").replace(/[^a-z0-9._-]+/gi, "-");
+    return new File([frozen.blob], `${safeTemplateName}-${safeOrderNumber}.pdf`, { type: "application/pdf" });
+  };
+
   const printTemplate = async (template: PrintTemplate) => {
     if (printingTemplateId) return;
     setPrintError("");
@@ -374,6 +384,8 @@ export function OrderDetailsPage(props: Props) {
         order={detail}
         onClose={() => setSacMessageOpen(false)}
         onOpenChat={canViewSac && detail.customer_id ? openSacConversation : undefined}
+        documentTemplates={canPrintDocuments ? printTemplates.templates : []}
+        onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
       />
     )}
     {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
