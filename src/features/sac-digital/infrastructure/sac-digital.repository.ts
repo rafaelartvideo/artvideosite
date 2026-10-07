@@ -315,6 +315,14 @@ export function testSacDigitalConnection(organizationId: string) {
   });
 }
 
+export function retrySacDigitalWebhookEvent(organizationId: string, eventId: number) {
+  return invokeSacDigitalApi({
+    action: "retry_webhook_event",
+    organization_id: organizationId,
+    event_id: String(eventId),
+  });
+}
+
 export function refreshSacDigitalProtocol(organizationId: string, protocol: string) {
   return invokeSacDigitalApi({
     action: "refresh_protocol",
