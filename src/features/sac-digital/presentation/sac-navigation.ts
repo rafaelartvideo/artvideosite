@@ -15,6 +15,7 @@ export const SAC_AREA_LABELS: Record<string, string> = {
 };
 
 export const SAC_MODULE_SECTIONS = [
-  { id: 'conversations', label: 'Conversas' }, { id: 'resources', label: 'Recursos' },
-  { id: 'delivery_history', label: 'Histórico de envios' }, { id: 'sms_replies', label: 'Respostas SMS' },
+  { id: 'conversations', label: 'Conversas' },
+  { id: 'contacts', label: 'Clientes' },
+  { id: 'whatsapp_groups', label: 'Grupos do WhatsApp' },
 ];

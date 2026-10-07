@@ -1,7 +1,8 @@
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
-import { ingestEvent } from "../_shared/sac-events.mjs";
+import { eventEnabled } from "../_shared/sac-runtime.mjs";
+import { ingestEvent, eventType } from "../_shared/sac-events.mjs";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -54,6 +55,9 @@ Deno.serve(async request => {
   const payload = parsed && typeof parsed === "object" && !Array.isArray(parsed)
     ? parsed as Record<string, unknown>
     : { data: parsed };
+
+  // ACK disabled supplier callbacks without database access, queueing or worker calls.
+  if (!eventEnabled(eventType(payload))) return json({status:true});
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false },

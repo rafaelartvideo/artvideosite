@@ -1,7 +1,7 @@
 import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
-import { SacDigitalDeliveryHistory } from './SacDigitalDeliveryHistory';
 import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
-import { SacDigitalResources } from './SacDigitalResources';
+import { lazy, Suspense } from 'react';
+const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m => ({default: m.SacDigitalResources})));
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
@@ -1190,18 +1190,18 @@ export function SacDigitalToolPage({
             </AdminButton>
           )}
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
-          {canManage && onOpenSettings && (
-            <AdminButton variant="secondary" onClick={onOpenSettings}>
-              Configurações
-            </AdminButton>
-          )}
+
         </>
       }
     />
 
     <AdminSubnav value={moduleSection} items={SAC_MODULE_SECTIONS} onSelect={setModuleSection} ariaLabel="Seções do SAC Digital" />
-    {moduleSection === 'resources' && <SacDigitalResources organizationId={activeOrganizationId} hasPermission={hasPermission} protocol={selectedProtocol?.external_protocol_id} onOpenSettings={onOpenSettings} onInsertAnswer={text => { setDraft(text); setModuleSection('conversations'); }} />}
-    {(moduleSection === 'delivery_history' || moduleSection === 'sms_replies') && <SacDigitalDeliveryHistory key={moduleSection} organizationId={activeOrganizationId} kind={moduleSection} />}
+    {(moduleSection === 'contacts' || moduleSection === 'whatsapp_groups') &&
+      <Suspense fallback={<LoadingState text="Carregando..." />}>
+        <SacDigitalResources key={moduleSection} organizationId={activeOrganizationId} hasPermission={hasPermission}
+          initialArea={moduleSection === 'contacts' ? 'Contatos' : 'Grupos de WhatsApp'} />
+      </Suspense>}
+
 
     {message && (
       <div className={`rounded-lg border px-3 py-2 text-sm font-semibold ${message.error

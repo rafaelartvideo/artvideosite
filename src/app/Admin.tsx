@@ -52,7 +52,8 @@ const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabS
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
-const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
+// Legacy SAC settings are intentionally not imported in the operational runtime.
+// const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
@@ -146,7 +147,7 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
-    if (tab === "integrations" && isPlatformOperatorOrganization) return hasPermission("sac_digital.settings.manage");
+    if (tab === "integrations") return false;
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
@@ -294,7 +295,6 @@ export function AdminDashboard({
       ? canAccessSacDigitalTool
         ? <SacDigitalToolPage
           onBack={() => navigateAdmin("tools")}
-          onOpenSettings={hasPermission("sac_digital.settings.manage") ? () => navigateAdmin("integrations") : undefined}
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers", customerId, "customer"))
             : undefined}
@@ -372,7 +372,7 @@ export function AdminDashboard({
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
-            <Route path="operation/integrations/*" element={<SacDigitalSettingsPage onBack={() => backToParent("integrations")} />} />
+            <Route path="operation/integrations/*" element={<Navigate to={adminPath("tools", "sac-digital")} replace />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, X } from 'lucide-react';
-import { SAC_ENDPOINTS } from '../../../../supabase/functions/_shared/sac-contracts.mjs';
+import { resourceEnabled } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
+import { SAC_ENDPOINTS } from '../../../../supabase/functions/_shared/sac-operational-contracts.mjs';
 import { fieldVisible, formValues, resultItems, initialValues, recordContext, friendlyEntries, actionLabel } from '../domain/resource-ui.mjs';
 import { operateSacDigitalResource, sacDigitalMediaUrl, type SacDigitalResourceResult } from '../infrastructure/sac-digital.repository';
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminCardToolbar, AdminIconButton, BtnSecondary, Section } from '@/shared/ui/admin/AdminLayout';
@@ -75,19 +76,19 @@ export function SacResourceValue({ value, compact = false }: { value: any; compa
   return <span className="break-words">{date && !Number.isNaN(date.getTime()) ? date.toLocaleString('pt-BR') : text}</span>;
 }
 
-export function SacDigitalResources({ organizationId, hasPermission, protocol, onInsertAnswer, onOpenSettings }: {
-  organizationId: string; hasPermission: (p: string) => boolean; protocol?: string;
+export function SacDigitalResources({ organizationId, hasPermission, protocol, onInsertAnswer, onOpenSettings, initialArea = 'Contatos' }: {
+  initialArea?: string; organizationId: string; hasPermission: (p: string) => boolean; protocol?: string;
   onInsertAnswer?: (text: string) => void; onOpenSettings?: () => void;
 }) {
-  const endpoints = SAC_ENDPOINTS as any[];
+  const endpoints = (SAC_ENDPOINTS as any[]).filter(e => resourceEnabled(e.id));
   const areas = useMemo(() => [...new Set(endpoints.map(e => e.area))], []);
   const groups = useMemo(() => {
     const assigned = new Set(SAC_RESOURCE_GROUPS.flatMap(g => g.areas));
     const extra = areas.filter(a => !assigned.has(a));
     return [...SAC_RESOURCE_GROUPS.map(g => ({ ...g, areas: g.areas.filter(a => areas.includes(a)) })), ...(extra.length ? [{ id: 'other', label: 'Outros', areas: extra }] : [])].filter(g => g.areas.length);
   }, [areas]);
-  const [group, setGroup] = useState('registries');
-  const [area, setArea] = useState('Contatos');
+  const [group, setGroup] = useState(initialArea === 'Contatos' ? 'registries' : 'communication');
+  const [area, setArea] = useState(initialArea);
   const available = endpoints.filter(e => e.area === area);
   const [selectedId, setSelectedId] = useState<number>(() => defaultAction(available)?.id);
   const endpoint = available.find(e => e.id === selectedId) || available[0];
@@ -162,8 +163,8 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
   const rowActions = available.filter(action => action.fields.some((f: Field) => IDENTIFIER.test(f.name)));
   const canPaginate = read && endpoint?.fields.some((f: Field) => ['p', 'page'].includes(f.name));
   return <section aria-label="Recursos SAC Digital" className="admin-operation-mobile-labels min-w-0 space-y-4">
-    <AdminSubnav value={group} items={groups.map(g => ({ id: g.id, label: g.label }))} ariaLabel="Grupos de recursos SAC Digital" onSelect={id => { setGroup(id); selectArea(groups.find(g => g.id === id)!.areas[0]); }} />
-    <AdminSubnav value={area} items={(groups.find(g => g.id === group)?.areas || []).map(id => ({ id, label: SAC_AREA_LABELS[id] || id }))} ariaLabel="Áreas de recursos SAC Digital" onSelect={selectArea} />
+    {false && <AdminSubnav value={group} items={groups.map(g => ({ id: g.id, label: g.label }))} ariaLabel="Grupos de recursos SAC Digital" onSelect={id => { setGroup(id); selectArea(groups.find(g => g.id === id)!.areas[0]); }} />}
+    {false && <AdminSubnav value={area} items={(groups.find(g => g.id === group)?.areas || []).map(id => ({ id, label: SAC_AREA_LABELS[id] || id }))} ariaLabel="Áreas de recursos SAC Digital" onSelect={selectArea} />}
 
     <AdminCard square>
       <AdminCardToolbar className="sm:items-end">

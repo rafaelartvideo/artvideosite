@@ -1,3 +1,4 @@
+import { actionEnabled } from "../_shared/sac-runtime.mjs";
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
 import { executeSacOperation, operationPermission, parsePagination, operatorScopes, importPhoneCandidates, mayTryImportVariant, routeProtocolOperation, channelCapabilityError, responseEnvelope, ownMediaStoragePath, chooseImportChannel } from "../_shared/sac-gateway.ts";
@@ -804,6 +805,9 @@ Deno.serve(async request => {
     const organizationId = String(body.organization_id || "").trim();
     if (!isUuid(organizationId)) return json({ success: false, error: "Empresa inválida." }, 400);
 
+    if (!actionEnabled(action, body.endpoint_id)) {
+      return json({success:false,error:"Este recurso está desativado na Union. Utilize o painel da SAC Digital."},410);
+    }
     const authorization = bearerToken(request);
     const internalRequest = authorization.length > 0 && authorization === serviceRoleKey;
 

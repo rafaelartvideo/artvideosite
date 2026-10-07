@@ -1,3 +1,4 @@
+import { actionEnabled } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { singleFlight } from '../domain/refresh-coordinator.mjs';
 import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia } from '../domain/resource-ui.mjs';
 import { supabase, supabaseUrl } from "@/lib/supabase";
@@ -310,6 +311,7 @@ const requestIntents = new IntentLedger(() => crypto.randomUUID(), typeof sessio
 async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
   const intentBody = body instanceof FormData ? Object.fromEntries([...body.entries()].filter(([key])=>key!=="intent_key").map(([key,value]) => [key,value instanceof File ? {name:value.name,size:value.size,lastModified:value.lastModified}:value])) : body;
   const action = String(intentBody.action || "");
+  if (!actionEnabled(action, intentBody.endpoint_id)) throw new Error("Este recurso está desativado na Union. Utilize o painel da SAC Digital.");
   const mutation = /^(send_|start_new|finish_|forward_|return_to_|assume_|resource_operation)/.test(action);
   if (mutation) { const intent = requestIntents.begin(intentBody); if (body instanceof FormData) body.set("intent_key",intent); else body={...body,intent_key:intent}; }
   const { data, error } = await supabase.functions.invoke("sac-digital-api", { body });

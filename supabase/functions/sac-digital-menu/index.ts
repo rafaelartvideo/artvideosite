@@ -1,6 +1,8 @@
+import {LEGACY_SAC_ENABLED} from "../_shared/sac-runtime.mjs";
 import {createClient} from 'npm:@supabase/supabase-js@2.112.3';
 import {menuResponse,resolveMenuCustomer} from '../_shared/sac-menu.mjs';
 Deno.serve(async request=>{
+ if(!LEGACY_SAC_ENABLED)return Response.json({sucesso:false,retorno:{texto:'Gerencie os menus no painel SAC Digital.',menus:[]}});
  if(!['GET','POST'].includes(request.method))return Response.json({sucesso:false},{status:405});
  const url=Deno.env.get('SUPABASE_URL'),key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');if(!url||!key)return Response.json({sucesso:false},{status:503});
  const token=new URL(request.url).searchParams.get('token')||'';if(!/^[0-9a-f-]{36}$/i.test(token))return Response.json({sucesso:false},{status:401});
