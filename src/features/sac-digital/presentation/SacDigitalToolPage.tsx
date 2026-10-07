@@ -4,6 +4,8 @@ import {
   Image as ImageIcon,
   MapPin,
   MessageCircle,
+  Paperclip,
+  X,
   Search,
   Send,
   Settings,
@@ -39,6 +41,7 @@ import {
   returnSacDigitalProtocolToInbox,
   sacDigitalMediaUrl,
   sendSacDigitalTextMessage,
+  sendSacDigitalMediaMessage,
   type SacDigitalIntegrationStatus,
   type SacDigitalCustomerOrder,
   type SacDigitalMessage,
@@ -153,6 +156,7 @@ export function SacDigitalToolPage({
   const [inboxLoading, setInboxLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
   const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "assume" | "inbox" | "finish" | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
@@ -182,7 +186,8 @@ export function SacDigitalToolPage({
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
-  const syncedProtocolsRef = useRef(new Set<string>());
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const sendingRef = useRef(false);
   const activePendingContactIdRef = useRef<string | null>(null);
 
   const selectedProtocol = useMemo(
@@ -370,10 +375,9 @@ export function SacDigitalToolPage({
         // Não bloqueia a abertura da conversa.
       }
 
-      const syncKey = `${activeOrganizationId}:${selectedProtocol.external_protocol_id}`;
-      if (syncedProtocolsRef.current.has(syncKey)) return;
-      syncedProtocolsRef.current.add(syncKey);
-
+      // Ao reabrir uma conversa, buscar novamente o historico na SAC.
+      // Nao reter uma marca permanente de sincronizado: mensagens externas
+      // podem ter ocorrido enquanto a Union estava fechada/offline.
       try {
         await refreshSacDigitalProtocol(
           activeOrganizationId,
@@ -387,7 +391,7 @@ export function SacDigitalToolPage({
         await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
         if (!cancelled) await loadUnreadCounts();
       } catch {
-        syncedProtocolsRef.current.delete(syncKey);
+        // Mantem as mensagens locais quando a SAC estiver indisponivel.
       }
     };
 
@@ -485,29 +489,53 @@ export function SacDigitalToolPage({
   }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
 
   const sendMessage = async () => {
-    if (!activeOrganizationId || !selectedProtocol || !canSendMessages || sending) return;
+    if (!activeOrganizationId || !selectedProtocol || !canSendMessages || sendingRef.current
+      || selectedProtocol.status === "finished" || selectedProtocol.is_pending || !status?.enabled) return;
     const text = draft.trim();
-    if (!text) return;
+    const selectedFile = attachment;
+    if (!text && !selectedFile) return;
 
+    sendingRef.current = true;
     setSending(true);
     setMessage(null);
     try {
-      await sendSacDigitalTextMessage(
-        activeOrganizationId,
-        selectedProtocol.external_protocol_id,
-        text,
-      );
-      setDraft("");
-      await Promise.all([
-        loadMessages(selectedProtocol.id, false),
-        loadProtocols(false),
-      ]);
+      if (selectedFile) {
+        await sendSacDigitalMediaMessage(
+          activeOrganizationId,
+          selectedProtocol.external_protocol_id,
+          selectedFile,
+          text,
+        );
+      } else {
+        await sendSacDigitalTextMessage(
+          activeOrganizationId,
+          selectedProtocol.external_protocol_id,
+          text,
+        );
+      }
     } catch (error) {
       setMessage({
         text: systemErrorMessage(error, "Não foi possível enviar a mensagem pela SAC Digital."),
         error: true,
       });
+      sendingRef.current = false;
+      setSending(false);
+      return;
+    }
+
+    // O envio ja foi aceito. Uma falha ao recarregar nao deve sugerir reenvio.
+    setDraft("");
+    setAttachment(null);
+    if (mediaInputRef.current) mediaInputRef.current.value = "";
+    try {
+      await Promise.all([
+        loadMessages(selectedProtocol.id, false),
+        loadProtocols(false),
+      ]);
+    } catch {
+      setMessage({ text: "Mensagem enviada pela SAC Digital. A atualização do histórico será retomada na próxima abertura." });
     } finally {
+      sendingRef.current = false;
       setSending(false);
     }
   };
@@ -814,6 +842,8 @@ export function SacDigitalToolPage({
   };
 
   useEffect(() => {
+    setAttachment(null);
+    if (mediaInputRef.current) mediaInputRef.current.value = "";
     setRoutingOpen(false);
     setCustomerLinkOpen(false);
     setQuickCustomerOpen(false);
@@ -1481,39 +1511,98 @@ export function SacDigitalToolPage({
                 </div>
 
                 <div className="border-t border-border bg-card p-3">
-                  {canSendMessages ? (
-                    <form
-                      className="mx-auto flex max-w-4xl min-w-0 items-end gap-2"
-                      onSubmit={event => {
-                        event.preventDefault();
-                        void sendMessage();
-                      }}
-                    >
-                      <textarea
-                        rows={1}
-                        value={draft}
-                        disabled={sending || !status?.enabled}
-                        placeholder={status?.enabled ? "Digite uma mensagem" : "Integração desativada"}
-                        onChange={event => setDraft(event.target.value)}
-                        onKeyDown={event => {
-                          if (event.key === "Enter" && !event.shiftKey) {
-                            event.preventDefault();
-                            void sendMessage();
-                          }
+                  {selectedProtocol.status === "finished" ? (
+                    <p className="py-2 text-center text-xs text-muted-foreground">
+                      Este protocolo está finalizado. Não é possível enviar novas mensagens nele.
+                    </p>
+                  ) : canSendMessages ? (
+                    <div className="mx-auto max-w-4xl space-y-2">
+                      {attachment && (
+                        <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                          <Paperclip size={15} className="shrink-0 text-muted-foreground" />
+                          <span className="min-w-0 flex-1 truncate text-foreground">
+                            {attachment.name} · {(attachment.size / (1024 * 1024)).toFixed(2)} MB
+                          </span>
+                          <button
+                            type="button"
+                            disabled={sending}
+                            onClick={() => {
+                              setAttachment(null);
+                              if (mediaInputRef.current) mediaInputRef.current.value = "";
+                            }}
+                            aria-label="Remover anexo"
+                            className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+                          >
+                            <X size={16} />
+                          </button>
+                        </div>
+                      )}
+                      <form
+                        className="flex min-w-0 items-end gap-2"
+                        onSubmit={event => {
+                          event.preventDefault();
+                          void sendMessage();
                         }}
-                        className="admin-input min-h-[44px] min-w-0 flex-1 resize-none rounded-full border border-border bg-muted/55 px-4 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/20"
-                      />
-                      <AdminButton
-                        type="submit"
-                        disabled={!draft.trim() || !status?.enabled}
-                        loading={sending}
-                        aria-label="Enviar mensagem"
-                        title="Enviar mensagem"
-                        className="h-11 w-11 shrink-0 rounded-full px-0"
                       >
-                        <Send size={17} />
-                      </AdminButton>
-                    </form>
+                        <input
+                          ref={mediaInputRef}
+                          type="file"
+                          className="hidden"
+                          aria-label="Selecionar anexo"
+                          onChange={event => {
+                            const file = event.target.files?.[0] || null;
+                            if (!file) return;
+                            if (file.size > 25 * 1024 * 1024) {
+                              setMessage({ text: "O arquivo deve ter no máximo 25 MB.", error: true });
+                              event.target.value = "";
+                              return;
+                            }
+                            if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
+                              setMessage({ text: "Imagens devem ter no máximo 1 MB na SAC Digital.", error: true });
+                              event.target.value = "";
+                              return;
+                            }
+                            setMessage(null);
+                            setAttachment(file);
+                          }}
+                        />
+                        <AdminButton
+                          type="button"
+                          variant="secondary"
+                          disabled={sending || !status?.enabled}
+                          onClick={() => mediaInputRef.current?.click()}
+                          aria-label="Anexar imagem, áudio, vídeo ou arquivo"
+                          title="Anexar arquivo (até 25 MB; imagens até 1 MB)"
+                          className="h-11 w-11 shrink-0 rounded-full px-0"
+                        >
+                          <Paperclip size={17} />
+                        </AdminButton>
+                        <textarea
+                          rows={1}
+                          value={draft}
+                          disabled={sending || !status?.enabled}
+                          placeholder={attachment ? "Legenda (opcional)" : status?.enabled ? "Digite uma mensagem" : "Integração desativada"}
+                          onChange={event => setDraft(event.target.value)}
+                          onKeyDown={event => {
+                            if (event.key === "Enter" && !event.shiftKey) {
+                              event.preventDefault();
+                              void sendMessage();
+                            }
+                          }}
+                          className="admin-input min-h-[44px] min-w-0 flex-1 resize-none rounded-full border border-border bg-muted/55 px-4 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/20"
+                        />
+                        <AdminButton
+                          type="submit"
+                          disabled={(!draft.trim() && !attachment) || !status?.enabled || sending}
+                          loading={sending}
+                          aria-label="Enviar mensagem"
+                          title="Enviar mensagem"
+                          className="h-11 w-11 shrink-0 rounded-full px-0"
+                        >
+                          <Send size={17} />
+                        </AdminButton>
+                      </form>
+                    </div>
                   ) : (
                     <p className="py-2 text-center text-xs text-muted-foreground">
                       Sua função pode visualizar esta conversa, mas não enviar mensagens.
