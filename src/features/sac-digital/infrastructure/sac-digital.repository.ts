@@ -215,8 +215,30 @@ export async function markSacDigitalProtocolRead(
 
 async function invokeSacDigitalApi(body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke("sac-digital-api", { body });
-  if (error) throw error;
-  if (!data?.success) throw new Error(String(data?.error || "A SAC Digital não conseguiu concluir a operação."));
+
+  if (error) {
+    let apiMessage = "";
+    try {
+      const context = (error as any)?.context;
+      const response = context && typeof context.clone === "function" ? context.clone() : context;
+      if (response && typeof response.json === "function") {
+        const payload = await response.json();
+        apiMessage = String(payload?.error || payload?.message || "").trim();
+      }
+    } catch {
+      // Mantém a mensagem padrão quando a resposta da função não puder ser lida.
+    }
+
+    throw new Error(
+      apiMessage
+      || String((error as any)?.message || "").trim()
+      || "A SAC Digital não conseguiu concluir a operação.",
+    );
+  }
+
+  if (!data?.success) {
+    throw new Error(String(data?.error || "A SAC Digital não conseguiu concluir a operação."));
+  }
   return data as Record<string, unknown>;
 }
 
