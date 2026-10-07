@@ -30,6 +30,7 @@ import {
   getSacDigitalRoutingOptions,
   getSacDigitalUnreadCounts,
   linkSacDigitalCustomer,
+  listSacDigitalCustomerOrders,
   listSacDigitalMessages,
   listSacDigitalProtocols,
   markSacDigitalProtocolRead,
@@ -38,6 +39,7 @@ import {
   sacDigitalMediaUrl,
   sendSacDigitalTextMessage,
   type SacDigitalIntegrationStatus,
+  type SacDigitalCustomerOrder,
   type SacDigitalMessage,
   type SacDigitalOperatorBinding,
   type SacDigitalProtocolListItem,
@@ -126,10 +128,14 @@ export function SacDigitalToolPage({
   onBack,
   onOpenSettings,
   onOpenCustomer,
+  onOpenOrder,
+  onCreateOrder,
 }: {
   onBack: () => void;
   onOpenSettings?: () => void;
   onOpenCustomer?: (customerId: string) => void;
+  onOpenOrder?: (orderId: string) => void;
+  onCreateOrder?: (customerId: string) => void;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("sac_digital.settings.manage");
@@ -138,6 +144,8 @@ export function SacDigitalToolPage({
   const canSendMessages = hasPermission("sac_digital.messages.send");
   const canViewCustomers = hasPermission("customers.view");
   const canCreateCustomers = hasPermission("customers.create");
+  const canViewOrders = hasPermission("orders.view");
+  const canCreateOrders = hasPermission("orders.create");
 
   const [loading, setLoading] = useState(true);
   const [inboxLoading, setInboxLoading] = useState(false);
@@ -156,6 +164,9 @@ export function SacDigitalToolPage({
   const [customerSearchLoading, setCustomerSearchLoading] = useState(false);
   const [customerLinkingId, setCustomerLinkingId] = useState<string | null>(null);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [ordersPanelOpen, setOrdersPanelOpen] = useState(false);
+  const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
+  const [customerOrders, setCustomerOrders] = useState<SacDigitalCustomerOrder[]>([]);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
@@ -502,6 +513,7 @@ export function SacDigitalToolPage({
   const openCustomerLink = () => {
     if (!canViewCustomers || !selectedProtocol?.contact) return;
     setRoutingOpen(false);
+    setOrdersPanelOpen(false);
     setFinishConfirmOpen(false);
     setCustomerLinkOpen(true);
     setCustomerResults([]);
@@ -525,6 +537,8 @@ export function SacDigitalToolPage({
         customerId,
       );
       setCustomerLinkOpen(false);
+      setOrdersPanelOpen(false);
+      setCustomerOrders([]);
       setCustomerResults([]);
       setCustomerSearch("");
       setMessage({ text: "Cliente vinculado ao atendimento SAC." });
@@ -542,6 +556,34 @@ export function SacDigitalToolPage({
   const handleQuickCustomerSaved = async (customer: any) => {
     if (!customer?.id) return;
     await linkCustomer(String(customer.id));
+  };
+
+  const openCustomerOrders = async () => {
+    const customerId = selectedProtocol?.contact?.customer_id;
+    if (!activeOrganizationId || !customerId || !canViewOrders) return;
+
+    if (ordersPanelOpen) {
+      setOrdersPanelOpen(false);
+      return;
+    }
+
+    setCustomerLinkOpen(false);
+    setRoutingOpen(false);
+    setFinishConfirmOpen(false);
+    setOrdersPanelOpen(true);
+    setCustomerOrdersLoading(true);
+    setMessage(null);
+    try {
+      const rows = await listSacDigitalCustomerOrders(activeOrganizationId, customerId);
+      setCustomerOrders(rows);
+    } catch (error) {
+      setMessage({
+        text: systemErrorMessage(error, "Não foi possível carregar as OS deste cliente."),
+        error: true,
+      });
+    } finally {
+      setCustomerOrdersLoading(false);
+    }
   };
 
   const loadRoutingOptionsIfNeeded = async () => {
@@ -584,6 +626,7 @@ export function SacDigitalToolPage({
     if (!activeOrganizationId || !canManageProtocols) return;
     setRoutingOpen(true);
     setCustomerLinkOpen(false);
+    setOrdersPanelOpen(false);
     setFinishConfirmOpen(false);
     if (routingOptions || protocolAction === "routing") return;
     setProtocolAction("routing");
@@ -683,6 +726,8 @@ export function SacDigitalToolPage({
     setRoutingOpen(false);
     setCustomerLinkOpen(false);
     setQuickCustomerOpen(false);
+    setOrdersPanelOpen(false);
+    setCustomerOrders([]);
     setFinishConfirmOpen(false);
     setDepartmentId("");
     setOperatorId("");
@@ -869,16 +914,23 @@ export function SacDigitalToolPage({
                   </div>
                 </div>
 
-                {canManageProtocols && selectedProtocol.status !== "finished" && (
+                {(
+                  (canManageProtocols && selectedProtocol.status !== "finished")
+                  || (canViewCustomers && Boolean(selectedProtocol.contact))
+                  || (canViewOrders && Boolean(selectedProtocol.contact?.customer_id))
+                ) && (
                   <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-4 py-2.5">
-                    <AdminButton
-                      onClick={() => void assumeProtocol()}
-                      loading={protocolAction === "assume"}
-                      disabled={isMyProtocol || Boolean(protocolAction && protocolAction !== "assume")}
-                      className="shrink-0"
-                    >
-                      {isMyProtocol ? "Assumido por você" : "Assumir"}
-                    </AdminButton>
+                    {canManageProtocols && selectedProtocol.status !== "finished" && (
+                      <AdminButton
+                        onClick={() => void assumeProtocol()}
+                        loading={protocolAction === "assume"}
+                        disabled={isMyProtocol || Boolean(protocolAction && protocolAction !== "assume")}
+                        className="shrink-0"
+                      >
+                        {isMyProtocol ? "Assumido por você" : "Assumir"}
+                      </AdminButton>
+                    )}
+
                     {canViewCustomers && selectedProtocol.contact?.customer_id ? (
                       <>
                         {onOpenCustomer && (
@@ -907,38 +959,65 @@ export function SacDigitalToolPage({
                         Vincular cliente
                       </AdminButton>
                     ) : null}
-                    <AdminButton
-                      variant="secondary"
-                      onClick={() => void openRouting()}
-                      loading={protocolAction === "routing"}
-                      disabled={Boolean(protocolAction && protocolAction !== "routing")}
-                      className="shrink-0"
-                    >
-                      Encaminhar
-                    </AdminButton>
-                    {selectedProtocol.status !== "inbox" && (
+
+                    {selectedProtocol.contact?.customer_id && canViewOrders && (
                       <AdminButton
                         variant="secondary"
-                        onClick={() => void returnToInbox()}
-                        loading={protocolAction === "inbox"}
-                        disabled={Boolean(protocolAction && protocolAction !== "inbox")}
+                        onClick={() => void openCustomerOrders()}
+                        loading={customerOrdersLoading}
                         className="shrink-0"
                       >
-                        Caixa de entrada
+                        OS do cliente
                       </AdminButton>
                     )}
-                    <AdminButton
-                      variant="secondary"
-                      onClick={() => {
-                        setRoutingOpen(false);
-                        setCustomerLinkOpen(false);
-                        setFinishConfirmOpen(true);
-                      }}
-                      disabled={Boolean(protocolAction)}
-                      className="shrink-0"
-                    >
-                      Finalizar
-                    </AdminButton>
+
+                    {selectedProtocol.contact?.customer_id && canCreateOrders && onCreateOrder && (
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}
+                        className="shrink-0"
+                      >
+                        Nova OS
+                      </AdminButton>
+                    )}
+
+                    {canManageProtocols && selectedProtocol.status !== "finished" && (
+                      <>
+                        <AdminButton
+                          variant="secondary"
+                          onClick={() => void openRouting()}
+                          loading={protocolAction === "routing"}
+                          disabled={Boolean(protocolAction && protocolAction !== "routing")}
+                          className="shrink-0"
+                        >
+                          Encaminhar
+                        </AdminButton>
+                        {selectedProtocol.status !== "inbox" && (
+                          <AdminButton
+                            variant="secondary"
+                            onClick={() => void returnToInbox()}
+                            loading={protocolAction === "inbox"}
+                            disabled={Boolean(protocolAction && protocolAction !== "inbox")}
+                            className="shrink-0"
+                          >
+                            Caixa de entrada
+                          </AdminButton>
+                        )}
+                        <AdminButton
+                          variant="secondary"
+                          onClick={() => {
+                            setRoutingOpen(false);
+                            setCustomerLinkOpen(false);
+                            setOrdersPanelOpen(false);
+                            setFinishConfirmOpen(true);
+                          }}
+                          disabled={Boolean(protocolAction)}
+                          className="shrink-0"
+                        >
+                          Finalizar
+                        </AdminButton>
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -1025,6 +1104,81 @@ export function SacDigitalToolPage({
                             </div>
                           );
                         })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {ordersPanelOpen && canViewOrders && selectedProtocol.contact?.customer_id && (
+                  <div className="border-b border-border bg-muted/30 px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-black text-foreground">Ordens de Serviço do cliente</p>
+                        <p className="mt-0.5 text-[10px] text-muted-foreground">Últimas OS vinculadas a este cadastro.</p>
+                      </div>
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => setOrdersPanelOpen(false)}
+                      >
+                        Fechar
+                      </AdminButton>
+                    </div>
+
+                    {customerOrdersLoading ? (
+                      <div className="py-4">
+                        <LoadingState text="Carregando OS..." />
+                      </div>
+                    ) : customerOrders.length === 0 ? (
+                      <div className="mt-3 rounded-lg border border-border bg-card px-3 py-3 text-xs text-muted-foreground">
+                        Este cliente ainda não possui OS cadastrada.
+                      </div>
+                    ) : (
+                      <div className="mt-3 max-h-56 overflow-y-auto rounded-lg border border-border bg-card">
+                        {customerOrders.map(order => (
+                          <div
+                            key={order.id}
+                            className="flex min-w-0 items-center justify-between gap-3 border-b border-border px-3 py-2.5 last:border-b-0"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <p className="truncate text-xs font-black text-foreground">
+                                  OS {order.os_number || order.id.slice(0, 8)}
+                                </p>
+                                {order.is_solved && (
+                                  <span className="shrink-0 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[8px] font-bold text-emerald-700 dark:text-emerald-300">
+                                    Resolvida
+                                  </span>
+                                )}
+                              </div>
+                              <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
+                                {[
+                                  order.order_status?.name || "",
+                                  order.situation?.name || "",
+                                  formatCompactDate(order.created_at),
+                                ].filter(Boolean).join(" · ")}
+                              </p>
+                            </div>
+                            {onOpenOrder && (
+                              <AdminButton
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => onOpenOrder(order.id)}
+                              >
+                                Abrir
+                              </AdminButton>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {canCreateOrders && onCreateOrder && (
+                      <div className="mt-3 flex justify-end">
+                        <AdminButton
+                          onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}
+                        >
+                          Nova OS
+                        </AdminButton>
                       </div>
                     )}
                   </div>
