@@ -51,6 +51,7 @@ const protocolStatusLabel: Record<string, string> = {
   open: "Aberto",
   in_att: "Em atendimento",
   inbox: "Recado",
+  pending: "Aguardando protocolo",
   finished: "Finalizado",
 };
 
@@ -182,11 +183,20 @@ export function SacDigitalToolPage({
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const syncedProtocolsRef = useRef(new Set<string>());
+  const activePendingContactIdRef = useRef<string | null>(null);
 
   const selectedProtocol = useMemo(
     () => protocols.find(protocol => protocol.id === selectedProtocolId) || null,
     [protocols, selectedProtocolId],
   );
+
+  useEffect(() => {
+    if (selectedProtocol?.is_pending) {
+      activePendingContactIdRef.current = selectedProtocol.contact?.id || null;
+    } else if (selectedProtocol) {
+      activePendingContactIdRef.current = null;
+    }
+  }, [selectedProtocol]);
 
   const operatorFilterOptions = useMemo(
     () => Array.from(new Set(
@@ -248,11 +258,17 @@ export function SacDigitalToolPage({
     try {
       const next = await listSacDigitalProtocols(activeOrganizationId);
       setProtocols(next);
-      setSelectedProtocolId(current =>
-        current && next.some(protocol => protocol.id === current)
-          ? current
-          : next[0]?.id || null,
-      );
+      setSelectedProtocolId(current => {
+        if (current && next.some(protocol => protocol.id === current)) return current;
+        // A SAC abriu um protocolo: selecionar a conversa real no lugar da pendente.
+        if (current?.startsWith("pending:") && activePendingContactIdRef.current) {
+          const resolved = next.find(protocol =>
+            !protocol.is_pending && protocol.contact?.id === activePendingContactIdRef.current,
+          );
+          if (resolved) return resolved.id;
+        }
+        return next[0]?.id || null;
+      });
     } catch (error) {
       setMessage({
         text: systemErrorMessage(error, "Não foi possível carregar as conversas do SAC Digital."),
@@ -335,6 +351,10 @@ export function SacDigitalToolPage({
     let cancelled = false;
 
     const openConversation = async () => {
+      if (selectedProtocol?.is_pending) {
+        setMessages([]);
+        return;
+      }
       await loadMessages(selectedProtocolId, true);
       if (
         cancelled
@@ -381,6 +401,7 @@ export function SacDigitalToolPage({
     loadProtocols,
     loadUnreadCounts,
     selectedProtocol?.external_protocol_id,
+    selectedProtocol?.is_pending,
     selectedProtocolId,
   ]);
 
@@ -403,6 +424,18 @@ export function SacDigitalToolPage({
           event: "*",
           schema: "public",
           table: "sac_digital_protocols",
+          filter: `organization_id=eq.${activeOrganizationId}`,
+        },
+        () => {
+          void loadProtocols(false);
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "sac_digital_outbound_starts",
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         () => {
@@ -481,13 +514,27 @@ export function SacDigitalToolPage({
   };
 
 
-  const handleNewConversationStarted = async (protocol: string | null) => {
+  const handleNewConversationStarted = async (result: {
+    protocol: string | null;
+    pending_start_id: string | null;
+  }) => {
     if (!activeOrganizationId) return;
 
+    // A nova conversa deve ficar visivel mesmo com filtros anteriores ativos.
+    setConversationSearch("");
+    setStatusFilter("all");
+    setOperatorFilter("all");
+
+    const protocol = result.protocol;
     if (!protocol) {
       await loadProtocols(false);
+      if (result.pending_start_id) {
+        setSelectedProtocolId(`pending:${result.pending_start_id}`);
+      }
       setMessage({
-        text: "Mensagem inicial enviada. O atendimento aparecerá assim que a SAC Digital abrir o protocolo.",
+        text: result.pending_start_id
+          ? "Mensagem inicial enviada. A conversa está na lista como aguardando protocolo."
+          : "Mensagem enviada pela SAC Digital, mas o registro pendente ainda não está disponível na Union. O protocolo aparecerá quando a SAC o criar.",
       });
       return;
     }
@@ -847,7 +894,7 @@ export function SacDigitalToolPage({
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {protocols.length} atendimento(s) · {unreadConversationCount > 0 ? `${unreadConversationCount} não lida(s)` : "tempo real"}
+                  {protocols.length} conversa(s) · {unreadConversationCount > 0 ? `${unreadConversationCount} não lida(s)` : "tempo real"}
                 </p>
               </div>
               <div className="relative mt-3">
@@ -874,6 +921,7 @@ export function SacDigitalToolPage({
                   <option value="open">Abertas</option>
                   <option value="in_att">Em atendimento</option>
                   <option value="inbox">Caixa de entrada</option>
+                  <option value="pending">Aguardando protocolo</option>
                   <option value="finished">Finalizadas</option>
                 </select>
                 <select
@@ -922,7 +970,7 @@ export function SacDigitalToolPage({
                     <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
                       {protocol.contact?.phone
                         ? formatPhone(protocol.contact.phone)
-                        : `Protocolo ${protocol.external_protocol_id}`}
+                        : protocol.is_pending ? "Mensagem inicial enviada" : `Protocolo ${protocol.external_protocol_id}`}
                     </p>
                     <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
                       <span className="truncate text-[9px] font-bold text-muted-foreground">
@@ -946,7 +994,39 @@ export function SacDigitalToolPage({
           </aside>
 
           <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
-            {selectedProtocol ? (
+            {selectedProtocol?.is_pending ? (
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-black text-primary">
+                    {protocolInitials(selectedProtocol)}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(selectedProtocol)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {formatPhone(selectedProtocol.contact?.phone)} · Aguardando abertura de protocolo
+                    </p>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 overflow-y-auto bg-muted/25 px-3 py-4 sm:px-5">
+                  <div className="mx-auto max-w-4xl">
+                    <div className="flex justify-end">
+                      <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
+                        <p className="whitespace-pre-wrap break-words text-sm leading-5">
+                          {selectedProtocol.pending_message}
+                        </p>
+                        <p className="mt-1 text-right text-[9px] opacity-60">
+                          Enviada à SAC · {formatCompactDate(selectedProtocol.last_message_at)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t border-border bg-card px-4 py-3 text-center text-xs text-muted-foreground">
+                  A mensagem inicial foi aceita pela SAC Digital. Assim que existir um protocolo,
+                  esta conversa será substituída pelo atendimento, com as ações e mensagens disponíveis.
+                </div>
+              </div>
+            ) : selectedProtocol ? (
               <>
                 <div className="flex min-w-0 items-center gap-3 border-b border-border bg-card px-4 py-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-xs font-black text-primary">
