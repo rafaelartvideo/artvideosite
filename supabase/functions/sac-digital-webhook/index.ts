@@ -208,32 +208,39 @@ Deno.serve(async request => {
     shouldEnrich = !projectedProtocol?.contact_id;
   }
 
-  if (protocol && shouldEnrich) {
-    const enrichment = fetch(`${supabaseUrl}/functions/v1/sac-digital-api`, {
+  const isMessageEvent = ["protocol_new_message", "protocol_new_inbox"].includes(type);
+  const backgroundAction = protocol
+    ? shouldEnrich ? "enrich_protocol" : isMessageEvent ? "sync_protocol_history" : null
+    : null;
+
+  if (protocol && backgroundAction) {
+    const reconciliation = fetch(`${supabaseUrl}/functions/v1/sac-digital-api`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${serviceRoleKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        action: "enrich_protocol",
+        action: backgroundAction,
         organization_id: integration.organization_id,
         protocol,
       }),
     }).then(async response => {
       if (!response.ok) {
-        console.error("[SAC DIGITAL WEBHOOK] background enrichment failed", {
+        console.error("[SAC DIGITAL WEBHOOK] background reconciliation failed", {
           protocol,
+          action: backgroundAction,
           status: response.status,
         });
       }
     }).catch(error => {
-      console.error("[SAC DIGITAL WEBHOOK] background enrichment error", {
+      console.error("[SAC DIGITAL WEBHOOK] background reconciliation error", {
         protocol,
+        action: backgroundAction,
         error: error instanceof Error ? error.message : String(error),
       });
     });
-    EdgeRuntime.waitUntil(enrichment);
+    EdgeRuntime.waitUntil(reconciliation);
   }
 
   // Se houve falha anterior, um novo webhook bem-sucedido nao pode
