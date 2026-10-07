@@ -1,7 +1,6 @@
 import { AlertTriangle, ExternalLink, RefreshCw } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
-import type { LinkedServiceOrder } from "@/features/orders/infrastructure/linked-orders.repository";
 import {
   AlertDialog,
   AlertDialogContent,
@@ -11,10 +10,12 @@ import {
   AlertDialogTitle,
 } from "@/shared/ui/primitives/alert-dialog";
 
+type LinkedOrder = { id: string; os_number: string | null; customer_name: string | null };
+
 type LinkedOrdersDeleteDialogProps = {
   entityLabel: string;
   entityName: string;
-  orders: LinkedServiceOrder[];
+  orders: LinkedOrder[];
   loading: boolean;
   error?: string | null;
   onRefresh: () => void | Promise<unknown>;
