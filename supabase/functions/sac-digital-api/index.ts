@@ -1,7 +1,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
 const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
-const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "remove"];
+const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "remove", "notification"];
 const SAC_OUTBOX_BUCKET = "sac-digital-outbox";
 const SAC_OUTBOX_MAX_BYTES = 25 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
@@ -1318,6 +1318,252 @@ Deno.serve(async request => {
         protocol,
         type: mediaType,
         request_id: typeof apiBody.request_id === "string" ? apiBody.request_id : null,
+      });
+    }
+
+    if (action === "send_order_message") {
+      if (!(await requirePermission("sac_digital.messages.send"))) {
+        return json({ success: false, error: "Sem permissão para enviar mensagens pelo SAC Digital." }, 403);
+      }
+
+      const canViewOrder = await hasOrganizationPermission("orders.view")
+        || await hasOrganizationPermission("orders.details.view");
+      if (!canViewOrder) {
+        return json({ success: false, error: "Sem permissão para acessar esta OS." }, 403);
+      }
+
+      const orderId = String(body.order_id || "").trim();
+      const text = String(body.text || "").trim();
+      if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
+      if (!text) return json({ success: false, error: "Digite uma mensagem para enviar." }, 400);
+      if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
+
+      const { data: order, error: orderError } = await admin
+        .from("service_orders")
+        .select("id,os_number,customer_id,customer:customers(id,full_name,trade_name,legal_name,phone,whatsapp)")
+        .eq("organization_id", organizationId)
+        .eq("id", orderId)
+        .maybeSingle();
+
+      if (orderError || !order?.id || !order.customer_id) {
+        return json({ success: false, error: "OS ou cliente não encontrado nesta empresa." }, 404);
+      }
+
+      const customerRaw = Array.isArray((order as any).customer)
+        ? (order as any).customer[0]
+        : (order as any).customer;
+      const customer = customerRaw && typeof customerRaw === "object"
+        ? customerRaw as Record<string, unknown>
+        : {};
+      const customerId = String(order.customer_id);
+      const rawPhone = String(customer.whatsapp || customer.phone || "").replace(/\D/g, "");
+      const phone = rawPhone && !rawPhone.startsWith("55") && (rawPhone.length === 10 || rawPhone.length === 11)
+        ? `55${rawPhone}`
+        : rawPhone;
+      if (!phone) return json({ success: false, error: "O cliente não possui WhatsApp ou telefone cadastrado." }, 400);
+
+      const credentials = await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({ success: false, error: "Integração SAC Digital está desativada.", integration_disabled: true }, 400);
+      }
+
+      const { data: localContacts, error: contactsError } = await admin
+        .from("sac_digital_contacts")
+        .select("id,external_contact_id,name,phone,updated_at")
+        .eq("organization_id", organizationId)
+        .eq("customer_id", customerId)
+        .order("updated_at", { ascending: false })
+        .limit(20);
+      if (contactsError) throw new Error("Não foi possível localizar o contato SAC do cliente.");
+
+      const contactRows = (localContacts || []) as Array<Record<string, unknown>>;
+      const contactIds = contactRows.map(row => String(row.id || "")).filter(Boolean);
+
+      if (contactIds.length) {
+        const { data: activeProtocol, error: protocolError } = await admin
+          .from("sac_digital_protocols")
+          .select("id,external_protocol_id,status,last_message_at")
+          .eq("organization_id", organizationId)
+          .in("contact_id", contactIds)
+          .neq("status", "finished")
+          .order("last_message_at", { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (protocolError) throw new Error("Não foi possível consultar o atendimento ativo do cliente.");
+
+        if (activeProtocol?.external_protocol_id) {
+          const protocol = String(activeProtocol.external_protocol_id);
+          const { response, body: apiBody } = await apiRequest(
+            organizationId,
+            credentials,
+            "/protocol/send",
+            {
+              method: "POST",
+              body: JSON.stringify({ protocol, type: "text", text }),
+            },
+          );
+
+          if (!response.ok || apiBody.status === false || apiBody.success === false) {
+            return json({
+              success: false,
+              error: typeof apiBody.message === "string" && apiBody.message.trim()
+                ? `SAC Digital: ${apiBody.message.trim()}`
+                : "A SAC Digital não conseguiu enviar a mensagem.",
+            });
+          }
+
+          const sentAt = new Date().toISOString();
+          const externalCandidate = apiBody.id ?? apiBody.message_id ?? apiBody.request_id;
+          const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
+            ? `sac:${String(externalCandidate)}`
+            : null;
+          const { data: profile } = await admin
+            .from("profiles")
+            .select("full_name")
+            .eq("id", userData.user.id)
+            .maybeSingle();
+
+          const localMessage = {
+            organization_id: organizationId,
+            protocol_id: activeProtocol.id,
+            external_message_id: externalMessageId,
+            direction: "outgoing",
+            message_type: "text",
+            body_text: text,
+            sender_id: userData.user.id,
+            sender_name: profile?.full_name || null,
+            sent_at: sentAt,
+            raw_metadata: {
+              sent_via_union: true,
+              sent_from_service_order: orderId,
+              api_response: apiBody,
+            },
+          };
+
+          let inserted = await admin.from("sac_digital_messages").insert(localMessage);
+          if (inserted.error?.code === "23505") {
+            inserted = await admin.from("sac_digital_messages").insert({
+              ...localMessage,
+              external_message_id: null,
+              raw_metadata: {
+                ...localMessage.raw_metadata,
+                external_id_conflict: true,
+              },
+            });
+          }
+
+          if (!inserted.error) {
+            await admin
+              .from("sac_digital_protocols")
+              .update({ last_message_at: sentAt, updated_at: sentAt })
+              .eq("id", activeProtocol.id);
+          }
+
+          EdgeRuntime.waitUntil((async () => {
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            try {
+              await syncProtocolHistory(organizationId, protocol);
+            } catch {
+              // A mensagem local já foi persistida; a reconciliação pode ocorrer no próximo webhook/refresh.
+            }
+          })());
+
+          return json({
+            success: true,
+            mode: "protocol",
+            protocol,
+            request_id: typeof apiBody.request_id === "string" ? apiBody.request_id : null,
+          });
+        }
+      }
+
+      let externalContactId = contactRows
+        .map(row => String(row.external_contact_id || "").trim())
+        .find(Boolean) || "";
+
+      if (!externalContactId) {
+        const searchResult = await apiRequest(
+          organizationId,
+          credentials,
+          `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
+          { method: "GET" },
+        );
+        if (!searchResult.response.ok || searchResult.body.status === false) {
+          return json({ success: false, error: "Não foi possível localizar o cliente na SAC Digital." });
+        }
+
+        const normalizePhoneKey = (value: unknown) => {
+          const digits = String(value || "").replace(/\D/g, "");
+          return digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
+            ? digits.slice(2)
+            : digits;
+        };
+        const expectedPhone = normalizePhoneKey(phone);
+        const list = Array.isArray(searchResult.body.list)
+          ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+          : [];
+        const match = list.find(item => normalizePhoneKey(item.number) === expectedPhone)
+          || (list.length === 1 ? list[0] : null);
+
+        if (!match?.id) {
+          return json({
+            success: false,
+            error: "O telefone do cliente não foi localizado nos contatos da SAC Digital.",
+            contact_not_found: true,
+          }, 404);
+        }
+
+        externalContactId = String(match.id);
+        const now = new Date().toISOString();
+        const { error: upsertContactError } = await admin
+          .from("sac_digital_contacts")
+          .upsert({
+            organization_id: organizationId,
+            external_contact_id: externalContactId,
+            customer_id: customerId,
+            name: String(match.name || customer.full_name || customer.trade_name || customer.legal_name || ""),
+            phone: String(match.number || phone),
+            avatar_url: String(match.avatar || "") || null,
+            raw_metadata: match,
+            updated_at: now,
+          }, { onConflict: "organization_id,external_contact_id" });
+
+        if (upsertContactError) {
+          console.warn("[SAC DIGITAL API] contact cache upsert skipped", {
+            organization_id: organizationId,
+            code: upsertContactError.code,
+          });
+        }
+      }
+
+      const notification = await apiRequest(
+        organizationId,
+        credentials,
+        "/notification/contact",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            contact: externalContactId,
+            type: "text",
+            text,
+          }),
+        },
+      );
+
+      if (!notification.response.ok || notification.body.status === false || notification.body.success === false) {
+        return json({
+          success: false,
+          error: typeof notification.body.message === "string" && notification.body.message.trim()
+            ? `SAC Digital: ${notification.body.message.trim()}`
+            : "A SAC Digital não conseguiu enviar a mensagem ao cliente.",
+        });
+      }
+
+      return json({
+        success: true,
+        mode: "notification",
+        request_id: typeof notification.body.request_id === "string" ? notification.body.request_id : null,
       });
     }
 
