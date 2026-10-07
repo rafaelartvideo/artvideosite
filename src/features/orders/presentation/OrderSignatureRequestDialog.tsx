@@ -218,7 +218,7 @@ export function OrderSignatureRequestDialog({
     open
     onClose={onClose}
     title="Enviar para assinatura"
-    description="O mesmo documento de impressão será congelado em PDF no momento do envio."
+    description="O documento será congelado em PDF e o link de assinatura será enviado ao WhatsApp do assinante."
     minimizedDescription={[
       `OS ${order?.os_number || "—"}`,
       signerType === "customer" ? customerName(customer) : contactName.trim(),
@@ -228,7 +228,7 @@ export function OrderSignatureRequestDialog({
     className="max-w-xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-      <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Congelando e enviando PDF..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
+      <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Criando e enviando pelo WhatsApp..." disabled={onlineTemplates.length === 0}>Criar e enviar</BtnPrimary>
     </div>}
   >
     <div className="space-y-5">
@@ -263,7 +263,6 @@ export function OrderSignatureRequestDialog({
             </div>}
           </div>}
 
-/div>}
         </>}
 
     </div>
