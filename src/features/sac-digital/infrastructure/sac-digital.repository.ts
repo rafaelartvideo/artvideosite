@@ -352,6 +352,45 @@ export function linkSacDigitalCustomer(
   });
 }
 
+export type SacDigitalCustomerOrder = {
+  id: string;
+  os_number: string | null;
+  external_os_number: string | null;
+  created_at: string;
+  is_solved: boolean | null;
+  order_status: {
+    id: string;
+    name: string;
+    color: string | null;
+  } | null;
+  situation: {
+    id: string;
+    name: string;
+    color: string | null;
+  } | null;
+};
+
+export async function listSacDigitalCustomerOrders(
+  organizationId: string,
+  customerId: string,
+) {
+  const { data, error } = await supabase
+    .from("service_orders")
+    .select("id,os_number,external_os_number,created_at,is_solved,order_status:order_statuses(id,name,color),situation:os_situations(id,name,color)")
+    .eq("organization_id", organizationId)
+    .eq("customer_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(12);
+
+  if (error) throw error;
+
+  return (data || []).map((row: any) => ({
+    ...row,
+    order_status: normalizeRelation(row.order_status),
+    situation: normalizeRelation(row.situation),
+  })) as SacDigitalCustomerOrder[];
+}
+
 export function assumeSacDigitalProtocol(
   organizationId: string,
   protocol: string,
