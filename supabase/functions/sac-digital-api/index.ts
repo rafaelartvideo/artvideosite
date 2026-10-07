@@ -985,6 +985,7 @@ Deno.serve(async request => {
       if(!(await requirePermission(permission)) && !(permission==='sac_digital.messages.view' && await requirePermission('sac_digital.view'))) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'permission_denied',error:'Sem permissão para esta operação.'};
       if([1,61].includes(endpointId)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'private_authentication',error:'A autenticação é privada e resolvida pelo servidor.'};
       let operation: any;
+      let protocolInfo: Record<string, unknown> | null = null;
       const credentials = await loadCredentials(organizationId);
       if(!credentials.enabled) throw new Error('Integração SAC Digital está desativada.');
       if([36,37,38].includes(endpointId)) {
@@ -993,7 +994,8 @@ Deno.serve(async request => {
         if(!validProtocol(values.protocol)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'invalid_contract',error:'Protocolo inválido.'};
         const check=await apiRequest(organizationId,credentials,`/protocol/info?protocol=${encodeURIComponent(String(values.protocol))}`,{method:'GET'});
         if(!check.response.ok || check.body.status === false || !check.body.info || typeof check.body.info !== 'object' || Array.isArray(check.body.info)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_unverified',error:'Não foi possível confirmar o estado externo do protocolo.'};
-        try { const routed=routeProtocolOperation(endpointId,values,check.body.info);endpointId=routed.endpointId;values=routed.values; }
+        protocolInfo = check.body.info as Record<string, unknown>;
+        try { const routed=routeProtocolOperation(endpointId,values,protocolInfo);endpointId=routed.endpointId;values=routed.values; }
         catch(error) {return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_conflict',error:error instanceof Error ? error.message : 'Estado incompatível.'};}
       }
       try { operation = buildSacRequest(endpointId, values); }
@@ -1006,6 +1008,14 @@ Deno.serve(async request => {
         if(capabilityError) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'channel_capability_unverified',error:capabilityError};
       }
       const binding = operation.mode === 'operator' ? await resolveMyOperatorBinding() : null;
+      if (operation.mode === 'operator' && binding && protocolInfo?.is_att === true) {
+        const assignedOperator = protocolInfo.operator && typeof protocolInfo.operator === 'object' && !Array.isArray(protocolInfo.operator)
+          ? String((protocolInfo.operator as Record<string, unknown>).id || '').trim()
+          : '';
+        if (assignedOperator && assignedOperator === binding.id) {
+          operation.skipSelect = true;
+        }
+      }
       const ownerId = crypto.randomUUID();
       let operatorToken = '';
       const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
