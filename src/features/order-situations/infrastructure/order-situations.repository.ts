@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
+import { listOrdersUsingSituation } from "@/features/orders/infrastructure/linked-orders.repository";
 
 export async function listOrderSituations() {
   const organizationId = await getActiveOrganizationId();
@@ -40,6 +41,11 @@ export async function updateOrderSituation(
 export async function deleteOrderSituation(
   situationId: string,
 ): Promise<void> {
+  const linkedOrders = await listOrdersUsingSituation(situationId);
+  if (linkedOrders.length > 0) {
+    throw new Error(`Esta situação ainda está vinculada a ${linkedOrders.length} ${linkedOrders.length === 1 ? "OS" : "OS"}. Altere a situação antes de excluir.`);
+  }
+
   const organizationId = await getActiveOrganizationId();
   const { error } = await supabase
     .from("os_situations")
