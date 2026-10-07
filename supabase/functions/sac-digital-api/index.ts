@@ -3042,9 +3042,14 @@ Deno.serve(async request => {
       const {data: publicUrlData,error: signedError} = await admin.storage.from(SAC_OUTBOX_BUCKET).createSignedUrl(storagePath,7*24*3600);
       if(signedError || !publicUrlData?.signedUrl) return json({success:false,error:"Não foi possível criar a URL temporária."},503);
       const publicUrl = publicUrlData.signedUrl;
+      // A SAC valida o arquivo pela URL informada. URLs assinadas do Storage
+      // carregam query string e nem sempre são aceitas pelo validador de mídia.
+      // Usar o proxy próprio mantém um caminho limpo com extensão, MIME e
+      // Content-Length corretos, sem tornar o bucket público.
+      const providerUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${encodeURIComponent(publicFileName)}`;
 
       try {
-        const mediaCheck = await fetch(publicUrl, { method: "HEAD" });
+        const mediaCheck = await fetch(providerUrl, { method: "HEAD" });
         const mediaContentType = mediaCheck.headers.get("content-type") || "";
         const mediaContentLength = mediaCheck.headers.get("content-length") || "";
         console.log("[SAC DIGITAL API] media preflight", {
@@ -3072,7 +3077,7 @@ Deno.serve(async request => {
       const apiPayload: Record<string, unknown> = {
         protocol,
         type: mediaType,
-        url: publicUrl,
+        url: providerUrl,
       };
       if (text) apiPayload.text = text;
 
