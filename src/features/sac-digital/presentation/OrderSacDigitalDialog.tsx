@@ -79,8 +79,12 @@ export function OrderSacDigitalDialog({
     setError("");
     try {
       if (attachment) {
+        const customerId = String(order.customer_id || "");
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) {
+          throw new Error("A OS precisa estar vinculada a um cliente válido antes de enviar documentos.");
+        }
         const available = (await listSacDigitalProtocols(order.organization_id))
-          .filter(item => item.contact?.customer_id === order.customer_id
+          .filter(item => item.contact?.customer_id === customerId
             && !item.is_pending && item.status !== "finished" && !item.closed_at
             && Boolean(item.external_protocol_id));
         if (available.length !== 1) {
