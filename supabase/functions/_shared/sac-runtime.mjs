@@ -19,3 +19,30 @@ export function actionEnabled(action, id) {
  return LEGACY_SAC_ENABLED || (actions.has(action) && (!['resource_operation','sync_resource'].includes(action) || resourceEnabled(id) || (action === 'resource_operation' && (protocolControls.has(Number(id)) || newConversationResources.has(Number(id))))));
 }
 export function eventEnabled(type) { return LEGACY_SAC_ENABLED || events.has(type); }
+
+
+export function conversationOwnership({
+ accessMode,
+ boundOperatorId,
+ assignedOperatorId,
+ assignedOperatorName,
+}) {
+ const mode=String(accessMode || '').trim();
+ const bound=String(boundOperatorId || '').trim();
+ const assigned=String(assignedOperatorId || '').trim();
+ const assignedName=String(assignedOperatorName || '').trim();
+
+ if(mode === 'manager') {
+  return {allowed:true,needsAssignment:false,reason:'manager',ownerId:assigned,ownerName:assignedName};
+ }
+ if(mode !== 'operator' || !bound) {
+  return {allowed:false,needsAssignment:false,reason:'profile_not_linked',ownerId:assigned,ownerName:assignedName};
+ }
+ if(!assigned) {
+  return {allowed:true,needsAssignment:true,reason:'unassigned',ownerId:'',ownerName:''};
+ }
+ if(assigned === bound) {
+  return {allowed:true,needsAssignment:false,reason:'owned_by_current_operator',ownerId:assigned,ownerName:assignedName};
+ }
+ return {allowed:false,needsAssignment:false,reason:'owned_by_other_operator',ownerId:assigned,ownerName:assignedName};
+}

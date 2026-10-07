@@ -33,3 +33,21 @@ test('operational queue and protocol selection stay active without exposing lega
   assert.equal(runtime.resourceEnabled(id),false);
  }
 });
+
+test('conversation ownership follows the SAC profile instead of the Union role',()=>{
+ assert.deepEqual(runtime.conversationOwnership({
+  accessMode:'manager',boundOperatorId:'',assignedOperatorId:'qGy3e',assignedOperatorName:'ELMO',
+ }),{allowed:true,needsAssignment:false,reason:'manager',ownerId:'qGy3e',ownerName:'ELMO'});
+ assert.deepEqual(runtime.conversationOwnership({
+  accessMode:'operator',boundOperatorId:'5kMm',assignedOperatorId:'',assignedOperatorName:'',
+ }),{allowed:true,needsAssignment:true,reason:'unassigned',ownerId:'',ownerName:''});
+ assert.deepEqual(runtime.conversationOwnership({
+  accessMode:'operator',boundOperatorId:'5kMm',assignedOperatorId:'5kMm',assignedOperatorName:'ROBERT',
+ }),{allowed:true,needsAssignment:false,reason:'owned_by_current_operator',ownerId:'5kMm',ownerName:'ROBERT'});
+ assert.deepEqual(runtime.conversationOwnership({
+  accessMode:'operator',boundOperatorId:'5kMm',assignedOperatorId:'qGy3e',assignedOperatorName:'ELMO',
+ }),{allowed:false,needsAssignment:false,reason:'owned_by_other_operator',ownerId:'qGy3e',ownerName:'ELMO'});
+ assert.equal(runtime.conversationOwnership({
+  accessMode:null,boundOperatorId:'',assignedOperatorId:'',assignedOperatorName:'',
+ }).reason,'profile_not_linked');
+});
