@@ -81,6 +81,10 @@ function protocolOperationalStatus(
   if (protocol.external_protocol_id && waitingProtocolIds.has(protocol.external_protocol_id)) return "waiting";
   if (protocol.status === "open") return "self_service";
   if (protocol.status === "inbox") return "waiting";
+  // Fallback da própria projeção local: atendimento aberto sem Operador
+  // atribuído pertence à fila, mesmo quando a consulta operacional da SAC
+  // estiver indisponível momentaneamente.
+  if (protocol.status === "in_att" && !protocol.operator_id) return "waiting";
   return "in_att";
 }
 
