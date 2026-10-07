@@ -2269,15 +2269,114 @@ Deno.serve(async request => {
         const list = Array.isArray(searchResult.body.list)
           ? searchResult.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
           : [];
-        const match = list.find(item => normalizePhoneKey(item.number) === expectedPhone)
+        let match = list.find(item => normalizePhoneKey(item.number) === expectedPhone)
           || (list.length === 1 ? list[0] : null);
 
         if (!match?.id) {
-          return json({
-            success: false,
-            error: "O telefone do cliente não foi localizado nos contatos da SAC Digital.",
-            contact_not_found: true,
-          }, 404);
+          const channelsResult = await apiRequest(
+            organizationId,
+            credentials,
+            "/channel/all",
+            { method: "GET" },
+          );
+          const channels = Array.isArray(channelsResult.body.list)
+            ? channelsResult.body.list
+                .filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+            : [];
+          const activeChannels = channels.filter(channel =>
+            channel.actived !== false && String(channel.id || "").trim()
+          );
+          const primaryChannel = activeChannels.find(channel => channel.primary === true)
+            || activeChannels[0]
+            || null;
+
+          const customerName = String(
+            customer.trade_name
+            || customer.full_name
+            || customer.legal_name
+            || `Contato ${phone.slice(-4)}`
+          ).trim();
+
+          const importPayload: Record<string, unknown> = {
+            number: phone,
+            name: customerName,
+          };
+          if (primaryChannel?.id) importPayload.channel = String(primaryChannel.id);
+
+          const importResult = await apiRequest(
+            organizationId,
+            credentials,
+            "/contact/import",
+            {
+              method: "POST",
+              body: JSON.stringify(importPayload),
+            },
+          );
+
+          if (!importResult.response.ok || importResult.body.status === false || importResult.body.success === false) {
+            return json({
+              success: false,
+              error: typeof importResult.body.message === "string" && importResult.body.message.trim()
+                ? `SAC Digital: ${importResult.body.message.trim()}`
+                : "A SAC Digital não conseguiu preparar este número para envio.",
+              contact_not_found: true,
+            }, 400);
+          }
+
+          const importedId = String(
+            importResult.body.id
+            || (importResult.body.contact && typeof importResult.body.contact === "object"
+              ? (importResult.body.contact as Record<string, unknown>).id
+              : "")
+            || "",
+          ).trim();
+
+          if (importedId) {
+            match = {
+              id: importedId,
+              name: customerName,
+              number: phone,
+              channel: primaryChannel
+                ? { id: String(primaryChannel.id || ""), number: String(primaryChannel.number || "") }
+                : null,
+              imported: true,
+            };
+          } else {
+            await new Promise(resolve => setTimeout(resolve, 250));
+            const retrySearch = await apiRequest(
+              organizationId,
+              credentials,
+              `/contact/search?p=1&filter=1&search=${encodeURIComponent(phone)}`,
+              { method: "GET" },
+            );
+            const retryList = Array.isArray(retrySearch.body.list)
+              ? retrySearch.body.list
+                  .filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
+              : [];
+            match = retryList.find(item => normalizePhoneKey(item.number) === expectedPhone)
+              || (retryList.length === 1 ? retryList[0] : null);
+          }
+
+          if (!match?.id) {
+            return json({
+              success: false,
+              error: "A SAC Digital preparou o número, mas ainda não retornou o contato. Tente novamente em alguns segundos.",
+              contact_not_found: true,
+            }, 409);
+          }
+
+          await writeSacAudit({
+            action: "sac_digital.contact.import",
+            operation: "insert",
+            entityType: "sac_digital_contact",
+            entityId: String(match.id),
+            contextType: "customer",
+            contextId: customerId,
+            metadata: {
+              source: "service_order",
+              channel_id: primaryChannel?.id ? String(primaryChannel.id) : null,
+            },
+          });
         }
 
         externalContactId = String(match.id);
