@@ -328,12 +328,12 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
   return <div className="min-w-0 space-y-5">
     <PageHeader
       title="Configurações · SAC Digital"
-      subtitle="Conta, operadores, webhooks e menus da empresa ativa."
+      subtitle="Conta Gestor, Operadores de atendimento, webhooks e menus da empresa ativa."
       actions={<BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
     />
 
     <AdminSubnav value={section} items={[
-      {id:"integration",label:"Conta e conexão"}, {id:"operators",label:"Operadores"},
+      {id:"integration",label:"Conta Gestor"}, {id:"operators",label:"Operadores de atendimento"},
       {id:"webhook",label:"Webhooks"}, {id:"menus",label:"Menus personalizados"},
     ]} onSelect={setSection} ariaLabel="Configurações SAC Digital" />
 
@@ -346,8 +346,8 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
     )}
 
     {section === "integration" && <Section
-      title="Conta e conexão"
-      description="Credenciais, webhook e estado da integração desta empresa."
+      title="Conta Gestor"
+      description="Credenciais da conta Gestor da SAC Digital. Este acesso usa as rotas /client para administração e integração; não substitui uma conta Operador de atendimento."
       actions={
         <AdminButton
           variant="secondary"
@@ -573,8 +573,8 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
     {section === "menus" && canManage && activeOrganizationId && <SacDigitalMenuConfiguration organizationId={activeOrganizationId} token={settings?.webhook_token} />}
 
     {section === "operators" && <Section
-      title="Operadores e funcionários"
-      description="O gestor define qual operador da SAC Digital corresponde a cada usuário da Union."
+      title="Operadores de atendimento"
+      description="Vincule cada funcionário da Union a uma conta Operador da SAC Digital. Contas Gestor não são válidas para fila, seleção, resposta e finalização de atendimentos operacionais."
       actions={
         settings?.enabled && settings?.credential_configured ? (
           <AdminButton
@@ -590,6 +590,21 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
         ) : undefined
       }
     >
+      <div className="mb-4 grid gap-3 md:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs font-black text-foreground">Conta Gestor</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Usa a API /client para contatos, canais, departamentos, cadastros, notificações, configurações e protocolos de autoatendimento.
+          </p>
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-xs font-black text-foreground">Conta Operador</p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">
+            Usa a API /operator para fila e atendimento: selecionar conversa, responder, encaminhar e finalizar. O vínculo é validado antes de ser salvo.
+          </p>
+        </div>
+      </div>
+
       {!settings?.enabled || !settings?.credential_configured ? (
         <div className="rounded-lg border border-border bg-muted/25 px-4 py-3 text-sm text-muted-foreground">
           Ative a integração e configure as credenciais para vincular funcionários aos operadores da SAC Digital.
@@ -640,7 +655,10 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
                     onChange={(event: any) => void saveOperatorBinding(employee.user_id, event.target.value)}
                     options={[{value:"",label:"Não vinculado"}, ...operatorData.operators
                       .filter(operator=>!usedByOther.has(operator.id) || operator.id===selectedOperatorId)
-                      .map(operator=>({value:operator.id,label:operator.name+(operator.online?" — online":"")}))]} />
+                      .map(operator=>({
+                        value:operator.id,
+                        label:`${operator.name}${operator.email ? ` — ${operator.email}` : ""}${operator.online ? " — online" : ""}`,
+                      }))]} />
                 </div>
               );
             })}
@@ -649,7 +667,7 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
       )}
 
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-        O botão “Assumir” usa este vínculo. Um operador SAC só pode ficar associado a um funcionário da Union por empresa.
+        O botão “Assumir” usa exclusivamente este vínculo de Operador. Ao salvar, a Union valida autenticação e acesso operacional; uma conta apenas Gestor é recusada. Um Operador SAC só pode ficar associado a um funcionário da Union por empresa.
       </p>
     </Section>}
 
