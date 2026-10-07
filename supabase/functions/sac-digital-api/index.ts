@@ -535,6 +535,61 @@ Deno.serve(async request => {
     };
 
 
+    let auditActorName: string | null | undefined;
+    const writeSacAudit = async ({
+      action,
+      operation,
+      entityType,
+      entityId,
+      contextType,
+      contextId,
+      metadata = {},
+      changedFields = {},
+    }: {
+      action: string;
+      operation: string;
+      entityType: string;
+      entityId?: string | null;
+      contextType?: string | null;
+      contextId?: string | null;
+      metadata?: Record<string, unknown>;
+      changedFields?: Record<string, unknown>;
+    }) => {
+      try {
+        if (auditActorName === undefined) {
+          const { data: profile } = await admin
+            .from("profiles")
+            .select("full_name")
+            .eq("id", userData.user.id)
+            .maybeSingle();
+          auditActorName = String(profile?.full_name || "").trim() || null;
+        }
+
+        await admin.from("organization_audit_logs").insert({
+          organization_id: organizationId,
+          actor_user_id: userData.user.id,
+          action,
+          operation,
+          entity_type: entityType,
+          entity_id: entityId || null,
+          module_key: "sac_digital",
+          context_type: contextType || null,
+          context_id: contextId || null,
+          actor_name_snapshot: auditActorName,
+          source: "edge_function",
+          metadata,
+          changed_fields: changedFields,
+          row_snapshot: null,
+        });
+      } catch (auditError) {
+        console.warn(
+          "[SAC DIGITAL API] audit write skipped",
+          auditError instanceof Error ? auditError.message : auditError,
+        );
+      }
+    };
+
+
     const loadSacOperators = async () => {
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
@@ -654,6 +709,17 @@ Deno.serve(async request => {
         .eq("organization_id", organizationId)
         .eq("id", contactId);
       if (updateError) throw new Error("Não foi possível vincular o cliente ao contato SAC.");
+
+      await writeSacAudit({
+        action: "sac_digital.contact.link_customer",
+        operation: "link",
+        entityType: "sac_digital_contact",
+        entityId: contactId,
+        contextType: "customer",
+        contextId: customerId,
+        metadata: { source: "sac_inbox" },
+        changedFields: { customer_id: customerId },
+      });
 
       return json({
         success: true,
@@ -777,6 +843,15 @@ Deno.serve(async request => {
           .eq("organization_id", organizationId)
           .eq("user_id", targetUserId);
         if (deleteError) throw new Error("Não foi possível remover o vínculo do operador.");
+        await writeSacAudit({
+          action: "sac_digital.operator_binding.remove",
+          operation: "unlink",
+          entityType: "sac_digital_operator_binding",
+          entityId: targetUserId,
+          contextType: "user",
+          contextId: targetUserId,
+          metadata: { managed_by: "settings" },
+        });
         return json({ success: true, linked: false, operator: null });
       }
 
@@ -819,6 +894,21 @@ Deno.serve(async request => {
         }
         throw new Error("Não foi possível salvar o vínculo do operador.");
       }
+
+      await writeSacAudit({
+        action: "sac_digital.operator_binding.set",
+        operation: "update",
+        entityType: "sac_digital_operator_binding",
+        entityId: targetUserId,
+        contextType: "user",
+        contextId: targetUserId,
+        metadata: {
+          managed_by: "settings",
+          operator_id: operator.id,
+          operator_name: operator.name,
+        },
+        changedFields: { external_operator_id: operator.id },
+      });
 
       return json({
         success: true,
@@ -895,6 +985,19 @@ Deno.serve(async request => {
       } catch {
         // O webhook/realtime concluirá a atualização caso a SAC ainda não reflita a troca.
       }
+
+      await writeSacAudit({
+        action: "sac_digital.protocol.assume",
+        operation: "assume",
+        entityType: "sac_digital_protocol",
+        entityId: protocol,
+        contextType: "protocol",
+        contextId: protocol,
+        metadata: {
+          operator_id: binding.id,
+          operator_name: binding.name,
+        },
+      });
 
       return json({
         success: true,
@@ -1009,6 +1112,19 @@ Deno.serve(async request => {
         // Webhook/realtime também atualizará o protocolo; não invalida a ação externa.
       }
 
+      await writeSacAudit({
+        action: "sac_digital.protocol.forward",
+        operation: "forward",
+        entityType: "sac_digital_protocol",
+        entityId: protocol,
+        contextType: "protocol",
+        contextId: protocol,
+        metadata: {
+          department_id: departmentId || null,
+          operator_id: operatorId || null,
+        },
+      });
+
       return json({ success: true, protocol });
     }
 
@@ -1044,6 +1160,15 @@ Deno.serve(async request => {
       } catch {
         // O webhook atualizará o estado caso a consulta imediata ainda não reflita a mudança.
       }
+
+      await writeSacAudit({
+        action: "sac_digital.protocol.return_to_inbox",
+        operation: "return_to_inbox",
+        entityType: "sac_digital_protocol",
+        entityId: protocol,
+        contextType: "protocol",
+        contextId: protocol,
+      });
 
       return json({ success: true, protocol });
     }
@@ -1086,6 +1211,15 @@ Deno.serve(async request => {
       } catch {
         // O webhook de finalização mantém o CRM em sincronia mesmo se a consulta imediata falhar.
       }
+
+      await writeSacAudit({
+        action: "sac_digital.protocol.finish",
+        operation: "finish",
+        entityType: "sac_digital_protocol",
+        entityId: protocol,
+        contextType: "protocol",
+        contextId: protocol,
+      });
 
       return json({ success: true, protocol });
     }
@@ -1469,6 +1603,20 @@ Deno.serve(async request => {
             }
           })());
 
+          await writeSacAudit({
+            action: "sac_digital.order.send_message",
+            operation: "send",
+            entityType: "service_order",
+            entityId: orderId,
+            contextType: "service_order",
+            contextId: orderId,
+            metadata: {
+              transport: "protocol",
+              protocol,
+              message_length: text.length,
+            },
+          });
+
           return json({
             success: true,
             mode: "protocol",
@@ -1559,6 +1707,19 @@ Deno.serve(async request => {
             : "A SAC Digital não conseguiu enviar a mensagem ao cliente.",
         });
       }
+
+      await writeSacAudit({
+        action: "sac_digital.order.send_message",
+        operation: "send",
+        entityType: "service_order",
+        entityId: orderId,
+        contextType: "service_order",
+        contextId: orderId,
+        metadata: {
+          transport: "notification",
+          message_length: text.length,
+        },
+      });
 
       return json({
         success: true,
@@ -1682,6 +1843,16 @@ Deno.serve(async request => {
             .eq("id", protocolRow.id);
         }
       }
+
+      await writeSacAudit({
+        action: "sac_digital.protocol.send_message",
+        operation: "send",
+        entityType: "sac_digital_protocol",
+        entityId: protocol,
+        contextType: "protocol",
+        contextId: protocol,
+        metadata: { message_length: text.length },
+      });
 
       return json({
         success: true,
