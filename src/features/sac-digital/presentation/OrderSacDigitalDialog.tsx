@@ -58,9 +58,9 @@ export function OrderSacDigitalDialog({
       );
       notifyAdmin(
         result.mode === "protocol"
-          ? "Mensagem enviada pelo atendimento SAC Digital."
-          : "Mensagem enviada ao cliente pela SAC Digital.",
-        "success",
+          ? "Mensagem enviada pelo atendimento SAC Digital. A conversa aparecerá na caixa de entrada após a sincronização."
+          : "Mensagem enviada como notificação avulsa. A SAC ainda não abriu um protocolo; a conversa poderá aparecer quando houver atendimento.",
+        result.mode === "protocol" ? "success" : "warning",
       );
       onClose();
     } catch (caught) {
