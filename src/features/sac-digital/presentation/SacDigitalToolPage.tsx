@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import {
   FileText,
   Image as ImageIcon,
@@ -175,6 +176,8 @@ export function SacDigitalToolPage({
   onCreateOrder?: (customerId: string) => void;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
+  const location = useLocation();
+  const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
   const canManage = hasPermission("sac_digital.settings.manage");
   const canManageProtocols = hasPermission("sac_digital.protocols.manage");
   const canViewMessages = hasPermission("sac_digital.messages.view");
@@ -213,6 +216,7 @@ export function SacDigitalToolPage({
     serial_number: string | null;
   }>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [newConversationStarter, setNewConversationStarter] = useState<{ phone: string; name: string } | null>(null);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
@@ -230,6 +234,7 @@ export function SacDigitalToolPage({
   const sendingRef = useRef(false);
   const lastResumeRefreshRef = useRef(0);
   const activePendingContactIdRef = useRef<string | null>(null);
+  const handledCustomerRouteRef = useRef("");
 
   const selectedProtocol = useMemo(
     () => protocols.find(protocol => protocol.id === selectedProtocolId) || null,
@@ -371,6 +376,63 @@ export function SacDigitalToolPage({
       alive = false;
     };
   }, [loadProtocols, loadStatus, loadUnreadCounts]);
+
+  useEffect(() => {
+    if (loading || !activeOrganizationId || !routeCustomerId) return;
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(routeCustomerId)) {
+      setMessage({ text: "Cliente informado no link da OS é inválido.", error: true });
+      return;
+    }
+    const targetKey = `${activeOrganizationId}:${routeCustomerId}`;
+    if (handledCustomerRouteRef.current === targetKey) return;
+    handledCustomerRouteRef.current = targetKey;
+
+    const match = protocols.find(item => item.contact?.customer_id === routeCustomerId
+      && !item.is_pending && item.status !== "finished")
+      || protocols.find(item => item.contact?.customer_id === routeCustomerId && item.is_pending);
+
+    if (match) {
+      setSelectedProtocolId(match.id);
+      setConversationSearch("");
+      setStatusFilter("all");
+      setOperatorFilter("all");
+      return;
+    }
+
+    if (!canSendMessages || !canViewCustomers || !status?.enabled) {
+      setMessage({
+        text: "Não há protocolo ativo deste cliente. Para iniciar uma conversa, você precisa de acesso aos clientes e permissão de envio, com o SAC habilitado.",
+        error: true,
+      });
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      const { data: customer, error } = await supabase
+        .from("customers")
+        .select("id,full_name,trade_name,legal_name,phone,whatsapp")
+        .eq("organization_id", activeOrganizationId)
+        .eq("id", routeCustomerId)
+        .maybeSingle();
+      if (cancelled) return;
+      if (error || !customer) {
+        setMessage({ text: "Não foi possível localizar o cliente desta OS nesta empresa.", error: true });
+        return;
+      }
+      const phone = String(customer.whatsapp || customer.phone || "").trim();
+      if (!phone) {
+        setMessage({ text: "O cliente não tem telefone cadastrado para iniciar o atendimento.", error: true });
+        return;
+      }
+      setNewConversationStarter({
+        phone,
+        name: String(customer.trade_name || customer.full_name || customer.legal_name || "").trim(),
+      });
+      setNewConversationOpen(true);
+    })();
+    return () => { cancelled = true; };
+  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, protocols, routeCustomerId, status?.enabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -957,7 +1019,11 @@ export function SacDigitalToolPage({
     <SacDigitalNewConversationDialog
       open={newConversationOpen}
       organizationId={activeOrganizationId}
-      onClose={() => setNewConversationOpen(false)}
+      initialContact={newConversationStarter}
+      onClose={() => {
+        setNewConversationOpen(false);
+        setNewConversationStarter(null);
+      }}
       onStarted={handleNewConversationStarted}
     />
 
@@ -967,7 +1033,10 @@ export function SacDigitalToolPage({
       actions={
         <>
           {canSendMessages && status?.enabled && (
-            <AdminButton onClick={() => setNewConversationOpen(true)}>
+            <AdminButton onClick={() => {
+              setNewConversationStarter(null);
+              setNewConversationOpen(true);
+            }}>
               Nova conversa
             </AdminButton>
           )}
