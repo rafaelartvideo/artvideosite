@@ -378,7 +378,6 @@ export function OrderDetailsPage(props: Props) {
             hasPermission={hasPermission}
             orderImages={orderImages}
             onViewImage={setViewImage}
-            sacDigitalAvailable={sacEnabled}
             onWhatsApp={!monitorView && canSendSac
               ? () => void openCustomerWhatsApp()
               : undefined}
