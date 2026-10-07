@@ -2201,8 +2201,8 @@ Deno.serve(async request => {
     }
 
     if (action === "my_operator_binding") {
-      if (!(await requirePermission("sac_digital.protocols.manage"))) {
-        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
+      if (!(await requirePermission("sac_digital.messages.view"))) {
+        return json({ success: false, error: "Sem permissão para visualizar atendimentos do SAC Digital." }, 403);
       }
       const binding = await resolveMyOperatorBinding();
       return json({

@@ -417,41 +417,66 @@ export function SacDigitalToolPage({
     selectedProtocolIdRef.current = selectedProtocolId;
   }, [selectedProtocolId]);
 
-  const selectedProtocol = useMemo(
+  const selectedProtocolRaw = useMemo(
     () => protocols.find(protocol => protocol.id === selectedProtocolId) || null,
     [protocols, selectedProtocolId],
   );
 
   useEffect(() => {
-    if (selectedProtocol?.is_pending) {
-      activePendingContactIdRef.current = selectedProtocol.contact?.id || null;
-    } else if (selectedProtocol) {
+    if (selectedProtocolRaw?.is_pending) {
+      activePendingContactIdRef.current = selectedProtocolRaw.contact?.id || null;
+    } else if (selectedProtocolRaw) {
       activePendingContactIdRef.current = null;
     }
-  }, [selectedProtocol]);
-
-  const operatorFilterOptions = useMemo(
-    () => Array.from(new Set(
-      protocols
-        .map(protocol => protocol.operator_name?.trim() || "")
-        .filter(Boolean),
-    )).sort((left, right) => left.localeCompare(right, "pt-BR")),
-    [protocols],
-  );
-
-  const unreadConversationCount = useMemo(
-    () => protocols.filter(protocol => Number(unreadCounts[protocol.id] || 0) > 0).length,
-    [protocols, unreadCounts],
-  );
+  }, [selectedProtocolRaw]);
 
   const waitingProtocolSet = useMemo(
     () => new Set(waitingProtocolIds),
     [waitingProtocolIds],
   );
 
+  const visibleProtocols = useMemo(() => {
+    if (canManage) return protocols;
+
+    const linkedOperatorId = operatorBinding?.linked
+      ? operatorBinding.operator?.id || ""
+      : "";
+    if (!linkedOperatorId) return [];
+
+    return protocols.filter(protocol => {
+      const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
+      if (operationalStatus === "waiting" || operationalStatus === "pending") return true;
+      return protocol.operator_id === linkedOperatorId;
+    });
+  }, [canManage, operatorBinding, protocols, waitingProtocolSet]);
+
+  const selectedProtocol = useMemo(
+    () => visibleProtocols.find(protocol => protocol.id === selectedProtocolId) || null,
+    [selectedProtocolId, visibleProtocols],
+  );
+
+  useEffect(() => {
+    if (!selectedProtocolId || selectedProtocol) return;
+    selectProtocol(null);
+  }, [selectProtocol, selectedProtocol, selectedProtocolId]);
+
+  const operatorFilterOptions = useMemo(
+    () => Array.from(new Set(
+      visibleProtocols
+        .map(protocol => protocol.operator_name?.trim() || "")
+        .filter(Boolean),
+    )).sort((left, right) => left.localeCompare(right, "pt-BR")),
+    [visibleProtocols],
+  );
+
+  const unreadConversationCount = useMemo(
+    () => visibleProtocols.filter(protocol => Number(unreadCounts[protocol.id] || 0) > 0).length,
+    [unreadCounts, visibleProtocols],
+  );
+
   const statusCounts = useMemo(() => {
     const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0 };
-    for (const protocol of protocols) {
+    for (const protocol of visibleProtocols) {
       const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
       if (operationalStatus === "self_service") counts.self_service += 1;
       else if (operationalStatus === "waiting" || operationalStatus === "pending") counts.waiting += 1;
@@ -459,11 +484,11 @@ export function SacDigitalToolPage({
       else counts.finished += 1;
     }
     return counts;
-  }, [protocols, waitingProtocolSet]);
+  }, [visibleProtocols, waitingProtocolSet]);
 
   const filteredProtocols = useMemo(() => {
     const query = conversationSearch.trim().toLocaleLowerCase("pt-BR");
-    return protocols.filter(protocol => {
+    return visibleProtocols.filter(protocol => {
       const matchesSearch = !query || [
         protocolDisplayName(protocol),
         protocol.contact?.phone || "",
@@ -483,7 +508,7 @@ export function SacDigitalToolPage({
 
       return matchesSearch && matchesStatus && matchesOperator;
     });
-  }, [conversationSearch, operatorFilter, protocols, statusFilter, waitingProtocolSet]);
+  }, [conversationSearch, operatorFilter, statusFilter, visibleProtocols, waitingProtocolSet]);
 
   const loadStatus = useCallback(async () => {
     if (!activeOrganizationId) return;
@@ -523,6 +548,7 @@ export function SacDigitalToolPage({
       setProtocols(currentProtocols => {
         const selectedIdToKeep = resolvedSelectedId || currentSelectedId;
         if (!selectedIdToKeep || next.some(protocol => protocol.id === selectedIdToKeep)) return next;
+        if (!canManage) return next;
         const previousSelected = currentProtocols.find(protocol => protocol.id === selectedIdToKeep);
         return previousSelected ? [previousSelected, ...next] : next;
       });
@@ -538,7 +564,7 @@ export function SacDigitalToolPage({
     } finally {
       if (showLoading) setInboxLoading(false);
     }
-  }, [activeOrganizationId, canViewMessages, selectProtocol]);
+  }, [activeOrganizationId, canManage, canViewMessages, selectProtocol]);
 
   const loadMessages = useCallback(async (protocolId: string | null, showLoading = false) => {
     const requestId = ++messagesRequestIdRef.current;
@@ -622,9 +648,9 @@ export function SacDigitalToolPage({
     if (handledCustomerRouteRef.current === targetKey) return;
     handledCustomerRouteRef.current = targetKey;
 
-    const match = protocols.find(item => item.contact?.customer_id === routeCustomerId
+    const match = visibleProtocols.find(item => item.contact?.customer_id === routeCustomerId
       && !item.is_pending && item.status !== "finished")
-      || protocols.find(item => item.contact?.customer_id === routeCustomerId && item.is_pending);
+      || visibleProtocols.find(item => item.contact?.customer_id === routeCustomerId && item.is_pending);
 
     if (match) {
       selectProtocol(match.id);
@@ -663,7 +689,7 @@ export function SacDigitalToolPage({
 
       // O protocolo pode ter chegado pelo webhook antes de existir vinculo no CRM.
       // Nao abrir automaticamente conversa de outro cliente, mesmo com telefone igual.
-      const byPhone = protocols.filter(item => item.status !== "finished"
+      const byPhone = visibleProtocols.filter(item => item.status !== "finished"
         && item.contact?.phone
         && (!item.contact.customer_id || item.contact.customer_id === routeCustomerId)
         && sacContactPhoneMatch(item.contact.phone, phone));
@@ -691,11 +717,11 @@ export function SacDigitalToolPage({
       setNewConversationOpen(true);
     })();
     return () => { cancelled = true; };
-  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, status?.enabled]);
+  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, status?.enabled, visibleProtocols]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!activeOrganizationId || !canManageProtocols || !status?.enabled) {
+    if (!activeOrganizationId || !canViewMessages || !status?.enabled) {
       setOperatorBinding(null);
       return;
     }
@@ -713,7 +739,7 @@ export function SacDigitalToolPage({
     return () => {
       cancelled = true;
     };
-  }, [activeOrganizationId, canManageProtocols, status?.enabled]);
+  }, [activeOrganizationId, canViewMessages, status?.enabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1348,7 +1374,7 @@ export function SacDigitalToolPage({
 
 
     {incomingAlert && (() => {
-      const target = protocols.find(protocol => protocol.id === incomingAlert.protocolId) || null;
+      const target = visibleProtocols.find(protocol => protocol.id === incomingAlert.protocolId) || null;
       const targetName = target ? protocolDisplayName(target) : "novo contato";
       return (
         <div
@@ -1404,16 +1430,22 @@ export function SacDigitalToolPage({
         <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
           Sua função não possui permissão para visualizar conversas do SAC Digital.
         </div>
-      ) : inboxLoading && protocols.length === 0 ? (
+      ) : inboxLoading && visibleProtocols.length === 0 ? (
         <div className="flex h-full items-center justify-center p-6">
           <LoadingState text="Carregando conversas..." />
         </div>
-      ) : protocols.length === 0 ? (
+      ) : visibleProtocols.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
           <MessageCircle size={32} className="text-muted-foreground" />
-          <p className="text-sm font-black text-foreground">Nenhum atendimento recebido</p>
+          <p className="text-sm font-black text-foreground">
+            {canManage ? "Nenhum atendimento recebido" : operatorBinding?.linked ? "Nenhuma conversa atribuída a você" : "Operador SAC não vinculado"}
+          </p>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">
-            Quando a SAC Digital enviar um protocolo pelo webhook, ele aparecerá aqui em tempo real.
+            {canManage
+              ? "Quando a SAC Digital enviar um protocolo pelo webhook, ele aparecerá aqui em tempo real."
+              : operatorBinding?.linked
+                ? "Você verá a fila de atendimentos disponíveis e as conversas atribuídas ao seu Operador SAC."
+                : "Peça a um Gestor para vincular seu usuário a um Operador SAC em Configurações."}
           </p>
         </div>
       ) : (
@@ -1426,13 +1458,20 @@ export function SacDigitalToolPage({
                   {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
                 </p>
               </div>
-              <div className="mt-3 grid grid-cols-4 overflow-hidden rounded-lg border border-border bg-card">
-                {([
-                  ["self_service", "Auto", statusCounts.self_service],
-                  ["waiting", "Aguardando", statusCounts.waiting],
-                  ["in_att", "Em atendimento", statusCounts.in_att],
-                  ["finished", "Finalizadas", statusCounts.finished],
-                ] as const).map(([value, label, count]) => (
+              <div className={`mt-3 grid overflow-hidden rounded-lg border border-border bg-card ${canManage ? "grid-cols-4" : "grid-cols-3"}`}>
+                {(canManage
+                  ? ([
+                      ["self_service", "Auto", statusCounts.self_service],
+                      ["waiting", "Aguardando", statusCounts.waiting],
+                      ["in_att", "Em atendimento", statusCounts.in_att],
+                      ["finished", "Finalizadas", statusCounts.finished],
+                    ] as const)
+                  : ([
+                      ["waiting", "Aguardando", statusCounts.waiting],
+                      ["in_att", "Em atendimento", statusCounts.in_att],
+                      ["finished", "Finalizadas", statusCounts.finished],
+                    ] as const)
+                ).map(([value, label, count]) => (
                   <button
                     key={value}
                     type="button"
@@ -1445,11 +1484,13 @@ export function SacDigitalToolPage({
                 ))}
               </div>
               <div className="mt-3"><FInput label="Buscar conversa" aria-label="Buscar conversa" value={conversationSearch} onChange={(event: any) => setConversationSearch(event.target.value)} placeholder="Nome, telefone ou protocolo" /></div>
-              <div className="mt-3">
-                <FSelect label="Atendente" value={operatorFilter} onChange={(event: any) => setOperatorFilter(event.target.value)} options={[
-                  {value:'all',label:'Todos'}, {value:'unassigned',label:'Sem atendente'}, ...operatorFilterOptions.map(name=>({value:name,label:name})),
-                ]} />
-              </div>
+              {canManage && (
+                <div className="mt-3">
+                  <FSelect label="Atendente" value={operatorFilter} onChange={(event: any) => setOperatorFilter(event.target.value)} options={[
+                    {value:'all',label:'Todos'}, {value:'unassigned',label:'Sem atendente'}, ...operatorFilterOptions.map(name=>({value:name,label:name})),
+                  ]} />
+                </div>
+              )}
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
