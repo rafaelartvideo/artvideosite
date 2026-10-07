@@ -142,16 +142,53 @@ Deno.serve(async request => {
     }
   }
 
-  if (eventId) {
-    const { error: projectionError } = await admin.rpc("project_sac_digital_webhook_event", {
-      p_event_id: eventId,
+  if (!eventId) {
+    console.error("[SAC DIGITAL WEBHOOK] event missing after upsert", {
+      organization_id: integration.organization_id,
     });
-    if (projectionError) {
-      console.error("[SAC DIGITAL WEBHOOK] projection failed", {
-        event_id: eventId,
-        code: projectionError.code,
-      });
+    await admin.from("sac_digital_integrations")
+      .update({
+        connection_status: "error",
+        last_error: "O evento chegou, mas não foi localizado para processamento.",
+        last_event_type: type,
+        last_webhook_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("organization_id", integration.organization_id);
+    return json({ status: false, error: "Não foi possível localizar o evento recebido." }, 503);
+  }
+
+  const { error: projectionError } = await admin.rpc("project_sac_digital_webhook_event", {
+    p_event_id: eventId,
+  });
+  if (projectionError) {
+    const now = new Date().toISOString();
+    const safeCode = String(projectionError.code || "UNKNOWN").slice(0, 32);
+    console.error("[SAC DIGITAL WEBHOOK] projection failed", {
+      event_id: eventId,
+      code: safeCode,
+    });
+    // A função SQL pode ter revertido a atualização de erro ao lançar exceção.
+    // Registrar o erro numa operação separada garante que o painel o enxergue.
+    const { error: logError } = await admin.from("sac_digital_webhook_events")
+      .update({ processing_error: `Falha de projeção (código ${safeCode})` })
+      .eq("id", eventId)
+      .eq("organization_id", integration.organization_id)
+      .is("processed_at", null);
+    if (logError) {
+      console.error("[SAC DIGITAL WEBHOOK] projection error persistence failed", logError.code);
     }
+    await admin.from("sac_digital_integrations")
+      .update({
+        connection_status: "error",
+        last_error: `Falha ao processar evento da SAC Digital (código ${safeCode}).`,
+        last_webhook_at: now,
+        last_event_type: type,
+        updated_at: now,
+      })
+      .eq("organization_id", integration.organization_id);
+    // Resposta não-2xx permite reentrega pela SAC caso ela ofereça retry.
+    return json({ status: false, error: "Não foi possível processar o evento recebido." }, 503);
   }
 
   const protocol = typeof payload.protocol === "string" ? payload.protocol.trim() : "";
