@@ -361,7 +361,7 @@ Deno.serve(async request => {
 
     const { data: protocolRow, error: protocolError } = await admin
       .from("sac_digital_protocols")
-      .select("id")
+      .select("id,last_message_at")
       .eq("organization_id", organizationId)
       .eq("external_protocol_id", protocol)
       .maybeSingle();
@@ -383,6 +383,7 @@ Deno.serve(async request => {
     let imported = 0;
     let matched = 0;
     let latestAt: string | null = null;
+    const reconciledRowIds = new Set<string>();
 
     for (const entry of history) {
       const shape = historyMessageShape(entry);
@@ -414,7 +415,9 @@ Deno.serve(async request => {
       }
 
       const targetTime = new Date(sentAt).getTime();
+      const direction = String(entry.by || "").toLowerCase() === "operator" ? "outgoing" : "incoming";
       const candidate = localMessages
+        .filter(row => row.direction === direction && !reconciledRowIds.has(String(row.id)))
         .map(row => {
           const localTime = new Date(String(row.sent_at || "")).getTime();
           return { row, diff: Number.isFinite(localTime) ? Math.abs(localTime - targetTime) : Number.POSITIVE_INFINITY };
@@ -461,12 +464,12 @@ Deno.serve(async request => {
             candidate.message_type = shape.messageType;
           }
           candidate.raw_metadata = nextMetadata;
+          reconciledRowIds.add(String(candidate.id));
           matched += 1;
         }
         continue;
       }
 
-      const direction = String(entry.by || "").toLowerCase() === "operator" ? "outgoing" : "incoming";
       const row = {
         organization_id: organizationId,
         protocol_id: protocolRow.id,
@@ -503,9 +506,13 @@ Deno.serve(async request => {
     }
 
     if (latestAt) {
+      const currentTime = new Date(String(protocolRow.last_message_at || "")).getTime();
+      const newestAt = Number.isFinite(currentTime) && currentTime > new Date(latestAt).getTime()
+        ? protocolRow.last_message_at
+        : latestAt;
       await admin
         .from("sac_digital_protocols")
-        .update({ last_message_at: latestAt, updated_at: new Date().toISOString() })
+        .update({ last_message_at: newestAt, updated_at: new Date().toISOString() })
         .eq("id", protocolRow.id);
     }
 
@@ -2017,6 +2024,18 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       const text = String(body.text || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      const { data: mediaProtocol, error: mediaProtocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("id,status,closed_at")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+      if (mediaProtocolError || !mediaProtocol?.id) {
+        return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
+      }
+      if (mediaProtocol.status === "finished" || mediaProtocol.closed_at) {
+        return json({ success: false, error: "Não é possível enviar anexos a um protocolo finalizado." }, 409);
+      }
       if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
       if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
         return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." });
@@ -2698,6 +2717,18 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       const text = String(body.text || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      const { data: messageProtocol, error: messageProtocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("id,status,closed_at")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+      if (messageProtocolError || !messageProtocol?.id) {
+        return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
+      }
+      if (messageProtocol.status === "finished" || messageProtocol.closed_at) {
+        return json({ success: false, error: "Não é possível enviar mensagens a um protocolo finalizado." }, 409);
+      }
       if (!text) return json({ success: false, error: "Digite uma mensagem para enviar." }, 400);
       if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
 
