@@ -90,7 +90,7 @@ Deno.serve(async (req) => {
     if (signIn.error || !signIn.data.session) return json({ error: "Credenciais inválidas." }, 400);
 
     if (!await ipAccessAllowed(login.id, req)) {
-      await client.auth.signOut();
+      await client.auth.signOut({ scope: "local" });
       return json({
         error: "Acesso negado. Este endereço IP não está autorizado para este usuário.",
         code: "ip_not_allowed",
@@ -118,7 +118,7 @@ Deno.serve(async (req) => {
         }
         return json({ error: "Não foi possível alterar a senha." }, 400);
       }
-      await client.auth.signOut();
+      await client.auth.signOut({ scope: "local" });
       return json({ success: true });
     }
 

@@ -109,6 +109,23 @@ export function FieldTrackingReporter() {
   }, []);
 
   useEffect(() => {
+    if (!activeOrganizationId || !user?.id) return;
+
+    const optionalPreferenceKey = preferenceKey(activeOrganizationId, user.id);
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === optionalPreferenceKey) {
+        setPreferenceVersion(value => value + 1);
+      }
+      if (verificationKey && event.key === verificationKey) {
+        setVerificationVersion(value => value + 1);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [activeOrganizationId, user?.id, verificationKey]);
+
+  useEffect(() => {
     signingOutRef.current = false;
 
     // Este cronômetro só existe quando a empresa marcou a localização
@@ -118,24 +135,47 @@ export function FieldTrackingReporter() {
       return;
     }
 
-    const deadline = Date.now() + 60_000;
+    let remainingMs = 60_000;
+    let lastTickAt = Date.now();
+    let verificationObserved = false;
+
     const expireRequiredLocation = () => {
-      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      if (verificationObserved) return;
+
+      if (verificationKey && window.localStorage.getItem(verificationKey) === "1") {
+        verificationObserved = true;
+        setVerificationVersion(value => value + 1);
+        return;
+      }
+
+      const now = Date.now();
+      if (document.visibilityState === "visible") {
+        remainingMs = Math.max(0, remainingMs - Math.max(0, now - lastTickAt));
+      }
+      lastTickAt = now;
+
+      const remaining = Math.max(0, Math.ceil(remainingMs / 1000));
       setSecondsLeft(remaining);
-      if (remaining > 0 || signingOutRef.current) return;
+      if (remainingMs > 0 || signingOutRef.current) return;
+
       signingOutRef.current = true;
       void signOut();
     };
 
+    const handleVisibilityChange = () => {
+      lastTickAt = Date.now();
+      expireRequiredLocation();
+    };
+
     expireRequiredLocation();
     const interval = window.setInterval(expireRequiredLocation, 250);
-    const timeout = window.setTimeout(expireRequiredLocation, 60_000);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       window.clearInterval(interval);
-      window.clearTimeout(timeout);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [showRequiredGate, activeOrganizationId, user?.id, signOut]);
+  }, [showRequiredGate, activeOrganizationId, user?.id, verificationKey, signOut]);
 
   const activateBrowserTracking = useCallback(async () => {
     if (!activeOrganizationId || !user?.id || !canShare || activationBusy) return;

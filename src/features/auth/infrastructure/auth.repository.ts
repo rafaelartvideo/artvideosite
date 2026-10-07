@@ -45,7 +45,7 @@ export async function authenticateAdmin(identifier: string, password: string): P
     .single();
 
   if (profile?.is_active === false) {
-    await supabase.auth.signOut();
+    await supabase.auth.signOut({ scope: "local" });
     return "inactive_user";
   }
 

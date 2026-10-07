@@ -94,7 +94,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (persistedLastActivityAt !== null && isSessionInactive(persistedLastActivityAt)) {
           removeSessionActivity(userId);
-          await supabase.auth.signOut();
+          await supabase.auth.signOut({ scope: "local" });
           if (cancelled) return;
           setLoadingProgress(100);
           setLoading(false);
@@ -468,7 +468,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cancelScheduledAccessLoad();
 
     try {
-      await supabase.auth.signOut();
+      await supabase.auth.signOut({ scope: "local" });
     } finally {
       if (userId) {
         localStorage.removeItem(activeOrganizationStorageKey(userId));
