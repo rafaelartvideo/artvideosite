@@ -129,6 +129,10 @@ export async function freezeOrderPrintPdf(
   const innerWidthMm = Math.max(1, pageWidthMm - marginLeft - marginRight);
   const raster = freezeRasterOptions();
 
+  const existingPdfArtifacts = new Set(
+    Array.from(document.querySelectorAll(".html2pdf__overlay, .html2pdf__container")),
+  );
+
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
   frame.style.position = "fixed";
@@ -239,5 +243,11 @@ export async function freezeOrderPrintPdf(
     return { blob, page_count: pageCount, signature_slots: signatureSlots };
   } finally {
     frame.remove();
+    // html2pdf normalmente remove o overlay ao concluir. Se html2canvas lançar
+    // exceção (como no erro de OKLCH), versões da biblioteca podem deixar o
+    // overlay invisível cobrindo a aplicação e bloqueando todos os cliques.
+    document.querySelectorAll(".html2pdf__overlay, .html2pdf__container").forEach(node => {
+      if (!existingPdfArtifacts.has(node)) node.remove();
+    });
   }
 }
