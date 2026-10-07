@@ -418,7 +418,8 @@ export function SacDigitalToolPage({
           );
           if (resolved) return resolved.id;
         }
-        return next[0]?.id || null;
+        // Ao abrir/recarregar o SAC, não selecionar automaticamente a conversa mais recente.
+        return null;
       });
     } catch (error) {
       setMessage({
