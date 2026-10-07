@@ -23,7 +23,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { listCustomerEquipments, listCustomers } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { SacDigitalNewConversationDialog } from "./SacDigitalNewConversationDialog";
@@ -365,7 +365,10 @@ export function SacDigitalToolPage({
   const [operatorFilter, setOperatorFilter] = useState("all");
   const [waitingProtocolIds, setWaitingProtocolIds] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
-  const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const setMessage = useCallback((next: { text: string; error?: boolean } | null) => {
+    if (!next?.text) return;
+    notifyAdmin(next.text, next.error ? "error" : "success");
+  }, []);
   const [incomingAlert, setIncomingAlert] = useState<{ protocolId: string } | null>(null);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
@@ -1341,34 +1344,51 @@ export function SacDigitalToolPage({
       </Suspense>}
 
 
-    {message && (
-      <div className={`rounded-lg border px-3 py-2 text-sm font-semibold ${message.error
-        ? "border-red-200 bg-red-50 text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300"
-        : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900/40 dark:bg-emerald-950/30 dark:text-emerald-300"}`}>
-        {message.text}
-      </div>
-    )}
-
-    {incomingAlert && (
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/25 bg-primary-soft px-3 py-2 text-sm text-foreground">
-        <span className="font-semibold">Nova mensagem recebida no SAC Digital.</span>
-        <div className="flex items-center gap-2">
-          <AdminButton size="sm" onClick={() => {
-            const target = protocols.find(protocol => protocol.id === incomingAlert.protocolId);
-            const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
-            selectProtocol(incomingAlert.protocolId);
-            setConversationSearch("");
-            setStatusFilter(targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
-            setOperatorFilter("all");
-            setIncomingAlert(null);
-          }}>Abrir conversa</AdminButton>
-          <button type="button" onClick={() => setIncomingAlert(null)}
-            className="rounded p-1 text-muted-foreground hover:bg-muted" aria-label="Dispensar aviso">
-            <X size={16} />
-          </button>
+    {incomingAlert && (() => {
+      const target = protocols.find(protocol => protocol.id === incomingAlert.protocolId) || null;
+      const targetName = target ? protocolDisplayName(target) : "novo contato";
+      return (
+        <div
+          className="fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] right-4 z-[295] w-[calc(100%-2rem)] max-w-sm rounded-xl border border-border bg-card p-4 text-foreground shadow-[0_18px_45px_rgba(13,27,46,0.22)] sm:bottom-5 sm:right-5"
+          role="status"
+          aria-live="polite"
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-soft text-primary">
+              <MessageCircle size={18} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-black text-foreground">Nova mensagem recebida</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">{targetName}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIncomingAlert(null)}
+              className="shrink-0 rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+              aria-label="Fechar notificação"
+              title="Fechar"
+            >
+              <X size={16} />
+            </button>
+          </div>
+          <div className="mt-3 flex justify-end">
+            <AdminButton
+              size="sm"
+              onClick={() => {
+                const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
+                selectProtocol(incomingAlert.protocolId);
+                setConversationSearch("");
+                setStatusFilter(targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
+                setOperatorFilter("all");
+                setIncomingAlert(null);
+              }}
+            >
+              Abrir conversa
+            </AdminButton>
+          </div>
         </div>
-      </div>
-    )}
+      );
+    })()}
 
     {!status?.enabled && (
       <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
