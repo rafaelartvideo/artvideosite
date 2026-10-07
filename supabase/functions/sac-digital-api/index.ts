@@ -2242,6 +2242,20 @@ Deno.serve(async request => {
         }
       }
 
+      await writeSacAudit({
+        action: "sac_digital.protocol.send_media",
+        operation: "send",
+        entityType: "sac_digital_protocol",
+        entityId: protocol,
+        contextType: "protocol",
+        contextId: protocol,
+        metadata: {
+          media_type: mediaType,
+          file_size_bytes: uploadFile.size,
+          transport: mediaTransport,
+        },
+      });
+
       EdgeRuntime.waitUntil((async () => {
         await new Promise(resolve => setTimeout(resolve, 1500));
         try {
