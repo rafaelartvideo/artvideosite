@@ -2549,7 +2549,7 @@ Deno.serve(async request => {
       return json({ success: true, protocol });
     }
 
-    if (action === "return_to_inbox") {
+    if (action === "return_to_inbox" || action === "return_to_queue") {
       if (!(await requirePermission("sac_digital.protocols.manage"))) {
         return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
       }
@@ -2557,41 +2557,66 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
 
-      const credentials = await loadCredentials(organizationId);
-      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
+      let { data: protocolRow, error: protocolError } = await admin
+        .from("sac_digital_protocols")
+        .select("sector_id")
+        .eq("organization_id", organizationId)
+        .eq("external_protocol_id", protocol)
+        .maybeSingle();
+      if (protocolError) throw new Error("Não foi possível consultar o departamento do atendimento.");
 
-      const result = await apiRequest(
-        organizationId,
-        credentials,
-        `/protocol/to_inbox?protocol=${encodeURIComponent(protocol)}`,
-        { method: "PUT" },
-      );
+      if (!protocolRow?.sector_id) {
+        try {
+          await enrichProtocol(organizationId, protocol);
+          const refreshed = await admin
+            .from("sac_digital_protocols")
+            .select("sector_id")
+            .eq("organization_id", organizationId)
+            .eq("external_protocol_id", protocol)
+            .maybeSingle();
+          protocolRow = refreshed.data;
+          protocolError = refreshed.error;
+        } catch {
+          // A mensagem abaixo explica o requisito caso a SAC ainda não informe o departamento.
+        }
+      }
 
-      if (!result.response.ok || result.body.status === false || result.body.success === false) {
+      const departmentId = String(protocolRow?.sector_id || "").trim();
+      if (protocolError || !departmentId) {
         return json({
           success: false,
-          error: typeof result.body.message === "string" && result.body.message.trim()
-            ? `SAC Digital: ${result.body.message.trim()}`
-            : "Não foi possível devolver o atendimento para a caixa de entrada.",
-        });
+          error: "A SAC Digital não informou o departamento deste atendimento. Atualize o protocolo e tente novamente.",
+        }, 409);
       }
+
+      const intentKey = typeof body.intent_key === "string"
+        ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
+        : undefined;
+      const routed = await runResourceOperation(90, {
+        protocol,
+        to: "department",
+        department: departmentId,
+      }, intentKey);
+
+      if (!routed.success) return json(routed as Record<string, unknown>);
 
       try {
         await enrichProtocol(organizationId, protocol);
       } catch {
-        // O webhook atualizará o estado caso a consulta imediata ainda não reflita a mudança.
+        // A fila operacional é consultada diretamente e corrigirá o estado visual.
       }
 
       await writeSacAudit({
-        action: "sac_digital.protocol.return_to_inbox",
-        operation: "return_to_inbox",
+        action: "sac_digital.protocol.return_to_queue",
+        operation: "forward_department",
         entityType: "sac_digital_protocol",
         entityId: protocol,
         contextType: "protocol",
         contextId: protocol,
+        metadata: { department_id: departmentId },
       });
 
-      return json({ success: true, protocol });
+      return json({ success: true, protocol, returned_to_queue: true });
     }
 
     if (action === "finish_protocol") {
@@ -2601,32 +2626,14 @@ Deno.serve(async request => {
 
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
+      const vote = Number(body.vote);
+      if (!Number.isFinite(vote)) return json({ success: false, error: "Informe a votação para finalizar o atendimento." }, 400);
 
-      const credentials = await loadCredentials(organizationId);
-      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
-
-      const result = await apiRequest(
-        organizationId,
-        credentials,
-        "/protocol/finish",
-        {
-          method: "DELETE",
-          body: JSON.stringify({
-            protocol,
-            notify_contact: false,
-            ...(body.vote !== undefined ? {vote:body.vote} : {}),
-          }),
-        },
-      );
-
-      if (!result.response.ok || result.body.status === false || result.body.success === false) {
-        return json({
-          success: false,
-          error: typeof result.body.message === "string" && result.body.message.trim()
-            ? `SAC Digital: ${result.body.message.trim()}`
-            : "Não foi possível finalizar o atendimento.",
-        });
-      }
+      const intentKey = typeof body.intent_key === "string"
+        ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
+        : undefined;
+      const finished = await runResourceOperation(92, { protocol, vote }, intentKey);
+      if (!finished.success) return json(finished as Record<string, unknown>);
 
       try {
         await enrichProtocol(organizationId, protocol);
@@ -2643,7 +2650,7 @@ Deno.serve(async request => {
         contextId: protocol,
       });
 
-      return json({ success: true, protocol });
+      return json({ success: true, protocol, finished: true });
     }
 
     if (action === "send_media") {
