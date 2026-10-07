@@ -279,11 +279,11 @@ export function SacDigitalNewConversationDialog({
                           </span>
                         ) : candidate.whatsapp_available ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 dark:text-emerald-300">
-                            <CheckCircle2 size={10} /> Tem WhatsApp
+                            <CheckCircle2 size={10} /> Canal SAC disponível
                           </span>
                         ) : (
                           <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 dark:text-amber-300">
-                            Verificar WhatsApp
+                            Verificar na SAC
                           </span>
                         )}
                       </div>
@@ -349,11 +349,11 @@ export function SacDigitalNewConversationDialog({
                   </span>
                 ) : prepared.whatsapp_available ? (
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-                    <CheckCircle2 size={12} /> Tem WhatsApp
+                    <CheckCircle2 size={12} /> Canal SAC disponível
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-800 dark:text-amber-300">
-                    <MessageCircle size={12} /> WhatsApp não confirmado
+                    <MessageCircle size={12} /> Canal não confirmado
                   </span>
                 )}
               </div>
@@ -361,6 +361,9 @@ export function SacDigitalNewConversationDialog({
 
             {canCompose ? (
               <div>
+                <p className="mb-3 text-[11px] text-muted-foreground">
+                  O canal está disponível para envio, mas isso não confirma antecipadamente que o número esteja registrado no WhatsApp. A SAC Digital verifica ao processar a mensagem.
+                </p>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Primeira mensagem
                 </label>
@@ -376,7 +379,7 @@ export function SacDigitalNewConversationDialog({
               </div>
             ) : (
               <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-800 dark:border-amber-900/40 dark:bg-amber-950/30 dark:text-amber-300">
-                A SAC Digital não confirmou este número em um canal WhatsApp ativo. A conversa não será iniciada enquanto o contato não estiver disponível.
+                A SAC Digital não confirmou um canal ativo para este contato. Isso não prova que o número não tenha WhatsApp; confira a conexão do canal e tente novamente.
               </div>
             )}
           </>
