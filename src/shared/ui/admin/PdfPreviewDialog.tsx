@@ -206,7 +206,10 @@ export function PdfPreviewDialog({
     frame.style.pointerEvents = "none";
     frame.src = previewUrl;
 
+    let handled = false;
     const fallback = () => {
+      if (handled) return;
+      handled = true;
       frame.remove();
       window.open(previewUrl, "_blank", "noopener,noreferrer");
     };
@@ -215,6 +218,7 @@ export function PdfPreviewDialog({
       try {
         frame.contentWindow?.focus();
         frame.contentWindow?.print();
+        handled = true;
         window.setTimeout(() => frame.remove(), 30_000);
       } catch {
         fallback();
@@ -223,7 +227,7 @@ export function PdfPreviewDialog({
 
     document.body.appendChild(frame);
     window.setTimeout(() => {
-      if (document.body.contains(frame)) fallback();
+      if (!handled && document.body.contains(frame)) fallback();
     }, 8_000);
   };
 
