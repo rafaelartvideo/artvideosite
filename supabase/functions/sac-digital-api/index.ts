@@ -3373,32 +3373,36 @@ Deno.serve(async request => {
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
 
-      const { response, body: apiBody } = await apiRequest(
-        organizationId,
-        credentials,
-        "/protocol/send",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            protocol,
-            type: "text",
-            text,
-          }),
-        },
+      // O mesmo protocolo pode estar em autoatendimento (Gestor) ou já ter virado
+      // atendimento operacional. O roteador consulta /protocol/info e escolhe o
+      // contrato correto: /client/protocol/send ou /operator/att/send/{protocol}.
+      const intentKey = typeof body.intent_key === "string"
+        ? `${userData.user.id}:${body.intent_key.slice(0, 160)}`
+        : undefined;
+      const sendResult = await runResourceOperation(
+        36,
+        { protocol, type: "text", text },
+        intentKey,
       );
 
-      if (!response.ok || apiBody.status === false || apiBody.success === false) {
+      if (!sendResult.success) {
         console.error("[SAC DIGITAL API] send message failed", {
           organization_id: organizationId,
           protocol,
-          status: response.status,
-          request_id: apiBody.request_id,
+          outcome: sendResult.outcome,
+          type: sendResult.type,
         });
         return json({
           success: false,
-          error: "A SAC Digital não conseguiu enviar a mensagem.",
-        }, response.status >= 400 && response.status < 600 ? response.status : 502);
+          error: sendResult.error || "A SAC Digital não conseguiu enviar a mensagem.",
+          outcome: sendResult.outcome,
+          type: sendResult.type || "provider_rejected",
+        }, sendResult.outcome === "unknown" ? 502 : 409);
       }
+
+      const apiBody = sendResult.data && typeof sendResult.data === "object" && !Array.isArray(sendResult.data)
+        ? sendResult.data as Record<string, unknown>
+        : {};
 
       const { data: protocolRow, error: protocolError } = await admin
         .from("sac_digital_protocols")
@@ -3482,7 +3486,11 @@ Deno.serve(async request => {
         entityId: protocol,
         contextType: "protocol",
         contextId: protocol,
-        metadata: { message_length: text.length },
+        metadata: {
+          message_length: text.length,
+          transport: sendResult.data && typeof sendResult.data === "object" ? "routed" : "unknown",
+          outcome: sendResult.outcome,
+        },
       });
 
       return json({
