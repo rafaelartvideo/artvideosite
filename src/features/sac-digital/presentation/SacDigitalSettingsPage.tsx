@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -58,11 +59,74 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
     client_secret: "",
   });
   const [message, setMessage] = useState<{ text: string; error?: boolean } | null>(null);
+  const [webhookHealth, setWebhookHealth] = useState<{
+    pending: number;
+    failed: number;
+    recent: Array<{
+      id: number;
+      event_type: string;
+      received_at: string;
+      processed_at: string | null;
+      processing_error: string | null;
+    }>;
+  } | null>(null);
+  const [webhookHealthLoading, setWebhookHealthLoading] = useState(false);
+  const [webhookHealthError, setWebhookHealthError] = useState("");
 
   const webhookUrl = useMemo(
     () => sacDigitalWebhookUrl(settings?.webhook_token),
     [settings?.webhook_token],
   );
+
+  const loadWebhookHealth = useCallback(async () => {
+    if (!activeOrganizationId || !canManage) {
+      setWebhookHealth(null);
+      return;
+    }
+    setWebhookHealthLoading(true);
+    setWebhookHealthError("");
+    try {
+      // Somente metadados: nunca consultar o JSON bruto do webhook na interface.
+      const [recent, pending, failed] = await Promise.all([
+        supabase.from("sac_digital_webhook_events")
+          .select("id,event_type,received_at,processed_at,processing_error")
+          .eq("organization_id", activeOrganizationId)
+          .order("received_at", { ascending: false })
+          .limit(10),
+        supabase.from("sac_digital_webhook_events")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", activeOrganizationId)
+          .is("processed_at", null)
+          .is("processing_error", null),
+        supabase.from("sac_digital_webhook_events")
+          .select("id", { count: "exact", head: true })
+          .eq("organization_id", activeOrganizationId)
+          .not("processing_error", "is", null),
+      ]);
+      if (recent.error || pending.error || failed.error) {
+        throw recent.error || pending.error || failed.error;
+      }
+      setWebhookHealth({
+        pending: Number(pending.count || 0),
+        failed: Number(failed.count || 0),
+        recent: (recent.data || []) as Array<{
+          id: number;
+          event_type: string;
+          received_at: string;
+          processed_at: string | null;
+          processing_error: string | null;
+        }>,
+      });
+    } catch (error) {
+      setWebhookHealthError(systemErrorMessage(error, "Não foi possível consultar os últimos eventos do webhook."));
+    } finally {
+      setWebhookHealthLoading(false);
+    }
+  }, [activeOrganizationId, canManage]);
+
+  useEffect(() => {
+    void loadWebhookHealth();
+  }, [loadWebhookHealth]);
 
   const load = async () => {
     if (!activeOrganizationId || !canManage) return;
@@ -424,6 +488,74 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
             <p className="mt-1 break-words">{settings.last_error}</p>
           </div>
         )}
+      </div>
+    </Section>
+
+    <Section
+      title="Saúde do webhook"
+      description="Diagnóstico da empresa ativa, com contagem de falhas e eventos pendentes. O conteúdo das mensagens não é exibido aqui."
+      actions={
+        <AdminButton
+          variant="secondary"
+          onClick={() => void loadWebhookHealth()}
+          loading={webhookHealthLoading}
+          aria-label="Atualizar diagnóstico do webhook"
+        >
+          <RefreshCw size={15} /> Atualizar
+        </AdminButton>
+      }
+    >
+      <div className="space-y-3">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-lg border border-border bg-card px-4 py-3">
+            <p className="text-[10px] font-bold text-muted-foreground">Último evento</p>
+            <p className="mt-1 text-xs font-black text-foreground">{formatDate(settings?.last_webhook_at)}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card px-4 py-3">
+            <p className="text-[10px] font-bold text-muted-foreground">Aguardando processamento</p>
+            <p className="mt-1 text-lg font-black text-foreground">{webhookHealth?.pending ?? "—"}</p>
+          </div>
+          <div className="rounded-lg border border-border bg-card px-4 py-3">
+            <p className="text-[10px] font-bold text-muted-foreground">Eventos com erro</p>
+            <p className={`mt-1 text-lg font-black ${webhookHealth?.failed ? "text-red-600 dark:text-red-300" : "text-foreground"}`}>
+              {webhookHealth?.failed ?? "—"}
+            </p>
+          </div>
+        </div>
+        {webhookHealthError && (
+          <p className="text-xs text-red-600 dark:text-red-300">{webhookHealthError}</p>
+        )}
+        {webhookHealth?.recent.length ? (
+          <div className="max-h-56 overflow-y-auto rounded-lg border border-border">
+            {webhookHealth.recent.map(event => (
+              <div key={event.id}
+                className="flex min-w-0 items-start justify-between gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
+                <div className="min-w-0">
+                  <p className="truncate text-xs font-bold text-foreground">{event.event_type || "Evento"}</p>
+                  <p className="text-[10px] text-muted-foreground">{formatDate(event.received_at)}</p>
+                  {event.processing_error && (
+                    <p className="mt-1 break-words text-[10px] text-red-600 dark:text-red-300">
+                      {event.processing_error}
+                    </p>
+                  )}
+                </div>
+                <span className={`shrink-0 text-[10px] font-bold ${
+                  event.processing_error ? "text-red-600 dark:text-red-300"
+                    : event.processed_at ? "text-emerald-600 dark:text-emerald-300"
+                      : "text-amber-600 dark:text-amber-300"
+                }`}>
+                  {event.processing_error ? "Com erro" : event.processed_at ? "Processado" : "Pendente"}
+                </span>
+              </div>
+            ))}
+          </div>
+        ) : !webhookHealthLoading && !webhookHealthError ? (
+          <p className="text-xs text-muted-foreground">Ainda não há eventos de webhook registrados.</p>
+        ) : null}
+        <p className="text-[10px] leading-5 text-muted-foreground">
+          O JSON bruto de eventos processados com sucesso é esvaziado após 45 dias.
+          Hashes, status e histórico de conversas permanecem preservados.
+        </p>
       </div>
     </Section>
 
