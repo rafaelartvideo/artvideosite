@@ -1062,11 +1062,22 @@ Deno.serve(async request => {
           });
         }
 
+        const importedObject = importResult.body;
+        const importedContact = importedObject.contact && typeof importedObject.contact === "object"
+          ? importedObject.contact as Record<string, unknown>
+          : null;
+        const importedInfo = importedObject.info && typeof importedObject.info === "object"
+          ? importedObject.info as Record<string, unknown>
+          : null;
+        const importedData = importedObject.data && typeof importedObject.data === "object"
+          && !Array.isArray(importedObject.data)
+          ? importedObject.data as Record<string, unknown>
+          : null;
         const importedId = String(
-          importResult.body.id
-          || (importResult.body.contact && typeof importResult.body.contact === "object"
-            ? (importResult.body.contact as Record<string, unknown>).id
-            : "")
+          importedContact?.id
+          || importedInfo?.id
+          || importedData?.id
+          || importedObject.id
           || "",
         ).trim();
 
@@ -1080,11 +1091,23 @@ Deno.serve(async request => {
           if (infoResult.response.ok && infoResult.body.status !== false && infoResult.body.info) {
             contact = infoResult.body.info as Record<string, unknown>;
             contact.id = importedId;
+          } else {
+            // A importação foi aceita e devolveu um ID. A busca pode demorar a indexar;
+            // não exigir que o contato recém-criado apareça imediatamente na pesquisa.
+            contact = {
+              id: importedId,
+              number: importedPhone,
+              name: fallbackName,
+              channel: primaryChannel
+                ? { id: String(primaryChannel.id || ""), number: String(primaryChannel.number || "") }
+                : null,
+              imported: true,
+            };
           }
         }
 
         if (!contact) {
-          await new Promise(resolve => setTimeout(resolve, 250));
+          await new Promise(resolve => setTimeout(resolve, 400));
           for (const candidatePhone of sacPhoneVariants(importedPhone)) {
             const searchResult = await apiRequest(
               organizationId,
