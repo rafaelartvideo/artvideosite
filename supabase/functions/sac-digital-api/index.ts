@@ -66,8 +66,18 @@ function sacPhoneMatches(value: unknown, expected: unknown) {
   return sacPhoneVariants(value).some(candidate => keys.has(sacPhoneKey(candidate)));
 }
 
-function sacWhatsAppValidationInconclusive(message: unknown) {
+function sacWhatsAppValidationInconclusive(message: unknown, type?: unknown) {
+  if (String(type || "").trim().toLowerCase() === "error_valid_wpp") return true;
   return /(?:n[aã]o conseguimos validar|n[aã]o foi poss[ií]vel validar).*?(?:whatsapp|n[uú]mero)|(?:whatsapp|n[uú]mero).*?(?:n[aã]o conseguimos validar|n[aã]o foi poss[ií]vel validar)/i.test(String(message || ""));
+}
+
+function sacImportPhoneVariants(value: unknown) {
+  const normalized = normalizeSacPhone(value);
+  const countryVariants = sacPhoneVariants(normalized);
+  const localVariants = countryVariants
+    .filter(phone => phone.startsWith("55") && phone.length > 2)
+    .map(phone => phone.slice(2));
+  return [...new Set([...countryVariants, ...localVariants].filter(Boolean))];
 }
 
 function sacContactImportError(message: unknown, fallback: string) {
@@ -298,52 +308,70 @@ Deno.serve(async request => {
   ) => {
     const channelId = String(primaryChannel?.id || "").trim();
 
-    for (const candidatePhone of sacPhoneVariants(phone)) {
-      // O painel da SAC permite iniciar por um número que ainda não está na agenda.
-      // Por isso, primeiro importamos apenas o contato. Vincular um canal durante a
-      // importação força uma validação antecipada de WhatsApp que pode ser inconclusiva.
-      // Se a API exigir canal, repetimos com o canal ativo como compatibilidade.
-      const payloads: Array<{ payload: Record<string, unknown>; channelId: string | null }> = [
-        {
-          payload: { number: candidatePhone, name },
+    for (const candidatePhone of sacImportPhoneVariants(phone)) {
+      // O endpoint legado da SAC pode aceitar formatos diferentes na importação
+      // do formato devolvido pela consulta. Testamos E.164 e DDD+número, sempre
+      // preservando o telefone normalizado internamente.
+      const baseAttempt = await apiRequest(
+        organizationId,
+        credentials,
+        "/contact/import",
+        { method: "POST", body: JSON.stringify({ number: candidatePhone, name }) },
+      );
+
+      if (baseAttempt.response.ok && baseAttempt.body.status !== false && baseAttempt.body.success !== false) {
+        return {
+          result: baseAttempt,
+          phone: normalizeSacPhone(candidatePhone),
           channelId: null,
-        },
-      ];
-      if (channelId) {
-        payloads.push({
-          payload: { number: candidatePhone, name, channel: channelId },
-          channelId,
-        });
+          failure: null,
+        };
       }
 
-      for (let index = 0; index < payloads.length; index += 1) {
-        const candidate = payloads[index];
-        const attempt = await apiRequest(
+      const validationInconclusive = sacWhatsAppValidationInconclusive(
+        baseAttempt.body.message,
+        baseAttempt.body.type,
+      );
+      if (validationInconclusive) continue;
+
+      // Alguns workspaces exigem o canal já na criação. Só fazemos essa segunda
+      // chamada quando o erro não é a validação de WhatsApp, evitando duplicar
+      // chamadas inúteis em error_valid_wpp.
+      if (channelId) {
+        const channelAttempt = await apiRequest(
           organizationId,
           credentials,
           "/contact/import",
-          { method: "POST", body: JSON.stringify(candidate.payload) },
+          {
+            method: "POST",
+            body: JSON.stringify({ number: candidatePhone, name, channel: channelId }),
+          },
         );
-
-        if (attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false) {
+        if (channelAttempt.response.ok && channelAttempt.body.status !== false && channelAttempt.body.success !== false) {
           return {
-            result: attempt,
-            phone: candidatePhone,
-            channelId: candidate.channelId,
+            result: channelAttempt,
+            phone: normalizeSacPhone(candidatePhone),
+            channelId,
             failure: null,
           };
         }
-
-        const lastModeForPhone = index === payloads.length - 1;
-        if (!sacWhatsAppValidationInconclusive(attempt.body.message) && lastModeForPhone) {
-          return {
-            result: null,
-            phone: candidatePhone,
-            channelId: candidate.channelId,
-            failure: attempt,
-          };
+        if (sacWhatsAppValidationInconclusive(channelAttempt.body.message, channelAttempt.body.type)) {
+          continue;
         }
+        return {
+          result: null,
+          phone: normalizeSacPhone(candidatePhone),
+          channelId,
+          failure: channelAttempt,
+        };
       }
+
+      return {
+        result: null,
+        phone: normalizeSacPhone(candidatePhone),
+        channelId: null,
+        failure: baseAttempt,
+      };
     }
 
     return {
