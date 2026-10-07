@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CheckCircle2, MessageCircle, Search, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -65,6 +65,9 @@ export function SacDigitalNewConversationDialog({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const searchRequestRef = useRef(0);
+  const prepareRequestRef = useRef(0);
+  const sendInFlightRef = useRef(false);
 
   const results = useMemo(() => {
     const combined = [...contacts, ...customers];
@@ -80,6 +83,8 @@ export function SacDigitalNewConversationDialog({
   }, [contacts, customers]);
 
   const reset = () => {
+    searchRequestRef.current += 1;
+    prepareRequestRef.current += 1;
     setQuery("");
     setManualName("");
     setContacts([]);
@@ -102,20 +107,24 @@ export function SacDigitalNewConversationDialog({
     const value = query.trim();
     if (value.length < 2 || searching) return;
 
+    const requestId = ++searchRequestRef.current;
     setSearching(true);
     setPrepared(null);
     setError("");
     try {
       const data = await searchSacDigitalNewConversation(organizationId, value);
+      if (requestId !== searchRequestRef.current) return;
       setContacts(data.contacts);
       setCustomers(data.customers);
       if (data.contacts.length === 0 && data.customers.length === 0 && !isUsablePhone(value)) {
         setError("Nenhum contato encontrado. Para um número novo, informe o telefone com DDD.");
       }
     } catch (caught) {
-      setError(systemErrorMessage(caught, "Não foi possível pesquisar os contatos."));
+      if (requestId === searchRequestRef.current) {
+        setError(systemErrorMessage(caught, "Não foi possível pesquisar os contatos."));
+      }
     } finally {
-      setSearching(false);
+      if (requestId === searchRequestRef.current) setSearching(false);
     }
   };
 
@@ -123,6 +132,7 @@ export function SacDigitalNewConversationDialog({
     const key = candidate ? candidateKey(candidate) : "manual";
     if (preparingKey) return;
 
+    const requestId = ++prepareRequestRef.current;
     setPreparingKey(key);
     setPrepared(null);
     setError("");
@@ -141,6 +151,7 @@ export function SacDigitalNewConversationDialog({
               phone: query.trim(),
             },
       );
+      if (requestId !== prepareRequestRef.current) return;
 
       if (!result.prepared || !result.contact) {
         setError(result.error || "A SAC Digital não conseguiu validar este contato.");
@@ -152,17 +163,20 @@ export function SacDigitalNewConversationDialog({
       const firstName = result.contact.name.trim().split(/\s+/).filter(Boolean)[0] || "";
       setDraft(firstName ? `Olá, ${firstName}!` : "Olá!");
     } catch (caught) {
-      setError(systemErrorMessage(caught, "Não foi possível validar o número na SAC Digital."));
+      if (requestId === prepareRequestRef.current) {
+        setError(systemErrorMessage(caught, "Não foi possível validar o número na SAC Digital."));
+      }
     } finally {
-      setPreparingKey(null);
+      if (requestId === prepareRequestRef.current) setPreparingKey(null);
     }
   };
 
   const startConversation = async () => {
     const contact = prepared?.contact;
     const message = draft.trim();
-    if (!contact?.external_contact_id || !message || sending) return;
+    if (!contact?.external_contact_id || !message || sending || sendInFlightRef.current) return;
 
+    sendInFlightRef.current = true;
     setSending(true);
     setError("");
     try {
@@ -171,12 +185,19 @@ export function SacDigitalNewConversationDialog({
         contact.external_contact_id,
         message,
       );
-      await onStarted(result.protocol);
+      // O envio já foi confirmado pela SAC. Uma falha no refresh da tela
+      // nunca pode ser tratada como falha de envio, evitando duplicação.
       reset();
       onClose();
+      try {
+        await onStarted(result.protocol);
+      } catch {
+        // O realtime/webhook fará a conciliação após a entrega confirmada.
+      }
     } catch (caught) {
       setError(systemErrorMessage(caught, "Não foi possível iniciar a conversa."));
     } finally {
+      sendInFlightRef.current = false;
       setSending(false);
     }
   };
@@ -242,10 +263,16 @@ export function SacDigitalNewConversationDialog({
                 <input
                   value={query}
                   onChange={event => {
+                    // Descarta respostas de buscas/importações para o número anterior.
+                    searchRequestRef.current += 1;
+                    prepareRequestRef.current += 1;
                     setQuery(event.target.value);
+                    setManualName("");
                     setPrepared(null);
                     setContacts([]);
                     setCustomers([]);
+                    setSearching(false);
+                    setPreparingKey(null);
                     setError("");
                   }}
                   placeholder="Nome ou número com DDD"
