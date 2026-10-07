@@ -87,6 +87,20 @@ create index if not exists sac_digital_protocols_org_operator_last_idx
   on public.sac_digital_protocols
   (organization_id, operator_id, last_message_at desc nulls last);
 
+-- As listas do atendimento separam ativos de finalizados. Índices parciais
+-- impedem que cada refresh percorra todo o histórico crescente do SAC.
+create index if not exists sac_digital_protocols_active_recent_idx
+  on public.sac_digital_protocols
+  (organization_id, last_message_at desc nulls last, updated_at desc)
+  include (id, status, operator_id, closed_at)
+  where status <> 'finished';
+
+create index if not exists sac_digital_protocols_finished_recent_idx
+  on public.sac_digital_protocols
+  (organization_id, last_message_at desc nulls last, updated_at desc)
+  include (id, status, operator_id, closed_at)
+  where status = 'finished';
+
 create index if not exists sac_digital_protocol_reads_lookup_idx
   on public.sac_digital_protocol_reads
   (organization_id, user_id, protocol_id, last_read_at);
