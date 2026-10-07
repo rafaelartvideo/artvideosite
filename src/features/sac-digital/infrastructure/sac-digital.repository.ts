@@ -454,6 +454,74 @@ export function sendSacDigitalOrderMessage(
   });
 }
 
+export type SacDigitalOrderMessagePresetKey = "initial" | "estimate" | "completion";
+export type SacDigitalOrderMessagePreset = {
+  preset_key: SacDigitalOrderMessagePresetKey;
+  label: string;
+  message_template: string;
+  sort_order: number;
+  is_active: boolean;
+};
+
+export const DEFAULT_SAC_ORDER_MESSAGE_PRESETS: SacDigitalOrderMessagePreset[] = [
+  {
+    preset_key: "initial",
+    label: "Contato sobre a OS",
+    message_template: "Olá, {primeiro_nome}! Estamos entrando em contato sobre a OS {os}.",
+    sort_order: 10,
+    is_active: true,
+  },
+  {
+    preset_key: "estimate",
+    label: "Mensagem sobre orçamento",
+    message_template: "Olá, {primeiro_nome}! Gostaríamos de falar com você sobre o orçamento da OS {os}. Podemos esclarecer os valores e as próximas etapas por aqui.",
+    sort_order: 20,
+    is_active: true,
+  },
+  {
+    preset_key: "completion",
+    label: "Confirmação / conclusão",
+    message_template: "Olá, {primeiro_nome}! Temos uma atualização sobre a OS {os} e gostaríamos de confirmar os próximos passos com você.",
+    sort_order: 30,
+    is_active: true,
+  },
+];
+
+export async function listSacDigitalOrderMessagePresets(organizationId: string) {
+  const { data, error } = await (supabase as any)
+    .from("sac_digital_order_message_presets")
+    .select("preset_key,label,message_template,sort_order,is_active")
+    .eq("organization_id", organizationId)
+    .order("sort_order", { ascending: true });
+  if (error) throw error;
+
+  const rows = Array.isArray(data) ? data as SacDigitalOrderMessagePreset[] : [];
+  const byKey = new Map(rows.map(row => [row.preset_key, row]));
+  return DEFAULT_SAC_ORDER_MESSAGE_PRESETS
+    .map(fallback => byKey.get(fallback.preset_key) || fallback)
+    .sort((left, right) => left.sort_order - right.sort_order);
+}
+
+export async function saveSacDigitalOrderMessagePresets(
+  organizationId: string,
+  presets: SacDigitalOrderMessagePreset[],
+) {
+  const rows = presets.map((preset, index) => ({
+    organization_id: organizationId,
+    preset_key: preset.preset_key,
+    label: preset.label.trim(),
+    message_template: preset.message_template.trim(),
+    sort_order: Number.isFinite(preset.sort_order) ? preset.sort_order : (index + 1) * 10,
+    is_active: preset.is_active !== false,
+    updated_at: new Date().toISOString(),
+  }));
+  const { error } = await (supabase as any)
+    .from("sac_digital_order_message_presets")
+    .upsert(rows, { onConflict: "organization_id,preset_key" });
+  if (error) throw error;
+  return listSacDigitalOrderMessagePresets(organizationId);
+}
+
 
 export type SacDigitalNewConversationCandidate = {
   source: "sac" | "customer";
