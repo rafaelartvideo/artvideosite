@@ -1254,6 +1254,9 @@ export function SacDigitalToolPage({
             </AdminButton>
           )}
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+          {canManage && onOpenSettings && (
+            <AdminButton variant="secondary" onClick={onOpenSettings}>Configurações</AdminButton>
+          )}
 
         </>
       }
