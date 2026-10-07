@@ -288,6 +288,9 @@ export function AdminDashboard({
         ? <SacDigitalToolPage
           onBack={() => navigateAdmin("tools")}
           onOpenSettings={hasPermission("sac_digital.settings.manage") ? () => navigateAdmin("integrations") : undefined}
+          onOpenCustomer={hasPermission("customers.view")
+            ? customerId => openAuthenticatedAdminTab(adminPath("customers", customerId, "customer"))
+            : undefined}
         />
         : <Navigate to={adminPath("tools")} replace />
       : toolsHub;
