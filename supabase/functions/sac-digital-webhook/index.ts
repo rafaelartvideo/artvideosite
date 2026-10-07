@@ -69,7 +69,7 @@ Deno.serve(async request => {
 
   const { data: integration, error: integrationError } = await admin
     .from("sac_digital_integrations")
-    .select("organization_id,enabled")
+    .select("organization_id,enabled,connection_status,last_error")
     .eq("webhook_token", token)
     .maybeSingle();
 
@@ -236,14 +236,29 @@ Deno.serve(async request => {
     EdgeRuntime.waitUntil(enrichment);
   }
 
+  // Se houve falha anterior, um novo webhook bem-sucedido nao pode
+  // ocultar eventos que ainda aguardam recuperacao. So consultar falhas
+  // quando a integracao ja estiver em erro (sem count em todo evento).
+  let stillHasUnresolvedFailures = false;
+  if (integration.connection_status === "error") {
+    const { count, error: failureCheckError } = await admin
+      .from("sac_digital_webhook_events")
+      .select("id", { head: true, count: "exact" })
+      .eq("organization_id", integration.organization_id)
+      .not("processing_error", "is", null);
+    stillHasUnresolvedFailures = Boolean(failureCheckError) || Number(count || 0) > 0;
+  }
+
   const now = new Date().toISOString();
   const { error: updateError } = await admin
     .from("sac_digital_integrations")
     .update({
-      connection_status: "receiving",
+      connection_status: stillHasUnresolvedFailures ? "error" : "receiving",
       last_webhook_at: now,
       last_event_type: type,
-      last_error: null,
+      last_error: stillHasUnresolvedFailures
+        ? integration.last_error || "Há eventos da SAC Digital com falha de processamento."
+        : null,
       updated_at: now,
     })
     .eq("organization_id", integration.organization_id);
