@@ -60,15 +60,16 @@ import {
 } from "../infrastructure/sac-digital.repository";
 
 const protocolStatusLabel: Record<string, string> = {
+  self_service: "Auto Atendimento",
   waiting: "Aguardando atendimento",
-  open: "Aguardando atendimento",
+  open: "Auto Atendimento",
   in_att: "Em atendimento",
   inbox: "Aguardando atendimento",
   pending: "Aguardando protocolo",
   finished: "Finalizado",
 };
 
-type SacOperationalStatus = "waiting" | "in_att" | "finished" | "pending";
+type SacOperationalStatus = "self_service" | "waiting" | "in_att" | "finished" | "pending";
 
 function protocolOperationalStatus(
   protocol: SacDigitalProtocolListItem,
@@ -77,7 +78,8 @@ function protocolOperationalStatus(
   if (protocol.is_pending || protocol.status === "pending") return "pending";
   if (protocol.status === "finished" || Boolean(protocol.closed_at)) return "finished";
   if (protocol.external_protocol_id && waitingProtocolIds.has(protocol.external_protocol_id)) return "waiting";
-  if (protocol.status === "open" || protocol.status === "inbox") return "waiting";
+  if (protocol.status === "open") return "self_service";
+  if (protocol.status === "inbox") return "waiting";
   return "in_att";
 }
 
@@ -361,7 +363,7 @@ export function SacDigitalToolPage({
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"waiting" | "in_att" | "finished">("waiting");
+  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished">("waiting");
   const [operatorFilter, setOperatorFilter] = useState("all");
   const [waitingProtocolIds, setWaitingProtocolIds] = useState<string[]>([]);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
@@ -448,10 +450,11 @@ export function SacDigitalToolPage({
   );
 
   const statusCounts = useMemo(() => {
-    const counts = { waiting: 0, in_att: 0, finished: 0 };
+    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0 };
     for (const protocol of protocols) {
       const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
-      if (operationalStatus === "waiting" || operationalStatus === "pending") counts.waiting += 1;
+      if (operationalStatus === "self_service") counts.self_service += 1;
+      else if (operationalStatus === "waiting" || operationalStatus === "pending") counts.waiting += 1;
       else if (operationalStatus === "in_att") counts.in_att += 1;
       else counts.finished += 1;
     }
@@ -1378,7 +1381,7 @@ export function SacDigitalToolPage({
                 const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
                 selectProtocol(incomingAlert.protocolId);
                 setConversationSearch("");
-                setStatusFilter(targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
+                setStatusFilter(targetStatus === "self_service" ? "self_service" : targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
                 setOperatorFilter("all");
                 setIncomingAlert(null);
               }}
@@ -1420,11 +1423,12 @@ export function SacDigitalToolPage({
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {statusCounts.waiting + statusCounts.in_att} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
+                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
                 </p>
               </div>
-              <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-card">
+              <div className="mt-3 grid grid-cols-4 overflow-hidden rounded-lg border border-border bg-card">
                 {([
+                  ["self_service", "Auto", statusCounts.self_service],
                   ["waiting", "Aguardando", statusCounts.waiting],
                   ["in_att", "Em atendimento", statusCounts.in_att],
                   ["finished", "Finalizadas", statusCounts.finished],
@@ -1569,7 +1573,7 @@ export function SacDigitalToolPage({
                   || (canViewOrders && Boolean(selectedProtocol.contact?.customer_id))
                 ) && (
                   <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-4 py-2.5">
-                    {canManageProtocols && selectedOperationalStatus === "waiting" && (
+                    {canManageProtocols && selectedOperationalStatus === "waiting" && operatorBinding?.linked && (
                       <AdminButton
                         onClick={() => void assumeProtocol()}
                         loading={protocolAction === "assume"}
@@ -1578,6 +1582,16 @@ export function SacDigitalToolPage({
                       >
                         Pegar atendimento
                       </AdminButton>
+                    )}
+                    {canManageProtocols && selectedOperationalStatus === "waiting" && !operatorBinding?.linked && (
+                      <span className="shrink-0 rounded-lg bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-700 dark:text-amber-300">
+                        Supervisão Gestor · vincule um Operador para pegar
+                      </span>
+                    )}
+                    {canManageProtocols && selectedOperationalStatus === "self_service" && (
+                      <span className="shrink-0 rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        Auto Atendimento · sessão Gestor
+                      </span>
                     )}
                     {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
                       <span className="shrink-0 rounded-lg bg-blue-500/10 px-3 py-2 text-xs font-bold text-blue-700 dark:text-blue-300">
@@ -1635,7 +1649,7 @@ export function SacDigitalToolPage({
                       </AdminButton>
                     )}
 
-                    {canManageProtocols && selectedOperationalStatus === "in_att" && (
+                    {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
                       <>
                         <AdminButton
                           variant="secondary"
@@ -1669,6 +1683,11 @@ export function SacDigitalToolPage({
                           Finalizar
                         </AdminButton>
                       </>
+                    )}
+                    {canManageProtocols && selectedOperationalStatus === "in_att" && !isMyProtocol && (
+                      <span className="shrink-0 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300">
+                        Acompanhando como Gestor · ações do atendimento pertencem ao Operador
+                      </span>
                     )}
                   </div>
                 )}
@@ -2055,7 +2074,11 @@ export function SacDigitalToolPage({
                     </p>
                   ) : selectedOperationalStatus === "waiting" ? (
                     <p className="py-2 text-center text-xs font-semibold text-amber-700 dark:text-amber-300">
-                      Este atendimento está na fila. Clique em “Pegar atendimento” antes de responder.
+                      Este atendimento está na fila. Um Operador SAC deve pegar o atendimento antes de responder.
+                    </p>
+                  ) : selectedOperationalStatus === "in_att" && !isMyProtocol ? (
+                    <p className="py-2 text-center text-xs font-semibold text-sky-700 dark:text-sky-300">
+                      Você está acompanhando este atendimento como Gestor. Para responder, encaminhar ou finalizar pela API operacional, use o Operador SAC responsável.
                     </p>
                   ) : canSendMessages ? (
                     <div className="mx-auto max-w-4xl space-y-2">
