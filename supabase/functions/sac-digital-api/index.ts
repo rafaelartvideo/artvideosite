@@ -485,13 +485,17 @@ Deno.serve(async request => {
 
       const historyBy = String(entry.by || "").toLowerCase();
       const operatorId = String(entry.operator || "").trim();
-      const direction = historyBy === "operator" ? "outgoing" : "incoming";
-      const operatorName = direction === "outgoing"
-        ? operatorNames.get(operatorId)
-          || (operatorId && String(protocolRow.operator_id || "") === operatorId
-            ? String(protocolRow.operator_name || "").trim() : "")
-          || null
-        : null;
+      const direction = historyBy === "operator" || historyBy === "channel"
+        ? "outgoing"
+        : "incoming";
+      const operatorName = historyBy === "channel"
+        ? "Automação SAC Digital"
+        : historyBy === "operator"
+          ? operatorNames.get(operatorId)
+            || (operatorId && String(protocolRow.operator_id || "") === operatorId
+              ? String(protocolRow.operator_name || "").trim() : "")
+            || null
+          : null;
       const targetTime = new Date(sentAt).getTime();
 
       const alreadyIndexed = localMessages.find(row => row.external_message_id === historyId);
