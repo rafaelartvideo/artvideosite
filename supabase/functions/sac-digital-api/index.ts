@@ -757,6 +757,72 @@ Deno.serve(async request => {
       });
     }
 
+    if (action === "retry_webhook_event") {
+      if (!(await requirePermission("sac_digital.settings.manage"))) {
+        return json({ success: false, error: "Sem permissão para reprocessar webhooks do SAC Digital." }, 403);
+      }
+
+      const eventId = String(body.event_id || "").trim();
+      if (!/^[1-9][0-9]{0,17}$/.test(eventId)) {
+        return json({ success: false, error: "Identificador de evento inválido." }, 400);
+      }
+      const { data: event, error: eventError } = await admin
+        .from("sac_digital_webhook_events")
+        .select("id,event_type,processed_at,processing_error,payload")
+        .eq("organization_id", organizationId)
+        .eq("id", eventId)
+        .maybeSingle();
+      if (eventError || !event) {
+        return json({ success: false, error: "Evento não encontrado nesta empresa." }, 404);
+      }
+      if (event.processed_at && !event.processing_error) {
+        return json({ success: true, already_processed: true });
+      }
+      if (!event.payload || typeof event.payload !== "object"
+        || Array.isArray(event.payload) || Object.keys(event.payload).length === 0) {
+        return json({ success: false, error: "Este evento não possui mais payload para reprocessamento." }, 409);
+      }
+
+      const { error: projectionError } = await admin.rpc("project_sac_digital_webhook_event", {
+        p_event_id: eventId,
+      });
+      if (projectionError) {
+        const safeCode = String(projectionError.code || "UNKNOWN").slice(0, 32);
+        const { error: persistError } = await admin.from("sac_digital_webhook_events")
+          .update({ processing_error: `Falha de projeção (código ${safeCode})` })
+          .eq("id", eventId)
+          .eq("organization_id", organizationId)
+          .is("processed_at", null);
+        if (persistError) {
+          console.warn("[SAC DIGITAL API] retry error persistence failed", persistError.code);
+        }
+        return json({
+          success: false,
+          error: "O evento ainda não pôde ser processado. Confira o diagnóstico do webhook.",
+        }, 409);
+      }
+
+      await writeSacAudit({
+        action: "sac_digital.webhook.reprocess",
+        operation: "update",
+        entityType: "sac_digital_webhook_event",
+        entityId: eventId,
+        metadata: { event_type: String(event.event_type || "unknown") },
+      });
+
+      const { count: failedCount, error: countError } = await admin
+        .from("sac_digital_webhook_events")
+        .select("id", { head: true, count: "exact" })
+        .eq("organization_id", organizationId)
+        .not("processing_error", "is", null);
+      if (!countError && failedCount === 0) {
+        await admin.from("sac_digital_integrations")
+          .update({ connection_status: "receiving", last_error: null, updated_at: new Date().toISOString() })
+          .eq("organization_id", organizationId);
+      }
+      return json({ success: true, reprocessed: true });
+    }
+
     if (action === "refresh_protocol") {
       if (!(await requirePermission("sac_digital.messages.view"))) {
         return json({ success: false, error: "Sem permissão para visualizar conversas do SAC Digital." }, 403);
