@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
-const BUCKET = "sac-digital-outbox";
+const BUCKET = "sac-digital-attachments";
 
 const baseHeaders = {
   "Access-Control-Allow-Origin": "*",
