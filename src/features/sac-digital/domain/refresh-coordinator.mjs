@@ -7,21 +7,41 @@ export function singleFlight(key, run) {
   requests.set(key, promise);
   return promise;
 }
-// Batch notification bursts, allowing at most one trailing refresh while busy.
-export function createRefreshQueue(run, delay = 350) {
+// Debounce notification bursts. Bulk imports may emit thousands of Realtime
+// events; wait for a quiet window instead of refreshing the full inbox every
+// few hundred milliseconds while the import is still running.
+export function createRefreshQueue(run, delay = 500) {
   let timer, running = false, dirty = false, disposed = false;
+
   const flush = async () => {
     timer = undefined;
-    if (disposed || running) return;
+    if (disposed || running || !dirty) return;
     dirty = false;
     running = true;
     try { await run(); } catch { /* Read loaders expose their own errors. */ }
-    finally { running = false; if (dirty && !disposed) schedule(); }
+    finally {
+      running = false;
+      if (dirty && !disposed) schedule();
+    }
   };
-  const schedule = () => { if (!timer && !running) timer = setTimeout(flush, delay); };
+
+  const schedule = () => {
+    if (disposed || running) return;
+    if (timer) clearTimeout(timer);
+    timer = setTimeout(flush, delay);
+  };
+
   return {
-    request() { if (!disposed) { dirty = true; schedule(); } },
-    dispose() { disposed = true; clearTimeout(timer); },
+    request() {
+      if (disposed) return;
+      dirty = true;
+      schedule();
+    },
+    dispose() {
+      disposed = true;
+      dirty = false;
+      if (timer) clearTimeout(timer);
+    },
   };
 }
 

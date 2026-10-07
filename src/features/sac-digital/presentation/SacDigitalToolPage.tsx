@@ -315,14 +315,25 @@ export function SacDigitalToolPage({
     let cancelled = false;
     let running = false;
     const reconcile = async () => {
-      if (cancelled || running || document.visibilityState === 'hidden') return;
+      if (cancelled || running || document.visibilityState === "hidden") return;
       running = true;
-      try { await syncSacDigitalResources(activeOrganizationId); } catch { /* Local state remains readable; the next bounded reconciliation resumes. */ }
-      finally { running = false; }
+      try {
+        await syncSacDigitalResources(activeOrganizationId);
+      } catch {
+        // Webhook/worker e dados locais continuam disponíveis durante falhas.
+      } finally {
+        running = false;
+      }
     };
-    const initialTimer = window.setTimeout(() => void reconcile(), 15_000);
-    const interval = window.setInterval(() => void reconcile(), 120_000);
-    return () => { cancelled = true; window.clearTimeout(initialTimer); window.clearInterval(interval); };
+
+    // Uma reconciliação atrasada ao abrir a tela é suficiente. O worker e o
+    // webhook mantêm a integração atualizada; não repetir bootstrap completo
+    // a cada dois minutos no navegador.
+    const initialTimer = window.setTimeout(() => void reconcile(), 20_000);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(initialTimer);
+    };
   }, [activeOrganizationId, canViewMessages]);
   const [moduleSection, setModuleSection] = useState('conversations');
   const [loading, setLoading] = useState(true);
@@ -761,7 +772,9 @@ export function SacDigitalToolPage({
 
       try {
         await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
-        if (!cancelled) await loadUnreadCounts();
+        if (!cancelled) {
+          setUnreadCounts(current => ({ ...current, [selectedProtocolId]: 0 }));
+        }
       } catch {
         // Não bloqueia a abertura da conversa.
       }
@@ -825,12 +838,12 @@ export function SacDigitalToolPage({
       }
     };
 
-    const reconcileTimer = window.setInterval(() => void refreshWhenActive(), 60_000);
+    // Realtime cuida do uso normal. Esta reconciliação existe somente para
+    // recuperar eventos perdidos quando a aba volta ao foco.
     window.addEventListener("focus", refreshWhenActive);
     document.addEventListener("visibilitychange", refreshWhenActive);
     return () => {
       cancelled = true;
-      window.clearInterval(reconcileTimer);
       window.removeEventListener("focus", refreshWhenActive);
       document.removeEventListener("visibilitychange", refreshWhenActive);
     };
@@ -865,16 +878,24 @@ export function SacDigitalToolPage({
     if (!activeOrganizationId || !canViewMessages) return;
 
     let selectedMessagesChanged = false;
+    let unreadCountsChanged = false;
     const refreshQueue = createRefreshQueue(async () => {
       const refreshSelected = selectedMessagesChanged;
+      const refreshUnread = unreadCountsChanged;
       selectedMessagesChanged = false;
+      unreadCountsChanged = false;
+
       await loadProtocols(false);
       if (refreshSelected && selectedProtocolId) {
         await loadMessages(selectedProtocolId, false);
-        try { await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId); } catch { /* Retry on the next update. */ }
+        try {
+          await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
+        } catch {
+          // Retry on the next update.
+        }
       }
-      await loadUnreadCounts();
-    });
+      if (refreshUnread) await loadUnreadCounts();
+    }, 900);
     const realtime = supabase
       .channel(`sac-digital-inbox:${activeOrganizationId}`)
       .on(
@@ -898,16 +919,23 @@ export function SacDigitalToolPage({
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         payload => {
-          refreshQueue.request();
           const changedProtocolId = String((payload.new as any)?.protocol_id || (payload.old as any)?.protocol_id || "");
           const newMessage = payload.new as any;
-          if (payload.eventType === "INSERT" && newMessage?.direction === "incoming"
-            && !newMessage?.raw_metadata?.history_synced
-            && changedProtocolId && changedProtocolId !== selectedProtocolId) {
-            setIncomingAlert({ protocolId: changedProtocolId });
-          }
+          const historySynced = newMessage?.raw_metadata?.history_synced === true;
+
+          // Importação histórica não é evento ao vivo e não deve provocar
+          // releitura completa da caixa/contadores a cada mensagem importada.
+          if (historySynced) return;
+
+          if (newMessage?.direction === "incoming") unreadCountsChanged = true;
           if (selectedProtocolId && (!changedProtocolId || changedProtocolId === selectedProtocolId)) {
             selectedMessagesChanged = true;
+          }
+          refreshQueue.request();
+
+          if (payload.eventType === "INSERT" && newMessage?.direction === "incoming"
+            && changedProtocolId && changedProtocolId !== selectedProtocolId) {
+            setIncomingAlert({ protocolId: changedProtocolId });
           }
         },
       )
