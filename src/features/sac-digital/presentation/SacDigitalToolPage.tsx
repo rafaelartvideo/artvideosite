@@ -1,3 +1,4 @@
+import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
 import { SacDigitalDeliveryHistory } from './SacDigitalDeliveryHistory';
 import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
 import { SacDigitalResources } from './SacDigitalResources';
@@ -301,9 +302,9 @@ export function SacDigitalToolPage({
       try { await syncSacDigitalResources(activeOrganizationId); } catch { /* Local state remains readable; the next bounded reconciliation resumes. */ }
       finally { running = false; }
     };
-    void reconcile();
+    const initialTimer = window.setTimeout(() => void reconcile(), 15_000);
     const interval = window.setInterval(() => void reconcile(), 120_000);
-    return () => { cancelled = true; window.clearInterval(interval); };
+    return () => { cancelled = true; window.clearTimeout(initialTimer); window.clearInterval(interval); };
   }, [activeOrganizationId, canViewMessages]);
   const [moduleSection, setModuleSection] = useState('conversations');
   const [loading, setLoading] = useState(true);
@@ -487,12 +488,11 @@ export function SacDigitalToolPage({
 
   useEffect(() => {
     let alive = true;
-    const start = async () => {
-      setLoading(true);
-      await Promise.all([loadStatus(), loadProtocols(true), loadUnreadCounts()]);
-      if (alive) setLoading(false);
-    };
-    void start();
+    setLoading(true);
+    void initializeSacScreen({
+      loadStatus, loadProtocols: () => loadProtocols(true), loadUnreadCounts,
+      onReady: () => { if (!alive) return false; setLoading(false); },
+    });
     return () => {
       alive = false;
     };
@@ -684,7 +684,6 @@ export function SacDigitalToolPage({
     };
 
     const reconcileTimer = window.setInterval(() => void refreshWhenActive(), 60_000);
-    void refreshWhenActive();
     window.addEventListener("focus", refreshWhenActive);
     document.addEventListener("visibilitychange", refreshWhenActive);
     return () => {
@@ -707,6 +706,17 @@ export function SacDigitalToolPage({
   useEffect(() => {
     if (!activeOrganizationId || !canViewMessages) return;
 
+    let selectedMessagesChanged = false;
+    const refreshQueue = createRefreshQueue(async () => {
+      const refreshSelected = selectedMessagesChanged;
+      selectedMessagesChanged = false;
+      await loadProtocols(false);
+      if (refreshSelected && selectedProtocolId) {
+        await loadMessages(selectedProtocolId, false);
+        try { await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId); } catch { /* Retry on the next update. */ }
+      }
+      await loadUnreadCounts();
+    });
     const realtime = supabase
       .channel(`sac-digital-inbox:${activeOrganizationId}`)
       .on(
@@ -718,7 +728,7 @@ export function SacDigitalToolPage({
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         () => {
-          void loadProtocols(false);
+          refreshQueue.request();
         },
       )
       .on(
@@ -730,7 +740,7 @@ export function SacDigitalToolPage({
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         payload => {
-          void loadProtocols(false);
+          refreshQueue.request();
           const changedProtocolId = String((payload.new as any)?.protocol_id || (payload.old as any)?.protocol_id || "");
           const newMessage = payload.new as any;
           if (payload.eventType === "INSERT" && newMessage?.direction === "incoming"
@@ -739,19 +749,7 @@ export function SacDigitalToolPage({
             setIncomingAlert({ protocolId: changedProtocolId });
           }
           if (selectedProtocolId && (!changedProtocolId || changedProtocolId === selectedProtocolId)) {
-            void (async () => {
-              await loadMessages(selectedProtocolId, false);
-              if (activeOrganizationId) {
-                try {
-                  await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
-                } catch {
-                  // Mantém o realtime da conversa mesmo se o marcador de leitura falhar.
-                }
-              }
-              await loadUnreadCounts();
-            })();
-          } else {
-            void loadUnreadCounts();
+            selectedMessagesChanged = true;
           }
         },
       )
@@ -770,12 +768,13 @@ export function SacDigitalToolPage({
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         () => {
-          void loadProtocols(false);
+          refreshQueue.request();
         },
       )
       .subscribe();
 
     return () => {
+      refreshQueue.dispose();
       void supabase.removeChannel(realtime);
       void supabase.removeChannel(pendingRealtime);
     };

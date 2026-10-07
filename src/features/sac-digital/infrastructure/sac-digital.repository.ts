@@ -1,3 +1,4 @@
+import { singleFlight } from '../domain/refresh-coordinator.mjs';
 import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia } from '../domain/resource-ui.mjs';
 import { supabase, supabaseUrl } from "@/lib/supabase";
 
@@ -128,141 +129,146 @@ function normalizeRelation<T>(value: T | T[] | null | undefined): T | null {
 }
 
 export async function listSacDigitalProtocols(organizationId: string) {
-  const { data, error } = await supabase
-    .from("sac_digital_protocols")
-    .select(`
-      id,
-      external_protocol_id,
-      status,
-      operator_id,
-      operator_name,
-      department_name,
-      channel_number,
-      opened_at,
-      created_at,
-      closed_at,
-      last_message_at,
-      contact:sac_digital_contacts(
+  return singleFlight(`${organizationId}:protocols`, async () => {
+    const { data, error } = await supabase
+      .from("sac_digital_protocols")
+      .select(`
         id,
-        name,
-        phone,
-        avatar_url,
-        customer_id,
-        customer:customers(id,full_name)
-      )
-    `)
-    .eq("organization_id", organizationId)
-    .order("last_message_at", { ascending: false, nullsFirst: false })
-    .order("updated_at", { ascending: false });
+        external_protocol_id,
+        status,
+        operator_id,
+        operator_name,
+        department_name,
+        channel_number,
+        opened_at,
+        created_at,
+        closed_at,
+        last_message_at,
+        contact:sac_digital_contacts(
+          id,
+          name,
+          phone,
+          avatar_url,
+          customer_id,
+          customer:customers(id,full_name)
+        )
+      `)
+      .eq("organization_id", organizationId)
+      .order("last_message_at", { ascending: false, nullsFirst: false })
+      .order("updated_at", { ascending: false });
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const protocols = (data || []).map((row: any) => {
-    const contact = normalizeRelation<any>(row.contact);
-    return {
-      ...row,
-      contact: contact
-        ? {
-            ...contact,
-            customer: normalizeRelation<any>(contact.customer),
-          }
-        : null,
-    };
-  }) as SacDigitalProtocolListItem[];
+    const protocols = (data || []).map((row: any) => {
+      const contact = normalizeRelation<any>(row.contact);
+      return {
+        ...row,
+        contact: contact
+          ? {
+              ...contact,
+              customer: normalizeRelation<any>(contact.customer),
+            }
+          : null,
+      };
+    }) as SacDigitalProtocolListItem[];
 
-  // A primeira mensagem pode ser aceita pela SAC sem abrir protocolo.
-  // Exibir o registro pendente com identidade propria, sem fabricar protocolo.
-  const { data: pendingRows, error: pendingError } = await supabase
-    .from("sac_digital_outbound_starts")
-    .select(`
-      id,
-      contact_id,
-      external_contact_id,
-      message_text,
-      notification_id,
-      delivery_state,
-      sent_at,
-      contact:sac_digital_contacts(
+    // A primeira mensagem pode ser aceita pela SAC sem abrir protocolo.
+    // Exibir o registro pendente com identidade propria, sem fabricar protocolo.
+    const { data: pendingRows, error: pendingError } = await supabase
+      .from("sac_digital_outbound_starts")
+      .select(`
         id,
-        name,
-        phone,
-        avatar_url,
-        customer_id,
-        customer:customers(id,full_name)
-      )
-    `)
-    .eq("organization_id", organizationId)
-    .order("sent_at", { ascending: false })
-    .limit(100);
+        contact_id,
+        external_contact_id,
+        message_text,
+        notification_id,
+        delivery_state,
+        sent_at,
+        contact:sac_digital_contacts(
+          id,
+          name,
+          phone,
+          avatar_url,
+          customer_id,
+          customer:customers(id,full_name)
+        )
+      `)
+      .eq("organization_id", organizationId)
+      .order("sent_at", { ascending: false })
+      .limit(100);
 
-  // Compatibilidade enquanto a migracao ainda nao foi aplicada: nao quebrar
-  // os protocolos reais so porque o recurso de pendentes nao esta disponivel.
-  if (pendingError) return protocols;
+    // Compatibilidade enquanto a migracao ainda nao foi aplicada: nao quebrar
+    // os protocolos reais so porque o recurso de pendentes nao esta disponivel.
+    if (pendingError) return protocols;
 
-  const pending = (pendingRows || []).filter((row: any) => {
-    const sentAt = new Date(String(row.sent_at)).getTime();
-    return !protocols.some(protocol =>
-      protocol.contact?.id === row.contact_id
-      && Number.isFinite(sentAt)
-      && new Date(String(protocol.opened_at || protocol.created_at || "")).getTime() >= sentAt - 30_000,
-    );
-  }).map((row: any): SacDigitalProtocolListItem => {
-    const contact = normalizeRelation<any>(row.contact);
-    return {
-      id: `pending:${row.id}`,
-      external_protocol_id: "",
-      status: "pending",
-      operator_id: null,
-      operator_name: null,
-      department_name: null,
-      channel_number: null,
-      opened_at: null,
-      closed_at: null,
-      last_message_at: row.sent_at,
-      is_pending: true,
-      pending_message: String(row.message_text || ""),
-      notification_id: row.notification_id || null,
-      delivery_state: row.delivery_state || "queued",
-      contact: contact
-        ? {
-            ...contact,
-            customer: normalizeRelation<any>(contact.customer),
-          }
-        : null,
-    };
+    const pending = (pendingRows || []).filter((row: any) => {
+      const sentAt = new Date(String(row.sent_at)).getTime();
+      return !protocols.some(protocol =>
+        protocol.contact?.id === row.contact_id
+        && Number.isFinite(sentAt)
+        && new Date(String(protocol.opened_at || protocol.created_at || "")).getTime() >= sentAt - 30_000,
+      );
+    }).map((row: any): SacDigitalProtocolListItem => {
+      const contact = normalizeRelation<any>(row.contact);
+      return {
+        id: `pending:${row.id}`,
+        external_protocol_id: "",
+        status: "pending",
+        operator_id: null,
+        operator_name: null,
+        department_name: null,
+        channel_number: null,
+        opened_at: null,
+        closed_at: null,
+        last_message_at: row.sent_at,
+        is_pending: true,
+        pending_message: String(row.message_text || ""),
+        notification_id: row.notification_id || null,
+        delivery_state: row.delivery_state || "queued",
+        contact: contact
+          ? {
+              ...contact,
+              customer: normalizeRelation<any>(contact.customer),
+            }
+          : null,
+      };
   });
 
   return [...protocols, ...pending].sort((left, right) =>
     new Date(String(right.last_message_at || right.opened_at || 0)).getTime()
     - new Date(String(left.last_message_at || left.opened_at || 0)).getTime()
   );
+  });
 }
 
 export async function listSacDigitalMessages(organizationId: string, protocolId: string) {
-  const { data, error } = await supabase
-    .from("sac_digital_messages")
-    .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at,raw_metadata")
-    .eq("organization_id", organizationId)
-    .eq("protocol_id", protocolId)
-    .order("sent_at", { ascending: true });
+  return singleFlight(`${organizationId}:messages:${protocolId}`, async () => {
+    const { data, error } = await supabase
+      .from("sac_digital_messages")
+      .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at,raw_metadata")
+      .eq("organization_id", organizationId)
+      .eq("protocol_id", protocolId)
+      .order("sent_at", { ascending: true });
 
-  if (error) throw error;
-  const messages = (data || []) as SacDigitalMessage[];
-  const messageIds = privateMediaIds(messages);
-  if (!messageIds.length) return messages;
-  try {
-    const signed = await invokeSacDigitalApi({action: "media_urls", organization_id: organizationId, message_ids: messageIds});
-    return hydrateMedia(messages, signed.urls as Record<string,string>);
-  } catch {
-    // Cached URLs and historic public attachments stay readable during outages.
-    return messages;
-  }
+    if (error) throw error;
+    const messages = (data || []) as SacDigitalMessage[];
+    const messageIds = privateMediaIds(messages);
+    if (!messageIds.length) return messages;
+    try {
+      const signed = await invokeSacDigitalApi({action: "media_urls", organization_id: organizationId, message_ids: messageIds});
+      return hydrateMedia(messages, signed.urls as Record<string,string>);
+    } catch {
+      // Cached URLs and historic public attachments stay readable during outages.
+      return messages;
+    }
+  });
 }
 
 
 export async function getSacDigitalUnreadCounts(organizationId: string) {
-  const { data, error } = await supabase.rpc("get_sac_digital_unread_counts", {
-    p_organization_id: organizationId,
+  return singleFlight(`${organizationId}:unread`, async () => {
+    const { data, error } = await supabase.rpc("get_sac_digital_unread_counts", {
+      p_organization_id: organizationId,
   });
   if (error) throw error;
 
@@ -273,6 +279,7 @@ export async function getSacDigitalUnreadCounts(organizationId: string) {
     counts[protocolId] = Number((row as any).unread_count || 0);
   }
   return counts;
+  });
 }
 
 export async function markSacDigitalProtocolRead(
@@ -708,9 +715,11 @@ export async function operateSacDigitalResource(organizationId: string, endpoint
   return await invokeSacDigitalApi({ action: 'resource_operation', organization_id: organizationId, endpoint_id: endpointId, values }) as unknown as SacDigitalResourceResult;
 }
 export async function syncSacDigitalResources(organizationId: string) {
-  await invokeSacDigitalApi({ action: 'bootstrap', organization_id: organizationId });
-  await invokeSacDigitalApi({ action: 'process_jobs', organization_id: organizationId });
-  return invokeSacDigitalApi({ action: 'reconcile_outbound', organization_id: organizationId });
+  return singleFlight(`${organizationId}:sync`, async () => {
+    await invokeSacDigitalApi({ action: 'bootstrap', organization_id: organizationId });
+    // The scheduled private worker drains jobs independently of open CRM tabs.
+    return invokeSacDigitalApi({ action: 'reconcile_outbound', organization_id: organizationId });
+  });
 }
 export function syncSacDigitalResource(organizationId: string, endpointId: number, cursor?: unknown) {
   return invokeSacDigitalApi({ action: 'sync_resource', organization_id: organizationId, endpoint_id: endpointId, cursor });
