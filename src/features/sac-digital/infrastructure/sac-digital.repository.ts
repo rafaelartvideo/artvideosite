@@ -263,6 +263,92 @@ export function sendSacDigitalOrderMessage(
 }
 
 
+export type SacDigitalNewConversationCandidate = {
+  source: "sac" | "customer";
+  external_contact_id: string | null;
+  customer_id: string | null;
+  name: string;
+  phone: string;
+  whatsapp_available: boolean;
+  blocked?: boolean;
+  channel_id?: string | null;
+  channel_number?: string | null;
+  customer_type?: string | null;
+};
+
+export type SacDigitalPreparedContact = {
+  prepared: boolean;
+  imported: boolean;
+  whatsapp_available: boolean;
+  error?: string;
+  contact?: {
+    external_contact_id: string;
+    customer_id: string | null;
+    name: string;
+    phone: string;
+    channel_id: string | null;
+    blocked: boolean;
+  };
+};
+
+export async function searchSacDigitalNewConversation(
+  organizationId: string,
+  search: string,
+) {
+  const data = await invokeSacDigitalApi({
+    action: "new_conversation_search",
+    organization_id: organizationId,
+    search,
+  });
+  return {
+    contacts: Array.isArray(data.contacts) ? data.contacts : [],
+    customers: Array.isArray(data.customers) ? data.customers : [],
+  } as {
+    contacts: SacDigitalNewConversationCandidate[];
+    customers: SacDigitalNewConversationCandidate[];
+  };
+}
+
+export async function prepareSacDigitalNewConversationContact(
+  organizationId: string,
+  input: {
+    externalContactId?: string;
+    customerId?: string;
+    name?: string;
+    phone?: string;
+  },
+) {
+  const data = await invokeSacDigitalApi({
+    action: "prepare_new_conversation_contact",
+    organization_id: organizationId,
+    external_contact_id: input.externalContactId || "",
+    customer_id: input.customerId || "",
+    name: input.name || "",
+    phone: input.phone || "",
+  });
+  return data as unknown as SacDigitalPreparedContact;
+}
+
+export async function startSacDigitalNewConversation(
+  organizationId: string,
+  externalContactId: string,
+  text: string,
+) {
+  const data = await invokeSacDigitalApi({
+    action: "start_new_conversation",
+    organization_id: organizationId,
+    external_contact_id: externalContactId,
+    text,
+  });
+  return data as {
+    success: true;
+    mode: "protocol" | "notification";
+    protocol: string | null;
+    external_contact_id: string;
+  };
+}
+
+
 export type SacDigitalRoutingOptions = {
   operators: Array<{
     id: string;
