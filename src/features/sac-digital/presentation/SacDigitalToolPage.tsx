@@ -16,6 +16,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { listCustomers } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
+import { SacDigitalNewConversationDialog } from "./SacDigitalNewConversationDialog";
 import {
   AdminButton,
   BtnSecondary,
@@ -167,6 +168,7 @@ export function SacDigitalToolPage({
   const [ordersPanelOpen, setOrdersPanelOpen] = useState(false);
   const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
   const [customerOrders, setCustomerOrders] = useState<SacDigitalCustomerOrder[]>([]);
+  const [newConversationOpen, setNewConversationOpen] = useState(false);
 
   const [status, setStatus] = useState<SacDigitalIntegrationStatus | null>(null);
   const [protocols, setProtocols] = useState<SacDigitalProtocolListItem[]>([]);
@@ -478,6 +480,41 @@ export function SacDigitalToolPage({
     ]);
   };
 
+
+  const handleNewConversationStarted = async (protocol: string | null) => {
+    if (!activeOrganizationId) return;
+
+    if (!protocol) {
+      await loadProtocols(false);
+      setMessage({
+        text: "Mensagem inicial enviada. O atendimento aparecerá assim que a SAC Digital abrir o protocolo.",
+      });
+      return;
+    }
+
+    let foundId: string | null = null;
+    for (let attempt = 0; attempt < 4 && !foundId; attempt += 1) {
+      if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
+      try {
+        const next = await listSacDigitalProtocols(activeOrganizationId);
+        setProtocols(next);
+        foundId = next.find(item => item.external_protocol_id === protocol)?.id || null;
+      } catch {
+        // O realtime/webhook pode concluir a projeção logo em seguida.
+      }
+    }
+
+    if (foundId) {
+      setSelectedProtocolId(foundId);
+      setMessage({ text: "Conversa iniciada com sucesso." });
+    } else {
+      setMessage({
+        text: "Conversa iniciada na SAC Digital. O protocolo será exibido assim que a sincronização concluir.",
+      });
+      await loadProtocols(false);
+    }
+  };
+
   const customerDisplayName = (customer: any) =>
     String(customer?.trade_name || customer?.full_name || customer?.legal_name || "Cliente").trim();
 
@@ -744,11 +781,23 @@ export function SacDigitalToolPage({
   if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
 
   return <div className="min-w-0 space-y-3">
+    <SacDigitalNewConversationDialog
+      open={newConversationOpen}
+      organizationId={activeOrganizationId}
+      onClose={() => setNewConversationOpen(false)}
+      onStarted={handleNewConversationStarted}
+    />
+
     <PageHeader
       title="SAC Digital"
       subtitle="Atendimento integrado à SAC Digital."
       actions={
         <>
+          {canSendMessages && status?.enabled && (
+            <AdminButton onClick={() => setNewConversationOpen(true)}>
+              Nova conversa
+            </AdminButton>
+          )}
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
           {canManage && onOpenSettings && (
             <AdminButton variant="secondary" onClick={onOpenSettings}>
