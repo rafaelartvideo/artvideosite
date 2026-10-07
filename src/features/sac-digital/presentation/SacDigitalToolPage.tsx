@@ -634,7 +634,7 @@ export function SacDigitalToolPage({
       </div>
     )}
 
-    <div className="h-[calc(100dvh-12rem)] min-h-[600px] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+    <div className="h-[680px] overflow-hidden rounded-xl border border-border bg-card shadow-sm">
       {!canViewMessages ? (
         <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
           Sua função não possui permissão para visualizar conversas do SAC Digital.
@@ -653,7 +653,7 @@ export function SacDigitalToolPage({
         </div>
       ) : (
         <div className="grid h-full min-h-0 grid-rows-[230px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
-          <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
+          <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
             <div className="border-b border-border bg-muted/35 p-3">
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
@@ -702,7 +702,7 @@ export function SacDigitalToolPage({
               </div>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
               {filteredProtocols.length === 0 ? (
                 <div className="p-5 text-center text-xs text-muted-foreground">
                   Nenhuma conversa encontrada.
@@ -756,7 +756,7 @@ export function SacDigitalToolPage({
             </div>
           </aside>
 
-          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
+          <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
             {selectedProtocol ? (
               <>
                 <div className="flex min-w-0 items-center gap-3 border-b border-border bg-card px-4 py-3">
@@ -896,7 +896,7 @@ export function SacDigitalToolPage({
 
                 <div
                   ref={messagesScrollRef}
-                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 sm:px-5"
+                  className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
                 >
                   {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
