@@ -366,7 +366,9 @@ export function SacDigitalNewConversationDialog({
             {canCompose ? (
               <div>
                 <p className="mb-3 text-[11px] text-muted-foreground">
-                  O contato está associado a um canal SAC, mas isso não comprova que o canal esteja operacional nem que o número tenha WhatsApp. O envio depende da validação da SAC Digital.
+                  {prepared.whatsapp_available
+                    ? "O contato está associado a um canal SAC, mas o envio ainda depende da validação do WhatsApp pela SAC Digital."
+                    : "O contato foi preparado, mas o canal ainda não está confirmado. Você pode tentar iniciar a conversa; se houver restrição, a SAC Digital informará o motivo."}
                 </p>
                 <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                   Primeira mensagem
