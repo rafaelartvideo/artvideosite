@@ -757,7 +757,9 @@ Deno.serve(async request => {
       }
 
       const search = safeSearchText(body.search);
-      if (search.length < 2) {
+      const searchDigits = String(body.search || "").replace(/\D/g, "");
+      const apiSearch = searchDigits.length >= 6 ? normalizeSacPhone(searchDigits) : search;
+      if (search.length < 2 && apiSearch.length < 6) {
         return json({ success: true, contacts: [], customers: [] });
       }
 
@@ -770,7 +772,7 @@ Deno.serve(async request => {
         apiRequest(
           organizationId,
           credentials,
-          `/contact/search?p=1&filter=1&search=${encodeURIComponent(search)}`,
+          `/contact/search?p=1&filter=1&search=${encodeURIComponent(apiSearch)}`,
           { method: "GET" },
         ),
         apiRequest(organizationId, credentials, "/channel/all", { method: "GET" }),
