@@ -1294,17 +1294,12 @@ Deno.serve(async request => {
       // usuários não podem importar a mesma empresa em paralelo e competir com
       // o CRM por CPU/IO. O sync_resource manual continua sem cooldown.
       if(action === 'bootstrap') {
-        const cutoff = new Date(Date.now() - 15 * 60_000).toISOString();
-        const recentCursor = await admin
-          .from('sac_digital_sync_cursors')
-          .select('updated_at')
-          .eq('organization_id', organizationId)
-          .gte('updated_at', cutoff)
-          .order('updated_at', {ascending:false})
-          .limit(1)
-          .maybeSingle();
-        if(recentCursor.error) throw recentCursor.error;
-        if(recentCursor.data?.updated_at) {
+        const claim = await admin.rpc('claim_sac_digital_bootstrap', {
+          p_organization_id: organizationId,
+          p_cooldown_seconds: 900,
+        });
+        if(claim.error) throw claim.error;
+        if(claim.data !== true) {
           return json({
             success:true,
             data:[],
@@ -1313,10 +1308,7 @@ Deno.serve(async request => {
             next_page:null,
             skipped:true,
             reason:'bootstrap_cooldown',
-            retry_after_seconds:Math.max(
-              1,
-              Math.ceil((new Date(recentCursor.data.updated_at).getTime() + 15 * 60_000 - Date.now()) / 1000),
-            ),
+            retry_after_seconds:900,
           });
         }
       }

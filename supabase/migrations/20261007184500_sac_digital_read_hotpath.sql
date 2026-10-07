@@ -185,4 +185,55 @@ $$;
 revoke all on function public.get_sac_digital_unread_counts(uuid) from public, anon;
 grant execute on function public.get_sac_digital_unread_counts(uuid) to authenticated;
 
+-- Trava atômica para impedir bootstraps históricos concorrentes entre abas,
+-- usuários ou versões antigas do frontend.
+create or replace function public.claim_sac_digital_bootstrap(
+  p_organization_id uuid,
+  p_cooldown_seconds integer default 900
+)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $
+declare
+  v_claimed boolean := false;
+begin
+  if p_organization_id is null then
+    return false;
+  end if;
+  if p_cooldown_seconds < 60 or p_cooldown_seconds > 86400 then
+    raise exception 'Cooldown inválido';
+  end if;
+
+  insert into public.sac_digital_sync_cursors(
+    organization_id,
+    resource,
+    next_page,
+    complete,
+    updated_at
+  )
+  values (
+    p_organization_id,
+    '__bootstrap__',
+    1,
+    false,
+    now()
+  )
+  on conflict (organization_id, resource)
+  do update
+    set updated_at = excluded.updated_at
+  where public.sac_digital_sync_cursors.updated_at
+    < now() - (p_cooldown_seconds * interval '1 second')
+  returning true into v_claimed;
+
+  return coalesce(v_claimed, false);
+end;
+$;
+
+revoke all on function public.claim_sac_digital_bootstrap(uuid,integer)
+  from public, anon, authenticated;
+grant execute on function public.claim_sac_digital_bootstrap(uuid,integer)
+  to service_role;
+
 commit;
