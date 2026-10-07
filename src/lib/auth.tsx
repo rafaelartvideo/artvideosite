@@ -3,9 +3,8 @@ import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
-import { validateCurrentSessionIp } from "@/features/auth/infrastructure/auth.repository";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
-import { INACTIVITY_TIMEOUT_MS, isSessionInactive, remainingSessionTime } from "./session-security";
+import { isSessionInactive, remainingSessionTime } from "./session-security";
 import {
   ACTIVE_ORGANIZATION_STORAGE_PREFIX,
   LEGACY_ACTIVE_ORGANIZATION_STORAGE_PREFIX,
@@ -90,34 +89,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setLoadingProgress(20);
       if (data.session?.user) {
-        let activeSession = data.session;
-        setLoadingProgress(28);
+        const userId = data.session.user.id;
+        const persistedLastActivityAt = readSessionActivity(userId);
 
-        let sessionValidation = await validateCurrentSessionIp();
-        if (cancelled) return;
-
-        // Se o access token estiver vencendo justamente na abertura da página,
-        // tenta renovar uma vez antes de considerar a sessão inválida.
-        if (sessionValidation === "session_invalid") {
-          const refreshed = await supabase.auth.refreshSession();
-          if (cancelled) return;
-          if (!refreshed.error && refreshed.data.session?.user) {
-            activeSession = refreshed.data.session;
-            sessionValidation = await validateCurrentSessionIp();
-            if (cancelled) return;
-          }
-        }
-
-        if (sessionValidation === "ip_not_allowed" || sessionValidation === "session_invalid") {
+        if (persistedLastActivityAt !== null && isSessionInactive(persistedLastActivityAt)) {
+          removeSessionActivity(userId);
           await supabase.auth.signOut();
+          if (cancelled) return;
+          setLoadingProgress(100);
           setLoading(false);
           return;
         }
 
+        if (persistedLastActivityAt === null) {
+          writeSessionActivity(userId, Date.now());
+        }
+
         setLoadingProgress(36);
-        setSession(activeSession);
-        signedInUserRef.current = activeSession.user.id;
-        void loadAccess(activeSession.user.id);
+        setSession(data.session);
+        signedInUserRef.current = userId;
+        void loadAccess(userId);
       } else {
         setSession(null);
         setLoadingProgress(100);
@@ -190,21 +181,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!session?.user) return;
 
-    let lastActivityAt = Date.now();
+    const userId = session.user.id;
+    const activityStorageKey = sessionActivityStorageKey(userId);
+    let lastActivityAt = readSessionActivity(userId) ?? Date.now();
     let inactivityTimer: number | null = null;
     let lastAcceptedActivityAt = 0;
 
+    if (readSessionActivity(userId) === null) {
+      writeSessionActivity(userId, lastActivityAt);
+    }
+
+    const refreshSharedActivity = () => {
+      const persistedLastActivityAt = readSessionActivity(userId);
+      if (persistedLastActivityAt !== null && persistedLastActivityAt > lastActivityAt) {
+        lastActivityAt = persistedLastActivityAt;
+      }
+    };
+
     const expireIfInactive = () => {
+      refreshSharedActivity();
       if (isSessionInactive(lastActivityAt)) {
         void signOut();
         return;
       }
-      inactivityTimer = window.setTimeout(expireIfInactive, remainingSessionTime(lastActivityAt));
+      inactivityTimer = window.setTimeout(
+        expireIfInactive,
+        Math.max(1, remainingSessionTime(lastActivityAt)),
+      );
     };
 
     const scheduleExpiration = () => {
       if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
-      inactivityTimer = window.setTimeout(expireIfInactive, INACTIVITY_TIMEOUT_MS);
+      refreshSharedActivity();
+      inactivityTimer = window.setTimeout(
+        expireIfInactive,
+        Math.max(1, remainingSessionTime(lastActivityAt)),
+      );
     };
 
     const recordActivity = () => {
@@ -212,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (now - lastAcceptedActivityAt < 1_000) return;
       lastAcceptedActivityAt = now;
       lastActivityAt = now;
+      writeSessionActivity(userId, now);
       scheduleExpiration();
     };
 
@@ -227,21 +240,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     ];
     const checkAfterVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
+      refreshSharedActivity();
       if (isSessionInactive(lastActivityAt)) {
         void signOut();
         return;
       }
+      recordActivity();
+    };
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key !== activityStorageKey || event.newValue === null) return;
+      const sharedActivityAt = Number(event.newValue);
+      if (!Number.isFinite(sharedActivityAt) || sharedActivityAt <= lastActivityAt) return;
+      lastActivityAt = sharedActivityAt;
       scheduleExpiration();
     };
 
     activityEvents.forEach(eventName => window.addEventListener(eventName, recordActivity, { passive: true }));
     document.addEventListener("visibilitychange", checkAfterVisibilityChange);
+    window.addEventListener("storage", handleStorage);
     scheduleExpiration();
 
     return () => {
       if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
       activityEvents.forEach(eventName => window.removeEventListener(eventName, recordActivity));
       document.removeEventListener("visibilitychange", checkAfterVisibilityChange);
+      window.removeEventListener("storage", handleStorage);
     };
   }, [session?.user.id]);
 
@@ -450,6 +473,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (userId) {
         localStorage.removeItem(activeOrganizationStorageKey(userId));
         localStorage.removeItem(legacyActiveOrganizationStorageKey(userId));
+        removeSessionActivity(userId);
       }
 
       signedInUserRef.current = null;
@@ -541,6 +565,28 @@ function activeOrganizationStorageKey(userId: string) {
 
 function legacyActiveOrganizationStorageKey(userId: string) {
   return `${LEGACY_ACTIVE_ORGANIZATION_STORAGE_PREFIX}:${userId}`;
+}
+
+const SESSION_ACTIVITY_STORAGE_PREFIX = "unionworld:session:last-activity";
+
+function sessionActivityStorageKey(userId: string) {
+  return `${SESSION_ACTIVITY_STORAGE_PREFIX}:${userId}`;
+}
+
+function readSessionActivity(userId: string) {
+  if (typeof window === "undefined") return null;
+  const value = Number(window.localStorage.getItem(sessionActivityStorageKey(userId)));
+  return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function writeSessionActivity(userId: string, activityAt: number) {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(sessionActivityStorageKey(userId), String(activityAt));
+}
+
+function removeSessionActivity(userId: string) {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(sessionActivityStorageKey(userId));
 }
 
 export function useAuth() {
