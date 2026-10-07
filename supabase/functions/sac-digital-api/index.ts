@@ -1237,13 +1237,19 @@ Deno.serve(async request => {
           if(endpoint?.id === 92 && values.vote == null) throw new Error('A finalização operacional requer votação conforme contrato da SAC Digital.');
         }
       }
-      if(path.split('?')[0] === '/contact/forward' && ['assume_protocol','forward_protocol'].includes(action) && validProtocol(body.protocol)) {
+      // Apenas o fluxo legado de assumir atendimento precisa trocar do
+      // contrato Client para o contrato Operator. Encaminhar/devolver devem
+      // permanecer em /client/contact/forward, inclusive quando o protocolo
+      // já está em atendimento. Converter forward_protocol aqui fazia a ação
+      // institucional voltar indevidamente para /operator/att/forward.
+      if(path.split('?')[0] === '/contact/forward' && action === 'assume_protocol' && validProtocol(body.protocol)) {
         const check=await apiRequest(organizationId,await loadCredentials(organizationId),`/protocol/info?protocol=${encodeURIComponent(String(body.protocol))}`,{method:'GET'});
         if(!check.response.ok || !check.body.info || check.body.status === false) throw new Error('Não foi possível confirmar o estado externo do protocolo.');
         const info:any=check.body.info;
         if(info.is_att === true) {
-          if(action === 'assume_protocol') {endpoint=SAC_ENDPOINTS.find((item:any)=>item.id === 73);for(const key of Object.keys(values)) delete values[key];values.protocol=String(body.protocol);}
-          else {endpoint=SAC_ENDPOINTS.find((item:any)=>item.id === 90);values.protocol=String(body.protocol);values.to=values.operator ? 'operator' : 'department';delete values.id;}
+          endpoint=SAC_ENDPOINTS.find((item:any)=>item.id === 73);
+          for(const key of Object.keys(values)) delete values[key];
+          values.protocol=String(body.protocol);
         }
       }
       if(!endpoint) throw new Error('Contrato de operação não identificado.');
