@@ -6,7 +6,7 @@ const protocolControls = new Set([72,73,90]); // Queue/read and select used by c
 const newConversationResources = new Set([14,15,39,40]); // Channels/templates + contact/direct notification used by the New conversation flow.
 const actions = new Set([
  'health','resource_health','test_connection','retry_webhook_event',
- 'operator_bindings_admin','set_operator_binding_admin',
+ 'operator_bindings_admin','set_operator_binding_admin','begin_operator_authorization',
  'resource_operation','sync_resource','bootstrap','reconcile_outbound',
  'sync_protocol_history','enrich_protocol','media_urls','refresh_protocol',
  'link_customer','new_conversation_search','prepare_new_conversation_contact',

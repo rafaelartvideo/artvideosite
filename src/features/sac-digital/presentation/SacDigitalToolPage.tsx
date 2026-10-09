@@ -8,7 +8,7 @@ import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
 import { mediaMaximum, deliveryLabel, isOperatorAuthError } from '../domain/resource-ui.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import {
   FileText,
   Image as ImageIcon,
@@ -35,6 +35,7 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import {
   assumeSacDigitalProtocol,
+  beginSacOperatorAuthorization,
   finishSacDigitalProtocol,
   forwardSacDigitalProtocol,
   getMySacDigitalOperatorBinding,
@@ -290,6 +291,7 @@ export function SacDigitalToolPage({
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
   const canManage = hasPermission("sac_digital.settings.manage");
   const canManageProtocols = hasPermission("sac_digital.protocols.manage");
@@ -370,6 +372,8 @@ export function SacDigitalToolPage({
   const [waitingProtocolIds, setWaitingProtocolIds] = useState<string[]>([]);
   const [queueError, setQueueError] = useState("");
   const [queueAuthRequired, setQueueAuthRequired] = useState(false);
+  const [authorizingOperator, setAuthorizingOperator] = useState(false);
+  const oauthResultHandledRef = useRef('');
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const setMessage = useCallback((next: { text: string; error?: boolean } | null) => {
     if (!next?.text) return;
@@ -616,6 +620,18 @@ export function SacDigitalToolPage({
     }
   }, [activeOrganizationId, canViewMessages]);
 
+  const authorizeOperator = async () => {
+    if(!activeOrganizationId || authorizingOperator) return;
+    setAuthorizingOperator(true);
+    try {
+      const url=await beginSacOperatorAuthorization(activeOrganizationId,location.pathname);
+      window.location.assign(url);
+    } catch(error) {
+      setMessage({text:systemErrorMessage(error,'Não foi possível iniciar a autorização SAC.'),error:true});
+      setAuthorizingOperator(false);
+    }
+  };
+
   useEffect(() => { setQueueError(""); setQueueAuthRequired(false); setWaitingProtocolIds([]); }, [activeOrganizationId, operatorBinding?.access_mode, operatorBinding?.operator?.id]);
 
   const loadOperatorQueue = useCallback(async () => {
@@ -634,6 +650,31 @@ export function SacDigitalToolPage({
       setQueueAuthRequired(isOperatorAuthError(error));
     }
   }, [activeOrganizationId, canManageProtocols, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
+
+  useEffect(() => {
+    const params=new URLSearchParams(location.search);
+    const result=params.get('sac_oauth');
+    if(!result || !activeOrganizationId || oauthResultHandledRef.current===location.search) return;
+    if(params.get('sac_oauth_org')!==activeOrganizationId) {
+      setMessage({text:'A autorização SAC foi concluída em outra empresa. Selecione a empresa em que iniciou a autorização.',error:true});
+      return;
+    }
+    oauthResultHandledRef.current=location.search;
+    const errors:Record<string,string>={
+      access_denied:'Você recusou a autorização na SAC. Clique em Autorizar Operador para tentar novamente.',
+      operator_identity_mismatch:'A conta autorizada na SAC é de outro Operador. Entre com o Operador vinculado ao seu usuário da Union.',
+      operator_profile_incompatible:'A SAC não aceitou a conta como Operador. Autorize usando sua conta de Operador de atendimento.',
+      operator_scope_missing:'A SAC não concedeu as permissões de atendimento solicitadas.',
+      operator_session_unavailable:'A Central SAC está indisponível. Inicie uma nova autorização.',
+      operator_session_busy:'A sessão do Operador está em uso. Aguarde um momento e clique em Autorizar Operador novamente.',
+      operator_auth_contract_unverified:'A SAC não confirmou a identificação do perfil. A autorização não foi salva.',
+      operator_authorization_required:'A SAC não identificou um Operador nessa autorização. Entre com sua conta de Operador.',
+    };
+    setMessage({text:result==='success'?'Operador autorizado na SAC Digital.':errors[result] || 'A autorização não foi concluída. Clique em Autorizar Operador para tentar novamente.',error:result!=='success'});
+    params.delete('sac_oauth');params.delete('sac_oauth_org');
+    navigate({pathname:location.pathname,search:params.toString()?`?${params.toString()}`:''},{replace:true});
+    if(result==='success') {setQueueAuthRequired(false);setQueueError('');void loadOperatorQueue();}
+  },[activeOrganizationId,location.pathname,location.search,navigate,setMessage,loadOperatorQueue]);
 
   useEffect(() => {
     if (!activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) {
@@ -1393,6 +1434,9 @@ export function SacDigitalToolPage({
               Nova conversa
             </AdminButton>
           )}
+          {operatorBinding?.linked && operatorBinding.access_mode === 'operator' && status?.enabled && (
+            <AdminButton variant="secondary" disabled={authorizingOperator} onClick={() => void authorizeOperator()}>{authorizingOperator ? 'Abrindo SAC...' : 'Autorizar Operador'}</AdminButton>
+          )}
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
           {canManage && onOpenSettings && (
             <AdminButton variant="secondary" onClick={onOpenSettings}>Configurações</AdminButton>
@@ -1497,9 +1541,11 @@ export function SacDigitalToolPage({
               </div>
               {queueError && (
                 <div role="alert" className="mt-3 border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground">
-                  <p>{queueError}</p>
+                  <p>{queueAuthRequired ? "Autorize sua conta de Operador na SAC Digital para acessar a fila e atender pela Union." : queueError}</p>
                   <p className="mt-2">A fila Aguardando será exibida quando a SAC confirmar a sessão operacional.</p>
-                  <button type="button" className="mt-2 font-bold underline" onClick={() => void loadOperatorQueue()}>Verificar sessão novamente</button>
+                  {queueAuthRequired
+                    ? <button type="button" disabled={authorizingOperator} className="mt-2 font-bold underline disabled:opacity-50" onClick={() => void authorizeOperator()}>{authorizingOperator ? 'Abrindo SAC...' : 'Autorizar Operador'}</button>
+                    : <button type="button" className="mt-2 font-bold underline" onClick={() => void loadOperatorQueue()}>Verificar sessão novamente</button>}
                 </div>
               )}
               <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-card">

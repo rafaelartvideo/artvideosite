@@ -44,3 +44,8 @@ verify_jwt = false
 # Worker accepts service role or its private scheduler header, validated server-side.
 [functions.sac-digital-worker]
 verify_jwt = false
+
+# OAuth callback validates a one-time, expiring state bound to user/company/Operator.
+[functions.sac-digital-oauth]
+verify_jwt = false
+

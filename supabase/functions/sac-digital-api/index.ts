@@ -1,3 +1,5 @@
+import { authorizationUrl, returnPath, stateHash } from '../_shared/sac-oauth.mjs';
+import { authorizedOperatorToken } from '../_shared/sac-oauth-session.ts';
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
@@ -995,7 +997,7 @@ Deno.serve(async request => {
         .eq("user_id", userData.user.id)
         .maybeSingle();
 
-      if (linkedError) throw new Error("Não foi possível consultar o perfil SAC vinculado.");
+      if (linkedError) throw Object.assign(new Error("Não foi possível consultar o perfil SAC vinculado."),{code:'operator_session_unavailable'});
       if (!linked) return null;
 
       const accessMode = linked.access_mode === "manager" ? "manager" : "operator";
@@ -1013,106 +1015,39 @@ Deno.serve(async request => {
       return linked;
     };
 
-    const authenticateSacOperator = async (
-      credentials: { clientId: string; clientSecret: string },
-      operatorId: string,
-      scopes: string[],
-    ) => {
-      const requestedScopes = [...new Set([...scopes, "profile"])].sort();
-      const baseLogin = {
-        client: credentials.clientId,
-        password: credentials.clientSecret,
-        operator_id: operatorId,
-      };
-      const loginBodies: Array<{label:string;body:Record<string,unknown>}> = [
-        {label:'scopes-array',body:{...baseLogin,scopes:requestedScopes}},
-      ];
-
-      let auth: Awaited<ReturnType<typeof fetchJson>> | null = null;
-      let loginVariant = '';
-      for (const candidate of loginBodies) {
-        const attempt = await fetchJson('https://api.sac.digital/v2/operator/auth2/login', {
-          method:'POST',
-          headers:{'Content-Type':'application/json',Accept:'application/json'},
-          body:JSON.stringify(candidate.body),
+    const authenticateSacOperator = async (credentials: { clientId: string; clientSecret: string },operatorId: string,_scopes: string[]) => {
+      const binding=await resolveMyOperatorBinding();
+      if(!binding || binding.id!==operatorId) throw Object.assign(new Error('Vincule seu perfil de Operador nas configurações SAC.'),{code:'operator_authorization_required'});
+      const token=await authorizedOperatorToken(admin,{organizationId,userId:userData.user.id,operatorId,bindingVersion:binding.version},credentials);
+      if(operatorTokenError(token)) throw Object.assign(new Error('Clique em Autorizar Operador para conectar sua conta SAC.'),{code:'operator_authorization_required'});
+      const socket=await openOperatorSocket(token);
+      try {
+        const profile=await fetchJson('https://api.sac.digital/v2/operator/perfil/info',{
+          method:'GET',headers:{Authorization:`Bearer ${token}`,Accept:'application/json'},
         });
-        auth = attempt;
-        loginVariant = candidate.label;
-
-        const tokenCandidate = typeof attempt.body.token === 'string'
-          ? attempt.body.token.trim()
-          : typeof attempt.body.access_token === 'string'
-            ? attempt.body.access_token.trim()
-            : '';
-        if(attempt.response.ok && attempt.body.success !== false && tokenCandidate) {
-          if (operatorTokenError(tokenCandidate)) {
-            throw Object.assign(new Error('A SAC Digital emitiu um token da aplicação sem identidade de Operador. O vínculo do perfil está salvo, mas é necessário autorizar o Operador na Central de Autenticação da SAC pelo fluxo de código de autorização.'), {code:'operator_authorization_required'});
-          }
-          const socket = await openOperatorSocket(tokenCandidate);
-          try {
-            const profile = await fetchJson('https://api.sac.digital/v2/operator/perfil/info', {
-              method:'GET',headers:{Authorization:`Bearer ${tokenCandidate}`,Accept:'application/json','Content-Type':'application/json'},
-            });
-            const envelope = responseEnvelope(profile.body,profile.response.status);
-            if(!envelope.success) throw Object.assign(new Error('A SAC Digital não confirmou a autenticação do Operador. Autorize o perfil na Central de Autenticação da SAC; o vínculo por ID não substitui essa autorização.'),{code:'operator_authorization_required'});
-            const info = profile.body.info as Record<string,unknown> | undefined;
-            if(!String(info?.id || '').trim()) throw Object.assign(new Error('A SAC Digital não retornou a identificação do perfil autenticado. O contrato de perfil precisa ser confirmado antes de operar.'),{code:'operator_auth_contract_unverified'});
-            if(String(info?.id || '').trim() !== operatorId) throw Object.assign(new Error('O perfil autenticado na SAC Digital não corresponde ao Operador vinculado a este usuário.'),{code:'operator_identity_mismatch'});
-          } catch(error) {socket.close();throw error;}
-          const expiresIn=Number(attempt.body.expires_in || 3600);
-          return {
-            token: tokenCandidate,
-            socket,
-            expiresIn: Math.min(3600,Math.max(120,Number.isFinite(expiresIn)?expiresIn:3600)),
-            variant: loginVariant,
-          };
-        }
-
-        const providerType=String(attempt.body.type || '').trim().toLowerCase();
-        const credentialFailure=providerType==='invalid_auth'
-          || attempt.response.status===401
-          || attempt.response.status===403;
-        const contractFallback=providerType==='invalid_scope'
-          || providerType==='invalid_params'
-          || attempt.response.status===400
-          || attempt.response.status===422;
-        if(credentialFailure || !contractFallback) break;
-      }
-
-      const providerType=String(auth?.body?.type || '').trim().toLowerCase();
-      console.error('[SAC DIGITAL API] operator login failed', {
-        organization_id: organizationId,
-        operator_id: operatorId,
-        status: auth?.response.status || null,
-        type: providerType.slice(0,80) || null,
-        request_id: String(auth?.body?.request_id || '').slice(0,120) || null,
-        variant: loginVariant || null,
-        scopes: requestedScopes,
-      });
-
-      const error:any = new Error(
-        providerType === 'invalid_auth' || auth?.response.status === 401 || auth?.response.status === 403
-          ? 'A conta selecionada não autentica como Operador da SAC Digital. Gestor e Operador são perfis diferentes; vincule um usuário que possua acesso operacional.'
-          : providerType === 'invalid_scope'
-            ? 'O Operador SAC não possui as permissões de API necessárias para atendimento.'
-            : 'Não foi possível validar a autenticação do Operador na SAC Digital.',
-      );
-      error.code = providerType === 'invalid_auth' || auth?.response.status === 401 || auth?.response.status === 403
-        ? 'operator_profile_incompatible'
-        : providerType === 'invalid_scope'
-          ? 'operator_scope_missing'
-          : 'operator_auth_contract_unverified';
-      error.providerType=providerType;
-      throw error;
+        if(!responseEnvelope(profile.body,profile.response.status).success) throw Object.assign(new Error('Sua sessão SAC foi recusada. Clique em Autorizar Operador.'),{code:'operator_authorization_required'});
+        const info=profile.body.info as Record<string,unknown> | undefined;
+        if(!String(info?.id || '').trim()) throw Object.assign(new Error('A SAC não confirmou a identificação do perfil autorizado.'),{code:'operator_auth_contract_unverified'});
+        if(String(info?.id || '').trim()!==operatorId) throw Object.assign(new Error('A conta autorizada não corresponde ao Operador vinculado. Entre na SAC com o Operador correto.'),{code:'operator_identity_mismatch'});
+      } catch(error) {socket.close();if(!(error as any)?.code) Object.assign(error as object,{code:'operator_session_unavailable'});throw error;}
+      return {token,socket};
     };
 
-    const validateSacOperatorForBinding = async (
-      credentials: { clientId: string; clientSecret: string },
-      operatorId: string,
-    ) => {
-      const session = await authenticateSacOperator(credentials, operatorId, ['protocol']);
-      session.socket.close();
-    };
+    if(action === 'begin_operator_authorization') {
+      if(!(await requirePermission('sac_digital.messages.view')) && !(await requirePermission('sac_digital.view'))) return json({success:false,error:'Sem permissão para acessar o SAC Digital.'},403);
+      const binding=await resolveMyOperatorBinding();
+      if(!binding) return json({success:false,error:'Vincule seu perfil de Operador em Configurações > SAC Digital > Operadores.'},409);
+      const credentials=await loadCredentials(organizationId);
+      if(!credentials.enabled) return json({success:false,error:'Integração SAC desativada.'},409);
+      const target=returnPath(body.return_path);
+      const state=[...crypto.getRandomValues(new Uint8Array(32))].map(byte=>byte.toString(16).padStart(2,'0')).join('');
+      // Starting again invalidates this user's previous pending links, not other users.
+      const cleared=await admin.from('sac_digital_oauth_states').delete().eq('organization_id',organizationId).eq('user_id',userData.user.id);
+      if(cleared.error) throw new Error('Não foi possível preparar a autorização SAC.');
+      const inserted=await admin.from('sac_digital_oauth_states').insert({state_hash:await stateHash(state),organization_id:organizationId,user_id:userData.user.id,operator_id:binding.id,binding_version:binding.version,client_id:credentials.clientId,return_path:target});
+      if(inserted.error) throw new Error('Não foi possível iniciar a autorização SAC.');
+      return json({success:true,url:authorizationUrl(credentials.clientId,state)});
+    }
 
     const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string) => {
       const requested=SAC_ENDPOINTS.find(item=>item.id===endpointId);
@@ -2503,16 +2438,8 @@ Deno.serve(async request => {
       if (!credentials.enabled) {
         return json({ success: false, error: "Integração SAC Digital está desativada." }, 409);
       }
-      try {
-        await validateSacOperatorForBinding(credentials, operator.id);
-      } catch (error) {
-        const code = String((error as any)?.code || "operator_auth_contract_unverified");
-        return json({
-          success: false,
-          error: error instanceof Error ? error.message : "Não foi possível validar este Operador na SAC Digital.",
-          type: code,
-        }, 409);
-      }
+      // Saving the binding does not authenticate on behalf of the employee.
+      // The employee authorizes their own Operator through OAuth consent.
 
       const { data: usedByOther, error: usedError } = await admin
         .from("sac_digital_operator_links")

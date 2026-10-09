@@ -915,3 +915,11 @@ export async function configureSacDigitalMenu(organizationId:string,settings:Sac
 export function sacDigitalMenuUrl(token?:string|null){return token?`${supabaseUrl}/functions/v1/sac-digital-menu?token=${encodeURIComponent(token)}`:'';}
 export function getSacDigitalResourceHealth(organizationId:string){return invokeSacDigitalApi({action:'resource_health',organization_id:organizationId});}
 
+
+export async function beginSacOperatorAuthorization(organizationId: string, returnPath: string) {
+  const data = await invokeSacDigitalApi({action:'begin_operator_authorization',organization_id:organizationId,return_path:returnPath});
+  if(typeof data.url !== 'string') throw new Error('A SAC não disponibilizou a autorização.');
+  const url=new URL(data.url);
+  if(url.origin !== 'https://auth2.sac.digital' || url.pathname !== '/oauth/authorize') throw new Error('Endereço de autorização SAC inválido.');
+  return url.toString();
+}
