@@ -46,3 +46,15 @@ export function conversationOwnership({
  }
  return {allowed:false,needsAssignment:false,reason:'owned_by_other_operator',ownerId:assigned,ownerName:assignedName};
 }
+
+export function protocolOperationalStatus(protocol, waitingProtocolIds=new Set()) {
+ if(protocol.is_pending || protocol.status === 'pending')return 'pending';
+ if(protocol.status === 'finished' || protocol.closed_at)return 'finished';
+ if(protocol.abandoned_at || protocol.raw_metadata?.api_info?.abandoned_at)return 'abandoned';
+ if(protocol.external_protocol_id && waitingProtocolIds.has(protocol.external_protocol_id))return 'waiting';
+ if(protocol.status === 'open')return 'self_service';
+ // Recados and unassigned cached protocols are not evidence of the live queue.
+ if(protocol.status === 'inbox' || (protocol.status === 'in_att' && !protocol.operator_id))return 'inbox';
+ return 'in_att';
+}
+

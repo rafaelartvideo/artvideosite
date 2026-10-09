@@ -23,6 +23,34 @@ export function operatorScopes(scopes, selectsProtocol=false) {
   // com invalid_scope, embora o atendimento tivesse protocol/edit liberados.
   return [...new Set([...scopes,...(selectsProtocol ? ['protocol','edit'] : [])])].sort();
 }
+// Token inspection is only a diagnostic. A nonempty subject still requires
+// the authenticated profile to match the server-owned operator binding.
+export function operatorTokenError(token) {
+  try {
+    const part=String(token).split('.')[1];
+    if(!part) return null;
+    const claims=JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/')));
+    return Object.hasOwn(claims,'sub') && !String(claims.sub || '').trim()
+      ? 'operator_authorization_required' : null;
+  } catch { return null; }
+}
+export function newConversationRoute(accessMode, protocol) {
+  if(!protocol) return 'notification';
+  if(protocol.isAtt !== true) return 'client';
+  return accessMode === 'operator' ? 'operator' : 'notification';
+}
+export async function openOperatorSocket(token, Socket=WebSocket, timeoutMs=8000) {
+  const socket=new Socket(`wss://ws.sac.digital/ws/att?${encodeURIComponent(token)}`);
+  const close=()=>{try {socket.close();} catch {}};
+  await new Promise((resolve,reject)=>{
+    const cleanup=()=>{clearTimeout(timer);socket.removeEventListener('open',opened);socket.removeEventListener('error',failed);socket.removeEventListener('close',failed);};
+    const opened=()=>{cleanup();resolve();};
+    const failed=()=>{cleanup();close();reject(Object.assign(new Error('Não foi possível abrir a sessão operacional WebSocket da SAC Digital.'),{code:'operator_session_unavailable'}));};
+    const timer=setTimeout(failed,timeoutMs);
+    socket.addEventListener('open',opened);socket.addEventListener('error',failed);socket.addEventListener('close',failed);
+  });
+  return {close,assertOpen:()=>{if(socket.readyState!==1)throw Object.assign(new Error('A sessão operacional da SAC Digital foi encerrada.'),{code:'operator_session_unavailable'});}};
+}
 export function importPhoneCandidates(value) {
   const normalized=String(value || '').replace(/\D/g,'');
   const values=[normalized];
@@ -106,7 +134,7 @@ export async function executeSacOperation(operation, dependencies) {
     return envelope;
   } catch (error) {
     const errorCode=String(error?.code || '');
-    const authentication=['operator_auth_contract_unverified','operator_profile_incompatible','operator_scope_missing'].includes(errorCode);
+    const authentication=['operator_auth_contract_unverified','operator_profile_incompatible','operator_scope_missing','operator_authorization_required','operator_identity_mismatch','operator_session_unavailable'].includes(errorCode);
     const state = mutation && !authentication ? 'unknown' : 'rejected';
     if(attempt) await dependencies.record(attempt.id,state,{type:errorCode || undefined});
     return fail(
@@ -136,3 +164,4 @@ export function chooseImportChannel(channels) {
  }
  return primary||null;
 }
+

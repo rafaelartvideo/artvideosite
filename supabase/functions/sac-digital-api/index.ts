@@ -1,7 +1,7 @@
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
-import { executeSacOperation, operationPermission, parsePagination, operatorScopes, importPhoneCandidates, mayTryImportVariant, routeProtocolOperation, channelCapabilityError, responseEnvelope, ownMediaStoragePath, chooseImportChannel } from "../_shared/sac-gateway.ts";
+import { executeSacOperation, operationPermission, parsePagination, operatorScopes, importPhoneCandidates, mayTryImportVariant, routeProtocolOperation, channelCapabilityError, responseEnvelope, ownMediaStoragePath, chooseImportChannel, operatorTokenError, newConversationRoute, openOperatorSocket } from "../_shared/sac-gateway.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
@@ -10,7 +10,6 @@ const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", 
 const SAC_OUTBOX_BUCKET = "sac-digital-attachments";
 const SAC_OUTBOX_MAX_BYTES = 5 * 1024 * 1024;
 const tokenCache = new Map<string, { token: string; expiresAt: number }>();
-const operatorSessionCache = new Map<string,{token:string;expiresAt:number}>();
 const operatorNameCache = new Map<string, { names: Map<string, string>; expiresAt: number }>();
 
 const corsHeaders = {
@@ -1019,7 +1018,7 @@ Deno.serve(async request => {
       operatorId: string,
       scopes: string[],
     ) => {
-      const requestedScopes = [...new Set(scopes)].sort();
+      const requestedScopes = [...new Set([...scopes, "profile"])].sort();
       const baseLogin = {
         client: credentials.clientId,
         password: credentials.clientSecret,
@@ -1027,8 +1026,6 @@ Deno.serve(async request => {
       };
       const loginBodies: Array<{label:string;body:Record<string,unknown>}> = [
         {label:'scopes-array',body:{...baseLogin,scopes:requestedScopes}},
-        {label:'scope-array',body:{...baseLogin,scope:requestedScopes}},
-        {label:'scope-string',body:{...baseLogin,scope:requestedScopes.join(' ')}},
       ];
 
       let auth: Awaited<ReturnType<typeof fetchJson>> | null = null;
@@ -1048,9 +1045,24 @@ Deno.serve(async request => {
             ? attempt.body.access_token.trim()
             : '';
         if(attempt.response.ok && attempt.body.success !== false && tokenCandidate) {
+          if (operatorTokenError(tokenCandidate)) {
+            throw Object.assign(new Error('A SAC Digital emitiu um token da aplicação sem identidade de Operador. O vínculo do perfil está salvo, mas é necessário autorizar o Operador na Central de Autenticação da SAC pelo fluxo de código de autorização.'), {code:'operator_authorization_required'});
+          }
+          const socket = await openOperatorSocket(tokenCandidate);
+          try {
+            const profile = await fetchJson('https://api.sac.digital/v2/operator/perfil/info', {
+              method:'GET',headers:{Authorization:`Bearer ${tokenCandidate}`,Accept:'application/json','Content-Type':'application/json'},
+            });
+            const envelope = responseEnvelope(profile.body,profile.response.status);
+            if(!envelope.success) throw Object.assign(new Error('A SAC Digital não confirmou a autenticação do Operador. Autorize o perfil na Central de Autenticação da SAC; o vínculo por ID não substitui essa autorização.'),{code:'operator_authorization_required'});
+            const info = profile.body.info as Record<string,unknown> | undefined;
+            if(!String(info?.id || '').trim()) throw Object.assign(new Error('A SAC Digital não retornou a identificação do perfil autenticado. O contrato de perfil precisa ser confirmado antes de operar.'),{code:'operator_auth_contract_unverified'});
+            if(String(info?.id || '').trim() !== operatorId) throw Object.assign(new Error('O perfil autenticado na SAC Digital não corresponde ao Operador vinculado a este usuário.'),{code:'operator_identity_mismatch'});
+          } catch(error) {socket.close();throw error;}
           const expiresIn=Number(attempt.body.expires_in || 3600);
           return {
             token: tokenCandidate,
+            socket,
             expiresIn: Math.min(3600,Math.max(120,Number.isFinite(expiresIn)?expiresIn:3600)),
             variant: loginVariant,
           };
@@ -1098,12 +1110,8 @@ Deno.serve(async request => {
       credentials: { clientId: string; clientSecret: string },
       operatorId: string,
     ) => {
-      // O vínculo identifica qual perfil SAC representa o usuário da Union.
-      // Estar em /operator/all + autenticar como operador com o escopo mínimo
-      // "protocol" é evidência suficiente. Não usar /operator/att/access como
-      // gate: essa rota pode devolver 401/403 por estado/permissão operacional
-      // e estava rejeitando perfis válidos durante a configuração.
-      await authenticateSacOperator(credentials, operatorId, ['protocol']);
+      const session = await authenticateSacOperator(credentials, operatorId, ['protocol']);
+      session.socket.close();
     };
 
     const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string) => {
@@ -1126,6 +1134,13 @@ Deno.serve(async request => {
         try { const routed=routeProtocolOperation(endpointId,values,protocolInfo);endpointId=routed.endpointId;values=routed.values; }
         catch(error) {return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_conflict',error:error instanceof Error ? error.message : 'Estado incompatível.'};}
       }
+      if([73,78,90,92].includes(endpointId) && !protocolInfo) {
+        const state=await apiRequest(organizationId,credentials,`/protocol/info?protocol=${encodeURIComponent(String(values.protocol || ''))}`,{method:'GET'});
+        if(!state.response.ok || state.body.status === false || !state.body.info || typeof state.body.info !== 'object' || Array.isArray(state.body.info)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_unverified',error:'Não foi possível confirmar o estado externo do protocolo.'};
+        protocolInfo=state.body.info as Record<string,unknown>;
+        if(protocolInfo.is_open !== true || protocolInfo.closed_at || protocolInfo.finished_at) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_finished',error:'Este atendimento não está aberto na SAC Digital.'};
+        if(protocolInfo.is_att !== true) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_conflict',error:'Este protocolo não é um atendimento operacional.'};
+      }
       try { operation = buildSacRequest(endpointId, values); }
       catch(error) { return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'invalid_contract',error:error instanceof Error ? error.message : 'Contrato inválido.'}; }
       if([10,40].includes(endpointId)) {
@@ -1136,65 +1151,32 @@ Deno.serve(async request => {
         if(capabilityError) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'channel_capability_unverified',error:capabilityError};
       }
       const binding = operation.mode === 'operator' ? await resolveMyOperatorBinding() : null;
-      if (operation.mode === 'operator' && binding && protocolInfo?.is_att === true) {
-        const assignedOperator = protocolInfo.operator && typeof protocolInfo.operator === 'object' && !Array.isArray(protocolInfo.operator)
-          ? String((protocolInfo.operator as Record<string, unknown>).id || '').trim()
-          : '';
-        const requiresSelectedOperationalSession = [90, 92].includes(endpointId);
-        if (assignedOperator && assignedOperator === binding.id && !requiresSelectedOperationalSession) {
-          operation.skipSelect = true;
-        }
+      if (operation.mode === 'operator' && binding && protocolInfo) {
+        const assigned = protocolInfo.operator && typeof protocolInfo.operator === 'object'
+          ? protocolInfo.operator as Record<string,unknown> : {};
+        const assignedId = String(assigned.id || protocolInfo.operator_id || '').trim();
+        if(assignedId && assignedId !== binding.id) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_owned_by_other_operator',error:'Este atendimento pertence a outro Operador SAC.'};
       }
       const ownerId = crypto.randomUUID();
       let operatorToken = '';
-      let operatorCacheKey = '';
-      let operatorRequestedScopes: string[] = [];
-      const refreshOperatorSession = async (force = false) => {
-        if (!binding) throw new Error('Operador SAC não vinculado.');
-        if (!operatorRequestedScopes.length) {
-          operatorRequestedScopes = operatorScopes(
-            operation.scopes,
-            Boolean(values.protocol) && operation.skipSelect !== true && !/\/select\//.test(operation.path),
-          );
-        }
-        if (!operatorCacheKey) {
-          operatorCacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${operatorRequestedScopes.join(',')}`;
-        }
-        if (!force) {
-          const cached = operatorSessionCache.get(operatorCacheKey);
-          if(cached && cached.expiresAt > Date.now()+60000) {
-            operatorToken=cached.token;
-            return;
-          }
-        } else if (operatorCacheKey) {
-          operatorSessionCache.delete(operatorCacheKey);
-        }
-
-        const session = await authenticateSacOperator(credentials,binding.id,operatorRequestedScopes);
+      let operatorSocket: Awaited<ReturnType<typeof openOperatorSocket>> | null = null;
+      const refreshOperatorSession = async () => {
+        if(!binding)throw new Error('Operador SAC não vinculado.');
+        const scopes = operatorScopes(operation.scopes,Boolean(values.protocol) && !/\/select\//.test(operation.path));
+        const session = await authenticateSacOperator(credentials,binding.id,scopes);
         operatorToken=session.token;
-        operatorSessionCache.set(operatorCacheKey,{
-          token:operatorToken,
-          expiresAt:Date.now()+session.expiresIn*1000,
-        });
+        operatorSocket=session.socket;
       };
       const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
         authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
         operator: binding ? async () => {
-          operatorRequestedScopes=operatorScopes(
-            operation.scopes,
-            Boolean(values.protocol) && operation.skipSelect !== true && !/\/select\//.test(operation.path),
-          );
-          operatorCacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${operatorRequestedScopes.join(',')}`;
-          // A SAC pode invalidar uma sessão operacional anterior quando um novo
-          // login do mesmo Operador é emitido. Para mutações, autenticar sempre
-          // imediatamente antes da operação; GETs podem reutilizar o cache.
-          await refreshOperatorSession(operation.method !== 'GET');
+          await refreshOperatorSession();
         } : null,
         lease: async () => {
           const {data,error} = await admin.rpc('sac_digital_acquire_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});
           if(error) throw new Error('Não foi possível reservar a sessão operacional.');return data === true;
         },
-        release: async () => {await admin.rpc('sac_digital_release_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});},
+        release: async () => {try {operatorSocket?.close();} finally {await admin.rpc('sac_digital_release_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});}},
         begin: async () => {
           const key = intentKey || crypto.randomUUID();
           const {data,error} = await admin.from('sac_digital_delivery_attempts').insert({organization_id:organizationId,user_id:userData.user.id,intent_key:key,endpoint_path:operation.path.split('?')[0],protocol:values.protocol || null,mode:operation.mode}).select('id,state').single();
@@ -1215,22 +1197,14 @@ Deno.serve(async request => {
             const session = await login(scopeKey,credentials,false,op.scopes || []);
             return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
           }
-          const executeOperatorRequest = () => fetchJson(
-            `https://api.sac.digital/v2${op.path}`,
-            {method:op.method,headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})},
-          );
-          let response = await executeOperatorRequest();
-          const providerType = String(response.body?.type || '').trim().toLowerCase();
-          if(
-            binding
-            && (providerType === 'invalid_auth' || response.response.status === 401 || response.response.status === 403)
-          ) {
-            // Uma sessão previamente válida pode ser revogada pela própria SAC.
-            // Renova uma única vez e repete a mesma operação; sem loop/fallback de rota.
-            await refreshOperatorSession(true);
-            response = await executeOperatorRequest();
-          }
-          return response;
+          operatorSocket?.assertOpen();
+          // One identity/socket for select + mutation. Never renew and replay a
+          // mutation after auth failure: renewal loses the selected protocol.
+          return fetchJson(`https://api.sac.digital/v2${op.path}`, {
+            method:op.method,
+            headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json','Content-Type':'application/json'},
+            ...(op.body ? {body:JSON.stringify(op.body)} : {}),
+          });
         },
       });
       if(operation.mode === 'operator' && !result.success && String(result.type || '').toLowerCase() === 'invalid_auth') {
@@ -2051,6 +2025,7 @@ Deno.serve(async request => {
         protocol: string;
         operatorId: string;
         operatorName: string;
+        isAtt: boolean;
       };
 
       const findOpenProtocol = async (): Promise<OpenProtocolState | null> => {
@@ -2060,6 +2035,7 @@ Deno.serve(async request => {
           `/contact/info/protocols?p=1&id=${encodeURIComponent(externalContactId)}`,
           { method: "GET" },
         );
+        if(!result.response.ok || result.body.status === false || !Array.isArray(result.body.list)) throw new Error('Não foi possível confirmar os protocolos deste contato na SAC Digital.');
         const list = Array.isArray(result.body.list)
           ? result.body.list.filter(item => item && typeof item === "object" && !Array.isArray(item)) as Record<string, unknown>[]
           : [];
@@ -2085,6 +2061,7 @@ Deno.serve(async request => {
               : {};
             return {
               protocol: protocolId,
+              isAtt: info.is_att === true,
               operatorId: String(operator.id || info.operator_id || "").trim(),
               operatorName: String(operator.name || info.operator_name || "").trim(),
             };
@@ -2118,88 +2095,14 @@ Deno.serve(async request => {
         error: `Este contato já está em atendimento com ${state.operatorName || "outro Operador SAC"}. Você não pode iniciar outra conversa enquanto esse atendimento estiver aberto.`,
       }, 409);
 
-      const assignToCurrentOperator = async (): Promise<OpenProtocolState | null> => {
-        if (accessBinding.accessMode !== "operator" || !accessBinding.id) return null;
-        const forwarded = await apiRequest(
-          organizationId,
-          credentials,
-          "/contact/forward",
-          {
-            method: "POST",
-            body: JSON.stringify({
-              id: externalContactId,
-              operator: accessBinding.id,
-            }),
-          },
-        );
-        if (!forwarded.response.ok || forwarded.body.status === false || forwarded.body.success === false) {
-          return null;
-        }
-        let current: OpenProtocolState | null = null;
-        for (let attempt = 0; attempt < 5; attempt += 1) {
-          if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
-          current = await findOpenProtocol();
-          if (!current) continue;
-          if (current.operatorId === accessBinding.id) return current;
-          if (current.operatorId && current.operatorId !== accessBinding.id) return current;
-        }
-        return current;
-      };
-
-      let openProtocol = await findOpenProtocol();
-
-      if (accessBinding.accessMode === "operator") {
-        if (!accessBinding.id) {
-          return json({
-            success: false,
-            type: "sac_operator_not_linked",
-            error: "Seu usuário está configurado como Operador SAC, mas nenhum operador válido está vinculado.",
-          }, 409);
-        }
-
-        if (openProtocol) {
-          const ownership = conversationOwnership({
-            accessMode: accessBinding.accessMode,
-            boundOperatorId: accessBinding.id,
-            assignedOperatorId: openProtocol.operatorId,
-            assignedOperatorName: openProtocol.operatorName,
-          });
-          if (!ownership.allowed && ownership.reason === "owned_by_other_operator") {
-            return conflictResponse(openProtocol);
-          }
-          if (ownership.needsAssignment) {
-            const assigned = await assignToCurrentOperator();
-            if (assigned?.operatorId && assigned.operatorId !== accessBinding.id) {
-              return conflictResponse(assigned);
-            }
-            if (!assigned || assigned.operatorId !== accessBinding.id) {
-              return json({
-                success: false,
-                type: "operator_assignment_pending",
-                error: `A SAC Digital ainda não confirmou que o atendimento foi atribuído a ${accessBinding.name || "seu Operador SAC"}. Aguarde alguns segundos e tente novamente.`,
-              }, 409);
-            }
-            openProtocol = assigned;
-          }
-        } else {
-          const assigned = await assignToCurrentOperator();
-          if (assigned?.operatorId && assigned.operatorId !== accessBinding.id) {
-            return conflictResponse(assigned);
-          }
-          if (!assigned || assigned.operatorId !== accessBinding.id) {
-            return json({
-              success: false,
-              type: "operator_assignment_pending",
-              error: `A SAC Digital ainda não criou/atribuiu o atendimento a ${accessBinding.name || "seu Operador SAC"}. Aguarde alguns segundos e tente novamente.`,
-            }, 409);
-          }
-          openProtocol = assigned;
-        }
-      }
+      const openProtocol = await findOpenProtocol();
+      if (accessBinding.accessMode === 'operator' && openProtocol?.operatorId
+        && openProtocol.operatorId !== accessBinding.id) return conflictResponse(openProtocol);
+      const conversationRoute = newConversationRoute(accessBinding.accessMode,openProtocol);
 
       const protocol = String(openProtocol?.protocol || "").trim();
 
-      if (protocol && validProtocol(protocol)) {
+      if (conversationRoute !== "notification" && protocol && validProtocol(protocol)) {
         try {
           await enrichProtocol(organizationId, protocol);
         } catch {
@@ -2207,11 +2110,11 @@ Deno.serve(async request => {
         }
 
         let apiBody: Record<string, unknown> = {};
-        if (accessBinding.accessMode === "operator") {
+        if (conversationRoute === "operator") {
           const operationalSend = await runResourceOperation(
             36,
             { protocol, type: "text", text },
-            `${userData.user.id}:start:${protocol}:${Date.now()}`,
+            typeof body.intent_key === "string" ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined,
           );
           if (!operationalSend.success) {
             return json({
@@ -2992,10 +2895,12 @@ Deno.serve(async request => {
       const vote = Number(body.vote);
       if (!Number.isFinite(vote)) return json({ success: false, error: "Informe a votação para finalizar o atendimento." }, 400);
 
+      if(!await resolveMySacAccessBinding()) return json({success:false,type:'sac_profile_not_linked',error:'Seu usuário não possui Perfil SAC Digital vinculado.'},409);
+
       const intentKey = typeof body.intent_key === "string"
         ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
         : undefined;
-      const finished = await runResourceOperation(92, { protocol, vote }, intentKey);
+      const finished = await runResourceOperation(38, { protocol, vote, notify_contact: false }, intentKey);
       if (!finished.success) return json(finished as Record<string, unknown>);
 
       try {
@@ -4251,3 +4156,4 @@ Deno.serve(async request => {
     }, 502);
   }
 });
+

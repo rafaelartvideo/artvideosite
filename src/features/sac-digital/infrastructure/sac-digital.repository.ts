@@ -96,6 +96,7 @@ export type SacDigitalProtocolListItem = {
   created_at?: string | null;
   closed_at: string | null;
   last_message_at: string | null;
+  abandoned_at?: string | null;
   is_pending?: boolean;
   pending_message?: string | null;
   notification_id?: string | null;
@@ -158,6 +159,7 @@ export async function listSacDigitalProtocols(organizationId: string) {
       created_at,
       closed_at,
       last_message_at,
+      abandoned_at:raw_metadata->api_info->>abandoned_at,
       contact:sac_digital_contacts(
         id,
         name,
@@ -823,7 +825,7 @@ export async function assumeSacDigitalProtocol(
   organizationId: string,
   protocol: string,
 ) {
-  await operateSacDigitalResource(organizationId, 73, { protocol });
+  await invokeSacDigitalApi({action:"assume_protocol",organization_id:organizationId,protocol});
   const binding = await getMySacDigitalOperatorBinding(organizationId);
   return {
     success: true as const,
@@ -912,3 +914,4 @@ export async function configureSacDigitalMenu(organizationId:string,settings:Sac
 }
 export function sacDigitalMenuUrl(token?:string|null){return token?`${supabaseUrl}/functions/v1/sac-digital-menu?token=${encodeURIComponent(token)}`:'';}
 export function getSacDigitalResourceHealth(organizationId:string){return invokeSacDigitalApi({action:'resource_health',organization_id:organizationId});}
+

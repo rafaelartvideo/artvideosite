@@ -35,3 +35,7 @@ export function hydrateMedia(rows,urls){return rows.map(row=>row.raw_metadata?.t
 export function cloudChannel(channel){return /^(cloud|whatsapp_cloud|whatsapp cloud|waba|enterprise)$/i.test(String(channel?.type||channel?.channel_type||channel?.mode||''));}
 export function usableChannels(rows){return rows.filter(c=>c.id!=null&&c.actived!==false&&c.active!==false&&c.connected!==false&&!/^(off|offline|inactive|disabled|disconnected|desconectado)$/i.test(String(c.status||c.connection_status||''))&&(!/call.?center/i.test(String(c.type||c.mode||''))||c.primary===false));}
 export function approvedTemplates(rows){return rows.filter(t=>(t.id!=null||t.name)&&(!t.status||/^approved|aprovado$/i.test(String(t.status))));}
+
+export function isOperatorAuthError(error) {
+ return /operator_(authorization_required|auth_contract_unverified|scope_missing|profile_incompatible|identity_mismatch)\b/.test(String(error?.type || '')+' '+String(error?.message || ''));
+}

@@ -1,3 +1,4 @@
+import { protocolOperationalStatus } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
 import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
 import { lazy, Suspense } from 'react';
@@ -5,7 +6,7 @@ const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m =>
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
-import { mediaMaximum, deliveryLabel } from '../domain/resource-ui.mjs';
+import { mediaMaximum, deliveryLabel, isOperatorAuthError } from '../domain/resource-ui.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router";
 import {
@@ -65,28 +66,12 @@ const protocolStatusLabel: Record<string, string> = {
   waiting: "Aguardando atendimento",
   open: "Auto Atendimento",
   in_att: "Em atendimento",
-  inbox: "Aguardando atendimento",
+  inbox: "Recados / sem operador",
+  abandoned: "Abandonado",
   pending: "Aguardando protocolo",
   finished: "Finalizado",
 };
 
-type SacOperationalStatus = "self_service" | "waiting" | "in_att" | "finished" | "pending";
-
-function protocolOperationalStatus(
-  protocol: SacDigitalProtocolListItem,
-  waitingProtocolIds: Set<string>,
-): SacOperationalStatus {
-  if (protocol.is_pending || protocol.status === "pending") return "pending";
-  if (protocol.status === "finished" || Boolean(protocol.closed_at)) return "finished";
-  if (protocol.external_protocol_id && waitingProtocolIds.has(protocol.external_protocol_id)) return "waiting";
-  if (protocol.status === "open") return "self_service";
-  if (protocol.status === "inbox") return "waiting";
-  // Fallback da própria projeção local: atendimento aberto sem Operador
-  // atribuído pertence à fila, mesmo quando a consulta operacional da SAC
-  // estiver indisponível momentaneamente.
-  if (protocol.status === "in_att" && !protocol.operator_id) return "waiting";
-  return "in_att";
-}
 
 function formatCompactDate(value?: string | null) {
   if (!value) return "";
@@ -380,9 +365,11 @@ export function SacDigitalToolPage({
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [conversationSearch, setConversationSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished">("waiting");
+  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished" | "inbox" | "abandoned">("waiting");
   const [operatorFilter, setOperatorFilter] = useState("all");
   const [waitingProtocolIds, setWaitingProtocolIds] = useState<string[]>([]);
+  const [queueError, setQueueError] = useState("");
+  const [queueAuthRequired, setQueueAuthRequired] = useState(false);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const setMessage = useCallback((next: { text: string; error?: boolean } | null) => {
     if (!next?.text) return;
@@ -464,7 +451,7 @@ export function SacDigitalToolPage({
 
     return protocols.filter(protocol => {
       const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
-      if (operationalStatus === "waiting" || operationalStatus === "pending") return true;
+      if (operationalStatus === "waiting" || operationalStatus === "pending" || operationalStatus === "inbox" || operationalStatus === "abandoned") return true;
       return protocol.operator_id === linkedOperatorId;
     });
   }, [isSacManager, operatorBinding, protocols, waitingProtocolSet]);
@@ -494,12 +481,14 @@ export function SacDigitalToolPage({
   );
 
   const statusCounts = useMemo(() => {
-    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0 };
+    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0, inbox: 0, abandoned: 0 };
     for (const protocol of visibleProtocols) {
       const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
       if (operationalStatus === "self_service") counts.self_service += 1;
       else if (operationalStatus === "waiting" || operationalStatus === "pending") counts.waiting += 1;
       else if (operationalStatus === "in_att") counts.in_att += 1;
+      else if (operationalStatus === "abandoned") counts.abandoned += 1;
+      else if (operationalStatus === "inbox") counts.inbox += 1;
       else counts.finished += 1;
     }
     counts.finished = Math.max(counts.finished, finishedProtocolCount);
@@ -627,6 +616,8 @@ export function SacDigitalToolPage({
     }
   }, [activeOrganizationId, canViewMessages]);
 
+  useEffect(() => { setQueueError(""); setQueueAuthRequired(false); setWaitingProtocolIds([]); }, [activeOrganizationId, operatorBinding?.access_mode, operatorBinding?.operator?.id]);
+
   const loadOperatorQueue = useCallback(async () => {
     if (!activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) {
       setWaitingProtocolIds([]);
@@ -635,8 +626,12 @@ export function SacDigitalToolPage({
     try {
       const queue = await listSacDigitalOperatorQueue(activeOrganizationId);
       setWaitingProtocolIds(queue.map(item => item.protocol));
-    } catch {
-      // Mantém a última fila conhecida; os estados locais seguem como fallback.
+      setQueueError("");
+      setQueueAuthRequired(false);
+    } catch (error) {
+      setWaitingProtocolIds([]);
+      setQueueError(systemErrorMessage(error, "Não foi possível confirmar a fila operacional da SAC Digital."));
+      setQueueAuthRequired(isOperatorAuthError(error));
     }
   }, [activeOrganizationId, canManageProtocols, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
 
@@ -645,10 +640,11 @@ export function SacDigitalToolPage({
       setWaitingProtocolIds([]);
       return;
     }
+    if (queueAuthRequired) return;
     void loadOperatorQueue();
     const timer = window.setInterval(() => void loadOperatorQueue(), 30_000);
     return () => window.clearInterval(timer);
-  }, [activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
+  }, [activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, queueAuthRequired, status?.enabled]);
 
   useEffect(() => {
     let alive = true;
@@ -1224,7 +1220,7 @@ export function SacDigitalToolPage({
         ? result.operator as { id: string; name: string }
         : null;
       if (operator) {
-        setOperatorBinding({ linked: true, operator });
+        setOperatorBinding({ linked: true, access_mode: "operator", operator });
       }
       setMessage({ text: "Atendimento selecionado. Ele saiu da fila e está em atendimento com você." });
       await Promise.all([
@@ -1448,7 +1444,7 @@ export function SacDigitalToolPage({
                 const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
                 selectProtocol(incomingAlert.protocolId);
                 setConversationSearch("");
-                setStatusFilter(targetStatus === "self_service" ? "self_service" : targetStatus === "in_att" ? "in_att" : targetStatus === "finished" ? "finished" : "waiting");
+                setStatusFilter(targetStatus === "pending" ? "waiting" : targetStatus);
                 setOperatorFilter("all");
                 setIncomingAlert(null);
               }}
@@ -1496,20 +1492,31 @@ export function SacDigitalToolPage({
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
+                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att + statusCounts.inbox + statusCounts.abandoned} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
                 </p>
               </div>
-              <div className={`mt-3 grid overflow-hidden rounded-lg border border-border bg-card ${isSacManager ? "grid-cols-4" : "grid-cols-3"}`}>
+              {queueError && (
+                <div role="alert" className="mt-3 border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground">
+                  <p>{queueError}</p>
+                  <p className="mt-2">A fila Aguardando será exibida quando a SAC confirmar a sessão operacional.</p>
+                  <button type="button" className="mt-2 font-bold underline" onClick={() => void loadOperatorQueue()}>Verificar sessão novamente</button>
+                </div>
+              )}
+              <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-card">
                 {(isSacManager
                   ? ([
                       ["self_service", "Auto", statusCounts.self_service],
                       ["waiting", "Aguardando", statusCounts.waiting],
                       ["in_att", "Em atendimento", statusCounts.in_att],
+                      ["abandoned", "Abandonados", statusCounts.abandoned],
+                      ["inbox", "Recados", statusCounts.inbox],
                       ["finished", "Finalizadas", statusCounts.finished],
                     ] as const)
                   : ([
                       ["waiting", "Aguardando", statusCounts.waiting],
                       ["in_att", "Em atendimento", statusCounts.in_att],
+                      ["abandoned", "Abandonados", statusCounts.abandoned],
+                      ["inbox", "Recados", statusCounts.inbox],
                       ["finished", "Finalizadas", statusCounts.finished],
                     ] as const)
                 ).map(([value, label, count]) => (
@@ -1660,7 +1667,7 @@ export function SacDigitalToolPage({
                   || (canViewOrders && Boolean(selectedProtocol.contact?.customer_id))
                 ) && (
                   <div className="flex min-w-0 items-center gap-2 overflow-x-auto border-b border-border bg-card px-4 py-2.5">
-                    {canManageProtocols && selectedOperationalStatus === "waiting" && operatorBinding?.linked && (
+                    {canManageProtocols && selectedOperationalStatus === "waiting" && operatorBinding?.access_mode === "operator" && operatorBinding?.linked && (
                       <AdminButton
                         onClick={() => void assumeProtocol()}
                         loading={protocolAction === "assume"}
@@ -1736,7 +1743,7 @@ export function SacDigitalToolPage({
                       </AdminButton>
                     )}
 
-                    {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
+                    {canManageProtocols && (selectedOperationalStatus === "in_att" || selectedOperationalStatus === "abandoned") && isMyProtocol && (
                       <>
                         <AdminButton
                           variant="secondary"
@@ -1758,7 +1765,7 @@ export function SacDigitalToolPage({
                         </AdminButton>
                       </>
                     )}
-                    {canManageProtocols && selectedOperationalStatus === "in_att" && isMyProtocol && (
+                    {canManageProtocols && (selectedOperationalStatus === "in_att" || selectedOperationalStatus === "abandoned") && isMyProtocol && (
                       <AdminButton
                         variant="secondary"
                         onClick={() => {
@@ -2165,6 +2172,10 @@ export function SacDigitalToolPage({
                     <p className="py-2 text-center text-xs font-semibold text-amber-700 dark:text-amber-300">
                       Este atendimento está na fila. Um Operador SAC deve pegar o atendimento antes de responder.
                     </p>
+                  ) : selectedOperationalStatus === "inbox" || selectedOperationalStatus === "abandoned" ? (
+                    <p className="py-2 text-center text-xs text-muted-foreground">
+                      {selectedOperationalStatus === "abandoned" ? "A SAC registrou este atendimento como abandonado." : "Este protocolo não foi confirmado na fila operacional."} Inicie uma nova conversa ou aguarde a confirmação da fila para assumir.
+                    </p>
                   ) : selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager ? (
                     <p className="py-2 text-center text-xs font-semibold text-sky-700 dark:text-sky-300">
                       Você está acompanhando este atendimento como Gestor SAC. O atendimento está atribuído a {selectedProtocol.operator_name || "outro Operador SAC"}.
@@ -2290,3 +2301,4 @@ export function SacDigitalToolPage({
     )}
   </div>;
 }
+

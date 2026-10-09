@@ -14,3 +14,5 @@ export function hydrateMedia<T extends {id:string;media_url:string|null;raw_meta
 export function cloudChannel(channel:any):boolean;
 export function usableChannels(rows:any[]):any[];
 export function approvedTemplates(rows:any[]):any[];
+
+export function isOperatorAuthError(error:unknown):boolean;
