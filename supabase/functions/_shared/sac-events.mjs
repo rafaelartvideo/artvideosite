@@ -4,4 +4,16 @@ export function classifyMessage(message={}) {return ['image','video','audio','fi
 export function acceptsState(current,incoming) {return !current || Date.parse(incoming)>=Date.parse(current);}
 export function eventType(payload) {return String([payload.event,payload.event_type,payload.type,payload.evento,payload.name].find(v=>typeof v==='string' && v.trim()) || 'unknown').trim().slice(0,120);}
 export async function ingestEvent({payload,organizationId,hash,persist,accelerate,waitUntil}) {const payloadHash=await hash(canonicalEvent(payload)); const result=await persist({p_organization_id:organizationId,p_event_type:eventType(payload),p_payload_hash:payloadHash,p_payload:payload}); if(accelerate && waitUntil) {try {waitUntil(Promise.resolve().then(()=>accelerate(result)).catch(()=>{}));} catch { /* durable jobs survive missing background runtime */ }} return result;}
-export async function runJobs({claim,execute,finish,limit=20}) { const jobs=await claim(Math.min(50,Math.max(1,limit))); let completed=0;for(const job of jobs){try {await execute(job);await finish(job,null);completed++;}catch {await finish(job,'Falha de processamento; consulte os logs privados.');}}return {claimed:jobs.length,completed};}
+export async function runJobs({claim,execute,finish,limit=20,concurrency=1}) {
+ const maximum=Math.min(50,Math.max(1,limit)),parallel=Math.min(3,Math.max(1,concurrency));
+ let claimed=0,completed=0;
+ const seen=new Set();
+ while(claimed<maximum) {
+  const rows=await claim(Math.min(parallel,maximum-claimed));
+  const jobs=rows.filter(job=>{const key=JSON.stringify([job.id,job.generation ?? job.lease_token ?? '']);if(seen.has(key))return false;seen.add(key);return true;});
+  if(!jobs.length)break;
+  claimed+=jobs.length;
+  await Promise.all(jobs.map(async job=>{try {await execute(job);await finish(job,null);completed++;}catch {await finish(job,'Falha de processamento; consulte os logs privados.');}}));
+ }
+ return {claimed,completed};
+}

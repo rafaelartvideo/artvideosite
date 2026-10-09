@@ -1,5 +1,31 @@
 export function mediaMaximum(mime = '') { return (mime.startsWith('image/') ? 1 : mime.startsWith('audio/') ? 3 : 5) * 1024 * 1024; }
-export function deliveryLabel(metadata) { const state=String(metadata?.delivery_status || metadata?.status || '').toLowerCase(); return ({read:'Lida',delivered:'Entregue',sent:'Enviada',failed:'Falhou',unknown:'Confirmação pendente',accepted:'Aceita pela SAC',pending:'Pendente',queued:'Na fila',preparing:'Preparando',prepared:'Preparando',rejected:'Recusada',queued:'Na fila da SAC'})[state] || 'Aguardando confirmação'; }
+export function deliveryState(metadata) {
+ const history = metadata?.sac_history?.status || {};
+ const provider = metadata?.api_response || {};
+ const providerStatus = provider.status && typeof provider.status === 'object' ? provider.status : {};
+ const evidence = [metadata || {}, history, provider, providerStatus];
+ const states = [metadata?.delivery_status, metadata?.status, history.status, provider.delivery_status, provider.status, providerStatus.status]
+  .filter(value=>typeof value==='string').map(value=>value.toLowerCase());
+ const timestamp = value => typeof value === 'string' && value.trim() && Number.isFinite(Date.parse(value));
+ if (states.includes('read') || evidence.some(value=>timestamp(value.readed_at)||timestamp(value.read_at))) return 'read';
+ if (states.includes('delivered') || evidence.some(value=>timestamp(value.delivered_at))) return 'delivered';
+ for (const state of ['deleted','failed','rejected']) if (states.includes(state)) return state;
+ if (states.includes('sent') || evidence.some(value=>timestamp(value.sended_at)||timestamp(value.sent_at))) return 'sent';
+ return states.find(state=>['unknown','accepted','pending','queued','preparing','prepared'].includes(state)) || '';
+}
+export function deliveryLabel(metadata) {
+ return ({read:'Lida',delivered:'Entregue',sent:'Enviada',failed:'Falhou',deleted:'Excluída',unknown:'Confirmação pendente',accepted:'Aceita pela SAC',pending:'Pendente',queued:'Na fila da SAC',preparing:'Preparando',prepared:'Preparando',rejected:'Recusada'})[deliveryState(metadata)] || 'Aguardando confirmação';
+}
+export function liveMessageChanges(payload, selectedProtocolId) {
+ const row = payload.new || payload.old || {};
+ const history = row.raw_metadata?.history_synced === true;
+ if (history && payload.eventType === 'INSERT') return {selected:false,unread:false,inbox:false};
+ return {
+  selected: Boolean(selectedProtocolId && (!row.protocol_id || row.protocol_id === selectedProtocolId)),
+  unread: !history && row.direction === 'incoming',
+  inbox: !history,
+ };
+}
 export function fieldVisible(field, values) { if (!field.when) return true; if (typeof field.when === 'function') return field.when(values); const condition=field.when; if(condition.field && condition.values) return condition.values.includes(String(values[condition.field])); if(condition.field) return Array.isArray(condition.value) ? condition.value.includes(values[condition.field]) : values[condition.field] === condition.value; return Object.entries(condition).every(([key,value])=>Array.isArray(value)? value.includes(values[key]):values[key]===value); }
 export function formValues(fields, values) { return Object.fromEntries(fields.filter(field=>fieldVisible(field,values)&&values[field.name]!==undefined&&values[field.name]!=='').map(field=>[field.name,field.type==='number'?Number(values[field.name]):field.type==='boolean'?Boolean(values[field.name]):values[field.name]])); }
 export function resultItems(data) { if(Array.isArray(data)) return data; if(!data||typeof data!=='object')return data == null ? [] : [{resultado:data}]; for(const value of Object.values(data))if(Array.isArray(value)) return value; return Object.keys(data).length?[data]:[]; }

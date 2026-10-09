@@ -356,11 +356,17 @@ async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
 
   if (error) {
     let apiMessage = "";
+    let errorOutcome = "unknown";
+    let errorType = "transport_error";
+    let correlation: Record<string, unknown> = {};
     try {
       const context = (error as any)?.context;
       const response = context && typeof context.clone === "function" ? context.clone() : context;
       if (response && typeof response.json === "function") {
         const payload = await response.json();
+        errorOutcome = payload?.outcome || "unknown";
+        errorType = payload?.type || "integration_failure";
+        correlation = { local_message_id: payload?.local_message_id, external_message_id: payload?.external_message_id, client_request_id: payload?.client_request_id };
         apiMessage = apiDiagnostic(payload);
         if(payload?.type && !apiMessage.includes(String(payload.type))) apiMessage = `${payload.type}: ${apiMessage}`;
         if(mutation) requestIntents.finish(intentBody, payload?.outcome || "unknown");
@@ -369,17 +375,19 @@ async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
       // Mantém a mensagem padrão quando a resposta da função não puder ser lida.
     }
 
-    throw new Error(
+    const rejection = new Error(
       apiMessage
       || String((error as any)?.message || "").trim()
       || "A SAC Digital não conseguiu concluir a operação.",
     );
+    Object.assign(rejection, { outcome: errorOutcome, type: errorType, ...correlation });
+    throw rejection;
   }
 
   if (mutation && !error) requestIntents.finish(intentBody, data?.outcome || (data?.success ? "accepted" : "rejected"));
   if (!data?.success) {
     const rejection = new Error(apiDiagnostic(data));
-    Object.assign(rejection, { outcome: data?.outcome, type: data?.type });
+    Object.assign(rejection, { outcome: data?.outcome || "rejected", type: data?.type, local_message_id: data?.local_message_id, external_message_id: data?.external_message_id, client_request_id: data?.client_request_id });
     throw rejection;
   }
   return data as Record<string, unknown>;
@@ -412,12 +420,14 @@ export function sendSacDigitalTextMessage(
   organizationId: string,
   protocol: string,
   text: string,
+  clientRequestId?: string,
 ) {
   return invokeSacDigitalApi({
     action: "send_message",
     organization_id: organizationId,
     protocol,
     text,
+    ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
   });
 }
 
@@ -429,17 +439,19 @@ export function sendSacDigitalMediaMessage(
   caption = "",
   orderId?: string,
   externalContactId?: string,
+  clientRequestId?: string,
 ) {
-  if (!file.size) throw new Error("O arquivo está vazio.");
-  if (file.size > mediaMaximum(file.type)) throw new Error(`O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`);
+  if (!file.size) throw Object.assign(new Error("O arquivo está vazio."), { outcome: "rejected", type: "invalid_media" });
+  if (file.size > mediaMaximum(file.type)) throw Object.assign(new Error(`O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`), { outcome: "rejected", type: "invalid_media" });
   if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
-    throw new Error("A SAC Digital aceita imagens de até 1 MB.");
+    throw Object.assign(new Error("A SAC Digital aceita imagens de até 1 MB."), { outcome: "rejected", type: "invalid_media" });
   }
   const form = new FormData();
   form.set("action", "send_media");
   form.set("organization_id", organizationId);
   form.set("protocol", protocol);
   form.set("text", caption);
+  if (clientRequestId) form.set("client_request_id", clientRequestId);
   if (orderId) form.set("order_id", orderId);
   if (externalContactId) form.set("external_contact_id", externalContactId);
   form.set("file", file, file.name);
@@ -633,6 +645,7 @@ export async function startSacDigitalNewConversation(
 
 
 export type SacDigitalRoutingOptions = {
+  department_authorization_required: boolean;
   operators: Array<{
     id: string;
     name: string;
@@ -646,14 +659,16 @@ export type SacDigitalRoutingOptions = {
   }>;
 };
 
-export async function getSacDigitalRoutingOptions(organizationId: string) {
+export async function getSacDigitalRoutingOptions(organizationId: string, protocol: string) {
   const data = await invokeSacDigitalApi({
     action: "routing_options",
     organization_id: organizationId,
+    protocol,
   });
   return {
     operators: Array.isArray(data.operators) ? data.operators : [],
     departments: Array.isArray(data.departments) ? data.departments : [],
+    department_authorization_required: data.department_authorization_required === true,
   } as SacDigitalRoutingOptions;
 }
 

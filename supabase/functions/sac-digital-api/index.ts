@@ -1,6 +1,7 @@
 import { authorizationUrl, returnPath, stateHash } from '../_shared/sac-oauth.mjs';
+import { providerDelivery, submissionCanMatchHistory } from '../_shared/sac-delivery.mjs';
+import { createSacClientSessions } from '../_shared/sac-client-session.mjs';
 import { authorizedOperatorToken } from '../_shared/sac-oauth-session.ts';
-import { assertOperatorIdentity, fetchSacOperatorDirectory } from '../_shared/sac-operator-identity.mjs';
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
@@ -12,7 +13,6 @@ const SAC_API_BASE_URL = "https://api.sac.digital/v2/client";
 const SAC_SCOPES = ["protocol", "contact", "channel", "department", "operator", "inbox", "send", "write", "import", "remove", "notification", "manager"];
 const SAC_OUTBOX_BUCKET = "sac-digital-attachments";
 const SAC_OUTBOX_MAX_BYTES = 5 * 1024 * 1024;
-const tokenCache = new Map<string, { token: string; expiresAt: number }>();
 const operatorNameCache = new Map<string, { names: Map<string, string>; expiresAt: number }>();
 
 const corsHeaders = {
@@ -168,49 +168,15 @@ Deno.serve(async request => {
     };
   };
 
+  const clientSessions = createSacClientSessions({rpc:async (name,args)=>{
+    const {data,error}=await admin.rpc(name,args);if(error)throw error;return data;
+  }});
   const login = async (
     organizationId: string,
-    credentials: { clientId: string; clientSecret: string },
-    force = false,
+    credentials: {clientId:string;clientSecret:string},
+    _force = false,
     scopes = SAC_SCOPES,
-  ) => {
-    const cached = tokenCache.get(organizationId);
-    if (!force && cached && cached.expiresAt > Date.now() + 60_000) return cached;
-
-    const { response, body } = await fetchJson(
-      `${SAC_API_BASE_URL}/auth2/login`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({
-          client: credentials.clientId,
-          password: credentials.clientSecret,
-          scopes,
-        }),
-      },
-    );
-
-    const token = typeof body.token === "string" ? body.token.trim() : "";
-    if (!response.ok || body.success === false || !token) {
-      console.error("[SAC DIGITAL API] login failed", {
-        organization_id: organizationId,
-        status: response.status,
-        request_id: body.request_id,
-      });
-      throw new Error(response.status === 401 || response.status === 403
-        ? "Credenciais SAC Digital recusadas pela API."
-        : "Não foi possível autenticar na API SAC Digital.");
-    }
-
-    const expiresIn = Number(body.expires_in || 3600);
-    const safeExpiresIn = Number.isFinite(expiresIn) && expiresIn > 60 ? expiresIn : 3600;
-    const session = {
-      token,
-      expiresAt: Date.now() + safeExpiresIn * 1000,
-    };
-    tokenCache.set(organizationId, session);
-    return session;
-  };
+  ) => clientSessions.get({organizationId,credentials,scopes});
 
   let resourceDispatch: ((path:string,init:RequestInit)=>Promise<any>) | null = null;
   const apiRequest = async (
@@ -236,7 +202,7 @@ Deno.serve(async request => {
 
     let result = await execute(session.token);
     if (result.response.status === 401 && String(init.method || "GET").toUpperCase() === "GET") {
-      tokenCache.delete(organizationId);
+      await clientSessions.invalidate({organizationId,credentials,scopes:SAC_SCOPES},session.token);
       session = await login(organizationId, credentials, true);
       result = await execute(session.token);
     }
@@ -682,7 +648,7 @@ Deno.serve(async request => {
           return { row, diff: Number.isFinite(localTime) ? Math.abs(localTime - targetTime) : Number.POSITIVE_INFINITY };
         })
         .filter(({ row, diff }) => {
-          if (diff > 180_000) return false;
+          if (diff > 180_000 || !submissionCanMatchHistory(row.raw_metadata,targetTime,row.external_message_id,historyId)) return false;
           const sameText = String(row.body_text || "").trim() === String(shape.text || "").trim();
           if (!sameText) return false;
           if (shape.mediaUrl) {
@@ -798,6 +764,8 @@ Deno.serve(async request => {
         text: form.get("text"),
         order_id: form.get("order_id"),
         external_contact_id: form.get("external_contact_id"),
+        intent_key: form.get("intent_key"),
+        client_request_id: form.get("client_request_id"),
       };
       const candidate = form.get("file");
       uploadFile = candidate instanceof File ? candidate : null;
@@ -834,15 +802,11 @@ Deno.serve(async request => {
       const protocol = String(body.protocol || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       const applied = await enrichProtocol(organizationId, protocol);
-      const history = await syncProtocolHistory(organizationId, protocol);
       return json({
         success: true,
         protocol,
         contact_found: applied.contact_found === true,
         customer_linked: applied.customer_linked === true,
-        history_total: history.total,
-        history_imported: history.imported,
-        history_matched: history.matched,
       });
     }
 
@@ -855,12 +819,16 @@ Deno.serve(async request => {
     const { data: userData, error: userError } = await userClient.auth.getUser();
     if (userError || !userData.user) return json({ success: false, error: "Sessão inválida ou expirada." }, 401);
 
-    const requirePermission = async (permissionKey: string) => {
+    const permissionChecks=new Map<string,Promise<boolean>>();
+    const requirePermission = (permissionKey: string):Promise<boolean> => {
+      if(permissionChecks.has(permissionKey)) return permissionChecks.get(permissionKey)!;
+      const pending=(async()=>{
       const { data: allowed, error } = await userClient.rpc("has_sac_digital_permission", {
         p_organization_id: organizationId,
         p_permission_key: permissionKey,
       });
       return !error && allowed === true;
+      })();permissionChecks.set(permissionKey,pending);return pending;
     };
 
 
@@ -942,6 +910,53 @@ Deno.serve(async request => {
     };
 
 
+    const beginLocalSubmission = async (protocolId:string,fields:Record<string,unknown>) => {
+      const clientRequestId=body.client_request_id == null ? crypto.randomUUID() : String(body.client_request_id);
+      if(!isUuid(clientRequestId)) throw Object.assign(new Error('Identificador do envio inválido.'),{outcome:'rejected'});
+      const existing=await admin.from('sac_digital_messages').select('*').or(`id.eq.${clientRequestId},raw_metadata->>client_request_id.eq.${clientRequestId}`).eq('organization_id',organizationId).eq('protocol_id',protocolId).eq('sender_id',userData.user.id).maybeSingle();
+      if(existing.error) throw Object.assign(new Error('Não foi possível consultar esta tentativa.'),{outcome:'rejected'});
+      if(existing.data) {
+        if(existing.data.body_text !== (fields.body_text || null) || existing.data.message_type !== fields.message_type) throw Object.assign(new Error('Esta tentativa pertence a outra mensagem.'),{outcome:'rejected'});
+        return {row:existing.data,duplicate:true};
+      }
+      const started=new Date().toISOString();
+      const {data:profile}=await admin.from('profiles').select('full_name').eq('id',userData.user.id).maybeSingle();
+      const {data:row,error}=await admin.from('sac_digital_messages').insert({id:clientRequestId,organization_id:organizationId,protocol_id:protocolId,direction:'outgoing',sender_id:userData.user.id,sender_name:profile?.full_name || null,sent_at:started,...fields,raw_metadata:{...(fields.raw_metadata as object || {}),sent_via_union:true,client_request_id:clientRequestId,submission_started_at:started,delivery_status:'preparing'}}).select('*').single();
+      if(error || !row) throw Object.assign(new Error('Não foi possível preparar o registro da mensagem. Nenhum envio foi realizado.'),{outcome:'rejected'});
+      return {row,duplicate:false};
+    };
+    const finishLocalSubmission = async (row:any,result:any,apiBody:any) => {
+      const {data:current}=await admin.from('sac_digital_messages').select('*').eq('organization_id',organizationId).eq('id',row.id).maybeSingle();
+      const evidence=providerDelivery(apiBody);
+      const patch:any={raw_metadata:{...(current?.raw_metadata || row.raw_metadata),api_response:apiBody,delivery_status:result.success ? evidence.state : result.outcome==='unknown' ? 'unknown' : 'rejected',submission_finished_at:new Date().toISOString()}};
+      if(evidence.externalMessageId && !current?.external_message_id) patch.external_message_id=evidence.externalMessageId;
+      let saved=await admin.from('sac_digital_messages').update(patch).eq('organization_id',organizationId).eq('id',row.id).select('*').maybeSingle();
+      if(saved.error?.code==='23505' && evidence.externalMessageId) {
+        const canonical=await admin.from('sac_digital_messages').select('*').eq('organization_id',organizationId).eq('protocol_id',row.protocol_id).eq('external_message_id',evidence.externalMessageId).maybeSingle();
+        if(canonical.data) {
+          saved=await admin.from('sac_digital_messages').update({sender_id:row.sender_id,sender_name:row.sender_name,raw_metadata:{...patch.raw_metadata,...canonical.data.raw_metadata,client_request_id:row.raw_metadata.client_request_id}}).eq('id',canonical.data.id).eq('organization_id',organizationId).select('*').single();
+          if(!saved.error) await admin.from('sac_digital_messages').delete().eq('id',row.id).eq('organization_id',organizationId);
+        }
+      }
+      if(result.success) await admin.from('sac_digital_protocols').update({last_message_at:row.sent_at,updated_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('id',row.protocol_id);
+      return saved.data || {...row,...patch};
+    };
+    const sendLocalSubmission = async (submission:any,endpoint:number,values:Record<string,unknown>,intent?:string) => {
+      let result:any;
+      try {result=await runResourceOperation(endpoint,values,intent);}
+      catch(error) {result={success:false,outcome:(error as any)?.outcome || 'unknown',type:(error as any)?.code || 'send_outcome_unverified',error:error instanceof Error ? error.message : 'Não foi possível confirmar o envio.'};}
+      let settled:any;
+      try {settled=await finishLocalSubmission(submission.row,result,result.data || {});}
+      catch {settled={...submission.row,raw_metadata:{...submission.row.raw_metadata,api_response:result.data || {},delivery_status:result.success ? providerDelivery(result.data || {}).state : result.outcome==='unknown' ? 'unknown' : 'rejected'}};}
+      if(result.success || result.outcome==='unknown') EdgeRuntime.waitUntil(syncProtocolHistory(organizationId, String(values.protocol)).catch(()=>{}));
+      return {result,settled};
+    };
+    const submissionResponse = (row:any,protocol:string) => {
+      const state=row.raw_metadata?.delivery_status || 'unknown';
+      const success=['accepted','queued','sent','delivered','read'].includes(state);
+      return json({success,protocol,local_message_id:row.id,external_message_id:row.external_message_id || null,client_request_id:row.raw_metadata?.client_request_id,delivery_status:state,outcome:success ? state==='queued'?'queued':'accepted' : state==='rejected'?'rejected':'unknown',...(!success ? {error:state==='rejected'?'O envio foi recusado.':'Esta tentativa ainda aguarda confirmação. Não repita o envio.'}: {})},success ? 200 : state==='rejected'?409:502);
+    };
+
     const loadSacOperators = async () => {
       const credentials = await loadCredentials(organizationId);
       if (!credentials.enabled) throw new Error("Integração SAC Digital está desativada.");
@@ -995,15 +1010,10 @@ Deno.serve(async request => {
       if(!binding || binding.id!==operatorId) throw Object.assign(new Error('Vincule seu perfil de Operador nas configurações SAC.'),{code:'operator_authorization_required'});
       const token=await authorizedOperatorToken(admin,{organizationId,userId:userData.user.id,operatorId,bindingVersion:binding.version},credentials);
       if(operatorTokenError(token)) throw Object.assign(new Error('Clique em Autorizar Operador para conectar sua conta SAC.'),{code:'operator_authorization_required'});
-      // REST authorization is confirmed by the provider profile and bound
-      // Operator. The notification WebSocket is not a REST authentication gate.
-      try {
-        const profile=await fetchJson('https://api.sac.digital/v2/operator/perfil/info',{
-          method:'GET',headers:{Authorization:`Bearer ${token}`,Accept:'application/json'},
-        });
-        if(!responseEnvelope(profile.body,profile.response.status).success) throw Object.assign(new Error('Sua sessão SAC foi recusada. Clique em Autorizar Operador.'),{code:'operator_authorization_required'});
-        await assertOperatorIdentity(profile.body,operatorId,()=>fetchSacOperatorDirectory(credentials));
-      } catch(error) {if(!(error as any)?.code) Object.assign(error as object,{code:'operator_session_unavailable'});throw error;}
+      // This Vault grant was saved only after the callback verified the
+      // provider profile. The getter rechecks this user's active membership,
+      // Operator binding/version, Client and enabled integration on every call.
+      // SAC still validates this same Bearer for selection and the operation.
       return {token};
     };
 
@@ -1023,21 +1033,26 @@ Deno.serve(async request => {
       return json({success:true,url:authorizationUrl(credentials.clientId,state)});
     }
 
-    const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string) => {
+    const recordConfirmedOperation = async (protocol:string,patch:Record<string,unknown>) => {
+      const {error}=await admin.from('sac_digital_protocols').update({...patch,updated_at:new Date().toISOString()}).eq('organization_id',organizationId).eq('external_protocol_id',protocol);
+      if(error) console.warn('[SAC DIGITAL API] confirmed operation projection deferred',{code:error.code});
+      EdgeRuntime.waitUntil(enrichProtocol(organizationId,protocol).catch(()=>{}));
+    };
+    const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string, options: {protocolInfo?:Record<string,unknown>;returnToCurrentDepartment?:boolean;routingOptions?:boolean} = {}) => {
       const requested=SAC_ENDPOINTS.find(item=>item.id===endpointId);
       if(!requested) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'invalid_contract',error:'Operação desconhecida.'};
       const permission=operationPermission(requested);
       if(!(await requirePermission(permission)) && !(permission==='sac_digital.messages.view' && await requirePermission('sac_digital.view'))) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'permission_denied',error:'Sem permissão para esta operação.'};
       if([1,61].includes(endpointId)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'private_authentication',error:'A autenticação é privada e resolvida pelo servidor.'};
       let operation: any;
-      let protocolInfo: Record<string, unknown> | null = null;
+      let protocolInfo: Record<string, unknown> | null = options.protocolInfo || null;
       const credentials = await loadCredentials(organizationId);
       if(!credentials.enabled) throw new Error('Integração SAC Digital está desativada.');
       if([36,37,38].includes(endpointId)) {
         const permission=endpointId === 36 ? 'sac_digital.messages.send' : 'sac_digital.protocols.manage';
         if(!await requirePermission(permission)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'permission_denied',error:'Sem permissão para esta operação.'};
         if(!validProtocol(values.protocol)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'invalid_contract',error:'Protocolo inválido.'};
-        const check=await apiRequest(organizationId,credentials,`/protocol/info?protocol=${encodeURIComponent(String(values.protocol))}`,{method:'GET'});
+        const check=protocolInfo ? {response:new Response('{}'),body:{status:true,info:protocolInfo}} : await apiRequest(organizationId,credentials,`/protocol/info?protocol=${encodeURIComponent(String(values.protocol))}`,{method:'GET'});
         if(!check.response.ok || check.body.status === false || !check.body.info || typeof check.body.info !== 'object' || Array.isArray(check.body.info)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'protocol_state_unverified',error:'Não foi possível confirmar o estado externo do protocolo.'};
         protocolInfo = check.body.info as Record<string, unknown>;
         try { const routed=routeProtocolOperation(endpointId,values,protocolInfo);endpointId=routed.endpointId;values=routed.values; }
@@ -1068,6 +1083,7 @@ Deno.serve(async request => {
       }
       const ownerId = crypto.randomUUID();
       let operatorToken = '';
+      let selectedDepartmentId: string | null = null;
       const refreshOperatorSession = async () => {
         if(!binding)throw new Error('Operador SAC não vinculado.');
         const scopes = operatorScopes(operation.scopes,Boolean(values.protocol) && !/\/select\//.test(operation.path));
@@ -1097,12 +1113,26 @@ Deno.serve(async request => {
           const {error} = await admin.from('sac_digital_delivery_attempts').update({state,message_id:response.message_id || (!operation.path.includes('/notification/') ? response.id : null) || null,notification_id:response.notification_id || null,request_id:response.request_id || null,error_type:response.type || null,updated_at:new Date().toISOString()}).eq('id',id);
           if(error) throw error;
         },
+        prepare: options.returnToCurrentDepartment ? async (op:any) => {
+          const current=await fetchJson(`https://api.sac.digital/v2/operator/att/info/${encodeURIComponent(String(values.protocol))}`,{method:'GET',headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json'}});
+          const info:any=current.body.info;
+          const department=String(info?.department?.id || '').trim();
+          if(!responseEnvelope(current.body,current.response.status).success || !department) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'department_not_confirmed',error:'A SAC não confirmou o departamento operacional atual. Nenhum encaminhamento foi enviado.'};
+          selectedDepartmentId=department;
+          return {...op,body:{to:'department',department}};
+        } : undefined,
         transport: async (op: any) => {
           if(op.mode === 'client') {
             // Scope-specific cache isolation prevents a broader cached session replacing minimum scopes.
-            const scopeKey = `${organizationId}:scopes:${[...(op.scopes || [])].sort().join(',')}`;
-            const session = await login(scopeKey,credentials,false,op.scopes || []);
+            const session = await login(organizationId,credentials,false,op.scopes || []);
             return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
+          }
+          if(options.routingOptions && op.path === operation.path) {
+            const paths=[op.path,`/operator/att/departments/${encodeURIComponent(String(values.protocol))}/all`];
+            const [operators,departments]=await Promise.all(paths.map(path=>fetchJson(`https://api.sac.digital/v2${path}`,{method:'GET',headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json'}})));
+            if(!responseEnvelope(operators.body,operators.response.status).success) return operators;
+            const departmentAccess=responseEnvelope(departments.body,departments.response.status).success;
+            return {...operators,body:{...operators.body,departments:departmentAccess ? departments.body.list : [],department_authorization_required:!departmentAccess && departments.body.type==='permission_route'}};
           }
           // One authorized identity for select + mutation. Never renew and replay a
           // mutation after auth failure: renewal loses the selected protocol.
@@ -1113,6 +1143,7 @@ Deno.serve(async request => {
           });
         },
       });
+      if(result.success && selectedDepartmentId) Object.assign(result,{department_id:selectedDepartmentId});
       if(operation.mode === 'operator' && !result.success && String(result.type || '').toLowerCase() === 'invalid_auth') {
         result.type='operator_session_rejected';
         result.error='A SAC Digital recusou a sessão operacional deste atendimento. A Union autenticou o Operador, mas a operação foi recusada pela SAC Digital.';
@@ -2488,11 +2519,7 @@ Deno.serve(async request => {
         }, selected.outcome === "unknown" ? 502 : 409);
       }
 
-      try {
-        await enrichProtocol(organizationId, protocol);
-      } catch {
-        // Webhook/realtime concluirá a atualização caso a SAC ainda não reflita a seleção.
-      }
+      await recordConfirmedOperation(protocol,{status:'in_att',operator_id:binding.id,operator_name:binding.name});
 
       await writeSacAudit({
         action: "sac_digital.protocol.assume",
@@ -2516,48 +2543,15 @@ Deno.serve(async request => {
     }
 
     if (action === "routing_options") {
-      if (!(await requirePermission("sac_digital.protocols.manage"))) {
-        return json({ success: false, error: "Sem permissão para gerenciar atendimentos do SAC Digital." }, 403);
-      }
-
-      const credentials = await loadCredentials(organizationId);
-      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
-
-      const [operatorsResult, departmentsResult] = await Promise.all([
-        paginatedSacList(organizationId, credentials, '/operator/all').then(list=>({response:new Response('{}'),body:{list,status:true}})),
-        apiRequest(organizationId, credentials, "/department/all", { method: "GET" }),
-      ]);
-
-      if (!operatorsResult.response.ok || operatorsResult.body.status === false) {
-        return json({ success: false, error: "Não foi possível carregar os operadores da SAC Digital." });
-      }
-      if (!departmentsResult.response.ok || departmentsResult.body.status === false) {
-        return json({ success: false, error: "Não foi possível carregar os departamentos da SAC Digital." });
-      }
-
-      const operators = Array.isArray(operatorsResult.body.list)
-        ? operatorsResult.body.list
-            .filter(item => item && typeof item === "object" && !Array.isArray(item))
-            .map(item => ({
-              id: String((item as Record<string, unknown>).id || ""),
-              name: String((item as Record<string, unknown>).name || ""),
-              online: (item as Record<string, unknown>).online === true,
-            }))
-            .filter(item => item.id && item.name)
-        : [];
-
-      const departments = Array.isArray(departmentsResult.body.list)
-        ? departmentsResult.body.list
-            .filter(item => item && typeof item === "object" && !Array.isArray(item))
-            .map(item => ({
-              id: String((item as Record<string, unknown>).id || ""),
-              name: String((item as Record<string, unknown>).name || ""),
-              active: (item as Record<string, unknown>).active !== false,
-            }))
-            .filter(item => item.id && item.name)
-        : [];
-
-      return json({ success: true, operators, departments });
+      if (!(await requirePermission("sac_digital.protocols.manage"))) return json({success:false,error:"Sem permissão para gerenciar atendimentos."},403);
+      const protocol=String(body.protocol || '').trim();
+      if(!validProtocol(protocol)) return json({success:false,error:"Protocolo inválido."},400);
+      const options=await runResourceOperation(88,{protocol},undefined,{routingOptions:true});
+      if(!options.success) return json(options as Record<string,unknown>,409);
+      const rows=(value:unknown)=>Array.isArray(value) ? value.filter(item=>item && typeof item==='object' && !Array.isArray(item)) as Record<string,unknown>[] : [];
+      const operators=rows(options.data?.list).map(row=>({id:String(row.id || ''),name:String(row.name || ''),online:row.online !== false})).filter(row=>row.id && row.name);
+      const departments=rows(options.data?.departments).map(row=>({id:String(row.id || ''),name:String(row.name || ''),active:row.active !== false})).filter(row=>row.id && row.name);
+      return json({success:true,operators,departments,department_authorization_required:options.data?.department_authorization_required===true});
     }
 
     if (action === "forward_protocol") {
@@ -2633,6 +2627,7 @@ Deno.serve(async request => {
         typeof body.intent_key === "string"
           ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
           : undefined,
+        {protocolInfo:info},
       );
 
       if (!result.success) return json(result as Record<string, unknown>, result.outcome === "unknown" ? 502 : 409);
@@ -2717,12 +2712,7 @@ Deno.serve(async request => {
         }, 409);
       }
 
-      const infoDepartment = info.department && typeof info.department === "object" && !Array.isArray(info.department)
-        ? info.department as Record<string, unknown> : {};
-      const departmentId=String(infoDepartment.id || info.department_id || info.sector_id || "").trim();
-      if (!departmentId) {
-        return json({ success: false, error: "A SAC Digital não informou o departamento deste atendimento." }, 409);
-      }
+      const departmentId='current'; // Resolved under the selected Operator before transport.
 
       const result = await runResourceOperation(
         90,
@@ -2730,11 +2720,12 @@ Deno.serve(async request => {
         typeof body.intent_key === "string"
           ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
           : undefined,
+        {protocolInfo:info,returnToCurrentDepartment:true},
       );
 
       if (!result.success) return json(result as Record<string, unknown>, result.outcome === "unknown" ? 502 : 409);
 
-      try { await enrichProtocol(organizationId, protocol); } catch {}
+      await recordConfirmedOperation(protocol,{status:'inbox',operator_id:null,operator_name:null,sector_id:(result as any).department_id});
 
       await writeSacAudit({
         action: "sac_digital.protocol.return_to_queue",
@@ -2744,7 +2735,7 @@ Deno.serve(async request => {
         contextType: "protocol",
         contextId: protocol,
         metadata: {
-          department_id: departmentId,
+          department_id: (result as any).department_id,
           sac_access_mode: "operator",
           transport: "operator_att_forward",
         },
@@ -2771,11 +2762,7 @@ Deno.serve(async request => {
       const finished = await runResourceOperation(38, { protocol, vote, notify_contact: false }, intentKey);
       if (!finished.success) return json(finished as Record<string, unknown>,finished.outcome==='unknown'?502:409);
 
-      try {
-        await enrichProtocol(organizationId, protocol);
-      } catch {
-        // O webhook de finalização mantém o CRM em sincronia mesmo se a consulta imediata falhar.
-      }
+      await recordConfirmedOperation(protocol,{status:'finished',closed_at:new Date().toISOString()});
 
       await writeSacAudit({
         action: "sac_digital.protocol.finish",
@@ -2795,6 +2782,7 @@ Deno.serve(async request => {
       }
 
       let protocol = String(body.protocol || "").trim();
+      let localMediaProtocolId: string | null = null;
       const orderId = String(body.order_id || "").trim();
       const requestedExternalContactId = String(body.external_contact_id || "").trim();
       const text = String(body.text || "").trim();
@@ -2898,7 +2886,7 @@ Deno.serve(async request => {
 
       if (protocol) {
         try {
-          await enrichProtocol(organizationId, protocol);
+          if(fromOrder) await enrichProtocol(organizationId, protocol);
         } catch {
           // O protocolo externo confirmado ainda pode estar aguardando projeção local.
         }
@@ -2912,6 +2900,7 @@ Deno.serve(async request => {
         if (mediaProtocolError || !mediaProtocol?.id) {
           return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
         }
+        localMediaProtocolId = mediaProtocol.id;
         if (mediaProtocol.status === "finished" || mediaProtocol.closed_at) {
           return json({ success: false, error: "Não é possível enviar anexos a um protocolo finalizado." }, 409);
         }
@@ -2988,6 +2977,19 @@ Deno.serve(async request => {
       };
       if (protocol) apiPayload.protocol = protocol;
       if (text) apiPayload.text = text;
+
+      if(!fromOrder && localMediaProtocolId) {
+        const submission=await beginLocalSubmission(localMediaProtocolId,{message_type:mediaType,body_text:text || null,media_url:publicUrl,raw_metadata:{temp_storage_bucket:SAC_OUTBOX_BUCKET,temp_storage_path:storagePath,send_transport:'operator-routed',local_file_name:uploadFile.name}});
+        if(submission.duplicate) {await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);return submissionResponse(submission.row,protocol);}
+        const intent=typeof body.intent_key==='string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined;
+        const {result,settled}=await sendLocalSubmission(submission,36,apiPayload,intent);
+        if(!result.success) {
+          if(result.outcome==='rejected') await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+          return json({success:false,error:result.error,outcome:result.outcome,type:result.type,local_message_id:settled.id,client_request_id:settled.raw_metadata.client_request_id},result.outcome==='unknown'?502:409);
+        }
+        await writeSacAudit({action:'sac_digital.protocol.send_media',operation:'send',entityType:'sac_digital_protocol',entityId:protocol,contextType:'protocol',contextId:protocol,metadata:{media_type:mediaType,file_size_bytes:uploadFile.size,outcome:result.outcome}});
+        return submissionResponse(settled,protocol);
+      }
 
       let mediaTransport = fromOrder ? "manager-client" : "url";
       let response: Response;
@@ -3861,156 +3863,20 @@ Deno.serve(async request => {
     }
 
     if (action === "send_message") {
-      if (!(await requirePermission("sac_digital.messages.send"))) {
-        return json({ success: false, error: "Sem permissão para enviar mensagens pelo SAC Digital." }, 403);
-      }
-
-      const protocol = String(body.protocol || "").trim();
-      const text = String(body.text || "").trim();
-      if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
-      const { data: messageProtocol, error: messageProtocolError } = await admin
-        .from("sac_digital_protocols")
-        .select("id,status,closed_at")
-        .eq("organization_id", organizationId)
-        .eq("external_protocol_id", protocol)
-        .maybeSingle();
-      if (messageProtocolError || !messageProtocol?.id) {
-        return json({ success: false, error: "Protocolo não encontrado nesta empresa." }, 404);
-      }
-      if (messageProtocol.status === "finished" || messageProtocol.closed_at) {
-        return json({ success: false, error: "Não é possível enviar mensagens a um protocolo finalizado." }, 409);
-      }
-      if (!text) return json({ success: false, error: "Digite uma mensagem para enviar." }, 400);
-      if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
-
-      const credentials = await loadCredentials(organizationId);
-      if (!credentials.enabled) return json({ success: false, error: "Integração SAC Digital está desativada." }, 400);
-
-      // O mesmo protocolo pode estar em autoatendimento (Gestor) ou já ter virado
-      // atendimento operacional. O roteador consulta /protocol/info e escolhe o
-      // contrato correto: /client/protocol/send ou /operator/att/send/{protocol}.
-      const intentKey = typeof body.intent_key === "string"
-        ? `${userData.user.id}:${body.intent_key.slice(0, 160)}`
-        : undefined;
-      const sendResult = await runResourceOperation(
-        36,
-        { protocol, type: "text", text },
-        intentKey,
-      );
-
-      if (!sendResult.success) {
-        console.error("[SAC DIGITAL API] send message failed", {
-          organization_id: organizationId,
-          protocol,
-          outcome: sendResult.outcome,
-          type: sendResult.type,
-        });
-        return json({
-          success: false,
-          error: sendResult.error || "A SAC Digital não conseguiu enviar a mensagem.",
-          outcome: sendResult.outcome,
-          type: sendResult.type || "provider_rejected",
-        }, sendResult.outcome === "unknown" ? 502 : 409);
-      }
-
-      const apiBody = sendResult.data && typeof sendResult.data === "object" && !Array.isArray(sendResult.data)
-        ? sendResult.data as Record<string, unknown>
-        : {};
-
-      const { data: protocolRow, error: protocolError } = await admin
-        .from("sac_digital_protocols")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("external_protocol_id", protocol)
-        .maybeSingle();
-
-      if (protocolError || !protocolRow?.id) {
-        console.error("[SAC DIGITAL API] local protocol not found after send", {
-          organization_id: organizationId,
-          protocol,
-          code: protocolError?.code,
-        });
-      } else {
-        const sentAt = new Date().toISOString();
-        const externalMessageIdCandidate = apiBody.id ?? apiBody.message_id;
-        const externalMessageId = typeof externalMessageIdCandidate === "string"
-          || typeof externalMessageIdCandidate === "number"
-          ? `sac:${String(externalMessageIdCandidate)}`
-          : null;
-
-        const { data: profile } = await admin
-          .from("profiles")
-          .select("full_name")
-          .eq("id", userData.user.id)
-          .maybeSingle();
-
-        const localMessage = {
-          organization_id: organizationId,
-          protocol_id: protocolRow.id,
-          external_message_id: externalMessageId,
-          direction: "outgoing",
-          message_type: "text",
-          body_text: text,
-          sender_id: userData.user.id,
-          sender_name: profile?.full_name || null,
-          sent_at: sentAt,
-          raw_metadata: {
-            sent_via_union: true,
-            api_response: apiBody,
-          },
-        };
-
-        let { error: messageError } = await admin
-          .from("sac_digital_messages")
-          .insert(localMessage);
-
-        if (messageError?.code === "23505") {
-          const fallback = await admin
-            .from("sac_digital_messages")
-            .insert({
-              ...localMessage,
-              external_message_id: null,
-              raw_metadata: {
-                ...localMessage.raw_metadata,
-                external_id_conflict: true,
-              },
-            });
-          messageError = fallback.error;
-        }
-
-        if (messageError) {
-          console.error("[SAC DIGITAL API] local sent message insert failed", {
-            organization_id: organizationId,
-            protocol,
-            code: messageError.code,
-          });
-        } else {
-          await admin
-            .from("sac_digital_protocols")
-            .update({ last_message_at: sentAt, updated_at: sentAt })
-            .eq("id", protocolRow.id);
-        }
-      }
-
-      await writeSacAudit({
-        action: "sac_digital.protocol.send_message",
-        operation: "send",
-        entityType: "sac_digital_protocol",
-        entityId: protocol,
-        contextType: "protocol",
-        contextId: protocol,
-        metadata: {
-          message_length: text.length,
-          transport: sendResult.data && typeof sendResult.data === "object" ? "routed" : "unknown",
-          outcome: sendResult.outcome,
-        },
-      });
-
-      return json({
-        success: true,
-        protocol,
-        request_id: typeof apiBody.request_id === "string" ? apiBody.request_id : null,
-      });
+      if (!(await requirePermission("sac_digital.messages.send"))) return json({success:false,error:"Sem permissão para enviar mensagens."},403);
+      const protocol=String(body.protocol || '').trim(), text=String(body.text || '').trim();
+      if(!validProtocol(protocol)) return json({success:false,error:"Protocolo inválido."},400);
+      if(!text || text.length>5000) return json({success:false,error:"Digite uma mensagem de até 5000 caracteres."},400);
+      const {data:messageProtocol,error}=await admin.from('sac_digital_protocols').select('id,status,closed_at').eq('organization_id',organizationId).eq('external_protocol_id',protocol).maybeSingle();
+      if(error || !messageProtocol) return json({success:false,error:"Protocolo não encontrado nesta empresa."},404);
+      if(messageProtocol.status==='finished' || messageProtocol.closed_at) return json({success:false,error:"Não é possível enviar a um protocolo finalizado."},409);
+      const submission=await beginLocalSubmission(messageProtocol.id,{message_type:'text',body_text:text});
+      if(submission.duplicate) return submissionResponse(submission.row,protocol);
+      const key=typeof body.intent_key==='string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined;
+      const {result,settled}=await sendLocalSubmission(submission,36,{protocol,type:'text',text},key);
+      if(!result.success) return json({success:false,error:result.error || 'Não foi possível confirmar o envio.',outcome:result.outcome,type:result.type,local_message_id:settled.id,client_request_id:settled.raw_metadata.client_request_id},result.outcome==='unknown'?502:409);
+      await writeSacAudit({action:'sac_digital.protocol.send_message',operation:'send',entityType:'sac_digital_protocol',entityId:protocol,contextType:'protocol',contextId:protocol,metadata:{message_length:text.length,outcome:result.outcome}});
+      return submissionResponse(settled,protocol);
     }
 
     return json({ success: false, error: "Ação não suportada." }, 400);

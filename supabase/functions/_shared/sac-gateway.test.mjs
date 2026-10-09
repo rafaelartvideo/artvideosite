@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+
 import { readFile } from 'node:fs/promises';
 const source = await readFile(new URL('./sac-gateway.ts', import.meta.url), 'utf8');
 const {executeSacOperation, operationPermission, responseEnvelope,parsePagination,operatorScopes,importPhoneCandidates,mayTryImportVariant,routeProtocolOperation,channelCapabilityError,ownMediaStoragePath,chooseImportChannel} = await import('data:text/javascript;base64,'+Buffer.from(source).toString('base64'));
@@ -90,3 +91,23 @@ test('media refresh signs only new private bucket paths inside the organization'
 test('closed or unknown provider modality never defaults to manager send',()=>{assert.throws(()=>routeProtocolOperation(36,{protocol:'P',type:'text',text:'Hi'},{is_att:false,is_open:false}),/encerrado/);assert.throws(()=>routeProtocolOperation(36,{protocol:'P',type:'text',text:'Hi'},{}),/confirmar/);assert.throws(()=>routeProtocolOperation(36,{protocol:'P',type:'text',text:'Hi'},{is_open:true}),/confirmar/);});
 
 test('Callcenter import never chooses primary or inactive secondary',()=>{assert.equal(chooseImportChannel([{id:'p',primary:true,actived:true,type:'callcenter'},{id:'off',primary:false,actived:false,type:'callcenter'},{id:'s',primary:false,actived:true,type:'callcenter'}]).id,'s');assert.throws(()=>chooseImportChannel([{id:'p',primary:true,actived:true,type:'callcenter'}]),/secundário/);});
+
+
+test('a target is resolved under the selected Operator before forwarding',async()=>{
+ const calls=[];
+ const result=await executeSacOperation({method:'PATCH',path:'/operator/att/forward/P',mode:'operator',protocol:'P',body:{to:'department',department:'client-id'}},{authorize:async()=>true,begin:async()=>({id:'a',state:'prepared',created:true}),operator:async()=>{},lease:async()=>true,release:async()=>{},record:async()=>{},prepare:async op=>{calls.push('prepare');return {...op,body:{to:'department',department:'operator-id'}};},transport:async op=>{calls.push(op.body?.department||'select');return {response:new Response('{}'),body:{status:true}};}});
+ assert.equal(result.success,true);assert.deepEqual(calls,['select','prepare','operator-id']);
+});
+test('an unavailable target rejects before sending a business mutation',async()=>{
+ const calls=[],recorded=[];
+ const result=await executeSacOperation({method:'PATCH',path:'/operator/att/forward/P',mode:'operator',protocol:'P'},{authorize:async()=>true,begin:async()=>({id:'a',state:'prepared',created:true}),operator:async()=>{},lease:async()=>true,release:async()=>{},record:async(id,state)=>recorded.push(state),prepare:async()=>({success:false,outcome:'rejected',type:'invalid_department',error:'Unavailable',data:null}),transport:async op=>{calls.push(op.path);return {response:new Response('{}'),body:{status:true}};}});
+ assert.equal(result.success,false);assert.deepEqual(calls,['/operator/att/select/P']);assert.deepEqual(recorded,['rejected']);
+});
+test('lease cleanup failure cannot discard an accepted send result',async()=>{
+ const result=await executeSacOperation({method:'POST',path:'/operator/att/send/P',mode:'operator',protocol:'P'},{authorize:async()=>true,begin:async()=>({id:'x',state:'prepared',created:true}),operator:async()=>{},lease:async()=>true,transport:async()=>({response:new Response('{}'),body:{status:true,message_id:'accepted-message'}}),record:async()=>{},release:async()=>{throw Error('database unavailable');}});
+ assert.equal(result.success,true);assert.equal(result.outcome,'accepted');assert.equal(result.data.message_id,'accepted-message');
+});
+test('a failed attempt-record write cannot make a timed-out send retryable',async()=>{
+ const result=await executeSacOperation({method:'POST',path:'/client/protocol/send',mode:'client'},{authorize:async()=>true,begin:async()=>({id:'x',state:'prepared',created:true}),transport:async()=>{throw Error('timeout');},record:async()=>{throw Error('database unavailable');}});
+ assert.equal(result.success,false);assert.equal(result.outcome,'unknown');
+});

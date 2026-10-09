@@ -1,5 +1,6 @@
 export const SAC_OAUTH_CALLBACK='https://unionworld.com.br/sac.php';
-export const SAC_OPERATOR_SCOPES=['profile','operator','protocol','edit','write','send'];
+const REQUIRED_OPERATOR_SCOPES=['profile','operator','protocol','edit','write','send'];
+export const SAC_OPERATOR_SCOPES=[...REQUIRED_OPERATOR_SCOPES,'department'];
 export function authorizationUrl(clientId,state) {
  const url=new URL('https://auth2.sac.digital/oauth/authorize');
  url.search=new URLSearchParams({client_id:clientId,redirect_uri:SAC_OAUTH_CALLBACK,response_type:'code',scope:SAC_OPERATOR_SCOPES.join(' '),state}).toString();
@@ -22,7 +23,9 @@ export function tokenPayload(body,now=Date.now()) {
  const expires=Number(body.expires_in);
  if(typeof body.access_token!=='string' || !body.access_token || typeof body.refresh_token!=='string' || !body.refresh_token || !Number.isFinite(expires) || expires<=0 || expires>604800) throw Object.assign(Error('A SAC retornou uma autorização incompleta.'),{code:'operator_auth_contract_unverified'});
  const scopes=typeof body.scope==='string'?body.scope.split(/\s+/):Array.isArray(body.scopes)?body.scopes:null;
- if(scopes && SAC_OPERATOR_SCOPES.some(scope=>!scopes.includes(scope))) throw Object.assign(Error('A SAC não autorizou os escopos de atendimento solicitados.'),{code:'operator_scope_missing'});
+ // Existing grants remain valid for their original operations. Department
+ // listing advertises missing scope separately, without ending that session.
+ if(scopes && REQUIRED_OPERATOR_SCOPES.some(scope=>!scopes.includes(scope))) throw Object.assign(Error('A SAC não autorizou os escopos de atendimento solicitados.'),{code:'operator_scope_missing'});
  return {access_token:body.access_token,refresh_token:body.refresh_token,expires_at:new Date(now+expires*1000).toISOString(),refresh_expires_at:new Date(now+30*86400000).toISOString()};
 }
 export async function stateHash(state) {

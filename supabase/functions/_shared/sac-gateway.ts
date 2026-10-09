@@ -123,6 +123,14 @@ export async function executeSacOperation(operation, dependencies) {
         }
       }
     }
+    if (dependencies.prepare) {
+      const prepared = await dependencies.prepare(operation);
+      if (prepared.success === false) {
+        if (attempt) await dependencies.record(attempt.id, 'rejected', {type:prepared.type});
+        return prepared;
+      }
+      operation = prepared;
+    }
     const result = await dependencies.transport(operation);
     const page=Number(new URL(operation.path,'https://api.sac.digital').searchParams.get('p')) || 1;
     const envelope = responseEnvelope(result.body,result.response.status,page);
@@ -136,7 +144,10 @@ export async function executeSacOperation(operation, dependencies) {
     const errorCode=String(error?.code || '');
     const authentication=['operator_auth_contract_unverified','operator_profile_incompatible','operator_scope_missing','operator_authorization_required','operator_identity_mismatch','operator_session_unavailable'].includes(errorCode);
     const state = mutation && !authentication ? 'unknown' : 'rejected';
-    if(attempt) await dependencies.record(attempt.id,state,{type:errorCode || undefined});
+    if(attempt) {
+      try { await dependencies.record(attempt.id,state,{type:errorCode || undefined}); }
+      catch { /* The durable prepared attempt remains uncertain, never retryable. */ }
+    }
     return fail(
       authentication ? errorCode : 'external_transport_failed',
       authentication
@@ -144,7 +155,12 @@ export async function executeSacOperation(operation, dependencies) {
         : 'Não foi possível confirmar o resultado externo. Reconcilie antes de repetir.',
       state,
     );
-  } finally {if(leased) await dependencies.release();}
+  } finally {
+    if(leased) {
+      try { await dependencies.release(); }
+      catch { /* The bounded lease expires; cleanup cannot replace provider evidence. */ }
+    }
+  }
 }
 
 export function ownMediaStoragePath(message, organizationId) {

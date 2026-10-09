@@ -21,14 +21,14 @@ export async function assertOperatorIdentity(profile,expectedId,loadOperators) {
  return id;
 }
 
-export async function fetchSacOperatorDirectory(credentials,fetcher=fetch) {
+export async function fetchSacOperatorDirectory(credentials,fetcher=fetch,clientToken) {
  const request=async(path,init={})=>{
   const response=await fetcher('https://api.sac.digital/v2/client'+path,{...init,signal:AbortSignal.timeout(15000)});
   const body=await response.json();
   if(!response.ok || body.status===false || body.success===false) throw Error('Cadastro de Operadores indisponível.');
   return body;
  };
- const login=await request('/auth2/login',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({client:credentials.clientId,password:credentials.clientSecret,scopes:['operator']})});
+ const login=clientToken ? {token:clientToken} : await request('/auth2/login',{method:'POST',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({client:credentials.clientId,password:credentials.clientSecret,scopes:['operator']})});
  if(typeof login.token!=='string' || !login.token.trim()) throw Error('Acesso ao cadastro indisponível.');
  const list=[];
  for(let page=1;page<=100;page++) {

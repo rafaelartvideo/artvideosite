@@ -6,7 +6,8 @@ const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m =>
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
-import { mediaMaximum, deliveryLabel, isOperatorAuthError } from '../domain/resource-ui.mjs';
+import { mediaMaximum, deliveryLabel, isOperatorAuthError, liveMessageChanges } from '../domain/resource-ui.mjs';
+import { SacMessageOutbox } from '../domain/message-outbox.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
@@ -20,6 +21,7 @@ import {
   UserRound,
   Volume2,
   ChevronDown,
+  LoaderCircle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -179,15 +181,10 @@ function ProtocolAvatar({
 function deliveryStatus(message: SacDigitalMessage) {
   if (message.direction !== "outgoing") return "";
   const raw = message.raw_metadata || {};
-  const historyStatus = String(raw?.sac_history?.status?.status || "").toLowerCase();
-  const labels: Record<string, string> = {
-    read: "Lida",
-    delivered: "Entregue",
-    sent: "Enviada",
-    failed: "Falhou",
-    deleted: "Excluída",
-  };
-  if (labels[historyStatus]) return labels[historyStatus];
+  if (raw.local_submission === "sending") return "Enviando…";
+  if (raw.local_submission === "queued") return "Na fila de envio";
+  if (raw.local_submission === "failed") return "Falhou";
+  if (raw.local_submission === "unknown") return "Confirmação pendente";
   return deliveryLabel(raw);
 }
 
@@ -331,8 +328,6 @@ export function SacDigitalToolPage({
   const [loading, setLoading] = useState(true);
   const [inboxLoading, setInboxLoading] = useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [attachment, setAttachment] = useState<File | null>(null);
   const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "assume" | "inbox" | "finish" | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [finishConfirmOpen, setFinishConfirmOpen] = useState(false);
@@ -365,7 +360,20 @@ export function SacDigitalToolPage({
   const [finishedProtocolCount, setFinishedProtocolCount] = useState(0);
   const [selectedProtocolId, setSelectedProtocolId] = useState<string | null>(null);
   const [messages, setMessages] = useState<SacDigitalMessage[]>([]);
-  const [draft, setDraft] = useState("");
+  const [messagesIdentity, setMessagesIdentity] = useState("");
+  const [outboxVersion, setOutboxVersion] = useState(0);
+  const [messageOutbox] = useState(() => new SacMessageOutbox({ onChange: () => setOutboxVersion(value => value + 1) }));
+  const messageContext = useMemo(() => ({
+    organizationId: activeOrganizationId || "", userId: user?.id || "", protocolId: selectedProtocolId || "",
+  }), [activeOrganizationId, user?.id, selectedProtocolId]);
+  const { text: draft, file: attachment } = messageOutbox.composer(messageContext);
+  const setDraft = (text: string) => messageOutbox.compose(messageContext, { text });
+  const setAttachment = (file: File | null) => messageOutbox.compose(messageContext, { file });
+  const visibleMessages = useMemo(() => messageOutbox.visible(messageContext,
+    messagesIdentity === JSON.stringify([activeOrganizationId, user?.id]) ? messages : []),
+  [messageOutbox, messageContext, messages, messagesIdentity, activeOrganizationId, user?.id, outboxVersion]);
+  const currentIdentityRef = useRef("");
+  currentIdentityRef.current = JSON.stringify([activeOrganizationId, user?.id]);
   const [conversationSearch, setConversationSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished" | "inbox" | "abandoned">("waiting");
   const [operatorFilter, setOperatorFilter] = useState("all");
@@ -385,7 +393,6 @@ export function SacDigitalToolPage({
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
-  const sendingRef = useRef(false);
   const selectedProtocolIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const followLatestRef = useRef(true);
@@ -589,6 +596,9 @@ export function SacDigitalToolPage({
   }, [activeOrganizationId, canViewMessages, isSacManager, selectProtocol,user?.id]);
 
   const loadMessages = useCallback(async (protocolId: string | null, showLoading = false) => {
+    if (protocolId && selectedProtocolIdRef.current !== protocolId) return;
+    const identity = JSON.stringify([activeOrganizationId, user?.id]);
+    if (currentIdentityRef.current !== identity) return;
     const requestId = ++messagesRequestIdRef.current;
     if (!activeOrganizationId || !canViewMessages || !protocolId) {
       setMessages([]);
@@ -598,18 +608,19 @@ export function SacDigitalToolPage({
     if (showLoading) setMessagesLoading(true);
     try {
       const next = await listSacDigitalMessages(activeOrganizationId, protocolId);
-      if (requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
+      if (currentIdentityRef.current !== identity || requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
+      setMessagesIdentity(identity);
       setMessages(next);
     } catch (error) {
-      if (requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
+      if (currentIdentityRef.current !== identity || requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
       setMessage({
         text: systemErrorMessage(error, "Não foi possível carregar as mensagens deste atendimento."),
         error: true,
       });
     } finally {
-      if (requestId === messagesRequestIdRef.current) setMessagesLoading(false);
+      if (currentIdentityRef.current === identity && requestId === messagesRequestIdRef.current) setMessagesLoading(false);
     }
-  }, [activeOrganizationId, canViewMessages]);
+  }, [activeOrganizationId, canViewMessages, user?.id]);
 
 
   const loadUnreadCounts = useCallback(async () => {
@@ -921,7 +932,7 @@ export function SacDigitalToolPage({
   useEffect(() => {
     if (moduleSection !== "conversations" || !selectedProtocolId || messagesLoading) return;
     if (!followLatestRef.current) {
-      if (messages.length > 0) setShowJumpToLatest(true);
+      if (visibleMessages.length > 0) setShowJumpToLatest(true);
       return;
     }
     const frame = window.requestAnimationFrame(() => {
@@ -929,30 +940,30 @@ export function SacDigitalToolPage({
       if (container) container.scrollTop = container.scrollHeight;
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [messages.length, messagesLoading, moduleSection, selectedProtocolId]);
+  }, [visibleMessages.length, messagesLoading, moduleSection, selectedProtocolId]);
 
   useEffect(() => {
     if (!activeOrganizationId || !canViewMessages) return;
 
     let selectedMessagesChanged = false;
     let unreadCountsChanged = false;
+    let inboxChanged = false;
     const refreshQueue = createRefreshQueue(async () => {
       const refreshSelected = selectedMessagesChanged;
       const refreshUnread = unreadCountsChanged;
       selectedMessagesChanged = false;
       unreadCountsChanged = false;
 
-      await loadProtocols(false);
-      if (refreshSelected && selectedProtocolId) {
-        await loadMessages(selectedProtocolId, false);
-        try {
-          await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
-        } catch {
-          // Retry on the next update.
-        }
-      }
-      if (refreshUnread) await loadUnreadCounts();
-    }, 900);
+      const refreshInbox = inboxChanged;
+      inboxChanged = false;
+      await Promise.all([
+        refreshInbox ? loadProtocols(false) : Promise.resolve(),
+        refreshSelected && selectedProtocolId ? loadMessages(selectedProtocolId, false).then(async () => {
+          try { await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId); } catch { /* Retry on the next update. */ }
+        }) : Promise.resolve(),
+        refreshUnread ? loadUnreadCounts() : Promise.resolve(),
+      ]);
+    }, 250);
     const realtime = supabase
       .channel(`sac-digital-inbox:${activeOrganizationId}`)
       .on(
@@ -964,6 +975,7 @@ export function SacDigitalToolPage({
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         () => {
+          inboxChanged = true;
           refreshQueue.request();
         },
       )
@@ -978,17 +990,11 @@ export function SacDigitalToolPage({
         payload => {
           const changedProtocolId = String((payload.new as any)?.protocol_id || (payload.old as any)?.protocol_id || "");
           const newMessage = payload.new as any;
-          const historySynced = newMessage?.raw_metadata?.history_synced === true;
-
-          // Importação histórica não é evento ao vivo e não deve provocar
-          // releitura completa da caixa/contadores a cada mensagem importada.
-          if (historySynced) return;
-
-          if (newMessage?.direction === "incoming") unreadCountsChanged = true;
-          if (selectedProtocolId && (!changedProtocolId || changedProtocolId === selectedProtocolId)) {
-            selectedMessagesChanged = true;
-          }
-          refreshQueue.request();
+          const changes = liveMessageChanges(payload, selectedProtocolId);
+          selectedMessagesChanged ||= changes.selected;
+          unreadCountsChanged ||= changes.unread;
+          inboxChanged ||= changes.inbox;
+          if (changes.selected || changes.unread || changes.inbox) refreshQueue.request();
 
           if (payload.eventType === "INSERT" && newMessage?.direction === "incoming"
             && changedProtocolId && changedProtocolId !== selectedProtocolId) {
@@ -1011,6 +1017,7 @@ export function SacDigitalToolPage({
           filter: `organization_id=eq.${activeOrganizationId}`,
         },
         () => {
+          inboxChanged = true;
           refreshQueue.request();
         },
       )
@@ -1024,57 +1031,40 @@ export function SacDigitalToolPage({
   }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
 
   const sendMessage = async () => {
-    if (!activeOrganizationId || !selectedProtocol || !canSendMessages || sendingRef.current
+    if (!activeOrganizationId || !user?.id || !selectedProtocol || !canSendMessages
       || protocolOperationalStatus(selectedProtocol, waitingProtocolSet) !== "in_att"
       || selectedProtocol.is_pending || !status?.enabled) return;
-    const text = draft.trim();
-    const selectedFile = attachment;
-    if (!text && !selectedFile) return;
-
-    sendingRef.current = true;
-    setSending(true);
-    setMessage(null);
-    try {
-      if (selectedFile) {
-        await sendSacDigitalMediaMessage(
-          activeOrganizationId,
-          selectedProtocol.external_protocol_id,
-          selectedFile,
-          text,
-        );
-      } else {
-        await sendSacDigitalTextMessage(
-          activeOrganizationId,
-          selectedProtocol.external_protocol_id,
-          text,
-        );
+    const context = {
+      ...messageContext, externalProtocolId: selectedProtocol.external_protocol_id,
+      senderName: operatorBinding?.operator?.name || selectedProtocol.operator_name || null,
+    };
+    const identity = currentIdentityRef.current;
+    const submission = messageOutbox.send(context, entry => {
+      if (currentIdentityRef.current !== identity) {
+        throw Object.assign(new Error("Envio cancelado porque a empresa ou o usuário mudou."), { outcome: "rejected" });
       }
-    } catch (error) {
-      setMessage({
-        text: systemErrorMessage(error, "Não foi possível enviar a mensagem pela SAC Digital."),
-        error: true,
-      });
-      sendingRef.current = false;
-      setSending(false);
-      return;
-    }
-
-    // O envio ja foi aceito. Uma falha ao recarregar nao deve sugerir reenvio.
-    setDraft("");
-    setAttachment(null);
+      return entry.file
+        ? sendSacDigitalMediaMessage(context.organizationId, context.externalProtocolId, entry.file, entry.text, undefined, undefined, entry.id)
+        : sendSacDigitalTextMessage(context.organizationId, context.externalProtocolId, entry.text, entry.id);
+    });
+    if (!submission) return;
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     scrollToLatest("smooth");
-    try {
-      await Promise.all([
-        loadMessages(selectedProtocol.id, false),
-        loadProtocols(false),
-      ]);
-    } catch {
-      setMessage({ text: "Mensagem aceita pela SAC Digital. A confirmação e a atualização do histórico será retomada na próxima abertura." });
-    } finally {
-      sendingRef.current = false;
-      setSending(false);
+    await submission.done;
+    // Completion belongs to the original conversation. It never consumes a new
+    // draft, scrolls another protocol, or changes another organization's inbox.
+    if (currentIdentityRef.current !== identity) return;
+    if (submission.state === "failed" || submission.state === "unknown") {
+      if (selectedProtocolIdRef.current === context.protocolId) {
+        setMessage({ text: submission.state === "unknown"
+          ? "Confirmação da mensagem pendente. Aguarde a atualização do histórico."
+          : systemErrorMessage(new Error(submission.error), "Não foi possível enviar a mensagem pela SAC Digital."), error: true });
+      }
     }
+    void Promise.all([
+      selectedProtocolIdRef.current === context.protocolId ? loadMessages(context.protocolId, false) : Promise.resolve(),
+      loadProtocols(false),
+    ]).catch(() => {});
   };
 
   const reloadSelectedProtocol = async () => {
@@ -1250,8 +1240,11 @@ export function SacDigitalToolPage({
 
   const loadRoutingOptionsIfNeeded = async () => {
     if (routingOptions) return routingOptions;
-    if (!activeOrganizationId) return null;
-    const options = await getSacDigitalRoutingOptions(activeOrganizationId);
+    if (!activeOrganizationId || !selectedProtocol) return null;
+    const identity = currentIdentityRef.current;
+    const protocolId = selectedProtocol.id;
+    const options = await getSacDigitalRoutingOptions(activeOrganizationId, selectedProtocol.external_protocol_id);
+    if (currentIdentityRef.current !== identity || selectedProtocolIdRef.current !== protocolId) return null;
     setRoutingOptions(options);
     return options;
   };
@@ -1396,9 +1389,9 @@ export function SacDigitalToolPage({
   };
 
   useEffect(() => {
-    setAttachment(null);
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     setRoutingOpen(false);
+    setRoutingOptions(null);
     setCustomerLinkOpen(false);
     setQuickCustomerOpen(false);
     setOrdersPanelOpen(false);
@@ -1409,7 +1402,7 @@ export function SacDigitalToolPage({
     setOperatorId("");
     setCustomerSearch("");
     setCustomerResults([]);
-  }, [selectedProtocolId]);
+  }, [selectedProtocolId, activeOrganizationId, user?.id]);
 
   const selectedOperationalStatus = selectedProtocol
     ? protocolOperationalStatus(selectedProtocol, waitingProtocolSet)
@@ -2025,6 +2018,9 @@ export function SacDigitalToolPage({
 
                 {routingOpen && canManageProtocols && (
                   <div className="border-b border-border bg-muted/30 px-4 py-3">
+                    {routingOptions?.department_authorization_required && (
+                      <p className="mb-2 text-xs text-amber-700 dark:text-amber-300">Para listar outros departamentos, autorize seu Operador novamente.</p>
+                    )}
                     <div className="grid gap-2 sm:grid-cols-2">
                       <FSelect label="Departamento" value={departmentId} onChange={(event: any) => {setDepartmentId(event.target.value);setOperatorId("");}}
                         disabled={protocolAction === "routing" || protocolAction === "forward"}
@@ -2091,15 +2087,15 @@ export function SacDigitalToolPage({
                       backgroundSize: "22px 22px",
                     }}
                   >
-                  {messagesLoading ? <LoadingState text="Carregando mensagens..." /> : messages.length === 0 ? (
+                  {messagesLoading && visibleMessages.length === 0 ? <LoadingState text="Carregando mensagens..." /> : visibleMessages.length === 0 ? (
                     <div className="flex min-h-64 items-center justify-center text-center text-xs text-muted-foreground">
                       Nenhuma mensagem registrada neste protocolo.
                     </div>
                   ) : (
                     <div className="mx-auto max-w-4xl">
-                      {messages.map((item, index) => {
+                      {visibleMessages.map((item, index) => {
                         const outgoing = effectiveMessageDirection(item) === "outgoing";
-                        const previous = index > 0 ? messages[index - 1] : null;
+                        const previous = index > 0 ? visibleMessages[index - 1] : null;
                         const previousOutgoing = previous ? effectiveMessageDirection(previous) === "outgoing" : null;
                         const operatorName = messageOperatorName(item, selectedProtocol);
                         const previousOperatorName = previous ? messageOperatorName(previous, selectedProtocol) : "";
@@ -2189,6 +2185,9 @@ export function SacDigitalToolPage({
                                     </div>
                                   </div>;
                                 })()}
+                                {item.raw_metadata?.local_file_name && (
+                                  <p className="flex items-center gap-2 text-xs"><Paperclip size={14} />{item.raw_metadata.local_file_name}</p>
+                                )}
                                 {item.body_text && (
                                   <p className="whitespace-pre-wrap break-words text-sm leading-5">{item.body_text}</p>
                                 )}
@@ -2200,7 +2199,16 @@ export function SacDigitalToolPage({
                                 )}
                               </div>;
                             })()}
-                            <div className="mt-1 flex items-center justify-end gap-2 text-[9px] opacity-60">
+                            {item.raw_metadata?.local_submission === "failed" && (
+                              <div className="mt-2 space-y-1 text-xs">
+                                <p role="alert" className="text-red-700 dark:text-red-300">{item.raw_metadata.local_error || "Não foi possível enviar esta mensagem."}</p>
+                                <button type="button" disabled={!messageOutbox.canRestore(messageContext, String(item.raw_metadata?.client_request_id))}
+                                  onClick={() => messageOutbox.restore(messageContext, String(item.raw_metadata?.client_request_id))}
+                                  className="font-semibold underline disabled:opacity-50">Editar e tentar novamente</button>
+                              </div>
+                            )}
+                            <div className="mt-1 flex items-center justify-end gap-2 text-[9px] opacity-60" aria-live="polite">
+                              {item.raw_metadata?.local_submission === "sending" && <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />}
                               {outgoing && deliveryStatus(item) && <span>{deliveryStatus(item)}</span>}
                               <span>{formatCompactDate(item.sent_at)}</span>
                             </div>
@@ -2250,7 +2258,6 @@ export function SacDigitalToolPage({
                           </span>
                           <button
                             type="button"
-                            disabled={sending}
                             onClick={() => {
                               setAttachment(null);
                               if (mediaInputRef.current) mediaInputRef.current.value = "";
@@ -2294,7 +2301,7 @@ export function SacDigitalToolPage({
                         <AdminButton
                           type="button"
                           variant="secondary"
-                          disabled={sending || !status?.enabled}
+                          disabled={!status?.enabled}
                           onClick={() => mediaInputRef.current?.click()}
                           aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                           title="Anexar arquivo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB)"
@@ -2306,11 +2313,11 @@ export function SacDigitalToolPage({
                           aria-label={attachment ? "Legenda do anexo" : "Mensagem"}
                           rows={1}
                           value={draft}
-                          disabled={sending || !status?.enabled}
+                          disabled={!status?.enabled}
                           placeholder={attachment ? "Legenda (opcional)" : status?.enabled ? "Digite uma mensagem" : "Integração desativada"}
                           onChange={event => setDraft(event.target.value)}
                           onKeyDown={event => {
-                            if (event.key === "Enter" && !event.shiftKey) {
+                            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                               event.preventDefault();
                               void sendMessage();
                             }
@@ -2319,8 +2326,7 @@ export function SacDigitalToolPage({
                         />
                         <AdminButton
                           type="submit"
-                          disabled={(!draft.trim() && !attachment) || !status?.enabled || sending}
-                          loading={sending}
+                          disabled={(!draft.trim() && !attachment) || !status?.enabled}
                           aria-label="Enviar mensagem"
                           title="Enviar mensagem"
                           className="h-11 w-11 shrink-0 rounded-full px-0"

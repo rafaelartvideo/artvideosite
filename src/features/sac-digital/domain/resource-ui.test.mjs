@@ -11,3 +11,22 @@ test('private attachment hydration selects at most50 and preserves public/cached
 test('channel chooser filters inactive/primary callcenter and forces Cloud templates',async()=>{const {usableChannels,cloudChannel,approvedTemplates}=await import('./resource-ui.mjs');assert.deepEqual(usableChannels([{id:'off',status:'disconnected'},{id:'primary',type:'callcenter',primary:true},{id:'secondary',type:'callcenter',primary:false},{id:'cloud',type:'cloud',actived:true}]).map(c=>c.id),['secondary','cloud']);assert.equal(cloudChannel({type:'cloud'}),true);assert.equal(cloudChannel({type:'unknown'}),false);assert.deepEqual(approvedTemplates([{id:'yes',status:'APPROVED'},{id:'no',status:'REJECTED'}]).map(t=>t.id),['yes']);});
 
 test('group membership and coupon code retain their parent without using related record ID',async()=>{const {recordContext}=await import('./resource-ui.mjs');assert.deepEqual(recordContext([{name:'id'},{name:'contact'}],{id:'group-1'},'Grupos de Contatos',null,{sourceEndpointId:19}),{id:'group-1'});assert.deepEqual(recordContext([{name:'id'},{name:'contact'}],{id:'contact-23'},'Grupos de Contatos',null,{sourceEndpointId:20,parent:{groupId:'group-1'}}),{id:'group-1',contact:'contact-23'});assert.deepEqual(recordContext([{name:'id'},{name:'code'}],{id:'customer-1',code:'abc'},'Cupom',null,{sourceEndpointId:46,parent:{couponId:'coupon-1'}}),{id:'coupon-1',code:'abc'});});
+
+
+test('delivery labels use history timestamps and never treat a provider ACK as delivery', () => {
+ assert.equal(deliveryLabel({sac_history:{status:{sended_at:'2026-10-09T10:00:00Z'}}}), 'Enviada');
+ assert.equal(deliveryLabel({delivery_status:'accepted',sac_history:{status:{delivered_at:'2026-10-09T10:00:00Z'}}}), 'Entregue');
+ assert.equal(deliveryLabel({delivery_status:'sent',sac_history:{status:{readed_at:'2026-10-09T10:00:00Z'}}}), 'Lida');
+ assert.equal(deliveryLabel({api_response:{status:true,success:true,request_id:'ack'}}), 'Aguardando confirmação');
+ assert.equal(deliveryLabel({delivery_status:'accepted'}), 'Aceita pela SAC');
+});
+
+
+test('history delivery updates refresh the open conversation without reloading bulk inserts', async () => {
+ const { liveMessageChanges } = await import('./resource-ui.mjs');
+ const history = {protocol_id:'current',direction:'outgoing',raw_metadata:{history_synced:true}};
+ assert.deepEqual(liveMessageChanges({eventType:'INSERT',new:history},'current'),{selected:false,unread:false,inbox:false});
+ assert.deepEqual(liveMessageChanges({eventType:'UPDATE',new:history},'current'),{selected:true,unread:false,inbox:false});
+ assert.deepEqual(liveMessageChanges({eventType:'UPDATE',new:history},'other'),{selected:false,unread:false,inbox:false});
+ assert.deepEqual(liveMessageChanges({eventType:'INSERT',new:{protocol_id:'current',direction:'incoming'}},'current'),{selected:true,unread:true,inbox:true});
+});

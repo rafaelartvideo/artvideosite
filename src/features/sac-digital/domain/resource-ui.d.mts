@@ -16,3 +16,6 @@ export function usableChannels(rows:any[]):any[];
 export function approvedTemplates(rows:any[]):any[];
 
 export function isOperatorAuthError(error:unknown):boolean;
+
+export function deliveryState(metadata: Record<string, any> | null | undefined): string;
+export function liveMessageChanges(payload:any, selectedProtocolId:string|null):{selected:boolean;unread:boolean;inbox:boolean};

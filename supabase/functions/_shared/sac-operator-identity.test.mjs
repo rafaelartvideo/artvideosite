@@ -3,6 +3,14 @@ import assert from 'node:assert/strict';
 import { assertOperatorIdentity,fetchSacOperatorDirectory } from './sac-operator-identity.mjs';
 const profile={status:true,info:{name:'Atendente',email:' Operator@Example.Test '}};
 const operators=[{id:'op',name:'Atendente',email:'operator@example.test'}];
+test('a durable Client token reads the directory without creating a new login',async()=>{
+ const paths=[];
+ const list=await fetchSacOperatorDirectory({clientId:'c',clientSecret:'s'},async(url,init)=>{
+  paths.push(url);assert.equal(init.headers.Authorization,'Bearer cached');
+  return Response.json({status:true,list:operators,has_more:false});
+ },'cached');
+ assert.deepEqual(list,operators);assert.equal(paths.length,1);assert.ok(paths.every(path=>!path.includes('auth2/login')));
+});
 test('profile without id matches the unique authenticated email against the company Operator directory',async()=>{
  assert.equal(await assertOperatorIdentity(profile,'op',async()=>operators),'op');
 });
