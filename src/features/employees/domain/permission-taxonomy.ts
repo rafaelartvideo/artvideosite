@@ -18,6 +18,17 @@ const MODULE_LABELS: Record<string, string> = {
   situations: "Situações da OS", terms: "Termos/Garantia", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas Parceiras",
 };
 
+// Todos os recursos da central de Ferramentas usam o mesmo grupo visual,
+// sem compartilhar autorização entre integrações diferentes.
+const TOOL_MODULE_SECTIONS: Record<string, string> = {
+  field_tracking: "Mapa de Campo",
+  queue: "Union Fila",
+  pbx: "PABX Union",
+  marketplace: "Marketplace Union",
+  ai: "Union IA",
+  sac_digital: "SAC Digital",
+};
+
 const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_requests", "orders.dispatch_parts", "orders.confirm_part_delivery", "orders.register_part_return", "orders.receive_returned_parts", "orders.record_test_results"]);
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
@@ -53,6 +64,7 @@ export function permissionModuleName(permission: PermissionRecord) {
   if (key.startsWith("platform.announcements.")) return "Avisos";
   if (key.startsWith("platform.billing.")) return "Financeiro";
   const prefix = key.split(".")[0];
+  if (prefix === "tools" || TOOL_MODULE_SECTIONS[prefix]) return "Ferramentas";
   if (MODULE_LABELS[prefix]) return MODULE_LABELS[prefix];
   const stored = String(permission.module_name || "").split("—")[0].trim();
   return stored || "Outros";
@@ -61,6 +73,12 @@ export function permissionModuleName(permission: PermissionRecord) {
 export function permissionSectionName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   const module = key.split(".")[0];
+  if (module === "tools") {
+    if (key === "tools.uniq.use") return "UNIQ";
+    if (key === "tools.sac_digital.use") return "SAC Digital";
+    return "Acesso geral";
+  }
+  if (TOOL_MODULE_SECTIONS[module]) return TOOL_MODULE_SECTIONS[module];
   if (key.includes(".table.")) return "Tabela";
   if (key.includes(".details.")) return "Detalhes";
   if (module === "orders") {
@@ -88,7 +106,6 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("sac_digital.protocols.")) return "Atendimentos";
     if (key.startsWith("sac_digital.settings.")) return "Configurações";
   }
-  if (module === "tools") return key === "tools.view" ? "Acesso" : "Uso";
   if (module === "checklists") return key === "checklists.view" ? "Acesso" : "Ações";
   if (module === "documents") {
     if (key.startsWith("documents.signatures.")) return "Assinaturas";
@@ -153,7 +170,13 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
+  "field_tracking.view": ["tools.view"],
+  "field_tracking.share": ["tools.view"],
   "queue.view": ["tools.view"],
+  "pbx.view": ["tools.view"],
+  "marketplace.view": ["tools.view"],
+  "ai.view": ["tools.view"],
+  "sac_digital.view": ["tools.view"],
   "queue.manage": ["queue.view"],
   "sac_digital.messages.view": ["sac_digital.view", "tools.view"],
   "sac_digital.messages.send": ["sac_digital.messages.view", "sac_digital.view", "tools.view"],
