@@ -343,6 +343,7 @@ export function SacDigitalToolPage({
   const [customerLinkingId, setCustomerLinkingId] = useState<string | null>(null);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [ordersPanelOpen, setOrdersPanelOpen] = useState(false);
+  const customerDetailsRequestIdRef = useRef(0);
   const [customerOrdersLoading, setCustomerOrdersLoading] = useState(false);
   const [customerOrders, setCustomerOrders] = useState<SacDigitalCustomerOrder[]>([]);
   const [customerEquipments, setCustomerEquipments] = useState<Array<{
@@ -1206,19 +1207,33 @@ export function SacDigitalToolPage({
     await linkCustomer(String(customer.id));
   };
 
+  const closeCustomerOrders = useCallback(() => {
+    customerDetailsRequestIdRef.current++;
+    setOrdersPanelOpen(false);
+    setCustomerOrdersLoading(false);
+  }, []);
+
   const openCustomerOrders = async () => {
     const customerId = selectedProtocol?.contact?.customer_id;
     if (!activeOrganizationId || !customerId || (!canViewOrders && !canViewCustomers)) return;
 
     if (ordersPanelOpen) {
-      setOrdersPanelOpen(false);
+      closeCustomerOrders();
       return;
     }
 
+    const identity = currentIdentityRef.current;
+    const protocolId = selectedProtocolIdRef.current;
+    const requestId = ++customerDetailsRequestIdRef.current;
+    const isCurrentRequest = () => currentIdentityRef.current === identity
+      && selectedProtocolIdRef.current === protocolId
+      && customerDetailsRequestIdRef.current === requestId;
     setCustomerLinkOpen(false);
     setRoutingOpen(false);
     setFinishConfirmOpen(false);
     setOrdersPanelOpen(true);
+    setCustomerOrders([]);
+    setCustomerEquipments([]);
     setCustomerOrdersLoading(true);
     setMessage(null);
     try {
@@ -1226,15 +1241,17 @@ export function SacDigitalToolPage({
         canViewOrders ? listSacDigitalCustomerOrders(activeOrganizationId, customerId) : Promise.resolve([]),
         canViewCustomers ? listCustomerEquipments(activeOrganizationId, customerId) : Promise.resolve([]),
       ]);
+      if (!isCurrentRequest()) return;
       setCustomerOrders(orders);
       setCustomerEquipments(equipments);
     } catch (error) {
+      if (!isCurrentRequest()) return;
       setMessage({
         text: systemErrorMessage(error, "Não foi possível carregar o resumo deste cliente."),
         error: true,
       });
     } finally {
-      setCustomerOrdersLoading(false);
+      if (isCurrentRequest()) setCustomerOrdersLoading(false);
     }
   };
 
@@ -1252,6 +1269,8 @@ export function SacDigitalToolPage({
   const assumeProtocol = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
 
+    const identity = currentIdentityRef.current;
+    const protocolId = selectedProtocol.id;
     setProtocolAction("assume");
     queueRequestIdRef.current++;
     protocolsRequestIdRef.current++;
@@ -1261,16 +1280,35 @@ export function SacDigitalToolPage({
         activeOrganizationId,
         selectedProtocol.external_protocol_id,
       );
-      await refreshSacDigitalProtocol(activeOrganizationId, selectedProtocol.external_protocol_id);
+      if (currentIdentityRef.current !== identity) return;
       const operator = result.operator && typeof result.operator === "object"
         ? result.operator as { id: string; name: string }
         : null;
       if (operator) {
         setOperatorBinding({ linked: true, access_mode: "operator", operator });
       }
+      setProtocols(current => current.map(protocol => protocol.id === protocolId
+        ? { ...protocol, status: "in_att", operator_id: operator?.id || operatorBinding?.operator?.id || protocol.operator_id,
+          operator_name: operator?.name || operatorBinding?.operator?.name || protocol.operator_name }
+        : protocol));
+      setWaitingProtocolIds(current => current.filter(id => id !== selectedProtocol.external_protocol_id));
+      if (selectedProtocolIdRef.current === protocolId) {
+        setConversationSearch("");
+        setOperatorFilter("all");
+        setStatusFilter("in_att");
+      }
       setMessage({ text: "Atendimento selecionado. Ele saiu da fila e está em atendimento com você." });
-      await reloadSelectedProtocol();
+      // A atualização auxiliar não desfaz uma operação já confirmada pela SAC.
+      try {
+        await refreshSacDigitalProtocol(activeOrganizationId, selectedProtocol.external_protocol_id);
+      } catch {
+        // O estado confirmado já está aplicado; o refresh normal fará a reconciliação.
+      }
+      if (currentIdentityRef.current === identity) {
+        await Promise.all([loadProtocols(false, true), loadOperatorQueue(true)]);
+      }
     } catch (error) {
+      if (currentIdentityRef.current !== identity) return;
       setMessage({
         text: systemErrorMessage(error, "Não foi possível assumir o atendimento."),
         error: true,
@@ -1363,6 +1401,8 @@ export function SacDigitalToolPage({
 
   const finishProtocol = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction || !finishVote) return;
+    const identity = currentIdentityRef.current;
+    const protocolId = selectedProtocol.id;
     setProtocolAction("finish");
     queueRequestIdRef.current++;
     protocolsRequestIdRef.current++;
@@ -1373,12 +1413,25 @@ export function SacDigitalToolPage({
         selectedProtocol.external_protocol_id,
         Number(finishVote),
       );
-      setFinishConfirmOpen(false);
-      setFinishVote("");
-      setRoutingOpen(false);
+      if (currentIdentityRef.current !== identity) return;
+      setProtocols(current => current.map(protocol => protocol.id === protocolId
+        ? { ...protocol, status: "finished" }
+        : protocol));
+      setWaitingProtocolIds(current => current.filter(id => id !== selectedProtocol.external_protocol_id));
+      if (selectedProtocolIdRef.current === protocolId) {
+        setFinishConfirmOpen(false);
+        setFinishVote("");
+        setRoutingOpen(false);
+        closeCustomerOrders();
+        selectProtocol(null);
+        setConversationSearch("");
+        setOperatorFilter("all");
+        setStatusFilter("waiting");
+      }
       setMessage({ text: "Atendimento finalizado com sucesso." });
-      await reloadSelectedProtocol();
+      await Promise.all([loadProtocols(false, true), loadOperatorQueue(true)]);
     } catch (error) {
+      if (currentIdentityRef.current !== identity) return;
       setMessage({
         text: systemErrorMessage(error, "Não foi possível finalizar o atendimento."),
         error: true,
@@ -1394,7 +1447,7 @@ export function SacDigitalToolPage({
     setRoutingOptions(null);
     setCustomerLinkOpen(false);
     setQuickCustomerOpen(false);
-    setOrdersPanelOpen(false);
+    closeCustomerOrders();
     setCustomerOrders([]);
     setCustomerEquipments([]);
     setFinishConfirmOpen(false);
@@ -1402,7 +1455,7 @@ export function SacDigitalToolPage({
     setOperatorId("");
     setCustomerSearch("");
     setCustomerResults([]);
-  }, [selectedProtocolId, activeOrganizationId, user?.id]);
+  }, [selectedProtocolId, activeOrganizationId, user?.id, closeCustomerOrders]);
 
   const selectedOperationalStatus = selectedProtocol
     ? protocolOperationalStatus(selectedProtocol, waitingProtocolSet)
@@ -1653,7 +1706,8 @@ export function SacDigitalToolPage({
             </div>
           </aside>
 
-          <main className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-muted/15">
+          <div className="relative flex h-full min-h-0 min-w-0 overflow-hidden">
+          <main className="flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-muted/15">
             {selectedProtocol?.is_pending ? (
               <div className="flex h-full min-h-0 flex-col">
                 <div className="flex items-center gap-3 border-b border-border bg-card px-4 py-3">
@@ -1779,7 +1833,8 @@ export function SacDigitalToolPage({
                       <AdminButton
                         variant="secondary"
                         onClick={() => void openCustomerOrders()}
-                        loading={customerOrdersLoading}
+                        aria-expanded={ordersPanelOpen}
+                        aria-controls="sac-customer-details"
                         className="shrink-0"
                       >
                         Dados do cliente
@@ -1919,98 +1974,6 @@ export function SacDigitalToolPage({
                             </div>
                           );
                         })}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {ordersPanelOpen && (canViewOrders || canViewCustomers) && selectedProtocol.contact?.customer_id && (
-                  <div className="border-b border-border bg-muted/30 px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-black text-foreground">Dados do cliente</p>
-                        <p className="text-[10px] text-muted-foreground">
-                          {protocolDisplayName(selectedProtocol)} · {formatPhone(selectedProtocol.contact.phone)}
-                        </p>
-                      </div>
-                      <div className="flex gap-2">
-                        {canViewCustomers && onOpenCustomer && (
-                          <AdminButton size="sm" variant="secondary"
-                            onClick={() => onOpenCustomer(selectedProtocol.contact!.customer_id!)}>
-                            Abrir cadastro
-                          </AdminButton>
-                        )}
-                        <AdminButton size="sm" variant="secondary"
-                          onClick={() => setOrdersPanelOpen(false)}>
-                          Fechar
-                        </AdminButton>
-                      </div>
-                    </div>
-                    {customerOrdersLoading ? (
-                      <LoadingState text="Carregando dados do cliente..." />
-                    ) : (
-                      <div className="mt-3 grid min-w-0 gap-3 lg:grid-cols-2">
-                        {canViewOrders && (
-                          <section className="min-w-0">
-                            <p className="mb-2 text-xs font-black text-foreground">
-                              Últimas OS · {customerOrders.filter(order => !order.is_solved).length} não resolvida(s)
-                            </p>
-                            <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
-                              {customerOrders.length === 0 ? (
-                                <p className="p-3 text-xs text-muted-foreground">Nenhuma OS vinculada.</p>
-                              ) : customerOrders.map(order => (
-                                <div key={order.id}
-                                  className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 last:border-b-0">
-                                  <div className="min-w-0">
-                                    <p className="truncate text-xs font-semibold">
-                                      OS {order.os_number || order.external_os_number || order.id.slice(0, 8)}
-                                      {order.is_solved ? " · Resolvida" : ""}
-                                    </p>
-                                    <p className="truncate text-[10px] text-muted-foreground">
-                                      {[order.order_status?.name, order.situation?.name, formatCompactDate(order.created_at)]
-                                        .filter(Boolean).join(" · ")}
-                                    </p>
-                                  </div>
-                                  {onOpenOrder && (
-                                    <AdminButton size="sm" variant="secondary"
-                                      onClick={() => onOpenOrder(order.id)}>Abrir</AdminButton>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </section>
-                        )}
-                        {canViewCustomers && (
-                          <section className="min-w-0">
-                            <p className="mb-2 text-xs font-black text-foreground">
-                              Equipamentos · {customerEquipments.length}
-                            </p>
-                            <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
-                              {customerEquipments.length === 0 ? (
-                                <p className="p-3 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
-                              ) : customerEquipments.slice(0, 10).map(equipment => (
-                                <div key={equipment.id} className="border-b border-border px-3 py-2 last:border-b-0">
-                                  <p className="truncate text-xs font-semibold text-foreground">
-                                    {[equipment.equipment_type_name, equipment.equipment_brand_name,
-                                      equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}
-                                  </p>
-                                  {equipment.serial_number && (
-                                    <p className="text-[10px] text-muted-foreground">
-                                      Série: {equipment.serial_number}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </section>
-                        )}
-                      </div>
-                    )}
-                    {canCreateOrders && onCreateOrder && (
-                      <div className="mt-3 flex justify-end">
-                        <AdminButton onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}>
-                          Nova OS
-                        </AdminButton>
                       </div>
                     )}
                   </div>
@@ -2348,6 +2311,102 @@ export function SacDigitalToolPage({
               </div>
             )}
           </main>
+                {ordersPanelOpen && (canViewOrders || canViewCustomers) && selectedProtocol?.contact?.customer_id && (
+                  <aside id="sac-customer-details" aria-label="Dados do cliente" className="absolute inset-y-0 right-0 z-20 flex w-full min-h-0 min-w-0 flex-col border-l border-border bg-card shadow-xl sm:w-80 xl:static xl:shrink-0 xl:shadow-none 2xl:w-96">
+                    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3">
+                    <div className="sticky top-0 z-10 flex items-start justify-between gap-2 bg-card pb-2">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-black text-foreground">Dados do cliente</p>
+                        <p className="break-words text-[10px] text-muted-foreground">
+                          {protocolDisplayName(selectedProtocol)} · {formatPhone(selectedProtocol.contact.phone)}
+                        </p>
+                      </div>
+                      <AdminButton size="sm" variant="ghost"
+                        aria-label="Fechar dados do cliente" title="Fechar dados do cliente"
+                        className="h-8 w-8 shrink-0 px-0" onClick={closeCustomerOrders}>
+                        <X size={16} />
+                      </AdminButton>
+                    </div>
+                    {canViewCustomers && onOpenCustomer && (
+                      <div className="mt-3">
+                        <AdminButton size="sm" variant="secondary"
+                          onClick={() => onOpenCustomer(selectedProtocol.contact!.customer_id!)}>
+                          Abrir cadastro
+                        </AdminButton>
+                      </div>
+                    )}
+                    {customerOrdersLoading ? (
+                      <LoadingState text="Carregando dados do cliente..." />
+                    ) : (
+                      <div className="mt-3 grid min-w-0 gap-4">
+                        {canViewOrders && (
+                          <section className="min-w-0">
+                            <p className="mb-2 text-xs font-black text-foreground">
+                              Últimas OS · {customerOrders.filter(order => !order.is_solved).length} não resolvida(s)
+                            </p>
+                            <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
+                              {customerOrders.length === 0 ? (
+                                <p className="p-3 text-xs text-muted-foreground">Nenhuma OS vinculada.</p>
+                              ) : customerOrders.map(order => (
+                                <div key={order.id}
+                                  className="flex items-center justify-between gap-2 border-b border-border px-3 py-2 last:border-b-0">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-xs font-semibold">
+                                      OS {order.os_number || order.external_os_number || order.id.slice(0, 8)}
+                                      {order.is_solved ? " · Resolvida" : ""}
+                                    </p>
+                                    <p className="truncate text-[10px] text-muted-foreground">
+                                      {[order.order_status?.name, order.situation?.name, formatCompactDate(order.created_at)]
+                                        .filter(Boolean).join(" · ")}
+                                    </p>
+                                  </div>
+                                  {onOpenOrder && (
+                                    <AdminButton size="sm" variant="secondary"
+                                      onClick={() => onOpenOrder(order.id)}>Abrir</AdminButton>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        )}
+                        {canViewCustomers && (
+                          <section className="min-w-0">
+                            <p className="mb-2 text-xs font-black text-foreground">
+                              Equipamentos · {customerEquipments.length}
+                            </p>
+                            <div className="max-h-44 overflow-y-auto rounded-lg border border-border bg-card">
+                              {customerEquipments.length === 0 ? (
+                                <p className="p-3 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>
+                              ) : customerEquipments.slice(0, 10).map(equipment => (
+                                <div key={equipment.id} className="border-b border-border px-3 py-2 last:border-b-0">
+                                  <p className="truncate text-xs font-semibold text-foreground">
+                                    {[equipment.equipment_type_name, equipment.equipment_brand_name,
+                                      equipment.equipment_model_name].filter(Boolean).join(" · ") || "Equipamento"}
+                                  </p>
+                                  {equipment.serial_number && (
+                                    <p className="text-[10px] text-muted-foreground">
+                                      Série: {equipment.serial_number}
+                                    </p>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        )}
+                      </div>
+                    )}
+                    {canCreateOrders && onCreateOrder && (
+                      <div className="mt-3 flex justify-end">
+                        <AdminButton onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}>
+                          Nova OS
+                        </AdminButton>
+                      </div>
+                    )}
+                    </div>
+                  </aside>
+                )}
+
+          </div>
         </div>
       )}
     </div>}
