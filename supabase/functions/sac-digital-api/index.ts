@@ -1147,26 +1147,48 @@ Deno.serve(async request => {
       }
       const ownerId = crypto.randomUUID();
       let operatorToken = '';
-      const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
-        authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
-        operator: binding ? async () => {
-          const requestedScopes=operatorScopes(
+      let operatorCacheKey = '';
+      let operatorRequestedScopes: string[] = [];
+      const refreshOperatorSession = async (force = false) => {
+        if (!binding) throw new Error('Operador SAC não vinculado.');
+        if (!operatorRequestedScopes.length) {
+          operatorRequestedScopes = operatorScopes(
             operation.scopes,
             Boolean(values.protocol) && operation.skipSelect !== true && !/\/select\//.test(operation.path),
           );
-          const cacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${requestedScopes.join(',')}`;
-          const cached = operatorSessionCache.get(cacheKey);
+        }
+        if (!operatorCacheKey) {
+          operatorCacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${operatorRequestedScopes.join(',')}`;
+        }
+        if (!force) {
+          const cached = operatorSessionCache.get(operatorCacheKey);
           if(cached && cached.expiresAt > Date.now()+60000) {
             operatorToken=cached.token;
             return;
           }
+        } else if (operatorCacheKey) {
+          operatorSessionCache.delete(operatorCacheKey);
+        }
 
-          const session = await authenticateSacOperator(credentials,binding.id,requestedScopes);
-          operatorToken=session.token;
-          operatorSessionCache.set(cacheKey,{
-            token:operatorToken,
-            expiresAt:Date.now()+session.expiresIn*1000,
-          });
+        const session = await authenticateSacOperator(credentials,binding.id,operatorRequestedScopes);
+        operatorToken=session.token;
+        operatorSessionCache.set(operatorCacheKey,{
+          token:operatorToken,
+          expiresAt:Date.now()+session.expiresIn*1000,
+        });
+      };
+      const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
+        authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
+        operator: binding ? async () => {
+          operatorRequestedScopes=operatorScopes(
+            operation.scopes,
+            Boolean(values.protocol) && operation.skipSelect !== true && !/\/select\//.test(operation.path),
+          );
+          operatorCacheKey = `${organizationId}:${userData.user.id}:${binding.id}:${binding.version}:${operatorRequestedScopes.join(',')}`;
+          // A SAC pode invalidar uma sessão operacional anterior quando um novo
+          // login do mesmo Operador é emitido. Para mutações, autenticar sempre
+          // imediatamente antes da operação; GETs podem reutilizar o cache.
+          await refreshOperatorSession(operation.method !== 'GET');
         } : null,
         lease: async () => {
           const {data,error} = await admin.rpc('sac_digital_acquire_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});
@@ -1193,7 +1215,22 @@ Deno.serve(async request => {
             const session = await login(scopeKey,credentials,false,op.scopes || []);
             return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
           }
-          return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
+          const executeOperatorRequest = () => fetchJson(
+            `https://api.sac.digital/v2${op.path}`,
+            {method:op.method,headers:{Authorization:`Bearer ${operatorToken}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})},
+          );
+          let response = await executeOperatorRequest();
+          const providerType = String(response.body?.type || '').trim().toLowerCase();
+          if(
+            binding
+            && (providerType === 'invalid_auth' || response.response.status === 401 || response.response.status === 403)
+          ) {
+            // Uma sessão previamente válida pode ser revogada pela própria SAC.
+            // Renova uma única vez e repete a mesma operação; sem loop/fallback de rota.
+            await refreshOperatorSession(true);
+            response = await executeOperatorRequest();
+          }
+          return response;
         },
       });
       if(operation.mode === 'operator' && !result.success && String(result.type || '').toLowerCase() === 'invalid_auth') {
