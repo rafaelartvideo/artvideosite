@@ -410,7 +410,7 @@ export function QuickEquipmentModal({
         model = equipmentModels.find(item => item.id === selectedModelId && item.equipment_brand_id === brand.id) || null;
         if (!model) throw new Error("Selecione um modelo válido para esta marca.");
       } else {
-        const normalizedModelName = cleanCatalogValue(modelName);
+        const normalizedModelName = cleanCatalogValue(modelName).toLocaleUpperCase("pt-BR");
         const { data: existingModel, error: modelLookupError } = await findEquipmentModelByName(brand.id, normalizedModelName);
         if (modelLookupError) throw modelLookupError;
         if (existingModel) throw new Error(`O modelo “${existingModel.name}” já está cadastrado nesta marca. Selecione o cadastro existente para usá-lo.`);
@@ -563,7 +563,7 @@ export function QuickEquipmentModal({
                       helperText={modelHelper}
                       placeholder={brandReady ? "Ex: UN55CU7700" : "Informe a marca primeiro"}
                       onChange={(value) => {
-                        setModelName(value);
+                        setModelName(value.toLocaleUpperCase("pt-BR"));
                         setErrorMessage("");
                       }}
                       onSelect={(option) => {

@@ -55,7 +55,7 @@ export async function createEquipmentModel(payload: Record<string, unknown>) {
   const organizationId = await getActiveOrganizationId();
   return supabase
     .from("equipment_models")
-    .insert({ ...payload, organization_id: organizationId })
+    .insert({ ...payload, name: typeof payload.name === "string" ? payload.name.trim().toLocaleUpperCase("pt-BR") : payload.name, organization_id: organizationId })
     .select("*")
     .single();
 }

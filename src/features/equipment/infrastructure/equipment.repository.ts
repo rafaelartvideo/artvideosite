@@ -125,8 +125,9 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
       const brandId = await saveAndGetId("equipment_brands", { name: brand.name.trim(), slug: brandSlug, equipment_type_id: typeId, is_active: brand.is_active, sort_order: 0 }, brand.id, organizationId, "Marca técnica não foi salva.");
 
       for (const model of brand.models) {
-        const modelSlug = await generateUniqueSlug("equipment_models", model.name, model.id);
-        const payload = { name: model.name.trim(), slug: modelSlug, equipment_brand_id: brandId, is_active: model.is_active, sort_order: 0 };
+        const modelName = model.name.trim().toLocaleUpperCase("pt-BR");
+        const modelSlug = await generateUniqueSlug("equipment_models", modelName, model.id);
+        const payload = { name: modelName, slug: modelSlug, equipment_brand_id: brandId, is_active: model.is_active, sort_order: 0 };
         const { error } = model.id ? await supabase.from("equipment_models").update(payload).eq("id", model.id).eq("organization_id", organizationId) : await supabase.from("equipment_models").insert({ ...payload, organization_id: organizationId });
         if (error) throw toCatalogError(error, "Modelo não foi salvo.");
       }
