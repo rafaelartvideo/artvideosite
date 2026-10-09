@@ -930,7 +930,7 @@ export type SacDigitalContactPageItem = {
 export async function listSacDigitalContactsPage(
   organizationId: string, search: string, page: number, pageSize: number,
 ): Promise<{ items: SacDigitalContactPageItem[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_sac_digital_contacts_page", {
+  const { data, error } = await supabase.rpc("list_sac_digital_contacts_search_v1", {
     p_organization_id: organizationId,
     p_search: search,
     p_page: page,
