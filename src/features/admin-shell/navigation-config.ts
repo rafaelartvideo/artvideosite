@@ -50,7 +50,7 @@ export const siteItems: PermissionAwareHubItem[] = [
   { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público.", permissionKey: "services.view" },
   { id: "siteSettings", label: "Configurações do Site", icon: Settings, description: "Gerencie identidade visual e conteúdo do site público.", permissionKey: "site_settings.view" },
   { id: "contact", label: "Contato", icon: Phone, description: "Configure telefones, WhatsApp, e-mail, endereço, redes sociais e horário exibidos no site.", permissionKey: "contact.view" },
-];
+].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
 export const operationItems: PermissionAwareHubItem[] = [
   { id: "equipment", label: "Equipamentos", icon: Wrench, description: "Cadastre equipamentos, marcas e modelos técnicos.", permissionKey: "equipment.view" },
@@ -63,7 +63,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.details.view" },
   { id: "integrations", label: "Integrações", icon: Settings, description: "Configure conexões externas e credenciais dos módulos da empresa.", permissionKey: "sac_digital.settings.manage" },
   { id: "terms", label: "Termos/Garantia", icon: ScrollText, description: "Gerencie termos obrigatórios e garantias vinculadas aos Serviços Gerais.", permissionKey: "terms.view" },
-];
+].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
 export const utilityItems: AdminNavigationItem[] = [];
 
