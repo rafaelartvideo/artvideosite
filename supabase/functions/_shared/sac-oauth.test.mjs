@@ -79,11 +79,11 @@ function callbackFixture(profileId='op') {
  return {admin,deps,inspect:()=>({saved,closed,released,exchanges})};
 }
 const callbackRequest=()=>new Request(oauth.SAC_OAUTH_CALLBACK+'?state='+ 'a'.repeat(64)+'&code=private-code');
-test('callback saves the validated Operator for the initiating user, releases socket and hides credentials',async()=>{
+test('callback saves the validated Operator for the initiating user, releases lease and hides credentials',async()=>{
  const f=callbackFixture();const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
  assert.equal(response.status,303);assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
  assert.equal(f.inspect().saved.p_user_id,'user');assert.equal(f.inspect().saved.p_operator_id,'op');
- assert.equal(f.inspect().closed,true);assert.equal(f.inspect().released,true);
+ assert.equal(f.inspect().closed,false);assert.equal(f.inspect().released,true);
  assert.equal(response.headers.get('Location').includes('private'),false);
  assert.equal(response.headers.get('Referrer-Policy'),'no-referrer');
 });
@@ -131,4 +131,13 @@ test('SAC profile without info.id is confirmed against its unique Operator email
  const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
  assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
  assert.equal(f.inspect().saved.p_operator_id,'op');
+});
+
+test('valid Operator authorization is saved when the optional notification WebSocket closes or is unavailable',async()=>{
+ const f=callbackFixture();
+ f.deps.openSocket=async()=>{throw Object.assign(Error('notification socket closed'),{code:'operator_session_unavailable'});};
+ const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
+ assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
+ assert.equal(f.inspect().saved.p_operator_id,'op');
+ assert.equal(f.inspect().released,true);
 });

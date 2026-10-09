@@ -4,7 +4,7 @@ import { assertOperatorIdentity, fetchSacOperatorDirectory } from '../_shared/sa
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
-import { executeSacOperation, operationPermission, parsePagination, operatorScopes, importPhoneCandidates, mayTryImportVariant, routeProtocolOperation, channelCapabilityError, responseEnvelope, ownMediaStoragePath, chooseImportChannel, operatorTokenError, newConversationRoute, openOperatorSocket } from "../_shared/sac-gateway.ts";
+import { executeSacOperation, operationPermission, parsePagination, operatorScopes, importPhoneCandidates, mayTryImportVariant, routeProtocolOperation, channelCapabilityError, responseEnvelope, ownMediaStoragePath, chooseImportChannel, operatorTokenError, newConversationRoute } from "../_shared/sac-gateway.ts";
 
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
@@ -1021,15 +1021,16 @@ Deno.serve(async request => {
       if(!binding || binding.id!==operatorId) throw Object.assign(new Error('Vincule seu perfil de Operador nas configurações SAC.'),{code:'operator_authorization_required'});
       const token=await authorizedOperatorToken(admin,{organizationId,userId:userData.user.id,operatorId,bindingVersion:binding.version},credentials);
       if(operatorTokenError(token)) throw Object.assign(new Error('Clique em Autorizar Operador para conectar sua conta SAC.'),{code:'operator_authorization_required'});
-      const socket=await openOperatorSocket(token);
+      // REST authorization is confirmed by the provider profile and bound
+      // Operator. The notification WebSocket is not a REST authentication gate.
       try {
         const profile=await fetchJson('https://api.sac.digital/v2/operator/perfil/info',{
           method:'GET',headers:{Authorization:`Bearer ${token}`,Accept:'application/json'},
         });
         if(!responseEnvelope(profile.body,profile.response.status).success) throw Object.assign(new Error('Sua sessão SAC foi recusada. Clique em Autorizar Operador.'),{code:'operator_authorization_required'});
         await assertOperatorIdentity(profile.body,operatorId,()=>fetchSacOperatorDirectory(credentials));
-      } catch(error) {socket.close();if(!(error as any)?.code) Object.assign(error as object,{code:'operator_session_unavailable'});throw error;}
-      return {token,socket};
+      } catch(error) {if(!(error as any)?.code) Object.assign(error as object,{code:'operator_session_unavailable'});throw error;}
+      return {token};
     };
 
     if(action === 'begin_operator_authorization') {
@@ -1093,13 +1094,11 @@ Deno.serve(async request => {
       }
       const ownerId = crypto.randomUUID();
       let operatorToken = '';
-      let operatorSocket: Awaited<ReturnType<typeof openOperatorSocket>> | null = null;
       const refreshOperatorSession = async () => {
         if(!binding)throw new Error('Operador SAC não vinculado.');
         const scopes = operatorScopes(operation.scopes,Boolean(values.protocol) && !/\/select\//.test(operation.path));
         const session = await authenticateSacOperator(credentials,binding.id,scopes);
         operatorToken=session.token;
-        operatorSocket=session.socket;
       };
       const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
         authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
@@ -1110,7 +1109,7 @@ Deno.serve(async request => {
           const {data,error} = await admin.rpc('sac_digital_acquire_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});
           if(error) throw new Error('Não foi possível reservar a sessão operacional.');return data === true;
         },
-        release: async () => {try {operatorSocket?.close();} finally {await admin.rpc('sac_digital_release_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});}},
+        release: async () => {await admin.rpc('sac_digital_release_operator_lease',{p_organization_id:organizationId,p_operator_id:binding!.id,p_owner_id:ownerId});},
         begin: async () => {
           const key = intentKey || crypto.randomUUID();
           const {data,error} = await admin.from('sac_digital_delivery_attempts').insert({organization_id:organizationId,user_id:userData.user.id,intent_key:key,endpoint_path:operation.path.split('?')[0],protocol:values.protocol || null,mode:operation.mode}).select('id,state').single();
@@ -1131,8 +1130,7 @@ Deno.serve(async request => {
             const session = await login(scopeKey,credentials,false,op.scopes || []);
             return fetchJson(`https://api.sac.digital/v2${op.path}`,{method:op.method,headers:{Authorization:`Bearer ${session.token}`,Accept:'application/json',...(op.body ? {'Content-Type':'application/json'}:{})},...(op.body ? {body:JSON.stringify(op.body)}:{})});
           }
-          operatorSocket?.assertOpen();
-          // One identity/socket for select + mutation. Never renew and replay a
+          // One authorized identity for select + mutation. Never renew and replay a
           // mutation after auth failure: renewal loses the selected protocol.
           return fetchJson(`https://api.sac.digital/v2${op.path}`, {
             method:op.method,

@@ -1,6 +1,6 @@
 import { exchangeToken, resultUrl, stateHash, SAC_OAUTH_CALLBACK } from './sac-oauth.mjs';
 import { assertOperatorIdentity, fetchSacOperatorDirectory } from './sac-operator-identity.mjs';
-export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSocket,profileAccepted,operatorTokenError}) {
+export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,profileAccepted,operatorTokenError}) {
  const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Type':'text/plain; charset=utf-8'};
  if(request.method!=='GET') return new Response('Método não permitido.',{status:405,headers});
  const url=new URL(request.url);
@@ -11,7 +11,6 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSo
  if(!consumed.data) return new Response('Autorização expirada, já utilizada ou perfil alterado. Volte à Union e clique em Autorizar Operador.',{status:400,headers});
  const context=consumed.data;
  let result='success';
- let socket=null;
  let leased=false;
  let stage='credentials';
  const ownerId=crypto.randomUUID();
@@ -29,7 +28,6 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSo
   if(lease.error || lease.data!==true) throw Object.assign(Error('Sessão em uso.'),{code:'operator_session_busy'});
   leased=true;
   stage='operator_profile';
-  socket=await openSocket(tokens.access_token);
   const profile=await fetcher('https://api.sac.digital/v2/operator/perfil/info',{
    headers:{Authorization:`Bearer ${tokens.access_token}`,Accept:'application/json'},signal:AbortSignal.timeout(15000),
   });
@@ -49,7 +47,6 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSo
   // Never log provider response, code, token, secret or callback query.
   console.warn('[SAC OAuth] Authorization rejected',{organization_id:context.organization_id,type:result,stage});
  } finally {
-  socket?.close();
   if(leased) {
    try {await admin.rpc('sac_digital_release_operator_lease',{p_organization_id:context.organization_id,p_operator_id:context.operator_id,p_owner_id:ownerId});} catch { /* bounded lease expires on transport failure */ }
   }
