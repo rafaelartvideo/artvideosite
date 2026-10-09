@@ -19,6 +19,7 @@ type Props = {
   organizationId: string;
   canView: boolean;
   canSendMessages: boolean;
+  hasPermission: (permission: string) => boolean;
   onStartConversation: (contact: { name: string; phone: string }) => void;
 };
 type ContactAction = "profile" | "protocols" | "medias" | "status";
@@ -61,7 +62,7 @@ function visibleDetails(row: any) {
     .slice(0, 16);
 }
 
-export function SacDigitalContactsPage({ organizationId, canView, canSendMessages, onStartConversation }: Props) {
+export function SacDigitalContactsPage({ organizationId, canView, canSendMessages, hasPermission, onStartConversation }: Props) {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
@@ -73,6 +74,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
   const [operationBusy, setOperationBusy] = useState(false);
   const [operationError, setOperationError] = useState("");
   const [editingName, setEditingName] = useState(false);
+  const [advancedAction, setAdvancedAction] = useState<number | null>(null);
   const [newName, setNewName] = useState("");
 
   useEffect(() => {
@@ -98,6 +100,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
     setSelected(contact);
     setNewName(contact.name || contact.customer_name || "");
     setEditingName(false);
+    setAdvancedAction(null);
     setOperation(null);
     setOperationData(null);
     setOperationError("");
@@ -106,6 +109,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
   const loadAction = async (contact: SacDigitalContactPageItem, action: typeof actions[number]) => {
     if (operationBusy) return;
     setOperation(action.key);
+    setAdvancedAction(null);
     setOperationData(null);
     setOperationError("");
     setEditingName(false);
@@ -207,9 +211,19 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
           {actions.map(action => <AdminButton key={action.key} size="sm"
             variant={operation === action.key ? "primary" : "secondary"}
             disabled={operationBusy} onClick={() => void loadAction(selected, action)}>{action.label}</AdminButton>)}
-          <AdminButton variant="secondary" size="sm" disabled={operationBusy} onClick={() => {
-            setOperation(null); setOperationData(null); setEditingName(true); setOperationError("");
-          }}>Editar nome</AdminButton>
+          {hasPermission("sac_digital.protocols.manage") && <AdminButton variant="secondary" size="sm" disabled={operationBusy} onClick={() => {
+            setOperation(null); setOperationData(null); setAdvancedAction(null); setEditingName(true); setOperationError("");
+          }}>Editar nome</AdminButton>}
+          {hasPermission("sac_digital.protocols.manage") && ([
+            { id: 8, title: "Editar dados" },
+            { id: 9, title: "Enriquecer" },
+            { id: 10, title: "Importar contato" },
+            { id: 11, title: "Encaminhar" },
+          ] as const).map(action => <AdminButton key={action.id} size="sm"
+            variant={advancedAction === action.id ? "primary" : "secondary"}
+            disabled={operationBusy} onClick={() => {
+              setAdvancedAction(action.id); setOperation(null); setOperationData(null); setEditingName(false); setOperationError("");
+            }}>{action.title}</AdminButton>)}
           {canSendMessages && selected.phone && <AdminButton size="sm" onClick={() => onStartConversation({ name: contactName(selected), phone: selected.phone || "" })}>Iniciar conversa</AdminButton>}
         </div>
         {editingName && <div className="flex flex-col gap-2 border border-border bg-muted/30 p-3 sm:flex-row sm:items-end">
@@ -217,6 +231,9 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
           <AdminButton disabled={!newName.trim() || operationBusy} loading={operationBusy} onClick={() => void saveName()}>Salvar</AdminButton>
           <AdminButton variant="secondary" disabled={operationBusy} onClick={() => setEditingName(false)}>Cancelar</AdminButton>
         </div>}
+        {advancedAction !== null && <SacDigitalResources key={selected.id + ":" + advancedAction}
+          organizationId={organizationId} hasPermission={hasPermission} initialArea="Contatos"
+          initialActionId={advancedAction} contextContactId={selected.external_contact_id} embedded />}
         {operationBusy && <LoadingState text="Consultando SAC Digital..." />}
         {operationError && <p role="alert" className="border border-red-500/30 bg-red-500/10 p-3 text-xs font-semibold text-red-700 dark:text-red-300">{operationError}</p>}
         {operation && !operationBusy && operationData && (records.length === 0

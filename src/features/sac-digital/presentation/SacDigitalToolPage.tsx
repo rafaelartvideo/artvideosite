@@ -1517,7 +1517,7 @@ export function SacDigitalToolPage({
     <AdminSubnav value={moduleSection} items={SAC_MODULE_SECTIONS} onSelect={setModuleSection} ariaLabel="Seções do SAC Digital" />
     {moduleSection === "contacts" && <Suspense fallback={<LoadingState text="Carregando clientes..." />}>
       <SacDigitalContactsPage organizationId={activeOrganizationId} canView={canViewMessages}
-        canSendMessages={canSendMessages} onStartConversation={contact => {
+        canSendMessages={canSendMessages} hasPermission={hasPermission} onStartConversation={contact => {
           setNewConversationStarter(contact);
           setNewConversationOpen(true);
         }} />

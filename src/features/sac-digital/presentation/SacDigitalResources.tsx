@@ -76,9 +76,10 @@ export function SacResourceValue({ value, compact = false }: { value: any; compa
   return <span className="break-words">{date && !Number.isNaN(date.getTime()) ? date.toLocaleString('pt-BR') : text}</span>;
 }
 
-export function SacDigitalResources({ organizationId, hasPermission, protocol, onInsertAnswer, onOpenSettings, initialArea = 'Contatos' }: {
+export function SacDigitalResources({ organizationId, hasPermission, protocol, onInsertAnswer, onOpenSettings, initialArea = 'Contatos', initialActionId, contextContactId, embedded = false }: {
   initialArea?: string; organizationId: string; hasPermission: (p: string) => boolean; protocol?: string;
   onInsertAnswer?: (text: string) => void; onOpenSettings?: () => void;
+  initialActionId?: number; contextContactId?: string; embedded?: boolean;
 }) {
   const endpoints = (SAC_ENDPOINTS as any[]).filter(e => resourceEnabled(e.id));
   const areas = useMemo(() => [...new Set(endpoints.map(e => e.area))], []);
@@ -90,9 +91,9 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
   const [group, setGroup] = useState(initialArea === 'Contatos' ? 'registries' : 'communication');
   const [area, setArea] = useState(initialArea);
   const available = endpoints.filter(e => e.area === area);
-  const [selectedId, setSelectedId] = useState<number>(() => defaultAction(available)?.id);
+  const [selectedId, setSelectedId] = useState<number>(() => initialActionId || defaultAction(available)?.id);
   const endpoint = available.find(e => e.id === selectedId) || available[0];
-  const [values, setValues] = useState<Record<string, any>>(() => initialValues(endpoint?.fields || [], protocol));
+  const [values, setValues] = useState<Record<string, any>>(() => ({ ...initialValues(endpoint?.fields || [], protocol), ...(contextContactId ? { id: contextContactId } : {}) }));
   const [record, setRecord] = useState<any>(null);
   const [recordSource, setRecordSource] = useState<number | null>(null);
   const [parent, setParent] = useState<ResourceContext['parent']>({});
@@ -107,7 +108,7 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
   const read = isRead(endpoint);
   const privateCredential = endpoint?.fields.some((f: Field) => /password|credential|secret/i.test(f.name));
   const allowed = !privateCredential && hasPermission(read ? 'sac_digital.messages.view' : /campanh|sms|telefon/i.test(area) ? 'sac_digital.settings.manage' : endpoint?.scopes?.includes('send') ? 'sac_digital.messages.send' : 'sac_digital.protocols.manage');
-  const fields = (endpoint?.fields || []).filter((f: Field) => !privateCredential && !['p', 'page'].includes(f.name) && fieldVisible(f, values));
+  const fields = (endpoint?.fields || []).filter((f: Field) => !privateCredential && !['p', 'page'].includes(f.name) && !(embedded && contextContactId && f.name === 'id') && fieldVisible(f, values));
   const items = result ? resultItems(result.data) : [];
   const columns = useMemo(() => {
     const priority = ['Nome', 'Título', 'Número', 'Telefone', 'Protocolo', 'Código', 'Situação', 'Ativo', 'Online', 'Departamento', 'Operador', 'Mensagem', 'Criado em', 'Identificador'];
@@ -149,7 +150,7 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
   };
   useEffect(() => {
     const first = defaultAction(endpoints.filter(e => e.area === area));
-    if (!first || first.method !== 'GET' || first.fields.some((f: Field) => f.required && f.name !== 'p') || !hasPermission('sac_digital.messages.view')) return;
+    if (embedded || !first || first.method !== 'GET' || first.fields.some((f: Field) => f.required && f.name !== 'p') || !hasPermission('sac_digital.messages.view')) return;
     const generation = ++requestGeneration.current;
     let cancelled = false; setBusy(true);
     operateSacDigitalResource(organizationId, first.id, initialValues(first.fields, protocol)).then(response => {
@@ -168,11 +169,11 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
 
     <AdminCard square>
       <AdminCardToolbar className="sm:items-end">
-        <div className="min-w-0 flex-1"><h2 className="text-sm font-black">{areaLabel}</h2><p className="mt-1 text-xs text-muted-foreground">Selecione uma operação. As ações de cada registro ficam na lista.</p></div>
-        <div className="w-full sm:w-72"><FSelect label="Operação" value={String(endpoint?.id || '')} disabled={busy} options={available.map(action => ({ value: String(action.id), label: actionLabel(action) }))} onChange={(e: any) => chooseAction(available.find(action => action.id === Number(e.target.value)), record)} /></div>
+        <div className="min-w-0 flex-1"><h2 className="text-sm font-black">{embedded ? actionLabel(endpoint) : areaLabel}</h2>{!embedded && <p className="mt-1 text-xs text-muted-foreground">Selecione uma operação. As ações de cada registro ficam na lista.</p>}</div>
+        {!embedded && <div className="w-full sm:w-72"><FSelect label="Operação" value={String(endpoint?.id || '')} disabled={busy} options={available.map(action => ({ value: String(action.id), label: actionLabel(action) }))} onChange={(e: any) => chooseAction(available.find(action => action.id === Number(e.target.value)), record)} /></div>}
       </AdminCardToolbar>
       <AdminCardContent className="space-y-4">
-        {record && <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-l-2 border-primary bg-primary-soft/40 p-3">
+        {!embedded && record && <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-l-2 border-primary bg-primary-soft/40 p-3">
           <div className="min-w-0"><p className={FIELD_LABEL}>Registro selecionado</p><p className="break-words text-sm font-bold">{record.name || record.title || record.titulo || record.number || record.code || record.protocol || record.id}</p></div>
           <AdminButton variant="secondary" size="sm" disabled={busy} onClick={() => { setRecord(null); setRecordSource(null); setValues(initialValues(endpoint?.fields || [], protocol)); }}>Limpar seleção</AdminButton>
         </div>}
@@ -204,7 +205,7 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
 
     {busy && !result ? <LoadingState text={'Carregando ' + areaLabel.toLocaleLowerCase('pt-BR') + '...'} /> : result && <>
       {!read && <p role="status" className="border-l-2 border-primary bg-muted/30 p-3 text-sm">{result.outcome === 'unknown' ? 'Confirmação pendente. Não repita a operação.' : ['accepted', 'queued'].includes(result.outcome || '') ? 'Operação aceita. Aguarde a confirmação da SAC Digital.' : 'Operação concluída pela SAC Digital.'}</p>}
-      <AdminCard square>
+      {!embedded && <AdminCard square>
         <AdminCardHeader><h3 className="text-xs font-black uppercase tracking-wider">Registros · {areaLabel}</h3><span className="text-xs text-muted-foreground">{items.length} nesta página</span></AdminCardHeader>
         {items.length === 0 ? <AdminCardContent><p className="py-6 text-center text-sm text-muted-foreground">Nenhum registro encontrado.</p></AdminCardContent>
           : <div className="overflow-x-auto"><table><thead><tr>{columns.map(label => <th key={label} className="text-left">{label}</th>)}{!columns.length && <th className="text-left">Registro</th>}<th className="text-right">Ações</th></tr></thead>
@@ -228,9 +229,9 @@ export function SacDigitalResources({ organizationId, hasPermission, protocol, o
           <span className="text-xs font-bold">Página {page}</span>
           <AdminButton variant="secondary" size="sm" disabled={busy || !result.has_more || result.next_page == null} onClick={() => void execute(Number(result.next_page))}>Próxima</AdminButton>
         </div>}
-      </AdminCard>
+      </AdminCard>}
     </>}
-    {record && <Section title="Detalhes do registro" contentClassName="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+    {!embedded && record && <Section title="Detalhes do registro" contentClassName="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
       {friendlyEntries(record).map(([label, value]) => <div key={label} className="min-w-0"><p className={FIELD_LABEL}>{label}</p><div className="text-sm"><SacResourceValue value={value} /></div></div>)}
     </Section>}
   </section>;
