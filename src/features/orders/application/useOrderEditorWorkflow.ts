@@ -28,10 +28,12 @@ export function useOrderEditorWorkflow({userId,workspace,formState,images,custom
   const technicalFields=workspace.technicalFieldLinks.filter((link:any)=>link.equipment_type_id===formState.form.equipment_type_id).map((link:any)=>({...link,technical_field:link.technical_field||workspace.technicalFields.find((field:any)=>field.id===link.technical_field_id)}));
   const preparation=prepareOrderForm({form:formState.form,editingOrder,userId,selectedCustomerId:customers.selectedCustomer?.id,serviceUseCustomerAddress:address.serviceUseCustomerAddress,serviceCustomerAddressOverride:address.serviceCustomerAddressOverride,selectedServiceAddress:address.selectedServiceAddress,needsScheduling:formState.needsScheduling,equipmentBrands:workspace.equipmentBrands,equipmentModels:workspace.equipmentModels,technicalFields,technicalValues:formState.form.technicalValues});if("error" in preparation){showToast({msg:preparation.error,type:"error"});return false;}
   if (formState.needsScheduling) {
-    const technicianId = formState.selectedTechnicianIds[0];
-    if (!technicianId) { showToast({ msg: "Selecione o técnico para consultar a agenda.", type: "error" }); return false; }
+    const technicianIds = Array.from(new Set(formState.selectedTechnicianIds));
+    if (!technicianIds.length) { showToast({ msg: "Selecione o técnico para consultar a agenda.", type: "error" }); return false; }
     try {
-      await assertEmployeeScheduleAvailable(organizationId, technicianId, formState.form.scheduled_at, editingOrder?.id);
+      for (const technicianId of technicianIds) {
+        await assertEmployeeScheduleAvailable(organizationId, technicianId, formState.form.scheduled_at, editingOrder?.id);
+      }
     } catch (scheduleError) {
       showToast({ msg: `Não foi possível confirmar o agendamento: ${formatError(scheduleError)}`, type: "error" });
       return false;
