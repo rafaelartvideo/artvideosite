@@ -5,7 +5,7 @@ test('authorization uses code, state and only Operator scopes on the official Ce
  const url=new URL(oauth.authorizationUrl('client','random-state'));
  assert.equal(url.origin,'https://auth2.sac.digital');assert.equal(url.pathname,'/oauth/authorize');
  assert.equal(url.searchParams.get('response_type'),'code');assert.equal(url.searchParams.get('state'),'random-state');
- assert.equal(url.searchParams.get('redirect_uri'),oauth.SAC_OAUTH_CALLBACK);
+ assert.equal(url.searchParams.get('redirect_uri'),'https://unionworld.com.br/sac.php');
  assert.equal(url.searchParams.get('scope'),'profile operator protocol edit write send');
 });
 test('token forms encode secrets and authorization codes without changing them',()=>{

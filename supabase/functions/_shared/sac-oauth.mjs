@@ -1,4 +1,4 @@
-export const SAC_OAUTH_CALLBACK='https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/sac-digital-oauth';
+export const SAC_OAUTH_CALLBACK='https://unionworld.com.br/sac.php';
 export const SAC_OPERATOR_SCOPES=['profile','operator','protocol','edit','write','send'];
 export function authorizationUrl(clientId,state) {
  const url=new URL('https://auth2.sac.digital/oauth/authorize');
