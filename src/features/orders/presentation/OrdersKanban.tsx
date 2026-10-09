@@ -31,18 +31,18 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
     <div className="w-full overflow-x-auto pb-3">
       <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:flex md:min-w-max md:gap-4">{columns.map(column => {
         const columnOrders = filteredOrders.filter(order => (order.situation_id || "") === column.id);
-        const isDragTarget = canChangeSituation && dragOverSituationId === column.id;
+        const isDragTarget = canChangeSituation && Boolean(column.id) && dragOverSituationId === column.id;
         return <div
           key={column.id || "no-situation"}
           onDragOver={event => {
-            if (!canChangeSituation || !draggingId) return;
+            if (!canChangeSituation || !draggingId || !column.id) return;
             event.preventDefault();
             event.dataTransfer.dropEffect = "move";
             onDragOver(column.id);
           }}
           onDragLeave={() => canChangeSituation && onDragLeave(column.id)}
           onDrop={event => {
-            if (!canChangeSituation || !draggingId) return;
+            if (!canChangeSituation || !draggingId || !column.id) return;
             event.preventDefault();
             onDrop(column.id);
           }}
@@ -60,7 +60,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
           </div>
 
           <div className="min-h-0 space-y-2 p-2.5 md:min-h-[180px] md:space-y-3 md:p-3">
-            {columnOrders.length === 0 ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
+            {columnOrders.length === 0 ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
               const draggable = canDrag(order);
               const orderStatus = order.order_status as any;
               return <div
@@ -89,7 +89,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
 
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                   <span className="shrink-0 font-semibold">Situação:</span>
-                  {canChangeSituation && !order.completed_at && !isCancelled(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => onSituationChange(order, value)} options={[{ value: "", label: "Sem situação" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
+                  {canChangeSituation && !order.completed_at && !isCancelled(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
                 {order.is_solved && !order.completed_at && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}

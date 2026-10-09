@@ -9,6 +9,7 @@ import {
   findServiceOrderByQuote,
   getQuote,
   listOrderStatuses,
+  listOrderSituationsForConversion,
   listQuotesPage,
   listRequestStatuses,
   updateQuoteStatus,
@@ -83,6 +84,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
+  const [conversionSituationId, setConversionSituationId] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const debouncedSearch = useDebouncedValue(search);
@@ -101,6 +103,16 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     enabled: Boolean(organizationId) && (canViewTable || canViewDetails),
   });
   const statuses = statusesQuery.data ?? [];
+  const conversionSituationsQuery = useQuery({
+    queryKey: [...queryKeys.quotes.all, organizationId, "order-situations"],
+    queryFn: async () => {
+      const { data, error } = await listOrderSituationsForConversion(organizationId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: Boolean(organizationId && detail && canConvertToOrder),
+  });
+  const conversionSituations = conversionSituationsQuery.data ?? [];
 
   const listFilters = useMemo(() => ({
     page,
@@ -182,9 +194,10 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const openDetails = (quote: any) => {
     if (!canViewDetails) return;
     setDetail(quote);
+    setConversionSituationId("");
     if (onRouteChange) onRouteChange(quote.id, null);
   };
-  const closeDetails = () => { setDetail(null); onRouteChange?.(null, null); };
+  const closeDetails = () => { setDetail(null); setConversionSituationId(""); onRouteChange?.(null, null); };
 
   const sortLabel = orderSort === "asc" ? "Protocolo crescente" : orderSort === "desc" ? "Protocolo decrescente" : "Ordenação padrão";
   const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
@@ -278,13 +291,14 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         <Section title="Dados pessoais / empresariais"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Tipo" value={(detail.customer as any)?.customer_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} />{(detail.customer as any)?.customer_type === "PJ" ? <><InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name || (detail.customer as any)?.full_name} /><InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} /><InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj ? formatCnpj((detail.customer as any).cnpj) : null} /></> : <><InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} /><InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} /></>}<InfoRow label="E-mail" value={(detail.customer as any)?.email} /><InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} /><InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} /></div></Section>
         <Section title="Dados do orçamento"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Protocolo" value={detail.protocol || detail.id} /><InfoRow label="Serviço" value={(detail.service as any)?.title} /><InfoRow label="Marca" value={(detail.brand as any)?.name} /><InfoRow label="Produto" value={(detail.product as any)?.name} /><InfoRow label="Data de criação" value={formatDateTime(detail.created_at)} /><InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : formatCurrency(detail.estimated_price)} /></div>{detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}</Section>
       </div>
-      <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
+      <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <div className="w-full sm:w-52"><label className="mb-1 block text-[11px] font-bold text-muted-foreground">Situação da OS *</label><AdminSelect value={conversionSituationId} onValueChange={setConversionSituationId} options={[{ value: "", label: conversionSituationsQuery.isLoading ? "Carregando situações..." : "Selecionar situação..." }, ...conversionSituations.map(situation => ({ value: situation.id, label: situation.name }))]} ariaLabel="Situação obrigatória para converter orçamento em OS" className="min-h-10 w-full" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
+        if (!conversionSituationId || !conversionSituations.some(situation => situation.id === conversionSituationId)) { setToast({ msg: "Selecione uma situação válida antes de converter o orçamento em OS.", type: "error" }); return; }
         const { data: existing } = await findServiceOrderByQuote(organizationId, detail.id);
         if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
         const { data: availableStatuses, error: statusError } = await listOrderStatuses(organizationId);
         const status = initialOrderStatus(availableStatuses || []);
         if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
-        const { error } = await createServiceOrderFromQuote(organizationId, { service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id, status_id: status.id, customer_notes: detail.customer_message || null });
+        const { error } = await createServiceOrderFromQuote(organizationId, { service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id, status_id: status.id, situation_id: conversionSituationId, customer_notes: detail.customer_message || null });
         if (error) { setToast({ msg: `Erro ao criar OS: ${systemErrorMessage(error)}`, type: "error" }); return; }
         closeDetails();
         setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });

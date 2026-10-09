@@ -214,6 +214,11 @@ export function MobileOrderEditPage() {
 
   const save = async () => {
     if (!pairing || !data || saving) return;
+    if (!form.situation_id) {
+      setNotice({ type: "error", text: "Selecione a situação da OS antes de salvar." });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     setSaving(true);
     setNotice(null);
     try {
@@ -292,7 +297,7 @@ export function MobileOrderEditPage() {
         <Field label="Tipo de atendimento"><select value={form.service_type_id} onChange={event => update("service_type_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.service_types || []).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></Field>
         <Field label="Serviço"><select value={form.general_service_id} onChange={event => update("general_service_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.general_services || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Status"><select value={form.status_id} onChange={event => update("status_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.statuses || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
-        <Field label="Situação"><select value={form.situation_id} onChange={event => update("situation_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.situations || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+        <Field label="Situação *"><select required value={form.situation_id} onChange={event => update("situation_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.situations || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Valor estimado"><input inputMode="decimal" value={form.estimated_price || ""} onChange={event => update("estimated_price", event.target.value)} className={inputClass}/></Field>
         <Field label="OS externa"><input value={form.external_os_number || ""} onChange={event => update("external_os_number", event.target.value)} className={inputClass}/></Field>
         <Field label="Data agendada"><input type="datetime-local" value={form.scheduled_at || ""} onChange={event => update("scheduled_at", event.target.value)} className={inputClass}/></Field>

@@ -54,6 +54,10 @@ export function prepareOrderForm({
     return { error: "Selecione o tipo de atendimento da OS." };
   }
 
+  if (!String(form.situation_id || "").trim()) {
+    return { error: "Selecione a situação da OS." };
+  }
+
   const customerId = selectedCustomerId || form.customer_id;
   if (!customerId) return { error: "Selecione um cliente." };
 

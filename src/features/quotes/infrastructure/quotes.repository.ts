@@ -147,6 +147,16 @@ export const listOrderStatuses = (organizationId: string) => {
   return supabase.from("order_statuses").select("id,name,sort_order").eq("organization_id", org).order("sort_order");
 };
 
+export const listOrderSituationsForConversion = (organizationId: string) => {
+  const org = requireOrganizationId(organizationId);
+  return supabase.from("os_situations")
+    .select("id,name,sort_order")
+    .eq("organization_id", org)
+    .eq("is_active", true)
+    .order("sort_order")
+    .order("name");
+};
+
 export const createServiceOrderFromQuote = (
   organizationId: string,
   order: Record<string, unknown>,

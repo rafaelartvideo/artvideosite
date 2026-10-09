@@ -148,16 +148,6 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
             Alterar situação
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="min-w-56">
-            <DropdownMenuItem
-              onSelect={() => {
-                if (order.situation_id) void onSituationChange(order, "");
-              }}
-              className="gap-2"
-            >
-              <SituationDot color="#94a3b8" />
-              <span className="min-w-0 flex-1 truncate">Sem situação</span>
-              {!order.situation_id && <Check size={14} className="text-[#0057e7]" />}
-            </DropdownMenuItem>
             {situations.map((situation: any) => (
               <DropdownMenuItem
                 key={situation.id}

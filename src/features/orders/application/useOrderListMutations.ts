@@ -91,6 +91,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   };
 
   const updateOrderSituation = async (order: any, situationId: string) => {
+    if (!situationId) { showToast({ msg: "A situação é obrigatória. Selecione uma situação para a OS.", type: "error" }); return false; }
     if (!hasPermission("orders.situation.change")) { showToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return false; }
     const organizationId = requireTargetOrganization();
     if (!organizationId || order.organization_id !== organizationId) return false;
@@ -110,7 +111,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
     const orderId = draggingId;
     setDraggingId(null);
     setDragOverSituationId(null);
-    if (!orderId) return;
+    if (!orderId || !situationId) return;
 
     const order = orders.find(item => item.id === orderId);
     if (!order) return;
