@@ -864,7 +864,11 @@ export function finishSacDigitalProtocol(
   protocol: string,
   vote: number,
 ) {
-  return operateSacDigitalResource(organizationId, 92, {
+  // A finalização pertence ao fluxo operacional da conversa, não ao
+  // catálogo de recursos legados (desativado na Union).
+  return invokeSacDigitalApi({
+    action: "finish_protocol",
+    organization_id: organizationId,
     protocol,
     vote,
   });
