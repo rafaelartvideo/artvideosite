@@ -110,7 +110,7 @@ export function prepareOrderForm({
       error: "Informe CEP, estado, cidade, rua e número para uma OS externa.",
     };
   }
-  if (needsScheduling && !/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}$/.test(String(form.scheduled_at || ""))) {
+  if (needsScheduling && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(form.scheduled_at || ""))) {
     return {
       error: "Informe a data e hora agendadas ou selecione Não.",
     };
