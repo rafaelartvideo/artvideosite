@@ -72,7 +72,7 @@ const protocolStatusLabel: Record<string, string> = {
   in_att: "Em atendimento",
   inbox: "Abandonado",
   abandoned: "Abandonado",
-  pending: "Aguardando protocolo",
+  pending: "Notificação avulsa",
   finished: "Finalizado",
 };
 
@@ -380,7 +380,7 @@ export function SacDigitalToolPage({
   const currentIdentityRef = useRef("");
   currentIdentityRef.current = JSON.stringify([activeOrganizationId, user?.id]);
   const [conversationSearch, setConversationSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished" | "abandoned">("waiting");
+  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished" | "abandoned" | "pending">("waiting");
   const [operatorFilter, setOperatorFilter] = useState("all");
   const [waitingProtocolIds, setWaitingProtocolIds] = useState<string[]>([]);
   const [queueError, setQueueError] = useState("");
@@ -504,11 +504,12 @@ export function SacDigitalToolPage({
   );
 
   const statusCounts = useMemo(() => {
-    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0, abandoned: 0 };
+    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0, abandoned: 0, pending: 0 };
     for (const protocol of visibleProtocols) {
       const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
       if (operationalStatus === "self_service") counts.self_service += 1;
-      else if (operationalStatus === "waiting" || operationalStatus === "pending") counts.waiting += 1;
+      else if (operationalStatus === "waiting") counts.waiting += 1;
+      else if (operationalStatus === "pending") counts.pending += 1;
       else if (operationalStatus === "in_att") counts.in_att += 1;
       else if (operationalStatus === "abandoned") counts.abandoned += 1;
             else counts.finished += 1;
@@ -529,9 +530,7 @@ export function SacDigitalToolPage({
       ].join(" ").toLocaleLowerCase("pt-BR").includes(query);
 
       const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
-      const matchesStatus = statusFilter === "waiting"
-        ? operationalStatus === "waiting" || operationalStatus === "pending"
-        : operationalStatus === statusFilter;
+      const matchesStatus = operationalStatus === statusFilter;
 
       const matchesOperator = operatorFilter === "all"
         || (operatorFilter === "unassigned" && !protocol.operator_name)
@@ -1094,7 +1093,7 @@ export function SacDigitalToolPage({
 
     // A nova conversa deve ficar visivel mesmo com filtros anteriores ativos.
     setConversationSearch("");
-    setStatusFilter("waiting");
+    setStatusFilter(result.protocol ? "waiting" : "pending");
     setOperatorFilter("all");
 
     const protocol = result.protocol;
@@ -1105,8 +1104,8 @@ export function SacDigitalToolPage({
       }
       setMessage({
         text: result.pending_start_id
-          ? "Mensagem inicial aceita pela SAC. A conversa está na lista como aguardando protocolo."
-          : "Mensagem aceita pela SAC Digital; a confirmação de entrega e o registro pendente ainda não está disponível na Union. O protocolo aparecerá quando a SAC o criar.",
+          ? "Notificação aceita pela SAC Digital. Ela está em Notificações; um atendimento só será aberto quando a SAC confirmar um protocolo real."
+          : "Notificação aceita pela SAC Digital, sem protocolo confirmado. A abertura do atendimento depende da SAC Digital.",
       });
       return;
     }
@@ -1609,7 +1608,7 @@ export function SacDigitalToolPage({
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att + statusCounts.abandoned} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
+                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att + statusCounts.abandoned} ativa(s) · {statusCounts.pending} notificação(ões) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
                 </p>
               </div>
               {queueError && (
@@ -1626,12 +1625,14 @@ export function SacDigitalToolPage({
                   ? ([
                       ["self_service", "Auto", statusCounts.self_service],
                       ["waiting", "Aguardando", statusCounts.waiting],
+                      ["pending", "Notificações", statusCounts.pending],
                       ["in_att", "Em atendimento", statusCounts.in_att],
                       ["abandoned", "Abandonados", statusCounts.abandoned],
                       ["finished", "Finalizadas", statusCounts.finished],
                     ] as const)
                   : ([
                       ["waiting", "Aguardando", statusCounts.waiting],
+                      ["pending", "Notificações", statusCounts.pending],
                       ["in_att", "Em atendimento", statusCounts.in_att],
                       ["abandoned", "Abandonados", statusCounts.abandoned],
                       ["finished", "Finalizadas", statusCounts.finished],
@@ -1732,7 +1733,7 @@ export function SacDigitalToolPage({
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-black text-foreground">{protocolDisplayName(selectedProtocol)}</p>
                     <p className="text-xs text-muted-foreground">
-                      {formatPhone(selectedProtocol.contact?.phone)} · Aguardando abertura de protocolo
+                      {formatPhone(selectedProtocol.contact?.phone)} · Notificação avulsa, sem protocolo aberto
                     </p>
                   </div>
                 </div>
@@ -1757,8 +1758,9 @@ export function SacDigitalToolPage({
                   </div>
                 </div>
                 <div className="border-t border-border bg-card px-4 py-3 text-center text-xs text-muted-foreground">
-                  A mensagem inicial foi aceita pela SAC Digital. Assim que existir um protocolo,
-                  esta conversa será substituída pelo atendimento, com as ações e mensagens disponíveis.
+                  Esta mensagem foi aceita como notificação avulsa pela SAC Digital, não como abertura de atendimento.
+                  Quando a SAC confirmar um protocolo real, a conversa será associada ao atendimento.
+                  O aceite da notificação não comprova entrega ou leitura pelo cliente.
                 </div>
               </div>
             ) : selectedProtocol ? (

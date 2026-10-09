@@ -2217,6 +2217,8 @@ Deno.serve(async request => {
             sender_id: userData.user.id,
             sent_at: sentAt,
             updated_at: sentAt,
+            notification_id: notification.body.notification_id || notification.body.id || null,
+            delivery_state: "accepted",
           }, { onConflict: "organization_id,external_contact_id" })
           .select("id")
           .maybeSingle();
@@ -3838,6 +3840,8 @@ Deno.serve(async request => {
             sender_id: userData.user.id,
             sent_at: sentAt,
             updated_at: sentAt,
+            notification_id: notification.body.notification_id || notification.body.id || null,
+            delivery_state: "accepted",
           }, { onConflict: "organization_id,external_contact_id" })
           .select("id")
           .maybeSingle();
@@ -3861,6 +3865,7 @@ Deno.serve(async request => {
         metadata: {
           transport: "notification",
           pending_start_id: pendingStartId,
+          notification_id: notification.body.notification_id || notification.body.id || null,
           message_length: text.length,
         },
       });
@@ -3869,6 +3874,7 @@ Deno.serve(async request => {
         success: true,
         mode: "notification",
         pending_start_id: pendingStartId,
+        notification_id: notification.body.notification_id || notification.body.id || null,
         request_id: typeof notification.body.request_id === "string" ? notification.body.request_id : null,
       });
     }

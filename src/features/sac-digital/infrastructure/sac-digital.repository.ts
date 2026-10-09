@@ -2,6 +2,7 @@ import { actionEnabled, waitingOperatorProtocolIds } from '../../../../supabase/
 import { singleFlight, freshSingleFlight } from '../domain/refresh-coordinator.mjs';
 import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia, resultItems } from '../domain/resource-ui.mjs';
 import { supabase, supabaseUrl } from "@/lib/supabase";
+import { pendingStartHasProtocol } from "../domain/pending-resolution.mjs";
 
 export type SacDigitalConnectionStatus = "not_configured" | "configured" | "receiving" | "error";
 
@@ -240,12 +241,7 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
     if (pendingError) return protocols;
 
     const pending = (pendingRows || []).filter((row: any) => {
-      const sentAt = new Date(String(row.sent_at)).getTime();
-      return !protocols.some(protocol =>
-        protocol.contact?.id === row.contact_id
-        && Number.isFinite(sentAt)
-        && new Date(String(protocol.opened_at || protocol.created_at || "")).getTime() >= sentAt - 30_000,
-      );
+      return !pendingStartHasProtocol(row, protocols);
     }).map((row: any): SacDigitalProtocolListItem => {
       const contact = normalizeRelation<any>(row.contact);
       return {
