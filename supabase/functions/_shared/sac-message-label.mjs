@@ -7,5 +7,5 @@ export function sacSenderFirstName(name) {
 export function formatSacOutgoingText(text, senderName) {
   const content = String(text || '').trim();
   if (!content) return '';
-  return `*${sacSenderFirstName(senderName)}*:\n${content}`;
+  return `*${sacSenderFirstName(senderName)}*\n\n${content}`;
 }
