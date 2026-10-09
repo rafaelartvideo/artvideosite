@@ -26,7 +26,6 @@ import {
 } from "../domain/registration-form";
 import type { RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
 import { EmployeeSignatureSection } from "./EmployeeSignatureSection";
-import { EmployeeAgendaSection } from "./EmployeeAgendaDialog";
 import { RegistrationAddressesEditor } from "./RegistrationAddressesEditor";
 import { SupplierItemsEditor } from "./SupplierItemsEditor";
 
@@ -205,7 +204,6 @@ export function RegistrationEditor({
         </div>}
       </Section>}
 
-      {form.roles.includes("employee") && <EmployeeAgendaSection organizationId={organizationId} employeeId={employeeId} canManage={canModify} />}
       {form.roles.includes("employee") && <EmployeeSignatureSection organizationId={organizationId} entityId={registrationId} canManage={canManageEmployeeSignature} />}
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}

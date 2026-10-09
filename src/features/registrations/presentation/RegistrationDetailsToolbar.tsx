@@ -1,10 +1,12 @@
 import { ContactRound, History, ShieldCheck } from "lucide-react";
+import type { ReactNode } from "react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 export function RegistrationDetailsToolbar({
   canViewContacts,
   canViewRecords,
   canViewPermissions,
+  agendaAction,
   onOpenContacts,
   onOpenRecords,
   onOpenPermissions,
@@ -12,11 +14,12 @@ export function RegistrationDetailsToolbar({
   canViewContacts: boolean;
   canViewRecords: boolean;
   canViewPermissions: boolean;
+  agendaAction?: ReactNode;
   onOpenContacts: () => void;
   onOpenRecords: () => void;
   onOpenPermissions: () => void;
 }) {
-  if (!canViewContacts && !canViewRecords && !canViewPermissions) return null;
+  if (!canViewContacts && !canViewRecords && !canViewPermissions && !agendaAction) return null;
 
   return <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
     {canViewContacts && <AdminButton
@@ -41,6 +44,7 @@ export function RegistrationDetailsToolbar({
       <History size={15} />
       <span className="hidden sm:inline">Registros</span>
     </AdminButton>}
+    {agendaAction}
     {canViewPermissions && <AdminButton
       variant="secondary"
       size="sm"

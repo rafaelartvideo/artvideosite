@@ -82,6 +82,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
           canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
           canViewPermissions={canOpenPermissions}
+          agendaAction={roles.includes("employee") && canEdit ? <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage /> : undefined}
           onOpenContacts={onOpenContacts}
           onOpenRecords={onOpenRecords}
           onOpenPermissions={onOpenPermissions}
@@ -133,8 +134,6 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
           </div>
         </Section>}
-
-        {roles.includes("employee") && <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage={canEdit} />}
 
         {roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
           <div aria-busy={accessLoading}>
