@@ -7,7 +7,7 @@ export const WEEKDAY_LABELS = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta
 
 export function defaultWorkWeek(): EmployeeWeekday[] {
   return WEEKDAY_LABELS.map((_, weekday) => ({
-    weekday, is_available: weekday >= 1 && weekday <= 5, start_time: "08:00", end_time: "18:00",
+    weekday, is_available: false, start_time: "08:00", end_time: "18:00",
   }));
 }
 
