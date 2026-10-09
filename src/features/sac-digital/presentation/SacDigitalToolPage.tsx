@@ -1092,43 +1092,44 @@ export function SacDigitalToolPage({
   }) => {
     if (!activeOrganizationId) return;
 
-    // A nova conversa deve ficar visivel mesmo com filtros anteriores ativos.
+    // O protocolo só é tratado como nova conversa depois da confirmação na SAC.
     setConversationSearch("");
-    setStatusFilter(result.protocol ? "waiting" : "pending");
     setOperatorFilter("all");
 
     const protocol = result.protocol;
     if (!protocol) {
-      await loadProtocols(false);
-      if (result.pending_start_id) {
-        selectProtocol(`pending:${result.pending_start_id}`);
-      }
-      setMessage({
-        text: result.pending_start_id
-          ? "Notificação aceita pela SAC Digital. Ela está em Notificações; um atendimento só será aberto quando a SAC confirmar um protocolo real."
-          : "Notificação aceita pela SAC Digital, sem protocolo confirmado. A abertura do atendimento depende da SAC Digital.",
-      });
+      setMessage({text:"A SAC Digital não confirmou a abertura do protocolo. Nenhuma conversa foi iniciada.",error:true});
       return;
     }
 
     let foundId: string | null = null;
+    let foundProtocol: SacDigitalProtocolListItem | null = null;
     for (let attempt = 0; attempt < 4 && !foundId; attempt += 1) {
       if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
       try {
         const next = await listSacDigitalProtocols(activeOrganizationId);
         setProtocols(next);
-        foundId = next.find(item => item.external_protocol_id === protocol)?.id || null;
+        foundProtocol = next.find(item => item.external_protocol_id === protocol) || null;
+        foundId = foundProtocol?.id || null;
       } catch {
         // O realtime/webhook pode concluir a projeção logo em seguida.
       }
     }
 
-    if (foundId) {
+    if (foundId && foundProtocol) {
+      const currentState = displayProtocolStatus(foundProtocol, waitingProtocolSet);
+      setStatusFilter(
+        currentState === "in_att" ? "in_att"
+          : currentState === "self_service" ? "self_service"
+          : currentState === "finished" ? "finished"
+          : currentState === "abandoned" ? "abandoned" : "waiting",
+      );
       selectProtocol(foundId);
-      setMessage({ text: "Conversa iniciada com sucesso." });
+      setMessage({ text: "Protocolo confirmado e conversa iniciada na SAC Digital." });
     } else {
+      setStatusFilter("in_att");
       setMessage({
-        text: "Conversa iniciada na SAC Digital. O protocolo será exibido assim que a sincronização concluir.",
+        text: "Protocolo confirmado na SAC Digital. A sincronização pode levar alguns instantes.",
       });
       await loadProtocols(false);
     }
