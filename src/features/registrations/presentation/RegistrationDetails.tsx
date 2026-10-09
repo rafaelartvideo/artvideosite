@@ -10,6 +10,7 @@ import type { Registration, RegistrationRole, SupplierInventoryItem } from "../i
 import type { EmployeeAccessFormState } from "@/features/access/presentation/UserAccessSection";
 import { SupplierItemsTable } from "./SupplierItemsTable";
 import { RegistrationDetailsToolbar } from "./RegistrationDetailsToolbar";
+import { EmployeeAgendaSection } from "./EmployeeAgendaDialog";
 
 const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor" };
 
@@ -132,6 +133,8 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
           </div>
         </Section>}
+
+        {roles.includes("employee") && <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage={canEdit} />}
 
         {roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
           <div aria-busy={accessLoading}>
