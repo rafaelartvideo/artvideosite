@@ -1,4 +1,4 @@
-import { FileSignature2, MapPin, MessageCircle, Phone } from "lucide-react";
+import { FilePenLine, MapPin, MessageCircle, Phone } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { Section } from "@/shared/ui/admin/AdminLayout";
@@ -71,7 +71,7 @@ export function OrderDetailsContent({
         <Section
           title="Cliente"
           actions={<>
-            {onSendSignature && <button type="button" onClick={onSendSignature} aria-label="Enviar documento para assinatura" title="Enviar documento para assinatura" className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}><FileSignature2 size={14} /><span className={actionLabelClass}>Assinatura</span></button>}
+            {onSendSignature && <button type="button" onClick={onSendSignature} aria-label="Enviar documento para assinatura" title="Enviar documento para assinatura" className={`${contactActionClass} border-[#0057e7]/20 bg-white text-[#0057e7] hover:bg-[#eef5ff]`}><FilePenLine size={14} /><span className={actionLabelClass}>Assinatura</span></button>}
             {customerMapUrl && (
               <a
                 href={customerMapUrl}
