@@ -51,10 +51,22 @@ export function protocolOperationalStatus(protocol, waitingProtocolIds=new Set()
  if(protocol.is_pending || protocol.status === 'pending')return 'pending';
  if(protocol.status === 'finished' || protocol.closed_at)return 'finished';
  if(protocol.abandoned_at || protocol.raw_metadata?.api_info?.abandoned_at)return 'abandoned';
+ if(protocol.status === 'in_att' && protocol.operator_id)return 'in_att';
  if(protocol.external_protocol_id && waitingProtocolIds.has(protocol.external_protocol_id))return 'waiting';
  if(protocol.status === 'open')return 'self_service';
  // Recados and unassigned cached protocols are not evidence of the live queue.
  if(protocol.status === 'inbox' || (protocol.status === 'in_att' && !protocol.operator_id))return 'inbox';
  return 'in_att';
+}
+
+export function waitingOperatorProtocolIds(rows) {
+ const ids=new Set();
+ for(const row of rows) {
+  if(!row || typeof row!=='object' || Array.isArray(row))continue;
+  // This endpoint also returns E (em atendimento). Membership alone is not A.
+  if(row.status!=='A' || row.abandoned_at || row.finish_at || row.closed_at)continue;
+  if(typeof row.protocol==='string' && row.protocol.trim())ids.add(row.protocol.trim());
+ }
+ return [...ids];
 }
 

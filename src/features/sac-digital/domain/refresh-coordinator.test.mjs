@@ -33,3 +33,30 @@ test('disposing a notification queue cancels its pending refresh',async()=>{
  let calls=0;const queue=module.createRefreshQueue(async()=>{calls++},5);
  queue.request();queue.dispose();await new Promise(r=>setTimeout(r,15));assert.equal(calls,0);
 });
+
+
+test('a refresh after an operation waits for the older queue read and requests a new snapshot',async()=>{
+ let release,calls=0;
+ const old=module.singleFlight('operation-queue',()=>new Promise(r=>release=r));
+ await Promise.resolve();
+ const fresh=module.freshSingleFlight('operation-queue',async()=>{calls++;return ['current'];});
+ await Promise.resolve();assert.equal(calls,0);
+ release(['old']);assert.deepEqual(await old,['old']);assert.deepEqual(await fresh,['current']);assert.equal(calls,1);
+});
+test('a failed older queue read does not prevent a fresh snapshot',async()=>{
+ let reject;
+ const old=module.singleFlight('operation-failed',()=>new Promise((resolve,r)=>reject=r));
+ await Promise.resolve();
+ const fresh=module.freshSingleFlight('operation-failed',async()=>['current']);
+ reject(Error('old request failed'));await assert.rejects(old);assert.deepEqual(await fresh,['current']);
+});
+
+test('normal polling during a fresh refresh shares the fresh barrier instead of the pre-operation response',async()=>{
+ let release;
+ const old=module.singleFlight('fresh-barrier',()=>new Promise(r=>release=r));
+ await Promise.resolve();
+ const fresh=module.freshSingleFlight('fresh-barrier',async()=>['fresh']);
+ const normal=module.singleFlight('fresh-barrier',async()=>['unexpected']);
+ release(['stale']);await old;
+ assert.deepEqual(await fresh,['fresh']);assert.deepEqual(await normal,['fresh']);
+});

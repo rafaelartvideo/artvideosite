@@ -289,7 +289,7 @@ export function SacDigitalToolPage({
   onOpenOrder?: (orderId: string) => void;
   onCreateOrder?: (customerId: string) => void;
 }) {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
@@ -374,6 +374,8 @@ export function SacDigitalToolPage({
   const [queueAuthRequired, setQueueAuthRequired] = useState(false);
   const [authorizingOperator, setAuthorizingOperator] = useState(false);
   const oauthResultHandledRef = useRef('');
+  const queueRequestIdRef = useRef(0);
+  const protocolsRequestIdRef = useRef(0);
   const [unreadCounts, setUnreadCounts] = useState<Record<string, number>>({});
   const setMessage = useCallback((next: { text: string; error?: boolean } | null) => {
     if (!next?.text) return;
@@ -536,7 +538,8 @@ export function SacDigitalToolPage({
     }
   }, [activeOrganizationId]);
 
-  const loadProtocols = useCallback(async (showLoading = false) => {
+  const loadProtocols = useCallback(async (showLoading = false,fresh = false) => {
+    const requestId=++protocolsRequestIdRef.current;
     if (!activeOrganizationId || !canViewMessages) {
       setProtocols([]);
       selectProtocol(null);
@@ -545,9 +548,10 @@ export function SacDigitalToolPage({
     if (showLoading) setInboxLoading(true);
     try {
       const [next, totalFinished] = await Promise.all([
-        listSacDigitalProtocols(activeOrganizationId),
+        listSacDigitalProtocols(activeOrganizationId,fresh,user?.id || ""),
         getSacDigitalFinishedProtocolCount(activeOrganizationId),
       ]);
+      if(requestId!==protocolsRequestIdRef.current)return;
       setFinishedProtocolCount(totalFinished);
       const currentSelectedId = selectedProtocolIdRef.current;
       let resolvedSelectedId: string | null = null;
@@ -574,14 +578,15 @@ export function SacDigitalToolPage({
         selectProtocol(resolvedSelectedId);
       }
     } catch (error) {
+      if(requestId!==protocolsRequestIdRef.current)return;
       setMessage({
         text: systemErrorMessage(error, "Não foi possível carregar as conversas do SAC Digital."),
         error: true,
       });
     } finally {
-      if (showLoading) setInboxLoading(false);
+      if (requestId===protocolsRequestIdRef.current) setInboxLoading(false);
     }
-  }, [activeOrganizationId, canViewMessages, isSacManager, selectProtocol]);
+  }, [activeOrganizationId, canViewMessages, isSacManager, selectProtocol,user?.id]);
 
   const loadMessages = useCallback(async (protocolId: string | null, showLoading = false) => {
     const requestId = ++messagesRequestIdRef.current;
@@ -602,7 +607,7 @@ export function SacDigitalToolPage({
         error: true,
       });
     } finally {
-      if (showLoading && requestId === messagesRequestIdRef.current) setMessagesLoading(false);
+      if (requestId === messagesRequestIdRef.current) setMessagesLoading(false);
     }
   }, [activeOrganizationId, canViewMessages]);
 
@@ -632,24 +637,28 @@ export function SacDigitalToolPage({
     }
   };
 
-  useEffect(() => { setQueueError(""); setQueueAuthRequired(false); setWaitingProtocolIds([]); }, [activeOrganizationId, operatorBinding?.access_mode, operatorBinding?.operator?.id]);
+  useEffect(() => { queueRequestIdRef.current++; setQueueError(""); setQueueAuthRequired(false); setWaitingProtocolIds([]); return()=>{queueRequestIdRef.current++;}; }, [activeOrganizationId,user?.id, operatorBinding?.access_mode, operatorBinding?.operator?.id]);
+  useEffect(()=>{protocolsRequestIdRef.current++;return()=>{protocolsRequestIdRef.current++;};},[activeOrganizationId,user?.id]);
 
-  const loadOperatorQueue = useCallback(async () => {
+  const loadOperatorQueue = useCallback(async (fresh = false) => {
+    const requestId=++queueRequestIdRef.current;
     if (!activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) {
       setWaitingProtocolIds([]);
       return;
     }
     try {
-      const queue = await listSacDigitalOperatorQueue(activeOrganizationId);
+      const queue = await listSacDigitalOperatorQueue(activeOrganizationId,fresh,`${user?.id || ""}:${operatorBinding.operator.id}`);
+      if(requestId!==queueRequestIdRef.current)return;
       setWaitingProtocolIds(queue.map(item => item.protocol));
       setQueueError("");
       setQueueAuthRequired(false);
     } catch (error) {
+      if(requestId!==queueRequestIdRef.current)return;
       setWaitingProtocolIds([]);
       setQueueError(systemErrorMessage(error, "Não foi possível confirmar a fila operacional da SAC Digital."));
       setQueueAuthRequired(isOperatorAuthError(error));
     }
-  }, [activeOrganizationId, canManageProtocols, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
+  }, [activeOrganizationId,user?.id, canManageProtocols, operatorBinding?.access_mode, operatorBinding?.operator?.id, status?.enabled]);
 
   useEffect(() => {
     const params=new URLSearchParams(location.search);
@@ -1071,8 +1080,9 @@ export function SacDigitalToolPage({
   const reloadSelectedProtocol = async () => {
     if (!selectedProtocol) return;
     await Promise.all([
-      loadProtocols(false),
+      loadProtocols(false,true),
       loadMessages(selectedProtocol.id, false),
+      loadOperatorQueue(true),
     ]);
   };
 
@@ -1250,6 +1260,8 @@ export function SacDigitalToolPage({
     if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
 
     setProtocolAction("assume");
+    queueRequestIdRef.current++;
+    protocolsRequestIdRef.current++;
     setMessage(null);
     try {
       const result = await assumeSacDigitalProtocol(
@@ -1264,10 +1276,7 @@ export function SacDigitalToolPage({
         setOperatorBinding({ linked: true, access_mode: "operator", operator });
       }
       setMessage({ text: "Atendimento selecionado. Ele saiu da fila e está em atendimento com você." });
-      await Promise.all([
-        reloadSelectedProtocol(),
-        loadOperatorQueue(),
-      ]);
+      await reloadSelectedProtocol();
     } catch (error) {
       setMessage({
         text: systemErrorMessage(error, "Não foi possível assumir o atendimento."),
@@ -1310,6 +1319,8 @@ export function SacDigitalToolPage({
     ) return;
 
     setProtocolAction("forward");
+    queueRequestIdRef.current++;
+    protocolsRequestIdRef.current++;
     setMessage(null);
     try {
       await forwardSacDigitalProtocol(
@@ -1335,12 +1346,13 @@ export function SacDigitalToolPage({
   const returnToInbox = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction) return;
     setProtocolAction("inbox");
+    queueRequestIdRef.current++;
+    protocolsRequestIdRef.current++;
     setMessage(null);
     try {
       await returnSacDigitalProtocolToQueue(
         activeOrganizationId,
         selectedProtocol.external_protocol_id,
-        selectedProtocol.sector_id,
       );
       setRoutingOpen(false);
       setFinishConfirmOpen(false);
@@ -1359,6 +1371,8 @@ export function SacDigitalToolPage({
   const finishProtocol = async () => {
     if (!activeOrganizationId || !selectedProtocol || !canManageProtocols || protocolAction || !finishVote) return;
     setProtocolAction("finish");
+    queueRequestIdRef.current++;
+    protocolsRequestIdRef.current++;
     setMessage(null);
     try {
       await finishSacDigitalProtocol(
@@ -2012,10 +2026,10 @@ export function SacDigitalToolPage({
                 {routingOpen && canManageProtocols && (
                   <div className="border-b border-border bg-muted/30 px-4 py-3">
                     <div className="grid gap-2 sm:grid-cols-2">
-                      <FSelect label="Departamento" value={departmentId} onChange={(event: any) => setDepartmentId(event.target.value)}
+                      <FSelect label="Departamento" value={departmentId} onChange={(event: any) => {setDepartmentId(event.target.value);setOperatorId("");}}
                         disabled={protocolAction === "routing" || protocolAction === "forward"}
                         options={[{value:'',label:'Selecionar (opcional)'}, ...(routingOptions?.departments || []).filter(item=>item.active).map(item=>({value:item.id,label:item.name}))]} />
-                      <FSelect label="Operador" value={operatorId} onChange={(event: any) => setOperatorId(event.target.value)}
+                      <FSelect label="Operador" value={operatorId} onChange={(event: any) => {setOperatorId(event.target.value);setDepartmentId("");}}
                         disabled={protocolAction === "routing" || protocolAction === "forward"}
                         options={[{value:'',label:'Selecionar (opcional)'}, ...(routingOptions?.operators || []).map(item=>({value:item.id,label:item.name+(item.online?' — online':'')}))]} />
                     </div>

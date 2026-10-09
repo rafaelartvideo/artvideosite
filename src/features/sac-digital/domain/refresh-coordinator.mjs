@@ -7,6 +7,16 @@ export function singleFlight(key, run) {
   requests.set(key, promise);
   return promise;
 }
+export function freshSingleFlight(key,run) {
+ const previous=requests.get(key);
+ // Publish the barrier immediately: polling must not reuse the older request
+ // while this operation's fresh read is waiting for it to finish.
+ const promise=Promise.resolve(previous).catch(()=>{}).then(run).finally(()=>{
+  if(requests.get(key)===promise)requests.delete(key);
+ });
+ requests.set(key,promise);
+ return promise;
+}
 // Debounce notification bursts. Bulk imports may emit thousands of Realtime
 // events; wait for a quiet window instead of refreshing the full inbox every
 // few hundred milliseconds while the import is still running.
@@ -51,3 +61,4 @@ export async function initializeSacScreen({loadStatus, loadProtocols, loadUnread
   void loadProtocols();
   void loadUnreadCounts();
 }
+

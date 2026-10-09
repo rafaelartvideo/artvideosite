@@ -62,3 +62,13 @@ test('finish routes provide required client notification flag and retain only op
  const operational=gateway.routeProtocolOperation(38,input,{is_open:true,is_att:true});
  assert.deepEqual(buildSacRequest(operational.endpointId,operational.values).body,{vote:3});
 });
+
+test('the SAC queue contains A and E; only A is waiting, and a selected Operator beats an older queue snapshot',()=>{
+ const rows=[{protocol:'P-A',status:'A',abandoned_at:null,finish_at:null},{protocol:'P-E',status:'E',att_at:'2026-10-09 10:40:47'},{protocol:'P-F',status:'A',finish_at:'2026-10-09 11:00:00'},{protocol:'P-B',status:'A',abandoned_at:'2026-10-09 11:00:00'}];
+ assert.deepEqual(runtime.waitingOperatorProtocolIds(rows),['P-A']);
+ assert.equal(runtime.protocolOperationalStatus({external_protocol_id:'P-E',status:'in_att',operator_id:'op'},new Set(['P-E'])),'in_att');
+ assert.equal(runtime.protocolOperationalStatus({external_protocol_id:'P-A',status:'inbox',operator_id:null},new Set(['P-A'])),'waiting');
+});
+test('queue rows without a confirmed waiting status are not guessed from ownership or names',()=>{
+ assert.deepEqual(runtime.waitingOperatorProtocolIds([{protocol:'P',status:'E'},{protocol:'X'},{protocol:'P-A',status:'A'},{protocol:'P-A',status:'A'}]),['P-A']);
+});

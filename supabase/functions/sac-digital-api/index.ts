@@ -872,32 +872,6 @@ Deno.serve(async request => {
       return data.some((row: Record<string, unknown>) => String(row.permission_key || "") === permissionKey);
     };
 
-    const forwardSacContactWithRetry = async (
-      credentials: { clientId: string; clientSecret: string },
-      payload: Record<string, unknown>,
-    ) => {
-      let result = await apiRequest(
-        organizationId,
-        credentials,
-        "/contact/forward",
-        { method: "POST", body: JSON.stringify(payload) },
-      );
-      for (let attempt = 0; attempt < 2; attempt += 1) {
-        const providerType = String(result.body.type || "").trim().toLowerCase();
-        if (providerType !== "operator_busy") break;
-        await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-        result = await apiRequest(
-          organizationId,
-          credentials,
-          "/contact/forward",
-          { method: "POST", body: JSON.stringify(payload) },
-        );
-      }
-      return result;
-    };
-
-
-
     let auditActorName: string | null | undefined;
     const writeSacAudit = async ({
       action,
@@ -1180,21 +1154,8 @@ Deno.serve(async request => {
           if(endpoint?.id === 92 && values.vote == null) throw new Error('A finalização operacional requer votação conforme contrato da SAC Digital.');
         }
       }
-      // Apenas o fluxo legado de assumir atendimento precisa trocar do
-      // contrato Client para o contrato Operator. Encaminhar/devolver devem
-      // permanecer em /client/contact/forward, inclusive quando o protocolo
-      // já está em atendimento. Converter forward_protocol aqui fazia a ação
-      // institucional voltar indevidamente para /operator/att/forward.
-      if(path.split('?')[0] === '/contact/forward' && action === 'assume_protocol' && validProtocol(body.protocol)) {
-        const check=await apiRequest(organizationId,await loadCredentials(organizationId),`/protocol/info?protocol=${encodeURIComponent(String(body.protocol))}`,{method:'GET'});
-        if(!check.response.ok || !check.body.info || check.body.status === false) throw new Error('Não foi possível confirmar o estado externo do protocolo.');
-        const info:any=check.body.info;
-        if(info.is_att === true) {
-          endpoint=SAC_ENDPOINTS.find((item:any)=>item.id === 73);
-          for(const key of Object.keys(values)) delete values[key];
-          values.protocol=String(body.protocol);
-        }
-      }
+      // New-contact routing remains Client; active attendance forwarding uses
+      // the dedicated Operator action and never passes through this dispatcher.
       if(!endpoint) throw new Error('Contrato de operação não identificado.');
       const result = await runResourceOperation(endpoint.id,values,typeof body.intent_key === 'string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined);
       if(result.outcome === 'unknown') {const error:any=new Error(result.error);error.outcome='unknown';error.type=result.type;throw error;}
@@ -2609,6 +2570,7 @@ Deno.serve(async request => {
       const operatorId = String(body.operator_id || "").trim();
       if (!validProtocol(protocol)) return json({ success: false, error: "Protocolo inválido." }, 400);
       if (!departmentId && !operatorId) return json({ success: false, error: "Escolha um departamento ou operador." }, 400);
+      if (departmentId && operatorId) return json({ success:false,error:"Escolha somente um destino: departamento ou Operador." },400);
 
       const accessBinding = await resolveMySacAccessBinding();
       if (!accessBinding) {
@@ -2755,27 +2717,9 @@ Deno.serve(async request => {
         }, 409);
       }
 
-      let departmentId = String(body.department_id || "").trim();
-      if (!departmentId) {
-        const infoDepartment = info.department && typeof info.department === "object" && !Array.isArray(info.department)
-          ? info.department as Record<string, unknown>
-          : {};
-        departmentId = String(
-          infoDepartment.id
-          || info.department_id
-          || info.sector_id
-          || "",
-        ).trim();
-      }
-      if (!departmentId) {
-        const local = await admin
-          .from("sac_digital_protocols")
-          .select("sector_id")
-          .eq("organization_id", organizationId)
-          .eq("external_protocol_id", protocol)
-          .maybeSingle();
-        departmentId = String(local.data?.sector_id || "").trim();
-      }
+      const infoDepartment = info.department && typeof info.department === "object" && !Array.isArray(info.department)
+        ? info.department as Record<string, unknown> : {};
+      const departmentId=String(infoDepartment.id || info.department_id || info.sector_id || "").trim();
       if (!departmentId) {
         return json({ success: false, error: "A SAC Digital não informou o departamento deste atendimento." }, 409);
       }
@@ -2825,7 +2769,7 @@ Deno.serve(async request => {
         ? `${userData.user.id}:${body.intent_key.slice(0,160)}`
         : undefined;
       const finished = await runResourceOperation(38, { protocol, vote, notify_contact: false }, intentKey);
-      if (!finished.success) return json(finished as Record<string, unknown>);
+      if (!finished.success) return json(finished as Record<string, unknown>,finished.outcome==='unknown'?502:409);
 
       try {
         await enrichProtocol(organizationId, protocol);
