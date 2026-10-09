@@ -130,12 +130,21 @@ export async function updateServiceOrderSchedule(
   scheduledAt: string,
 ): Promise<void> {
   const org = requireOrganizationId(organizationId);
+  const { data: previous, error: readError } = await supabase
+    .from("service_orders").select("scheduled_at,scheduled_end_at")
+    .eq("organization_id", org).eq("id", orderId).single();
+  if (readError) throw readError;
+  const previousStart = new Date(previous.scheduled_at || scheduledAt).getTime();
+  const previousEnd = previous.scheduled_end_at
+    ? new Date(previous.scheduled_end_at).getTime()
+    : previousStart + 60 * 60_000;
+  const duration = Number.isFinite(previousEnd - previousStart) && previousEnd > previousStart
+    ? previousEnd - previousStart : 60 * 60_000;
+  const newEnd = new Date(new Date(scheduledAt).getTime() + duration).toISOString();
   const { error } = await supabase
     .from("service_orders")
-    .update({ scheduled_at: scheduledAt })
-    .eq("organization_id", org)
-    .eq("id", orderId);
-
+    .update({ scheduled_at: scheduledAt, scheduled_end_at: newEnd })
+    .eq("organization_id", org).eq("id", orderId);
   if (error) throw error;
 }
 

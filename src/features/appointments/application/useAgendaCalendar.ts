@@ -141,7 +141,13 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
     next.setHours(oldDate.getHours(), oldDate.getMinutes(), 0, 0);
     try {
       await updateServiceOrderSchedule(organizationId, event.order.id, next.toISOString());
-      setOrders(current => current.map(item => item.id === event.order.id ? { ...item, scheduled_at: next.toISOString() } : item));
+      const originalEnd = event.order.scheduled_end_at
+        ? new Date(event.order.scheduled_end_at).getTime()
+        : oldDate.getTime() + 60 * 60_000;
+      const newEnd = new Date(next.getTime() + Math.max(30 * 60_000, originalEnd - oldDate.getTime())).toISOString();
+      setOrders(current => current.map(item => item.id === event.order.id ? {
+        ...item, scheduled_at: next.toISOString(), scheduled_end_at: newEnd,
+      } : item));
       onToast("Agendamento atualizado.", "success");
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }),
