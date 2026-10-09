@@ -632,9 +632,9 @@ export async function startSacDigitalNewConversation(
   });
   return data as {
     success: true;
-    mode: "protocol" | "notification";
-    protocol: string | null;
-    pending_start_id: string | null;
+    mode: "protocol";
+    protocol: string;
+    pending_start_id?: null;
     external_contact_id: string;
   };
 }

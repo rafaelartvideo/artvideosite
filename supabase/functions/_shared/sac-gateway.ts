@@ -35,7 +35,7 @@ export function operatorTokenError(token) {
   } catch { return null; }
 }
 export function newConversationRoute(accessMode, protocol) {
-  if(!protocol) return 'notification';
+  if(!protocol) return 'forward';
   if(protocol.isAtt !== true) return 'client';
   return accessMode === 'operator' ? 'operator' : 'notification';
 }

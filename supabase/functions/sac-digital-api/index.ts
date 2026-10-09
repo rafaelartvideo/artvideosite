@@ -2020,17 +2020,65 @@ Deno.serve(async request => {
         error: `Este contato já está em atendimento com ${state.operatorName || "outro Operador SAC"}. Você não pode iniciar outra conversa enquanto esse atendimento estiver aberto.`,
       }, 409);
 
-      const openProtocol = await findOpenProtocol();
-      if (accessBinding.accessMode === 'operator' && openProtocol?.operatorId
+      let openProtocol = await findOpenProtocol();
+      if (!openProtocol) {
+        // Nova conversa não usa /notification/contact: o fornecedor precisa
+        // confirmar um protocolo real antes do envio da primeira mensagem.
+        if (accessBinding.accessMode !== 'operator' || !accessBinding.id) {
+          return json({
+            success: false,
+            type: 'operator_required_to_start',
+            error: 'Para iniciar um novo protocolo e enviar a primeira mensagem, vincule um Operador SAC. Gestor e Operador possuem sessões diferentes.',
+          }, 409);
+        }
+        if (!(await requirePermission('sac_digital.protocols.manage'))) {
+          return json({ success:false, type:'permission_denied', error:'Seu usuário precisa da permissão de gerenciar atendimentos para abrir um protocolo SAC.' }, 403);
+        }
+        const channels = await apiRequest(organizationId,credentials,'/channel/all',{method:'GET'});
+        const available = Array.isArray(channels.body.list) ? channels.body.list : [];
+        const channel = available.find((item:any)=>String(item?.id || '')===selectedChannelId);
+        const capabilityError = channelCapabilityError(channel,{type:'text'});
+        if (!selectedChannelId || !channels.response.ok || channels.body.status === false || capabilityError) {
+          return json({success:false,type:'channel_unavailable',error:capabilityError || 'Selecione um canal SAC ativo e compatível para abrir protocolo.'},409);
+        }
+
+        const forwarding = await runResourceOperation(
+          11,
+          {id:externalContactId,operator:accessBinding.id},
+          typeof body.intent_key === 'string' ? `${userData.user.id}:new-conversation:${body.intent_key.slice(0,120)}` : undefined,
+        );
+        // "contact_in_att" também pode significar protocolo aberto em outra
+        // sessão. Nunca encaminhar nem enviar novamente sem reconciliar.
+        for (let check = 0; check < 5; check += 1) {
+          if (check > 0) await new Promise(resolve=>setTimeout(resolve,300 * check));
+          try { openProtocol = await findOpenProtocol(); }
+          catch { /* O estado continua não confirmado. */ }
+          if (openProtocol) break;
+        }
+        if (!openProtocol) {
+          return json({
+            success:false,
+            type: forwarding.success ? 'protocol_opening_pending' : forwarding.type || 'protocol_opening_failed',
+            outcome: forwarding.outcome,
+            error: forwarding.success || forwarding.outcome === 'unknown'
+              ? 'A SAC Digital recebeu a solicitação de abertura, mas ainda não confirmou um protocolo. Nenhuma mensagem foi enviada. Confira os atendimentos antes de tentar novamente.'
+              : forwarding.error || 'A SAC Digital não conseguiu abrir um protocolo para este contato. Nenhuma mensagem foi enviada.',
+          },forwarding.success || forwarding.outcome==='unknown' ? 502 : 409);
+        }
+      }
+      if (accessBinding.accessMode === 'operator' && openProtocol.operatorId
         && openProtocol.operatorId !== accessBinding.id) return conflictResponse(openProtocol);
       const conversationRoute = newConversationRoute(accessBinding.accessMode,openProtocol);
+      if (conversationRoute !== 'operator' && conversationRoute !== 'client') {
+        return json({success:false,type:'operator_required_to_send',protocol:openProtocol.protocol,error:'O protocolo está sob atendimento operacional. Vincule um Operador SAC autorizado para enviar a primeira mensagem; nenhuma notificação foi enviada.'},409);
+      }
       // O horário é apresentado pelo WhatsApp; a identificação vem da sessão SAC.
       text = formatSacOutgoingText(text, accessBinding.accessMode === 'operator' ? accessBinding.name : 'Sistema');
       if (text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
 
       const protocol = String(openProtocol?.protocol || "").trim();
 
-      if (conversationRoute !== "notification" && protocol && validProtocol(protocol)) {
+      if (protocol && validProtocol(protocol)) {
         try {
           await enrichProtocol(organizationId, protocol);
         } catch {
@@ -2172,86 +2220,12 @@ Deno.serve(async request => {
         });
       }
 
-      const notification = await apiRequest(
-        organizationId,
-        credentials,
-        "/notification/contact",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            contact: externalContactId,
-            ...(selectedChannelId ? { channel: selectedChannelId } : {}),
-            type: "text",
-            text,
-          }),
-        },
-      );
-
-      if (!notification.response.ok || notification.body.status === false || notification.body.success === false) {
-        const apiMessage = typeof notification.body.message === "string"
-          ? notification.body.message.trim()
-          : "";
-        const looksUnavailable = /whatsapp|n[uú]mero|telefone|contato inv[aá]lido|invalid/i.test(apiMessage);
-        return json({
-          success: false,
-          error: apiMessage
-            ? `SAC Digital: ${apiMessage}`
-            : "A SAC Digital não conseguiu iniciar a conversa com este número.",
-          whatsapp_available: looksUnavailable ? false : null,
-        });
-      }
-
-      // Notificacoes a contato podem ser aceitas sem abrir protocolo.
-      // Persistir o envio como pendente para exibir na caixa de conversas;
-      // uma falha na gravacao NAO desfaz o envio nem deve sugerir reenvio.
-      let pendingStartId: string | null = null;
-      if (localContact?.id) {
-        const sentAt = new Date().toISOString();
-        const { data: pendingStart, error: pendingError } = await admin
-          .from("sac_digital_outbound_starts")
-          .upsert({
-            organization_id: organizationId,
-            contact_id: localContact.id,
-            external_contact_id: externalContactId,
-            message_text: text,
-            sender_id: userData.user.id,
-            sent_at: sentAt,
-            updated_at: sentAt,
-            notification_id: notification.body.notification_id || notification.body.id || null,
-            delivery_state: "accepted",
-          }, { onConflict: "organization_id,external_contact_id" })
-          .select("id")
-          .maybeSingle();
-        if (pendingError) {
-          console.error("[SAC DIGITAL API] pending conversation registration failed", {
-            organization_id: organizationId,
-            code: pendingError.code,
-          });
-        } else {
-          pendingStartId = String(pendingStart?.id || "") || null;
-        }
-      }
-
-      await writeSacAudit({
-        action: "sac_digital.conversation.start",
-        operation: "send",
-        entityType: "sac_digital_contact",
-        entityId: externalContactId,
-        contextType: "contact",
-        contextId: externalContactId,
-        metadata: {
-          transport: "notification",
-          message_length: text.length,
-        },
-      });
-
+      // Sem fallback de notificação: este botão só confirma conversa com protocolo.
       return json({
-        success: true,
-        mode: "notification",
-        protocol: null,
-        pending_start_id: pendingStartId,
-        external_contact_id: externalContactId,
-      });
+        success:false,
+        type:'protocol_not_confirmed',
+        error:'A SAC Digital não retornou um protocolo válido. Nenhuma notificação foi enviada.',
+      },409);
     }
 
     if (action === "my_operator_binding") {

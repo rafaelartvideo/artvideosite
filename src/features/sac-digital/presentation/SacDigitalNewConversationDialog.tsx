@@ -80,7 +80,7 @@ export function SacDigitalNewConversationDialog({
   const cloud = cloudChannel(currentChannel);
   const currentTemplate = templates.find(item => String(item.id??item.name)===template);
   useEffect(()=>{if(!open)return;let cancelled=false;setChannelLoading(true);setChannelError('');operateSacDigitalResource(organizationId,14,{}).then(response=>{if(cancelled)return;const usable=usableChannels(resultItems(response.data));setChannels(usable);if(!usable.length)setChannelError('Nenhum canal ativo disponível para iniciar uma conversa. Confira a conexão e as permissões na SAC.');}).catch(caught=>{if(!cancelled)setChannelError(caught instanceof Error?caught.message:'Não foi possível carregar os canais.');}).finally(()=>{if(!cancelled)setChannelLoading(false);});return()=>{cancelled=true;};},[open,organizationId]);
-  useEffect(()=>{setTemplate('');setTemplates([]);setVariables({});if(!open||!channel)return;let cancelled=false;setTemplateLoading(true);setTemplateError('');if(cloud)setMessageType('template');operateSacDigitalResource(organizationId,15,{id:channel}).then(response=>{if(cancelled)return;const approved=approvedTemplates(resultItems(response.data));setTemplates(approved);if(!approved.length)setTemplateError('Nenhum template aprovado disponível neste canal.');}).catch(caught=>{if(!cancelled)setTemplateError(caught instanceof Error?caught.message:'Não foi possível carregar templates aprovados.');}).finally(()=>{if(!cancelled)setTemplateLoading(false);});return()=>{cancelled=true;};},[open,channel,organizationId,cloud]);
+  useEffect(()=>{setTemplate('');setTemplates([]);setVariables({});if(!open||!channel)return;let cancelled=false;setTemplateLoading(true);setTemplateError('');if(cloud)setMessageType('template');else setMessageType('text');operateSacDigitalResource(organizationId,15,{id:channel}).then(response=>{if(cancelled)return;const approved=approvedTemplates(resultItems(response.data));setTemplates(approved);if(!approved.length)setTemplateError('Nenhum template aprovado disponível neste canal.');}).catch(caught=>{if(!cancelled)setTemplateError(caught instanceof Error?caught.message:'Não foi possível carregar templates aprovados.');}).finally(()=>{if(!cancelled)setTemplateLoading(false);});return()=>{cancelled=true;};},[open,channel,organizationId,cloud]);
   const [messageType, setMessageType] = useState("text");
   const [template, setTemplate] = useState("");
   const [variables, setVariables] = useState<Record<string, string[]>>({});
@@ -220,20 +220,18 @@ export function SacDigitalNewConversationDialog({
     setSending(true);
     setError("");
     try {
-      const result = messageType === "template"
-        ? await operateSacDigitalResource(organizationId, 39, {
-            contact: contact.external_contact_id,
-            channel: channel.trim(),
-            type: messageType,
-            template: template.trim(),
-            variables,
-          }) as unknown as Awaited<ReturnType<typeof startSacDigitalNewConversation>>
-        : await startSacDigitalNewConversation(
-            organizationId,
-            contact.external_contact_id,
-            message,
-            channel,
-          );
+      // Nova conversa não deve ser disparada por /notification/contact,
+      // nem por template: ambos podem enviar sem abrir protocolo.
+      if (messageType !== "text" || cloud) {
+        setError("Este canal exige template de notificação, mas a SAC Digital não oferece abertura de protocolo por template nesta integração. Escolha um canal compatível; nenhuma mensagem foi enviada.");
+        return;
+      }
+      const result = await startSacDigitalNewConversation(
+        organizationId,
+        contact.external_contact_id,
+        message,
+        channel,
+      );
       // O envio já foi confirmado pela SAC. Uma falha no refresh da tela
       // nunca pode ser tratada como falha de envio, evitando duplicação.
       reset();
@@ -282,7 +280,7 @@ export function SacDigitalNewConversationDialog({
               onClick={() => void startConversation()}
               loading={sending}
               loadingText="Iniciando..."
-              disabled={error.includes("Confirmação pendente") || !currentChannel || channelLoading || (messageType === "template" ? !currentTemplate || templateLoading : !draft.trim())}
+              disabled={error.includes("Confirmação pendente") || !currentChannel || channelLoading || cloud || messageType !== "text" || !draft.trim()}
             >
               Iniciar conversa
             </AdminButton>
@@ -423,10 +421,10 @@ export function SacDigitalNewConversationDialog({
                       options={[{value:"",label:channelLoading?"Carregando canais…":"Selecione um canal ativo"}, ...channels.map(item=>({value:String(item.id),label:(item.name||item.title||"Canal")+(item.number?" · "+formatPhone(String(item.number)):"")+(item.primary===true?" · Principal":item.primary===false?" · Secundário":"")+(cloudChannel(item)?" · WhatsApp Cloud":"")}))]} />
                     <FSelect label="Tipo de mensagem" value={messageType} disabled={cloud || sending}
                       onChange={(e: any) => setMessageType(e.target.value)}
-                      options={[{value:"text",label:"Texto"},{value:"template",label:"Template aprovado"}]} />
+                      options={[{value:"text",label:"Texto"}]} />
                   </div>
                   {channelError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{channelError}</p>}
-                  {cloud && <p className="text-xs text-muted-foreground">Este canal WhatsApp Cloud exige template aprovado para iniciar a conversa.</p>}
+                  {cloud && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">Este canal exige template, mas o envio de template da SAC não abre um protocolo. Nova conversa por este canal está indisponível para evitar notificação avulsa.</p>}
                   {messageType === "template" && <>
                     <FSelect label="Template aprovado" value={template} disabled={templateLoading || !channel || sending}
                       onChange={(e: any) => setTemplate(e.target.value)}
