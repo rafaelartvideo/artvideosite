@@ -913,3 +913,33 @@ export async function beginSacOperatorAuthorization(organizationId: string, retu
   if(url.origin !== 'https://auth2.sac.digital' || url.pathname !== '/oauth/authorize') throw new Error('Endereço de autorização SAC inválido.');
   return url.toString();
 }
+
+export type SacDigitalContactPageItem = {
+  id: string;
+  external_contact_id: string;
+  customer_id: string | null;
+  customer_name: string | null;
+  name: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  updated_at: string | null;
+  cpf: string | null;
+  cnpj: string | null;
+};
+
+export async function listSacDigitalContactsPage(
+  organizationId: string, search: string, page: number, pageSize: number,
+): Promise<{ items: SacDigitalContactPageItem[]; total: number }> {
+  const { data, error } = await supabase.rpc("list_sac_digital_contacts_page", {
+    p_organization_id: organizationId,
+    p_search: search,
+    p_page: page,
+    p_page_size: pageSize,
+  });
+  if (error) throw error;
+  const result = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
+  return {
+    items: Array.isArray(result.items) ? result.items as SacDigitalContactPageItem[] : [],
+    total: Math.max(0, Number(result.total || 0)),
+  };
+}

@@ -3,6 +3,7 @@ import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coord
 import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
 import { lazy, Suspense } from 'react';
 const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m => ({default: m.SacDigitalResources})));
+const SacDigitalContactsPage = lazy(() => import('./SacDigitalContactsPage').then(m => ({default: m.SacDigitalContactsPage})));
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
@@ -69,7 +70,7 @@ const protocolStatusLabel: Record<string, string> = {
   waiting: "Aguardando atendimento",
   open: "Auto Atendimento",
   in_att: "Em atendimento",
-  inbox: "Recados / sem operador",
+  inbox: "Abandonado",
   abandoned: "Abandonado",
   pending: "Aguardando protocolo",
   finished: "Finalizado",
@@ -137,10 +138,13 @@ function protocolInitials(protocol: SacDigitalProtocolListItem) {
 function safeSacAvatar(value?: string | null) {
   const avatar = String(value || "").trim();
   if (!avatar) return "";
-  const lower = avatar.toLowerCase();
-  return lower.startsWith("https://") || lower.startsWith("http://") || lower.startsWith("data:image/")
-    ? avatar
-    : "";
+  if (/^data:image\/jpg;base64,/i.test(avatar)) return avatar.replace(/^data:image\/jpg;/i, "data:image/jpeg;");
+  if (/^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(avatar)) return avatar;
+  return /^https?:\/\//i.test(avatar) ? avatar : "";
+}
+function displayProtocolStatus(protocol: SacDigitalProtocolListItem, waitingIds: Set<string>) {
+  const raw = protocolOperationalStatus(protocol, waitingIds);
+  return raw === "inbox" ? "abandoned" : raw;
 }
 
 function ProtocolAvatar({
@@ -376,7 +380,7 @@ export function SacDigitalToolPage({
   const currentIdentityRef = useRef("");
   currentIdentityRef.current = JSON.stringify([activeOrganizationId, user?.id]);
   const [conversationSearch, setConversationSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished" | "inbox" | "abandoned">("waiting");
+  const [statusFilter, setStatusFilter] = useState<"self_service" | "waiting" | "in_att" | "finished" | "abandoned">("waiting");
   const [operatorFilter, setOperatorFilter] = useState("all");
   const [waitingProtocolIds, setWaitingProtocolIds] = useState<string[]>([]);
   const [queueError, setQueueError] = useState("");
@@ -391,6 +395,11 @@ export function SacDigitalToolPage({
     notifyAdmin(next.text, next.error ? "error" : "success");
   }, []);
   const [incomingAlert, setIncomingAlert] = useState<{ protocolId: string } | null>(null);
+  useEffect(() => {
+    if (!incomingAlert) return;
+    const timeout = window.setTimeout(() => setIncomingAlert(null), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [incomingAlert]);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
@@ -464,7 +473,7 @@ export function SacDigitalToolPage({
     if (!linkedOperatorId) return [];
 
     return protocols.filter(protocol => {
-      const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
+      const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
       if (operationalStatus === "waiting" || operationalStatus === "pending" || operationalStatus === "inbox" || operationalStatus === "abandoned") return true;
       return protocol.operator_id === linkedOperatorId;
     });
@@ -495,15 +504,14 @@ export function SacDigitalToolPage({
   );
 
   const statusCounts = useMemo(() => {
-    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0, inbox: 0, abandoned: 0 };
+    const counts = { self_service: 0, waiting: 0, in_att: 0, finished: 0, abandoned: 0 };
     for (const protocol of visibleProtocols) {
-      const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
+      const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
       if (operationalStatus === "self_service") counts.self_service += 1;
       else if (operationalStatus === "waiting" || operationalStatus === "pending") counts.waiting += 1;
       else if (operationalStatus === "in_att") counts.in_att += 1;
       else if (operationalStatus === "abandoned") counts.abandoned += 1;
-      else if (operationalStatus === "inbox") counts.inbox += 1;
-      else counts.finished += 1;
+            else counts.finished += 1;
     }
     counts.finished = Math.max(counts.finished, finishedProtocolCount);
     return counts;
@@ -520,7 +528,7 @@ export function SacDigitalToolPage({
         protocol.operator_name || "",
       ].join(" ").toLocaleLowerCase("pt-BR").includes(query);
 
-      const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
+      const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
       const matchesStatus = statusFilter === "waiting"
         ? operationalStatus === "waiting" || operationalStatus === "pending"
         : operationalStatus === statusFilter;
@@ -1458,7 +1466,7 @@ export function SacDigitalToolPage({
   }, [selectedProtocolId, activeOrganizationId, user?.id, closeCustomerOrders]);
 
   const selectedOperationalStatus = selectedProtocol
-    ? protocolOperationalStatus(selectedProtocol, waitingProtocolSet)
+    ? displayProtocolStatus(selectedProtocol, waitingProtocolSet)
     : null;
 
   const isMyProtocol = Boolean(
@@ -1507,11 +1515,16 @@ export function SacDigitalToolPage({
     />
 
     <AdminSubnav value={moduleSection} items={SAC_MODULE_SECTIONS} onSelect={setModuleSection} ariaLabel="Seções do SAC Digital" />
-    {(moduleSection === 'contacts' || moduleSection === 'whatsapp_groups') &&
-      <Suspense fallback={<LoadingState text="Carregando..." />}>
-        <SacDigitalResources key={moduleSection} organizationId={activeOrganizationId} hasPermission={hasPermission}
-          initialArea={moduleSection === 'contacts' ? 'Contatos' : 'Grupos de WhatsApp'} />
-      </Suspense>}
+    {moduleSection === "contacts" && <Suspense fallback={<LoadingState text="Carregando clientes..." />}>
+      <SacDigitalContactsPage organizationId={activeOrganizationId} canView={canViewMessages}
+        canSendMessages={canSendMessages} onStartConversation={contact => {
+          setNewConversationStarter(contact);
+          setNewConversationOpen(true);
+        }} />
+    </Suspense>}
+    {moduleSection === "whatsapp_groups" && <Suspense fallback={<LoadingState text="Carregando grupos..." />}>
+      <SacDigitalResources organizationId={activeOrganizationId} hasPermission={hasPermission} initialArea="Grupos de WhatsApp" />
+    </Suspense>}
 
 
     {incomingAlert && (() => {
@@ -1545,7 +1558,7 @@ export function SacDigitalToolPage({
             <AdminButton
               size="sm"
               onClick={() => {
-                const targetStatus = target ? protocolOperationalStatus(target, waitingProtocolSet) : "waiting";
+                const targetStatus = target ? displayProtocolStatus(target, waitingProtocolSet) : "waiting";
                 selectProtocol(incomingAlert.protocolId);
                 setConversationSearch("");
                 setStatusFilter(targetStatus === "pending" ? "waiting" : targetStatus);
@@ -1596,7 +1609,7 @@ export function SacDigitalToolPage({
               <div className="min-w-0">
                 <p className="text-base font-black text-foreground">Conversas</p>
                 <p className="text-[10px] text-muted-foreground">
-                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att + statusCounts.inbox + statusCounts.abandoned} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
+                  {statusCounts.self_service + statusCounts.waiting + statusCounts.in_att + statusCounts.abandoned} ativa(s) · {statusCounts.finished} finalizada(s){unreadConversationCount > 0 ? ` · ${unreadConversationCount} não lida(s)` : ""}
                 </p>
               </div>
               {queueError && (
@@ -1608,21 +1621,19 @@ export function SacDigitalToolPage({
                     : <button type="button" className="mt-2 font-bold underline" onClick={() => void loadOperatorQueue()}>Verificar sessão novamente</button>}
                 </div>
               )}
-              <div className="mt-3 grid grid-cols-3 overflow-hidden rounded-lg border border-border bg-card">
+              <div className="mt-3 grid grid-cols-3 gap-1.5">
                 {(isSacManager
                   ? ([
                       ["self_service", "Auto", statusCounts.self_service],
                       ["waiting", "Aguardando", statusCounts.waiting],
                       ["in_att", "Em atendimento", statusCounts.in_att],
                       ["abandoned", "Abandonados", statusCounts.abandoned],
-                      ["inbox", "Recados", statusCounts.inbox],
                       ["finished", "Finalizadas", statusCounts.finished],
                     ] as const)
                   : ([
                       ["waiting", "Aguardando", statusCounts.waiting],
                       ["in_att", "Em atendimento", statusCounts.in_att],
                       ["abandoned", "Abandonados", statusCounts.abandoned],
-                      ["inbox", "Recados", statusCounts.inbox],
                       ["finished", "Finalizadas", statusCounts.finished],
                     ] as const)
                 ).map(([value, label, count]) => (
@@ -1630,10 +1641,16 @@ export function SacDigitalToolPage({
                     key={value}
                     type="button"
                     onClick={() => setStatusFilter(value)}
-                    className={`min-w-0 border-r border-border px-2 py-2 text-center text-[10px] font-bold transition-colors last:border-r-0 ${statusFilter === value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                    className={["flex min-w-0 flex-col items-center justify-center rounded-lg border px-1 py-2 text-[10px] font-bold transition-colors",
+                      statusFilter === value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"].join(" ")}
                   >
-                    <span className="block truncate">{label}</span>
-                    <span className="mt-0.5 block text-xs font-black">{count}</span>
+                    <span className="block w-full truncate text-center">{label}</span>
+                    <span className={["mt-1 inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-xs font-black",
+                      value === "waiting" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                      : value === "in_att" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"
+                      : value === "abandoned" ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300"
+                      : value === "finished" ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300"
+                      : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200"].join(" ")}>{count}</span>
                   </button>
                 ))}
               </div>
@@ -1660,7 +1677,7 @@ export function SacDigitalToolPage({
               ) : filteredProtocols.map(protocol => {
                 const selected = protocol.id === selectedProtocolId;
                 const unread = Number(unreadCounts[protocol.id] || 0);
-                const operationalStatus = protocolOperationalStatus(protocol, waitingProtocolSet);
+                const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
                 return <button
                   key={protocol.id}
                   type="button"
