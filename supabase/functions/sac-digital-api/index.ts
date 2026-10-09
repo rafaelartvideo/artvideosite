@@ -1,5 +1,6 @@
 import { authorizationUrl, returnPath, stateHash } from '../_shared/sac-oauth.mjs';
 import { providerDelivery, submissionCanMatchHistory } from '../_shared/sac-delivery.mjs';
+import { formatSacOutgoingText } from '../_shared/sac-message-label.mjs';
 import { createSacClientSessions } from '../_shared/sac-client-session.mjs';
 import { authorizedOperatorToken } from '../_shared/sac-oauth-session.ts';
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
@@ -1901,7 +1902,7 @@ Deno.serve(async request => {
 
       const externalContactId = String(body.external_contact_id || "").trim();
       const selectedChannelId = String(body.channel || "").trim();
-      const text = String(body.text || "").trim();
+      let text = String(body.text || "").trim();
       if (!externalContactId || externalContactId.length > 120) {
         return json({ success: false, error: "Contato SAC inválido." }, 400);
       }
@@ -2023,6 +2024,9 @@ Deno.serve(async request => {
       if (accessBinding.accessMode === 'operator' && openProtocol?.operatorId
         && openProtocol.operatorId !== accessBinding.id) return conflictResponse(openProtocol);
       const conversationRoute = newConversationRoute(accessBinding.accessMode,openProtocol);
+      // O horário é apresentado pelo WhatsApp; a identificação vem da sessão SAC.
+      text = formatSacOutgoingText(text, accessBinding.accessMode === 'operator' ? accessBinding.name : 'Sistema');
+      if (text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
 
       const protocol = String(openProtocol?.protocol || "").trim();
 
@@ -2785,7 +2789,7 @@ Deno.serve(async request => {
       let localMediaProtocolId: string | null = null;
       const orderId = String(body.order_id || "").trim();
       const requestedExternalContactId = String(body.external_contact_id || "").trim();
-      const text = String(body.text || "").trim();
+      let text = String(body.text || "").trim();
       if (!uploadFile || uploadFile.size <= 0) return json({ success: false, error: "Selecione um arquivo para enviar." }, 400);
       if (uploadFile.type.startsWith("image/") && uploadFile.size > 1024 * 1024) {
         return json({ success: false, error: "A SAC Digital aceita imagens de no máximo 1 MB." });
@@ -2877,6 +2881,11 @@ Deno.serve(async request => {
         }
       }
 
+      if (text) {
+        const sender = fromOrder ? 'Sistema' : (await resolveMyOperatorBinding())?.name || 'Sistema';
+        text = formatSacOutgoingText(text, sender);
+        if (text.length > 5000) return json({success:false,error:'A legenda excede 5000 caracteres após a identificação do remetente.'},400);
+      }
       if (protocol && !validProtocol(protocol)) {
         return json({ success: false, error: "Protocolo inválido para o envio." }, 409);
       }
@@ -3337,11 +3346,11 @@ Deno.serve(async request => {
             timeStyle: "short",
           })
         : "";
-      const inviteText = [
+      const inviteText = formatSacOutgoingText([
         `Olá, ${signerFirstName}! ${companyName} enviou o documento “${documentName}” para sua assinatura eletrônica.`,
         expiresAt ? `O link é válido até ${expiresAt}.` : "",
         `Acesse para revisar e assinar: ${link}`,
-      ].filter(Boolean).join("\n\n");
+      ].filter(Boolean).join("\n\n"), "Sistema");
 
       const notification = await apiRequest(
         organizationId,
@@ -3398,10 +3407,12 @@ Deno.serve(async request => {
       }
 
       const orderId = String(body.order_id || "").trim();
-      const text = String(body.text || "").trim();
+      let text = String(body.text || "").trim();
       if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
       if (!text) return json({ success: false, error: "Digite uma mensagem para enviar." }, 400);
       if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
+      text = formatSacOutgoingText(text, "Sistema");
+      if (text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
 
       const { data: order, error: orderError } = await admin
         .from("service_orders")
@@ -3864,12 +3875,16 @@ Deno.serve(async request => {
 
     if (action === "send_message") {
       if (!(await requirePermission("sac_digital.messages.send"))) return json({success:false,error:"Sem permissão para enviar mensagens."},403);
-      const protocol=String(body.protocol || '').trim(), text=String(body.text || '').trim();
+      const protocol=String(body.protocol || '').trim();
+      let text=String(body.text || '').trim();
       if(!validProtocol(protocol)) return json({success:false,error:"Protocolo inválido."},400);
       if(!text || text.length>5000) return json({success:false,error:"Digite uma mensagem de até 5000 caracteres."},400);
       const {data:messageProtocol,error}=await admin.from('sac_digital_protocols').select('id,status,closed_at').eq('organization_id',organizationId).eq('external_protocol_id',protocol).maybeSingle();
       if(error || !messageProtocol) return json({success:false,error:"Protocolo não encontrado nesta empresa."},404);
       if(messageProtocol.status==='finished' || messageProtocol.closed_at) return json({success:false,error:"Não é possível enviar a um protocolo finalizado."},409);
+      const senderBinding = await resolveMyOperatorBinding();
+      text = formatSacOutgoingText(text, senderBinding?.name || 'Sistema');
+      if(text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
       const submission=await beginLocalSubmission(messageProtocol.id,{message_type:'text',body_text:text});
       if(submission.duplicate) return submissionResponse(submission.row,protocol);
       const key=typeof body.intent_key==='string' ? `${userData.user.id}:${body.intent_key.slice(0,160)}` : undefined;
