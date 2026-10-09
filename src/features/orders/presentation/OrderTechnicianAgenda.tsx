@@ -111,15 +111,19 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
               && minutes(time) > minutes(selectedStart)
               && rangeAvailable(workday, selectedStart, time, blocks, selectedDate));
             const selectable = canStart || canEnd;
+            const endOnly = !canStart && workday.work_intervals.some(period => period.end_time === time);
             const isEndpoint = time === selectedStart || time === selectedEnd;
             const inRange = Boolean(selectedEnd && selectedStart
               && minutes(time) >= minutes(selectedStart) && minutes(time) <= minutes(selectedEnd));
             return <button key={time} type="button" disabled={!selectable && !inRange}
               onClick={() => clickTime(time)} aria-pressed={inRange || isEndpoint}
-              title={selectable ? (canEnd ? "Definir término" : "Definir início") : "Horário indisponível ou fora do expediente"}
+              title={selectable ? (canEnd ? "Definir término" : "Definir início")
+                : endOnly ? "Limite do expediente: selecione primeiro um início para poder terminar aqui"
+                : "Horário indisponível ou fora do expediente"}
               className={`h-10 rounded-lg border px-2 text-xs font-bold transition-colors
                 ${inRange || isEndpoint ? "border-blue-400 bg-blue-100 text-blue-900 ring-1 ring-blue-300"
                   : selectable ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                  : endOnly ? "cursor-not-allowed border-emerald-300 bg-emerald-50 text-emerald-700"
                   : "cursor-not-allowed border-red-200 bg-red-50 text-red-700"}`}>
               {time}
             </button>;
