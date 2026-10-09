@@ -26,6 +26,7 @@ import {
 } from "../domain/registration-form";
 import type { RegistrationRole, SupplierInventoryItem } from "../infrastructure/registrations.repository";
 import { EmployeeSignatureSection } from "./EmployeeSignatureSection";
+import { EmployeeAgendaSection } from "./EmployeeAgendaDialog";
 import { RegistrationAddressesEditor } from "./RegistrationAddressesEditor";
 import { SupplierItemsEditor } from "./SupplierItemsEditor";
 
@@ -50,6 +51,7 @@ export function RegistrationEditor({
   supplierItems,
   setSupplierItems,
   organizationId,
+  employeeId,
   canModify,
   showAccess,
   accessForm,
@@ -74,6 +76,7 @@ export function RegistrationEditor({
   supplierItems: SupplierInventoryItem[];
   setSupplierItems: Dispatch<SetStateAction<SupplierInventoryItem[]>>;
   organizationId: string | null;
+  employeeId?: string | null;
   canModify: boolean;
   showAccess?: boolean;
   accessForm: EmployeeAccessFormState;
@@ -202,6 +205,7 @@ export function RegistrationEditor({
         </div>}
       </Section>}
 
+      {form.roles.includes("employee") && <EmployeeAgendaSection organizationId={organizationId} employeeId={employeeId} canManage={canModify} />}
       {form.roles.includes("employee") && <EmployeeSignatureSection organizationId={organizationId} entityId={registrationId} canManage={canManageEmployeeSignature} />}
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}

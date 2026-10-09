@@ -629,6 +629,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         supplierItems={supplierItems}
         setSupplierItems={setSupplierItems}
         organizationId={activeOrganizationId}
+        employeeId={!creating ? selected?.legacy_employee_id : null}
         canModify={creating ? canCreate : canEdit}
         accessForm={accessForm}
         onAccessChange={updateAccess}

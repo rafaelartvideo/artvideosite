@@ -13,6 +13,7 @@ import type { useOrdersWorkspace } from "./useOrdersWorkspace";
 import type { useOrderServiceAddress } from "./useOrderServiceAddress";
 import { beginAdminLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
+import { assertEmployeeScheduleAvailable } from "@/features/appointments/infrastructure/employee-agenda.repository";
 type PermissionCheck=(permission:string)=>boolean; type Toast={msg:string;type:"success"|"error"};
 type Options={userId?:string;workspace:ReturnType<typeof useOrdersWorkspace>;formState:ReturnType<typeof useOrderFormState>;images:ReturnType<typeof useOrderImages>;customers:ReturnType<typeof useOrderCustomerSelection>;address:ReturnType<typeof useOrderServiceAddress>;customerPersistence:ReturnType<typeof useOrderCustomerPersistence>;hasPermission:PermissionCheck;showToast:Dispatch<SetStateAction<Toast|null>>;setSaving:Dispatch<SetStateAction<boolean>>;formatError:(error:unknown)=>string;organizationIdOverride?:string|null;};
 export function useOrderEditorWorkflow({userId,workspace,formState,images,customers,address,customerPersistence,hasPermission,showToast,setSaving,formatError,organizationIdOverride}:Options){
@@ -26,6 +27,16 @@ export function useOrderEditorWorkflow({userId,workspace,formState,images,custom
   if(!editingOrder){if(!images.orderImages.some(image=>image.kind==="label")){showToast({msg:"Adicione a foto da etiqueta do equipamento antes de salvar a OS.",type:"error"});return false;}const checklistError=validateNewOrderEntryChecklist();if(checklistError){showToast({msg:checklistError,type:"error"});return false;}}
   const technicalFields=workspace.technicalFieldLinks.filter((link:any)=>link.equipment_type_id===formState.form.equipment_type_id).map((link:any)=>({...link,technical_field:link.technical_field||workspace.technicalFields.find((field:any)=>field.id===link.technical_field_id)}));
   const preparation=prepareOrderForm({form:formState.form,editingOrder,userId,selectedCustomerId:customers.selectedCustomer?.id,serviceUseCustomerAddress:address.serviceUseCustomerAddress,serviceCustomerAddressOverride:address.serviceCustomerAddressOverride,selectedServiceAddress:address.selectedServiceAddress,needsScheduling:formState.needsScheduling,equipmentBrands:workspace.equipmentBrands,equipmentModels:workspace.equipmentModels,technicalFields,technicalValues:formState.form.technicalValues});if("error" in preparation){showToast({msg:preparation.error,type:"error"});return false;}
+  if (formState.needsScheduling) {
+    const technicianId = formState.selectedTechnicianIds[0];
+    if (!technicianId) { showToast({ msg: "Selecione o técnico para consultar a agenda.", type: "error" }); return false; }
+    try {
+      await assertEmployeeScheduleAvailable(organizationId, technicianId, formState.form.scheduled_at, editingOrder?.id);
+    } catch (scheduleError) {
+      showToast({ msg: `Não foi possível confirmar o agendamento: ${formatError(scheduleError)}`, type: "error" });
+      return false;
+    }
+  }
   setSaving(true);const{status,error:statusError}=await getOrderSubmissionStatus({organizationId,editingOrder,statusId:formState.form.status_id});if(statusError||!status?.id){showToast({msg:"Não foi possível identificar um status válido para a OS.",type:"error"});return false;}if(customers.editingCustomer&&customers.selectedCustomer?.id&&!(await customerPersistence.saveCustomerBeforeOrder()))return false;
   const payload=buildOrderPayload({form:formState.form,editingOrder,userId,statusId:status.id,prepared:preparation.prepared,selectedTechnicianIds:formState.selectedTechnicianIds,selectedSellerIds:formState.selectedSellerIds,needsScheduling:formState.needsScheduling,serviceUseCustomerAddress:address.serviceUseCustomerAddress});if(!editingOrder&&!creationRequestIdRef.current)creationRequestIdRef.current=crypto.randomUUID();const technicalValues=buildTechnicalValuesPayload({serviceOrderId:editingOrder?.id||creationRequestIdRef.current||"00000000-0000-0000-0000-000000000000",technicalFields,technicalValues:formState.form.technicalValues});
   const submission=await persistServiceOrder({organizationId,editingOrder,pendingOrderId:formState.pendingCreatedOrderId,creationRequestId:creationRequestIdRef.current,payload,selectedTechnicianIds:formState.selectedTechnicianIds,selectedSellerIds:formState.selectedSellerIds,technicalValues,orderImages:images.orderImages,uploadImage:(file,kind)=>uploadOrderImage(file,organizationId,kind==="label"?"label":"equipment"),onImageUploaded:images.markOrderImageUploaded,saveTechnicalValues:async orderId=>saveServiceOrderTechnicalValues(orderId,buildTechnicalValuesPayload({serviceOrderId:orderId,technicalFields,technicalValues:formState.form.technicalValues}))});

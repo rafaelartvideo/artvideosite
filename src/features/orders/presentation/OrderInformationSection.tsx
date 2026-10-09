@@ -2,6 +2,7 @@ import type { Dispatch, SetStateAction } from "react";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
 import { EmployeeMultiSelect } from "./OrderFormControls";
+import { OrderTechnicianAgenda } from "./OrderTechnicianAgenda";
 
 export function OrderInformationSection({
   form,
@@ -76,12 +77,15 @@ export function OrderInformationSection({
                       className="w-fit grid-cols-2"
                     />
                   </div>
-                  {needsScheduling && (
-                    <div className="grid grid-cols-2 gap-3">
-                      <FInput label="Data agendada" type="date" required value={form.scheduled_at.slice(0, 10)} onChange={(e: any) => upF("scheduled_at", `${e.target.value}${form.scheduled_at.slice(10) || "T"}`)} />
-                      <FInput label="Hora agendada" type="time" required value={form.scheduled_at.slice(11, 16)} onChange={(e: any) => upF("scheduled_at", `${form.scheduled_at.slice(0, 10)}T${e.target.value}`)} />
-                    </div>
-                  )}
+                  {needsScheduling && <OrderTechnicianAgenda
+                    form={form}
+                    employees={employees}
+                    technicianIds={selectedTechnicianIds}
+                    onTechniciansChange={setSelectedTechnicianIds}
+                    onFieldChange={upF}
+                    canAssign={canAssign}
+                    editingOrderId={editingOS?.id}
+                  />}
                 </div>
                 <div className="space-y-4">
                   <div>
