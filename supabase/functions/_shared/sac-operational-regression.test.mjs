@@ -11,8 +11,9 @@ test('an application token with empty operator subject is not operational authen
  assert.equal(gateway.operatorTokenError(jwt('123')),null);
  assert.equal(gateway.operatorTokenError('opaque-provider-token'),null);
 });
-test('new conversations notify contacts before requiring an assigned operational protocol',()=>{
- assert.equal(gateway.newConversationRoute('operator',null),'notification');
+test('new conversations require a real protocol and never default to notification',()=>{
+ assert.equal(gateway.newConversationRoute('operator',null),'forward');
+ assert.equal(gateway.newConversationRoute('manager',null),'forward');
  assert.equal(gateway.newConversationRoute('operator',{isAtt:false}),'client');
  assert.equal(gateway.newConversationRoute('operator',{isAtt:true}),'operator');
  assert.equal(gateway.newConversationRoute('manager',{isAtt:true}),'notification');
