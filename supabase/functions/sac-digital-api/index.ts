@@ -1,5 +1,6 @@
 import { authorizationUrl, returnPath, stateHash } from '../_shared/sac-oauth.mjs';
 import { authorizedOperatorToken } from '../_shared/sac-oauth-session.ts';
+import { assertOperatorIdentity, fetchSacOperatorDirectory } from '../_shared/sac-operator-identity.mjs';
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 import { SAC_ENDPOINTS, buildSacRequest, mediaLimit } from "../_shared/sac-contracts.mjs";
@@ -1026,9 +1027,7 @@ Deno.serve(async request => {
           method:'GET',headers:{Authorization:`Bearer ${token}`,Accept:'application/json'},
         });
         if(!responseEnvelope(profile.body,profile.response.status).success) throw Object.assign(new Error('Sua sessão SAC foi recusada. Clique em Autorizar Operador.'),{code:'operator_authorization_required'});
-        const info=profile.body.info as Record<string,unknown> | undefined;
-        if(!String(info?.id || '').trim()) throw Object.assign(new Error('A SAC não confirmou a identificação do perfil autorizado.'),{code:'operator_auth_contract_unverified'});
-        if(String(info?.id || '').trim()!==operatorId) throw Object.assign(new Error('A conta autorizada não corresponde ao Operador vinculado. Entre na SAC com o Operador correto.'),{code:'operator_identity_mismatch'});
+        await assertOperatorIdentity(profile.body,operatorId,()=>fetchSacOperatorDirectory(credentials));
       } catch(error) {socket.close();if(!(error as any)?.code) Object.assign(error as object,{code:'operator_session_unavailable'});throw error;}
       return {token,socket};
     };

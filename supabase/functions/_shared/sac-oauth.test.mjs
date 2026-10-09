@@ -118,3 +118,17 @@ test('read/save RPC failures and incomplete OAuth grants are rejected before any
   assert.equal(result.outcome,'rejected',failure);assert.equal(recorded,'rejected',failure);assert.equal(transported,false);
  }
 });
+
+test('SAC profile without info.id is confirmed against its unique Operator email in the company directory',async()=>{
+ const f=callbackFixture();
+ const original=f.deps.fetcher;
+ f.deps.fetcher=async(url,request)=>{
+  if(url.endsWith('/oauth/token')) return original(url,request);
+  if(url.endsWith('/client/auth2/login')) return Response.json({status:true,token:'directory-token'});
+  if(url.includes('/client/operator/all')) return Response.json({status:true,list:[{id:'op',name:'Atendente',email:'operator@example.test'}],has_more:false});
+  return Response.json({status:true,info:{name:'Atendente',email:'Operator@Example.Test',departments:[]}});
+ };
+ const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
+ assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
+ assert.equal(f.inspect().saved.p_operator_id,'op');
+});

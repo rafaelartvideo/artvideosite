@@ -1,4 +1,5 @@
 import { exchangeToken, resultUrl, stateHash, SAC_OAUTH_CALLBACK } from './sac-oauth.mjs';
+import { assertOperatorIdentity, fetchSacOperatorDirectory } from './sac-operator-identity.mjs';
 export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSocket,profileAccepted,operatorTokenError}) {
  const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Type':'text/plain; charset=utf-8'};
  if(request.method!=='GET') return new Response('Método não permitido.',{status:405,headers});
@@ -12,6 +13,7 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSo
  let result='success';
  let socket=null;
  let leased=false;
+ let stage='credentials';
  const ownerId=crypto.randomUUID();
  try {
   if(url.searchParams.has('error')) throw Object.assign(Error('Consentimento recusado.'),{code:'access_denied'});
@@ -20,19 +22,22 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSo
   const loaded=await admin.rpc('sac_digital_service_credentials',{p_organization_id:context.organization_id});
   if(loaded.error || !loaded.data?.enabled || loaded.data.client_id!==context.client_id) throw Error('Credencial alterada.');
   const credentials={clientId:loaded.data.client_id,clientSecret:loaded.data.client_secret};
+  stage='token_exchange';
   const tokens=await exchangeToken(credentials,{grant_type:'authorization_code',redirect_uri:SAC_OAUTH_CALLBACK,code},fetcher);
   if(operatorTokenError(tokens.access_token)) throw Object.assign(Error('Perfil ausente.'),{code:'operator_authorization_required'});
   const lease=await admin.rpc('sac_digital_acquire_operator_lease',{p_organization_id:context.organization_id,p_operator_id:context.operator_id,p_owner_id:ownerId});
   if(lease.error || lease.data!==true) throw Object.assign(Error('Sessão em uso.'),{code:'operator_session_busy'});
   leased=true;
+  stage='operator_profile';
   socket=await openSocket(tokens.access_token);
   const profile=await fetcher('https://api.sac.digital/v2/operator/perfil/info',{
    headers:{Authorization:`Bearer ${tokens.access_token}`,Accept:'application/json'},signal:AbortSignal.timeout(15000),
   });
   const body=await profile.json();
   if(!profileAccepted(body,profile.status)) throw Object.assign(Error('Perfil não autorizado.'),{code:'operator_profile_incompatible'});
-  if(!String(body.info?.id || '').trim()) throw Object.assign(Error('Identidade não confirmada.'),{code:'operator_auth_contract_unverified'});
-  if(String(body.info.id).trim()!==context.operator_id) throw Object.assign(Error('Outro Operador.'),{code:'operator_identity_mismatch'});
+  stage='profile_identity';
+  await assertOperatorIdentity(body,context.operator_id,()=>fetchSacOperatorDirectory(credentials,fetcher));
+  stage='session_save';
   const saved=await admin.rpc('sac_digital_operator_session_set',{
    p_organization_id:context.organization_id,p_user_id:context.user_id,p_operator_id:context.operator_id,
    p_binding_version:context.binding_version,p_client_id:context.client_id,p_tokens:tokens,
@@ -42,7 +47,7 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,openSo
   const code=String(error?.code || 'authorization_failed');
   result=['access_denied','operator_authorization_required','operator_scope_missing','operator_profile_incompatible','operator_identity_mismatch','operator_auth_contract_unverified','operator_session_unavailable','operator_session_busy'].includes(code)?code:'authorization_failed';
   // Never log provider response, code, token, secret or callback query.
-  console.warn('[SAC OAuth] Authorization rejected',{organization_id:context.organization_id,type:result});
+  console.warn('[SAC OAuth] Authorization rejected',{organization_id:context.organization_id,type:result,stage});
  } finally {
   socket?.close();
   if(leased) {
