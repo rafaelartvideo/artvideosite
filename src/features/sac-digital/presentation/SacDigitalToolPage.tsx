@@ -33,6 +33,7 @@ import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomer
 import { SacDigitalNewConversationDialog } from "./SacDigitalNewConversationDialog";
 import {
   AdminButton,
+  AdminIconButton,
   BtnSecondary,
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
@@ -1860,7 +1861,7 @@ export function SacDigitalToolPage({
                       </AdminButton>
                     )}
 
-                    {selectedProtocol.contact?.customer_id && canCreateOrders && onCreateOrder && (
+                    {selectedProtocol.contact?.customer_id && canCreateOrders && onCreateOrder && !(canViewOrders || canViewCustomers) && (
                       <AdminButton
                         variant="secondary"
                         onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}
@@ -2340,18 +2341,25 @@ export function SacDigitalToolPage({
                           {protocolDisplayName(selectedProtocol)} · {formatPhone(selectedProtocol.contact.phone)}
                         </p>
                       </div>
-                      <AdminButton size="sm" variant="ghost"
-                        aria-label="Fechar dados do cliente" title="Fechar dados do cliente"
-                        className="h-8 w-8 shrink-0 px-0" onClick={closeCustomerOrders}>
-                        <X size={16} />
-                      </AdminButton>
+                      <AdminIconButton variant="ghost"
+                        ariaLabel="Fechar dados do cliente" title="Fechar dados do cliente"
+                        className="h-10 w-10 shrink-0" onClick={closeCustomerOrders}>
+                        <X size={20} />
+                      </AdminIconButton>
                     </div>
-                    {canViewCustomers && onOpenCustomer && (
-                      <div className="mt-3">
-                        <AdminButton size="sm" variant="secondary"
-                          onClick={() => onOpenCustomer(selectedProtocol.contact!.customer_id!)}>
-                          Abrir cadastro
-                        </AdminButton>
+                    {((canViewCustomers && onOpenCustomer) || (canCreateOrders && onCreateOrder)) && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {canViewCustomers && onOpenCustomer && (
+                          <AdminButton size="sm" variant="secondary"
+                            onClick={() => onOpenCustomer(selectedProtocol.contact!.customer_id!)}>
+                            Abrir cadastro
+                          </AdminButton>
+                        )}
+                        {canCreateOrders && onCreateOrder && (
+                          <AdminButton size="sm" onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}>
+                            Nova OS
+                          </AdminButton>
+                        )}
                       </div>
                     )}
                     {customerOrdersLoading ? (
@@ -2412,13 +2420,6 @@ export function SacDigitalToolPage({
                             </div>
                           </section>
                         )}
-                      </div>
-                    )}
-                    {canCreateOrders && onCreateOrder && (
-                      <div className="mt-3 flex justify-end">
-                        <AdminButton onClick={() => onCreateOrder(selectedProtocol.contact!.customer_id!)}>
-                          Nova OS
-                        </AdminButton>
                       </div>
                     )}
                     </div>
