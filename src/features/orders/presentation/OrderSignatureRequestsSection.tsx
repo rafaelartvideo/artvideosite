@@ -34,6 +34,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminDialog, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
+import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { SignatureQrDialog } from "./SignatureQrDialog";
 
 type PermissionCheck = (permission: string) => boolean;
@@ -291,16 +292,8 @@ export function OrderSignatureRequestsSection({
       onClose={() => setCreateOpen(false)}
       onCreated={result => {
         if (result.link) setCreatedQrLink(result.link);
-        const warning = result.whatsapp_warning || result.email_warning || result.finalization_warning;
-        const signed = result.request?.status === "signed";
-        setMessage({
-          text: warning
-            ? `Solicitação criada. Atenção: ${warning}`
-            : signed
-              ? "Documento gerado e assinado com sucesso."
-              : "Solicitação criada e link enviado pelo WhatsApp.",
-          type: warning ? "error" : "success",
-        });
+        const feedback = signatureRequestCreationFeedback(result);
+        setMessage({ text: feedback.message, type: feedback.type });
         void load();
       }}
     />

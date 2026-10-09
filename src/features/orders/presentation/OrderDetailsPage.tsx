@@ -13,6 +13,7 @@ import { OrderDetailsContent } from "./OrderDetailsContent";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
+import { signatureRequestCreationFeedback } from "@/features/documents/domain/document-signature-feedback.mjs";
 import { SignatureQrDialog } from "./SignatureQrDialog";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { OrderSituationRecordsPage } from "./OrderSituationRecordsPage";
@@ -405,8 +406,8 @@ export function OrderDetailsPage(props: Props) {
       onClose={() => setSignatureRequestOpen(false)}
       onCreated={result => {
         if (result.link) setSignatureQrLink(result.link);
-        const warning = result.whatsapp_warning || result.email_warning || result.finalization_warning;
-        notifyAdmin(warning ? `Assinatura criada. Atenção: ${warning}` : "Solicitação de assinatura criada.", warning ? "error" : "success");
+        const feedback = signatureRequestCreationFeedback(result);
+        notifyAdmin(feedback.message, feedback.type);
       }}
     />}
     <SignatureQrDialog link={signatureQrLink} onClose={() => setSignatureQrLink(null)} />
