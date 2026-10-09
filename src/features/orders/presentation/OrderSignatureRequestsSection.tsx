@@ -34,6 +34,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminDialog, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
+import { SignatureQrDialog } from "./SignatureQrDialog";
 
 type PermissionCheck = (permission: string) => boolean;
 
@@ -96,6 +97,7 @@ export function OrderSignatureRequestsSection({
   const [requests, setRequests] = useState<DocumentSignatureRequestSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [createdQrLink, setCreatedQrLink] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [auditRequest, setAuditRequest] = useState<DocumentSignatureRequestSummary | null>(null);
@@ -277,6 +279,7 @@ export function OrderSignatureRequestsSection({
       })}</div>}
     </div>
 
+    <SignatureQrDialog link={createdQrLink} onClose={() => setCreatedQrLink(null)} />
     <OrderSignatureRequestDialog
       open={createOpen}
       order={order}
@@ -287,6 +290,7 @@ export function OrderSignatureRequestsSection({
       printedBy={printedBy}
       onClose={() => setCreateOpen(false)}
       onCreated={result => {
+        if (result.link) setCreatedQrLink(result.link);
         const warning = result.whatsapp_warning || result.email_warning || result.finalization_warning;
         const signed = result.request?.status === "signed";
         setMessage({

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Download, ExternalLink, FileCheck2, LockKeyhole, ShieldCheck } from "lucide-react";
+import { Check, Download, ExternalLink, FileCheck2, LockKeyhole, ShieldCheck, PenLine } from "lucide-react";
 import { useParams } from "react-router";
 import {
   completePublicSignature,
@@ -67,6 +67,7 @@ function FrozenPdfPreview({ document }: { document: PublicSignatureDocument }) {
 export function PublicDocumentSignaturePage() {
   const { token = "" } = useParams();
   const padRef = useRef<SignaturePadHandle | null>(null);
+  const signatureSectionRef = useRef<HTMLDivElement | null>(null);
   const [step, setStep] = useState<Step>("loading");
   const [inspection, setInspection] = useState<PublicSignatureInspection | null>(null);
   const [documentValue, setDocumentValue] = useState("");
@@ -193,7 +194,7 @@ export function PublicDocumentSignaturePage() {
             <p className="text-[11px] font-black uppercase tracking-[0.16em] text-[#0057e7]">Assinatura eletrônica</p>
             <h1 className="mt-1 truncate text-xl font-black text-[#0d1b2e] sm:text-2xl">{inspection?.company_name || "Documento para assinatura"}</h1>
           </div>
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e8f0ff] text-[#0057e7]"><ShieldCheck size={23} /></div>
+          {step === "document" ? <button type="button" onClick={() => signatureSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })} className="inline-flex h-11 shrink-0 items-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white hover:bg-[#0048c7]"><PenLine size={16} /> Assinar</button> : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#e8f0ff] text-[#0057e7]"><ShieldCheck size={23} /></div>}
         </div>
 
         {step === "loading" && <div className="rounded-2xl border border-[#dbe2ea] bg-white p-8 text-center text-sm font-semibold text-[#64748b]">Carregando solicitação...</div>}
@@ -216,7 +217,7 @@ export function PublicDocumentSignaturePage() {
 
         {step === "document" && signatureDocument && <div className="space-y-5">
           <FrozenPdfPreview document={signatureDocument} />
-          <div className="rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
+          <div ref={signatureSectionRef} className="scroll-mt-6 rounded-2xl border border-[#dbe2ea] bg-white p-5 shadow-sm sm:p-6">
             <h2 className="text-lg font-black">Assine o documento</h2><p className="mt-1 text-sm leading-6 text-[#64748b]">Confira o PDF acima. Sua assinatura será aplicada sobre esta mesma versão congelada, sem recriar o conteúdo.</p>
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-[#dbe2ea] bg-[#f8fafc] p-4">
               <input type="checkbox" checked={consentAccepted} onChange={event => setConsentAccepted(event.target.checked)} className="mt-0.5 h-4 w-4 accent-[#0057e7]" />

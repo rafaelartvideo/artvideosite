@@ -12,6 +12,9 @@ import { OrderDetailsActions } from "./OrderDetailsActions";
 import { OrderDetailsContent } from "./OrderDetailsContent";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
+import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
+import { SignatureQrDialog } from "./SignatureQrDialog";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { OrderSituationRecordsPage } from "./OrderSituationRecordsPage";
 import { OrderPartRequestsSection } from "./OrderPartRequestsSection";
 import { OrderSolutionSummary } from "./OrderSolutionSummary";
@@ -149,6 +152,8 @@ export function OrderDetailsPage(props: Props) {
   const { updateOrderStatus, updateOrderSituation } = mutations;
   const canPrintDocuments = hasPermission("documents.print");
   const canUseSignatureDocuments = hasPermission("documents.signatures.view") || hasPermission("documents.signatures.send");
+  const [signatureRequestOpen, setSignatureRequestOpen] = useState(false);
+  const [signatureQrLink, setSignatureQrLink] = useState<string | null>(null);
   const printTemplates = useOrderPrintTemplates(canPrintDocuments || canUseSignatureDocuments);
   const labelUrl = detail?.id && detail?.organization_id
     ? `${window.location.origin}/admin/orders/${encodeURIComponent(detail.id)}?org=${encodeURIComponent(detail.organization_id)}`
@@ -389,6 +394,22 @@ export function OrderDetailsPage(props: Props) {
       />
     )}
     {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
+    {detail && !monitorView && <OrderSignatureRequestDialog
+      open={signatureRequestOpen}
+      order={detail}
+      templates={printTemplates.templates}
+      usedItems={detailUsedItems}
+      partRequests={detailPartRequests}
+      history={details.detailHistory}
+      printedBy={profileName}
+      onClose={() => setSignatureRequestOpen(false)}
+      onCreated={result => {
+        if (result.link) setSignatureQrLink(result.link);
+        const warning = result.whatsapp_warning || result.email_warning || result.finalization_warning;
+        notifyAdmin(warning ? `Assinatura criada. Atenção: ${warning}` : "Solicitação de assinatura criada.", warning ? "error" : "success");
+      }}
+    />}
+    <SignatureQrDialog link={signatureQrLink} onClose={() => setSignatureQrLink(null)} />
     <OrderDocumentsPage
       open={documentsPageOpen}
       order={detail}
@@ -475,6 +496,7 @@ export function OrderDetailsPage(props: Props) {
             hasPermission={hasPermission}
             orderImages={orderImages}
             onViewImage={setViewImage}
+            onSendSignature={!monitorView && hasPermission("documents.signatures.send") ? () => setSignatureRequestOpen(true) : undefined}
             onWhatsApp={!monitorView && canSendSac
               ? () => void openCustomerWhatsApp()
               : undefined}
