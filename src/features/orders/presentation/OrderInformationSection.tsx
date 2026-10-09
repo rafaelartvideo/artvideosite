@@ -72,7 +72,7 @@ export function OrderInformationSection({
                     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
                     <AdminSegmentedControl
                       value={needsScheduling ? "yes" : "no"}
-                      onChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) upF("scheduled_at", ""); }}
+                      onChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) { upF("scheduled_at", ""); upF("scheduled_end_at", ""); } }}
                       options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
                       className="w-fit grid-cols-2"
                     />

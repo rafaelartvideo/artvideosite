@@ -32,7 +32,7 @@ export function useOrderEditorWorkflow({userId,workspace,formState,images,custom
     if (!technicianIds.length) { showToast({ msg: "Selecione o técnico para consultar a agenda.", type: "error" }); return false; }
     try {
       for (const technicianId of technicianIds) {
-        await assertEmployeeScheduleAvailable(organizationId, technicianId, formState.form.scheduled_at, editingOrder?.id);
+        await assertEmployeeScheduleAvailable(organizationId, technicianId, formState.form.scheduled_at, formState.form.scheduled_end_at, editingOrder?.id);
       }
     } catch (scheduleError) {
       showToast({ msg: `Não foi possível confirmar o agendamento: ${formatError(scheduleError)}`, type: "error" });

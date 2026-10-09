@@ -24,6 +24,7 @@ const createEmptyOrderForm = () => ({
   equipment_condition: "",
   priority: "normal",
   scheduled_at: "",
+  scheduled_end_at: "",
   started_at: "",
   completed_at: "",
   internal_notes: "",
@@ -114,6 +115,9 @@ export function useOrderFormState() {
       scheduled_at: order.scheduled_at
         ? order.scheduled_at.slice(0, 16)
         : "",
+      scheduled_end_at: order.scheduled_end_at
+        ? order.scheduled_end_at.slice(0, 16)
+        : order.scheduled_at ? new Date(new Date(order.scheduled_at).getTime() + 60 * 60_000).toISOString().slice(0, 16) : "",
       started_at: order.started_at ? order.started_at.slice(0, 16) : "",
       completed_at: order.completed_at ? order.completed_at.slice(0, 16) : "",
       internal_notes: order.internal_notes || "",

@@ -42,7 +42,7 @@ export async function loadAgendaData({
 
   let ordersQuery = supabase
     .from("service_orders")
-    .select("id,os_number,scheduled_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
+    .select("id,os_number,scheduled_at,scheduled_end_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
     .eq("organization_id", org)
     .not("scheduled_at", "is", null)
     .gte("scheduled_at", timestampFrom)

@@ -110,9 +110,12 @@ export function prepareOrderForm({
       error: "Informe CEP, estado, cidade, rua e número para uma OS externa.",
     };
   }
-  if (needsScheduling && !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(form.scheduled_at || ""))) {
+  if (needsScheduling && (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(form.scheduled_at || ""))
+    || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(String(form.scheduled_end_at || ""))
+    || form.scheduled_end_at.slice(0, 10) !== form.scheduled_at.slice(0, 10)
+    || form.scheduled_end_at <= form.scheduled_at)) {
     return {
-      error: "Informe a data e hora agendadas ou selecione Não.",
+      error: "Escolha o horário de início e depois o término da OS, no mesmo dia.",
     };
   }
   if (
@@ -210,6 +213,7 @@ export function buildOrderPayload({
     equipment_condition: form.equipment_condition || null,
     priority: form.priority || "normal",
     scheduled_at: needsScheduling ? form.scheduled_at || null : null,
+    scheduled_end_at: needsScheduling ? form.scheduled_end_at || null : null,
     started_at: form.started_at || null,
     completed_at: form.completed_at || null,
     internal_notes: form.internal_notes || null,
