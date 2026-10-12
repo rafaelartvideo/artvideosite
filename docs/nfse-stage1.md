@@ -7,15 +7,23 @@
 - Rascunhos de OS consideram exclusivamente `service_order_items.item_type in ('service','custom_service')`.
 - A API futura devera ser integrada no backend, nunca no navegador. O contrato estah em `src/features/nfse/domain/nfse-provider.ts`.
 
-## Aplicar no Supabase correto
-A conexao Supabase disponivel ao preparar esta etapa apontou para o projeto da **fila** (qaltlxrrbpffjmrfxutd); nao foi feito DDL nele. No CRM, confirmar o project ref pelo endpoint usado na Union. O projeto da fila **nao** deve receber esta migracao.
+## Implantacao no Supabase CRM
+**Aplicada em 12/10/2026** ao projeto CRM `wmjmtcjpunmzvonlkjcu` pelo conector Supabase, como migracao `nfse_stage1_foundation`.
 
-1. Abra SQL Editor do projeto **CRM Union World**.
-2. Execute `supabase/migrations/20261012103000_nfse_stage1_foundation.sql` uma unica vez (apos as migracoes anteriores).
-3. Confirme tabelas: `fiscal_company_settings`, `fiscal_service_mappings`, `fiscal_documents`, `fiscal_document_items`.
-4. Confira permissoes de cada funcao (ver/rascunhos/codigos/configuracoes) e as habilitacoes do modulo `nfse` por empresa.
-5. Recarregue a sessao da Union para atualizar o bootstrap de permissoes.
-6. Abra Notas Fiscais, salve a configuracao, mapeie um servico e crie rascunho a partir de uma OS de teste.
+Verificacao no CRM apos aplicacao:
+- 4 tabelas fiscais criadas com RLS ativo; nenhuma linha de NFS-e.
+- 4 permissoes fiscais; 40 vinculacoes de permissao a funcoes existentes.
+- Modulo `nfse` habilitado para as 4 organizacoes existentes.
+- Constraints bloqueiam `emission_enabled`, `automatic_emission_enabled` e qualquer status diferente de `draft`.
+- O projeto de fila `qaltlxrrbpffjmrfxutd` nao foi alterado.
+
+**Nao execute novamente a migracao em producao.** Para outros ambientes, aplique o SQL apenas apos conferir a estrutura e o historico de migracoes.
+
+Ainda pendente de teste funcional autenticado (na interface):
+1. Recarregue a sessao da Union para atualizar permissoes.
+2. Abra Notas Fiscais, salve a configuracao fiscal e mapeie um servico.
+3. Abra uma OS com servico para preparar um rascunho sem transmissao.
+4. Confirme que usuario de outra empresa nao visualiza o rascunho.
 
 ## Consultas de verificacao
 ```sql
