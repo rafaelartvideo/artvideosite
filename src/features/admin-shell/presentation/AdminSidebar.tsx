@@ -81,11 +81,11 @@ export function AdminSidebar({
     ["quotes", "orders", "customers", "agenda"].includes(item.id),
   );
   const commercialItems = visibleMainItems.filter(item =>
-    !isPlatformOperatorOrganization && ["inventory", "pdv", "finance"].includes(item.id),
+    !isPlatformOperatorOrganization && ["inventory", "pdv", "finance", "nfse"].includes(item.id),
   );
   const administrationItems = visibleMainItems.filter(item =>
     isPlatformOperatorOrganization
-      ? ["partnerCompanies", "finance", "audit"].includes(item.id)
+      ? ["partnerCompanies", "finance", "nfse", "audit"].includes(item.id)
       : ["partnerCompanies", "audit"].includes(item.id),
   );
   const communicationItems = visibleMainItems.filter(item =>

@@ -12,7 +12,7 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
-  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
+  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", terms: "Termos/Garantia", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas Parceiras",
@@ -100,6 +100,12 @@ export function permissionSectionName(permission: PermissionRecord) {
   }
   if (module === "employees") return key === "employees.view" ? "Acesso" : "Ações";
   if (module === "queue") return key === "queue.view" ? "Acesso" : "Configurações";
+  if (module === "nfse") {
+    if (key === "nfse.view") return "Acesso";
+    if (key.startsWith("nfse.drafts.")) return "Rascunhos";
+    if (key.startsWith("nfse.services.")) return "Códigos Fiscais";
+    return "Configurações";
+  }
   if (module === "sac_digital") {
     if (key === "sac_digital.view") return "Acesso";
     if (key.startsWith("sac_digital.messages.")) return "Mensagens";
