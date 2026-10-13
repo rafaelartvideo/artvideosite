@@ -231,12 +231,6 @@ export function OrderSacDigitalDialog({
               ? " Você pode abrir o atendimento para continuar a conversa."
               : " O atendimento ainda não possui um protocolo confirmado na Union."}
           </p>
-          <div className="mt-1 rounded-lg border border-border bg-muted/30 px-5 py-3">
-            <p className="text-sm font-semibold text-foreground">{orderCustomerName(order) || "Cliente"}</p>
-            <p className="text-xs text-muted-foreground">
-              OS {order?.os_number || order?.external_os_number || "sem número"}
-            </p>
-          </div>
         </div>
       ) : (
       <div className="space-y-3">
