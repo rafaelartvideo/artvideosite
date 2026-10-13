@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
+import { UnionEquipmentTemplates } from "./UnionEquipmentTemplates";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import {
@@ -335,6 +336,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
                 {related.filter(item => item.selected).length} vínculo(s) ativo(s) neste cadastro.
               </p>
             </div>}
+            {!creating && selectedId && kind === "equipment" && <UnionEquipmentTemplates equipmentId={selectedId} canManage={canManage} />}
             {!creating && selectedId && kind === "brand" && <div className="mt-5 border-t border-[#e3e8f0] pt-4 text-sm text-[#66758a]">
               Marcas são cadastradas uma única vez. Para vinculá-las, abra a aba Equipamentos e selecione o equipamento.
             </div>}
