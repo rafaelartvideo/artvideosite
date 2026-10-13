@@ -13,10 +13,11 @@ type Props = {
   canCreate: boolean;
   canEdit: boolean;
   canManageFields: boolean;
+  canManageChecklists: boolean;
   onImported: () => Promise<unknown>;
 };
 
-export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, canEdit, canManageFields, onImported }: Props) {
+export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, canEdit, canManageFields, canManageChecklists, onImported }: Props) {
   const [catalog, setCatalog] = useState<CompanyOfficialCatalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [workingKey, setWorkingKey] = useState("");
@@ -169,6 +170,7 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
       organizationId={organizationId}
       equipmentCatalogId={activeType.id}
       canManage={canEdit && canManageFields}
+      canManageChecklists={canEdit && canManageChecklists}
       onAdded={onImported}
     />}
     <CompanyCatalogUpdates organizationId={organizationId} canEdit={canEdit} onUpdated={onImported} />
