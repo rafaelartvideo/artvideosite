@@ -89,8 +89,9 @@ export function useFinanceEntries(
     queryFn: () => getFinancialEntryDetail(organizationId, String(selectedEntryId)),
   });
 
-  const invalidateEntry = async (entryId: string) => {
-    await Promise.all([
+  const invalidateEntry = (entryId: string) => {
+    // A mutação já foi confirmada: não manter isPending durante reconsultas.
+    [
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.entries(organizationKey, entryType) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.entry(organizationKey, entryId) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.settlements(organizationKey, entryId) }),
@@ -98,36 +99,36 @@ export function useFinanceEntries(
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.pendingApprovals(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) }),
-    ]);
+    ].forEach(query => { void query; });
   };
 
   const saveMutation = useMutation({
     mutationFn: (draft: FinancialEntryDraft) => saveFinancialEntry(organizationId, draft),
-    onSuccess: async id => invalidateEntry(id),
+    onSuccess: id => invalidateEntry(id),
   });
 
   const decisionMutation = useMutation({
     mutationFn: ({ id, action, note }: { id: string; action: FinancialApprovalAction; note?: string | null }) =>
       decideFinancialEntry(organizationId, id, action, note),
-    onSuccess: async (_result, variables) => invalidateEntry(variables.id),
+    onSuccess: (_result, variables) => invalidateEntry(variables.id),
   });
 
   const settlementMutation = useMutation({
     mutationFn: (draft: FinancialSettlementDraft) => registerFinancialSettlement(organizationId, draft),
-    onSuccess: async (_result, draft) => invalidateEntry(draft.entry_id),
+    onSuccess: (_result, draft) => invalidateEntry(draft.entry_id),
   });
 
   const confirmSettlementMutation = useMutation({
     mutationFn: ({ settlementId }: { settlementId: string }) => confirmFinancialSettlement(organizationId, settlementId),
-    onSuccess: async () => {
-      if (selectedEntryId) await invalidateEntry(selectedEntryId);
+    onSuccess: () => {
+      if (selectedEntryId) invalidateEntry(selectedEntryId);
     },
   });
 
   const reverseSettlementMutation = useMutation({
     mutationFn: ({ settlementId, reason }: { settlementId: string; reason: string }) => reverseFinancialSettlement(organizationId, settlementId, reason),
-    onSuccess: async () => {
-      if (selectedEntryId) await invalidateEntry(selectedEntryId);
+    onSuccess: () => {
+      if (selectedEntryId) invalidateEntry(selectedEntryId);
     },
   });
 
