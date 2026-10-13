@@ -39,7 +39,6 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "inventory", label: "Estoque", icon: Package },
   { id: "pdv", label: "PDV", icon: ShoppingCart },
   { id: "finance", label: "Financeiro", icon: Landmark },
-  { id: "nfse", label: "Notas Fiscais", icon: FileText },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
   { id: "audit", label: "Auditoria", icon: History },
   { id: "announcements", label: "Avisos", icon: Megaphone },
@@ -174,6 +173,7 @@ export function isAdminModuleEnabled(
   tab: AdminTab,
   hasModule: (moduleKey: string) => boolean,
 ) {
+  if (tab === "nfse") return false; // Etapa fiscal temporariamente suspensa.
   if (tab === "home" || tab === "crm" || tab === "announcements") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
