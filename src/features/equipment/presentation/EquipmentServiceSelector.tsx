@@ -7,10 +7,12 @@ type Props = {
   loading: boolean;
   error: string | null;
   disabled: boolean;
+  available: boolean;
+  onRetry?: () => void;
   onChange: (ids: string[]) => void;
 };
 
-export function EquipmentServiceSelector({ selectedIds, services, loading, error, disabled, onChange }: Props) {
+export function EquipmentServiceSelector({ selectedIds, services, loading, error, disabled, available, onRetry, onChange }: Props) {
   const chosen = new Set(selectedIds);
   const visible = services.filter(service => service.is_active || chosen.has(service.id));
   return <div className="border-t border-border pt-4">
@@ -20,10 +22,14 @@ export function EquipmentServiceSelector({ selectedIds, services, loading, error
       Os serviços avulsos continuam disponíveis separadamente.
     </p>
     {loading && <p className="mt-3 text-xs text-muted-foreground">Carregando serviços da empresa...</p>}
+    {!loading && !error && !available && <div role="status" className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+      <span>Vínculos de serviços indisponíveis até a atualização do banco de dados. Você ainda pode editar os demais dados do equipamento.</span>
+      {onRetry && <button type="button" onClick={onRetry} className="font-semibold text-primary underline underline-offset-2">Verificar novamente</button>}
+    </div>}
     {error && <p role="alert" className="mt-3 text-xs text-red-600">{error}</p>}
     {!loading && !error && <div className="mt-3 grid grid-cols-1 gap-x-6 sm:grid-cols-2">
       {visible.map(service => <label key={service.id} className="flex cursor-pointer items-center gap-3 border-b border-border py-3 text-xs text-foreground">
-        <Checkbox checked={chosen.has(service.id)} disabled={disabled || (!service.is_active && !chosen.has(service.id))}
+        <Checkbox checked={chosen.has(service.id)} disabled={disabled || !available || (!service.is_active && !chosen.has(service.id))}
           onCheckedChange={value => {
             const ids = value === true ? [...chosen, service.id] : selectedIds.filter(id => id !== service.id);
             onChange(ids);
