@@ -204,11 +204,14 @@ export function AdminDashboard({
 
   useEffect(() => { if (!route.resourceId) setPage(null); setSidebarOpen(false); }, [location.pathname, route.resourceId]);
 
+  // O scroll principal só reinicia ao mudar de módulo ou de registro.
+  // Entre /orders/:id/documents e /orders/:id a área subjacente fica estável,
+  // evitando salto/flash quando o modal de documentos é fechado.
   useEffect(() => {
     const root = contentRef.current;
     if (!root) return;
     root.scrollTo({ top: 0, left: 0, behavior: "auto" });
-  }, [location.pathname, location.search]);
+  }, [activeOrganizationId, activeTab, route.resourceId]);
 
   useEffect(() => { if (canAccessTab(activeTab) || !fallbackTab || fallbackTab === activeTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, fallbackTab, hasPermission, hasModule]);
 
