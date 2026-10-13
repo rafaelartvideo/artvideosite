@@ -602,6 +602,59 @@ Deno.serve(async request => {
           : null;
       const targetTime = new Date(sentAt).getTime();
 
+      // Compatibilidade para envios antigos da OS pela rota Client.
+      // A SAC marcava a cópia dessas mensagens como "contact", apesar de a
+      // Union ter prova local do envio humano. Não reproduzir o falso
+      // recebimento. Remover só a cópia histórica/webhook de conteúdo
+      // IDÊNTICO, no mesmo protocolo e nos 10 segundos do envio pela OS.
+      // Mensagens reais do cliente e novos envios pela rota Operador
+      // permanecem intocados.
+      const legacyOrderEcho = historyBy === "contact" && !shape.mediaUrl
+        ? localMessages.find(row => {
+            const metadata = row.raw_metadata && typeof row.raw_metadata === "object"
+              ? row.raw_metadata : {};
+            const localTime = Date.parse(String(row.sent_at || ""));
+            return row.direction === "outgoing"
+              && metadata.sent_via_union === true
+              && typeof metadata.sent_from_service_order === "string"
+              && metadata.sent_from_service_order.length > 0
+              && String(row.body_text || "").trim() === String(shape.text || "").trim()
+              && Number.isFinite(localTime)
+              && Number.isFinite(targetTime)
+              && Math.abs(localTime - targetTime) <= 10_000;
+          })
+        : null;
+      if (legacyOrderEcho) {
+        const echoes = localMessages.filter(row => {
+          const metadata = row.raw_metadata && typeof row.raw_metadata === "object"
+            ? row.raw_metadata : {};
+          const eventName = String(metadata.event || "");
+          const rowTime = Date.parse(String(row.sent_at || ""));
+          return row.direction === "incoming"
+            && metadata.sent_via_union !== true
+            && String(row.body_text || "").trim() === String(shape.text || "").trim()
+            && Number.isFinite(rowTime) && Math.abs(rowTime - targetTime) <= 10_000
+            && (row.external_message_id === historyId
+              || ["protocol_new_message", "protocol_new_inbox"].includes(eventName));
+        });
+        for (const echo of echoes) {
+          const { error: removeError } = await admin.from("sac_digital_messages")
+            .delete().eq("organization_id", organizationId)
+            .eq("protocol_id", protocolRow.id).eq("id", echo.id);
+          if (removeError) {
+            console.warn("[SAC DIGITAL API] legacy OS echo cleanup postponed", {
+              organization_id: organizationId, protocol, code: removeError.code,
+            });
+            continue;
+          }
+          const index = localMessages.findIndex(row => row.id === echo.id);
+          if (index >= 0) localMessages.splice(index, 1);
+        }
+        reconciledRowIds.add(String(legacyOrderEcho.id));
+        matched += 1;
+        continue;
+      }
+
       const alreadyIndexed = localMessages.find(row => row.external_message_id === historyId || row.external_message_id === `sac-history:${fingerprint}`);
       if (alreadyIndexed) {
         const previousMetadata = alreadyIndexed.raw_metadata && typeof alreadyIndexed.raw_metadata === "object"
