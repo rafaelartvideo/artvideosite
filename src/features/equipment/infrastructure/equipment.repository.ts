@@ -124,8 +124,25 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
     const typeSlug = await generateUniqueSlug("equipment_types", type.name, type.id);
     const typeId = await saveAndGetId("equipment_types", { name: type.name.trim(), slug: typeSlug, is_active: type.is_active, sort_order: 0 }, type.id, organizationId, "Tipo de equipamento não foi salvo.");
 
-    await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields);
-    await saveEquipmentChecklistConfiguration(typeId, type.checklist_profile_id, type.checklistItems);
+    const previousLinks = (catalog.technicalFieldLinks ?? []).filter(link => link.equipment_type_id === type.id);
+    const previousLinksById = new Map(previousLinks.map(link => [link.technical_field_id, link]));
+    const technicalFieldsChanged = previousLinks.length !== type.technicalFields.length || type.technicalFields.some(link => {
+      const original = previousLinksById.get(link.technical_field_id);
+      return !original || original.required !== link.required || Number(original.sort_order) !== Number(link.sort_order);
+    });
+    // A edição de nome/marcas/modelos não precisa da permissão de gerenciar campos extras.
+    if (technicalFieldsChanged) {
+      await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields);
+    }
+
+    const previousChecklistItems = (catalog.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type.id);
+    const checklistChanged =
+      (originalType?.checklist_profile_id ?? null) !== (type.checklist_profile_id ?? null)
+      || JSON.stringify(previousChecklistItems) !== JSON.stringify(type.checklistItems);
+    // Evita excluir e recriar os itens de checklist quando a estrutura não mudou.
+    if (checklistChanged) {
+      await saveEquipmentChecklistConfiguration(typeId, type.checklist_profile_id, type.checklistItems);
+    }
 
     for (const brand of type.brands) {
       const originalBrand = brand.id ? originalBrands.find(item => item.id === brand.id) : undefined;
