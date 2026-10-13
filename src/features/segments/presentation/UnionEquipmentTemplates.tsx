@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   loadUnionCatalogTemplates, saveUnionCatalogTemplate,
   type CatalogChecklistTemplate, type CatalogTechnicalTemplate, type OfficialTemplates,
@@ -113,8 +113,7 @@ export function UnionEquipmentTemplates({
         </div>)}
       </div>}
     </>}
-    {editing && <div className="space-y-3 rounded-lg border border-[#e1e7f0] p-4">
-      <h4 className="text-sm font-bold text-[#17263b]">{editingId ? "Editar template" : "Novo template"}</h4>
+    {editing && <AdminDialog open onClose={() => { if (!saving) setEditing(false); }} title={editingId ? "Editar template" : "Novo template"} className="max-w-2xl" footer={<div className="flex justify-end gap-2"><BtnSecondary disabled={saving} onClick={() => setEditing(false)}>Cancelar</BtnSecondary><BtnPrimary loading={saving} loadingText="Salvando..." onClick={() => void save()}>Salvar</BtnPrimary></div>}><div className="space-y-3">
       {kind === "technical" ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={labelClass}>Chave do campo
           <input className={fieldClass} maxLength={80} disabled={Boolean(editingId)} value={form.field_key}
@@ -182,10 +181,6 @@ export function UnionEquipmentTemplates({
           <input type="checkbox" checked={form.is_active} onChange={e => setForm(x => ({ ...x,is_active:e.target.checked }))}/>Template ativo
         </label>
       </div>
-      <div className="flex flex-wrap justify-end gap-2">
-        <BtnSecondary disabled={saving} onClick={() => setEditing(false)}>Cancelar</BtnSecondary>
-        <BtnPrimary loading={saving} onClick={() => void save()}>Salvar template</BtnPrimary>
-      </div>
-    </div>}
+    </div></AdminDialog>}
   </section>;
 }
