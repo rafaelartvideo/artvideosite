@@ -60,6 +60,8 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       {canViewCurrent && agenda.view === "availability" && <TechnicianAvailabilityCalendar
         organizationId={organizationId}
         technicians={visibleTechnicians}
+        onNavigateWeek={agenda.moveCursor}
+        onGoToToday={() => agenda.setCursor(new Date())}
         date={agenda.cursor.getFullYear() + "-" + String(agenda.cursor.getMonth() + 1).padStart(2, "0") + "-" + String(agenda.cursor.getDate()).padStart(2, "0")}
         technicianFilter={canViewOtherAgendas ? agenda.technicianFilter : agenda.myEmployeeId || "none"}
         onChooseStart={canCreate ? (date, start, employeeId) => newAppointment.openDialog(date, start, employeeId) : undefined}
