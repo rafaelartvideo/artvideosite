@@ -403,7 +403,9 @@ export function useOrderCompletion({
       setOrders(current => current.map(order => order.id === detail.id ? { ...order, ...financial } : order));
       setOpen(false);
       showToast({ msg: financeEnabled ? "OS concluída e integrada ao Financeiro com sucesso." : "OS concluída com sucesso.", type: "success" });
-      await reloadOrders();
+      void reloadOrders().catch(error => {
+        console.warn("[OS] Falha ao atualizar a lista após conclusão:", error);
+      });
     } catch (error) {
       showToast({ msg: `Não foi possível concluir a OS: ${formatError(error)}`, type: "error" });
     } finally {
