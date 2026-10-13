@@ -80,11 +80,13 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   useEffect(() => { if (typePage > typeTotalPages) setTypePage(typeTotalPages); }, [typePage, typeTotalPages]);
   useEffect(() => { if (fieldPage > fieldTotalPages) setFieldPage(fieldTotalPages); }, [fieldPage, fieldTotalPages]);
 
-  const refresh = () => Promise.all([
-    queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }),
-    queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
-  ]);
+  // Invalidações do cache são atualizações secundárias: não devem manter o
+  // botão em "Salvando" após a confirmação da gravação pelo Supabase.
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.orders.workspace() });
+  };
 
   const makeDraft = (type?: EquipmentTypeRow): EquipmentDraft => ({
     id: type?.id,
@@ -144,7 +146,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     try {
       await saveTechnicalField({ id: editingField?.id, label: fieldForm.label, field_key: editingField?.field_key || slugify(fieldForm.label).replace(/-/g, "_"), field_type: fieldForm.field_type, is_active: fieldForm.is_active, sort_order: editingField?.sort_order ?? technicalFields.length * 10 });
       setToast({ msg: editingField ? "Campo atualizado." : "Campo cadastrado.", type: "success" });
-      await refresh();
+      refresh();
       closeEditor();
     } catch (error) { setToast({ msg: `Erro ao salvar campo: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
@@ -152,7 +154,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
 
   const toggleField = async (field: TechnicalField) => {
     if (!canManageFields) return;
-    try { await saveTechnicalField({ ...field, label: field.label, field_key: field.field_key, sort_order: field.sort_order, is_active: !field.is_active }); await refresh(); }
+    try { await saveTechnicalField({ ...field, label: field.label, field_key: field.field_key, sort_order: field.sort_order, is_active: !field.is_active }); refresh(); }
     catch (error) { setToast({ msg: `Erro ao atualizar campo: ${systemErrorMessage(error)}`, type: "error" }); }
   };
 
@@ -161,7 +163,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     try {
       await setEquipmentTypeActive(type.id, !type.is_active);
       setToast({ msg: type.is_active ? "Equipamento inativado com sucesso." : "Equipamento ativado com sucesso.", type: "success" });
-      await refresh();
+      refresh();
     } catch (error) {
       setToast({ msg: `Erro ao ${type.is_active ? "inativar" : "ativar"} equipamento: ${systemErrorMessage(error)}`, type: "error" });
     }
@@ -227,7 +229,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     try {
       await saveEquipmentHierarchy(drafts, catalog);
       setToast({ msg: "Equipamentos salvos com sucesso.", type: "success" });
-      await refresh();
+      refresh();
       setActiveArea("registered");
       setFormOpen(false);
       onRouteChange?.(null, null);
