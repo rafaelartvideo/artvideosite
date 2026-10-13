@@ -4,8 +4,8 @@ import { UnionEquipmentTemplates } from "./UnionEquipmentTemplates";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import {
-  loadUnionCatalogAdmin, saveUnionCatalogItem, setUnionCatalogLink,
-  type UnionCatalogData, type UnionCatalogKind,
+  loadUnionCatalogAdmin, loadUnionCatalogDistribution, saveUnionCatalogItem, setUnionCatalogLink,
+  type UnionCatalogData, type UnionCatalogDistribution, type UnionCatalogKind,
   type UnionEquipmentType, type UnionBrand, type UnionSegment,
 } from "../infrastructure/union-catalog-admin.repository";
 
@@ -53,6 +53,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   const canView = activeOrganization?.is_platform_operator === true && hasPermission("platform.catalog.view");
   const canManage = canView && hasPermission("platform.catalog.manage");
   const [catalog, setCatalog] = useState<UnionCatalogData>(emptyCatalog);
+  const [distribution, setDistribution] = useState<UnionCatalogDistribution | null>(null);
   const [kind, setKind] = useState<UnionCatalogKind>("segment");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -66,16 +67,20 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   const [notice, setNotice] = useState("");
 
   const reload = useCallback(async () => {
-    const next = await loadUnionCatalogAdmin();
+    const [next, result] = await Promise.all([
+      loadUnionCatalogAdmin(),
+      loadUnionCatalogDistribution(),
+    ]);
     setCatalog(next);
+    setDistribution(result);
   }, []);
 
   useEffect(() => {
     if (!canView) return;
     let live = true;
     setLoading(true);
-    void loadUnionCatalogAdmin().then(data => {
-      if (live) { setCatalog(data); setLoading(false); }
+    void Promise.all([loadUnionCatalogAdmin(), loadUnionCatalogDistribution()]).then(([data, result]) => {
+      if (live) { setCatalog(data); setDistribution(result); setLoading(false); }
     }).catch(cause => {
       if (live) {
         setError(systemErrorMessage(cause, "Não foi possível carregar o catálogo."));
@@ -196,6 +201,47 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       Ao publicar, os itens passam a aparecer automaticamente nos segmentos compatíveis. Nomes vinculados continuam sincronizados.
       Nenhum modelo é importado automaticamente.
     </div>
+
+    {distribution && <section className={cardClass}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="text-base font-bold text-[#17263b]">Distribuição automática por empresa</h2>
+          <p className="mt-1 text-xs text-[#718198]">
+            A seleção do segmento distribui equipamentos e marcas publicados. Empresas sem segmento configurado não recebem itens.
+          </p>
+        </div>
+        <span className="text-xs font-semibold text-[#526580]">
+          {distribution.pending_issues.length} conflito(s)
+        </span>
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full min-w-[500px] text-sm">
+          <thead>
+            <tr>
+              <th className="py-2 text-left">Empresa</th>
+              <th className="py-2 text-right">Equipamentos</th>
+              <th className="py-2 text-right">Marcas</th>
+              <th className="py-2 text-right">Conflitos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {distribution.companies.map(company => <tr key={company.id} className="border-t border-[#e7edf5]">
+              <td className="py-2.5 font-medium">{company.name}</td>
+              <td className="py-2.5 text-right tabular-nums">{company.equipment_count}</td>
+              <td className="py-2.5 text-right tabular-nums">{company.brand_count}</td>
+              <td className={`py-2.5 text-right tabular-nums ${company.issues ? "font-bold text-amber-700" : ""}`}>{company.issues}</td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+      {distribution.pending_issues.length > 0 && <div className="mt-3 space-y-2 border-t border-[#e7edf5] pt-3">
+        <h3 className="text-sm font-bold text-amber-800">Conflitos de integração</h3>
+        {distribution.pending_issues.map((issue, i) => <p key={issue.issue_key + ":" + i}
+          className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          {distribution.companies.find(company => company.id === issue.organization_id)?.name || "Empresa"}: {issue.details}
+        </p>)}
+      </div>}
+    </section>}
 
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tipos de cadastro">
       {TABS.map(tab => <button
