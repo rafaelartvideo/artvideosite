@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   CarFront, CheckCircle2, Monitor, SlidersHorizontal, Smartphone, Snowflake,
   Sun, Wrench, type LucideIcon,
@@ -35,6 +37,7 @@ function SegmentPicker({
   onCancel?: () => void;
   onboarding?: boolean;
 }) {
+  const queryClient = useQueryClient();
   const [primary, setPrimary] = useState(data.primaryCode || "");
   const [additional, setAdditional] = useState<string[]>(data.additionalCodes);
   const [saving, setSaving] = useState(false);
@@ -61,6 +64,10 @@ function SegmentPicker({
     setError("");
     try {
       await saveCompanySegments(organizationId, primary, additional);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all }),
+        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
+      ]);
       await onSaved();
     } catch (cause) {
       setError(systemErrorMessage(cause, "Não foi possível salvar os segmentos da empresa."));
