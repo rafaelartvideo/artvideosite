@@ -459,23 +459,40 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         ...address,
         shared_map_url: normalizeSharedMapUrl(address.shared_map_url),
       }));
-      const addressResult = await syncRegistrationAddresses(activeOrganizationId, savedId, addressPayloads);
-      if (addressResult.error) throw addressResult.error;
+      // As rotinas de sincronização são RPCs e podem regravar vários vínculos.
+      // Compare com o cadastro já carregado antes de executá-las.
+      const previousAddresses = selected
+        ? registrationAddressesFromRecord(selected).filter(hasAddressContent).map(address => registrationAddressPayload({
+            ...address,
+            shared_map_url: normalizeSharedMapUrl(address.shared_map_url),
+          }))
+        : [];
+      if (!selected || JSON.stringify(addressPayloads) !== JSON.stringify(previousAddresses)) {
+        const addressResult = await syncRegistrationAddresses(activeOrganizationId, savedId, addressPayloads);
+        if (addressResult.error) throw addressResult.error;
+      }
 
       const savedSupplierItems = form.roles.includes("supplier") ? supplierItems : [];
-      const supplierResult = await syncRegistrationSupplierItems(activeOrganizationId, savedId, savedSupplierItems.map(item => item.id));
-      if (supplierResult.error) throw supplierResult.error;
+      const previousSupplierIds = selected && supplierItemsQuery.isSuccess
+        ? (supplierItemsQuery.data ?? []).map(item => item.id).sort()
+        : selected && !activeRegistrationRoles(selected).includes("supplier") ? [] : null;
+      const nextSupplierIds = savedSupplierItems.map(item => item.id).sort();
+      if (!selected || previousSupplierIds === null || JSON.stringify(previousSupplierIds) !== JSON.stringify(nextSupplierIds)) {
+        const supplierResult = await syncRegistrationSupplierItems(activeOrganizationId, savedId, nextSupplierIds);
+        if (supplierResult.error) throw supplierResult.error;
+      }
       queryClient.setQueryData(queryKeys.registrations.supplierItems(activeOrganizationId, savedId), savedSupplierItems);
 
       let { data: refreshedData, error: refreshedError } = await getRegistration(activeOrganizationId, savedId);
       if (refreshedError || !refreshedData) throw refreshedError || new Error("Não foi possível recarregar o cadastro salvo.");
       let refreshed = refreshedData as unknown as Registration;
 
-      if (refreshed.legacy_employee_id) {
+      const desiredTrackingPrompt = form.roles.includes("employee") && hasModule("field_tracking") && form.field_tracking_prompt_on_login;
+      const trackingPromptChanged = Boolean(refreshed.legacy_employee_id)
+        && (!selected || Boolean(selected.legacy_employee?.field_tracking_prompt_on_login) !== desiredTrackingPrompt);
+      if (trackingPromptChanged && refreshed.legacy_employee_id) {
         const trackingRequirement = await setEmployeeFieldTrackingPrompt(
-          activeOrganizationId,
-          refreshed.legacy_employee_id,
-          form.roles.includes("employee") && hasModule("field_tracking") && form.field_tracking_prompt_on_login,
+          activeOrganizationId, refreshed.legacy_employee_id, desiredTrackingPrompt,
         );
         if (trackingRequirement.error) throw trackingRequirement.error;
       }
@@ -493,7 +510,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           allowedIps: parseAllowedIps(accessForm.allowed_ips),
         });
         if (result.error) throw result.error;
-        await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       } else if (!form.roles.includes("employee") && refreshed.legacy_employee_id && removingEmployeeWithAccess) {
         const result = await saveEmployeeAccess({
           organizationId: activeOrganizationId,
@@ -506,16 +523,16 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           allowedIps: parseAllowedIps(accessForm.allowed_ips),
         });
         if (result.error) throw result.error;
-        await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       }
 
-      if (accessDirty || removingEmployeeWithAccess || refreshed.legacy_employee_id) {
+      if (accessDirty || removingEmployeeWithAccess || trackingPromptChanged) {
         const refreshedAgain = await getRegistration(activeOrganizationId, savedId);
         if (!refreshedAgain.error && refreshedAgain.data) refreshed = refreshedAgain.data as unknown as Registration;
       }
 
       queryClient.setQueryData(queryKeys.registrations.detail(activeOrganizationId, savedId), refreshed);
-      await queryClient.invalidateQueries({ queryKey: queryKeys.registrations.list(activeOrganizationId), refetchType: "none" });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.list(activeOrganizationId), refetchType: "none" });
       setSelected(refreshed);
       setToast({ msg: selected ? "Cadastro atualizado." : "Cadastro criado.", type: "success" });
       editorOriginRef.current = null;
