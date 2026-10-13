@@ -353,7 +353,12 @@ export function TabOrders({
 
     if (routeSubpage !== "edit") openingEditRouteRef.current = null;
 
-    if (workspaceLoading) return () => { cancelled = true; };
+    // Exibir uma OS existente não depende da carga de marcas, modelos,
+    // produtos e permissões de edição. Busca direta da OS pode começar antes
+    // do RPC de referências, evitando URL alterada com tela parada.
+    if (workspaceLoading && (initialOrderId === "new" || routeSubpage === "edit")) {
+      return () => { cancelled = true; };
+    }
 
     if (!initialOrderId) {
       if (detail) closeDetail();
