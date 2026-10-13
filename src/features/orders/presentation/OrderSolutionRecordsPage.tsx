@@ -1,5 +1,5 @@
 import { CheckCircle2, History, RotateCcw } from "lucide-react";
-import { AdminCard, AdminCardHeader, AdminPage, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardHeader, AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { formatCurrency, formatDateTime } from "@/shared/domain/formatters";
 import type { ServiceOrderSolutionAttempt } from "../infrastructure/order-solution-history.repository";
