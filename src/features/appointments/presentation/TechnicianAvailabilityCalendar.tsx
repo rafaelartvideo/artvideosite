@@ -21,6 +21,7 @@ type Props = {
   onToggleTechnician?: (technicianId: string) => void;
   exceptOrderId?: string | null;
   technicianFilter?: string;
+  onTechnicianFilterChange?: (technicianId: string) => void;
   onNavigateWeek?: (amount: number) => void;
   onGoToToday?: () => void;
   onChooseStart?: (date: string, time: string, technicianId: string) => void;
@@ -48,7 +49,7 @@ const displayDay = (value: string) => {
 export function TechnicianAvailabilityCalendar({
   organizationId, technicians, date, selectedStart, selectedEnd, selectedTechnicianId,
   selectedTechnicianIds, onToggleTechnician,
-  exceptOrderId, technicianFilter, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
+  exceptOrderId, technicianFilter, onTechnicianFilterChange, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
 }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [highlightEmployee, setHighlightEmployee] = useState("");
@@ -56,6 +57,9 @@ export function TechnicianAvailabilityCalendar({
   const today = dayKey(new Date());
   const baseWeek = weekMonday(date || today);
   const first = shiftWeek(baseWeek, onNavigateWeek ? 0 : weekOffset);
+  // In the Agenda, both technician selectors control the same filter.
+  // In the OS form, preserve the local display-only selector so other technicians remain selectable.
+  const selectedEmployeeFilter = onTechnicianFilterChange ? technicianFilter || "" : highlightEmployee;
   const ids = technicians.filter(item => item.is_active !== false)
     .filter(item => !technicianFilter || item.id === technicianFilter);
   const idsKey = ids.map(item => item.id).sort().join(",");
@@ -123,7 +127,10 @@ export function TechnicianAvailabilityCalendar({
       <span className="mr-1 text-xs font-semibold text-muted-foreground">{ids.length} técnicos</span>
       {ids.length > 0 && <select aria-label="Filtrar por técnico"
         className="max-w-[210px] rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
-        value={highlightEmployee} onChange={event => setHighlightEmployee(event.target.value)}>
+        value={selectedEmployeeFilter} onChange={event => {
+          if (onTechnicianFilterChange) onTechnicianFilterChange(event.target.value);
+          else setHighlightEmployee(event.target.value);
+        }}>
         <option value="">Todos os técnicos</option>
         {ids.map(item => <option key={item.id} value={item.id}>{item.full_name}</option>)}
       </select>}
@@ -198,11 +205,11 @@ export function TechnicianAvailabilityCalendar({
               </th>)}
             </tr>
           </thead>
-          <tbody>{hours.filter(time => !hideEmpty || days.some(day => availableAt(day, time).some(employee => !highlightEmployee || employee.id === highlightEmployee))).map(time =>
+          <tbody>{hours.filter(time => !hideEmpty || days.some(day => availableAt(day, time).some(employee => !selectedEmployeeFilter || employee.id === selectedEmployeeFilter))).map(time =>
             <tr key={time}>
               <th className="sticky left-0 z-[5] border-b border-r border-border bg-card px-3 py-4 text-center text-sm font-bold tabular-nums text-foreground">{time}</th>
               {days.map(day => {
-                const available = availableAt(day, time).filter(item => !highlightEmployee || item.id === highlightEmployee);
+                const available = availableAt(day, time).filter(item => !selectedEmployeeFilter || item.id === selectedEmployeeFilter);
                 return <td key={day.date} className={"min-h-[64px] border-b border-r border-border px-2 py-2 align-top " + (day.date === today ? "bg-primary/[0.025]" : "")}>
                   {available.length ? <div className="flex flex-col gap-1.5">{available.map(employee => {
                     const active = day.date === date && time === selectedStart && selectedIds.includes(employee.id);
