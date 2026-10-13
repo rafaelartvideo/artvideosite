@@ -32,6 +32,7 @@ import {
 } from "@/features/home/infrastructure/home.repository";
 import { loadAdminNotifications } from "@/features/notifications/infrastructure/notifications.repository";
 import { adminNotificationsKey } from "@/features/notifications/application/useAdminNotifications";
+import { prefetchAdminModule } from "@/features/admin-shell/application/admin-prefetch";
 import { notificationTime } from "@/features/notifications/presentation/AdminNotifications";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
@@ -279,6 +280,8 @@ export function AdminHomePage({
             key={item.key}
             type="button"
             onClick={() => onNavigate(item.tab)}
+            onMouseEnter={() => prefetchAdminModule(item.tab)}
+            onFocus={() => prefetchAdminModule(item.tab)}
             className="group relative min-w-0 rounded-xl border border-border bg-card p-4 text-left transition-all hover:border-primary/35 hover:shadow-md"
           >
             <div className="flex items-start justify-between gap-3">
