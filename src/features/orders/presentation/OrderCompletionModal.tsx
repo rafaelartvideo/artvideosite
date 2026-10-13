@@ -15,6 +15,7 @@ import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-c
 import type { useOrderCompletion } from "../application/useOrderCompletion";
 import type { OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { OrderCompletionPaymentSection } from "./OrderCompletionPaymentSection";
+import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 
 function customerAddress(customer: any): Address | null {
   const addresses = (Array.isArray(customer?.addresses) ? customer.addresses : []) as Address[];
@@ -31,7 +32,7 @@ function customerDocument(customer: any) {
   return formatCpf(customer?.document || "") || "—";
 }
 
-function CustomerQuickActions({ customer, orderId }: { customer: any; orderId: string }) {
+function CustomerQuickActions({ customer, orderId, organizationId }: { customer: any; orderId: string; organizationId: string }) {
   const address = customerAddress(customer);
   const mapUrl = getAddressMapUrl(address);
   const callContact = phoneContactLinks(customer?.phone || customer?.whatsapp);
@@ -60,17 +61,16 @@ function CustomerQuickActions({ customer, orderId }: { customer: any; orderId: s
     )}
 
     {whatsappContact.whatsapp ? (
-      <a
-        href={whatsappContact.whatsapp}
-        target="_blank"
-        rel="noreferrer"
-        aria-label="Abrir WhatsApp do cliente"
-        title="Abrir WhatsApp do cliente"
+      <CompanyWhatsAppAction
+        phone={customer?.whatsapp || customer?.phone}
+        name={customerName(customer)}
+        organizationId={organizationId}
+        title="Abrir conversa no WhatsApp"
         className={`${actionClass} border-emerald-200 bg-card text-emerald-700 hover:bg-emerald-50`}
       >
         <MessageCircle size={14} />
         <span className="hidden md:inline">WhatsApp</span>
-      </a>
+      </CompanyWhatsAppAction>
     ) : (
       <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${actionClass} cursor-not-allowed border-border bg-card text-muted-foreground opacity-50`}>
         <MessageCircle size={14} />
@@ -243,7 +243,7 @@ export function OrderCompletionModal({
     <div className="min-w-0 space-y-5">
       <Section
         title="Cliente e resumo"
-        actions={<CustomerQuickActions customer={customer} orderId={detail.id} />}
+        actions={<CustomerQuickActions customer={customer} orderId={detail.id} organizationId={detail.organization_id} />}
       >
         <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
           <div className="min-w-0 space-y-4">
