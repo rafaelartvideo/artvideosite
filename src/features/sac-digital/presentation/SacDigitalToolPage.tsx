@@ -280,6 +280,26 @@ function messageContact(message: SacDigitalMessage) {
   return { name, phone, phoneUrl: digits.replace(/\D/g, "").length >= 8 ? `tel:${digits}` : "" };
 }
 
+/** Estado único para qualquer painel sem conversa selecionada. */
+function EmptySacConversationState() {
+  return (
+    <div role="status" className="flex h-full min-h-0 flex-1 flex-col items-center justify-center px-6 py-10 text-center">
+      <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">
+        Selecione uma conversa
+      </p>
+      <div aria-hidden="true" className="mt-4 flex items-center justify-center gap-2">
+        {[0, 1, 2].map(index => (
+          <span
+            key={index}
+            className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none"
+            style={{ animationDelay: `${index * 160}ms` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SacDigitalToolPage({
   onBack,
   onOpenSettings,
@@ -428,6 +448,24 @@ export function SacDigitalToolPage({
     setMessagesLoading(Boolean(protocolId));
     setSelectedProtocolId(protocolId);
   }, []);
+
+  const switchConversationCategory = useCallback((nextStatus: typeof statusFilter) => {
+    // Mudar de bloco sempre fecha o atendimento aberto, inclusive se clicar
+    // novamente no bloco já ativo. Manter rascunhos por protocolo no outbox.
+    selectProtocol(null);
+    setStatusFilter(nextStatus);
+    // Um link vindo da OS não pode reabrir o protocolo depois de o usuário
+    // escolher manualmente um bloco. Preservar outros parâmetros do endereço.
+    if (routeExternalProtocol || routeCustomerId) {
+      const params = new URLSearchParams(location.search);
+      params.delete("protocol");
+      params.delete("customer");
+      navigate({
+        pathname: location.pathname,
+        search: params.toString() ? `?${params.toString()}` : "",
+      }, { replace: true });
+    }
+  }, [selectProtocol, routeExternalProtocol, routeCustomerId, location.pathname, location.search, navigate]);
 
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
@@ -1776,7 +1814,7 @@ export function SacDigitalToolPage({
                   <button
                     key={value}
                     type="button"
-                    onClick={() => setStatusFilter(value)}
+                    onClick={() => switchConversationCategory(value)}
                     className={["flex min-w-0 flex-col items-center justify-center rounded-lg border px-1 py-2 text-[10px] font-bold transition-colors",
                       statusFilter === value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"].join(" ")}
                   >
@@ -2471,9 +2509,7 @@ export function SacDigitalToolPage({
                 </div>
               </>
             ) : (
-              <div className="flex h-full min-h-0 items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Selecione um atendimento para visualizar as mensagens.
-              </div>
+              <EmptySacConversationState />
             )}
           </main>
                 {ordersPanelOpen && (canViewOrders || canViewCustomers) && selectedProtocol?.contact?.customer_id && (
