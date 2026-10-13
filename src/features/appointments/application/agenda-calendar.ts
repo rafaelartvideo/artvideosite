@@ -37,7 +37,7 @@ export const eventLabel = (order: any) => (order.general_service as any)?.name |
 export function filterAgendaData({ orders, appointments, search, technicianFilter, statusFilter, situationFilter, serviceFilter }: AgendaFilters) {
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
   const filteredOrders = orders.filter(order => {
-    const serviceId = (order.service as any)?.id || (order.general_service as any)?.id || "";
+    const serviceIds = [(order.service as any)?.id, (order.general_service as any)?.id].filter(Boolean);
     const searchText = [order.customer?.full_name, order.os_number, order.service?.title,
       order.general_service?.name, order.technician?.full_name,
       ...((order.technician_links || []).map((link: any) => link.employee?.full_name || ""))].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
@@ -46,7 +46,7 @@ export function filterAgendaData({ orders, appointments, search, technicianFilte
       && (!technicianFilter || technicianIds.includes(technicianFilter))
       && (!statusFilter || (order.order_status as any)?.id === statusFilter)
       && (!situationFilter || (order.situation as any)?.id === situationFilter)
-      && (!serviceFilter || serviceId === serviceFilter);
+      && (!serviceFilter || serviceIds.includes(serviceFilter));
   });
   const filteredAppointments = appointments.filter(appointment => {
     const linkedOrder = appointment.service_order;
@@ -58,12 +58,12 @@ export function filterAgendaData({ orders, appointments, search, technicianFilte
     const searchText = [appointment.customer?.full_name, appointment.description, appointment.sector_location,
       appointment.service_order?.os_number, ...((appointment.appointment_technicians || [])
         .map(item => item.employee?.full_name || ""))].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
-    const appointmentServiceId = appointment.service_order?.service?.id || appointment.service_order?.general_service?.id;
+    const appointmentServiceIds = [linkedOrder?.service?.id, linkedOrder?.general_service?.id].filter(Boolean);
     return (!normalizedSearch || searchText.includes(normalizedSearch))
       && (!technicianFilter || technicianIds.includes(technicianFilter))
-      && (!situationFilter || appointment.situation_id === situationFilter)
+      && (!situationFilter || appointment.situation_id === situationFilter || linkedOrder?.situation?.id === situationFilter)
       && (!statusFilter || linkedOrder?.order_status?.id === statusFilter)
-      && (!serviceFilter || appointmentServiceId === serviceFilter);
+      && (!serviceFilter || appointmentServiceIds.includes(serviceFilter));
   });
   // A OS só é ocultada quando o agendamento vinculado também passou pelos filtros.
   const referencedOrderIds = new Set(filteredAppointments.map(item => item.service_order_id)
