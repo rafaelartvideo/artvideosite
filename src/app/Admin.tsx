@@ -16,6 +16,7 @@ import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout"
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
+import { CompanySegmentsOnboardingGate } from "@/features/segments/presentation/CompanySegments";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 
 const TabDocuments = lazy(() => import("@/features/documents/presentation/TabDocuments").then(({ TabDocuments }) => ({ default: TabDocuments })));
@@ -408,6 +409,7 @@ export function AdminDashboard({
       </div>
       <FieldTrackingReporter />
       <TermsAcceptanceGate initialPending={pendingTerms} />
+      <CompanySegmentsOnboardingGate hasPendingTerms={pendingTerms.length > 0} />
     </AdminLayout>
     </AdminPageContext.Provider>
   </Suspense>;
