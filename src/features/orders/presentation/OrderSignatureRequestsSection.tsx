@@ -29,6 +29,7 @@ import {
   resendSignatureEmail,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
+import { getSacDigitalIntegrationStatus, sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { formatDateTime } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminDialog, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -157,17 +158,37 @@ export function OrderSignatureRequestsSection({
     setMessage({ text: "Link de assinatura copiado.", type: "success" });
   });
 
-  const openWhatsApp = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
-    if (!request.external_signer_phone) throw new Error("O assinante não possui WhatsApp/telefone informado nesta solicitação.");
-    const [link, company] = await Promise.all([getLink(request), getCompanyPrintContext(order.organization_id)]);
-    const whatsappUrl = buildSignatureWhatsAppUrl(request.external_signer_phone, link, {
-      companyName: company.name,
-      documentName: request.template_name_snapshot,
-      expiresAt: request.expires_at,
+  const openWhatsApp = (request: DocumentSignatureRequestSummary) => {
+    // Reservar a aba no clique para permitir abrir o WhatsApp Web depois da
+    // geração assíncrona do link, sem ser bloqueado pelo navegador.
+    const tab = window.open("about:blank", "_blank");
+    if (tab) tab.opener = null;
+    void withBusy(request.id, async () => {
+      try {
+        if (!request.external_signer_phone) throw new Error("O assinante não possui WhatsApp/telefone informado nesta solicitação.");
+        const integration = await getSacDigitalIntegrationStatus(order.organization_id);
+        const link = await getLink(request);
+        if (integration.enabled === true) {
+          if (tab && !tab.closed) tab.close();
+          await sendSacDigitalSignatureInvite(order.organization_id, order.id, request.id, link);
+          setMessage({ text: "Convite de assinatura enviado pelo SAC Digital.", type: "success" });
+          return;
+        }
+        const company = await getCompanyPrintContext(order.organization_id);
+        const whatsappUrl = buildSignatureWhatsAppUrl(request.external_signer_phone, link, {
+          companyName: company.name,
+          documentName: request.template_name_snapshot,
+          expiresAt: request.expires_at,
+        });
+        if (!whatsappUrl) throw new Error("Não foi possível preparar a mensagem do WhatsApp.");
+        if (tab && !tab.closed) tab.location.replace(whatsappUrl);
+        else throw new Error("Permita novas abas para abrir o convite no WhatsApp Web.");
+      } catch (error) {
+        if (tab && !tab.closed) tab.close();
+        throw error;
+      }
     });
-    if (!whatsappUrl) throw new Error("Não foi possível preparar a mensagem do WhatsApp.");
-    window.open(whatsappUrl, "_blank", "noopener,noreferrer");
-  });
+  };
 
   const resend = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
     const result = await resendSignatureEmail(order.organization_id, request.id);
@@ -269,7 +290,7 @@ export function OrderSignatureRequestsSection({
               {active && request.require_external_signature && <>
                 <AdminIconButton ariaLabel="Abrir link de assinatura" title="Abrir link" disabled={busy} onClick={() => void openLink(request)}><ExternalLink size={15} /></AdminIconButton>
                 <AdminIconButton ariaLabel="Copiar link de assinatura" title="Copiar link" disabled={busy} onClick={() => void copyLink(request)}><Clipboard size={15} /></AdminIconButton>
-                <AdminIconButton ariaLabel="Abrir assinatura no WhatsApp" title="WhatsApp" disabled={busy || !request.external_signer_phone} onClick={() => void openWhatsApp(request)}><MessageCircle size={15} /></AdminIconButton>
+                <AdminIconButton ariaLabel="Enviar ou abrir convite de assinatura no WhatsApp" title="WhatsApp" disabled={busy || !request.external_signer_phone} onClick={() => void openWhatsApp(request)}><MessageCircle size={15} /></AdminIconButton>
                 {canResend && <AdminIconButton ariaLabel="Reenviar convite por e-mail" title="Reenviar e-mail" disabled={busy} onClick={() => void resend(request)}><Mail size={15} /></AdminIconButton>}
               </>}
               {canAudit && <AdminIconButton ariaLabel="Ver auditoria da assinatura" title="Auditoria" disabled={busy} onClick={() => openAudit(request)}><History size={15} /></AdminIconButton>}
