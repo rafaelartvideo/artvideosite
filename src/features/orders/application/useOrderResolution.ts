@@ -470,14 +470,18 @@ export function useOrderResolution({
       replaceSolutionImages(currentSolutionImages);
       setDetailSolutionImages(currentSolutionImages);
       setSolveOpen(false);
-      await loadSolutionAttempts(orderId, targetOrganizationId);
+      void loadSolutionAttempts(orderId, targetOrganizationId).catch(error => {
+        console.warn("[OS] Falha ao atualizar histórico após solução:", error);
+      });
       showToast({
         msg: solutionImageError
           ? `OS resolvida, mas não foi possível salvar todas as imagens da solução: ${formatError(solutionImageError)}`
           : "OS resolvida com sucesso.",
         type: solutionImageError ? "error" : "success",
       });
-      await reloadOrders();
+      void reloadOrders().catch(error => {
+        console.warn("[OS] Falha ao atualizar a lista após solução:", error);
+      });
     } catch (error) {
       showToast({
         msg: `Não foi possível concluir a solução da OS: ${formatError(error)}. Nenhuma alteração de estoque foi aplicada.`,
