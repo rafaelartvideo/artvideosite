@@ -30,6 +30,22 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+// Compare JSON payloads semantically: Postgres jsonb can reorder object keys.
+// Skips no-op writes while preserving nested message status transitions.
+function sameJson(left: unknown, right: unknown): boolean {
+  if (left === right) return true;
+  if (left === null || right === null || typeof left !== "object" || typeof right !== "object") return false;
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) && Array.isArray(right)
+      && left.length === right.length && left.every((value, index) => sameJson(value, right[index]));
+  }
+  const a = left as Record<string, unknown>;
+  const b = right as Record<string, unknown>;
+  const keys = Object.keys(a);
+  return keys.length === Object.keys(b).length
+    && keys.every(key => Object.prototype.hasOwnProperty.call(b, key) && sameJson(a[key], b[key]));
+}
+
 function bearerToken(request: Request) {
   return request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "").trim() || "";
 }
@@ -367,7 +383,7 @@ Deno.serve(async request => {
     if (externalContactId) {
       const { data: localContact } = await admin
         .from("sac_digital_contacts")
-        .select("id,avatar_url,raw_metadata")
+         .select("id,name,phone,avatar_url,raw_metadata")
         .eq("organization_id", organizationId)
         .eq("external_contact_id", externalContactId)
         .maybeSingle();
@@ -381,7 +397,9 @@ Deno.serve(async request => {
       const checkedRecently = Number.isFinite(checkedAt) && Date.now() - checkedAt < 24 * 60 * 60 * 1000;
 
       let hydratedContact = protocolContact;
+      let checkedAvatarNow = false;
       if (!localContact?.avatar_url && !directAvatar && !checkedRecently) {
+        checkedAvatarNow = true;
         const contactResult = await apiRequest(
           organizationId,
           credentials,
@@ -402,26 +420,30 @@ Deno.serve(async request => {
       const avatar = String(hydratedContact?.avatar || directAvatar || "").trim();
       const contactName = String(hydratedContact?.name || protocolContact?.name || "").trim();
       const contactPhone = normalizeSacPhone(hydratedContact?.number || protocolContact?.number);
-      const nextMetadata = {
+      const nextMetadata: Record<string, unknown> = {
         ...localMetadata,
         ...(hydratedContact || {}),
-        avatar_checked_at: new Date().toISOString(),
+        ...(checkedAvatarNow ? { avatar_checked_at: new Date().toISOString() } : {}),
       };
-      const contactPatch: Record<string, unknown> = {
-        raw_metadata: nextMetadata,
-        updated_at: new Date().toISOString(),
-      };
-      if (avatar) contactPatch.avatar_url = avatar;
-      if (contactName) contactPatch.name = contactName;
-      if (contactPhone) contactPatch.phone = contactPhone;
+      // The full avatar is already stored in avatar_url. Never keep a second base64 copy in metadata.
+      const canonicalAvatar = avatar || String(localContact?.avatar_url || "").trim();
+      if (canonicalAvatar && nextMetadata.avatar === canonicalAvatar) delete nextMetadata.avatar;
+      const contactPatch: Record<string, unknown> = {};
+      if (!sameJson(localMetadata, nextMetadata)) contactPatch.raw_metadata = nextMetadata;
+      if (avatar && avatar !== localContact?.avatar_url) contactPatch.avatar_url = avatar;
+      if (contactName && contactName !== localContact?.name) contactPatch.name = contactName;
+      if (contactPhone && contactPhone !== localContact?.phone) contactPatch.phone = contactPhone;
 
-      const { error: avatarUpdateError } = await admin
-        .from("sac_digital_contacts")
-        .update(contactPatch)
-        .eq("organization_id", organizationId)
-        .eq("external_contact_id", externalContactId);
-      if (avatarUpdateError) {
-        console.warn("[SAC DIGITAL API] contact avatar refresh skipped", avatarUpdateError.code);
+      if (Object.keys(contactPatch).length) {
+        contactPatch.updated_at = new Date().toISOString();
+        const { error: avatarUpdateError } = await admin
+          .from("sac_digital_contacts")
+          .update(contactPatch)
+          .eq("organization_id", organizationId)
+          .eq("external_contact_id", externalContactId);
+        if (avatarUpdateError) {
+          console.warn("[SAC DIGITAL API] contact avatar refresh skipped", avatarUpdateError.code);
+        }
       }
     }
 
@@ -557,7 +579,7 @@ Deno.serve(async request => {
           const rank:any={unknown:0,accepted:0,queued:1,sent:2,delivered:3,read:4};
           const attempts=await admin.from('sac_digital_delivery_attempts').select('id,state').eq('organization_id',organizationId).eq('message_id',String(realHistoryId));
           if(attempts.error) throw attempts.error;
-          for(const attempt of attempts.data || []) if(rank[state] >= (rank[attempt.state] ?? 0)) {
+          for(const attempt of attempts.data || []) if(rank[state] > (rank[attempt.state] ?? 0)) {
             const updated=await admin.from('sac_digital_delivery_attempts').update({state,checked_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',attempt.id);
             if(updated.error) throw updated.error;
           }
@@ -589,7 +611,10 @@ Deno.serve(async request => {
         const incomingStatus:any = entry.status || {};
         const mergedStatus = {...previousStatus,...incomingStatus};
         for(const key of ['sended_at','delivered_at','readed_at']) if(previousStatus[key] && (!incomingStatus[key] || new Date(previousStatus[key]).getTime()>new Date(incomingStatus[key]).getTime())) mergedStatus[key]=previousStatus[key];
-        const indexedPatch: Record<string, unknown> = {raw_metadata:{...previousMetadata,sac_history:{...entry,status:mergedStatus},history_synced:true},...(realHistoryId != null ? {external_message_id:historyId}:{})};
+        const nextHistoryMetadata = {...previousMetadata,sac_history:{...entry,status:mergedStatus},history_synced:true};
+        const indexedPatch: Record<string, unknown> = {};
+        if (!sameJson(previousMetadata, nextHistoryMetadata)) indexedPatch.raw_metadata = nextHistoryMetadata;
+        if (realHistoryId != null && alreadyIndexed.external_message_id !== historyId) indexedPatch.external_message_id = historyId;
         if (!sentViaUnion && alreadyIndexed.direction !== direction) indexedPatch.direction = direction;
         if (!sentViaUnion && direction === "outgoing" && operatorName && !alreadyIndexed.sender_name) {
           indexedPatch.sender_name = operatorName;
@@ -739,10 +764,12 @@ Deno.serve(async request => {
       const newestAt = Number.isFinite(currentTime) && currentTime > new Date(latestAt).getTime()
         ? protocolRow.last_message_at
         : latestAt;
-      await admin
-        .from("sac_digital_protocols")
-        .update({ last_message_at: newestAt, updated_at: new Date().toISOString() })
-        .eq("id", protocolRow.id);
+      if (new Date(String(protocolRow.last_message_at || "")).getTime() !== new Date(newestAt).getTime()) {
+        await admin
+          .from("sac_digital_protocols")
+          .update({ last_message_at: newestAt, updated_at: new Date().toISOString() })
+          .eq("id", protocolRow.id);
+      }
     }
 
     return {
