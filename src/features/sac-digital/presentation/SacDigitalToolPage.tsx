@@ -48,6 +48,7 @@ import {
   getMySacDigitalOperatorBinding,
   getSacDigitalIntegrationStatus,
   getSacDigitalFinishedProtocolCount,
+  getSacDigitalOrderConversation,
   listSacDigitalOperatorQueue,
   getSacDigitalRoutingOptions,
   getSacDigitalUnreadCounts,
@@ -319,6 +320,7 @@ export function SacDigitalToolPage({
   const location = useLocation();
   const navigate = useNavigate();
   const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
+  const routeOrderConversationId = new URLSearchParams(location.search).get("order") || "";
   const routeExternalProtocol = new URLSearchParams(location.search).get("protocol") || "";
   const routeStartConversation = new URLSearchParams(location.search).get("new") === "1";
   const routeStartPhone = new URLSearchParams(location.search).get("phone") || "";
@@ -444,6 +446,9 @@ export function SacDigitalToolPage({
   const handledCustomerRouteRef = useRef("");
   const handledNewConversationRouteRef = useRef("");
   const handledProtocolRouteRef = useRef("");
+  const handledOrderConversationRef = useRef("");
+  const [orderConversationPreview, setOrderConversationPreview] = useState<SacDigitalProtocolListItem | null>(null);
+  const orderConversationContextRef = useRef<{ orderId: string; protocolId: string; externalProtocol: string } | null>(null);
   const attemptedProtocolSyncRef = useRef("");
   const [protocolRouteRetry, setProtocolRouteRetry] = useState(0);
   const [protocolRouteLoading, setProtocolRouteLoading] = useState(false);
@@ -505,19 +510,22 @@ export function SacDigitalToolPage({
     // Mudar de bloco sempre fecha o atendimento aberto, inclusive se clicar
     // novamente no bloco já ativo. Manter rascunhos por protocolo no outbox.
     selectProtocol(null);
+    setOrderConversationPreview(null);
+    orderConversationContextRef.current = null;
     setStatusFilter(nextStatus);
     // Um link vindo da OS não pode reabrir o protocolo depois de o usuário
     // escolher manualmente um bloco. Preservar outros parâmetros do endereço.
-    if (routeExternalProtocol || routeCustomerId) {
+    if (routeExternalProtocol || routeCustomerId || routeOrderConversationId) {
       const params = new URLSearchParams(location.search);
       params.delete("protocol");
       params.delete("customer");
+      params.delete("order");
       navigate({
         pathname: location.pathname,
         search: params.toString() ? `?${params.toString()}` : "",
       }, { replace: true });
     }
-  }, [selectProtocol, routeExternalProtocol, routeCustomerId, location.pathname, location.search, navigate]);
+  }, [selectProtocol, routeExternalProtocol, routeCustomerId, routeOrderConversationId, location.pathname, location.search, navigate]);
 
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
@@ -563,19 +571,20 @@ export function SacDigitalToolPage({
   const isSacManager = operatorBinding?.linked && operatorBinding.access_mode === "manager";
 
   const visibleProtocols = useMemo(() => {
-    if (isSacManager) return protocols;
-
     const linkedOperatorId = operatorBinding?.linked && operatorBinding.access_mode === "operator"
       ? operatorBinding.operator?.id || ""
       : "";
-    if (!linkedOperatorId) return [];
-
-    return protocols.filter(protocol => {
+    const normal = isSacManager ? protocols : !linkedOperatorId ? [] : protocols.filter(protocol => {
       const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
       if (operationalStatus === "waiting" || operationalStatus === "pending" || operationalStatus === "inbox" || operationalStatus === "abandoned") return true;
       return protocol.operator_id === linkedOperatorId;
     });
-  }, [isSacManager, operatorBinding, protocols, waitingProtocolSet]);
+    // A consulta autorizada pela OS inclui apenas o protocolo solicitado.
+    if (orderConversationPreview && !normal.some(item => item.id === orderConversationPreview.id)) {
+      return [orderConversationPreview, ...normal];
+    }
+    return normal;
+  }, [isSacManager, operatorBinding, protocols, waitingProtocolSet, orderConversationPreview]);
 
   const selectedProtocol = useMemo(
     () => visibleProtocols.find(protocol => protocol.id === selectedProtocolId) || null,
@@ -713,7 +722,10 @@ export function SacDigitalToolPage({
     }
     if (showLoading) setMessagesLoading(true);
     try {
-      const next = await listSacDigitalMessages(activeOrganizationId, protocolId);
+      const preview = orderConversationContextRef.current;
+      const next = preview?.protocolId === protocolId
+        ? (await getSacDigitalOrderConversation(activeOrganizationId, preview.orderId, preview.externalProtocol, true)).messages
+        : await listSacDigitalMessages(activeOrganizationId, protocolId);
       if (currentIdentityRef.current !== identity || requestId !== messagesRequestIdRef.current || selectedProtocolIdRef.current !== protocolId) return;
       setMessagesIdentity(identity);
       setMessages(next);
@@ -969,8 +981,46 @@ export function SacDigitalToolPage({
     location.search, location.pathname, navigate,
   ]);
 
+  // Atalho da OS: buscar especificamente a conversa do cliente, inclusive
+  // quando está sob responsabilidade de outro Operador SAC.
   useEffect(() => {
-    if (loading || !activeOrganizationId || !routeCustomerId || routeExternalProtocol) return;
+    if (loading || !activeOrganizationId || !routeOrderConversationId || routeExternalProtocol || !canViewMessages) return;
+    const targetKey = `${activeOrganizationId}:${user?.id || ""}:${routeOrderConversationId}`;
+    if (handledOrderConversationRef.current === targetKey) return;
+    handledOrderConversationRef.current = targetKey;
+    let cancelled = false;
+    const openFromOrder = async () => {
+      try {
+        const result = await getSacDigitalOrderConversation(activeOrganizationId, routeOrderConversationId);
+        if (cancelled) return;
+        const protocol = result.protocol;
+        if (!protocol?.id || !protocol.external_protocol_id) throw new Error("Nenhuma conversa encontrada para esta OS.");
+        orderConversationContextRef.current = {
+          orderId: routeOrderConversationId, protocolId: protocol.id,
+          externalProtocol: protocol.external_protocol_id,
+        };
+        setOrderConversationPreview(protocol);
+        setConversationSearch("");
+        setOperatorFilter("all");
+        const nextStatus = displayProtocolStatus(protocol, waitingProtocolSet);
+        setStatusFilter(nextStatus === "in_att" ? "in_att"
+          : nextStatus === "finished" ? "finished"
+          : nextStatus === "self_service" ? "self_service"
+          : nextStatus === "abandoned" || nextStatus === "inbox" ? "abandoned" : "waiting");
+        setModuleSection("conversations");
+        selectProtocol(protocol.id);
+      } catch (error) {
+        if (!cancelled) setMessage({
+          text:systemErrorMessage(error,"Não foi possível abrir o WhatsApp desta OS."), error:true,
+        });
+      }
+    };
+    void openFromOrder();
+    return () => { cancelled = true; };
+  }, [activeOrganizationId, loading, routeOrderConversationId, routeExternalProtocol, canViewMessages, selectProtocol, user?.id]);
+
+  useEffect(() => {
+    if (loading || !activeOrganizationId || !routeCustomerId || routeExternalProtocol || routeOrderConversationId) return;
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(routeCustomerId)) {
       setMessage({ text: "Cliente informado no link da OS é inválido.", error: true });
       return;
@@ -1048,7 +1098,7 @@ export function SacDigitalToolPage({
       setNewConversationOpen(true);
     })();
     return () => { cancelled = true; };
-  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, routeExternalProtocol, status?.enabled, visibleProtocols]);
+  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, routeExternalProtocol, routeOrderConversationId, status?.enabled, visibleProtocols]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1087,6 +1137,11 @@ export function SacDigitalToolPage({
         || !selectedProtocolId
         || !selectedProtocol?.external_protocol_id
       ) return;
+
+      // Não alterar estado de leitura ou selecionar a sessão do outro Operador.
+      if (orderConversationContextRef.current?.protocolId === selectedProtocolId
+        && selectedProtocol.operator_id
+        && selectedProtocol.operator_id !== operatorBinding?.operator?.id) return;
 
       try {
         await markSacDigitalProtocolRead(activeOrganizationId, selectedProtocolId);
@@ -1128,6 +1183,8 @@ export function SacDigitalToolPage({
     loadUnreadCounts,
     selectedProtocol?.external_protocol_id,
     selectedProtocol?.is_pending,
+    selectedProtocol?.operator_id,
+    operatorBinding?.operator?.id,
     selectedProtocolId,
   ]);
 
@@ -1719,11 +1776,15 @@ export function SacDigitalToolPage({
     && operatorBinding?.operator?.id
     && selectedProtocol.operator_id === operatorBinding.operator.id,
   );
+  const isOrderPreviewReadOnly = Boolean(
+    selectedProtocol && orderConversationContextRef.current?.protocolId === selectedProtocol.id
+    && selectedProtocol.operator_id && !isMyProtocol,
+  );
 
   // Focar sempre que uma conversa aberta permitir digitação, inclusive
   // após "Pegar atendimento" transformar um protocolo de fila em ativo.
   const canComposeSelected = Boolean(
-    selectedProtocol && !selectedProtocol.is_pending && canSendMessages && status?.enabled
+    selectedProtocol && !selectedProtocol.is_pending && canSendMessages && status?.enabled && !isOrderPreviewReadOnly
     && !["finished", "waiting", "inbox", "abandoned"].includes(selectedOperationalStatus || "")
     && !(selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager),
   );
@@ -2514,9 +2575,9 @@ export function SacDigitalToolPage({
                     <p className="py-2 text-center text-xs text-muted-foreground">
                       {selectedOperationalStatus === "abandoned" ? "A SAC registrou este atendimento como abandonado." : "Este protocolo não foi confirmado na fila operacional."} Inicie uma nova conversa ou aguarde a confirmação da fila para assumir.
                     </p>
-                  ) : selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager ? (
+                  ) : selectedOperationalStatus === "in_att" && !isMyProtocol && (isSacManager || isOrderPreviewReadOnly) ? (
                     <p className="py-2 text-center text-xs font-semibold text-sky-700 dark:text-sky-300">
-                      Você está acompanhando este atendimento como Gestor SAC. O atendimento está atribuído a {selectedProtocol.operator_name || "outro Operador SAC"}.
+                      {isOrderPreviewReadOnly ? "Consulta da OS. " : "Você está acompanhando este atendimento como Gestor SAC. "}O atendimento está atribuído a {selectedProtocol.operator_name || "outro Operador SAC"}.
                     </p>
                   ) : canSendMessages ? (
                     <div className="mx-auto max-w-4xl space-y-2">
