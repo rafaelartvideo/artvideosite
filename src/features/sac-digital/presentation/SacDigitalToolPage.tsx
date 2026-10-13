@@ -2309,7 +2309,7 @@ export function SacDigitalToolPage({
                                   // No WhatsApp o identificador vai como *Rafael*.
                                   // Na Union renderizar em negrito, sem exibir
                                   // literalmente os marcadores de formatação.
-                                  const senderHeading = /^\\*([^*\\n]{1,64})\\*\\n\\n([\\s\\S]*)$/.exec(item.body_text || "");
+                                  const senderHeading = /^\*([^*\n]{1,64})\*\n\n([\s\S]*)$/.exec(item.body_text || "");
                                   return senderHeading ? (
                                     <p className="whitespace-pre-wrap break-words text-sm leading-5">
                                       <strong className="font-bold">{senderHeading[1]}</strong>
