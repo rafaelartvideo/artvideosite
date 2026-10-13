@@ -257,6 +257,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         canCreate={canCreate}
         canEdit={canEdit}
         canManageFields={canManageFields}
+        canManageChecklists={hasPermission("checklists.manage")}
         onImported={refresh}
       />}
     </>}
