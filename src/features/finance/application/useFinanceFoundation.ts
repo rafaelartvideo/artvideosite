@@ -31,10 +31,8 @@ export function useFinanceFoundation() {
 
   const invalidate = (queryKey: readonly unknown[]) => {
     // A mutação já foi confirmada: não manter isPending durante reconsultas.
-    [
-      queryClient.invalidateQueries({ queryKey }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.foundation(organizationKey) }),
-    ].forEach(query => { void query; });
+    void queryClient.invalidateQueries({ queryKey });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.foundation(organizationKey) });
   };
 
   const foundationQuery = useQuery({
