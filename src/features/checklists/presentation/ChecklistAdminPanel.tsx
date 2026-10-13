@@ -149,7 +149,8 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     setSaving(true);
     try {
       await saveChecklistProfile({ id: value.id, name: value.name, description: value.description, is_active: value.is_active, stages: value.stages.map((stage, index) => ({ ...stage, code: stage.id ? stage.code : stageCode(stage.name, stage.code || `etapa_${index + 1}`), sort_order: index * 10, items: stage.items.map((item, itemIndex) => ({ ...item, sort_order: itemIndex * 10 })) })) });
-      await Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all }), queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all })]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
       setToast({ msg: value.id ? "Checklist atualizado." : "Checklist criado.", type: "success" });
       if (close) closeEditor();
     } catch (error) { setToast({ msg: `Erro ao salvar checklist: ${systemErrorMessage(error)}`, type: "error" }); }
