@@ -217,7 +217,15 @@ export function AdminDashboard({
   useEffect(() => {
     const root = contentRef.current;
     if (!root || !mobileLabelModule) return;
+    // Os rótulos só são usados no layout mobile: observar todas as mudanças
+    // de tabelas no desktop consumia CPU em cada página/listagem.
+    const mobile = window.matchMedia("(max-width: 767px)");
+    let observer: MutationObserver | null = null;
+    let animationFrame = 0;
+
     const applyMobileLabels = () => {
+      animationFrame = 0;
+      if (!mobile.matches) return;
       root.querySelectorAll("table:not(.mobile-table-preserve)").forEach(table => {
         const labels = Array.from(table.querySelectorAll("thead th")).map(header => header.textContent?.trim() || "");
         table.querySelectorAll("tbody tr").forEach(row => Array.from(row.children).forEach((cell, index) => {
@@ -229,10 +237,28 @@ export function AdminDashboard({
         }));
       });
     };
-    applyMobileLabels();
-    const observer = new MutationObserver(applyMobileLabels);
-    observer.observe(root, { childList: true, subtree: true });
-    return () => observer.disconnect();
+    const schedule = () => {
+      if (!animationFrame) animationFrame = window.requestAnimationFrame(applyMobileLabels);
+    };
+    const synchronize = () => {
+      observer?.disconnect();
+      observer = null;
+      if (!mobile.matches) {
+        if (animationFrame) window.cancelAnimationFrame(animationFrame);
+        animationFrame = 0;
+        return;
+      }
+      schedule();
+      observer = new MutationObserver(schedule);
+      observer.observe(root, { childList: true, subtree: true });
+    };
+    synchronize();
+    mobile.addEventListener("change", synchronize);
+    return () => {
+      mobile.removeEventListener("change", synchronize);
+      observer?.disconnect();
+      if (animationFrame) window.cancelAnimationFrame(animationFrame);
+    };
   }, [mobileLabelModule, activeTab, route.resourceId, route.subpage]);
 
   const backToParent = (tab: AdminTab) => crmMode
