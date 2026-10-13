@@ -408,6 +408,26 @@ export function retrySacDigitalWebhookEvent(organizationId: string, eventId: num
   });
 }
 
+export async function getSacDigitalOrderConversation(
+  organizationId: string,
+  orderId: string,
+  protocol = "",
+  includeMessages = false,
+) {
+  const data = await invokeSacDigitalApi({
+    action: "order_conversation_view",
+    organization_id: organizationId,
+    order_id: orderId,
+    protocol,
+    include_messages: includeMessages,
+  });
+  const messages = (Array.isArray(data.messages) ? data.messages : []) as SacDigitalMessage[];
+  return {
+    protocol: data.protocol as SacDigitalProtocolListItem,
+    messages: includeMessages ? hydrateMedia(messages, (data.media_urls || {}) as Record<string,string>) : [],
+  };
+}
+
 export function refreshSacDigitalProtocol(organizationId: string, protocol: string) {
   return invokeSacDigitalApi({
     action: "refresh_protocol",

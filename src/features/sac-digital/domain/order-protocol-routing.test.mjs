@@ -136,3 +136,15 @@ test('signature invitation uses human sender and no timestamp or forced Sistema 
   assert.doesNotMatch(code, /formatSacOutgoingText\([^;]+?, "Sistema"\)/);
   assert.doesNotMatch(code, /toLocaleString\("pt-BR"/);
 });
+
+test('OS modal offers a read-only conversation shortcut without sending', async () => {
+  const repo = await readFile(new URL('../infrastructure/sac-digital.repository.ts', import.meta.url), 'utf8');
+  assert.match(dialog, /onOpenChat\(\); onClose\(\)/);
+  assert.match(orderPage, /params\.set\("order", detail\.id\)/);
+  assert.match(repo, /action: "order_conversation_view"/);
+  assert.match(backend, /if \(action === "order_conversation_view"\)/);
+  assert.match(backend, /requirePermission\("sac_digital\.messages\.view"\)/);
+  assert.match(backend, /hasOrganizationPermission\("orders\.view"\)/);
+  assert.match(backend, /\.eq\("organization_id",organizationId\)\.eq\("id",orderId\)/);
+  assert.match(backend, /\.eq\("protocol_id",selected\.id\)/);
+});

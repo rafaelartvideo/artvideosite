@@ -209,6 +209,11 @@ export function OrderSacDigitalDialog({
       ) : (
         <div className="flex w-full flex-col-reverse flex-wrap gap-2 sm:flex-row sm:justify-end">
           <BtnSecondary onClick={onClose} disabled={sending}>Cancelar</BtnSecondary>
+          {onOpenChat && (
+            <AdminButton variant="secondary" onClick={() => { onOpenChat(); onClose(); }} disabled={sending}>
+              Abrir conversa
+            </AdminButton>
+          )}
           <AdminButton
             onClick={() => void send()}
             loading={sending}

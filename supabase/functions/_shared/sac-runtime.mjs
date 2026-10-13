@@ -9,7 +9,7 @@ const actions = new Set([
  'operator_bindings_admin','set_operator_binding_admin','begin_operator_authorization','operator_auto_online',
  'resource_operation','sync_resource','bootstrap','reconcile_outbound',
  'sync_protocol_history','enrich_protocol','media_urls','refresh_protocol',
- 'link_customer','new_conversation_search','prepare_new_conversation_contact',
+ 'link_customer','order_conversation_view','new_conversation_search','prepare_new_conversation_contact',
  'start_new_conversation','my_operator_binding','assume_protocol','routing_options',
  'forward_protocol','return_to_inbox','return_to_queue','finish_protocol','send_media','send_order_message','send_signature_invite','send_message',
 ]);

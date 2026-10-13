@@ -1634,6 +1634,82 @@ Deno.serve(async request => {
       });
     }
 
+
+    // Read-only conversation access initiated from an authorized service order.
+    // No operator reassignment and no change to the general RLS policies.
+    if (action === "order_conversation_view") {
+      if (!(await requirePermission("sac_digital.messages.view"))) {
+        return json({success:false,error:"Sem permissão para visualizar conversas do SAC Digital."},403);
+      }
+      if (!(await hasOrganizationPermission("orders.view"))
+        && !(await hasOrganizationPermission("orders.details.view"))) {
+        return json({success:false,error:"Sem permissão para acessar a OS."},403);
+      }
+      const orderId=String(body.order_id || "");
+      const requestedProtocol=String(body.protocol || "");
+      if (!isUuid(orderId) || (requestedProtocol && !validProtocol(requestedProtocol))) {
+        return json({success:false,error:"Identificação da OS ou do protocolo inválida."},400);
+      }
+      const {data:order,error:orderError}=await admin.from("service_orders")
+        .select("id,customer_id").eq("organization_id",organizationId).eq("id",orderId).maybeSingle();
+      if(orderError || !order?.customer_id) return json({success:false,error:"OS sem cliente válido nesta empresa."},404);
+      const {data:customer,error:customerError}=await admin.from("customers")
+        .select("id,full_name,phone,whatsapp").eq("organization_id",organizationId)
+        .eq("id",order.customer_id).maybeSingle();
+      if(customerError || !customer) return json({success:false,error:"Cliente da OS não encontrado."},404);
+      const phones=[customer.whatsapp,customer.phone].filter(Boolean).flatMap(sacPhoneVariants);
+      const phoneKeys=new Set(phones.map(sacPhoneKey));
+      const {data:associated,error:associatedError}=await admin.from("sac_digital_contacts")
+        .select("id,name,phone,avatar_url,customer_id").eq("organization_id",organizationId)
+        .eq("customer_id",order.customer_id).limit(50);
+      if(associatedError) return json({success:false,error:"Não foi possível consultar os contatos da OS."},500);
+      let contacts=(associated || []).filter(contact=>!phoneKeys.size ||
+        sacPhoneVariants(contact.phone).some(phone=>phoneKeys.has(sacPhoneKey(phone))));
+      if(!contacts.length && phones.length) {
+        // Fallback for provider contacts not yet linked to CRM: exact normalized phone only.
+        const {data:unlinked,error:unlinkedError}=await admin.from("sac_digital_contacts")
+          .select("id,name,phone,avatar_url,customer_id").eq("organization_id",organizationId)
+          .is("customer_id",null).in("phone",[...new Set(phones)]).limit(20);
+        if(unlinkedError) return json({success:false,error:"Não foi possível consultar o WhatsApp do cliente."},500);
+        contacts=(unlinked || []).filter(contact=>sacPhoneVariants(contact.phone)
+          .some(phone=>phoneKeys.has(sacPhoneKey(phone))));
+      }
+      if(!contacts.length) return json({success:false,type:"conversation_not_found",
+        error:"Nenhuma conversa do WhatsApp foi encontrada para o cliente desta OS."},404);
+      const {data:rows,error:protocolError}=await admin.from("sac_digital_protocols")
+        .select("id,external_protocol_id,status,operator_id,operator_name,sector_id,department_name,channel_number,opened_at,created_at,closed_at,last_message_at,contact:sac_digital_contacts(id,name,phone,avatar_url,customer_id)")
+        .eq("organization_id",organizationId).in("contact_id",contacts.map(contact=>contact.id))
+        .order("last_message_at",{ascending:false,nullsFirst:false}).limit(30);
+      if(protocolError) return json({success:false,error:"Não foi possível consultar os protocolos do cliente."},500);
+      const possible=(rows || []).filter(row=>validProtocol(row.external_protocol_id));
+      const active=possible.filter(row=>row.status!=="finished" && !row.closed_at);
+      const selected=requestedProtocol
+        ? possible.find(row=>row.external_protocol_id===requestedProtocol)
+        : active[0] || possible[0];
+      if(!selected) return json({success:false,type:"conversation_not_found",
+        error:"Nenhum protocolo foi encontrado para o WhatsApp deste cliente."},404);
+      const linkedContact=Array.isArray(selected.contact)?selected.contact[0]:selected.contact;
+      const protocol={...selected,contact:linkedContact ? {...linkedContact,
+        customer_id:linkedContact.customer_id || customer.id,
+        customer:{id:customer.id,full_name:customer.full_name}}:null};
+      if(body.include_messages!==true) return json({success:true,protocol});
+      const {data:rawMessages,error:messagesError}=await admin.from("sac_digital_messages")
+        .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at,raw_metadata")
+        .eq("organization_id",organizationId).eq("protocol_id",selected.id)
+        .order("sent_at",{ascending:false}).limit(200);
+      if(messagesError) return json({success:false,error:"Não foi possível carregar as mensagens da conversa."},500);
+      const messages=(rawMessages || []).filter(message=>
+        (message.raw_metadata as Record<string,unknown>|null)?.suppressed_legacy_order_echo!==true).reverse();
+      const mediaUrls:Record<string,string>={};
+      const media=messages.map(message=>({message,path:ownMediaStoragePath(message,organizationId)}))
+        .filter(item=>Boolean(item.path)).slice(-50);
+      for(const item of media) {
+        const signed=await admin.storage.from(SAC_OUTBOX_BUCKET).createSignedUrl(item.path!,3600);
+        if(!signed.error && signed.data?.signedUrl) mediaUrls[String(item.message.id)]=signed.data.signedUrl;
+      }
+      return json({success:true,protocol,messages,media_urls:mediaUrls});
+    }
+
     if (action === "link_customer") {
       if (!(await requirePermission("sac_digital.messages.view"))) {
         return json({ success: false, error: "Sem permissão para visualizar conversas do SAC Digital." }, 403);
