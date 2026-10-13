@@ -139,7 +139,7 @@ export function TermsAcceptanceGate({
 }: {
   initialPending: PendingOrganizationTerm[];
 }) {
-  const { activeOrganizationId } = useAuth();
+  const { activeOrganizationId, refreshAccess } = useAuth();
   const [pending, setPending] = useState<PendingOrganizationTerm[]>(initialPending);
   const [accepted, setAccepted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -166,6 +166,7 @@ export function TermsAcceptanceGate({
     try {
       await acceptOrganizationTerm(activeOrganizationId, current.id, current.version);
       setPending(items => items.slice(1));
+      if (pending.length === 1) void refreshAccess();
     } catch (requestError) {
       setError(systemErrorMessage(requestError, "Não foi possível registrar o aceite."));
     } finally {
