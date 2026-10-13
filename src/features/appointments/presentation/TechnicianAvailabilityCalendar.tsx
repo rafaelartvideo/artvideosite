@@ -17,6 +17,8 @@ type Props = {
   selectedStart?: string;
   selectedEnd?: string;
   selectedTechnicianId?: string;
+  selectedTechnicianIds?: string[];
+  onToggleTechnician?: (technicianId: string) => void;
   exceptOrderId?: string | null;
   technicianFilter?: string;
   onNavigateWeek?: (amount: number) => void;
@@ -45,6 +47,7 @@ const displayDay = (value: string) => {
 
 export function TechnicianAvailabilityCalendar({
   organizationId, technicians, date, selectedStart, selectedEnd, selectedTechnicianId,
+  selectedTechnicianIds, onToggleTechnician,
   exceptOrderId, technicianFilter, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
 }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
@@ -65,6 +68,15 @@ export function TechnicianAvailabilityCalendar({
   });
   useEffect(() => setWeekOffset(0), [baseWeek, organizationId]);
   const days = query.data?.days || [];
+  const selectedIds = selectedTechnicianIds ?? (selectedTechnicianId ? [selectedTechnicianId] : []);
+  const currentDay = days.find(item => item.date === date);
+  const technicianOptions = currentDay && selectedStart
+    ? currentDay.technicians.filter(technician =>
+        rangeAvailable(technician.workday, selectedStart,
+          selectedEnd || hhmm(minutes(selectedStart) + 30), technician.occupied, currentDay.date),
+      )
+    : [];
+  const selectableIds = new Set(technicianOptions.map(technician => technician.id));
   const hours = useMemo(() => {
     const all = days.flatMap(day => day.technicians.flatMap(tech =>
       tech.workday.is_available ? tech.workday.work_intervals : [],
@@ -75,19 +87,20 @@ export function TechnicianAvailabilityCalendar({
     for (let minute = firstMinute; minute + 30 <= lastMinute; minute += 30) result.push(hhmm(minute));
     return result;
   }, [days]);
-  const endingTimes = useMemo(() => {
-    if (!selectedStart || !selectedTechnicianId || !date || !onChooseEnd) return [];
-    const day = days.find(item => item.date === date);
-    const tech = day?.technicians.find(item => item.id === selectedTechnicianId);
-    if (!day || !tech) return [];
-    const max = Math.max(0, ...tech.workday.work_intervals.map(interval => minutes(interval.end_time)));
+  const endingTimes = (() => {
+    if (!selectedStart || !date || !onChooseEnd || !selectedIds.length || !currentDay) return [];
+    const selected = currentDay.technicians.filter(item => selectedIds.includes(item.id));
+    if (selected.length !== selectedIds.length) return [];
+    const max = Math.min(...selected.map(tech =>
+      Math.max(0, ...tech.workday.work_intervals.map(interval => minutes(interval.end_time))),
+    ));
     const result: string[] = [];
     for (let minute = minutes(selectedStart) + 30; minute <= max; minute += 30) {
       const end = hhmm(minute);
-      if (rangeAvailable(tech.workday, selectedStart, end, tech.occupied, date)) result.push(end);
+      if (selected.every(tech => rangeAvailable(tech.workday, selectedStart, end, tech.occupied, date))) result.push(end);
     }
     return result;
-  }, [days, date, selectedStart, selectedTechnicianId, onChooseEnd]);
+  })();
   const showLoading = Boolean(ids.length && (query.isPending || query.isFetching && !query.data));
   const selectable = Boolean(onChooseStart);
   return <AdminCard className="min-w-0 overflow-hidden">
@@ -119,18 +132,57 @@ export function TechnicianAvailabilityCalendar({
         Ocultar horários sem vagas
       </label>
     </div>
-    {selectedStart && selectedTechnicianId && onChooseEnd && days.some(item => item.date === date) && <div className="space-y-2 border-b border-primary/20 bg-primary/5 px-4 py-3">
+    {selectedStart && selectedIds.length > 0 && onChooseEnd && days.some(item => item.date === date) && <div className="space-y-2 border-b border-primary/20 bg-primary/5 px-4 py-3">
       <p className="text-xs font-bold text-primary">
-        {ids.find(item => item.id === selectedTechnicianId)?.full_name || "Técnico selecionado"} · {date?.split("-").reverse().join("/")} · Início {selectedStart}
+        {onToggleTechnician
+          ? `${selectedIds.length} técnico${selectedIds.length === 1 ? "" : "s"} na OS`
+          : ids.find(item => item.id === selectedTechnicianId)?.full_name || "Técnico selecionado"} · {date?.split("-").reverse().join("/")} · Início {selectedStart}
         {selectedEnd ? " · Término " + selectedEnd : " · Escolha o término"}
       </p>
       <div className="flex flex-wrap gap-1.5">
-        {endingTimes.map(end => <button key={end} type="button" onClick={() => onChooseEnd(date!, end, selectedTechnicianId)}
+        {endingTimes.map(end => <button key={end} type="button" onClick={() => onChooseEnd(date!, end, selectedIds[0])}
           aria-pressed={selectedEnd === end}
           className={"rounded-md border px-2.5 py-1.5 text-xs font-bold transition " + (selectedEnd === end
             ? "border-primary bg-primary text-white" : "border-primary/25 bg-card text-primary hover:bg-primary/10")}>{end}</button>)}
         {endingTimes.length === 0 && <span className="text-xs text-muted-foreground">Não há término disponível para este início.</span>}
       </div>
+    </div>}
+    {onToggleTechnician && selectedStart && currentDay && <div className="space-y-3 border-b border-border px-4 py-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-bold text-foreground">
+            Técnicos nesta OS <span className="text-primary">({selectedIds.length})</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Todos terão o mesmo dia e intervalo. Adicione quem estiver livre durante todo o período.
+          </p>
+        </div>
+        <span className="text-xs font-semibold text-muted-foreground">
+          {technicianOptions.length} disponível{technicianOptions.length === 1 ? "" : "is"}
+        </span>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        {technicianOptions.map(technician => <label key={technician.id}
+          className={"flex cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-3 text-xs font-semibold " +
+            (selectedIds.includes(technician.id)
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted/50")}>
+          <input type="checkbox" className="h-4 w-4 shrink-0 accent-primary"
+            checked={selectedIds.includes(technician.id)}
+            onChange={() => onToggleTechnician(technician.id)} />
+          <span className="min-w-0 flex-1 break-words">{technician.full_name}</span>
+        </label>)}
+        {currentDay.technicians.filter(item => selectedIds.includes(item.id) && !selectableIds.has(item.id))
+          .map(technician => <label key={technician.id}
+            className="flex cursor-pointer items-center gap-2.5 rounded-lg border border-amber-400/50 bg-amber-50 px-3 py-3 text-xs font-semibold text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+            <input type="checkbox" className="h-4 w-4 shrink-0 accent-primary" checked
+              onChange={() => onToggleTechnician(technician.id)} />
+            <span>{technician.full_name} — indisponível no intervalo</span>
+          </label>)}
+      </div>
+      {!selectedIds.length && <p role="status" className="text-xs font-semibold text-amber-700 dark:text-amber-400">
+        Marque pelo menos um técnico disponível para concluir o agendamento.
+      </p>}
     </div>}
     {!ids.length ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível para consulta.</p>
       : showLoading ? <p className="p-8 text-center text-sm text-muted-foreground">Consultando horários...</p>
@@ -153,11 +205,18 @@ export function TechnicianAvailabilityCalendar({
                 const available = availableAt(day, time).filter(item => !highlightEmployee || item.id === highlightEmployee);
                 return <td key={day.date} className={"min-h-[64px] border-b border-r border-border px-2 py-2 align-top " + (day.date === today ? "bg-primary/[0.025]" : "")}>
                   {available.length ? <div className="flex flex-col gap-1.5">{available.map(employee => {
-                    const active = day.date === date && time === selectedStart && employee.id === selectedTechnicianId;
+                    const active = day.date === date && time === selectedStart && selectedIds.includes(employee.id);
                     return <button key={employee.id} type="button" disabled={!selectable}
                       title={employee.full_name + " disponível às " + time}
                       aria-pressed={active}
-                      onClick={() => onChooseStart?.(day.date, time, employee.id)}
+                      onClick={() => {
+                        if (onToggleTechnician && day.date === date && time === selectedStart
+                          && (!selectedEnd || selectableIds.has(employee.id))) {
+                          onToggleTechnician(employee.id);
+                        } else {
+                          onChooseStart?.(day.date, time, employee.id);
+                        }
+                      }}
                       className={"flex min-h-9 w-full items-center justify-center rounded-md border px-2 py-2 text-center text-xs font-semibold leading-4 break-words " +
                         (active ? "border-primary bg-primary text-white"
                           : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300") +
@@ -171,7 +230,9 @@ export function TechnicianAvailabilityCalendar({
         </table>
       </div>}
     {selectable && <p className="border-t border-border px-4 py-2 text-xs text-muted-foreground">
-      Selecione o nome de um técnico em um horário livre{onChooseEnd ? " e depois escolha o término do atendimento." : " para agendar."}
+      {onToggleTechnician
+        ? "Escolha um horário e marque um ou mais técnicos. O término só poderá ser escolhido se todos estiverem livres."
+        : <>Selecione o nome de um técnico em um horário livre{onChooseEnd ? " e depois escolha o término do atendimento." : " para agendar."}</>}
     </p>}
   </AdminCard>;
 }
