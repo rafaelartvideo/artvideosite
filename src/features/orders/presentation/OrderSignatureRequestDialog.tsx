@@ -130,7 +130,7 @@ export function OrderSignatureRequestDialog({
     }
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
-    if (sacStatusError || sacEnabled === null) {
+    if (selectedTemplate.require_external_signature && (sacStatusError || sacEnabled === null)) {
       notifyAdmin(sacStatusError || "Aguarde a consulta à integração SAC Digital.", "error");
       return;
     }
@@ -265,7 +265,7 @@ export function OrderSignatureRequestDialog({
     className="max-w-xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-      <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Criando e enviando pelo WhatsApp..." disabled={onlineTemplates.length === 0 || sacEnabled === null || Boolean(sacStatusError)}>Criar e enviar</BtnPrimary>
+      <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Criando e enviando pelo WhatsApp..." disabled={onlineTemplates.length === 0 || (selectedTemplate?.require_external_signature === true && (sacEnabled === null || Boolean(sacStatusError)))}>Criar e enviar</BtnPrimary>
     </div>}
   >
     <div className="space-y-5">
