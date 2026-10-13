@@ -233,7 +233,7 @@ export const insertServiceOrderSellers = (
 export const listServiceOrderMediaLinks = (serviceOrderId: string) =>
   supabase
     .from("service_order_media")
-    .select("id,media_id")
+    .select("id,media_id,sort_order")
     .eq("service_order_id", serviceOrderId);
 
 export const deleteServiceOrderMediaLink = (linkId: string) =>
