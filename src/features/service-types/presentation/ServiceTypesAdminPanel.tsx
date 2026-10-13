@@ -142,7 +142,14 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
             forecast_days: forecastDays,
             is_active: form.is_active,
           };
-      await saveServiceType({ serviceTypeId: editItem?.id, payload, sortOrder: items.length, selectedSituations });
+      await saveServiceType({
+        serviceTypeId: editItem?.id,
+        payload,
+        sortOrder: items.length,
+        selectedSituations,
+        currentType: editItem ?? undefined,
+        currentLinks: editItem?.id ? situationLinks.filter(link => link.service_type_id === editItem.id) : undefined,
+      });
       setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar tipo: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
