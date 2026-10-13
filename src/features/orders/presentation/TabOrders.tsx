@@ -176,6 +176,9 @@ export function TabOrders({
     organizationId: workspaceBase.organizationId,
     stateOptions: ibgeStates,
     matchOrderNumberOrExternal: true,
+    // Não buscar páginas/contadores da lista em detalhes, documentos ou editor.
+    // Os dados já vistos continuam no cache para o retorno.
+    enabled: !detailOnly && !initialOrderId && subView === "list",
   });
   const {
     orders,
