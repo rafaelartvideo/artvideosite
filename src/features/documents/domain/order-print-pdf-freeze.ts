@@ -1,5 +1,5 @@
 import html2pdf from "html2pdf.js";
-import { buildOrderPrintDocumentHtml, type PrintOrderContext } from "./order-print-document";
+import { buildOrderPrintDocumentHtml, getOrderPrintFooterMetadata, orderPrintSafeMargins, type PrintOrderContext } from "./order-print-document";
 import {
   copyComputedStyle,
   freezeRasterOptions,
@@ -86,8 +86,8 @@ function collectSignatureSlots(
   pageHeightMm: number,
 ): FrozenSignatureSlot[] {
   const rootRect = captureRoot.getBoundingClientRect();
-  const margins = [template.margin_top, template.margin_right, template.margin_bottom, template.margin_left]
-    .map(value => Math.max(6, Number(value) || 6));
+  // Reserva a mesma área de rodapé no PDF e na geometria das assinaturas.
+  const margins = [...orderPrintSafeMargins(template)];
   const [marginTop, marginRight, marginBottom, marginLeft] = margins;
   const innerWidthMm = Math.max(1, pageWidthMm - marginLeft - marginRight);
   const innerHeightMm = Math.max(1, pageHeightMm - marginTop - marginBottom);
@@ -123,8 +123,8 @@ export async function freezeOrderPrintPdf(
 ): Promise<FrozenOrderPrintPdf> {
   const orientation = template.orientation === "landscape" ? "landscape" : "portrait";
   const [pageWidthMm, pageHeightMm] = A4[orientation];
-  const margins = [template.margin_top, template.margin_right, template.margin_bottom, template.margin_left]
-    .map(value => Math.max(6, Number(value) || 6));
+  // Reserva a mesma área de rodapé no PDF e na geometria das assinaturas.
+  const margins = [...orderPrintSafeMargins(template)];
   const [marginTop, marginRight, marginBottom, marginLeft] = margins;
   const innerWidthMm = Math.max(1, pageWidthMm - marginLeft - marginRight);
   const raster = freezeRasterOptions();
@@ -228,13 +228,34 @@ export async function freezeOrderPrintPdf(
     const pageCount = Number(pdf?.internal?.getNumberOfPages?.() || 0);
     if (!Number.isInteger(pageCount) || pageCount < 1) throw new Error("Não foi possível congelar o PDF de impressão.");
 
-    if (template.show_page_number !== false) {
-      for (let page = 1; page <= pageCount; page += 1) {
-        pdf.setPage(page);
-        pdf.setFont("helvetica", "normal");
+    // html2pdf não rasteriza os rodapés @page do navegador. Repetir os
+    // metadados em cada página física, fora da área destinada às tabelas.
+    const footer = getOrderPrintFooterMetadata(template, context);
+    const footerY = pageHeightMm - Math.max(5, Math.min(8, marginBottom * 0.5));
+    const sideMaxWidthMm = Math.max(20, (pageWidthMm - marginLeft - marginRight - 45) / 2);
+    const fit = (value: string, maxWidth: number) => {
+      if (pdf.getTextWidth(value) <= maxWidth) return value;
+      let result = value;
+      while (result.length > 1 && pdf.getTextWidth(result + "...") > maxWidth) {
+        result = result.slice(0, -1);
+      }
+      return result.trimEnd() + "...";
+    };
+    for (let page = 1; page <= pageCount; page += 1) {
+      pdf.setPage(page);
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(7.5);
+      pdf.setTextColor(82, 97, 116);
+      if (footer.printedAt) {
+        pdf.text(fit(footer.printedAt, sideMaxWidthMm), marginLeft, footerY);
+      }
+      if (footer.pageNumber) {
         pdf.setFontSize(8);
-        pdf.setTextColor(82, 97, 116);
-        pdf.text(`Página ${page} de ${pageCount}`, pageWidthMm / 2, pageHeightMm - Math.max(2.5, marginBottom * 0.35), { align: "center" });
+        pdf.text(`Página ${page} de ${pageCount}`, pageWidthMm / 2, footerY, { align: "center" });
+      }
+      if (footer.printedBy) {
+        pdf.setFontSize(7.5);
+        pdf.text(fit(footer.printedBy, sideMaxWidthMm), pageWidthMm - marginRight, footerY, { align: "right" });
       }
     }
 
