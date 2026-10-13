@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
-import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
+// A estrutura completa do site público não entra no bundle inicial do CRM.
+const PublicShell = lazy(() => import("@/features/public-shell/presentation/PublicShell").then(({ PublicShell }) => ({ default: PublicShell })));
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogManagerProvider } from "@/shared/ui/admin/AdminDialogManager";
@@ -335,7 +336,8 @@ function PublicRoutes() {
   const selectProduct = (slug: string) => navigate(`/loja/${encodeURIComponent(slug)}`);
 
   return (
-    <PublicShell page={page} setPage={setPage}>
+    <Suspense fallback={<PublicPageFallback />}>
+      <PublicShell page={page} setPage={setPage}>
       <Suspense fallback={<PublicPageFallback />}>
         <Routes>
           <Route path="/" element={<HomePage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} trackingSection={<ServiceTrackingSection />} />} />
@@ -350,7 +352,8 @@ function PublicRoutes() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Suspense>
-    </PublicShell>
+      </PublicShell>
+    </Suspense>
   );
 }
 
