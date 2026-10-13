@@ -4,11 +4,6 @@ import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "./query-keys";
-import {
-  ORGANIZATION_CHANGED_EVENT,
-  LEGACY_ORGANIZATION_CHANGED_EVENT,
-  addCompatibleEventListener,
-} from "@/lib/platform-identifiers";
 
 type RealtimePayload = {
   eventType?: string;
@@ -470,19 +465,11 @@ export function QueryRealtimeSync() {
       );
     }
 
-    const handleOrganizationChange = () => {
-      queryClient.clear();
-    };
-
-    const removeOrganizationListener = addCompatibleEventListener(
-      ORGANIZATION_CHANGED_EVENT,
-      LEGACY_ORGANIZATION_CHANGED_EVENT,
-      handleOrganizationChange,
-    );
+    // AppQueryProvider já limpa uma vez o cache na troca de empresa.
+    // Repetir o clear aqui gerava desmontagem/GETs duplicados.
     channel.subscribe();
 
     return () => {
-      removeOrganizationListener();
       for (const timeout of pending.values()) window.clearTimeout(timeout);
       void supabase.removeChannel(channel);
     };
