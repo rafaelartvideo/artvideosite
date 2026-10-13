@@ -38,7 +38,6 @@ const TabAuditLog = lazy(() => import("@/features/audit/presentation/TabAuditLog
 const GeneralServicesPanel = lazy(() => import("@/features/general-services/presentation/GeneralServicesPanel").then(({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel })));
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
 const TabFinance = lazy(() => import("@/features/finance/presentation/TabFinance").then(({ TabFinance }) => ({ default: TabFinance })));
-const NfsePage = lazy(() => import("@/features/nfse/presentation/NfsePage").then(({ NfsePage }) => ({ default: NfsePage })));
 const UnionPlatformFinance = lazy(() => import("@/features/platform-billing/presentation/UnionPlatformFinance").then(({ UnionPlatformFinance }) => ({ default: UnionPlatformFinance })));
 const TabFieldTracking = lazy(() => import("@/features/field-tracking/presentation/TabFieldTracking").then(({ TabFieldTracking }) => ({ default: TabFieldTracking })));
 const FieldTrackingReporter = lazy(() => import("@/features/field-tracking/presentation/FieldTrackingReporter").then(({ FieldTrackingReporter }) => ({ default: FieldTrackingReporter })));
@@ -65,7 +64,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "nfse", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
+  "home", "dashboard", "crm", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -141,6 +140,7 @@ export function AdminDashboard({
   };
 
   const canAccessTab = (tab: AdminTab) => {
+    if (tab === "nfse") return false;
     if (tab === "home") return true;
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
@@ -410,7 +410,7 @@ export function AdminDashboard({
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
             <Route path="pdv/*" element={<TabPdv routeResourceId={route.resourceId} onRouteChange={routeChange("pdv")} />} />
             <Route path="finance/*" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformFinance /> : <TabFinance routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("finance")} />} />
-            <Route path="nfse/*" element={<NfsePage />} />
+            <Route path="nfse/*" element={<Navigate to="/admin" replace />} />
             <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
             <Route path="plan-usage" element={<PlanUsagePage />} />
             <Route path="contact/*" element={<TabContact />} />
