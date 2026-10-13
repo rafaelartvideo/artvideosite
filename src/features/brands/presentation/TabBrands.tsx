@@ -66,12 +66,12 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
     try {
       const finalSlug = await generateUniqueSlug("brands", form.name, editItem?.id);
       await saveBrand({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: website || null, description: form.description.trim() || null }, editItem?.id);
-      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" }); await refresh();
+      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar marca: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteBrand(id); setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir marca: ${systemErrorMessage(error)}`, type: "error" }); } };
-  const toggleActive = async (brand: any) => { if (!canToggleActive) return; const nextActive = !brand.is_active; try { await setBrandActive(brand.id, nextActive); queryClient.setQueryData(queryKeys.catalog.brands(), (current: any[] | undefined) => (current ?? []).map(item => item.id === brand.id ? { ...item, is_active: nextActive } : item)); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar marca: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteBrand(id); setDelId(null); setToast({ msg: "Marca excluída.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao excluir marca: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleActive = async (brand: any) => { if (!canToggleActive) return; const nextActive = !brand.is_active; try { await setBrandActive(brand.id, nextActive); queryClient.setQueryData(queryKeys.catalog.brands(), (current: any[] | undefined) => (current ?? []).map(item => item.id === brand.id ? { ...item, is_active: nextActive } : item)); setToast({ msg: "Status atualizado!", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar marca: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   const totalPages = Math.max(1, Math.ceil(brands.length / pageSize));
   const safePage = Math.min(page, totalPages);
