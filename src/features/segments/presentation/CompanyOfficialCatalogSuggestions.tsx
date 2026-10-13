@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { CompanyCatalogUpdates } from "./CompanyCatalogUpdates";
+import { CompanyCatalogTemplateSuggestions } from "./CompanyCatalogTemplateSuggestions";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   addOfficialBrand, addOfficialEquipment, loadCompanyOfficialCatalog,
@@ -9,10 +11,12 @@ import {
 type Props = {
   organizationId: string;
   canCreate: boolean;
+  canEdit: boolean;
+  canManageFields: boolean;
   onImported: () => Promise<unknown>;
 };
 
-export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, onImported }: Props) {
+export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, canEdit, canManageFields, onImported }: Props) {
   const [catalog, setCatalog] = useState<CompanyOfficialCatalog | null>(null);
   const [loading, setLoading] = useState(true);
   const [workingKey, setWorkingKey] = useState("");
@@ -160,6 +164,14 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, o
         </>}
       </div>
     </div>}
+    {activeType?.local_equipment_type_id && <CompanyCatalogTemplateSuggestions
+      key={organizationId + ":" + activeType.id}
+      organizationId={organizationId}
+      equipmentCatalogId={activeType.id}
+      canManage={canEdit && canManageFields}
+      onAdded={onImported}
+    />}
+    <CompanyCatalogUpdates organizationId={organizationId} canEdit={canEdit} onUpdated={onImported} />
     {!canCreate && <p className="text-xs text-muted-foreground">
       Sua função permite consultar as sugestões, mas não adicionar equipamentos ou marcas.
     </p>}
