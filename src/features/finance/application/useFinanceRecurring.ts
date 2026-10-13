@@ -23,11 +23,9 @@ export function useFinanceRecurring() {
 
   const invalidate = () => {
     // A mutação já foi confirmada: não manter isPending durante reconsultas.
-    [
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.recurring(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.pendingApprovals(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: ["finance", organizationKey, "entries"] }),
-    ].forEach(query => { void query; });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.recurring(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.pendingApprovals(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: ["finance", organizationKey, "entries"] });
   };
 
   const saveMutation = useMutation({
