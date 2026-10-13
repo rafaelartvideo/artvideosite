@@ -26,7 +26,11 @@ export function AgendaEventCard({ event, draggedEventId, onDraggedEventChange, o
 
   if (event.kind === "service_order") {
     const { order } = event;
-    return <button type="button" draggable onDragStart={startDrag} onClick={openEvent} className="mb-1 w-full rounded-md border-l-4 bg-white px-2 py-1.5 text-left shadow-sm hover:shadow-md" style={{ borderLeftColor: order.order_status?.color || "var(--primary)" }} title={`${order.os_number || "OS"} - ${order.customer?.full_name || "Cliente"}`}><p className="truncate font-mono text-[10px] font-black text-foreground">{order.os_number || `OS #${order.id.slice(0, 8)}`}</p><p className="truncate text-[11px] font-semibold text-[#0d1b2e]">{order.customer?.full_name || "Cliente"}</p><p className="truncate text-[10px] text-[#5a6a82]">{eventLabel(order)} · {new Date(order.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}–{new Date(order.scheduled_end_at || new Date(order.scheduled_at).getTime() + 60 * 60_000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p></button>;
+    const technicianNames = Array.from(new Set<string>([
+      ...(order.technician_links || []).map((link: any) => link.employee?.full_name).filter(Boolean),
+      ...(!(order.technician_links || []).length && order.technician?.full_name ? [order.technician.full_name] : []),
+    ]));
+    return <button type="button" draggable onDragStart={startDrag} onClick={openEvent} className="mb-1 w-full rounded-md border-l-4 bg-white px-2 py-1.5 text-left shadow-sm hover:shadow-md" style={{ borderLeftColor: order.order_status?.color || "var(--primary)" }} title={`${order.os_number || "OS"} - ${order.customer?.full_name || "Cliente"}`}><p className="truncate font-mono text-[10px] font-black text-foreground">{order.os_number || `OS #${order.id.slice(0, 8)}`}</p><p className="truncate text-[11px] font-semibold text-[#0d1b2e]">{order.customer?.full_name || "Cliente"}</p><p className="truncate text-[10px] text-[#5a6a82]">{eventLabel(order)} · {new Date(order.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}–{new Date(order.scheduled_end_at || new Date(order.scheduled_at).getTime() + 60 * 60_000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>{technicianNames.length > 0 && <p className="mt-1 line-clamp-2 text-[10px] font-semibold text-muted-foreground" title={technicianNames.join(", ")}>Técnicos: {technicianNames.join(", ")}</p>}</button>;
   }
 
   const { appointment } = event;
