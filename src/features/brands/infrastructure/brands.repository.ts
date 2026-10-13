@@ -22,9 +22,9 @@ export async function saveBrand(
     ? supabase.from("brands").update(payload).eq("organization_id", organizationId).eq("id", brandId)
     : supabase.from("brands").insert({ ...payload, organization_id: organizationId });
 
-  const { data, error } = await query.select().single();
+  // A tela não usa a linha retornada. Evita SELECT/RETURNING desnecessário.
+  const { error } = await query;
   if (error) throw error;
-  return data;
 }
 
 export async function deleteBrand(brandId: string): Promise<void> {
