@@ -1,3 +1,4 @@
+import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Download, ExternalLink, FileCheck2, LockKeyhole, ShieldCheck, PenLine } from "lucide-react";
 import { useParams } from "react-router";
@@ -52,10 +53,10 @@ function FrozenPdfPreview({ document }: { document: PublicSignatureDocument }) {
           <ExternalLink size={14} /> Abrir PDF
         </a>
       </div>
-      <iframe
-        src={`${document.preview_url}#toolbar=1&navpanes=0&view=FitH`}
+      <PdfInlineViewer
+        source={document.preview_url}
         title="PDF original para assinatura"
-        className="block h-[68vh] min-h-[520px] w-full bg-[#eef2f6]"
+        className="h-[68vh] min-h-[520px] w-full bg-[#eef2f6]"
       />
       <div className="border-t border-[#eef2f6] px-4 py-2 text-[10px] text-[#94a3b8]">
         Integridade do PDF original: <span className="font-mono">{document.base_pdf_hash.slice(0, 16)}…</span>
