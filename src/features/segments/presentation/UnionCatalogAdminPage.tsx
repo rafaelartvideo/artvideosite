@@ -130,7 +130,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
       await reload();
       setSelectedId(savedId);
       setCreating(false);
-      setNotice("Cadastro salvo com sucesso. Nenhum dado foi distribuído às empresas.");
+      setNotice("Cadastro salvo. Alterações de nomes oficiais são sincronizadas automaticamente com empresas que possuem vínculos.");
     } catch (cause) {
       setError(systemErrorMessage(cause, "Não foi possível salvar o cadastro."));
     } finally {
@@ -190,7 +190,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
 
     <div className="rounded-xl border border-[#ccd9f5] bg-[#f3f6ff] px-4 py-3 text-sm leading-6 text-[#3d547d]">
       Catálogo central em preparação. Os equipamentos e marcas cadastrados aqui não são importados
-      automaticamente para nenhuma empresa. Modelos continuam sem importação.
+      automaticamente para nenhuma empresa. Nomes de itens já vinculados são sincronizados imediatamente. Modelos continuam sem importação.
     </div>
 
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tipos de cadastro">
