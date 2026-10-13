@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
-import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
+import { slugify } from "@/shared/domain/formatters";
 import { saveEquipmentChecklistConfiguration } from "@/features/checklists/infrastructure/checklists.repository";
 import type { EquipmentCatalog, EquipmentDraft } from "../domain/equipment";
 
@@ -76,28 +76,46 @@ export async function setEquipmentTypeActive(equipmentTypeId: string, isActive: 
   return result.data;
 }
 
-export async function saveEquipmentTypeTechnicalFields(equipmentTypeId: string, links: Array<{ technical_field_id: string; required: boolean; sort_order: number }>) {
+export async function saveEquipmentTypeTechnicalFields(
+  equipmentTypeId: string,
+  links: Array<{ technical_field_id: string; required: boolean; sort_order: number }>,
+  previousLinks?: Array<{ technical_field_id: string; required: boolean; sort_order: number }>,
+) {
   const organizationId = await getActiveOrganizationId();
-  const current = await supabase.from("equipment_type_technical_fields").select("technical_field_id,required,sort_order").eq("organization_id", organizationId).eq("equipment_type_id", equipmentTypeId);
-  if (current.error) throw current.error;
+  // Ao editar a estrutura, a versão já carregada do catálogo permite calcular
+  // apenas os vínculos alterados. Não é necessário um SELECT adicional por equipamento.
+  let existing = previousLinks;
+  if (!existing) {
+    const current = await supabase.from("equipment_type_technical_fields")
+      .select("technical_field_id,required,sort_order")
+      .eq("organization_id", organizationId)
+      .eq("equipment_type_id", equipmentTypeId);
+    if (current.error) throw current.error;
+    existing = current.data ?? [];
+  }
 
-  const existingLinks = new Map((current.data ?? []).map(link => [link.technical_field_id, link]));
+  const existingById = new Map(existing.map(link => [link.technical_field_id, link]));
   const nextIds = new Set(links.map(link => link.technical_field_id));
-  const removedIds = (current.data ?? []).map(link => link.technical_field_id).filter(fieldId => !nextIds.has(fieldId));
-  // Salvar outros dados do equipamento não deve excluir/regravar campos técnicos
-  // sem alterações: isso gera verificações de permissão e auditorias desnecessárias.
+  const removedIds = existing.map(link => link.technical_field_id).filter(fieldId => !nextIds.has(fieldId));
   const changedLinks = links.filter(link => {
-    const existing = existingLinks.get(link.technical_field_id);
-    return !existing || existing.required !== link.required || Number(existing.sort_order) !== Number(link.sort_order);
+    const previous = existingById.get(link.technical_field_id);
+    return !previous || previous.required !== link.required || Number(previous.sort_order) !== Number(link.sort_order);
   });
 
   if (removedIds.length) {
-    const removed = await supabase.from("equipment_type_technical_fields").delete().eq("organization_id", organizationId).eq("equipment_type_id", equipmentTypeId).in("technical_field_id", removedIds);
-    if (removed.error) throw removed.error;
+    const { error } = await supabase.from("equipment_type_technical_fields").delete()
+      .eq("organization_id", organizationId)
+      .eq("equipment_type_id", equipmentTypeId)
+      .in("technical_field_id", removedIds);
+    if (error) throw error;
   }
   if (!changedLinks.length) return;
-  const result = await supabase.from("equipment_type_technical_fields").upsert(changedLinks.map(link => ({ organization_id: organizationId, equipment_type_id: equipmentTypeId, ...link })), { onConflict: "equipment_type_id,technical_field_id" });
-  if (result.error) throw result.error;
+
+  const { error } = await supabase.from("equipment_type_technical_fields").upsert(
+    changedLinks.map(link => ({ organization_id: organizationId, equipment_type_id: equipmentTypeId, ...link })),
+    { onConflict: "equipment_type_id,technical_field_id" },
+  );
+  if (error) throw error;
 }
 
 export async function saveServiceOrderTechnicalValues(serviceOrderId: string, values: Array<{ technical_field_id: string; field_key_snapshot: string; label_snapshot: string; field_type_snapshot: "text" | "number"; value_text?: string | null; value_number?: number | null; }>) {
@@ -108,8 +126,12 @@ export async function saveServiceOrderTechnicalValues(serviceOrderId: string, va
 }
 
 async function saveAndGetId(table: string, payload: Record<string, unknown>, id: string | undefined, organizationId: string, errorMessage: string): Promise<string> {
-  const query = id ? supabase.from(table).update(payload).eq("id", id).eq("organization_id", organizationId) : supabase.from(table).insert({ ...payload, organization_id: organizationId });
-  const { data, error } = await query.select("id").single();
+  if (id) {
+    const { error } = await supabase.from(table).update(payload).eq("id", id).eq("organization_id", organizationId);
+    if (error) throw toCatalogError(error, errorMessage);
+    return id;
+  }
+  const { data, error } = await supabase.from(table).insert({ ...payload, organization_id: organizationId }).select("id").single();
   if (error) throw toCatalogError(error, errorMessage);
   if (!data?.id) throw new Error(errorMessage);
   return data.id;
@@ -118,11 +140,41 @@ async function saveAndGetId(table: string, payload: Record<string, unknown>, id:
 export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: EquipmentCatalog): Promise<void> {
   const organizationId = await getActiveOrganizationId();
 
+  // Slugs existentes já vêm em load_equipment_catalog_v1. Evita um GET de toda
+  // a tabela para cada marca/modelo. A unique constraint continua protegendo
+  // gravações concorrentes.
+  type CatalogSlug = { id: string; slug?: string | null };
+  const slugSets = {
+    types: new Set((catalog.types as CatalogSlug[]).map(item => item.slug).filter((slug): slug is string => Boolean(slug))),
+    brands: new Set((catalog.brands as CatalogSlug[]).map(item => item.slug).filter((slug): slug is string => Boolean(slug))),
+    models: new Set((catalog.models as CatalogSlug[]).map(item => item.slug).filter((slug): slug is string => Boolean(slug))),
+  };
+  const chooseSlug = (group: keyof typeof slugSets, name: string, previous?: CatalogSlug) => {
+    const used = slugSets[group];
+    // Um slug anterior só pertence ao item em edição.
+    if (previous?.slug) used.delete(previous.slug);
+    const base = slugify(name) || "item";
+    let slug = base;
+    for (let number = 2; used.has(slug); number += 1) slug = `${base}-${number}`;
+    used.add(slug);
+    return slug;
+  };
+
   for (const type of drafts) {
     const originalType = type.id ? catalog.types.find(item => item.id === type.id) : undefined;
     const originalBrands = originalType ? catalog.brands.filter(item => item.equipment_type_id === originalType.id) : [];
-    const typeSlug = await generateUniqueSlug("equipment_types", type.name, type.id);
-    const typeId = await saveAndGetId("equipment_types", { name: type.name.trim(), slug: typeSlug, is_active: type.is_active, sort_order: 0 }, type.id, organizationId, "Tipo de equipamento não foi salvo.");
+    const trimmedTypeName = type.name.trim();
+    const typeNameChanged = !originalType || trimmedTypeName !== originalType.name;
+    const typeChanges: Record<string, unknown> = {};
+    if (typeNameChanged) {
+      typeChanges.name = trimmedTypeName;
+      typeChanges.slug = chooseSlug("types", trimmedTypeName, originalType);
+    }
+    if (!originalType || type.is_active !== originalType.is_active) typeChanges.is_active = type.is_active;
+    if (!originalType) typeChanges.sort_order = 0;
+
+    const typeId = originalType && !Object.keys(typeChanges).length ? originalType.id :
+      await saveAndGetId("equipment_types", typeChanges, type.id, organizationId, "Tipo de equipamento não foi salvo.");
 
     const previousLinks = (catalog.technicalFieldLinks ?? []).filter(link => link.equipment_type_id === type.id);
     const previousLinksById = new Map(previousLinks.map(link => [link.technical_field_id, link]));
@@ -130,16 +182,14 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
       const original = previousLinksById.get(link.technical_field_id);
       return !original || original.required !== link.required || Number(original.sort_order) !== Number(link.sort_order);
     });
-    // A edição de nome/marcas/modelos não precisa da permissão de gerenciar campos extras.
     if (technicalFieldsChanged) {
-      await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields);
+      await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields, previousLinks);
     }
 
     const previousChecklistItems = (catalog.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type.id);
     const checklistChanged =
       (originalType?.checklist_profile_id ?? null) !== (type.checklist_profile_id ?? null)
       || JSON.stringify(previousChecklistItems) !== JSON.stringify(type.checklistItems);
-    // Evita excluir e recriar os itens de checklist quando a estrutura não mudou.
     if (checklistChanged) {
       await saveEquipmentChecklistConfiguration(typeId, type.checklist_profile_id, type.checklistItems);
     }
@@ -147,18 +197,47 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
     for (const brand of type.brands) {
       const originalBrand = brand.id ? originalBrands.find(item => item.id === brand.id) : undefined;
       const originalModels = originalBrand ? catalog.models.filter(item => item.equipment_brand_id === originalBrand.id) : [];
-      const brandSlug = await generateUniqueSlug("equipment_brands", brand.name, brand.id);
-      const brandId = await saveAndGetId("equipment_brands", { name: brand.name.trim(), slug: brandSlug, equipment_type_id: typeId, is_active: brand.is_active, sort_order: 0 }, brand.id, organizationId, "Marca técnica não foi salva.");
+      const trimmedBrandName = brand.name.trim();
+      const brandNameChanged = !originalBrand || trimmedBrandName !== originalBrand.name;
+      const brandChanges: Record<string, unknown> = {};
+      if (brandNameChanged) {
+        brandChanges.name = trimmedBrandName;
+        brandChanges.slug = chooseSlug("brands", trimmedBrandName, originalBrand);
+      }
+      if (!originalBrand || brand.is_active !== originalBrand.is_active) brandChanges.is_active = brand.is_active;
+      if (!originalBrand) {
+        brandChanges.equipment_type_id = typeId;
+        brandChanges.sort_order = 0;
+      }
+      const brandId = originalBrand && !Object.keys(brandChanges).length ? originalBrand.id :
+        await saveAndGetId("equipment_brands", brandChanges, brand.id, organizationId, "Marca técnica não foi salva.");
 
       for (const model of brand.models) {
-        const modelName = model.name.trim().toLocaleUpperCase("pt-BR");
-        const modelSlug = await generateUniqueSlug("equipment_models", modelName, model.id);
-        const payload = { name: modelName, slug: modelSlug, equipment_brand_id: brandId, is_active: model.is_active, sort_order: 0 };
-        const { error } = model.id ? await supabase.from("equipment_models").update(payload).eq("id", model.id).eq("organization_id", organizationId) : await supabase.from("equipment_models").insert({ ...payload, organization_id: organizationId });
-        if (error) throw toCatalogError(error, "Modelo não foi salvo.");
+        const originalModel = model.id ? originalModels.find(item => item.id === model.id) : undefined;
+        const trimmedModelName = model.name.trim().toLocaleUpperCase("pt-BR");
+        const modelNameChanged = !originalModel || trimmedModelName !== originalModel.name;
+        const modelChanges: Record<string, unknown> = {};
+        if (modelNameChanged) {
+          modelChanges.name = trimmedModelName;
+          modelChanges.slug = chooseSlug("models", trimmedModelName, originalModel);
+        }
+        if (!originalModel || model.is_active !== originalModel.is_active) modelChanges.is_active = model.is_active;
+        if (!originalModel) {
+          modelChanges.equipment_brand_id = brandId;
+          modelChanges.sort_order = 0;
+        }
+        if (originalModel && !Object.keys(modelChanges).length) continue;
+        if (model.id) {
+          const { error } = await supabase.from("equipment_models").update(modelChanges).eq("id", model.id).eq("organization_id", organizationId);
+          if (error) throw toCatalogError(error, "Modelo não foi salvo.");
+        } else {
+          const { error } = await supabase.from("equipment_models").insert({ ...modelChanges, organization_id: organizationId });
+          if (error) throw toCatalogError(error, "Modelo não foi salvo.");
+        }
       }
-      for (const oldModel of originalModels.filter(item => !brand.models.some(model => model.id === item.id))) {
-        const { error } = await supabase.from("equipment_models").delete().eq("id", oldModel.id).eq("organization_id", organizationId);
+      const removedModelIds = originalModels.filter(item => !brand.models.some(model => model.id === item.id)).map(item => item.id);
+      if (removedModelIds.length) {
+        const { error } = await supabase.from("equipment_models").delete().in("id", removedModelIds).eq("organization_id", organizationId);
         if (error) throw error;
       }
     }
