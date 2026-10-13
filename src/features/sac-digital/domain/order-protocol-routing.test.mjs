@@ -179,7 +179,9 @@ test('OS deep link always includes order when a protocol is known', () => {
 
 test('OS conversation route retries cancelled initialization and uses exact protocol', () => {
   const start=sacPage.indexOf('// Atalho da OS: localizar o protocolo vinculado');
-  const stop=sacPage.indexOf('  useEffect(() => {',start+10);
+  const effectStart=sacPage.indexOf('  useEffect(() => {',start);
+  const stop=sacPage.indexOf('  useEffect(() => {',effectStart+1);
+  assert.ok(start >= 0 && effectStart > start && stop > effectStart, 'O efeito de abertura da OS deve existir.');
   const code=sacPage.slice(start,stop);
   assert.match(code, /getSacDigitalOrderConversation\(\s*activeOrganizationId, routeOrderConversationId, routeExternalProtocol/);
   assert.ok(code.indexOf('handledOrderConversationRef.current = targetKey;') >
