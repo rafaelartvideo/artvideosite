@@ -451,6 +451,25 @@ async function saveEditor(context: any) {
   await scopedId(admin, "service_types", session.organization_id, patch.service_type_id);
   await scopedId(admin, "general_services", session.organization_id, patch.general_service_id);
   await scopedId(admin, "equipment_types", session.organization_id, patch.equipment_type_id);
+  // Uma edição do serviço deve respeitar o tipo do equipamento.
+  // Serviços históricos que não foram alterados continuam preservados.
+  const effectiveEquipmentTypeId = Object.prototype.hasOwnProperty.call(patch, "equipment_type_id")
+    ? patch.equipment_type_id : order.equipment_type_id;
+  if (patch.general_service_id && effectiveEquipmentTypeId
+      && patch.general_service_id !== order.general_service_id) {
+    const { data: relation, error: relationError } = await admin
+      .from("equipment_type_general_services")
+      .select("general_service_id")
+      .eq("organization_id", session.organization_id)
+      .eq("equipment_type_id", effectiveEquipmentTypeId)
+      .eq("general_service_id", patch.general_service_id)
+      .maybeSingle();
+    // Banco anterior à migração ainda utiliza o fluxo antigo.
+    if (relationError && !["42P01", "PGRST205"].includes(relationError.code || "")) throw relationError;
+    if (!relationError && !relation) {
+      throw Object.assign(new Error("Este serviço não está vinculado ao equipamento selecionado."), { status: 422 });
+    }
+  }
   if (patch.equipment_brand_id) await scopedId(admin, "equipment_brands", session.organization_id, patch.equipment_brand_id, patch.equipment_type_id ? { column: "equipment_type_id", value: patch.equipment_type_id } : undefined);
   if (patch.equipment_model_id) await scopedId(admin, "equipment_models", session.organization_id, patch.equipment_model_id, patch.equipment_brand_id ? { column: "equipment_brand_id", value: patch.equipment_brand_id } : undefined);
 
