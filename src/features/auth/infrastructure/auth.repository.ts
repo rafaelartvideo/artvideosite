@@ -38,17 +38,9 @@ export async function authenticateAdmin(identifier: string, password: string): P
   });
   if (session.error || !session.data.user) return "invalid_credentials";
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("is_active")
-    .eq("id", session.data.user.id)
-    .single();
-
-  if (profile?.is_active === false) {
-    await supabase.auth.signOut({ scope: "local" });
-    return "inactive_user";
-  }
-
+  // A Edge Function username-auth já verifica profiles.is_active antes de
+  // autenticar. Repetir SELECT profiles após setSession acrescentava latência
+  // e duplicava a checagem sem benefício; o bootstrap também valida o acesso.
   return "authenticated";
 }
 
