@@ -49,6 +49,7 @@ export async function persistServiceOrder({
   selectedTechnicianIds,
   selectedSellerIds,
   technicalValues,
+  originalTechnicalValues,
   orderImages,
   uploadImage,
   onImageUploaded,
@@ -62,10 +63,11 @@ export async function persistServiceOrder({
   selectedTechnicianIds: string[];
   selectedSellerIds: string[];
   technicalValues: Array<Record<string, unknown>>;
+  originalTechnicalValues?: Array<Record<string, unknown>>;
   orderImages: SubmissionImage[];
   uploadImage: (file: File, kind?: OrderImageKind) => Promise<string>;
   onImageUploaded?: (imageKey: string, mediaId: string) => void;
-  saveTechnicalValues: (orderId: string) => Promise<{ error: any } | void>;
+  saveTechnicalValues: (orderId: string, values: Array<Record<string, unknown>>) => Promise<{ error: any } | void>;
 }): Promise<SubmissionFailure | SubmissionSuccess> {
   let savedOrderId = editingOrder?.id as string | undefined;
   const retryingPartialCreate = !editingOrder && Boolean(pendingOrderId);
@@ -156,8 +158,22 @@ export async function persistServiceOrder({
 
   if (!savedOrderId) return { success: false, stage: "record", error: new Error("A OS foi salva, mas não foi possível obter seu ID.") };
 
-  const technicalValuesResult = await saveTechnicalValues(savedOrderId);
-  if (technicalValuesResult?.error) return { success: false, stage: "technical", error: technicalValuesResult.error, orderId: savedOrderId };
+  const priorValues = new Map((originalTechnicalValues ?? []).map(value => [String(value.technical_field_id), value]));
+  const changedTechnicalValues = editingOrder && originalTechnicalValues
+    ? technicalValues.filter(value => {
+        const previous = priorValues.get(String(value.technical_field_id));
+        if (!previous) return true;
+        const oldNumber = previous.value_number == null ? null : Number(previous.value_number);
+        const newNumber = value.value_number == null ? null : Number(value.value_number);
+        return String(value.value_text ?? "") !== String(previous.value_text ?? "")
+          || newNumber !== oldNumber
+          || value.field_type_snapshot !== previous.field_type_snapshot;
+      })
+    : technicalValues;
+  if (changedTechnicalValues.length) {
+    const technicalValuesResult = await saveTechnicalValues(savedOrderId, changedTechnicalValues);
+    if (technicalValuesResult?.error) return { success: false, stage: "technical", error: technicalValuesResult.error, orderId: savedOrderId };
+  }
 
   const uniqueTechnicianIds = Array.from(new Set(selectedTechnicianIds));
   const uniqueSellerIds = Array.from(new Set(selectedSellerIds));
