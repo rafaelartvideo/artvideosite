@@ -3255,25 +3255,31 @@ Deno.serve(async request => {
         return submissionResponse(settled,protocol);
       }
 
-      const mediaTransport = fromOrder ? "manager-client-protocol" : "url";
+      const mediaTransport = fromOrder ? "operator-protocol" : "url";
       let response: Response;
       let apiBody: Record<string, unknown>;
       if (fromOrder) {
-        const companySession = await login(organizationId, credentials);
-        const apiResult = await fetchJson(
-          `${SAC_API_BASE_URL}/protocol/send`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${companySession.token}`,
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(apiPayload),
-          },
+        // Arquivos da OS seguem a mesma identidade do Operador, nunca o
+        // endpoint Client que faz o fornecedor exibir como mensagem do cliente.
+        const sent = await runResourceOperation(
+          78,
+          { ...apiPayload, protocol },
+          typeof body.intent_key === "string"
+            ? `${userData.user.id}:os-media:${orderId}:${body.intent_key.slice(0,160)}`
+            : undefined,
         );
-        response = apiResult.response;
-        apiBody = apiResult.body;
+        if (!sent.success) {
+          if (sent.outcome === "rejected") await admin.storage.from(SAC_OUTBOX_BUCKET).remove([storagePath]);
+          return json({
+            success: false,
+            type: sent.type || "provider_rejected",
+            outcome: sent.outcome || "rejected",
+            error: sent.error || "A SAC Digital não conseguiu enviar o anexo pelo Operador.",
+          }, sent.outcome === "unknown" ? 502 : 409);
+        }
+        apiBody = sent.data && typeof sent.data === "object" && !Array.isArray(sent.data)
+          ? sent.data as Record<string, unknown> : {};
+        response = new Response(null, { status: 200 });
       } else {
         const apiResult = await apiRequest(
           organizationId,
@@ -3846,28 +3852,26 @@ Deno.serve(async request => {
           // Pode haver atraso até o protocolo ser projetado; reconciliar no webhook.
         }
 
-        const companySession = await login(organizationId, credentials);
-        const outgoing = await fetchJson(
-          `${SAC_API_BASE_URL}/protocol/send`,
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${companySession.token}`,
-              Accept: "application/json",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ protocol: openedProtocol, type: "text", text }),
-          },
+        // A rota Client /protocol/send faz a SAC classificar o remetente como
+        // CONTATO. Em atendimento iniciado pela OS devemos usar exclusivamente
+        // o token individual do OPERADOR e /operator/att/send/{protocol}.
+        const sent = await runResourceOperation(
+          78,
+          { protocol: openedProtocol, type: "text", text },
+          typeof body.intent_key === "string"
+            ? `${userData.user.id}:os-message:${orderId}:${body.intent_key.slice(0,160)}`
+            : undefined,
         );
-        if (!outgoing.response.ok || outgoing.body.status === false || outgoing.body.success === false) {
+        if (!sent.success) {
           return json({
             success: false,
-            error: typeof outgoing.body.message === "string" && outgoing.body.message.trim()
-              ? `SAC Digital: ${outgoing.body.message.trim()}`
-              : "A SAC Digital não conseguiu enviar a mensagem pelo atendimento.",
-          }, 409);
+            type: sent.type || "provider_rejected",
+            outcome: sent.outcome || "rejected",
+            error: sent.error || "A SAC Digital não conseguiu enviar a mensagem pelo Operador.",
+          }, sent.outcome === "unknown" ? 502 : 409);
         }
-        const outgoingBody = outgoing.body;
+        const outgoingBody = sent.data && typeof sent.data === "object" && !Array.isArray(sent.data)
+          ? sent.data as Record<string, unknown> : {};
 
         const { data: protocolRow } = await admin
           .from("sac_digital_protocols")
