@@ -77,3 +77,28 @@ export async function setUnionCatalogLink(
   });
   if (error) throw error;
 }
+
+export type UnionCatalogDistribution = {
+  companies: Array<{
+    id: string;
+    name: string;
+    equipment_count: number;
+    brand_count: number;
+    issues: number;
+  }>;
+  pending_issues: Array<{
+    organization_id: string;
+    issue_key: string;
+    details: string;
+  }>;
+};
+
+export async function loadUnionCatalogDistribution(): Promise<UnionCatalogDistribution> {
+  const { data, error } = await supabase.rpc("load_union_catalog_distribution_v1");
+  if (error) throw error;
+  const raw = (data || {}) as Partial<UnionCatalogDistribution>;
+  return {
+    companies: Array.isArray(raw.companies) ? raw.companies : [],
+    pending_issues: Array.isArray(raw.pending_issues) ? raw.pending_issues : [],
+  };
+}
