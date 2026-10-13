@@ -41,7 +41,7 @@ export function PdfInlineViewer({ source, className = "", title = "Documento PDF
   useEffect(() => {
     if (!viewportElement) return;
     const measure = () => {
-      const width = Math.max(0, viewportElement.clientWidth - 32);
+      const width = Math.max(280, viewportElement.clientWidth - 32);
       setAvailableWidth(width);
     };
     measure();
