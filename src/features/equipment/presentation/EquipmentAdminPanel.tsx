@@ -254,7 +254,6 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       {showUnionCatalog && <CompanyOfficialCatalogSuggestions
         key={activeOrganizationId}
         organizationId={activeOrganizationId}
-        canCreate={canCreate}
         canEdit={canEdit}
         canManageFields={canManageFields}
         canManageChecklists={hasPermission("checklists.manage")}
