@@ -14,6 +14,7 @@ import {
   changeAdminPassword,
 } from "@/features/auth/infrastructure/auth.repository";
 import { LoadingSpinner, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { prefetchAdminModule } from "@/features/admin-shell/application/admin-prefetch";
 
 type AdminLoginProps = {
   onLoginSuccess: () => void;
@@ -140,6 +141,8 @@ export function AdminLogin({ onLoginSuccess: _onLoginSuccess }: AdminLoginProps)
       window.localStorage.removeItem(REMEMBERED_USERNAME_KEY);
     }
 
+    // Sobrepor o download do primeiro módulo à autenticação. Sem consultas.
+    prefetchAdminModule("home");
     const result = await authenticateAdmin(normalizedUsername, password);
 
     if (result === "invalid_credentials") {
