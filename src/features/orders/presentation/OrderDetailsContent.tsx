@@ -9,6 +9,7 @@ import {
   type ServiceOrderWithRelations,
 } from "./OrderFormControls";
 import { OrderImageDownloadMenu, OrderImageThumb, type OrderImage } from "./OrderImages";
+import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 
 export function InfoRow({
   label,
@@ -114,17 +115,15 @@ export function OrderDetailsContent({
                   <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
                 </button>
               ) : (
-                <a
-                  href={whatsappContact.whatsapp}
-                  target="_blank"
-                  rel="noreferrer"
-                  data-phone-number={`+${whatsappContact.phone}`}
-                  aria-label="Abrir WhatsApp do cliente"
+                <CompanyWhatsAppAction
+                  phone={customer?.whatsapp || customer?.phone}
+                  name={customer?.full_name || customer?.trade_name || customer?.legal_name}
+                  organizationId={detail.organization_id}
                   className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
                   title="Abrir conversa no WhatsApp"
                 >
                   <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
-                </a>
+                </CompanyWhatsAppAction>
               )
             ) : (
               <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
