@@ -12,6 +12,7 @@ import {
 } from "../infrastructure/appointments.repository";
 import { dayKey, type AppointmentWithRelations } from "./agenda-calendar";
 import { createAppointmentForm } from "./appointment-form";
+import { assertEmployeeScheduleAvailable } from "../infrastructure/employee-agenda.repository";
 
 type Technician = { id: string; full_name: string };
 type ToastType = "success" | "error";
@@ -59,13 +60,21 @@ export function useNewAppointment({
     setForm(current => ({ ...current, situation_id: defaultSituation?.id ?? "" }));
   }, [open, situations, form.situation_id]);
 
-  const openDialog = () => {
+  const openDialog = (date?: string, startTime?: string, technicianId?: string) => {
     const defaultSituation = situations.find(item => String(item.name).trim().toLowerCase() === "agendado") ?? situations[0];
-    setForm(createAppointmentForm(dayKey(cursor), defaultSituation?.id ?? ""));
+    const next = createAppointmentForm(date || dayKey(cursor), defaultSituation?.id ?? "");
+    if (startTime) {
+      next.period = "custom";
+      next.start_time = startTime;
+      const [h, m] = startTime.split(":").map(Number);
+      const endMinutes = h * 60 + m + 30;
+      next.end_time = `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+    }
+    setForm(next);
     setFieldErrors({});
     setCustomer(null);
     setOrders([]);
-    setSelectedTechnicianIds([]);
+    setSelectedTechnicianIds(technicianId ? [technicianId] : []);
     setCustomers([]);
     setCustomerSearch("");
     setChangingCustomer(false);
@@ -151,6 +160,12 @@ export function useNewAppointment({
 
     setSaving(true);
     try {
+      if (selectedTechnicianIds.length && form.period === "custom") {
+        for (const employeeId of selectedTechnicianIds) {
+          await assertEmployeeScheduleAvailable(organizationId, employeeId,
+            `${form.appointment_date}T${form.start_time}`, `${form.appointment_date}T${form.end_time}`);
+        }
+      }
       const payload = {
         customer_id: form.customer_id,
         service_order_id: form.service_order_id || null,
