@@ -88,14 +88,15 @@ export function useFinanceMovements(options: UseFinanceMovementsOptions = {}) {
     queryFn: () => listFinancialTransfers(organizationId),
   });
 
-  const invalidateMoney = async () => {
-    await Promise.all([
+  const invalidateMoney = () => {
+    // A mutação já foi confirmada: não manter isPending durante reconsultas.
+    [
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.transfers(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.scheduledSettlements(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts(organizationKey) }),
-    ]);
+    ].forEach(query => { void query; });
   };
 
   const transferMutation = useMutation({
