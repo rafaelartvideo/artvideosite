@@ -22,18 +22,6 @@ export type TenantCatalogTemplates = {
   technical: TenantTechnicalTemplate[];
   checklists: TenantChecklistTemplate[];
 };
-export type CatalogNameUpdate = {
-  id: string;
-  equipment_id?: string;
-  official_name: string;
-  previous_name: string | null;
-  local_name: string;
-};
-export type CatalogNameUpdates = {
-  equipment: CatalogNameUpdate[];
-  brands: CatalogNameUpdate[];
-};
-
 export async function loadTenantCatalogTemplates(organizationId: string, equipmentCatalogId: string): Promise<TenantCatalogTemplates> {
   const { data, error } = await supabase.rpc("load_company_catalog_templates_v1", {
     p_organization_id: organizationId, p_catalog_equipment_id: equipmentCatalogId,
@@ -51,35 +39,6 @@ export async function addTenantCatalogTechnicalField(organizationId: string, equ
     p_organization_id: organizationId,
     p_catalog_equipment_id: equipmentCatalogId,
     p_template_id: templateId,
-  });
-  if (error) throw error;
-}
-
-export async function loadTenantCatalogNameUpdates(organizationId: string): Promise<CatalogNameUpdates> {
-  const { data, error } = await supabase.rpc("load_company_catalog_name_updates_v1", {
-    p_organization_id: organizationId,
-  });
-  if (error) throw error;
-  const raw = (data ?? {}) as Partial<CatalogNameUpdates>;
-  return {
-    equipment: Array.isArray(raw.equipment) ? raw.equipment : [],
-    brands: Array.isArray(raw.brands) ? raw.brands : [],
-  };
-}
-
-export async function reviewTenantCatalogNameUpdate(
-  organizationId: string,
-  kind: "equipment" | "brand",
-  catalogId: string,
-  equipmentCatalogId: string | null,
-  action: "apply" | "keep",
-) {
-  const { error } = await supabase.rpc("review_company_catalog_name_update_v1", {
-    p_organization_id: organizationId,
-    p_kind: kind,
-    p_catalog_id: catalogId,
-    p_equipment_catalog_id: equipmentCatalogId,
-    p_action: action,
   });
   if (error) throw error;
 }
