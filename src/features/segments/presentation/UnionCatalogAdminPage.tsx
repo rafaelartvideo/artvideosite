@@ -17,9 +17,10 @@ type CatalogForm = {
   icon_name: string;
   sort_order: number;
   is_active: boolean;
+  is_published: boolean;
 };
 const EMPTY_FORM: CatalogForm = {
-  name: "", code: "", description: "", icon_name: "wrench", sort_order: 0, is_active: true,
+  name: "", code: "", description: "", icon_name: "wrench", sort_order: 0, is_active: true, is_published: false,
 };
 const TABS: Array<{ kind: UnionCatalogKind; label: string }> = [
   { kind: "segment", label: "Segmentos" },
@@ -27,7 +28,7 @@ const TABS: Array<{ kind: UnionCatalogKind; label: string }> = [
   { kind: "brand", label: "Marcas" },
 ];
 const emptyCatalog: UnionCatalogData = {
-  segments: [], equipmentTypes: [], brands: [], segmentEquipment: [], equipmentBrands: [],
+  revision: 0, segments: [], equipmentTypes: [], brands: [], segmentEquipment: [], equipmentBrands: [],
 };
 
 function toCode(name: string) {
@@ -43,6 +44,7 @@ function toForm(row: RecordRow): CatalogForm {
     icon_name: "icon_name" in row ? row.icon_name : "wrench",
     sort_order: "sort_order" in row ? row.sort_order : 0,
     is_active: row.is_active,
+    is_published: "is_published" in row ? row.is_published : false,
   };
 }
 
@@ -126,11 +128,12 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
         ...(kind === "brand" ? {} : { code, sort_order: Number(form.sort_order) || 0 }),
         ...(kind === "segment" ? { description: form.description.trim(), icon_name: form.icon_name.trim() } : {}),
         is_active: form.is_active,
+        ...(kind !== "segment" ? { is_published: form.is_published } : {}),
       });
       await reload();
       setSelectedId(savedId);
       setCreating(false);
-      setNotice("Cadastro salvo. Alterações de nomes oficiais são sincronizadas automaticamente com empresas que possuem vínculos.");
+      setNotice(kind !== "segment" && form.is_published ? "Item publicado. O catálogo das empresas compatíveis será atualizado automaticamente." : "Cadastro salvo. Itens não publicados ficam somente na administração da Union.");
     } catch (cause) {
       setError(systemErrorMessage(cause, "Não foi possível salvar o cadastro."));
     } finally {
@@ -189,8 +192,9 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
     </div>
 
     <div className="rounded-xl border border-[#ccd9f5] bg-[#f3f6ff] px-4 py-3 text-sm leading-6 text-[#3d547d]">
-      Catálogo central em preparação. Os equipamentos e marcas cadastrados aqui não são importados
-      automaticamente para nenhuma empresa. Nomes de itens já vinculados são sincronizados imediatamente. Modelos continuam sem importação.
+      Versão interna do catálogo: <strong>{catalog.revision}</strong>. Equipamentos e marcas em rascunho ficam apenas na Union.
+      Ao publicar, os itens passam a aparecer automaticamente nos segmentos compatíveis. Nomes vinculados continuam sincronizados.
+      Nenhum modelo é importado automaticamente.
     </div>
 
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tipos de cadastro">
@@ -237,8 +241,8 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
               <span className="block truncate text-sm font-bold text-[#17263b]">{row.name}</span>
               {"code" in row && <span className="block truncate text-xs text-[#7d8ba0]">{row.code}</span>}
             </span>
-            <span className={`shrink-0 text-xs font-semibold ${row.is_active ? "text-green-700" : "text-red-700"}`}>
-              {row.is_active ? "Ativo" : "Inativo"}
+            <span className={`shrink-0 text-xs font-semibold ${!row.is_active ? "text-red-700" : "is_published" in row && !row.is_published ? "text-amber-700" : "text-green-700"}`}>
+              {!row.is_active ? "Inativo" : "is_published" in row ? row.is_published ? "Publicado" : "Rascunho" : "Ativo"}
             </span>
           </button>)}
         </div>
@@ -297,6 +301,17 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
                   onChange={event => setForm(old => ({ ...old, is_active: event.target.checked }))} />
                 Cadastro ativo
               </label>
+              {kind !== "segment" && <label className="flex items-start gap-2 self-end rounded-lg border border-[#d6dff5] bg-[#f4f6ff] p-3 text-sm font-medium text-[#263a55]">
+                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[#1032dc]"
+                  checked={form.is_published} disabled={!canManage || saving}
+                  onChange={event => setForm(old => ({ ...old, is_published: event.target.checked }))} />
+                <span>
+                  Publicado para empresas
+                  <span className="mt-1 block text-xs font-normal leading-4 text-[#60718a]">
+                    Sem aprovação nas empresas. Aparece automaticamente nos segmentos compatíveis.
+                  </span>
+                </span>
+              </label>}
             </div>
             {canManage && <div className="mt-4 flex justify-end">
               <BtnPrimary onClick={() => void save()} loading={saving} disabled={saving || Boolean(linkBusy)} loadingText="Salvando...">Salvar cadastro</BtnPrimary>
