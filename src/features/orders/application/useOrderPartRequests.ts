@@ -276,8 +276,10 @@ export function useOrderPartRequests({
     setApprovalQuantities({});
     setPartReviewNotes("");
     showToast({ msg: message, type: "success" });
-    await loadPartRequests(serviceOrderId, true);
-    await reloadOrders();
+    void Promise.allSettled([
+      loadPartRequests(serviceOrderId, true),
+      reloadOrders(),
+    ]);
   };
 
   const approvePartRequest = async () => {
@@ -479,8 +481,10 @@ export function useOrderPartRequests({
       setSelectedDeliveryRequest(null);
       setCustodyQuantities({});
       showToast({ msg: message, type: "success" });
-      await loadPartRequests(serviceOrderId, true);
-      await reloadOrders();
+      void Promise.allSettled([
+        loadPartRequests(serviceOrderId, true),
+        reloadOrders(),
+      ]);
     } catch (error) {
       console.error("[PART CUSTODY] action error", error);
       showToast({ msg: formatError(error), type: "error" });
@@ -551,8 +555,10 @@ export function useOrderPartRequests({
           : "Resultado do teste registrado.",
         type: "success",
       });
-      await loadPartRequests(serviceOrderId, true);
-      await reloadOrders();
+      void Promise.allSettled([
+        loadPartRequests(serviceOrderId, true),
+        reloadOrders(),
+      ]);
     } catch (error) {
       console.error("[PART REQUEST] test results error", error);
       showToast({ msg: formatError(error), type: "error" });
