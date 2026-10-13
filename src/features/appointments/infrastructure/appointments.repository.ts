@@ -51,9 +51,24 @@ export async function loadAgendaData({
 
   if (!canViewOtherAgendas) {
     const emptyUuid = "00000000-0000-0000-0000-000000000000";
-    ordersQuery = myEmployeeId
-      ? ordersQuery.or(`technician_id.eq.${myEmployeeId},assigned_to.eq.${userId ?? emptyUuid}`)
-      : ordersQuery.eq("technician_id", emptyUuid);
+    let linkedOrderIds: string[] = [];
+    if (myEmployeeId) {
+      // A OS deve aparecer também para os técnicos secundários da equipe.
+      const { data: links, error: linksError } = await supabase.from("service_order_technicians")
+        .select("service_order_id,order:service_orders!inner(scheduled_at)")
+        .eq("organization_id", org)
+        .eq("employee_id", myEmployeeId)
+        .gte("order.scheduled_at", timestampFrom)
+        .lt("order.scheduled_at", timestampToExclusive);
+      if (linksError) throw linksError;
+      linkedOrderIds = [...new Set((links || []).map(link => link.service_order_id))];
+    }
+    const filters = [
+      `technician_id.eq.${myEmployeeId || emptyUuid}`,
+      `assigned_to.eq.${userId || emptyUuid}`,
+      ...(linkedOrderIds.length ? [`id.in.(${linkedOrderIds.join(",")})`] : []),
+    ];
+    ordersQuery = ordersQuery.or(filters.join(","));
   }
 
   const [
