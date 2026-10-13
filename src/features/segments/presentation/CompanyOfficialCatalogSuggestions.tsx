@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { CompanyCatalogUpdates } from "./CompanyCatalogUpdates";
 import { CompanyCatalogTemplateSuggestions } from "./CompanyCatalogTemplateSuggestions";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
@@ -173,7 +172,6 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
       canManageChecklists={canEdit && canManageChecklists}
       onAdded={onImported}
     />}
-    <CompanyCatalogUpdates organizationId={organizationId} canEdit={canEdit} onUpdated={onImported} />
     {!canCreate && <p className="text-xs text-muted-foreground">
       Sua função permite consultar as sugestões, mas não adicionar equipamentos ou marcas.
     </p>}
