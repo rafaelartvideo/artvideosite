@@ -616,7 +616,9 @@ export function TabProducts({
 
     setSaving(true);
     try {
-      const finalSlug = await generateUniqueSlug("products", form.name, editItem?.id);
+      const finalSlug = editItem?.name === form.name.trim() && editItem?.slug
+        ? editItem.slug
+        : await generateUniqueSlug("products", form.name, editItem?.id);
       const payload = {
         name: form.name.trim(),
         slug: finalSlug,
