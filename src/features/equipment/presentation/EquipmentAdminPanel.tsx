@@ -341,7 +341,9 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   selectedIds={type.serviceIds ?? (serviceSettings?.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) ?? [])}
   loading={equipmentServicesQuery.isPending}
   error={equipmentServicesQuery.error ? systemErrorMessage(equipmentServicesQuery.error, "Não foi possível carregar os vínculos de serviços.") : null}
-  disabled={saving || !(type.id ? canEdit : canCreate) || !serviceSettings}
+  disabled={saving || !(type.id ? canEdit : canCreate) || !serviceSettings || !serviceSettings.available}
+  available={Boolean(serviceSettings?.available)}
+  onRetry={() => { void queryClient.invalidateQueries({ queryKey: ["equipment", "service-settings", activeOrganizationId] }); }}
   onChange={serviceIds => updateDraft(ti, { serviceIds })}
 />{canViewFields && <div className="border-t border-[#0d1b2e]/8 pt-4"><div className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Campos Extras</div><div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{technicalFields.filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id)).map(field => { const link = type.technicalFields.find(item => item.technical_field_id === field.id); return <div key={field.id} className="border-b border-[#0d1b2e]/8 py-3"><div className="flex min-w-0 items-start gap-3 text-left"><Checkbox disabled={!canManageFields} checked={Boolean(link)} onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} /><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#0d1b2e]">{field.label}</span>{link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-[#5a6a82]"><Checkbox disabled={!canManageFields} checked={link.required} onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />Obrigatório</label>}</span></div></div>; })}</div></div>}{catalog && <EquipmentChecklistSection
   draft={type}
