@@ -136,8 +136,14 @@ export async function persistServiceOrder({
   }
 
   if (editingOrder) {
-    const { error } = await updateServiceOrder(organizationId, editingOrder.id, payload);
-    if (error) return { success: false, stage: "record", error, orderId: editingOrder.id };
+    // Não regravar colunas que permanecem iguais na edição (auditoria/Realtime).
+    const changedPayload = Object.fromEntries(Object.entries(payload).filter(([key, value]) =>
+      JSON.stringify(value ?? null) !== JSON.stringify(editingOrder[key] ?? null),
+    ));
+    if (Object.keys(changedPayload).length) {
+      const { error } = await updateServiceOrder(organizationId, editingOrder.id, changedPayload);
+      if (error) return { success: false, stage: "record", error, orderId: editingOrder.id };
+    }
   } else if (pendingOrderId) {
     savedOrderId = pendingOrderId;
     const { error } = await updateServiceOrder(organizationId, pendingOrderId, payload);
@@ -158,27 +164,48 @@ export async function persistServiceOrder({
   const previousTechnicianIds = Array.from(new Set((editingOrder?.technician_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOrder?.technician_id ? [editingOrder.technician_id] : []))) as string[];
   const previousSellerIds = Array.from(new Set((editingOrder?.seller_links || []).map((link: any) => link.employee_id).filter(Boolean).concat(editingOrder?.seller_id ? [editingOrder.seller_id] : []))) as string[];
 
+  // Só reconstruir vínculos quando a composição de técnicos/vendedores mudar.
+  // O fluxo antigo fazia DELETE + INSERT de todos em absolutamente toda edição.
+  const sameIds = (left: string[], right: string[]) =>
+    left.length === right.length && left.every(id => right.includes(id));
+  const previousTechnicianLinkIds = (editingOrder?.technician_links || [])
+    .map((link: any) => link.employee_id).filter(Boolean) as string[];
+  const previousSellerLinkIds = (editingOrder?.seller_links || [])
+    .map((link: any) => link.employee_id).filter(Boolean) as string[];
+  const techniciansChanged = !editingOrder || !sameIds(uniqueTechnicianIds, previousTechnicianLinkIds);
+  const sellersChanged = !editingOrder || !sameIds(uniqueSellerIds, previousSellerLinkIds);
+
   try {
-    if (editingOrder || retryingPartialCreate) {
-      const { error: technicianClearError } = await clearServiceOrderTechnicians(savedOrderId);
-      if (technicianClearError) throw technicianClearError;
-      const { error: sellerClearError } = await clearServiceOrderSellers(savedOrderId);
-      if (sellerClearError) throw sellerClearError;
+    if (techniciansChanged) {
+      if (editingOrder || retryingPartialCreate) {
+        const { error } = await clearServiceOrderTechnicians(savedOrderId);
+        if (error) throw error;
+      }
+      if (uniqueTechnicianIds.length) {
+        const { error } = await insertServiceOrderTechnicians(savedOrderId, uniqueTechnicianIds);
+        if (error) throw error;
+      }
     }
-    if (uniqueTechnicianIds.length) {
-      const { error } = await insertServiceOrderTechnicians(savedOrderId, uniqueTechnicianIds);
-      if (error) throw error;
-    }
-    if (uniqueSellerIds.length) {
-      const { error } = await insertServiceOrderSellers(savedOrderId, uniqueSellerIds);
-      if (error) throw error;
+    if (sellersChanged) {
+      if (editingOrder || retryingPartialCreate) {
+        const { error } = await clearServiceOrderSellers(savedOrderId);
+        if (error) throw error;
+      }
+      if (uniqueSellerIds.length) {
+        const { error } = await insertServiceOrderSellers(savedOrderId, uniqueSellerIds);
+        if (error) throw error;
+      }
     }
   } catch (error) {
     if (editingOrder) {
-      await clearServiceOrderTechnicians(savedOrderId);
-      await clearServiceOrderSellers(savedOrderId);
-      if (previousTechnicianIds.length) await insertServiceOrderTechnicians(savedOrderId, previousTechnicianIds);
-      if (previousSellerIds.length) await insertServiceOrderSellers(savedOrderId, previousSellerIds);
+      if (techniciansChanged) {
+        await clearServiceOrderTechnicians(savedOrderId);
+        if (previousTechnicianIds.length) await insertServiceOrderTechnicians(savedOrderId, previousTechnicianIds);
+      }
+      if (sellersChanged) {
+        await clearServiceOrderSellers(savedOrderId);
+        if (previousSellerIds.length) await insertServiceOrderSellers(savedOrderId, previousSellerIds);
+      }
     }
     return { success: false, stage: "relations", error, orderId: savedOrderId };
   }
@@ -195,8 +222,10 @@ export async function persistServiceOrder({
         if (image.mediaId) {
           const link = (existingLinks || []).find((item: any) => item.media_id === image.mediaId);
           if (link) {
-            const { error } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
-            if (error) throw error;
+            if (Number(link.sort_order) !== sortOrder) {
+              const { error } = await updateServiceOrderMediaSortOrder(link.id, sortOrder);
+              if (error) throw error;
+            }
           } else {
             const { error } = await insertServiceOrderMedia(savedOrderId, image.mediaId, sortOrder);
             if (error) throw error;
