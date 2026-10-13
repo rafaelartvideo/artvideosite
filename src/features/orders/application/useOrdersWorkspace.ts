@@ -110,10 +110,12 @@ export function useOrdersWorkspace({
   const reloadWorkspace = useCallback(async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() }),
+      // Outras áreas precisam apenas ficar stale até serem abertas, sem
+      // provocar 4 famílias de GETs por atualização de uma OS.
+      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all, refetchType: "none" }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all, refetchType: "none" }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all, refetchType: "none" }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards(), refetchType: "none" }),
     ]);
   }, [queryClient]);
 
