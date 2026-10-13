@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { UnionEquipmentTemplates } from "./UnionEquipmentTemplates";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminCardToolbar, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadUnionCatalogAdmin, loadUnionCatalogDistribution, saveUnionCatalogItem, setUnionCatalogLink,
   type UnionCatalogData, type UnionCatalogDistribution, type UnionCatalogKind,
@@ -55,6 +58,9 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   const [catalog, setCatalog] = useState<UnionCatalogData>(emptyCatalog);
   const [distribution, setDistribution] = useState<UnionCatalogDistribution | null>(null);
   const [kind, setKind] = useState<UnionCatalogKind>("segment");
+  const [section, setSection] = useState<UnionCatalogKind | "distribution">("segment");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<CatalogForm>(EMPTY_FORM);
@@ -104,7 +110,8 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   const active = rows.find(row => row.id === selectedId) ?? null;
 
   const selectKind = (next: UnionCatalogKind) => {
-    setKind(next); setSelectedId(null); setCreating(false);
+    setSection(next);
+    setKind(next); setPage(1); setSelectedId(null); setCreating(false);
     setForm(EMPTY_FORM); setQuery(""); setLinkQuery(""); setError(""); setNotice("");
   };
   const selectRow = (row: RecordRow) => {
@@ -128,7 +135,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
     }
     setSaving(true); setError(""); setNotice("");
     try {
-      const savedId = await saveUnionCatalogItem(kind, creating ? null : selectedId, {
+      await saveUnionCatalogItem(kind, creating ? null : selectedId, {
         name,
         ...(kind === "brand" ? {} : { code, sort_order: Number(form.sort_order) || 0 }),
         ...(kind === "segment" ? { description: form.description.trim(), icon_name: form.icon_name.trim() } : {}),
@@ -136,9 +143,9 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
         ...(kind !== "segment" ? { is_published: form.is_published } : {}),
       });
       await reload();
-      setSelectedId(savedId);
+      setSelectedId(null);
       setCreating(false);
-      setNotice(kind !== "segment" && form.is_published ? "Item publicado. O catálogo das empresas compatíveis será atualizado automaticamente." : "Cadastro salvo. Itens não publicados ficam somente na administração da Union.");
+      notifyAdmin("Cadastro salvo com sucesso.");
     } catch (cause) {
       setError(systemErrorMessage(cause, "Não foi possível salvar o cadastro."));
     } finally {
@@ -152,7 +159,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
     try {
       await setUnionCatalogLink(linkKind, left, right, enabled);
       await reload();
-      setNotice(enabled ? "Vínculo adicionado ao catálogo central." : "Vínculo removido do catálogo central.");
+      notifyAdmin(enabled ? "Vínculo adicionado." : "Vínculo removido.");
     } catch (cause) {
       setError(systemErrorMessage(cause, "Não foi possível alterar o vínculo."));
     } finally {
@@ -177,236 +184,208 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
   );
   const currentTotal = kind === "segment" ? catalog.segments.length
     : kind === "equipment" ? catalog.equipmentTypes.length : catalog.brands.length;
-  const cardClass = "rounded-xl border border-[#dfe5ef] bg-white p-4 sm:p-5";
-  const inputClass = "w-full min-w-0 rounded-lg border border-[#ccd6e5] bg-white px-3 py-2.5 text-sm text-[#182943] outline-none focus:border-[#1032dc] focus:ring-2 focus:ring-[#1032dc]/10";
-
-  if (!canView) return <div className={cardClass}>Sem permissão para acessar o Catálogo Inteligente da Union.</div>;
+  const editorOpen = creating || Boolean(active);
+  const closeEditor = () => {
+    if (saving || linkBusy) return;
+    setCreating(false); setSelectedId(null); setError(""); setNotice(""); setLinkQuery("");
+  };
+  const pageCount = Math.max(1, Math.ceil(visible.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const inputClass = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-primary focus:ring-2 focus:ring-primary/10 disabled:opacity-60";
+  const labelClass = "block space-y-1 text-xs font-bold text-muted-foreground";
+  const sectionLabel = TABS.find(tab => tab.kind === kind)?.label || "Cadastros";
+  const tabs: Array<{ id: UnionCatalogKind | "distribution"; label: string; count: number }> = [
+    { id: "segment", label: "Segmentos", count: catalog.segments.length },
+    { id: "equipment", label: "Equipamentos", count: catalog.equipmentTypes.length },
+    { id: "brand", label: "Marcas", count: catalog.brands.length },
+    { id: "distribution", label: "Distribuição", count: distribution?.companies.length ?? 0 },
+  ];
+  if (!canView) return <div className="border border-border bg-card p-5 text-sm text-foreground">Sem permissão para acessar o Catálogo Inteligente da Union.</div>;
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Catálogo Inteligente" subtitle="Administração central dos segmentos, equipamentos e marcas oficiais da Union World." />
+    <PageHeader title="Catálogo Inteligente" />
 
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-      {[
-        ["Segmentos", catalog.segments.length],
-        ["Equipamentos", catalog.equipmentTypes.length],
-        ["Marcas", catalog.brands.length],
-      ].map(([label, number]) => <div key={label} className={cardClass}>
-        <p className="text-xs font-bold uppercase tracking-wide text-[#6d7d92]">{label}</p>
-        <p className="mt-1 text-2xl font-black text-[#17263b]">{number}</p>
-      </div>)}
-    </div>
+    <nav aria-label="Subseções do catálogo" className="flex min-w-0 gap-1 overflow-x-auto border-b border-border">
+      {tabs.map(tab => <button
+        key={tab.id}
+        type="button"
+        aria-current={section === tab.id ? "page" : undefined}
+        onClick={() => {
+          if (saving || linkBusy) return;
+          if (tab.id === "distribution") {
+            setSection("distribution"); setCreating(false); setSelectedId(null); setError(""); setNotice("");
+          } else selectKind(tab.id);
+        }}
+        className={"shrink-0 border-b-2 px-4 py-3 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 " +
+          (section === tab.id
+            ? "border-primary text-primary"
+            : "border-transparent text-muted-foreground hover:border-border hover:text-foreground")}
+      >{tab.label} <span className="ml-1 text-xs opacity-70">({tab.count})</span></button>)}
+    </nav>
 
-    <div className="rounded-xl border border-[#ccd9f5] bg-[#f3f6ff] px-4 py-3 text-sm leading-6 text-[#3d547d]">
-      Versão interna do catálogo: <strong>{catalog.revision}</strong>. Equipamentos e marcas em rascunho ficam apenas na Union.
-      Ao publicar, os itens passam a aparecer automaticamente nos segmentos compatíveis. Nomes vinculados continuam sincronizados.
-      Nenhum modelo é importado automaticamente.
-    </div>
+    {error && !editorOpen && <p role="alert" className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
+    {notice && !editorOpen && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
 
-    {distribution && <section className={cardClass}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h2 className="text-base font-bold text-[#17263b]">Distribuição automática por empresa</h2>
-          <p className="mt-1 text-xs text-[#718198]">
-            A seleção do segmento distribui equipamentos e marcas publicados. Empresas sem segmento configurado não recebem itens.
-          </p>
+    {section !== "distribution" ? <Section title={sectionLabel} flush>
+      <AdminCardToolbar className="sm:justify-between">
+        <div className="relative w-full sm:max-w-md">
+          <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <label htmlFor="union-catalog-search" className="sr-only">Buscar {sectionLabel.toLowerCase()}</label>
+          <input id="union-catalog-search" className={inputClass + " pl-9"} value={query}
+            onChange={event => { setQuery(event.target.value); setPage(1); }}
+            placeholder="Buscar por nome ou código" />
         </div>
-        <span className="text-xs font-semibold text-[#526580]">
-          {distribution.pending_issues.length} conflito(s)
+        <span className="whitespace-nowrap text-xs font-semibold text-muted-foreground">
+          {visible.length} de {currentTotal} registros
         </span>
-      </div>
-      <div className="mt-4 overflow-x-auto">
-        <table className="w-full min-w-[500px] text-sm">
-          <thead>
-            <tr>
-              <th className="py-2 text-left">Empresa</th>
-              <th className="py-2 text-right">Equipamentos</th>
-              <th className="py-2 text-right">Marcas</th>
-              <th className="py-2 text-right">Conflitos</th>
-            </tr>
-          </thead>
-          <tbody>
-            {distribution.companies.map(company => <tr key={company.id} className="border-t border-[#e7edf5]">
-              <td className="py-2.5 font-medium">{company.name}</td>
-              <td className="py-2.5 text-right tabular-nums">{company.equipment_count}</td>
-              <td className="py-2.5 text-right tabular-nums">{company.brand_count}</td>
-              <td className={`py-2.5 text-right tabular-nums ${company.issues ? "font-bold text-amber-700" : ""}`}>{company.issues}</td>
-            </tr>)}
-          </tbody>
-        </table>
-      </div>
-      {distribution.pending_issues.length > 0 && <div className="mt-3 space-y-2 border-t border-[#e7edf5] pt-3">
-        <h3 className="text-sm font-bold text-amber-800">Conflitos de integração</h3>
-        {distribution.pending_issues.map((issue, i) => <p key={issue.issue_key + ":" + i}
-          className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+      </AdminCardToolbar>
+      {loading ? <LoadingState text="Carregando catálogo..." /> : visible.length === 0
+        ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhum cadastro encontrado.</p>
+        : <div className="overflow-x-auto"><table className="min-w-[660px]">
+          <thead><tr>
+            <th className="text-left">Nome</th>
+            {kind !== "brand" && <th className="text-left">Código</th>}
+            {kind !== "brand" && <th className="text-right">Ordem</th>}
+            <th className="text-left">Situação</th>
+            {kind !== "segment" && <th className="text-left">Publicação</th>}
+            <th className="text-right">Ações</th>
+          </tr></thead>
+          <tbody>{pageRows.map(row => <tr key={row.id}>
+            <td className="font-semibold text-foreground">{row.name}</td>
+            {kind !== "brand" && <td className="text-muted-foreground">{"code" in row ? row.code : "—"}</td>}
+            {kind !== "brand" && <td className="text-right tabular-nums text-muted-foreground">{"sort_order" in row ? row.sort_order : "—"}</td>}
+            <td><span className={row.is_active ? "font-semibold text-emerald-700 dark:text-emerald-400" : "font-semibold text-red-600 dark:text-red-400"}>
+              {row.is_active ? "Ativo" : "Inativo"}
+            </span></td>
+            {kind !== "segment" && <td className="text-muted-foreground">
+              {"is_published" in row && row.is_published ? "Publicado" : "Rascunho"}
+            </td>}
+            <td className="text-right"><BtnSecondary onClick={() => selectRow(row)} className="px-3 py-1.5 text-xs">
+              {canManage ? "Editar" : "Visualizar"}
+            </BtnSecondary></td>
+          </tr>)}</tbody>
+        </table></div>}
+      {!loading && <PaginationBar
+        page={currentPage} pageSize={pageSize} totalItems={visible.length}
+        onPageChange={setPage}
+        onPageSizeChange={size => { setPageSize(size); setPage(1); }}
+      />}
+    </Section> : <Section title="Distribuição por empresa" flush>
+      <AdminCardToolbar className="sm:justify-end">
+        <span className="text-xs font-semibold text-muted-foreground">{distribution?.companies.length ?? 0} empresas</span>
+      </AdminCardToolbar>
+      {loading ? <LoadingState text="Carregando distribuição..." /> : !distribution || distribution.companies.length === 0
+        ? <p className="px-5 py-12 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
+        : <div className="overflow-x-auto"><table className="min-w-[580px]">
+          <thead><tr>
+            <th className="text-left">Empresa</th>
+            <th className="text-right">Equipamentos</th>
+            <th className="text-right">Marcas</th>
+            <th className="text-right">Conflitos</th>
+          </tr></thead>
+          <tbody>{distribution.companies.map(company => <tr key={company.id}>
+            <td className="font-semibold text-foreground">{company.name}</td>
+            <td className="text-right tabular-nums">{company.equipment_count}</td>
+            <td className="text-right tabular-nums">{company.brand_count}</td>
+            <td className={"text-right tabular-nums " + (company.issues ? "font-bold text-amber-700 dark:text-amber-400" : "")}>{company.issues}</td>
+          </tr>)}</tbody>
+        </table></div>}
+      {distribution && distribution.pending_issues.length > 0 && <div className="space-y-2 border-t border-border p-4">
+        <p className="text-sm font-bold text-foreground">Conflitos de integração ({distribution.pending_issues.length})</p>
+        {distribution.pending_issues.map((issue, i) => <p key={issue.issue_key + ":" + i} className="border-l-2 border-amber-500 pl-3 text-xs text-muted-foreground">
           {distribution.companies.find(company => company.id === issue.organization_id)?.name || "Empresa"}: {issue.details}
         </p>)}
       </div>}
-    </section>}
+    </Section>}
 
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label="Tipos de cadastro">
-      {TABS.map(tab => <button
-        key={tab.kind}
-        type="button"
-        role="tab"
-        aria-selected={tab.kind === kind}
-        onClick={() => selectKind(tab.kind)}
-        className={`rounded-lg border px-4 py-2 text-sm font-bold ${tab.kind === kind
-          ? "border-[#1032dc] bg-[#1032dc] text-white"
-          : "border-[#d8e0ea] bg-white text-[#42536a] hover:border-[#1032dc]"}`}
-      >{tab.label}</button>)}
-    </div>
-
-    {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p>}
-    {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
-
-    <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(280px,0.85fr)_minmax(0,1.5fr)]">
-      <section className={cardClass}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-[#17263b]">{TABS.find(tab => tab.kind === kind)?.label}</h2>
-            <p className="text-xs text-[#738096]">{currentTotal} cadastrados no catálogo central</p>
-          </div>
-          {canManage && <BtnPrimary size="sm" onClick={createNew}>Novo</BtnPrimary>}
-        </div>
-        <label className="mt-4 block space-y-1">
-          <span className="text-xs font-bold text-[#53647c]">Buscar cadastro</span>
-          <input className={inputClass} placeholder="Nome ou código" value={query} onChange={event => setQuery(event.target.value)} />
-        </label>
-        <div className="mt-3 max-h-[560px] space-y-2 overflow-y-auto">
-          {loading && <p className="py-6 text-center text-sm text-[#708198]">Carregando...</p>}
-          {!loading && visible.length === 0 && <p className="py-7 text-center text-sm text-[#708198]">Nenhum registro encontrado.</p>}
-          {visible.map(row => <button
-            type="button"
-            key={row.id}
-            onClick={() => selectRow(row)}
-            className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3 py-3 text-left ${selectedId === row.id && !creating
-              ? "border-[#1032dc] bg-[#eef2ff]"
-              : "border-[#e2e8f0] bg-[#fbfcff] hover:border-[#a2b3dd]"}`}
-          >
-            <span className="min-w-0">
-              <span className="block truncate text-sm font-bold text-[#17263b]">{row.name}</span>
-              {"code" in row && <span className="block truncate text-xs text-[#7d8ba0]">{row.code}</span>}
-            </span>
-            <span className={`shrink-0 text-xs font-semibold ${!row.is_active ? "text-red-700" : "is_published" in row && !row.is_published ? "text-amber-700" : "text-green-700"}`}>
-              {!row.is_active ? "Inativo" : "is_published" in row ? row.is_published ? "Publicado" : "Rascunho" : "Ativo"}
-            </span>
-          </button>)}
-        </div>
-      </section>
-
-      <section className={cardClass}>
-        {(!active && !creating)
-          ? <div className="py-12 text-center text-sm text-[#738096]">
-              Selecione um cadastro à esquerda ou clique em Novo para começar.
-            </div>
-          : <>
-            <h2 className="text-base font-bold text-[#17263b]">{creating ? "Novo cadastro" : "Editar cadastro"}</h2>
-            <p className="mt-1 text-xs leading-5 text-[#708198]">
-              Edite as informações e, quando necessário, configure as associações abaixo.
-            </p>
-            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-              <label className="block space-y-1 md:col-span-2">
-                <span className="text-xs font-bold text-[#53647c]">Nome *</span>
-                <input className={inputClass} maxLength={120} disabled={!canManage || saving}
-                  value={form.name} onChange={event => setForm(old => ({ ...old, name: event.target.value }))} />
-              </label>
-              {kind !== "brand" && <label className="block space-y-1">
-                <span className="text-xs font-bold text-[#53647c]">Código estável</span>
-                <input className={inputClass} disabled={!canManage || saving || !creating}
-                  placeholder={toCode(form.name) || "codigo-do-cadastro"}
-                  value={creating ? form.code : (active && "code" in active ? active.code : form.code)}
-                  onChange={event => setForm(old => ({ ...old, code: event.target.value.toLowerCase() }))} />
-              </label>}
-              {kind !== "brand" && <label className="block space-y-1">
-                <span className="text-xs font-bold text-[#53647c]">Ordenação</span>
-                <input className={inputClass} type="number" min={0} max={1000000} step={1}
-                  disabled={!canManage || saving} value={form.sort_order}
-                  onChange={event => setForm(old => ({ ...old, sort_order: Number(event.target.value) }))} />
-              </label>}
-              {kind === "segment" && <>
-                <label className="block space-y-1 md:col-span-2">
-                  <span className="text-xs font-bold text-[#53647c]">Descrição</span>
-                  <textarea className={inputClass} rows={2} maxLength={350} disabled={!canManage || saving}
-                    value={form.description}
-                    onChange={event => setForm(old => ({ ...old, description: event.target.value }))} />
-                </label>
-                <label className="block space-y-1">
-                  <span className="text-xs font-bold text-[#53647c]">Ícone (Lucide)</span>
-                  <select className={inputClass} disabled={!canManage || saving} value={form.icon_name}
-                    onChange={event => setForm(old => ({ ...old, icon_name: event.target.value }))}>
-                    {[["smartphone","Celular"],["wrench","Ferramenta"],["snowflake","Climatização"],
-                      ["monitor","Computador"],["car-front","Automóvel"],["sun","Solar"],
-                      ["sliders-horizontal","Personalizado"],["briefcase-business","Negócios"]]
-                      .map(([value,label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
-                </label>
-              </>}
-              <label className="flex items-center gap-2 self-end rounded-lg border border-[#e1e7f0] p-3 text-sm font-medium text-[#263a55]">
-                <input type="checkbox" className="h-4 w-4 accent-[#1032dc]"
-                  checked={form.is_active} disabled={!canManage || saving}
-                  onChange={event => setForm(old => ({ ...old, is_active: event.target.checked }))} />
-                Cadastro ativo
-              </label>
-              {kind !== "segment" && <label className="flex items-start gap-2 self-end rounded-lg border border-[#d6dff5] bg-[#f4f6ff] p-3 text-sm font-medium text-[#263a55]">
-                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0 accent-[#1032dc]"
-                  checked={form.is_published} disabled={!canManage || saving}
-                  onChange={event => setForm(old => ({ ...old, is_published: event.target.checked }))} />
-                <span>
-                  Publicado para empresas
-                  <span className="mt-1 block text-xs font-normal leading-4 text-[#60718a]">
-                    Sem aprovação nas empresas. Aparece automaticamente nos segmentos compatíveis.
-                  </span>
-                </span>
-              </label>}
-            </div>
-            {canManage && <div className="mt-4 flex justify-end">
-              <BtnPrimary onClick={() => void save()} loading={saving} disabled={saving || Boolean(linkBusy)} loadingText="Salvando...">Salvar cadastro</BtnPrimary>
-            </div>}
-
-            {!creating && selectedId && kind !== "brand" && <div className="mt-7 border-t border-[#e3e8f0] pt-5">
-              <h3 className="text-sm font-bold text-[#17263b]">
-                {kind === "segment" ? "Equipamentos deste segmento" : "Marcas deste equipamento"}
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-[#738096]">
-                {kind === "segment"
-                  ? "Associe somente os tipos de equipamento que fazem sentido para o segmento."
-                  : "Associe somente as marcas compatíveis com este tipo de equipamento."}
-              </p>
-              <label className="mt-3 block space-y-1">
-                <span className="text-xs font-bold text-[#53647c]">Buscar para vincular</span>
-                <input className={inputClass} placeholder="Filtrar opções" value={linkQuery}
-                  onChange={event => setLinkQuery(event.target.value)} />
-              </label>
-              <div className="mt-3 max-h-80 divide-y divide-[#e6eaf0] overflow-y-auto rounded-lg border border-[#e1e7f0]">
-                {filteredRelated.length === 0 && <p className="p-4 text-sm text-[#708198]">
-                  {kind === "segment" ? "Nenhum equipamento cadastrado ainda." : "Nenhuma marca cadastrada ainda."}
-                </p>}
-                {filteredRelated.map(item => <label key={item.id}
-                  className="flex items-center gap-3 px-4 py-3 text-sm text-[#30445f] hover:bg-[#f8faff]">
-                  <input type="checkbox" className="h-4 w-4 accent-[#1032dc]" checked={item.selected}
-                    disabled={!canManage || Boolean(linkBusy) || saving}
-                    onChange={event => void toggleLink(
-                      kind === "segment" ? "segment_equipment" : "equipment_brand",
-                      selectedId, item.id, event.target.checked,
-                    )} />
-                  <span className="min-w-0 flex-1 truncate">{item.name}</span>
-                  {!item.active && <span className="text-xs text-[#9a5b27]">Inativo</span>}
-                </label>)}
-              </div>
-              <p className="mt-2 text-xs text-[#718198]">
-                {related.filter(item => item.selected).length} vínculo(s) ativo(s) neste cadastro.
-              </p>
-            </div>}
-            {!creating && selectedId && kind === "equipment" && <UnionEquipmentTemplates equipmentId={selectedId} canManage={canManage} />}
-            {!creating && selectedId && kind === "brand" && <div className="mt-5 border-t border-[#e3e8f0] pt-4 text-sm text-[#66758a]">
-              Marcas são cadastradas uma única vez. Para vinculá-las, abra a aba Equipamentos e selecione o equipamento.
-            </div>}
-          </>}
-      </section>
-    </div>
-
-    <AdminStickyToolbar>
-      <BtnSecondary onClick={onBack}>Voltar para Ferramentas</BtnSecondary>
+    <AdminStickyToolbar className="justify-between">
+      <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+      {canManage && section !== "distribution" && <BtnPrimary onClick={createNew}>Novo</BtnPrimary>}
     </AdminStickyToolbar>
+
+    {editorOpen && <AdminDialog open onClose={closeEditor}
+      title={(creating ? "Novo " : "Editar ") + (kind === "segment" ? "segmento" : kind === "equipment" ? "equipamento" : "marca")}
+      className="max-w-3xl"
+      footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+        <BtnSecondary onClick={closeEditor} disabled={saving || Boolean(linkBusy)}>Cancelar</BtnSecondary>
+        {canManage && <BtnPrimary onClick={() => void save()} loading={saving} loadingText="Salvando..." disabled={Boolean(linkBusy)}>Salvar</BtnPrimary>}
+      </div>}
+    >
+      <div className="space-y-5">
+        {error && <p role="alert" className="border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className={labelClass + " sm:col-span-2"}>
+            <span>Nome *</span>
+            <input className={inputClass} maxLength={120} value={form.name} disabled={!canManage || saving}
+              onChange={event => setForm(old => ({ ...old, name: event.target.value }))} />
+          </label>
+          {kind !== "brand" && <label className={labelClass}>
+            <span>Código estável</span>
+            <input className={inputClass} disabled={!canManage || saving || !creating}
+              placeholder={toCode(form.name) || "codigo-do-cadastro"}
+              value={creating ? form.code : (active && "code" in active ? active.code : form.code)}
+              onChange={event => setForm(old => ({ ...old, code: event.target.value.toLowerCase() }))} />
+          </label>}
+          {kind !== "brand" && <label className={labelClass}>
+            <span>Ordenação</span>
+            <input className={inputClass} type="number" min={0} max={1000000} step={1}
+              disabled={!canManage || saving} value={form.sort_order}
+              onChange={event => setForm(old => ({ ...old, sort_order: Number(event.target.value) }))} />
+          </label>}
+          {kind === "segment" && <>
+            <label className={labelClass + " sm:col-span-2"}>
+              <span>Descrição</span>
+              <textarea className={inputClass} rows={2} maxLength={350} disabled={!canManage || saving}
+                value={form.description} onChange={event => setForm(old => ({ ...old, description: event.target.value }))} />
+            </label>
+            <label className={labelClass}>
+              <span>Ícone</span>
+              <select className={inputClass} disabled={!canManage || saving} value={form.icon_name}
+                onChange={event => setForm(old => ({ ...old, icon_name: event.target.value }))}>
+                {[["smartphone","Celular"],["wrench","Ferramenta"],["snowflake","Climatização"],
+                  ["monitor","Computador"],["car-front","Automóvel"],["sun","Solar"],
+                  ["sliders-horizontal","Personalizado"],["briefcase-business","Negócios"]]
+                  .map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </label>
+          </>}
+          <label className="flex items-center gap-2 self-end border border-border p-3 text-sm text-foreground">
+            <input type="checkbox" className="h-4 w-4 accent-primary" checked={form.is_active}
+              disabled={!canManage || saving} onChange={event => setForm(old => ({ ...old, is_active: event.target.checked }))} />
+            Cadastro ativo
+          </label>
+          {kind !== "segment" && <label className="flex items-center gap-2 self-end border border-border p-3 text-sm text-foreground">
+            <input type="checkbox" className="h-4 w-4 accent-primary" checked={form.is_published}
+              disabled={!canManage || saving} onChange={event => setForm(old => ({ ...old, is_published: event.target.checked }))} />
+            Publicado para empresas
+          </label>}
+        </div>
+
+        {!creating && selectedId && kind !== "brand" && <div className="space-y-3 border-t border-border pt-4">
+          <h3 className="text-sm font-bold text-foreground">
+            {kind === "segment" ? "Equipamentos deste segmento" : "Marcas deste equipamento"}
+          </h3>
+          <input className={inputClass} placeholder="Buscar vínculo" value={linkQuery}
+            onChange={event => setLinkQuery(event.target.value)} />
+          <div className="max-h-56 divide-y divide-border overflow-y-auto border border-border">
+            {filteredRelated.length === 0 && <p className="p-4 text-sm text-muted-foreground">Nenhum item encontrado.</p>}
+            {filteredRelated.map(item => <label key={item.id} className="flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-muted/60">
+              <input type="checkbox" className="h-4 w-4 accent-primary" checked={item.selected}
+                disabled={!canManage || Boolean(linkBusy) || saving}
+                onChange={event => void toggleLink(
+                  kind === "segment" ? "segment_equipment" : "equipment_brand",
+                  selectedId, item.id, event.target.checked,
+                )} />
+              <span className="min-w-0 flex-1 truncate">{item.name}</span>
+              {!item.active && <span className="text-xs text-amber-600">Inativo</span>}
+            </label>)}
+          </div>
+          <p className="text-xs text-muted-foreground">{related.filter(item => item.selected).length} vínculos</p>
+        </div>}
+        {!creating && selectedId && kind === "equipment" && <UnionEquipmentTemplates equipmentId={selectedId} canManage={canManage} />}
+      </div>
+    </AdminDialog>}
   </div>;
 }
