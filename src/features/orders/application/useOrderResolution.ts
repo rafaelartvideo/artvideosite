@@ -525,28 +525,16 @@ export function useOrderResolution({
         reason: reason.trim(),
       });
 
-      const [freshDetail, technicalValuesResult, usedResult, mediaResult] = await Promise.all([
-        getFullServiceOrder(orderId),
-        listServiceOrderTechnicalValues(orderId),
-        listServiceOrderUsedItems(orderId),
-        listServiceOrderMedia(orderId),
-      ]);
-
-      if (freshDetail.data) setDetail({ ...freshDetail.data, technical_values: technicalValuesResult.data || [] });
-      setDetailUsedItems(usedResult.data || []);
-      const mediaLinks = mediaResult.data || [];
-      replaceOrderImages(
-        mediaLinks
-          .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
-          .map((item: any) => ({
-            key: item.id,
-            mediaId: item.media_id,
-            name: item.media?.file_name || "Imagem da OS",
-            kind: orderImageKindFromSortOrder(item.sort_order),
-          })),
-      );
-      replaceSolutionImages([]);
-      setDetailSolutionImages([]);
+      // O RPC de reversão já confirmou a transação. Atualizar as leituras
+      // secundárias sem reter "Desfazendo..." nem tratar falha de GET como falha da reversão.
+      setDetail((current: any) => current ? ({
+        ...current,
+        is_solved: false,
+        solved_at: null,
+        diagnosis: null,
+        solution: null,
+        loose_parts: null,
+      }) : current);
       setOrders(current => current.map(order => order.id === orderId ? {
         ...order,
         is_solved: false,
@@ -555,9 +543,34 @@ export function useOrderResolution({
         solution: null,
         loose_parts: null,
       } : order));
-
+      replaceSolutionImages([]);
+      setDetailSolutionImages([]);
       setUndoOpen(false);
-      await Promise.all([
+
+      void (async () => {
+        try {
+          const [freshDetail, technicalValuesResult, usedResult, mediaResult] = await Promise.all([
+            getFullServiceOrder(orderId),
+            listServiceOrderTechnicalValues(orderId),
+            listServiceOrderUsedItems(orderId),
+            listServiceOrderMedia(orderId),
+          ]);
+          if (freshDetail.data) setDetail({ ...freshDetail.data, technical_values: technicalValuesResult.data || [] });
+          setDetailUsedItems(usedResult.data || []);
+          const mediaLinks = mediaResult.data || [];
+          replaceOrderImages(mediaLinks
+            .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
+            .map((item: any) => ({
+              key: item.id,
+              mediaId: item.media_id,
+              name: item.media?.file_name || "Imagem da OS",
+              kind: orderImageKindFromSortOrder(item.sort_order),
+            })));
+        } catch (error) {
+          console.warn("[OS] Erro ao atualizar detalhes após desfazer a solução:", error);
+        }
+      })();
+      void Promise.allSettled([
         loadSolutionAttempts(orderId, targetOrganizationId),
         reloadOrders(),
         queryClient.invalidateQueries({ queryKey: queryKeys.orders.partRequests(orderId) }),
