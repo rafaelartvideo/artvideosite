@@ -30,9 +30,9 @@ Projeto Supabase: `wmjmtcjpunmzvonlkjcu`. Repositório: `rafaelartvideo/artvideo
 ## Medidas após o avatar padrão
 - Contatos: 10.533 na verificação (dados podem crescer).
 - Avatares compartilhados: 6.687.
-- Imagens Base64 restantes: 2.592 no campo avatar_url e 774 somente em metadados, 3.366 referências para 3.364 imagens distintas.
+- Imagens personalizadas Base64 restantes: **3.366 no campo avatar_url** e **zero apenas nos metadados**, 3.366 referências para 3.364 imagens distintas. Em 13/10, 774 imagens foram promovidas do metadata para avatar_url sem modificar os bytes da foto; inventário privado `private.sac_custom_avatar_promotion_rollback` guarda os 774 fingerprints MD5 para reversão. Migração `20261013123018`, commit `86ea8d45479ef160fca939f28db8b0fb707bdf98`.
 - Payload Base64 restante das imagens personalizadas: 10.623.560 bytes (~10,62 MB decimal, ~10,13 MiB). Estimativa de arquivos JPG decodificados: ~8 MB. Logo, migrar todas para o Storage **não** é automaticamente vantajoso: milhares de objetos implicam metadados, assinaturas para acesso privado, tráfego e mais manutenção. **Não foram migradas**.
-- Última leitura do PostgreSQL após VACUUM: `pg_database_size` 182.488.211 bytes (~182,5 MB); tabela `sac_digital_contacts` 78.954.496 bytes. O banco não encolheu fisicamente com VACUUM normal. Os bytes de conteúdo nos campos de avatar/metadados foram reduzidos, e o espaço liberado pode ser reutilizado; redução do número exibido no painel pode exigir reescrita da relação, com janela de manutenção.
+- Última leitura do PostgreSQL após VACUUM: `pg_database_size` 182.865.043 bytes (~182,9 MB); tabela `sac_digital_contacts` 78.954.496 bytes. `n_dead_tup=0` para contatos após autovacuum manual. O banco não encolheu fisicamente com VACUUM normal. Os bytes de conteúdo nos campos de avatar/metadados foram reduzidos, e o espaço liberado pode ser reutilizado; redução do número exibido no painel pode exigir reescrita da relação, com janela de manutenção.
 - Quota Free: 500 MB nominal, uso físico na última leitura ~36,5%, espaço ~317,5 MB. O painel da Supabase é atualizado periodicamente.
 
 ## Condições para a próxima decisão
@@ -44,7 +44,8 @@ Projeto Supabase: `wmjmtcjpunmzvonlkjcu`. Repositório: `rafaelartvideo/artvideo
 
 ## Reversão
 - Script SQL de **reversão manual** do avatar padrão: `supabase/scripts/manual_rollback_sac_default_avatars.sql` (commit `083342be5eb326589158673370c8f801baaf16ca`). Ele restaura o JPEG original preservado uma vez, restabelece a localização de cada imagem e deixa imagens personalizadas intocadas.
-- Não apagar nem limpar `private.sac_default_avatar_source` ou `private.sac_default_avatar_rollback` antes de uma possível reversão. O conteúdo dessas tabelas é necessário para restauração.
+- Script de reversão da **promoção das fotos personalizadas**: `supabase/scripts/manual_rollback_sac_custom_avatar_promotion.sql` (commit `9d878d163e88b3e3e71f684750909887fd0071d6`). Restaura somente fotos que não mudaram depois da promoção.
+- Não apagar nem limpar `private.sac_default_avatar_source`, `private.sac_default_avatar_rollback` nem `private.sac_custom_avatar_promotion_rollback` antes de uma possível reversão. O conteúdo dessas tabelas é necessário para restauração.
 - Mudanças de código podem ser revertidas pelos commits listados, após checar conflitos com mudanças posteriores no main.
 - Se o usuário pedir para remover toda a otimização, revisar **separadamente**: normalizador/manifesto, Edge de manutenção, URL compartilhada, ajustes de UI, medição diária, trigger de duplicação e algoritmo anti-UPDATE. O algoritmo anti-UPDATE pode ser mantido sem SAC se ajudar performance; deletar não é requisito.
 - **Não** remover os dados históricos do SAC Digital sem instrução explícita, avaliação legal e cópia de segurança. Não confundir otimização dos avatares com exclusão do SAC.
@@ -57,3 +58,10 @@ Projeto Supabase: `wmjmtcjpunmzvonlkjcu`. Repositório: `rafaelartvideo/artvideo
 - Os arquivos reversíveis não contêm credenciais ou senhas.
 
 Atualizar este registro a cada etapa futura e antes de confirmar a decisão final.
+
+## Análise de custo-benefício das 3.364 imagens personalizadas
+- Conteúdo atual Base64: ~10,62 MB (aproximadamente 8 MB decodificados).
+- `storage.objects` no mesmo projeto: 393 linhas, 1.228.800 bytes físicos incluindo índices e espaço auxiliar (~3,13 KB por linha como média grosseira). Extrapolar para 3.364 novos objetos sugere até ~10,5 MB adicionais de metadados/indexação, mas **não** é previsão exata porque existem custos fixos, TOAST e bloat.
+- Migrar todas as imagens a bucket privado exigiria RLS específica por empresa e criação/renovação de URLs assinadas no aplicativo. O ganho líquido de Database Size é incerto e poderia ser pequeno ou até negativo.
+- Recomendação operacional nesta data: **manter fotos personalizadas inline temporariamente**, corrigir acesso nas telas (774 promovidas), manter avatar padrão compartilhado, e medir crescimento real por 7 dias. Não publicar fotos de pessoas em bucket público para economizar DB.
+- Economia bruta estimada da troca de 6.687 cópias do avatar comum por URL curta: aproximadamente 10–11 MB em conteúdo lógico dos campos, mas sem queda física imediata no PostgreSQL.
