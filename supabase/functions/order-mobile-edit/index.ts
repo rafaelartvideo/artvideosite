@@ -262,6 +262,14 @@ async function loadMobileEditor(admin: AdminClient, session: MobileSession) {
     if (result.error) throw result.error;
   }
 
+  // Keep paired-device editing backward compatible until the migration runs.
+  const serviceLinks = await admin.from("equipment_type_general_services")
+    .select("equipment_type_id,general_service_id")
+    .eq("organization_id", organizationId);
+  if (serviceLinks.error && !["42P01", "PGRST205"].includes(serviceLinks.error.code || "")) {
+    throw serviceLinks.error;
+  }
+
   return {
     order,
     options: {
@@ -269,6 +277,7 @@ async function loadMobileEditor(admin: AdminClient, session: MobileSession) {
       situations: situations.data || [],
       service_types: serviceTypes.data || [],
       general_services: generalServices.data || [],
+      equipment_service_links: serviceLinks.data || [],
       equipment_types: equipmentTypes.data || [],
       equipment_brands: equipmentBrands.data || [],
       equipment_models: equipmentModels.data || [],
