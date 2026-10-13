@@ -172,6 +172,29 @@ function resolveField(key: string, context: PrintOrderContext): string {
   return text(values[key]);
 }
 
+/** Conteúdo compartilhado pelos rodapés de impressão e PDF congelado. */
+export function getOrderPrintFooterMetadata(template: PrintTemplateEditorValue, context: PrintOrderContext) {
+  return {
+    printedAt: template.show_printed_at
+      ? "Impresso em " + resolveField("system.printed_at", context)
+      : "",
+    printedBy: template.selectedFields.has("system.printed_by")
+      ? "Impresso por " + resolveField("system.printed_by", context)
+      : "",
+    pageNumber: template.show_page_number !== false,
+  };
+}
+
+/** A área do rodapé não pode invadir tabelas nem assinaturas, mesmo em modelos antigos. */
+export function orderPrintSafeMargins(template: PrintTemplateEditorValue) {
+  return [
+    Math.max(6, Number(template.margin_top) || 6),
+    Math.max(6, Number(template.margin_right) || 6),
+    Math.max(14, Number(template.margin_bottom) || 6),
+    Math.max(6, Number(template.margin_left) || 6),
+  ] as const;
+}
+
 export function openPrintWindow() {
   const popup = window.open("", "_blank", "width=1000,height=800");
   if (!popup) return null;
@@ -191,15 +214,10 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     }))
     .filter((section) => section.fields.length > 0);
 
-  const printedAtFooter = template.show_printed_at
-    ? "Impresso em " + resolveField("system.printed_at", context)
-    : "";
-  const footerItems = [
-    template.footer_text?.trim() || "",
-    template.selectedFields.has("system.printed_by")
-      ? "Impresso por " + resolveField("system.printed_by", context)
-      : "",
-  ].filter(Boolean);
+  // Os metadados do rodapé pertencem à margem física de CADA página,
+  // nunca à última seção do corpo (onde podiam ser cortados pelas assinaturas).
+  const footerMeta = getOrderPrintFooterMetadata(template, context);
+  const customFooterText = template.footer_text?.trim() || "";
 
   const fullWidthFields = new Set([
     "address.full",
@@ -296,29 +314,30 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     ? "<img class='company-logo' src='" + escapeHtml(company.logoUrl) + "' alt='" + escapeHtml(companyName) + "'>"
     : "";
   // Keep enough printable area around the sheet even for older 2mm templates.
-  const margins = [template.margin_top, template.margin_right, template.margin_bottom, template.margin_left]
-    .map((value) => Math.max(6, Number(value) || 6));
+  const margins = orderPrintSafeMargins(template);
   const pagePadding = margins.map((value) => value + "mm").join(" ");
   const pageWidth = orientation === "landscape" ? 297 : 210;
-  const pageFooterContent = printedAtFooter && template.show_page_number
-    ? "'" + escapeCssContent(printedAtFooter + " · Página ") + "' counter(page) ' de ' counter(pages)"
-    : printedAtFooter
-      ? "'" + escapeCssContent(printedAtFooter) + "'"
-      : template.show_page_number
-        ? "'Página ' counter(page) ' de ' counter(pages)"
-        : "none";
+  const pageFooterLeft = footerMeta.printedAt
+    ? "'" + escapeCssContent(footerMeta.printedAt) + "'"
+    : "none";
+  const pageFooterCenter = footerMeta.pageNumber
+    ? "'Página ' counter(page) ' de ' counter(pages)"
+    : "none";
+  const pageFooterRight = footerMeta.printedBy
+    ? "'" + escapeCssContent(footerMeta.printedBy) + "'"
+    : "none";
   const printScript = autoPrint
     ? "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
   const documentTitle = autoPrint ? "" : template.name;
   const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(documentTitle) + "</title><style>" +
-    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:none}@bottom-center{content:none}@bottom-right{content:" + pageFooterContent + ";font-family:Arial,sans-serif;font-size:8pt;color:#526174;text-align:right}}" +
+    "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:" + pageFooterLeft + ";font-family:Arial,sans-serif;font-size:7.5pt;color:#526174;text-align:left}@bottom-center{content:" + pageFooterCenter + ";font-family:Arial,sans-serif;font-size:8pt;color:#526174;text-align:center}@bottom-right{content:" + pageFooterRight + ";font-family:Arial,sans-serif;font-size:7.5pt;color:#526174;text-align:right}}" +
     "*{box-sizing:border-box}html{background:#eef2f6}body{width:" + pageWidth + "mm;max-width:100%;margin:0 auto;padding:" + pagePadding + ";background:#fff;color:#172536;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + Math.max(1.2, layout.line_height) + ";overflow-wrap:anywhere}" +
     ".header{display:grid;grid-template-columns:minmax(0,1fr) minmax(95px,.3fr);align-items:start;gap:6px 16px;padding-bottom:4px;margin-bottom:6px;break-inside:avoid}.company{display:flex;align-items:center;gap:12px;min-width:0}.company-logo{display:block;flex-shrink:0;width:64px;height:64px;object-fit:contain}.brand-mark{display:grid;place-items:center;flex-shrink:0;width:48px;height:48px;border-radius:8px;background:#0057e7;color:#fff;font-size:16px;font-weight:800}.company-copy{min-width:0}.brand{font-size:14pt;font-weight:800;line-height:1.2}.company-subtitle{margin-top:3px;font-size:9pt;color:#475569}.company-details{margin-top:5px;font-size:8pt;line-height:1.45;color:#475569}.document{grid-column:1/-1;grid-row:2;padding-top:6px;border-top:1px solid #dbe2ea}.document h1{margin:0;font-size:15pt;line-height:1.25;font-weight:800}.document p{margin:4px 0 0;font-size:9pt;color:#475569;white-space:pre-wrap}.document p:empty{display:none}.order-number{grid-column:2;grid-row:1;text-align:right;min-width:0}.order-number span{display:block;font-size:8pt;color:#475569;font-weight:700;text-transform:uppercase;letter-spacing:.04em}.order-number strong{display:block;margin-top:4px;font-size:21pt;line-height:1.15;color:#0057e7}.order-number small{display:block;margin-top:6px;font-size:8pt;color:#475569}" +
     "section{margin:0 0 " + layout.section_spacing + "px;border:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";border-radius:" + (layout.section_style === "boxed" ? "6px" : "0") + ";padding:" + (layout.section_style === "boxed" ? "8px" : "0") + ";break-inside:auto}h2{margin:0;padding:3px 6px;background:#eef3f9;color:#24364b;border-bottom:" + (layout.show_section_borders ? "1px solid #cbd5e1" : "0") + ";font-size:" + layout.section_title_font_size + "pt;line-height:1.25;font-weight:700;text-transform:uppercase;letter-spacing:.035em;break-after:avoid}" +
-    ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:4px 6px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : "") + "}.field span{display:block;margin-bottom:1px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}" +
+    ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:6px 8px 9px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : "") + "}.field span{display:block;margin-bottom:1px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}" +
     ".signature-section{border:0;padding:0;margin:10px 0 4px;break-inside:avoid}.signatures{display:flex;justify-content:center;align-items:stretch;gap:24px}.signature{flex:1;max-width:46%;min-width:0;text-align:center;font-size:9pt;line-height:1.3;display:flex;flex-direction:column}.signature-line{border-top:1px solid #64748b;margin:24px 0 4px}.signature-label{font-size:8pt;color:#526174}.signature-name{font-weight:600}.signature-date{margin-top:auto;padding-top:3px}" +
-    ".items-table,.checklist-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td,.checklist-table th,.checklist-table td{padding:4px 6px;border-bottom:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.items-table th,.checklist-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.items-table th:not(.numeric){width:46%}.items-table tr,.checklist-table tr{break-inside:avoid}.items-table thead,.checklist-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:5px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
+    ".items-table,.checklist-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td,.checklist-table th,.checklist-table td{padding:6px 8px 9px;line-height:1.4;border-bottom:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.items-table th,.checklist-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.items-table th:not(.numeric){width:46%}.items-table tr,.checklist-table tr{break-inside:avoid}.items-table thead,.checklist-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:5px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
     ".checklist-photos{display:flex;gap:8px;white-space:normal}.checklist-photos figure{margin:0;width:calc((100% - 16px)/3);min-width:0;break-inside:avoid}.checklist-photos img{display:block;width:100%;height:38mm;object-fit:contain;background:#f8fafc}.checklist-photos figcaption{margin-top:3px;font-size:7pt;line-height:1.25;color:#526174}.checklist-photo-row{break-inside:avoid}" +
     "@media print{html{background:#fff}body{width:auto;max-width:none;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}h2{break-after:avoid}p{orphans:3;widows:3}}" +
     "</style></head><body><header class='header'><div class='company'>" +
@@ -326,7 +345,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     (template.show_company_info ? "<div class='company-copy'><div class='brand'>" + escapeHtml(companyName) + "</div><div class='company-subtitle'>" + escapeHtml(companySubtitle) + "</div>" + (companyDetails.length ? "<div class='company-details'>" + companyDetails.map(escapeHtml).join("<br>") + "</div>" : "") + "</div>" : "") +
     "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1>" + (template.header_text?.trim() ? "<p>" + escapeHtml(template.header_text.trim()) + "</p>" : "") + "</div><div class='order-number'><span>Número da OS</span><strong>" + escapeHtml(context.order?.os_number) + "</strong>" + (context.order?.external_os_number ? "<small>OS externa " + escapeHtml(context.order.external_os_number) + "</small>" : "") + "</div></header>" +
     sectionHtml +
-    (footerItems.length ? "<footer class='footer'>" + footerItems.map((item) => "<span class='footer-item'>" + escapeHtml(item) + "</span>").join("") + "</footer>" : "") +
+    (customFooterText ? "<footer class='footer'><span class='footer-item'>" + escapeHtml(customFooterText) + "</span></footer>" : "") +
     printScript + "</body></html>";
 
   return html;
