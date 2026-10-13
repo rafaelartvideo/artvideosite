@@ -2305,9 +2305,20 @@ export function SacDigitalToolPage({
                                 {item.raw_metadata?.local_file_name && (
                                   <p className="flex items-center gap-2 text-xs"><Paperclip size={14} />{item.raw_metadata.local_file_name}</p>
                                 )}
-                                {item.body_text && (
-                                  <p className="whitespace-pre-wrap break-words text-sm leading-5">{item.body_text}</p>
-                                )}
+                                {item.body_text && (() => {
+                                  // No WhatsApp o identificador vai como *Rafael*.
+                                  // Na Union renderizar em negrito, sem exibir
+                                  // literalmente os marcadores de formatação.
+                                  const senderHeading = /^\\*([^*\\n]{1,64})\\*\\n\\n([\\s\\S]*)$/.exec(item.body_text || "");
+                                  return senderHeading ? (
+                                    <p className="whitespace-pre-wrap break-words text-sm leading-5">
+                                      <strong className="font-bold">{senderHeading[1]}</strong>
+                                      <span className="mt-2 block">{senderHeading[2]}</span>
+                                    </p>
+                                  ) : (
+                                    <p className="whitespace-pre-wrap break-words text-sm leading-5">{item.body_text}</p>
+                                  );
+                                })()}
                                 {!item.body_text && !mediaUrl && item.message_type !== "location" && item.message_type !== "vcard" && (
                                   <div className="flex items-center gap-2 text-sm font-semibold">
                                     <KindIcon size={16} className="shrink-0" />
