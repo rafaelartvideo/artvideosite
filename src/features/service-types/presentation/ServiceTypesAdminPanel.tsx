@@ -143,11 +143,11 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
             is_active: form.is_active,
           };
       await saveServiceType({ serviceTypeId: editItem?.id, payload, sortOrder: items.length, selectedSituations });
-      setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" }); await refresh();
+      setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Tipo atualizado." : "Tipo criado.", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar tipo: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const toggle = async (item: any) => { if (!canToggleActive) return; try { await setServiceTypeActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar tipo: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggle = async (item: any) => { if (!canToggleActive) return; try { await setServiceTypeActive(item.id, !item.is_active); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar tipo: ${systemErrorMessage(error)}`, type: "error" }); } };
   const loadLinkedOrders = async (id: string) => {
     setLinkedOrdersLoading(true);
     setLinkedOrdersError(null);
@@ -180,7 +180,7 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
       await deleteServiceType(id);
       closeDelete();
       setToast({ msg: "Tipo de atendimento excluído.", type: "success" });
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" });
       await loadLinkedOrders(id);
