@@ -1033,6 +1033,20 @@ Deno.serve(async request => {
       return linked;
     };
 
+    // Human-authored content uses the actual SAC Operator linked to this
+    // Union session. Managers/non-operators fall back to their Union profile
+    // name, not the "Sistema" label reserved for automated notifications.
+    const resolveHumanSenderName = async () => {
+      const linked = await resolveMyOperatorBinding();
+      if (linked?.name?.trim()) return linked.name;
+      const profile = await admin.from('profiles').select('full_name')
+        .eq('id',userData.user.id).maybeSingle();
+      const name = String(profile.data?.full_name || '').trim();
+      if (name) return name;
+      const userDisplay = String(userData.user.user_metadata?.full_name || '').trim();
+      return userDisplay || 'Atendente';
+    };
+
     const authenticateSacOperator = async (credentials: { clientId: string; clientSecret: string },operatorId: string,_scopes: string[]) => {
       const binding=await resolveMyOperatorBinding();
       if(!binding || binding.id!==operatorId) throw Object.assign(new Error('Vincule seu perfil de Operador nas configurações SAC.'),{code:'operator_authorization_required'});
@@ -2225,7 +2239,7 @@ Deno.serve(async request => {
         return json({success:false,type:'operator_required_to_send',protocol:openProtocol.protocol,error:'O protocolo está sob atendimento operacional. Vincule um Operador SAC autorizado para enviar a primeira mensagem; nenhuma notificação foi enviada.'},409);
       }
       // O horário é apresentado pelo WhatsApp; a identificação vem da sessão SAC.
-      text = formatSacOutgoingText(text, accessBinding.accessMode === 'operator' ? accessBinding.name : 'Sistema');
+      text = formatSacOutgoingText(text, await resolveHumanSenderName());
       if (text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
 
       const protocol = String(openProtocol?.protocol || "").trim();
@@ -3124,8 +3138,7 @@ Deno.serve(async request => {
       }
 
       if (text) {
-        const sender = fromOrder ? 'Sistema' : (await resolveMyOperatorBinding())?.name || 'Sistema';
-        text = formatSacOutgoingText(text, sender);
+        text = formatSacOutgoingText(text, await resolveHumanSenderName());
         if (text.length > 5000) return json({success:false,error:'A legenda excede 5000 caracteres após a identificação do remetente.'},400);
       }
       if (protocol && !validProtocol(protocol)) {
@@ -3613,7 +3626,7 @@ Deno.serve(async request => {
       if (!isUuid(orderId)) return json({ success: false, error: "OS inválida." }, 400);
       if (!text) return json({ success: false, error: "Digite uma mensagem para enviar." }, 400);
       if (text.length > 5000) return json({ success: false, error: "A mensagem é muito longa." }, 400);
-      text = formatSacOutgoingText(text, "Sistema");
+      text = formatSacOutgoingText(text, await resolveHumanSenderName());
       if (text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
 
       const { data: order, error: orderError } = await admin
@@ -3956,8 +3969,7 @@ Deno.serve(async request => {
       const {data:messageProtocol,error}=await admin.from('sac_digital_protocols').select('id,status,closed_at').eq('organization_id',organizationId).eq('external_protocol_id',protocol).maybeSingle();
       if(error || !messageProtocol) return json({success:false,error:"Protocolo não encontrado nesta empresa."},404);
       if(messageProtocol.status==='finished' || messageProtocol.closed_at) return json({success:false,error:"Não é possível enviar a um protocolo finalizado."},409);
-      const senderBinding = await resolveMyOperatorBinding();
-      text = formatSacOutgoingText(text, senderBinding?.name || 'Sistema');
+      text = formatSacOutgoingText(text, await resolveHumanSenderName());
       if(text.length > 5000) return json({success:false,error:'A mensagem excede 5000 caracteres após a identificação do remetente.'},400);
       const submission=await beginLocalSubmission(messageProtocol.id,{message_type:'text',body_text:text});
       if(submission.duplicate) return submissionResponse(submission.row,protocol);
