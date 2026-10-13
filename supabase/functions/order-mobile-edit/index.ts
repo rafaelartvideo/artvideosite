@@ -277,7 +277,7 @@ async function loadMobileEditor(admin: AdminClient, session: MobileSession) {
       situations: situations.data || [],
       service_types: serviceTypes.data || [],
       general_services: generalServices.data || [],
-      equipment_service_links: serviceLinks.data || [],
+      equipment_service_links: serviceLinks.error ? null : serviceLinks.data || [],
       equipment_types: equipmentTypes.data || [],
       equipment_brands: equipmentBrands.data || [],
       equipment_models: equipmentModels.data || [],
