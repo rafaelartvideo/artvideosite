@@ -1,6 +1,7 @@
 import type { ComponentType } from "react";
 import { ArrowLeft } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
+import { prefetchAdminModule } from "../application/admin-prefetch";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 
 export type AdminNavigationItem = {
@@ -27,6 +28,8 @@ export function SidebarItem({ item, active, onClick, collapsed = false }: Sideba
     <button
       type="button"
       onClick={onClick}
+      onMouseEnter={() => prefetchAdminModule(item.id)}
+      onFocus={() => prefetchAdminModule(item.id)}
       title={collapsed ? item.label : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
@@ -73,6 +76,8 @@ export function AdminHubPage({
                 variant="ghost"
                 type="button"
                 onClick={() => onSelect(item.id, item.label)}
+                onMouseEnter={() => prefetchAdminModule(item.id)}
+                onFocus={() => prefetchAdminModule(item.id)}
                 className="h-auto w-full min-w-0 flex-col items-stretch whitespace-normal rounded-none p-0 text-left hover:bg-transparent"
               >
                 <div className={cn("min-w-0 px-4 py-4 sm:px-5 sm:py-5", centeredIcons && "text-center")}>
