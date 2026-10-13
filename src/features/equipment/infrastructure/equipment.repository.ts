@@ -80,8 +80,9 @@ export async function saveEquipmentTypeTechnicalFields(
   equipmentTypeId: string,
   links: Array<{ technical_field_id: string; required: boolean; sort_order: number }>,
   previousLinks?: Array<{ technical_field_id: string; required: boolean; sort_order: number }>,
+  organizationIdOverride?: string,
 ) {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = organizationIdOverride ?? await getActiveOrganizationId();
   // Ao editar a estrutura, a versão já carregada do catálogo permite calcular
   // apenas os vínculos alterados. Não é necessário um SELECT adicional por equipamento.
   let existing = previousLinks;
@@ -183,7 +184,7 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
       return !original || original.required !== link.required || Number(original.sort_order) !== Number(link.sort_order);
     });
     if (technicalFieldsChanged) {
-      await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields, previousLinks);
+      await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields, previousLinks, organizationId);
     }
 
     const previousChecklistItems = (catalog.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type.id);
@@ -191,7 +192,7 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
       (originalType?.checklist_profile_id ?? null) !== (type.checklist_profile_id ?? null)
       || JSON.stringify(previousChecklistItems) !== JSON.stringify(type.checklistItems);
     if (checklistChanged) {
-      await saveEquipmentChecklistConfiguration(typeId, type.checklist_profile_id, type.checklistItems);
+      await saveEquipmentChecklistConfiguration(typeId, type.checklist_profile_id, type.checklistItems, organizationId);
     }
 
     for (const brand of type.brands) {
