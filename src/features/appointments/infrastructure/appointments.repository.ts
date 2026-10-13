@@ -68,7 +68,7 @@ export async function loadAgendaData({
     ordersQuery,
     supabase
       .from("appointments")
-      .select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)), service_order:service_orders(id,os_number,model,serial_number,service:services(title),general_service:general_services(name)), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at), appointment_technicians(employee_id,employee:employees(id,full_name))")
+      .select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)), service_order:service_orders(id,os_number,model,serial_number,service:services(id,title),general_service:general_services(id,name)), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at), appointment_technicians(employee_id,employee:employees(id,full_name))")
       .eq("organization_id", org)
       .gte("appointment_date", dateFrom)
       .lt("appointment_date", dateToExclusive)
@@ -165,7 +165,7 @@ export async function listCustomerServiceOrders(organizationId: string, customer
   const org = requireOrganizationId(organizationId);
   const { data, error } = await supabase
     .from("service_orders")
-    .select("id,os_number,model,serial_number,service:services(title),general_service:general_services(name)")
+    .select("id,os_number,model,serial_number,service:services(id,title),general_service:general_services(id,name)")
     .eq("organization_id", org)
     .eq("customer_id", customerId)
     .order("created_at", { ascending: false });
