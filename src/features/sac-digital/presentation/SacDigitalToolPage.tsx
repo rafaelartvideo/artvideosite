@@ -139,6 +139,7 @@ function protocolInitials(protocol: SacDigitalProtocolListItem) {
 function safeSacAvatar(value?: string | null) {
   const avatar = String(value || "").trim();
   if (!avatar) return "";
+  if (avatar === "/assets/crm/sac-default-avatar.svg") return avatar;
   if (/^data:image\/jpg;base64,/i.test(avatar)) return avatar.replace(/^data:image\/jpg;/i, "data:image/jpeg;");
   if (/^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(avatar)) return avatar;
   return /^https?:\/\//i.test(avatar) ? avatar : "";
