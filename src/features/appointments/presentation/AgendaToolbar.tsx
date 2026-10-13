@@ -40,8 +40,13 @@ type Props = {
 export function AgendaToolbar(props: Props) {
   const filterPanelRef = useRef<HTMLDivElement>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilterCount = (props.view === "availability"
-    ? [props.technicianFilter] : [props.technicianFilter, props.statusFilter, props.situationFilter, props.serviceFilter]).filter(Boolean).length;
+  const activeFilterCount = [
+    props.canViewOthers ? props.technicianFilter : "",
+    props.statusFilter,
+    props.situationFilter,
+    props.serviceFilter,
+    props.search.trim(),
+  ].filter(Boolean).length;
 
   useEffect(() => {
     const closeFilters = (event: MouseEvent) => {
@@ -81,16 +86,17 @@ export function AgendaToolbar(props: Props) {
     </div>
 
     <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] gap-2 md:flex md:flex-1 md:items-center">
-      {props.view !== "availability" && <div className="relative min-w-0 md:max-w-[260px] md:flex-1"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={props.search} onChange={event => props.onSearchChange(event.target.value)} placeholder="Buscar cliente, nº OS" className={cn(INPUT, "h-10 bg-card py-2 pl-9 text-xs md:h-9")} /></div>}
-      {(props.view !== "availability" || props.canViewOthers) && <div ref={filterPanelRef} className="relative">
+      <div className="relative min-w-0 md:max-w-[260px] md:flex-1"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={props.search} onChange={event => props.onSearchChange(event.target.value)} placeholder={props.view === "availability" ? "Buscar técnico, cliente, nº OS" : "Buscar cliente, nº OS, técnico"} className={cn(INPUT, "h-10 bg-card py-2 pl-9 text-xs md:h-9")} /></div>
+      <div ref={filterPanelRef} className="relative">
         <AdminButton variant="secondary" onClick={() => setFiltersOpen(value => !value)} ariaLabel="Filtrar agendamentos" aria-expanded={filtersOpen} aria-controls="agenda-filters" className="h-10 rounded-lg px-3 text-xs md:h-9" type="button">
           <ListFilter size={15} /><span className="hidden xs:inline">Filtrar</span>{activeFilterCount > 0 && <span className="rounded-full bg-[#0057e7] px-1.5 py-0.5 text-[10px] text-white">{activeFilterCount}</span>}
         </AdminButton>
         {filtersOpen && <div id="agenda-filters" className="fixed inset-x-4 top-24 z-[120] max-h-[calc(100vh-7rem)] space-y-3 overflow-y-auto rounded-xl border border-[#0d1b2e]/10 bg-card p-4 shadow-2xl md:absolute md:inset-x-auto md:right-0 md:top-11 md:z-30 md:w-[min(18rem,calc(100vw-2rem))]">
           {props.canViewOthers && <FSelect label="Técnico" value={props.technicianFilter} onChange={event => props.onTechnicianFilterChange(event.target.value)} options={[{ value: "", label: "Todos os técnicos" }, ...props.employees.map(employee => ({ value: employee.id, label: employee.full_name }))]} />}
-          {props.view !== "availability" && <><FSelect label="Status" value={props.statusFilter} onChange={event => props.onStatusFilterChange(event.target.value)} options={[{ value: "", label: "Todos os status" }, ...props.statuses.map(status => ({ value: status.id, label: status.name }))]} />
+          <FSelect label="Status" value={props.statusFilter} onChange={event => props.onStatusFilterChange(event.target.value)} options={[{ value: "", label: "Todos os status" }, ...props.statuses.map(status => ({ value: status.id, label: status.name }))]} />
           <FSelect label="Situação" value={props.situationFilter} onChange={event => props.onSituationFilterChange(event.target.value)} options={[{ value: "", label: "Todas as situações" }, ...props.situations.map(situation => ({ value: situation.id, label: situation.name }))]} />
-          <FSelect label="Serviço" value={props.serviceFilter} onChange={event => props.onServiceFilterChange(event.target.value)} options={[{ value: "", label: "Todos os serviços" }, ...props.services.map(service => ({ value: service.id, label: service.title })), ...props.generalServices.map(service => ({ value: service.id, label: service.name }))]} /></>}
+          <FSelect label="Serviço" value={props.serviceFilter} onChange={event => props.onServiceFilterChange(event.target.value)} options={[{ value: "", label: "Todos os serviços" }, ...props.services.map(service => ({ value: service.id, label: service.title })), ...props.generalServices.map(service => ({ value: service.id, label: service.name }))]} />
+          {props.view === "availability" && <p className="text-[11px] leading-relaxed text-muted-foreground">Status, situação e serviço filtram os agendamentos do período. A ocupação real dos horários não é alterada.</p>
           <AdminButton variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-center py-2 text-red-600 hover:bg-red-50 hover:text-red-700 md:w-auto md:px-0 md:py-1 md:hover:bg-transparent"><Eraser size={13} /> Limpar filtros</AdminButton>
         </div>}
       </div>}
