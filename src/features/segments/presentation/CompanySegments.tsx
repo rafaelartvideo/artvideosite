@@ -27,12 +27,13 @@ function SegmentIcon({ segment }: { segment: BusinessSegment }) {
 }
 
 function SegmentPicker({
-  organizationId, data, onSaved, onCancel,
+  organizationId, data, onSaved, onCancel, onboarding = false,
 }: {
   organizationId: string;
   data: CompanySegmentsData;
   onSaved: () => void | Promise<void>;
   onCancel?: () => void;
+  onboarding?: boolean;
 }) {
   const [primary, setPrimary] = useState(data.primaryCode || "");
   const [additional, setAdditional] = useState<string[]>(data.additionalCodes);
@@ -68,15 +69,18 @@ function SegmentPicker({
     }
   };
 
-  return <div className="space-y-5">
-    <div>
-      <h3 className="text-base font-extrabold text-[#132039]">Qual é o principal segmento da sua empresa?</h3>
-      <p className="mt-1 text-sm leading-6 text-[#627185]">
-        Escolha o ramo de atuação. Depois, você pode selecionar outros segmentos que também atende.
-      </p>
-    </div>
 
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+  const actions = <div className="flex flex-wrap justify-end gap-2">
+    {onCancel && <BtnSecondary disabled={saving} onClick={onCancel}>Cancelar</BtnSecondary>}
+    <BtnPrimary onClick={() => void save()} disabled={!primary || saving} loading={saving} loadingText="Salvando...">
+      Confirmar
+    </BtnPrimary>
+  </div>;
+
+  const content = <div className="space-y-5">
+    <h3 className="text-base font-extrabold text-[#132039]">Qual é o principal segmento da sua empresa?</h3>
+
+    <div className="grid grid-cols-1 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
       {data.segments.map(segment => {
         const selected = primary === segment.code;
         return <button
@@ -85,25 +89,31 @@ function SegmentPicker({
           aria-pressed={selected}
           disabled={saving}
           onClick={() => selectPrimary(segment.code)}
-          className={`relative flex min-h-[166px] min-w-0 flex-col items-start gap-3 rounded-xl border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1032dc] disabled:opacity-60 ${selected
-            ? "border-[#1032dc] bg-[#edf1ff]"
-            : "border-[#dce3ec] bg-[#f8fafd] hover:border-[#7990e9]"}`}
+          className={
+            "relative flex min-h-[138px] min-w-0 flex-col items-start gap-2 border-b border-r border-[#dce3ec] px-4 py-4 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1032dc] disabled:opacity-60 " +
+            (selected ? "bg-[#edf1ff]" : "hover:bg-[#f5f7fc]")
+          }
         >
           {selected && <CheckCircle2 aria-label="Selecionado" className="absolute right-4 top-4 h-5 w-5 text-[#1032dc]" />}
-          <div className="rounded-xl bg-white p-3 shadow-sm"><SegmentIcon segment={segment} /></div>
+          <SegmentIcon segment={segment} />
           <span className="pr-6 text-base font-bold text-[#17263b]">{segment.name}</span>
           <span className="text-sm leading-5 text-[#6b7788]">{segment.description}</span>
         </button>;
       })}
     </div>
 
-    {primary && <div className="rounded-xl border border-[#dce3ec] p-4">
-      <h4 className="text-sm font-bold text-[#17263b]">Sua empresa trabalha com outros segmentos?</h4>
-      <p className="mt-1 text-xs leading-5 text-[#66758a]">Opcional. Ative somente os que realmente fazem parte da operação.</p>
-      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+    {primary && <section className="space-y-3">
+      <h4 className="flex flex-wrap items-center gap-2 text-sm font-bold text-[#17263b]">
+        Sua empresa trabalha com outros segmentos?
+        <span className="text-xs font-medium text-[#66758a]">(Opcional)</span>
+      </h4>
+      <div className="grid grid-cols-1 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
         {data.segments.filter(item => item.code !== primary).map(segment => <label
           key={segment.code}
-          className="flex cursor-pointer items-center gap-2 rounded-lg border border-[#dce3ec] px-3 py-3 text-sm font-medium text-[#20314b]"
+          className={
+            "flex cursor-pointer items-center gap-2 border-b border-r border-[#dce3ec] px-3 py-3 text-sm font-medium text-[#20314b] hover:bg-[#f5f7fc] " +
+            (additional.includes(segment.code) ? "bg-[#edf1ff]" : "")
+          }
         >
           <input
             type="checkbox"
@@ -115,20 +125,29 @@ function SegmentPicker({
           {segment.name}
         </label>)}
       </div>
-    </div>}
-
-    <p className="text-xs leading-5 text-[#67778b]">
-      Por enquanto, essa escolha configura apenas o perfil da empresa. Equipamentos, marcas e modelos
-      não serão importados antes da revisão do catálogo oficial. Seus cadastros e OS continuam intactos.
-    </p>
+    </section>}
 
     {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
-    <div className="flex flex-wrap justify-end gap-2">
-      {onCancel && <BtnSecondary disabled={saving} onClick={onCancel}>Cancelar</BtnSecondary>}
-      <BtnPrimary onClick={() => void save()} disabled={!primary || saving} loading={saving} loadingText="Salvando...">
-        Confirmar segmentos
-      </BtnPrimary>
-    </div>
+  </div>;
+
+  if (onboarding) {
+    return <AdminDialog
+      open
+      onClose={() => undefined}
+      minimizable={false}
+      closable={false}
+      hideHeader
+      className="max-w-5xl"
+      title="Qual é o principal segmento da sua empresa?"
+      footer={actions}
+    >
+      {content}
+    </AdminDialog>;
+  }
+
+  return <div className="space-y-5">
+    {content}
+    {actions}
   </div>;
 }
 
@@ -160,26 +179,30 @@ export function CompanySegmentsOnboardingGate({ hasPendingTerms }: { hasPendingT
 
   if (!eligible || (!error && (!data || data.configured))) return null;
 
-  return <AdminDialog
+
+  if (error) return <AdminDialog
     open
     onClose={() => undefined}
     minimizable={false}
     closable={false}
+    hideHeader
     className="max-w-5xl"
-    title="Configure o perfil da sua empresa"
-    description="Essa etapa é realizada somente pelo proprietário."
+    title="Selecionar segmentos da empresa"
   >
-    {error
-      ? <div className="space-y-3">
-          <p role="alert" className="text-sm text-red-600">{error}</p>
-          <BtnSecondary onClick={() => setRetry(value => value + 1)}>Tentar novamente</BtnSecondary>
-        </div>
-      : data && activeOrganizationId && <SegmentPicker
-          organizationId={activeOrganizationId}
-          data={data}
-          onSaved={() => setData(current => current ? { ...current, configured: true } : current)}
-        />}
+    <div className="space-y-3">
+      <p role="alert" className="text-sm text-red-600">{error}</p>
+      <BtnSecondary onClick={() => setRetry(value => value + 1)}>Tentar novamente</BtnSecondary>
+    </div>
   </AdminDialog>;
+
+  return data && activeOrganizationId
+    ? <SegmentPicker
+        onboarding
+        organizationId={activeOrganizationId}
+        data={data}
+        onSaved={() => setData(current => current ? { ...current, configured: true } : current)}
+      />
+    : null;
 }
 
 /** Edição posterior do perfil na seção Dados da empresa. */
