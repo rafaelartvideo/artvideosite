@@ -1650,7 +1650,9 @@ Deno.serve(async request => {
       if (!isUuid(orderId) || (requestedProtocol && !validProtocol(requestedProtocol))) {
         return json({success:false,error:"Identificação da OS ou do protocolo inválida."},400);
       }
-      const {data:order,error:orderError}=await admin.from("service_orders")
+      // A leitura precisa passar pela RLS do usuário: ordens designadas e
+      // regras de visualização não podem ser contornadas pelo service role.
+      const {data:order,error:orderError}=await userClient.from("service_orders")
         .select("id,customer_id").eq("organization_id",organizationId).eq("id",orderId).maybeSingle();
       if(orderError || !order?.customer_id) return json({success:false,error:"OS sem cliente válido nesta empresa."},404);
       const {data:customer,error:customerError}=await admin.from("customers")
