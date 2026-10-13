@@ -1,5 +1,6 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { OSSituationsView } from "@/features/order-situations/presentation/OSSituationsView";
@@ -116,6 +117,7 @@ export function TabOrders({
   monitorContact = null,
 }: TabOrdersProps) {
   const { user, profile, hasPermission } = useAuth();
+  const queryClient = useQueryClient();
   const scopedReadOnly = accessMode === "read";
   const effectiveHasPermission = (permission: string) => {
     if (!hasPermission(permission)) return false;
@@ -446,8 +448,15 @@ export function TabOrders({
     }
 
     if (!workspaceBase.organizationId) return () => { cancelled = true; };
-    void getServiceOrderForRoute(workspaceBase.organizationId, initialOrderId)
-      .then(order => {
+    // fetchQuery compartilha a requisição entre efeitos disparados por troca
+    // de rota/lista e reutiliza o resultado por um curto período. Antes,
+    // cada re-render podia iniciar outro GET idêntico durante a navegação.
+    const routeOrganizationId = workspaceBase.organizationId;
+    void queryClient.fetchQuery({
+      queryKey: ["orders", "route-preview", routeOrganizationId, initialOrderId],
+      staleTime: 30_000,
+      queryFn: () => getServiceOrderForRoute(routeOrganizationId, initialOrderId),
+    }).then(order => {
         if (!order) {
           if (!cancelled) setToast({ msg: "A OS solicitada não foi encontrada.", type: "error" });
           return;
@@ -461,7 +470,7 @@ export function TabOrders({
       });
 
     return () => { cancelled = true; };
-  }, [initialOrderId, initialCustomerId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, queueSettingsLoading, queueCodeRequired]);
+  }, [initialOrderId, initialCustomerId, routeSubpage, workspaceLoading, workspaceBase.organizationId, orders, detail?.id, formOpen, editingOS?.id, scopedReadOnly, queueSettingsLoading, queueCodeRequired, queryClient]);
 
   const openRoutedDetail = (order: any) => {
     closingRouteRef.current = null;
@@ -626,6 +635,7 @@ export function TabOrders({
       try {
         const createdOrder = await getServiceOrderForRoute(workspaceBase.organizationId, savedOrderId);
         if (!createdOrder) throw new Error("OS não encontrada após a criação.");
+        queryClient.setQueryData(["orders", "route-preview", workspaceBase.organizationId, savedOrderId], createdOrder);
 
         closingRouteRef.current = null;
         setDetailInitialSection("details");
@@ -657,6 +667,7 @@ export function TabOrders({
     try {
       const updatedOrder = await getServiceOrderForRoute(workspaceBase.organizationId, savedOrderId);
       if (!updatedOrder) throw new Error("OS não encontrada após a atualização.");
+      queryClient.setQueryData(["orders", "route-preview", workspaceBase.organizationId, savedOrderId], updatedOrder);
 
       closingRouteRef.current = null;
       setDetailInitialSection("details");
