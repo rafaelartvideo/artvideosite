@@ -9,11 +9,21 @@ export type SelectedSituation = {
   sla_hours: string;
 };
 
+type ExistingSituationLink = {
+  situation_id: string;
+  use_default_hours: boolean;
+  sla_hours: number | string | null;
+  sort_order: number;
+};
+
 type SaveServiceTypeInput = {
   serviceTypeId?: string;
   payload: Record<string, unknown>;
   sortOrder: number;
   selectedSituations: SelectedSituation[];
+  // Provenientes do mesmo RPC de leitura da tela: sem SELECT extra ao salvar.
+  currentType?: Record<string, unknown>;
+  currentLinks?: ExistingSituationLink[];
 };
 
 export async function loadServiceTypesConfiguration() {
@@ -53,34 +63,35 @@ export async function saveServiceType({
   payload,
   sortOrder,
   selectedSituations,
+  currentType,
+  currentLinks,
 }: SaveServiceTypeInput): Promise<string> {
   const organizationId = await getActiveOrganizationId();
   let serviceTypeId = existingId;
 
-  let existingLinks: Array<{
-    situation_id: string;
-    use_default_hours: boolean;
-    sla_hours: number | string | null;
-    sort_order: number;
-  }> = [];
+  let existingLinks: ExistingSituationLink[] = [];
 
   if (serviceTypeId) {
-    const { data: currentLinks, error: currentLinksError } = await supabase
-      .from("service_type_situations")
-      .select("situation_id,use_default_hours,sla_hours,sort_order")
-      .eq("organization_id", organizationId)
-      .eq("service_type_id", serviceTypeId);
+    if (currentLinks) {
+      existingLinks = currentLinks;
+    } else {
+      const { data, error } = await supabase.from("service_type_situations")
+        .select("situation_id,use_default_hours,sla_hours,sort_order")
+        .eq("organization_id", organizationId)
+        .eq("service_type_id", serviceTypeId);
+      if (error) throw error;
+      existingLinks = data ?? [];
+    }
 
-    if (currentLinksError) throw currentLinksError;
-    existingLinks = currentLinks ?? [];
-
-    const { error } = await supabase
-      .from("service_types")
-      .update(payload)
-      .eq("id", serviceTypeId)
-      .eq("organization_id", organizationId);
-
-    if (error) throw error;
+    // Atualizar somente colunas efetivamente alteradas (inclusive no monitoramento).
+    const changedPayload = currentType
+      ? Object.fromEntries(Object.entries(payload).filter(([key, value]) => JSON.stringify(value ?? null) !== JSON.stringify(currentType[key] ?? null)))
+      : payload;
+    if (Object.keys(changedPayload).length) {
+      const { error } = await supabase.from("service_types").update(changedPayload)
+        .eq("id", serviceTypeId).eq("organization_id", organizationId);
+      if (error) throw error;
+    }
   } else {
     const { data, error } = await supabase
       .from("service_types")
