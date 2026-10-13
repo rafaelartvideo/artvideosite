@@ -1085,6 +1085,15 @@ Deno.serve(async request => {
           error:'O operador vinculado não aparece na lista da SAC Digital. Confira o vínculo em Configurações > SAC Digital.'},409);
       }
       if (before.online===true) {
+        // Being online on the provider is not proof of an authorized Union
+        // session: verify OAuth before presenting this operator as ready.
+        try {
+          await authenticateSacOperator(credentials,binding.id,['profile','edit']);
+        } catch (error) {
+          return json({success:false,linked:true,online:true,
+            type:String((error as any)?.code || 'operator_authorization_required'),
+            error:'O Operador está online na SAC, mas a autorização dele na Union precisa ser renovada em Autorizar Operador.'},409);
+        }
         return json({success:true,linked:true,online:true,already_online:true,
           operator_name:before.operator_name,checked_at:new Date().toISOString()});
       }
