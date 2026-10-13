@@ -8,9 +8,12 @@ import {
   attachFrozenPrintPdf,
   cancelSignatureRequest,
   createSignatureRequest,
+  getSignatureAdminLink,
+  listOrderSignatureRequests,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getSacDigitalIntegrationStatus, sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
-import { buildSignatureWhatsAppUrl } from "@/features/documents/domain/document-signature-ui.mjs";
+import { buildSignatureWhatsAppUrl, isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
+import type { DocumentSignatureRequestSummary } from "@/features/documents/domain/document-signature";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -56,6 +59,8 @@ export function OrderSignatureRequestDialog({
     email_warning?: string | null;
     whatsapp_warning?: string | null;
     finalization_warning?: string | null;
+    reused?: boolean;
+    resent?: boolean;
     request?: { id?: string; status?: string } | null;
   }) => void;
 }) {
@@ -76,6 +81,9 @@ export function OrderSignatureRequestDialog({
   const [saving, setSaving] = useState(false);
   const [sacEnabled, setSacEnabled] = useState<boolean | null>(null);
   const [sacStatusError, setSacStatusError] = useState("");
+  const [signatureRequests, setSignatureRequests] = useState<DocumentSignatureRequestSummary[]>([]);
+  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsError, setRequestsError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
     customer?: string;
     contactName?: string;
@@ -86,6 +94,17 @@ export function OrderSignatureRequestDialog({
 
   const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || null;
   const customer = order?.customer || {};
+  const activeRequest = signatureRequests.find(item =>
+    item.print_template_id === selectedTemplate?.id
+    && isActiveSignatureStatus(item.status)
+    && Date.parse(item.expires_at) > Date.now()
+  ) || null;
+  const selectedSignerEmail = String(signerType === "customer" ? customer.email || "" : contactEmail).trim().toLowerCase();
+  const selectedSignerPhone = normalizeDigits(signerType === "customer" ? customer.whatsapp || customer.phone : contactPhone);
+  const existingMatchesSigner = Boolean(activeRequest
+    && activeRequest.external_signer_type === signerType
+    && activeRequest.external_signer_email?.trim().toLowerCase() === selectedSignerEmail
+    && normalizeDigits(activeRequest.external_signer_phone) === selectedSignerPhone);
 
   useEffect(() => {
     if (!open || !order?.organization_id) return;
@@ -97,6 +116,19 @@ export function OrderSignatureRequestDialog({
       .catch(error => { if (alive) setSacStatusError(systemErrorMessage(error, "Não foi possível consultar a integração WhatsApp desta empresa.")); });
     return () => { alive = false; };
   }, [open, order?.organization_id]);
+
+  useEffect(() => {
+    if (!open || !order?.organization_id || !order?.id) return;
+    let alive = true;
+    setSignatureRequests([]);
+    setRequestsError("");
+    setRequestsLoading(true);
+    void listOrderSignatureRequests(order.organization_id, order.id)
+      .then(items => { if (alive) setSignatureRequests(items); })
+      .catch(error => { if (alive) setRequestsError(systemErrorMessage(error, "Não foi possível consultar as assinaturas da OS.")); })
+      .finally(() => { if (alive) setRequestsLoading(false); });
+    return () => { alive = false; };
+  }, [open, order?.id, order?.organization_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -111,8 +143,55 @@ export function OrderSignatureRequestDialog({
 
   if (!open) return null;
 
+  const reuseExisting = async () => {
+    if (!activeRequest || saving) return;
+    // Never send a personal signature link to a new/different recipient.
+    const canSendInvite = existingMatchesSigner && Boolean(activeRequest.external_signer_phone)
+      && sacEnabled !== null && !sacStatusError;
+    const whatsappTab = canSendInvite && sacEnabled === false ? window.open("about:blank", "_blank") : null;
+    if (whatsappTab) whatsappTab.opener = null;
+    setSaving(true);
+    try {
+      const link = await getSignatureAdminLink(order.organization_id, activeRequest.id);
+      let whatsappWarning: string | null = null;
+      if (canSendInvite) {
+        try {
+          if (sacEnabled === true) {
+            await sendSacDigitalSignatureInvite(order.organization_id, order.id, activeRequest.id, link);
+          } else {
+            const company = await getCompanyPrintContext(order.organization_id);
+            const whatsappUrl = buildSignatureWhatsAppUrl(activeRequest.external_signer_phone, link, {
+              companyName: company.name,
+              documentName: activeRequest.template_name_snapshot,
+              expiresAt: activeRequest.expires_at,
+            });
+            if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura para WhatsApp.");
+            if (whatsappTab && !whatsappTab.closed) whatsappTab.location.replace(whatsappUrl);
+            else whatsappWarning = "Permita novas abas ou envie o link exibido no QR Code.";
+          }
+        } catch (error) {
+          if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
+          whatsappWarning = systemErrorMessage(error, "Não foi possível reenviar o link pelo WhatsApp.");
+        }
+      } else if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
+      onCreated({
+        link,
+        request: activeRequest,
+        reused: true,
+        resent: canSendInvite && !whatsappWarning,
+        whatsapp_warning: whatsappWarning,
+      });
+      onClose();
+    } catch (error) {
+      if (whatsappTab && !whatsappTab.closed) whatsappTab.close();
+      notifyAdmin(systemErrorMessage(error, "Não foi possível recuperar o link existente."), "error");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const submit = async () => {
-    if (!order?.id || !order?.organization_id || !selectedTemplate || saving) return;
+    if (!order?.id || !order?.organization_id || !selectedTemplate || saving || activeRequest || requestsLoading || requestsError) return;
     setFieldErrors({});
     const nextErrors: typeof fieldErrors = {};
     if (selectedTemplate.require_external_signature) {
@@ -245,7 +324,12 @@ export function OrderSignatureRequestDialog({
         try { await cancelSignatureRequest(order.organization_id, createdRequestId); }
         catch { /* best effort: prevent a partially prepared link from remaining active */ }
       }
-      notifyAdmin(systemErrorMessage(submitError, "Não foi possível criar a solicitação de assinatura."), "error");
+      const message = systemErrorMessage(submitError, "Não foi possível criar a solicitação de assinatura.");
+      if (message.includes("Já existe uma solicitação ativa")) {
+        void listOrderSignatureRequests(order.organization_id, order.id)
+          .then(setSignatureRequests).catch(() => { /* keep original error */ });
+      }
+      notifyAdmin(message, "error");
     } finally {
       setSaving(false);
     }
@@ -265,11 +349,25 @@ export function OrderSignatureRequestDialog({
     className="max-w-xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-      <BtnPrimary onClick={() => void submit()} loading={saving} loadingText="Criando e enviando pelo WhatsApp..." disabled={onlineTemplates.length === 0 || (selectedTemplate?.require_external_signature === true && (sacEnabled === null || Boolean(sacStatusError)))}>Criar e enviar</BtnPrimary>
+      <BtnPrimary
+        onClick={() => void (activeRequest ? reuseExisting() : submit())}
+        loading={saving}
+        loadingText={activeRequest ? "Preparando link existente..." : "Criando e enviando pelo WhatsApp..."}
+        disabled={onlineTemplates.length === 0 || requestsLoading || Boolean(requestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (sacEnabled === null || Boolean(sacStatusError)))}
+      >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>}
   >
     <div className="space-y-5">
         {sacStatusError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sacStatusError}</p>}
+        {requestsLoading && <p className="text-xs text-muted-foreground">Verificando assinaturas ativas da OS...</p>}
+        {requestsError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{requestsError}</p>}
+        {activeRequest && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
+          <p className="font-bold">Este modelo já possui uma assinatura {activeRequest.status === "viewed" ? "visualizada" : "pendente"}.</p>
+          <p className="mt-1">Assinante: {activeRequest.external_signer_name || "não informado"}. O link é válido até {new Date(activeRequest.expires_at).toLocaleString("pt-BR")}.</p>
+          <p className="mt-1">{existingMatchesSigner
+            ? "Reenvie o link existente, sem gerar outro documento."
+            : "O link pertence ao assinante acima e não será enviado ao contato selecionado. Para gerar outro documento, cancele a solicitação anterior em Documentos → Assinaturas eletrônicas."}</p>
+        </div>}
         {onlineTemplates.length === 0 ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">Nenhum modelo ativo está marcado com “Permitir assinatura online”.</div> : <>
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Modelo</label>
