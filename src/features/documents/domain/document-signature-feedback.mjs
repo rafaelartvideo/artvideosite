@@ -4,6 +4,8 @@
  * como erro de criação de assinatura.
  *
  * @param {{
+ *   reused?: boolean,
+ *   resent?: boolean,
  *   link?: string | null,
  *   email_warning?: string | null,
  *   whatsapp_warning?: string | null,
@@ -13,6 +15,17 @@
  * @returns {{ message: string, type: "success" | "error" }}
  */
 export function signatureRequestCreationFeedback(result) {
+  if (result.reused) {
+    if (result.whatsapp_warning) {
+      return { message: `A assinatura já estava ativa. Link e QR Code disponíveis, mas o WhatsApp não pôde ser aberto: ${result.whatsapp_warning}`, type: "error" };
+    }
+    return {
+      message: result.resent
+        ? "A assinatura já estava ativa. O convite foi preparado ou reenviado pelo WhatsApp; o QR Code está disponível."
+        : "Esta assinatura já estava ativa. Link e QR Code disponíveis; nenhum novo documento foi criado.",
+      type: "success",
+    };
+  }
   if (result.finalization_warning) {
     return {
       message: `Solicitação criada, mas houve um problema ao preparar o documento: ${result.finalization_warning}`,
