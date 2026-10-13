@@ -441,34 +441,56 @@ export function useOrderResolution({
         solutionImageError = error;
       }
 
-      const [freshDetail, technicalValuesResult] = await Promise.all([
-        getFullServiceOrder(orderId),
-        listServiceOrderTechnicalValues(orderId),
-      ]);
-      if (freshDetail.data) setDetail({ ...freshDetail.data, technical_values: technicalValuesResult.data || [] });
-      const { data: usedData } = await listServiceOrderUsedItems(orderId);
-      const { data: mediaLinks } = await listServiceOrderMedia(orderId);
-      setDetailUsedItems(usedData || []);
-      replaceOrderImages(
-        (mediaLinks || [])
-          .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
-          .map((item: any) => ({
-            key: item.id,
-            mediaId: item.media_id,
-            name: item.media?.file_name || "Imagem da OS",
-            kind: orderImageKindFromSortOrder(item.sort_order),
-          })),
-      );
-      const currentSolutionImages = (mediaLinks || [])
-        .filter((item: any) => Number(item.sort_order ?? 0) >= 1000)
-        .map((item: any) => ({
-          key: item.id,
-          mediaId: item.media_id,
-          name: item.media?.file_name || "Imagem da solução",
-          kind: "solution" as const,
-        }));
-      replaceSolutionImages(currentSolutionImages);
-      setDetailSolutionImages(currentSolutionImages);
+      // A solução e os uploads terminaram. Não aguardar GETs de listas e
+      // imagens para encerrar o estado de salvamento e informar o resultado.
+      setDetail((current: any) => current ? ({
+        ...current,
+        is_solved: true,
+        solved_at: new Date().toISOString(),
+        diagnosis,
+        solution,
+        loose_parts: solveDraft.looseParts || null,
+      }) : current);
+      setOrders(current => current.map(order => order.id === orderId ? {
+        ...order,
+        is_solved: true,
+        diagnosis,
+        solution,
+        loose_parts: solveDraft.looseParts || null,
+      } : order));
+      void (async () => {
+        try {
+          const [freshDetail, technicalValuesResult, usedResult, mediaResult] = await Promise.all([
+            getFullServiceOrder(orderId),
+            listServiceOrderTechnicalValues(orderId),
+            listServiceOrderUsedItems(orderId),
+            listServiceOrderMedia(orderId),
+          ]);
+          if (freshDetail.data) setDetail({ ...freshDetail.data, technical_values: technicalValuesResult.data || [] });
+          setDetailUsedItems(usedResult.data || []);
+          const mediaLinks = mediaResult.data || [];
+          replaceOrderImages(mediaLinks
+            .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
+            .map((item: any) => ({
+              key: item.id,
+              mediaId: item.media_id,
+              name: item.media?.file_name || "Imagem da OS",
+              kind: orderImageKindFromSortOrder(item.sort_order),
+            })));
+          const currentSolutionImages = mediaLinks
+            .filter((item: any) => Number(item.sort_order ?? 0) >= 1000)
+            .map((item: any) => ({
+              key: item.id,
+              mediaId: item.media_id,
+              name: item.media?.file_name || "Imagem da solução",
+              kind: "solution" as const,
+            }));
+          replaceSolutionImages(currentSolutionImages);
+          setDetailSolutionImages(currentSolutionImages);
+        } catch (error) {
+          console.warn("[OS] Não foi possível atualizar os detalhes após salvar a solução:", error);
+        }
+      })();
       setSolveOpen(false);
       void loadSolutionAttempts(orderId, targetOrganizationId).catch(error => {
         console.warn("[OS] Falha ao atualizar histórico após solução:", error);
