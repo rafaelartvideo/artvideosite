@@ -61,6 +61,15 @@ export async function loadEquipmentBrandDirectory(
   canViewUnionCatalog: boolean,
 ): Promise<string[]> {
   const organizationId = await getActiveOrganizationId();
+  // Prefer the complete, publication-aware directory. Older databases keep
+  // working with the existing segment-scoped suggestion RPC as fallback.
+  if (!isPlatformOperator || canViewUnionCatalog) {
+    const { data: names, error: directoryError } = await supabase.rpc(
+      "load_equipment_brand_directory_v1", { p_organization_id: organizationId },
+    );
+    if (!directoryError) return Array.isArray(names) ? names.filter((name): name is string => typeof name === "string") : [];
+    if (!["PGRST202", "42883"].includes(directoryError.code || "")) throw directoryError;
+  }
   if (isPlatformOperator) {
     if (!canViewUnionCatalog) return [];
     const { data, error } = await supabase.rpc("load_union_catalog_admin_v1");
