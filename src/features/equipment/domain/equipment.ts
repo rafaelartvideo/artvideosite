@@ -20,6 +20,8 @@ export type EquipmentDraft = {
   checklist_profile_id: string | null;
   checklistItems: EquipmentChecklistItem[];
   technicalFields: Array<{ technical_field_id: string; required: boolean; sort_order: number }>;
+  /** Undefined means links were not edited or loaded; never overwrite them. */
+  serviceIds?: string[];
   brands: EquipmentDraftBrand[];
 };
 
