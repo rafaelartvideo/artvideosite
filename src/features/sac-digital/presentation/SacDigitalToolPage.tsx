@@ -651,6 +651,9 @@ export function SacDigitalToolPage({
 
   const [presenceLoading, setPresenceLoading] = useState(false);
   const [confirmedPresence, setConfirmedPresence] = useState<boolean | null>(null);
+  useEffect(() => {
+    setConfirmedPresence(null);
+  }, [activeOrganizationId, operatorBinding?.operator?.id]);
   const checkMyPresence = async () => {
     if (!activeOrganizationId || presenceLoading) return;
     setPresenceLoading(true);
@@ -1583,7 +1586,7 @@ export function SacDigitalToolPage({
           {operatorBinding?.linked && operatorBinding.access_mode === 'operator' && status?.enabled && (
             <>
               <AdminButton variant="secondary" disabled={presenceLoading} onClick={() => void checkMyPresence()}>
-                {presenceLoading ? "Verificando..." : confirmedPresence === true ? "Operador Online" : "Ficar Online"}
+                {presenceLoading ? "Verificando..." : confirmedPresence === true ? "Operador Online" : confirmedPresence === false ? "Ficar Online" : "Verificar Online"}
               </AdminButton>
               <AdminButton variant="secondary" disabled={authorizingOperator} onClick={() => void authorizeOperator()}>
                 {authorizingOperator ? "Abrindo SAC..." : "Autorizar Operador"}
