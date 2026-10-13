@@ -114,14 +114,21 @@ export function OrderEquipmentSection({
         sort_order: 0,
       },
     }));
-  const displayedTechnicalFields = [...technicalFields, ...historicalFields].sort((first, second) => first.sort_order - second.sort_order);
+  const displayedTechnicalFields = [...technicalFields, ...historicalFields]
+    .filter(relation => relation.technical_field?.field_key !== "numero_serie")
+    .sort((first, second) => first.sort_order - second.sort_order);
+  // Mostrar a série apenas para equipamentos com campo extra; preservar dados históricos.
+  const showSerial = technicalFields.some(relation =>
+    relation.technical_field?.field_key === "numero_serie"
+      && relation.technical_field?.is_active !== false
+  ) || Boolean(editingOS && String(form.serial_number || "").trim());
   const labelImages = images.filter(image => image.kind === "label");
   const otherImages = images.filter(image => image.kind !== "label");
 
   return (
     <Section
       title="Equipamento"
-      actions={!editingOS && showImages && canAddImages ? (
+      actions={!editingOS && showSerial && showImages && canAddImages ? (
         <div className="hidden md:block">
           <DeviceCaptureBridge
             onSerial={value => upF("serial_number", value)}
@@ -182,10 +189,10 @@ export function OrderEquipmentSection({
           />
         </div>
 
-        <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
+        {showSerial && <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
           <div className="min-w-0 flex-1">
             <FInput
-              label="Número de série"
+              label="NÚMERO DE SÉRIE"
               type="text"
               value={form.serial_number || ""}
               disabled={editingOS}
@@ -256,7 +263,7 @@ export function OrderEquipmentSection({
               </AdminButton>
             </div>
           </AdminDialog>
-        </div>
+        </div>}
 
         {displayedTechnicalFields.map(relation => {
           const field = relation.technical_field;
