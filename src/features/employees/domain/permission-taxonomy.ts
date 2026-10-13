@@ -150,7 +150,8 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
   permissions
     .filter(permission => {
       const key = String(permission.key || "");
-      return !key.startsWith("order_statuses.")
+      return !key.startsWith("nfse.")
+        && !key.startsWith("order_statuses.")
         && key !== "orders.status.change"
         && !HIDDEN_LEGACY_PERMISSIONS.has(key);
     })
