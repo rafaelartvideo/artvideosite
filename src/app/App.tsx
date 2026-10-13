@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
@@ -6,6 +6,8 @@ import { PublicShell } from "@/features/public-shell/presentation/PublicShell";
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogManagerProvider } from "@/shared/ui/admin/AdminDialogManager";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
 declare const __PUBLIC_SITE_URL__: string;
@@ -119,11 +121,60 @@ function AuthenticatedAdminRealtimeSync() {
   return <QueryRealtimeSync />;
 }
 
+/**
+ * Put the SAC operator online once when the user's Union login is ready.
+ * Does not execute for Managers, unlinked users or pending terms; the edge
+ * function checks the linked OAuth identity again before any provider PATCH.
+ */
+function AuthenticatedSacAutoPresence() {
+  const { session, activeOrganizationId, permissions, loading, pendingTerms } = useAuth();
+  const { pathname } = useLocation();
+  const attempted = useRef("");
+
+  useEffect(() => {
+    if (!session?.user) {
+      attempted.current = "";
+      return;
+    }
+    if (loading || pendingTerms.length > 0 || !activeOrganizationId
+      || !pathname.startsWith("/admin")
+      || !permissions.some(permission =>
+        permission.key === "sac_digital.messages.view" || permission.key === "sac_digital.view")) {
+      return;
+    }
+
+    const key = `${session.user.id}:${activeOrganizationId}`;
+    if (attempted.current === key) return;
+    attempted.current = key;
+    let cancelled = false;
+    void import("@/features/sac-digital/infrastructure/sac-digital.repository")
+      .then(({ bringMySacOperatorOnline }) => bringMySacOperatorOnline(activeOrganizationId))
+      .then(result => {
+        if (cancelled || !result.linked) return;
+        if (result.online === true && !result.already_online) {
+          notifyAdmin("Seu Operador SAC Digital está online.", "success");
+        } else if (result.online !== true) {
+          notifyAdmin("A SAC Digital ainda não confirmou seu Operador online. Consulte Configurações > SAC Digital > Operadores.", "error");
+        }
+      })
+      .catch(error => {
+        if (!cancelled) {
+          notifyAdmin(systemErrorMessage(error,
+            "Não foi possível colocar seu Operador SAC online. Confira a autorização em Configurações > SAC Digital."), "error");
+        }
+      });
+    return () => { cancelled = true; };
+  }, [session?.user?.id, activeOrganizationId, permissions, loading, pendingTerms.length,
+    pathname.startsWith("/admin")]);
+  return null;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <ScrollToTop />
       <AuthenticatedAdminRealtimeSync />
+      {APP_TARGET !== "site" && <AuthenticatedSacAutoPresence />}
       {APP_TARGET === "site" ? (
         <PublicApplication />
       ) : APP_TARGET === "crm" ? (
