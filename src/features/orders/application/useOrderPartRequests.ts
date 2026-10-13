@@ -567,8 +567,11 @@ export function useOrderPartRequests({
     }
   };
 
+  const clearActiveOrder = useCallback(() => setActiveOrderId(""), []);
+
   return {
     detailPartRequests,
+    clearActiveOrder,
     selectedPartRequest,
     partApprovalOpen,
     partRejectionOpen,
