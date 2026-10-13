@@ -22,7 +22,7 @@ export function signatureRequestCreationFeedback(result) {
     return {
       message: result.resent
         ? "A assinatura já estava ativa. O convite foi preparado ou reenviado pelo WhatsApp; o QR Code está disponível."
-        : "Esta assinatura já estava ativa. Link e QR Code disponíveis; nenhum novo documento foi criado.",
+        : "Esta assinatura já estava ativa. Link e QR Code disponíveis; a solicitação existente foi mantida.",
       type: "success",
     };
   }
