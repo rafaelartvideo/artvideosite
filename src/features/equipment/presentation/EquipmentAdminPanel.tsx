@@ -142,6 +142,14 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     if (!fieldForm.label.trim()) nextErrors.label = "Informe o nome do campo.";
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
+    if (editingField
+      && editingField.label === fieldForm.label.trim()
+      && editingField.field_type === fieldForm.field_type
+      && editingField.is_active === fieldForm.is_active) {
+      closeEditor();
+      setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
+      return;
+    }
     setSaving(true);
     try {
       await saveTechnicalField({ id: editingField?.id, label: fieldForm.label, field_key: editingField?.field_key || slugify(fieldForm.label).replace(/-/g, "_"), field_type: fieldForm.field_type, is_active: fieldForm.is_active, sort_order: editingField?.sort_order ?? technicalFields.length * 10 });
