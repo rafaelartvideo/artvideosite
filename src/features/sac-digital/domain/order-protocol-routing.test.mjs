@@ -109,3 +109,21 @@ test('historical provider echoes from OS are hidden but retained for audit', asy
   assert.match(sacPage, /const senderHeading =/);
   assert.match(sacPage, /<strong className="font-bold">\{senderHeading\[1\]\}<\/strong>/);
 });
+
+test('switching any conversation category closes the active conversation', () => {
+  assert.match(sacPage, /onClick=\{\(\) => switchConversationCategory\(value\)\}/);
+  assert.match(sacPage, /const switchConversationCategory = useCallback\(/);
+  assert.match(sacPage, /selectProtocol\(null\);\s*setStatusFilter\(nextStatus\);/);
+  assert.match(sacPage, /params\.delete\("protocol"\);/);
+  assert.match(sacPage, /params\.delete\("customer"\);/);
+});
+
+test('an animated choose-conversation state is rendered whenever no protocol is selected', () => {
+  assert.match(sacPage, /function EmptySacConversationState\(\)/);
+  assert.match(sacPage, /Selecione uma conversa/);
+  assert.match(sacPage, /\[0, 1, 2\]\.map\(index => \(/);
+  assert.match(sacPage, /animate-bounce/);
+  assert.match(sacPage, /motion-reduce:animate-none/);
+  assert.match(sacPage, /<EmptySacConversationState \/>/);
+  assert.doesNotMatch(sacPage, /Selecione um atendimento para visualizar as mensagens/);
+});
