@@ -101,17 +101,11 @@ export function UnionEquipmentTemplates({
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
     {!editing && <>
-      {canManage && <div className="flex justify-end"><BtnPrimary size="sm" onClick={startNew}>Novo template</BtnPrimary></div>}
-      {loading ? <p className="text-sm text-[#738096]">Carregando...</p> : <div className="max-h-72 divide-y divide-[#e8edf3] overflow-y-auto rounded-lg border border-[#e1e7f0]">
-        {rows.length === 0 && <p className="px-3 py-5 text-sm text-[#738096]">Nenhum template cadastrado.</p>}
-        {rows.map(item => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
-          <div className="min-w-0">
-            <p className="text-sm font-bold text-[#17263b]">{"label" in item ? item.label : item.title}</p>
-            <p className="text-xs text-[#738096]">{"field_key" in item ? item.field_key : item.stage_code} · {item.is_active ? "Ativo" : "Inativo"}</p>
-          </div>
-          {canManage && <BtnSecondary size="sm" onClick={() => startEdit(item)}>Editar</BtnSecondary>}
-        </div>)}
-      </div>}
+      {canManage && <div className="flex justify-end"><BtnPrimary onClick={startNew}>Novo</BtnPrimary></div>}
+      {loading ? <p className="py-4 text-sm text-muted-foreground">Carregando...</p> : rows.length === 0 ? <p className="p-4 text-sm text-muted-foreground">Nenhum template cadastrado.</p> : <div className="overflow-x-auto border border-border"><table className="w-full min-w-[440px] text-sm">
+        <thead className="bg-muted/70 text-muted-foreground"><tr><th className="p-3 text-left">Nome</th><th className="p-3 text-left">Identificador</th><th className="p-3 text-left">Situação</th><th className="p-3 text-right">Ações</th></tr></thead>
+        <tbody className="divide-y divide-border">{rows.map(item => <tr key={item.id} className="hover:bg-muted/50"><td className="p-3 font-semibold text-foreground">{"label" in item ? item.label : item.title}</td><td className="p-3 text-muted-foreground">{"field_key" in item ? item.field_key : item.stage_code}</td><td className="p-3">{item.is_active ? "Ativo" : "Inativo"}</td><td className="p-3 text-right">{canManage && <BtnSecondary onClick={() => startEdit(item)}>Editar</BtnSecondary>}</td></tr>)}</tbody>
+      </table></div>}
     </>}
     {editing && <AdminDialog open onClose={() => { if (!saving) setEditing(false); }} title={editingId ? "Editar template" : "Novo template"} className="max-w-2xl" footer={<div className="flex justify-end gap-2"><BtnSecondary disabled={saving} onClick={() => setEditing(false)}>Cancelar</BtnSecondary><BtnPrimary loading={saving} loadingText="Salvando..." onClick={() => void save()}>Salvar</BtnPrimary></div>}><div className="space-y-3">
       {kind === "technical" ? <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
