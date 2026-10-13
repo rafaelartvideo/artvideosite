@@ -186,10 +186,8 @@ export function Toast({ message, type = "success", onClose }: { message: unknown
   }, [displayMessage, type]);
 
   return <div className={cn(
-    "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[400] flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-start gap-3 rounded-xl border-2 px-4 py-4 text-left text-sm font-semibold shadow-[0_18px_48px_rgba(13,27,46,0.24)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[340px] md:max-w-lg md:translate-x-0",
-    type === "success"
-      ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100"
-      : "border-red-500 bg-red-100 text-red-950 shadow-[0_18px_48px_rgba(153,27,27,0.28)] dark:border-red-500 dark:bg-red-950 dark:text-red-100",
+    "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
+    type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800",
   )} role={type === "error" ? "alert" : "status"} aria-live={type === "error" ? "assertive" : "polite"}>
     {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
     <span className="min-w-0 flex-1 leading-relaxed">{displayMessage}</span>
