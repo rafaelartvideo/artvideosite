@@ -6,7 +6,8 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import type { EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow, TechnicalField } from "../domain/equipment";
-import { loadEquipmentBrandDirectory, loadEquipmentCatalog, saveEquipmentHierarchy, saveTechnicalField, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
+import { loadEquipmentBrandDirectory, loadEquipmentCatalog, loadEquipmentServiceSettings, saveEquipmentHierarchy, saveTechnicalField, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
+import { EquipmentServiceSelector } from "./EquipmentServiceSelector";
 import { brandKey, buildEquipmentBrandChoices, EquipmentBrandSelector, EquipmentBrandsDirectory } from "./EquipmentBrands";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
@@ -55,6 +56,13 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     enabled: Boolean(activeOrganizationId && canView && (canViewTable || canCreate || canEdit)),
     staleTime: REFERENCE_DATA_CACHE_TIME,
   });
+  const equipmentServicesQuery = useQuery({
+    queryKey: ["equipment", "service-settings", activeOrganizationId],
+    queryFn: loadEquipmentServiceSettings,
+    enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit)),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+  });
+  const serviceSettings = equipmentServicesQuery.data;
   const catalog = catalogQuery.data;
   const types = catalog?.types ?? [];
   const brands = catalog?.brands ?? [];
@@ -93,6 +101,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   // botão em "Salvando" após a confirmação da gravação pelo Supabase.
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
+    void queryClient.invalidateQueries({ queryKey: ["equipment", "service-settings", activeOrganizationId] });
     void queryClient.invalidateQueries({ queryKey: queryKeys.checklists.all });
     void queryClient.invalidateQueries({ queryKey: queryKeys.orders.workspace() });
   };
@@ -104,6 +113,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     checklist_profile_id: type?.checklist_profile_id ?? null,
     checklistItems: (catalog?.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type?.id).map(item => ({ ...item })),
     technicalFields: (catalog?.technicalFieldLinks ?? []).filter(link => link.equipment_type_id === type?.id).map(link => ({ technical_field_id: link.technical_field_id, required: link.required, sort_order: link.sort_order })),
+    serviceIds: serviceSettings ? (type?.id ? serviceSettings.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) : []) : undefined,
     brands: brands.filter(brand => brand.equipment_type_id === type?.id).map(brand => ({ id: brand.id, name: brand.name, is_active: brand.is_active, models: models.filter(model => model.equipment_brand_id === brand.id).map(model => ({ id: model.id, name: model.name, is_active: model.is_active })) })),
   });
 
@@ -290,7 +300,14 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         : activeArea === "fields" && canManageFields ? <BtnPrimary onClick={openNewFieldPage}>Novo</BtnPrimary> : null}
     </AdminStickyToolbar></>}
     {editorRouteActive && !formOpen && !fieldFormOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos" title="Cadastro de equipamentos" subtitle="Monte equipamento, marcas e modelos antes de salvar"><div className="space-y-5 p-4 sm:p-5">{drafts.map((type, ti) => <div key={`${type.id || "new"}-${ti}`} className="space-y-4"><Section title="Equipamento"><div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><FInput label="Nome do equipamento" required error={hierarchyErrors[`type-${ti}`]} value={type.name} onChange={(e: any) => { setHierarchyErrors(current => ({ ...current, [`type-${ti}`]: undefined as any })); updateDraft(ti, { name: e.target.value }); }} placeholder="Ex: Televisão" /><div className="flex items-center gap-2">{type.id && <FToggle label="Equipamento ativo" disabled={!canToggleActive} checked={type.is_active} onChange={is_active => updateDraft(ti, { is_active })} />}{drafts.length > 1 && canDelete && <button type="button" onClick={() => setDrafts(current => current.filter((_, i) => i !== ti))} className="cursor-default rounded-lg p-2.5 text-red-500 hover:bg-red-50"><Trash2 size={16} /></button>}</div></div>{canViewFields && <div className="border-t border-[#0d1b2e]/8 pt-4"><div className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Campos Extras</div><div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{technicalFields.filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id)).map(field => { const link = type.technicalFields.find(item => item.technical_field_id === field.id); return <div key={field.id} className="border-b border-[#0d1b2e]/8 py-3"><div className="flex min-w-0 items-start gap-3 text-left"><Checkbox disabled={!canManageFields} checked={Boolean(link)} onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} /><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#0d1b2e]">{field.label}</span>{link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-[#5a6a82]"><Checkbox disabled={!canManageFields} checked={link.required} onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />Obrigatório</label>}</span></div></div>; })}</div></div>}{catalog && <EquipmentChecklistSection
+    <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos" title="Cadastro de equipamentos" subtitle="Monte equipamento, marcas e modelos antes de salvar"><div className="space-y-5 p-4 sm:p-5">{drafts.map((type, ti) => <div key={`${type.id || "new"}-${ti}`} className="space-y-4"><Section title="Equipamento"><div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><FInput label="Nome do equipamento" required error={hierarchyErrors[`type-${ti}`]} value={type.name} onChange={(e: any) => { setHierarchyErrors(current => ({ ...current, [`type-${ti}`]: undefined as any })); updateDraft(ti, { name: e.target.value }); }} placeholder="Ex: Televisão" /><div className="flex items-center gap-2">{type.id && <FToggle label="Equipamento ativo" disabled={!canToggleActive} checked={type.is_active} onChange={is_active => updateDraft(ti, { is_active })} />}{drafts.length > 1 && canDelete && <button type="button" onClick={() => setDrafts(current => current.filter((_, i) => i !== ti))} className="cursor-default rounded-lg p-2.5 text-red-500 hover:bg-red-50"><Trash2 size={16} /></button>}</div></div><EquipmentServiceSelector
+  services={serviceSettings?.services ?? []}
+  selectedIds={type.serviceIds ?? (serviceSettings?.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) ?? [])}
+  loading={equipmentServicesQuery.isPending}
+  error={equipmentServicesQuery.error ? systemErrorMessage(equipmentServicesQuery.error, "Não foi possível carregar os vínculos de serviços.") : null}
+  disabled={saving || !(type.id ? canEdit : canCreate) || !serviceSettings}
+  onChange={serviceIds => updateDraft(ti, { serviceIds })}
+/>{canViewFields && <div className="border-t border-[#0d1b2e]/8 pt-4"><div className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Campos Extras</div><div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{technicalFields.filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id)).map(field => { const link = type.technicalFields.find(item => item.technical_field_id === field.id); return <div key={field.id} className="border-b border-[#0d1b2e]/8 py-3"><div className="flex min-w-0 items-start gap-3 text-left"><Checkbox disabled={!canManageFields} checked={Boolean(link)} onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} /><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#0d1b2e]">{field.label}</span>{link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-[#5a6a82]"><Checkbox disabled={!canManageFields} checked={link.required} onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />Obrigatório</label>}</span></div></div>; })}</div></div>}{catalog && <EquipmentChecklistSection
   draft={type}
   catalog={catalog}
   onChange={patch => updateDraft(ti, patch)}
