@@ -125,8 +125,8 @@ export function UserPermissionOverridesPage({
       return;
     }
     setToast({ msg: "Permissões individuais atualizadas.", type: "success" });
-    await queryClient.invalidateQueries({ queryKey });
     setDirty(false);
+    void queryClient.invalidateQueries({ queryKey });
   };
 
   if (!canView) return null;
