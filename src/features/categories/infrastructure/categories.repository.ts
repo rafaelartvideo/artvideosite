@@ -22,9 +22,9 @@ export async function saveCategory(
     ? supabase.from("service_categories").update(payload).eq("organization_id", organizationId).eq("id", categoryId)
     : supabase.from("service_categories").insert({ ...payload, organization_id: organizationId });
 
-  const { data, error } = await query.select().single();
+  // A tela não usa a linha retornada. Evita SELECT/RETURNING desnecessário.
+  const { error } = await query;
   if (error) throw error;
-  return data;
 }
 
 export async function deleteCategory(categoryId: string): Promise<void> {
