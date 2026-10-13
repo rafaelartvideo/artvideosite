@@ -99,7 +99,9 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await ensureCpfAvailable(form.cpf, organizationId, editing?.entity_id || null);
+      // Na edição, o endpoint partner-users verifica o CPF contra outros usuários,
+      // excluindo o cadastro atual pelo user_id. Evita marcar o próprio CPF como duplicado.
+      if (!editing) await ensureCpfAvailable(form.cpf, organizationId);
       const payload = {
         organization_id: organizationId,
         full_name: form.full_name.trim(),
