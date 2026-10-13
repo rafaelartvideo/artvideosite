@@ -78,16 +78,25 @@ export async function setEquipmentTypeActive(equipmentTypeId: string, isActive: 
 
 export async function saveEquipmentTypeTechnicalFields(equipmentTypeId: string, links: Array<{ technical_field_id: string; required: boolean; sort_order: number }>) {
   const organizationId = await getActiveOrganizationId();
-  const current = await supabase.from("equipment_type_technical_fields").select("technical_field_id").eq("organization_id", organizationId).eq("equipment_type_id", equipmentTypeId);
+  const current = await supabase.from("equipment_type_technical_fields").select("technical_field_id,required,sort_order").eq("organization_id", organizationId).eq("equipment_type_id", equipmentTypeId);
   if (current.error) throw current.error;
+
+  const existingLinks = new Map((current.data ?? []).map(link => [link.technical_field_id, link]));
   const nextIds = new Set(links.map(link => link.technical_field_id));
   const removedIds = (current.data ?? []).map(link => link.technical_field_id).filter(fieldId => !nextIds.has(fieldId));
+  // Salvar outros dados do equipamento não deve excluir/regravar campos técnicos
+  // sem alterações: isso gera verificações de permissão e auditorias desnecessárias.
+  const changedLinks = links.filter(link => {
+    const existing = existingLinks.get(link.technical_field_id);
+    return !existing || existing.required !== link.required || Number(existing.sort_order) !== Number(link.sort_order);
+  });
+
   if (removedIds.length) {
     const removed = await supabase.from("equipment_type_technical_fields").delete().eq("organization_id", organizationId).eq("equipment_type_id", equipmentTypeId).in("technical_field_id", removedIds);
     if (removed.error) throw removed.error;
   }
-  if (!links.length) return;
-  const result = await supabase.from("equipment_type_technical_fields").upsert(links.map(link => ({ organization_id: organizationId, equipment_type_id: equipmentTypeId, ...link })), { onConflict: "equipment_type_id,technical_field_id" });
+  if (!changedLinks.length) return;
+  const result = await supabase.from("equipment_type_technical_fields").upsert(changedLinks.map(link => ({ organization_id: organizationId, equipment_type_id: equipmentTypeId, ...link })), { onConflict: "equipment_type_id,technical_field_id" });
   if (result.error) throw result.error;
 }
 
