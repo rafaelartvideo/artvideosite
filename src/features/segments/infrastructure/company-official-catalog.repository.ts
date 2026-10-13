@@ -19,6 +19,7 @@ export type OfficialBrandSuggestion = {
 };
 
 export type CompanyOfficialCatalog = {
+  revision: number;
   hasSegments: boolean;
   equipmentTypes: OfficialEquipmentSuggestion[];
   brands: OfficialBrandSuggestion[];
@@ -31,6 +32,7 @@ export async function loadCompanyOfficialCatalog(organizationId: string): Promis
   if (error) throw error;
   const result = (data || {}) as Partial<CompanyOfficialCatalog>;
   return {
+    revision: typeof result.revision === "number" ? result.revision : 0,
     hasSegments: result.hasSegments === true,
     equipmentTypes: Array.isArray(result.equipmentTypes) ? result.equipmentTypes : [],
     brands: Array.isArray(result.brands) ? result.brands : [],
