@@ -129,7 +129,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
         await updateAppointmentDate(organizationId, event.id, targetDay);
         setAppointments(current => current.map(item => item.id === event.id ? { ...item, appointment_date: targetDay } : item));
         onToast("Agendamento atualizado.", "success");
-        await queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
       } catch (error) {
         onToast(`Não foi possível mover o agendamento: ${systemErrorMessage(error)}`, "error");
       }
@@ -149,10 +149,8 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
         ...item, scheduled_at: next.toISOString(), scheduled_end_at: newEnd,
       } : item));
       onToast("Agendamento atualizado.", "success");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
-      ]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
     } catch (error) {
       onToast(`Não foi possível mover a OS: ${systemErrorMessage(error)}`, "error");
     }
