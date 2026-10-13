@@ -221,12 +221,16 @@ export function OrderDetailsPage(props: Props) {
         setSacMessageOpen(true);
         return;
       }
-    } catch {
-      // Se a integração não puder ser consultada, preserva o WhatsApp externo como contingência.
+    } catch (error) {
+      // Não enviar pelo canal externo quando a consulta falhar: uma empresa
+      // pode ter SAC ativo, e o erro não significa integração desativada.
+      notifyAdmin(systemErrorMessage(error, "Não foi possível verificar a integração SAC Digital."), "error");
+      return;
     } finally {
       setCheckingSac(false);
     }
 
+    // A integração foi consultada com sucesso e está explicitamente desativada.
     window.open(external.whatsapp, "_blank", "noopener,noreferrer");
   };
 
