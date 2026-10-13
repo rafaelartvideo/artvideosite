@@ -97,7 +97,7 @@ export async function loadUnionSubscriptionConfiguration(): Promise<UnionSubscri
   return {
     limit_definitions: Array.isArray(raw.limit_definitions) ? raw.limit_definitions : [],
     feature_definitions: Array.isArray(raw.feature_definitions) ? raw.feature_definitions : [],
-    system_modules: Array.isArray(raw.system_modules) ? raw.system_modules : [],
+    system_modules: Array.isArray(raw.system_modules) ? raw.system_modules.filter((module: BillingSystemModule) => module.key !== "nfse") : [],
     plan_limits: (Array.isArray(raw.plan_limits) ? raw.plan_limits : []).map((item: any) => ({ ...item, value: asNumber(item.value) })),
     plan_features: (Array.isArray(raw.plan_features) ? raw.plan_features : []).map((item: any) => ({ ...item, enabled: Boolean(item.enabled) })),
     plan_modules: (Array.isArray(raw.plan_modules) ? raw.plan_modules : []).map((item: any) => ({ ...item, included: Boolean(item.included) })),
