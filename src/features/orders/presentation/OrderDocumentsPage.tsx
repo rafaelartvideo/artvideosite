@@ -353,7 +353,7 @@ export function OrderDocumentsPage({
 
   return (
     <>
-      <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos, imagens e assinaturas da ordem de serviço" maxW="max-w-4xl">
+      <AdminPage open onClose={onClose} smoothMotion={false} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos, imagens e assinaturas da ordem de serviço" maxW="max-w-4xl">
         <div className="border-b border-border px-5 pt-2">
           <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
             <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Anexos</button>
