@@ -904,6 +904,35 @@ export function sacDigitalMenuUrl(token?:string|null){return token?`${supabaseUr
 export function getSacDigitalResourceHealth(organizationId:string){return invokeSacDigitalApi({action:'resource_health',organization_id:organizationId});}
 
 
+export type SacDigitalOperatorPresence = {
+  linked: boolean;
+  online: boolean | null;
+  operator_name?: string;
+  already_online?: boolean;
+  checked_at?: string;
+  type?: string;
+};
+
+/**
+ * Called once after an authenticated Union session is ready.
+ * The server only changes the current user's explicitly authorized SAC Operator;
+ * manager and unlinked profiles are a no-op.
+ */
+export async function bringMySacOperatorOnline(organizationId: string): Promise<SacDigitalOperatorPresence> {
+  const data = await invokeSacDigitalApi({
+    action: "operator_auto_online",
+    organization_id: organizationId,
+  });
+  return {
+    linked: data.linked === true,
+    online: data.online === true ? true : data.online === false ? false : null,
+    operator_name: typeof data.operator_name === "string" ? data.operator_name : undefined,
+    already_online: data.already_online === true,
+    checked_at: typeof data.checked_at === "string" ? data.checked_at : undefined,
+    type: typeof data.type === "string" ? data.type : undefined,
+  };
+}
+
 export async function beginSacOperatorAuthorization(organizationId: string, returnPath: string) {
   const data = await invokeSacDigitalApi({action:'begin_operator_authorization',organization_id:organizationId,return_path:returnPath});
   if(typeof data.url !== 'string') throw new Error('A SAC não disponibilizou a autorização.');
