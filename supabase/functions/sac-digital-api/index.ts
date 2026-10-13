@@ -1001,7 +1001,7 @@ Deno.serve(async request => {
             id: String(row.id || "").trim(),
             name: String(row.name || "").trim(),
             email: String(row.email || "").trim(),
-            online: row.online === true,
+            online: row.online === true ? true : row.online === false ? false : null,
           };
         })
         .filter(item => item.id && item.name);
@@ -2344,6 +2344,7 @@ Deno.serve(async request => {
           email: operator.email,
           online: operator.online,
         })),
+        checked_at: new Date().toISOString(),
       });
     }
 
@@ -2875,13 +2876,32 @@ Deno.serve(async request => {
         try {confirmed=await findOpen();} catch { /* Não assumir protocolo ainda */ }
       }
       if(!confirmed) {
+        // "operator_offline" é uma recusa do endpoint /contact/forward
+        // do fornecedor. Reconsultar a lista SAC para diferenciar operador
+        // efetivamente offline de possível divergência de sessão/status.
+        const operatorOffline= !forwarded.success
+          && /operator_offline/i.test(String(forwarded.type || "")+" "+String(forwarded.error || ""));
+        let offlineDetails="";
+        if(operatorOffline) {
+          try {
+            const operators=await loadSacOperators();
+            const current=operators.find(item=>item.id===binding.id);
+            offlineDetails=current?.online===false
+              ? `O operador SAC "${current.name}" também está marcado como OFFLINE na lista de operadores. Entre no painel SAC com a conta desse Operador, ative a disponibilidade e recarregue em Configurações > SAC Digital > Operadores de atendimento.`
+              : current?.online===true
+                ? `A SAC Digital marca o operador "${current.name}" como ONLINE na lista, mas recusou o encaminhamento dizendo que está offline. Pode haver inconsistência na sessão operacional; confira o login desse operador no painel SAC e a autorização na Union.`
+                : `A SAC Digital recusou o encaminhamento como operador offline, mas sua lista de operadores não confirmou um estado online/offline. Confira o status no painel original da SAC e recarregue Operadores de atendimento na Union.`;
+          } catch {
+            offlineDetails="A SAC Digital recusou a abertura informando operador offline. Não foi possível consultar o status; confira o login do Operador no painel original da SAC Digital.";
+          }
+        }
         return {
           protocol:null,
-          type:forwarded.success ? "protocol_opening_pending" : forwarded.type || "protocol_opening_failed",
+          type:forwarded.success ? "protocol_opening_pending" : operatorOffline ? "operator_offline" : forwarded.type || "protocol_opening_failed",
           outcome:forwarded.outcome,
-          error:forwarded.success || forwarded.outcome==="unknown"
+          error:offlineDetails || (forwarded.success || forwarded.outcome==="unknown"
             ? "A SAC Digital recebeu a abertura, mas ainda não confirmou o protocolo. Nenhuma mensagem foi enviada; consulte os atendimentos antes de repetir."
-            : forwarded.error || "A SAC Digital não abriu o protocolo. Nenhuma mensagem foi enviada.",
+            : forwarded.error || "A SAC Digital não abriu o protocolo. Nenhuma mensagem foi enviada."),
         };
       }
       if(confirmed.operatorId && confirmed.operatorId!==binding.id) {
