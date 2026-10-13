@@ -105,7 +105,9 @@ export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInpu
   const marginLeft = ptFromMm(template.margin_left, 14);
   const marginRight = ptFromMm(template.margin_right, 14);
   const marginTop = ptFromMm(template.margin_top, 14);
-  const marginBottom = ptFromMm(template.margin_bottom, 14);
+  // Rodapé físico reservado em cada folha, inclusive em modelos antigos
+  // configurados com margem inferior mínima.
+  const marginBottom = Math.max(ptFromMm(template.margin_bottom, 14), 14 * 72 / 25.4);
   const contentWidth = pageWidth - marginLeft - marginRight;
 
   const pdf = await PDFDocument.create();
@@ -162,7 +164,7 @@ export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInpu
     const labelText = printable(label || "Campo");
     const valueText = printable(value == null || value === "" ? "-" : value).replaceAll("\\n", "\n");
     const valueLines = splitLines(regular, valueText, 9, contentWidth - 12);
-    const height = 13 + Math.max(1, valueLines.length) * 12 + 7;
+    const height = 13 + Math.max(1, valueLines.length) * 12 + 10;
     ensure(height);
     page.drawText(labelText.toUpperCase().slice(0, 140), { x: marginLeft + 4, y: y - 8, size: 6.8, font: bold, color: MUTED });
     let fy = y - 20;
@@ -275,9 +277,36 @@ export async function renderSignedDocumentPdf(input: RenderSignedDocumentPdfInpu
   }
 
   const pageCount = pages.length;
+  const baseline = Math.max(10, marginBottom * 0.45);
+  const footerLeft = printable(`Documento assinado eletronicamente | ${input.verificationCode}`);
+  // Quando o snapshot traz o responsável pela impressão, posicioná-lo à
+  // direita sem invadir a numeração central.
+  const printerName = printable(snapshot.printedBy || snapshot.printed_by || "");
+  const footerRight = printerName && printerName !== "—" ? `Impresso por ${printerName}` : "";
+  const maxSideWidth = Math.max(65, (pageWidth - marginLeft - marginRight - 115) / 2);
+  const fitFooter = (value: string, maxWidth: number, fontSize: number) => {
+    if (regular.widthOfTextAtSize(value, fontSize) <= maxWidth) return value;
+    let current = value;
+    while (current.length > 1 && regular.widthOfTextAtSize(current + "...", fontSize) > maxWidth) {
+      current = current.slice(0, -1);
+    }
+    return current.trimEnd() + "...";
+  };
   pages.forEach((currentPage, index) => {
-    const footer = `Documento assinado eletronicamente | ${input.verificationCode}${template.show_page_number !== false ? ` | Página ${index + 1}/${pageCount}` : ""}`;
-    currentPage.drawText(printable(footer), { x: marginLeft, y: Math.max(10, marginBottom * 0.45), size: 6.5, font: regular, color: MUTED });
+    currentPage.drawText(fitFooter(footerLeft, maxSideWidth, 6.5),
+      { x: marginLeft, y: baseline, size: 6.5, font: regular, color: MUTED });
+    if (template.show_page_number !== false) {
+      const pageLabel = `Página ${index + 1} de ${pageCount}`;
+      const pageLabelWidth = regular.widthOfTextAtSize(printable(pageLabel), 8);
+      currentPage.drawText(printable(pageLabel),
+        { x: (pageWidth - pageLabelWidth) / 2, y: baseline, size: 8, font: regular, color: MUTED });
+    }
+    if (footerRight) {
+      const rightText = fitFooter(printable(footerRight), maxSideWidth, 6.5);
+      currentPage.drawText(rightText,
+        { x: pageWidth - marginRight - regular.widthOfTextAtSize(rightText, 6.5),
+          y: baseline, size: 6.5, font: regular, color: MUTED });
+    }
   });
 
   return await pdf.save({ useObjectStreams: false, addDefaultPage: false });
