@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
-import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentModelRow, EquipmentTypeRow } from "../domain/equipment";
+import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { AdminButton, AdminCard, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardToolbar, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
@@ -12,23 +12,18 @@ export function brandKey(value: string) {
     .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 }
 
-/** A brand name is shared as a choice, never a cross-tenant equipment_brand_id. */
-export function buildEquipmentBrandChoices(
-  localBrands: EquipmentBrandRow[], unionNames: string[],
-): EquipmentBrandDirectoryEntry[] {
-  const result = new Map<string, EquipmentBrandDirectoryEntry>();
-  for (const name of unionNames) {
+/** Marcas únicas por nome, sem distinguir origens na interface. */
+export function buildEquipmentBrandChoices(localBrands: EquipmentBrandRow[], names: string[]): EquipmentBrandDirectoryEntry[] {
+  const choices = new Map<string, string>();
+  for (const name of names) {
     const key = brandKey(name);
-    if (key && !result.has(key)) result.set(key, { name: name.trim(), source: "union" });
+    if (key && !choices.has(key)) choices.set(key, name.trim());
   }
   for (const brand of localBrands) {
     const key = brandKey(brand.name);
-    if (!key) continue;
-    const previous = result.get(key);
-    // Prefer the company's spelling when the same name exists in both catalogs.
-    result.set(key, { name: brand.name, source: previous ? "both" : "company" });
+    if (key) choices.set(key, brand.name.trim());
   }
-  return [...result.values()].sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+  return [...choices.values()].sort((a,b) => a.localeCompare(b,"pt-BR")).map(name => ({ name }));
 }
 
 type SelectorProps = {
@@ -48,34 +43,11 @@ type SelectorProps = {
 export function EquipmentBrandSelector(props: SelectorProps) {
   const [search, setSearch] = useState("");
   const [customName, setCustomName] = useState("");
-  const mergedChoices = buildEquipmentBrandChoices(
-    props.draft.brands.map((brand, index) => ({
-      id: brand.id || "draft-" + index,
-      name: brand.name,
-      equipment_type_id: props.draft.id || "",
-      is_active: brand.is_active,
-    })),
-    props.choices.filter(option => option.source !== "company").map(option => option.name),
-  );
-  const allChoices = buildEquipmentBrandChoices(
-    [
-      ...props.choices.filter(option => option.source !== "union").map((option, index) => ({
-        id: "option-" + index,
-        name: option.name,
-        equipment_type_id: "",
-        is_active: true,
-      })),
-      ...props.draft.brands.map((brand, index) => ({
-        id: brand.id || "selected-" + index,
-        name: brand.name,
-        equipment_type_id: props.draft.id || "",
-        is_active: brand.is_active,
-      })),
-    ],
-    [...props.choices.filter(option => option.source !== "company").map(option => option.name),
-      ...mergedChoices.filter(option => option.source === "union").map(option => option.name)],
-  );
-  const visibleChoices = allChoices.filter(item => brandKey(item.name).includes(brandKey(search)));
+  const choices = new Map(props.choices.map(option => [brandKey(option.name), option]));
+  for (const brand of props.draft.brands) choices.set(brandKey(brand.name), { name: brand.name });
+  const visibleChoices = [...choices.values()]
+    .filter(option => brandKey(option.name).includes(brandKey(search)))
+    .sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
   const selected = props.draft.brands.flatMap((brand, index) => brand.is_active ? [{ brand, index }] : []);
   const registerBrand = () => {
     const name = customName.trim().replace(/\s+/g, " ");
@@ -88,7 +60,6 @@ export function EquipmentBrandSelector(props: SelectorProps) {
   return <div className="space-y-4">
     <div>
       <h3 className="text-sm font-bold text-foreground">Marcas</h3>
-      <p className="mt-1 text-xs text-muted-foreground">Marque as marcas que trabalham com este equipamento. As marcas existentes são reutilizadas pelo nome, sem criar duplicatas.</p>
     </div>
     <div className="relative">
       <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -103,7 +74,6 @@ export function EquipmentBrandSelector(props: SelectorProps) {
           className="flex min-w-0 cursor-pointer items-center gap-3 border-b border-border py-3 text-xs text-foreground">
           <Checkbox checked={checked} disabled={!allowed} onCheckedChange={value => props.onToggleBrand(option.name, value === true)} />
           <span className="min-w-0 flex-1 break-words font-semibold">{option.name}</span>
-          {(option.source === "union" || option.source === "both") && <span className="shrink-0 text-[10px] text-muted-foreground">Union</span>}
         </label>;
       })}
     </div>
@@ -113,8 +83,7 @@ export function EquipmentBrandSelector(props: SelectorProps) {
       <AdminButton variant="secondary" disabled={!customName.trim()} onClick={registerBrand}><Plus size={14} /> Adicionar marca</AdminButton>
     </div>}
     <div className="border-t border-border pt-4">
-      <h3 className="text-sm font-bold text-foreground">Modelos das marcas selecionadas</h3>
-      <p className="mt-1 text-xs text-muted-foreground">Depois de marcar uma marca, adicione os modelos usados por este equipamento. É possível marcar várias marcas.</p>
+      <h3 className="text-sm font-bold text-foreground">Modelos</h3>
       {selected.length === 0 && <p className="mt-4 rounded-lg bg-muted/50 p-4 text-xs text-muted-foreground">Selecione pelo menos uma marca acima para adicionar modelos.</p>}
       <div className="mt-3 space-y-4">
         {selected.map(({ brand, index: bi }) => <div key={brand.id || brandKey(brand.name)} className="rounded-lg border border-border p-3 sm:p-4">
@@ -145,42 +114,47 @@ export function EquipmentBrandSelector(props: SelectorProps) {
   </div>;
 }
 
-export function EquipmentBrandsDirectory({ choices, brands, models, types }: {
+export function EquipmentBrandsDirectory({ choices, brands, types }: {
   choices: EquipmentBrandDirectoryEntry[];
   brands: EquipmentBrandRow[];
-  models: EquipmentModelRow[];
   types: EquipmentTypeRow[];
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const filtered = choices.filter(item => brandKey(item.name).includes(brandKey(search)));
-  const safePage = Math.min(page, Math.max(1, Math.ceil(filtered.length / pageSize)));
-  const visible = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const equipmentById = new Map(types.map(type => [type.id,type.name]));
+  const equipmentNames = (brandName: string) => [...new Set(
+    brands.filter(brand => brandKey(brand.name) === brandKey(brandName))
+      .map(brand => equipmentById.get(brand.equipment_type_id))
+      .filter((value): value is string => Boolean(value))
+  )].sort((a,b) => a.localeCompare(b,"pt-BR"));
+  const text = brandKey(search);
+  const filtered = choices.filter(item =>
+    brandKey(item.name).includes(text) || equipmentNames(item.name).some(name => brandKey(name).includes(text))
+  );
+  const safePage = Math.min(page,Math.max(1,Math.ceil(filtered.length/pageSize)));
+  const visible = filtered.slice((safePage-1)*pageSize,safePage*pageSize);
   return <AdminCard>
-    <div className="mb-4">
-      <p className="text-sm font-bold text-foreground">Marcas disponíveis ({choices.length})</p>
-      <p className="mt-1 text-xs text-muted-foreground">Marcas da empresa e marcas oficiais da Union disponíveis para seleção. Para incluir uma marca nova, use o cadastro de equipamento.</p>
-    </div>
-    <div className="relative mb-3">
-      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input className={INPUT + " pl-9"} value={search} onChange={event => { setSearch(event.target.value); setPage(1); }} placeholder="Buscar marca..." aria-label="Buscar marca cadastrada" />
-    </div>
-    {visible.length ? <div className="overflow-x-auto"><table className="min-w-[520px] w-full text-xs">
-      <thead><tr><th className="text-left">Marca</th><th className="text-left">Origem</th><th className="text-left">Equipamentos vinculados</th><th className="text-left">Modelos</th></tr></thead>
-      <tbody>{visible.map(option => {
-        const linked = brands.filter(brand => brandKey(brand.name) === brandKey(option.name));
-        const equipmentNames = [...new Set(linked.map(brand => types.find(type => type.id === brand.equipment_type_id)?.name).filter(Boolean))];
-        const ids = new Set(linked.map(brand => brand.id));
-        return <tr key={brandKey(option.name)} className="border-b border-border">
-          <td className="font-semibold text-foreground">{option.name}</td>
-          <td>{option.source === "both" ? "Empresa e Union" : option.source === "union" ? "Union" : "Empresa"}</td>
-          <td>{equipmentNames.join(", ") || "—"}</td>
-          <td>{models.filter(model => ids.has(model.equipment_brand_id)).length}</td>
-        </tr>;
-      })}</tbody>
-    </table></div> : <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma marca encontrada.</p>}
-    <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length} onPageChange={setPage}
-      onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
+    <AdminCardToolbar>
+      <div className="relative w-full min-w-0 sm:max-w-md">
+        <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+        <input className={INPUT + " h-10 pl-9"} value={search}
+          onChange={event => { setSearch(event.target.value); setPage(1); }}
+          placeholder="Buscar marca ou equipamento..." aria-label="Buscar marcas ou equipamentos" />
+      </div>
+    </AdminCardToolbar>
+    <AdminCardContent>
+      {visible.length ? <div className="overflow-x-auto">
+        <table className="w-full min-w-[440px] text-xs">
+          <thead><tr><th className="text-left">Marca</th><th className="text-left">Equipamentos</th></tr></thead>
+          <tbody>{visible.map(item => <tr key={brandKey(item.name)} className="border-b border-border">
+            <td className="font-semibold text-foreground">{item.name}</td>
+            <td className="text-muted-foreground">{equipmentNames(item.name).join(", ") || "—"}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma marca encontrada.</p>}
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
+        onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
+    </AdminCardContent>
   </AdminCard>;
 }
