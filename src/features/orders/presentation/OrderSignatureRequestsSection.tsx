@@ -159,6 +159,7 @@ export function OrderSignatureRequestsSection({
   });
 
   const openWhatsApp = (request: DocumentSignatureRequestSummary) => {
+    if (busyId) return;
     // Reservar a aba no clique para permitir abrir o WhatsApp Web depois da
     // geração assíncrona do link, sem ser bloqueado pelo navegador.
     const tab = window.open("about:blank", "_blank");
