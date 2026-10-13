@@ -1045,6 +1045,120 @@ Deno.serve(async request => {
       return {token};
     };
 
+    if (action === 'operator_auto_online') {
+      // Presence belongs exclusively to the authenticated SAC Operator.
+      // A Manager SAC credential may list operators, but cannot toggle
+      // another employee's online state on their behalf.
+      if (!(await requirePermission('sac_digital.messages.view'))
+          && !(await requirePermission('sac_digital.view'))) {
+        return json({success:false,type:'permission_denied',error:'Sem permissão para acessar o SAC Digital.'},403);
+      }
+      const binding=await resolveMyOperatorBinding();
+      if (!binding) {
+        // Used on every CRM login: most accounts aren't SAC operators.
+        // A manager/unlinked user must not receive false "online" feedback.
+        return json({success:true,linked:false,online:null,checked_at:new Date().toISOString()});
+      }
+      const credentials=await loadCredentials(organizationId);
+      if (!credentials.enabled) {
+        return json({success:true,linked:true,operator_id:binding.id,online:null,
+          type:'integration_disabled',checked_at:new Date().toISOString()});
+      }
+
+      const checkProvider = async () => {
+        const operators=await loadSacOperators();
+        const selected=operators.find(item=>item.id===binding.id);
+        return {
+          online:selected?.online ?? null,
+          listed:Boolean(selected),
+          operator_name:selected?.name || binding.name,
+        };
+      };
+      let before:Awaited<ReturnType<typeof checkProvider>>;
+      try {before=await checkProvider();}
+      catch {
+        return json({success:false,linked:true,online:null,type:'presence_check_unavailable',
+          error:'Não foi possível verificar a disponibilidade deste operador na SAC Digital.'},503);
+      }
+      if (!before.listed) {
+        return json({success:false,linked:true,online:null,type:'operator_not_found',
+          error:'O operador vinculado não aparece na lista da SAC Digital. Confira o vínculo em Configurações > SAC Digital.'},409);
+      }
+      if (before.online===true) {
+        return json({success:true,linked:true,online:true,already_online:true,
+          operator_name:before.operator_name,checked_at:new Date().toISOString()});
+      }
+
+      let token:string;
+      try {
+        const authenticated=await authenticateSacOperator(credentials,binding.id,['profile','edit']);
+        token=authenticated.token;
+      } catch (error) {
+        const code=String((error as any)?.code || 'operator_authorization_required');
+        return json({success:false,linked:true,online:before.online,
+          type:code,
+          error:'Autorize sua conta de Operador SAC na Union uma vez para ativar o status online automaticamente.'},409);
+      }
+
+      // Serialize with the existing operational SAC lease; this PATCH does
+      // not open conversations or send any message to a customer.
+      const ownerId=crypto.randomUUID();
+      const acquired=await admin.rpc('sac_digital_acquire_operator_lease',{
+        p_organization_id:organizationId,p_operator_id:binding.id,p_owner_id:ownerId,
+      });
+      if (acquired.error || acquired.data!==true) {
+        return json({success:false,linked:true,online:before.online,type:'operator_session_busy',
+          error:'Sua sessão de Operador SAC está ocupada. A disponibilidade pode ser tentada novamente no SAC Digital da Union.'},409);
+      }
+
+      let patched=false;
+      let rejectedType='';
+      let rejectedMessage='';
+      try {
+        const update=await fetchJson('https://api.sac.digital/v2/operator/perfil/edit',{
+          method:'PATCH',
+          headers:{
+            Authorization:`Bearer ${token}`,
+            Accept:'application/json',
+            'Content-Type':'application/json',
+          },
+          body:JSON.stringify({type:'status',status:true}),
+        });
+        patched=update.response.ok && update.body.status!==false && update.body.success!==false;
+        if (!patched) {
+          rejectedType=String(update.body.type || 'presence_update_rejected').slice(0,80);
+          rejectedMessage=String(update.body.message || update.body.error || 'A SAC Digital não aceitou a alteração de disponibilidade.').slice(0,300);
+        }
+      } catch {
+        rejectedType='presence_update_unverified';
+        rejectedMessage='Não foi possível confirmar se a SAC Digital recebeu a atualização de disponibilidade.';
+      } finally {
+        await admin.rpc('sac_digital_release_operator_lease',{
+          p_organization_id:organizationId,p_operator_id:binding.id,p_owner_id:ownerId,
+        }).catch(()=>{});
+      }
+
+      // PATCH accepted != online. Only the provider's /operator/all can
+      // prove the state actually changed; avoid claiming success otherwise.
+      let after=before;
+      for (let attempt=0;attempt<3;attempt++) {
+        if (attempt>0) await new Promise(resolve=>setTimeout(resolve,350*attempt));
+        try {after=await checkProvider();}
+        catch { /* keep the last confirmed provider state */ }
+        if (after.online===true) break;
+      }
+      if (after.online===true) {
+        return json({success:true,linked:true,online:true,operator_name:after.operator_name,
+          checked_at:new Date().toISOString()});
+      }
+      return json({success:false,linked:true,online:after.online,
+        type:patched?'presence_not_confirmed':rejectedType || 'presence_update_rejected',
+        error:patched
+          ? 'A SAC Digital aceitou a solicitação, mas ainda não confirmou o Operador online. Confira a disponibilidade no painel SAC.'
+          : rejectedMessage,
+        checked_at:new Date().toISOString()},409);
+    }
+
     if(action === 'begin_operator_authorization') {
       if(!(await requirePermission('sac_digital.messages.view')) && !(await requirePermission('sac_digital.view'))) return json({success:false,error:'Sem permissão para acessar o SAC Digital.'},403);
       const binding=await resolveMyOperatorBinding();
