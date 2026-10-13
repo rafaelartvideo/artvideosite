@@ -35,8 +35,13 @@ function shiftWeek(value: string, amount: number) {
   date.setDate(date.getDate() + 7 * amount);
   return dayKey(date);
 }
-const displayDay = (value: string) =>
-  new Date(value + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", weekday: "short", month: "short" });
+const displayDay = (value: string) => {
+  const date = new Date(value + "T12:00:00");
+  const weekday = date.toLocaleDateString("pt-BR", { weekday: "short" }).replace(/[.,]/g, "").trim();
+  const month = date.toLocaleDateString("pt-BR", { month: "short" }).replace(/[.,]/g, "").trim();
+  const label = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+  return `${label} ${date.getDate()} de ${month}`;
+};
 
 export function TechnicianAvailabilityCalendar({
   organizationId, technicians, date, selectedStart, selectedEnd, selectedTechnicianId,
@@ -131,35 +136,35 @@ export function TechnicianAvailabilityCalendar({
       : showLoading ? <p className="p-8 text-center text-sm text-muted-foreground">Consultando horários...</p>
       : query.error ? <p role="alert" className="p-5 text-sm text-red-600">{systemErrorMessage(query.error, "Não foi possível consultar a disponibilidade.")}</p>
       : !query.data?.hasSchedules ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum expediente cadastrado para estes técnicos. Configure a agenda semanal no cadastro dos funcionários.</p>
-      : <div className="max-h-[620px] w-full overflow-auto">
-        <table className="w-full min-w-[980px] table-fixed border-collapse text-xs">
+      : <div className="max-h-[620px] w-full overflow-auto" role="region" aria-label="Tabela semanal de disponibilidade" tabIndex={0}>
+        <table className="w-full min-w-[1540px] table-fixed border-collapse text-xs">
           <thead className="sticky top-0 z-10 bg-muted">
             <tr>
-              <th className="sticky left-0 z-20 w-[64px] border-b border-r border-border bg-muted px-2 py-3 text-left">Hora</th>
-              {days.map(day => <th key={day.date} className={"border-b border-r border-border px-2 py-3 text-left " + (day.date === today ? "bg-primary/10 text-primary" : "text-foreground")}>
-                {displayDay(day.date)} {day.date === today ? "· Hoje" : ""}
+              <th className="sticky left-0 z-20 w-[108px] border-b border-r border-border bg-muted px-3 py-4 text-center text-sm font-bold">Hora</th>
+              {days.map(day => <th key={day.date} className={"border-b border-r border-border px-3 py-4 text-center " + (day.date === today ? "bg-primary/10 text-primary" : "text-foreground")}>
+                <span className="block text-xs font-bold">{displayDay(day.date)}</span>{day.date === today && <span className="mt-1 block text-[10px] font-semibold">Hoje</span>}
               </th>)}
             </tr>
           </thead>
           <tbody>{hours.filter(time => !hideEmpty || days.some(day => availableAt(day, time).some(employee => !highlightEmployee || employee.id === highlightEmployee))).map(time =>
             <tr key={time}>
-              <th className="sticky left-0 z-[5] border-b border-r border-border bg-card px-2 py-3 text-left font-bold tabular-nums text-foreground">{time}</th>
+              <th className="sticky left-0 z-[5] border-b border-r border-border bg-card px-3 py-4 text-center text-sm font-bold tabular-nums text-foreground">{time}</th>
               {days.map(day => {
                 const available = availableAt(day, time).filter(item => !highlightEmployee || item.id === highlightEmployee);
-                return <td key={day.date} className={"h-12 border-b border-r border-border p-1 align-top " + (day.date === today ? "bg-primary/[0.025]" : "")}>
-                  {available.length ? <div className="flex flex-col gap-1">{available.map(employee => {
+                return <td key={day.date} className={"min-h-[64px] border-b border-r border-border px-2 py-2 align-top " + (day.date === today ? "bg-primary/[0.025]" : "")}>
+                  {available.length ? <div className="flex flex-col gap-1.5">{available.map(employee => {
                     const active = day.date === date && time === selectedStart && employee.id === selectedTechnicianId;
                     return <button key={employee.id} type="button" disabled={!selectable}
                       title={employee.full_name + " disponível às " + time}
                       aria-pressed={active}
                       onClick={() => onChooseStart?.(day.date, time, employee.id)}
-                      className={"w-full truncate rounded-md border px-2 py-1.5 text-left text-[11px] font-semibold " +
+                      className={"flex min-h-9 w-full items-center justify-center rounded-md border px-2 py-2 text-center text-xs font-semibold leading-4 break-words " +
                         (active ? "border-primary bg-primary text-white"
                           : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300") +
                         (selectable ? " hover:border-primary hover:text-primary" : " cursor-default")}>
                       {employee.full_name}
                     </button>;
-                  })}</div> : <span className="block pt-1 text-center text-muted-foreground/50">—</span>}
+                  })}</div> : <span className="block py-2 text-center text-muted-foreground/50">—</span>}
                 </td>;
               })}
             </tr>)}</tbody>
