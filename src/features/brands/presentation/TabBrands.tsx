@@ -64,8 +64,16 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
     if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
-      const finalSlug = await generateUniqueSlug("brands", form.name, editItem?.id);
-      await saveBrand({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: website || null, description: form.description.trim() || null }, editItem?.id);
+      const finalSlug = editItem?.name === form.name.trim() && editItem?.slug
+        ? editItem.slug
+        : await generateUniqueSlug("brands", form.name, editItem?.id);
+      const payload = { ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug, logo_media_id: form.logo_media_id || null, website_url: website || null, description: form.description.trim() || null };
+      // Não notificar ou gravar quando nenhum campo mudou.
+      if (editItem && Object.entries(payload).every(([key, value]) => JSON.stringify(value ?? null) === JSON.stringify(editItem[key] ?? null))) {
+        setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
+        return;
+      }
+      await saveBrand(payload, editItem?.id);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Marca atualizada!" : "Marca criada!", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar marca: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
