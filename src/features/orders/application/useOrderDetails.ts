@@ -7,11 +7,13 @@ import { orderImageKindFromSortOrder, type OrderImage } from "../domain/order-im
 
 export function useOrderDetails({
   loadPartRequests,
+  clearPartRequests,
   replaceOrderImages,
   organizationIdOverride,
   loadPartRequestsEnabled = true,
 }: {
   loadPartRequests: (orderId: string) => Promise<void>;
+  clearPartRequests?: () => void;
   replaceOrderImages: (images: OrderImage[]) => void;
   organizationIdOverride?: string | null;
   loadPartRequestsEnabled?: boolean;
@@ -92,11 +94,12 @@ export function useOrderDetails({
     if (!selectedOrder || selectedOrder.organization_id === organizationId) return;
     setDetail(null);
     setSelectedOrder(null);
+    clearPartRequests?.();
     setDetailHistory([]);
     setDetailUsedItems([]);
     setDetailSolutionImages([]);
     replaceOrderImages([]);
-  }, [organizationId, replaceOrderImages, selectedOrder]);
+  }, [organizationId, replaceOrderImages, selectedOrder, clearPartRequests]);
 
   useEffect(() => {
     if (!detailQuery.data || !selectedOrderBelongsToOrganization || !selectedOrder) return;
@@ -148,6 +151,7 @@ export function useOrderDetails({
   const closeDetail = () => {
     setDetail(null);
     setSelectedOrder(null);
+    clearPartRequests?.();
   };
 
   return {
