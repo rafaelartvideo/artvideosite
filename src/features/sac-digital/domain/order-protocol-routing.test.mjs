@@ -56,3 +56,15 @@ test('deep-link syncs exact external protocol before selection and handles async
   assert.match(sacPage, /Tentar novamente/);
   assert.match(sacPage, /visibleProtocols\.find\(item=>\s*!item\.is_pending && item\.external_protocol_id===routeExternalProtocol\)/);
 });
+
+test('OS message modal has a separate success step with Open conversation and Close', () => {
+  assert.match(dialog, /useState<"compose" \| "success">\("compose"\)/);
+  assert.match(dialog, /setStep\("success"\)/);
+  assert.match(dialog, /step === "success" \? \(/);
+  assert.match(dialog, /Mensagem enviada com sucesso!/);
+  assert.match(dialog, /Documento enviado com sucesso!/);
+  assert.match(dialog, /onOpenChat\(lastSentProtocol\)/);
+  assert.match(dialog, /<BtnSecondary onClick=\{onClose\}>Fechar<\/BtnSecondary>/);
+  assert.match(dialog, /setStep\("compose"\)/);
+  assert.doesNotMatch(dialog, /sendSucceeded|notifyAdmin\(/);
+});
