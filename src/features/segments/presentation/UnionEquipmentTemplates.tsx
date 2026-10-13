@@ -18,7 +18,7 @@ type TemplateForm = {
 };
 const EMPTY_FORM: TemplateForm = {
   field_key: "", label: "", field_type: "text", required: false,
-  stage_code: "entry", title: "", description: "",
+  stage_code: "entrada", title: "", description: "",
   response_type: "conformity", allow_na: false, is_required: true,
   photo_requirement: "none", observation_requirement: "none",
   sort_order: 0, is_active: true,
@@ -136,7 +136,7 @@ export function UnionEquipmentTemplates({
       </div> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={labelClass}>Etapa (código)
           <input className={fieldClass} value={form.stage_code}
-            onChange={e => setForm(x => ({ ...x,stage_code:e.target.value.toLowerCase() }))} placeholder="entry, diagnosis ou qc"/>
+            onChange={e => setForm(x => ({ ...x,stage_code:e.target.value.toLowerCase() }))} placeholder="entrada, diagnostico ou saida_qc"/>
         </label>
         <label className={labelClass}>Título do item
           <input className={fieldClass} maxLength={180} value={form.title}
