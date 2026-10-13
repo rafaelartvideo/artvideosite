@@ -96,10 +96,10 @@ export function AgendaToolbar(props: Props) {
           <FSelect label="Status" value={props.statusFilter} onChange={event => props.onStatusFilterChange(event.target.value)} options={[{ value: "", label: "Todos os status" }, ...props.statuses.map(status => ({ value: status.id, label: status.name }))]} />
           <FSelect label="Situação" value={props.situationFilter} onChange={event => props.onSituationFilterChange(event.target.value)} options={[{ value: "", label: "Todas as situações" }, ...props.situations.map(situation => ({ value: situation.id, label: situation.name }))]} />
           <FSelect label="Serviço" value={props.serviceFilter} onChange={event => props.onServiceFilterChange(event.target.value)} options={[{ value: "", label: "Todos os serviços" }, ...props.services.map(service => ({ value: service.id, label: service.title })), ...props.generalServices.map(service => ({ value: service.id, label: service.name }))]} />
-          {props.view === "availability" && <p className="text-[11px] leading-relaxed text-muted-foreground">Status, situação e serviço filtram os agendamentos do período. A ocupação real dos horários não é alterada.</p>
+          {props.view === "availability" && <p className="text-[11px] leading-relaxed text-muted-foreground">Status, situação e serviço filtram os agendamentos do período. A ocupação real dos horários não é alterada.</p>}
           <AdminButton variant="ghost" size="sm" onClick={clearFilters} className="w-full justify-center py-2 text-red-600 hover:bg-red-50 hover:text-red-700 md:w-auto md:px-0 md:py-1 md:hover:bg-transparent"><Eraser size={13} /> Limpar filtros</AdminButton>
         </div>}
-      </div>}
+      </div>
     </div>
 
     <div className="grid min-w-0 grid-cols-1 gap-2 md:ml-auto md:flex md:flex-wrap md:items-center md:gap-1">
