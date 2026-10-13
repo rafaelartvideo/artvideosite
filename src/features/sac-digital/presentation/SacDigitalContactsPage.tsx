@@ -37,6 +37,7 @@ function contactName(contact: SacDigitalContactPageItem) {
 
 function contactPhoto(value: string | null) {
   const raw = String(value || "").trim();
+  if (raw === "/assets/crm/sac-default-avatar.svg") return raw;
   if (/^data:image\/jpg;base64,/i.test(raw)) return raw.replace(/^data:image\/jpg;/i, "data:image/jpeg;");
   if (/^data:image\/(?:jpeg|png|webp|gif);base64,/i.test(raw)) return raw;
   return /^https?:\/\//i.test(raw) ? raw : "";
