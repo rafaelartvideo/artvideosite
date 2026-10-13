@@ -66,7 +66,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       />}
       {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
     </div>
-    {canCreate && <NewAppointmentDialog controller={newAppointment} />}
+    {canCreate && <NewAppointmentDialog controller={newAppointment} allowedTechnicianId={agenda.myEmployeeId} />}
     {canViewDetails && <AppointmentDetailsDialog appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onOpenOrder={safeOpenOrder} />}
   </>;
 }
