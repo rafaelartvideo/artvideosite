@@ -173,6 +173,8 @@ export function PdfInlineViewer({ source, className = "", title = "Documento PDF
     };
   }, [pdfDocument, availableWidth, pageNumber, pageCount, zoom]);
 
+  const inlineFallbackUrl = fallbackUrl || (typeof source === "string" ? source : "");
+
   return <div className={`flex min-h-0 min-w-0 flex-col overflow-hidden ${className}`}>
     <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/50 px-3 py-2">
       <div className="flex items-center gap-1">
@@ -202,8 +204,8 @@ export function PdfInlineViewer({ source, className = "", title = "Documento PDF
 
     <div ref={setViewportElement} className="relative min-h-0 min-w-0 flex-1 overflow-auto bg-slate-200/70 p-4 dark:bg-slate-950/70">
       {loadError && <div role="alert" className="mx-auto mb-3 max-w-2xl rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-center text-xs font-semibold text-amber-800">{loadError}</div>}
-      {loadError && fallbackUrl ? (
-        <iframe title={title} src={fallbackUrl} className="mx-auto block h-full min-h-[380px] w-full max-w-[1000px] border border-border bg-white" />
+      {loadError && inlineFallbackUrl ? (
+        <iframe title={title} src={inlineFallbackUrl} className="mx-auto block h-full min-h-[380px] w-full max-w-[1000px] border border-border bg-white" />
       ) : <div className="flex min-h-full min-w-max justify-center">
         <div className="relative min-h-[280px] min-w-[240px] bg-white shadow-md">
           <canvas ref={canvasRef} aria-label={title} className={`block bg-white ${rendered && !loadError ? "" : "invisible"}`} />
