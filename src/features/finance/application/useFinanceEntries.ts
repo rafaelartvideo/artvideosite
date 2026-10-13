@@ -91,15 +91,13 @@ export function useFinanceEntries(
 
   const invalidateEntry = (entryId: string) => {
     // A mutação já foi confirmada: não manter isPending durante reconsultas.
-    [
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.entries(organizationKey, entryType) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.entry(organizationKey, entryId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.settlements(organizationKey, entryId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.approvals(organizationKey, entryId) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.pendingApprovals(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) }),
-    ].forEach(query => { void query; });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.entries(organizationKey, entryType) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.entry(organizationKey, entryId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.settlements(organizationKey, entryId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.approvals(organizationKey, entryId) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.pendingApprovals(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) });
   };
 
   const saveMutation = useMutation({
