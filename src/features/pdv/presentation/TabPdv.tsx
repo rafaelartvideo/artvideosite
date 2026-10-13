@@ -190,9 +190,9 @@ export function TabPdv({
 
   const quickSetupMutation = useMutation({
     mutationFn: () => configurePdvQuickSetup(organizationId),
-    onSuccess: async () => {
+    onSuccess: () => {
       setToast({ msg: "PDV configurado. O Caixa PDV já está ligado ao Financeiro.", type: "success" });
-      await refresh();
+      void refresh();
     },
     onError: error => setToast({ msg: systemErrorMessage(error, "Não foi possível configurar o PDV."), type: "error" }),
   });
@@ -207,9 +207,9 @@ export function TabPdv({
         allow_negative_stock: allowNegativeStock,
       }, user?.id || null);
     },
-    onSuccess: async () => {
+    onSuccess: () => {
       setToast({ msg: "Configurações de venda rápida salvas.", type: "success" });
-      await refresh();
+      void refresh();
     },
     onError: error => setToast({ msg: systemErrorMessage(error, "Não foi possível salvar as configurações do PDV."), type: "error" }),
   });
@@ -275,7 +275,7 @@ export function TabPdv({
       }
       setToast({ msg: cashActionTitle(cashDialog) + " concluído.", type: "success" });
       closeCashDialog();
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível concluir a operação do caixa."), type: "error" });
     }
