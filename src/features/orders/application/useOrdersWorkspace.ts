@@ -2,6 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   useCallback,
   useEffect,
+  useMemo,
   type Dispatch,
   type SetStateAction,
 } from "react";
@@ -72,7 +73,10 @@ export function useOrdersWorkspace({
   const { activeOrganizationId } = useAuth();
   const organizationId = organizationIdOverride || activeOrganizationId;
   const queryClient = useQueryClient();
-  const workspaceKey = [...queryKeys.orders.workspace(), organizationId || "none"] as const;
+  const workspaceKey = useMemo(
+    () => [...queryKeys.orders.workspace(), organizationId || "none"] as const,
+    [organizationId],
+  );
   const workspaceQuery = useQuery({
     queryKey: workspaceKey,
     enabled: Boolean(organizationId),
