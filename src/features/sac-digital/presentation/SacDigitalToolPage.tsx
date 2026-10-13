@@ -17,6 +17,7 @@ import {
   MapPin,
   MessageCircle,
   Paperclip,
+  Smile,
   X,
   Send,
   UserRound,
@@ -31,6 +32,7 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { listCustomerEquipments, listCustomers } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { SacDigitalNewConversationDialog } from "./SacDigitalNewConversationDialog";
+import { SacEmojiPicker } from "./SacEmojiPicker";
 import {
   AdminButton,
   AdminIconButton,
@@ -427,6 +429,10 @@ export function SacDigitalToolPage({
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   const messagesScrollRef = useRef<HTMLDivElement | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement | null>(null);
+  const emojiPickerContainerRef = useRef<HTMLDivElement | null>(null);
+  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
+  const [recentEmojis, setRecentEmojis] = useState<string[]>([]);
   const selectedProtocolIdRef = useRef<string | null>(null);
   const messagesRequestIdRef = useRef(0);
   const followLatestRef = useRef(true);
@@ -448,6 +454,48 @@ export function SacDigitalToolPage({
     setMessagesLoading(Boolean(protocolId));
     setSelectedProtocolId(protocolId);
   }, []);
+
+  // Fechar o seletor quando a conversa muda e ao clicar fora ou usar Escape.
+  useEffect(() => {
+    setEmojiPickerOpen(false);
+  }, [selectedProtocolId, activeOrganizationId, user?.id]);
+
+  useEffect(() => {
+    if (!emojiPickerOpen) return;
+    const dismissOutside = (event: PointerEvent) => {
+      if (!emojiPickerContainerRef.current?.contains(event.target as Node)) {
+        setEmojiPickerOpen(false);
+      }
+    };
+    const dismissEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setEmojiPickerOpen(false);
+        messageInputRef.current?.focus({ preventScroll: true });
+      }
+    };
+    document.addEventListener("pointerdown", dismissOutside);
+    document.addEventListener("keydown", dismissEscape);
+    return () => {
+      document.removeEventListener("pointerdown", dismissOutside);
+      document.removeEventListener("keydown", dismissEscape);
+    };
+  }, [emojiPickerOpen]);
+
+  const insertEmojiIntoDraft = (emoji: string) => {
+    if (!status?.enabled) return;
+    const input = messageInputRef.current;
+    const start = input?.selectionStart ?? draft.length;
+    const end = input?.selectionEnd ?? start;
+    setDraft(draft.slice(0, start) + emoji + draft.slice(end));
+    setRecentEmojis(current => [emoji, ...current.filter(value => value !== emoji)].slice(0, 16));
+    setEmojiPickerOpen(false);
+    window.requestAnimationFrame(() => {
+      const next = messageInputRef.current;
+      if (!next) return;
+      next.focus({ preventScroll: true });
+      next.setSelectionRange(start + emoji.length, start + emoji.length);
+    });
+  };
 
   const switchConversationCategory = useCallback((nextStatus: typeof statusFilter) => {
     // Mudar de bloco sempre fecha o atendimento aberto, inclusive se clicar
@@ -1212,6 +1260,9 @@ export function SacDigitalToolPage({
         : sendSacDigitalTextMessage(context.organizationId, context.externalProtocolId, entry.text, entry.id);
     });
     if (!submission) return;
+    if (selectedProtocolIdRef.current === context.protocolId) {
+      messageInputRef.current?.focus({ preventScroll: true });
+    }
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     scrollToLatest("smooth");
     await submission.done;
@@ -1630,6 +1681,21 @@ export function SacDigitalToolPage({
     && operatorBinding?.operator?.id
     && selectedProtocol.operator_id === operatorBinding.operator.id,
   );
+
+  // Focar sempre que uma conversa aberta permitir digitação, inclusive
+  // após "Pegar atendimento" transformar um protocolo de fila em ativo.
+  const canComposeSelected = Boolean(
+    selectedProtocol && !selectedProtocol.is_pending && canSendMessages && status?.enabled
+    && !["finished", "waiting", "inbox", "abandoned"].includes(selectedOperationalStatus || "")
+    && !(selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager),
+  );
+  useEffect(() => {
+    if (!selectedProtocolId || !canComposeSelected || moduleSection !== "conversations") return;
+    const frame = window.requestAnimationFrame(() => {
+      messageInputRef.current?.focus({ preventScroll: true });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedProtocolId, canComposeSelected, moduleSection]);
 
   if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
 
@@ -2436,7 +2502,7 @@ export function SacDigitalToolPage({
                         </div>
                       )}
                       <form
-                        className="flex min-w-0 items-end gap-2"
+                        className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                         onSubmit={event => {
                           event.preventDefault();
                           void sendMessage();
@@ -2464,18 +2530,33 @@ export function SacDigitalToolPage({
                             setAttachment(file);
                           }}
                         />
-                        <AdminButton
-                          type="button"
-                          variant="secondary"
+                        <button type="button"
                           disabled={!status?.enabled}
                           onClick={() => mediaInputRef.current?.click()}
                           aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                           title="Anexar arquivo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB)"
-                          className="h-11 w-11 shrink-0 rounded-full px-0"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          <Paperclip size={17} />
-                        </AdminButton>
+                          <Paperclip size={22} aria-hidden="true" />
+                        </button>
+                        <div ref={emojiPickerContainerRef} className="relative flex h-12 shrink-0">
+                          <button type="button"
+                            disabled={!status?.enabled}
+                            onClick={() => setEmojiPickerOpen(open => !open)}
+                            aria-label="Selecionar emoji"
+                            aria-expanded={emojiPickerOpen}
+                            aria-haspopup="dialog"
+                            title="Emojis"
+                            className={`flex h-12 w-12 items-center justify-center border-r border-border text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45 ${emojiPickerOpen ? "bg-primary-soft text-primary" : ""}`}
+                          >
+                            <Smile size={22} aria-hidden="true" />
+                          </button>
+                          {emojiPickerOpen && (
+                            <SacEmojiPicker recentEmojis={recentEmojis} onSelect={insertEmojiIntoDraft} />
+                          )}
+                        </div>
                         <textarea
+                          ref={messageInputRef}
                           aria-label={attachment ? "Legenda do anexo" : "Mensagem"}
                           rows={1}
                           value={draft}
@@ -2488,17 +2569,16 @@ export function SacDigitalToolPage({
                               void sendMessage();
                             }
                           }}
-                          className="admin-input min-h-[44px] min-w-0 flex-1 resize-none rounded-full border border-border bg-muted/55 px-4 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/20"
+                          className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65 disabled:opacity-50"
                         />
-                        <AdminButton
-                          type="submit"
+                        <button type="submit"
                           disabled={(!draft.trim() && !attachment) || !status?.enabled}
                           aria-label="Enviar mensagem"
                           title="Enviar mensagem"
-                          className="h-11 w-11 shrink-0 rounded-full px-0"
+                          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-foreground disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          <Send size={17} />
-                        </AdminButton>
+                          <Send size={22} aria-hidden="true" />
+                        </button>
                       </form>
                     </div>
                   ) : (
