@@ -25,11 +25,23 @@ export type SignedDocumentAccess = {
   signed_at: string;
 };
 
+async function throwSignatureFunctionError(error: unknown): Promise<never> {
+  // FunctionsHttpError.context is the response containing the real Edge Function error.
+  const response = (error as { context?: unknown } | null)?.context;
+  if (response instanceof Response) {
+    let payload: { error?: unknown; message?: unknown } | null = null;
+    try { payload = await response.clone().json(); } catch { /* preserve original error */ }
+    const detail = payload?.error ?? payload?.message;
+    if (typeof detail === "string" && detail.trim()) throw new Error(detail.trim());
+  }
+  throw error instanceof Error ? error : new Error("Não foi possível concluir a operação de assinatura.");
+}
+
 async function invokeSignatureAdmin<T>(action: string, payload: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke(FUNCTION_NAME, {
     body: { action, ...payload },
   });
-  if (error) throw error;
+  if (error) await throwSignatureFunctionError(error);
   if (!data || data.success !== true) throw new Error(String(data?.error || "Não foi possível concluir a operação de assinatura."));
   return data as T & { success: true };
 }
@@ -38,7 +50,7 @@ async function invokeSignaturePdf<T>(action: string, payload: Record<string, unk
   const { data, error } = await supabase.functions.invoke(PDF_FUNCTION_NAME, {
     body: { action, ...payload },
   });
-  if (error) throw error;
+  if (error) await throwSignatureFunctionError(error);
   if (!data || data.success !== true) throw new Error(String(data?.error || "Não foi possível preparar o PDF para assinatura."));
   return data as T & { success: true };
 }
