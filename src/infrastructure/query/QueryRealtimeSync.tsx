@@ -370,7 +370,10 @@ function isForegroundQuery(queryKey: QueryKey, pathname: string) {
   const inFinance = route.startsWith("/admin/finance");
   const inOperation = route.startsWith("/admin/operation");
   const inSite = route.startsWith("/admin/site");
-  if (family === "public-site") return false;
+  if (family === "public-site") return inSite;
+  if (family === "company-settings") return route.startsWith("/admin/operation/company");
+  if (family === "queue-integration") return route.startsWith("/admin/tools/union-senhas");
+  if (family === "admin-home" || family === "admin-notifications") return route === "/admin";
   if (family === "orders" || family === "orders-workspace" || family === "orders-total") return inOrders;
   if (family === "admin") return route === "/admin" || route.startsWith("/admin/dashboard");
   if (family === "finance") return inFinance || inPdv;
@@ -389,9 +392,20 @@ function isForegroundQuery(queryKey: QueryKey, pathname: string) {
   return true;
 }
 
+// Não recriar canal em cada subrota (OS -> Documentos -> OS).
+// Somente quando o módulo de trabalho realmente muda.
+function subscriptionScope(pathname: string) {
+  const parts = pathname.split("/").filter(Boolean);
+  if (parts[1] === "operation" || parts[1] === "site" || parts[1] === "tools") {
+    return parts.slice(0, 3).join("/") || "admin";
+  }
+  return parts.slice(0, 2).join("/") || "admin";
+}
+
 export function QueryRealtimeSync() {
   const queryClient = useQueryClient();
   const { pathname } = useLocation();
+  const scope = subscriptionScope(pathname);
   const pathnameRef = useRef(pathname);
   pathnameRef.current = pathname;
   const { activeOrganizationId, activeOrganization } = useAuth();
@@ -404,7 +418,7 @@ export function QueryRealtimeSync() {
       stale: true,
       predicate: query => isForegroundQuery(query.queryKey, pathname),
     });
-  }, [queryClient, pathname]);
+  }, [queryClient, scope]);
   const isPlatformOperator = activeOrganization?.is_platform_operator === true;
 
   useEffect(() => {
@@ -412,7 +426,7 @@ export function QueryRealtimeSync() {
 
     const pending = new Map<string, ReturnType<typeof window.setTimeout>>();
     let channel = supabase.channel(
-      `query-cache-sync:${activeOrganizationId}:${isPlatformOperator ? "platform" : "tenant"}`,
+      `query-cache-sync:${activeOrganizationId}:${isPlatformOperator ? "platform" : "tenant"}:${scope.replace(/[^a-z0-9/-]/gi, "-")}`,
     );
 
     const scheduleInvalidation = (queryKey: QueryKey) => {
@@ -434,6 +448,11 @@ export function QueryRealtimeSync() {
 
     for (const { table, keys } of tableQueryKeys) {
       if (!realtimePublishedTables.has(table)) continue;
+      // Não assinar todas as tabelas do banco enquanto o usuário está,
+      // por exemplo, apenas na página inicial. Funções que geram chaves
+      // são avaliadas sem payload para obter seus prefixos de cache.
+      const relevantKeys = typeof keys === "function" ? keys({}) : keys;
+      if (!relevantKeys.some(key => isForegroundQuery(key, pathnameRef.current))) continue;
 
       const handleChange = (payload: RealtimePayload) => {
         const resolvedKeys = typeof keys === "function" ? keys(payload) : keys;
@@ -473,7 +492,7 @@ export function QueryRealtimeSync() {
       for (const timeout of pending.values()) window.clearTimeout(timeout);
       void supabase.removeChannel(channel);
     };
-  }, [queryClient, activeOrganizationId, isPlatformOperator]);
+  }, [queryClient, activeOrganizationId, isPlatformOperator, scope]);
 
   return null;
 }
