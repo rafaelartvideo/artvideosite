@@ -63,6 +63,7 @@ export function permissionModuleName(permission: PermissionRecord) {
   if (key.startsWith("orders.monitor.")) return "Monitoramento de OS";
   if (key.startsWith("platform.announcements.")) return "Avisos";
   if (key.startsWith("platform.billing.")) return "Financeiro";
+  if (key.startsWith("platform.catalog.")) return "Ferramentas";
   const prefix = key.split(".")[0];
   if (prefix === "tools" || TOOL_MODULE_SECTIONS[prefix]) return "Ferramentas";
   if (MODULE_LABELS[prefix]) return MODULE_LABELS[prefix];
@@ -73,6 +74,7 @@ export function permissionModuleName(permission: PermissionRecord) {
 export function permissionSectionName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   const module = key.split(".")[0];
+  if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
   if (module === "tools") {
     if (key === "tools.uniq.use") return "UNIQ";
     if (key === "tools.sac_digital.use") return "SAC Digital";
@@ -241,6 +243,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
 };
 
 export function permissionDependencies(key: string) {
+  if (key === "platform.catalog.view") return ["tools.view"];
+  if (key === "platform.catalog.manage") return ["platform.catalog.view", "tools.view"];
   if (key === "organizations.audit.view") return [];
   const dependencies = new Set(EXPLICIT_DEPENDENCIES[key] || []);
   const module = key.split(".")[0];
