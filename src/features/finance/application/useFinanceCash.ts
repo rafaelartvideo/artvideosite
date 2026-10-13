@@ -23,12 +23,10 @@ export function useFinanceCash() {
 
   const invalidate = () => {
     // A mutação já foi confirmada: não manter isPending durante reconsultas.
-    [
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.cashSessions(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts(organizationKey) }),
-    ].forEach(query => { void query; });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.cashSessions(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts(organizationKey) });
   };
 
   const openMutation = useMutation({
