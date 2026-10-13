@@ -763,13 +763,8 @@ export function SacDigitalToolPage({
         });
         return;
       }
-      const accessible = isSacManager || visibleProtocols.some(item=>item.id===found!.id)
-        || (operatorBinding?.access_mode==="operator"
-            && (!found.operator_id || found.operator_id===operatorBinding.operator?.id));
-      if(!accessible) {
-        setMessage({text:"Seu perfil SAC não tem acesso a este protocolo. Solicite permissão ao gestor.",error:true});
-        return;
-      }
+      // A consulta é protegida por RLS e a lista visível mantém o filtro de
+      // Operador/Gestor já existente. Nunca selecionar outro protocolo como fallback.
       setConversationSearch("");
       setOperatorFilter("all");
       setStatusFilter(found.status==="in_att" ? "in_att" : found.status==="finished" ? "finished"
@@ -781,7 +776,6 @@ export function SacDigitalToolPage({
     return () => { cancelled=true; };
   }, [
     activeOrganizationId, loading, routeExternalProtocol, canViewMessages,
-    visibleProtocols, isSacManager, operatorBinding?.access_mode, operatorBinding?.operator?.id,
     selectProtocol, user?.id,
   ]);
 
