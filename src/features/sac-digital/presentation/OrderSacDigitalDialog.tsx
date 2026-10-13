@@ -58,7 +58,7 @@ export function OrderSacDigitalDialog({
   open: boolean;
   order: any;
   onClose: () => void;
-  onOpenChat?: () => void;
+  onOpenChat?: (externalProtocol?: string) => void;
   documentTemplates?: PrintTemplate[];
   onBuildDocument?: (templateId: string) => Promise<File>;
 }) {
@@ -71,6 +71,8 @@ export function OrderSacDigitalDialog({
   const sendInFlightRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [error, setError] = useState("");
+  const [lastSentProtocol, setLastSentProtocol] = useState<string | null>(null);
+  const [sendSucceeded, setSendSucceeded] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -82,6 +84,8 @@ export function OrderSacDigitalDialog({
     setDocumentTemplateId("");
     if (fileInputRef.current) fileInputRef.current.value = "";
     setError("");
+    setLastSentProtocol(null);
+    setSendSucceeded(false);
 
     if (order?.organization_id) {
       void listSacDigitalOrderMessagePresets(order.organization_id)
@@ -110,7 +114,9 @@ export function OrderSacDigitalDialog({
     sendInFlightRef.current = true;
     setSending(true);
     setError("");
+    setSendSucceeded(false);
     try {
+      let confirmedProtocol: string | null = null;
       if (attachment || documentTemplateId) {
         const customerId = String(order.customer_id || "");
         if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) {
@@ -135,7 +141,7 @@ export function OrderSacDigitalDialog({
         }
         if (!fileToSend) throw new Error("Selecione um documento para enviar.");
 
-        await sendSacDigitalMediaMessage(
+        const result = await sendSacDigitalMediaMessage(
           order.organization_id,
           "",
           fileToSend,
@@ -143,21 +149,31 @@ export function OrderSacDigitalDialog({
           order.id,
           externalContactId,
         );
-        notifyAdmin("Documento enviado pelo atendimento SAC Digital.", "success");
+        confirmedProtocol = typeof result?.protocol === "string" ? result.protocol : null;
+        notifyAdmin("Documento enviado pelo protocolo SAC Digital.", "success");
       } else {
         const result = await sendSacDigitalOrderMessage(
           order.organization_id,
           order.id,
           message,
         );
+        confirmedProtocol = result.mode === "protocol" && typeof result.protocol === "string"
+          ? result.protocol : null;
         notifyAdmin(
-          result.mode === "protocol"
-            ? "Mensagem enviada pelo atendimento SAC Digital."
-            : "Mensagem inicial aceita pela SAC Digital. O atendimento será exibido como aguardando protocolo quando ainda não estiver aberto.",
-          "success",
+          confirmedProtocol
+            ? "Mensagem enviada pelo protocolo SAC Digital."
+            : "A SAC Digital respondeu ao envio, mas ainda não confirmou o protocolo. Verifique os atendimentos antes de enviar novamente.",
+          confirmedProtocol ? "success" : "error",
         );
       }
-      onClose();
+      // Manter o modal disponível para o usuário clicar em "Abrir conversa".
+      // A mensagem foi enviada; limpar os dados evita reenvio acidental.
+      setLastSentProtocol(confirmedProtocol);
+      setSendSucceeded(true);
+      setText("");
+      setAttachment(null);
+      setDocumentTemplateId("");
+      if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (caught) {
       setError(systemErrorMessage(caught, "Não foi possível enviar pela SAC Digital."));
     } finally {
@@ -181,7 +197,7 @@ export function OrderSacDigitalDialog({
             Cancelar
           </BtnSecondary>
           {onOpenChat && (
-            <AdminButton variant="secondary" onClick={onOpenChat} disabled={sending}>
+            <AdminButton variant="secondary" onClick={() => onOpenChat(lastSentProtocol || undefined)} disabled={sending}>
               Abrir conversa
             </AdminButton>
           )}
@@ -198,6 +214,11 @@ export function OrderSacDigitalDialog({
       }
     >
       <div className="space-y-3">
+        {sendSucceeded && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+          {lastSentProtocol
+            ? "Mensagem enviada! Use Abrir conversa para acessar diretamente este protocolo."
+            : "Envio recebido. O protocolo ainda não foi confirmado; verifique a conversa antes de reenviar."}
+        </div>}
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2.5">
           <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">
             Atendimento
