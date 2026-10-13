@@ -449,6 +449,9 @@ export function SacDigitalToolPage({
   const handledNewConversationRouteRef = useRef("");
   const handledProtocolRouteRef = useRef("");
   const handledOrderConversationRef = useRef("");
+  const [orderRouteState, setOrderRouteState] = useState<"idle" | "loading" | "error" | "opened">("idle");
+  const [orderRouteError, setOrderRouteError] = useState("");
+  const [orderRouteRetry, setOrderRouteRetry] = useState(0);
   const [orderConversationPreview, setOrderConversationPreview] = useState<SacDigitalProtocolListItem | null>(null);
   const [participationDiagnosticLoading, setParticipationDiagnosticLoading] = useState(false);
   const [participationDiagnostic, setParticipationDiagnostic] = useState<SacParticipationProbeResult | null>(null);
@@ -516,6 +519,8 @@ export function SacDigitalToolPage({
     selectProtocol(null);
     setOrderConversationPreview(null);
     setParticipationDiagnostic(null);
+    setOrderRouteState("idle");
+    setOrderRouteError("");
     orderConversationContextRef.current = null;
     setStatusFilter(nextStatus);
     // Um link vindo da OS não pode reabrir o protocolo depois de o usuário
@@ -875,7 +880,7 @@ export function SacDigitalToolPage({
   // entre o envio e a projeção local); só selecionamos quando ele aparecer
   // na lista visível após o vínculo SAC do usuário ter carregado.
   useEffect(() => {
-    if (loading || !activeOrganizationId || !routeExternalProtocol || !canViewMessages) return;
+    if (loading || !activeOrganizationId || !routeExternalProtocol || routeOrderConversationId || !canViewMessages) return;
     const targetKey=`${activeOrganizationId}:${routeExternalProtocol}`;
     if (handledProtocolRouteRef.current===targetKey) return;
     if (!/^[A-Za-z0-9_-]{3,80}$/.test(routeExternalProtocol)) {
@@ -899,12 +904,12 @@ export function SacDigitalToolPage({
     setModuleSection("conversations");
     selectProtocol(found.id);
   }, [
-    activeOrganizationId, loading, routeExternalProtocol, canViewMessages,
+    activeOrganizationId, loading, routeExternalProtocol, routeOrderConversationId, canViewMessages,
     visibleProtocols, waitingProtocolSet, selectProtocol,
   ]);
 
   useEffect(() => {
-    if (loading || !activeOrganizationId || !routeExternalProtocol || !canViewMessages
+    if (loading || !activeOrganizationId || !routeExternalProtocol || routeOrderConversationId || !canViewMessages
       || !/^[A-Za-z0-9_-]{3,80}$/.test(routeExternalProtocol)) return;
     const targetKey=`${activeOrganizationId}:${routeExternalProtocol}:${protocolRouteRetry}`;
     if (attemptedProtocolSyncRef.current===targetKey
@@ -949,7 +954,7 @@ export function SacDigitalToolPage({
     void resolveFromProvider();
     return ()=>{cancelled=true;};
   }, [
-    activeOrganizationId,loading,routeExternalProtocol,canViewMessages,protocolRouteRetry,user?.id,
+    activeOrganizationId,loading,routeExternalProtocol,routeOrderConversationId,canViewMessages,protocolRouteRetry,user?.id,
   ]);
 
   // Atalhos do CRM (Cadastros, Ficha do Cliente, Contatos, OS).
@@ -986,20 +991,28 @@ export function SacDigitalToolPage({
     location.search, location.pathname, navigate,
   ]);
 
-  // Atalho da OS: buscar especificamente a conversa do cliente, inclusive
-  // quando está sob responsabilidade de outro Operador SAC.
+  // Atalho da OS: localizar o protocolo vinculado e preservar a seleção
+  // mesmo quando o usuário só pode consultar o atendimento de outro Operador.
   useEffect(() => {
-    if (loading || !activeOrganizationId || !routeOrderConversationId || routeExternalProtocol || !canViewMessages) return;
-    const targetKey = `${activeOrganizationId}:${user?.id || ""}:${routeOrderConversationId}`;
+    if (loading || !activeOrganizationId || !routeOrderConversationId || !canViewMessages) return;
+    const targetKey = `${activeOrganizationId}:${user?.id || ""}:${routeOrderConversationId}:${routeExternalProtocol}`;
     if (handledOrderConversationRef.current === targetKey) return;
-    handledOrderConversationRef.current = targetKey;
     let cancelled = false;
+    setOrderRouteState("loading");
+    setOrderRouteError("");
     const openFromOrder = async () => {
       try {
-        const result = await getSacDigitalOrderConversation(activeOrganizationId, routeOrderConversationId);
+        const result = await getSacDigitalOrderConversation(
+          activeOrganizationId, routeOrderConversationId, routeExternalProtocol,
+        );
         if (cancelled) return;
         const protocol = result.protocol;
-        if (!protocol?.id || !protocol.external_protocol_id) throw new Error("Nenhuma conversa encontrada para esta OS.");
+        if (!protocol?.id || !protocol.external_protocol_id) {
+          throw new Error("Nenhuma conversa encontrada para esta OS.");
+        }
+        // Só marcar o link como resolvido após concluir a busca; se a
+        // inicialização da tela cancelar a requisição, a próxima tenta de novo.
+        handledOrderConversationRef.current = targetKey;
         orderConversationContextRef.current = {
           orderId: routeOrderConversationId, protocolId: protocol.id,
           externalProtocol: protocol.external_protocol_id,
@@ -1015,15 +1028,21 @@ export function SacDigitalToolPage({
           : nextStatus === "abandoned" || nextStatus === "inbox" ? "abandoned" : "waiting");
         setModuleSection("conversations");
         selectProtocol(protocol.id);
+        setOrderRouteState("opened");
       } catch (error) {
-        if (!cancelled) setMessage({
-          text:systemErrorMessage(error,"Não foi possível abrir o WhatsApp desta OS."), error:true,
-        });
+        if (cancelled) return;
+        const message = systemErrorMessage(error,"Não foi possível abrir o WhatsApp desta OS.");
+        setOrderRouteError(message);
+        setOrderRouteState("error");
+        setMessage({text:message,error:true});
       }
     };
     void openFromOrder();
     return () => { cancelled = true; };
-  }, [activeOrganizationId, loading, routeOrderConversationId, routeExternalProtocol, canViewMessages, selectProtocol, user?.id]);
+  }, [
+    activeOrganizationId, loading, routeOrderConversationId, routeExternalProtocol,
+    canViewMessages, selectProtocol, user?.id, orderRouteRetry,
+  ]);
 
   useEffect(() => {
     if (loading || !activeOrganizationId || !routeCustomerId || routeExternalProtocol || routeOrderConversationId) return;
@@ -1945,6 +1964,17 @@ export function SacDigitalToolPage({
       {!canViewMessages ? (
         <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
           Sua função não possui permissão para visualizar conversas do SAC Digital.
+        </div>
+      ) : routeOrderConversationId && !selectedProtocol && orderRouteState === "loading" ? (
+        <div className="flex h-full items-center justify-center p-6">
+          <LoadingState text="Localizando conversa da OS..." />
+        </div>
+      ) : routeOrderConversationId && !selectedProtocol && orderRouteState === "error" ? (
+        <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+          <p className="text-sm font-semibold text-foreground">{orderRouteError || "Não foi possível abrir a conversa desta OS."}</p>
+          <AdminButton variant="secondary" onClick={() => setOrderRouteRetry(value => value + 1)}>
+            Tentar novamente
+          </AdminButton>
         </div>
       ) : inboxLoading && visibleProtocols.length === 0 ? (
         <div className="flex h-full items-center justify-center p-6">

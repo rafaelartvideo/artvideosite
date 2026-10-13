@@ -186,12 +186,12 @@ export function OrderDetailsPage(props: Props) {
   const openSacConversation = (externalProtocol?: string) => {
     const customerId = String(detail?.customer_id || "");
     if (!canViewSac || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(customerId)) return;
+    // Sempre enviar a OS: ela valida o cliente e permite abrir o protocolo
+    // exato mesmo quando pertence a outro Operador.
     const params = new URLSearchParams({ customer: customerId });
-    // Sem protocolo de envio, localizar a conversa da OS sem assumir atendimento.
+    if (detail?.id) params.set("order", detail.id);
     if (externalProtocol && /^[A-Za-z0-9_-]{3,80}$/.test(externalProtocol)) {
       params.set("protocol", externalProtocol);
-    } else if (detail?.id) {
-      params.set("order", detail.id);
     }
     const url = `${adminPath("tools", "sac-digital")}?${params.toString()}`;
     window.open(url, "_blank", "noopener,noreferrer");

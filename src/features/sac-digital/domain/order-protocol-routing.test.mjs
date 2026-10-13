@@ -169,3 +169,23 @@ test("SAC participation diagnostic is read-only, scoped to the OS and does not i
   assert.match(sacPage,/Verificar participação/);
   assert.match(sacPage,/participationDiagnostic\.oauth_accepted/);
 });
+
+test('OS deep link always includes order when a protocol is known', () => {
+  const openOrder = orderPage.slice(orderPage.indexOf('const openSacConversation'),orderPage.indexOf('const openCustomerWhatsApp'));
+  assert.match(openOrder, /if \(detail\?\.id\) params\.set\("order", detail\.id\)/);
+  assert.match(openOrder, /params\.set\("protocol", externalProtocol\)/);
+  assert.doesNotMatch(openOrder, /else if \(detail\?\.id\)/);
+});
+
+test('OS conversation route retries cancelled initialization and uses exact protocol', () => {
+  const start=sacPage.indexOf('// Atalho da OS: localizar o protocolo vinculado');
+  const stop=sacPage.indexOf('  useEffect(() => {',start+10);
+  const code=sacPage.slice(start,stop);
+  assert.match(code, /getSacDigitalOrderConversation\(\s*activeOrganizationId, routeOrderConversationId, routeExternalProtocol/);
+  assert.ok(code.indexOf('handledOrderConversationRef.current = targetKey;') >
+    code.indexOf('const protocol = result.protocol;'));
+  assert.doesNotMatch(code,/routeOrderConversationId \|\| routeExternalProtocol \|\|/);
+  assert.match(sacPage,/routeOrderConversationId \|\| !canViewMessages\) return;/);
+  assert.match(sacPage,/Localizando conversa da OS/);
+  assert.match(sacPage,/onClick=\{\(\) => setOrderRouteRetry\(value => value \+ 1\)\}/);
+});
