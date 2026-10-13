@@ -451,18 +451,17 @@ export function PdvSaleWorkspace({
           : null,
       })),
     }),
-    onSuccess: async result => {
+    onSuccess: result => {
+      // Pagamento confirmado: não manter a mutação pendente enquanto refaz relatórios/listas.
       setSaleResult(result);
       setCheckoutOpen(false);
       setCart([]);
       setSelectedCartProductId(null);
       setSearch("");
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.pdv.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.finance.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() }),
-      ]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.pdv.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.finance.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.catalog.products() });
     },
     onError: error => {
       setToast({ msg: systemErrorMessage(error, "Não foi possível finalizar a venda."), type: "error" });
