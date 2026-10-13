@@ -439,7 +439,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
         ? "pointer-events-none animate-out fade-out slide-out-to-right-4 duration-200 ease-in"
         : smoothMotion
           ? "animate-in fade-in slide-in-from-right-4 duration-300 ease-out"
-          : "animate-in fade-in slide-in-from-right-2 duration-200",
+          : "motion-reduce:animate-none",
     )}
     role="main"
     aria-label={title}
