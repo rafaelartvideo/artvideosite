@@ -90,14 +90,14 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
       setFormOpen(false);
       onRouteChange?.(null, null);
       setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" });
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: `Erro ao salvar serviço geral: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
     }
   };
-  const toggle = async (item: GeneralService) => { if (!canToggleActive) return; try { await setGeneralServiceActive(item.id, !item.is_active); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar serviço: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggle = async (item: GeneralService) => { if (!canToggleActive) return; try { await setGeneralServiceActive(item.id, !item.is_active); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar serviço: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   if (!canView) return null;
   return <div className="min-w-0 space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}{!routeResourceId && <><PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" />
