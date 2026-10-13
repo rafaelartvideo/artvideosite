@@ -80,3 +80,27 @@ Atualizar este registro a cada etapa futura e antes de confirmar a decisão fina
 - Última amostra pontual `pg_database_size`: 183.438.483 bytes (~183,4 MB) em 13/10, após várias migrações simultâneas do catálogo empresarial. Diferenças durante a implantação **não** são crescimento diário nem economia líquida confiável. Os dados reais de tendência virão das amostras diárias.
 - Há aproximadamente 517 protocolos classificados ativos (`status <> finished`, `closed_at IS NULL`), dos quais muitos têm pouca atividade recente. **Não** alterar status nem apagar protocolos com base apenas na idade; a SAC Digital é fonte de verdade para estado operacional.
 - **Decisão em aberto**: manter/migrar/remover espelhamento completo SAC no CRM. Medir 7 dias de crescimento e frequência de consultas após estas alterações. Preservar conversas e fotos, não executar compactação bloqueante sem backup/janela.
+
+
+## 13/10/2026 — Limpeza de registros técnicos + análise do espaço físico
+**Solicitação do usuário:** reduzir o tamanho reportado no PostgreSQL, eliminando dados técnicos que não precisam ser retidos. Preservar tudo que seja cadastro, OS, protocolo, conversa, ligação processada e imagens pessoais.
+
+### Medição antes das limpezas
+- Banco principal: ~183,62 MB (bytes SQL `183618707`, momento da consulta); tamanho de todo o cluster (inclui templates) ~198,89 MB.
+- `public.sac_digital_contacts`: ~78,95 MB físicos, com ~59,18 MB da região TOAST/armazenamento auxiliar. Payload lógico aproximado de linhas ativas: **19,43 MB**, incluindo ~11,39 MB em `avatar_url` e ~6,78 MB em metadados. Diferença significativa indica potencial de espaço alocado não recuperado após updates de Base64; **não** interpretar diferença exata como bloat sem inspeção de páginas.
+- `public.uniq_webhook_events`: ~9,54 MB; todos os 2.252 eventos eram anteriores a sete dias; 5 pendentes, 604 referenciados em `uniq_calls.last_event_id`; 180 cumpriam política oficial existente de remoção (processados, sucesso, 30 dias+, sem referência).
+- `cron.job_run_details`: ~3,66 MB físicos, 18.894 execuções, quase todas desde 07/10 devido a dois jobs por minuto; 9.367 sucessos com mais de três dias e apenas dez falhas.
+- Índices de contatos, mensagens e protocolos revisados. Nenhum índice obviamente idêntico/duplicado entre os principais; não remover índices sem análise de uso, pois comprometem rapidez da caixa e busca.
+
+### Limpezas executadas
+1. Chamada direta da rotina existente `private.cleanup_uniq_webhook_events()`: **180 eventos técnicos antigos eliminados**, `compacted=0` (nada adicional nos headers/body já compactados). A rotina semanal `uniq-webhook-retention` foi preservada com 30 dias de retenção; 5 pendentes e vínculos com ligações foram preservados. `VACUUM (ANALYZE) public.uniq_webhook_events` executado sem `FULL`.
+2. Migração `20261013130919_union_cron_execution_logs_retention` aplicada, arquivo no GitHub (commit `f047749e0ac14d9a914c5cecd2ee8d16d912b07a`): função invoker `private.prune_union_cron_run_details()` e job diário `union-cron-run-details-retention` às 02:45 UTC. Mantém **3 dias para sucessos** e **30 dias para falhas**; não toca `cron.job` nem jobs em execução.
+3. Limpeza inicial em dois lotes da função: **9.369 recibos de execução antiga** removidos (5.000 + 4.369). Falhas preservadas; `VACUUM (ANALYZE) cron.job_run_details` executado. **Os recibos antigos removidos NÃO são reversíveis**; são logs técnicos e não dados de negócio. Última verificação: 9.530 recibos restantes, incluindo dez falhas; jobs agendados ativos.
+4. Nenhuma foto, mensagem, OS, ligação ou protocolo excluído. Ao verificar depois: 10.535 contatos, 12.180 mensagens, 8.704 protocolos e 150 OS, números sujeitos a crescimento operacional.
+
+### Tamanho depois / condições para redução real
+- Medição PostgreSQL depois: ~183,53 MB (`183528595` bytes) — variação pequena e normal durante operações concorrentes. A limpeza principalmente disponibiliza páginas internas para reutilização, mas ainda **não** diminuiu em dezenas de MB o indicador físico.
+- A maior oportunidade está no TOAST de `sac_digital_contacts`. Para devolver páginas ao filesystem e baixar `Database Size`, em geral seria necessária uma reescrita/compactação física (por exemplo `VACUUM FULL`) com bloqueio forte da tabela, ou ferramenta online equivalente (`pg_repack`, que não está instalada e exigiria utilitário externo). **Não executar sem autorização explícita de janela de manutenção, backup e checagem de espaço livre/concorrência.**
+- Evitar `TRUNCATE` de registros de negócio e não reduzir a retenção de eventos Uniq abaixo de 30 dias sem autorização específica, pois perde capacidade de diagnóstico/reprocessamento.
+- Como cron agenda ~3.200 execuções diárias, a nova limpeza diária de sucessos mais antigos evita crescimento contínuo da tabela de logs.
+- Reversão da política de limpeza: `select cron.unschedule('union-cron-run-details-retention'); drop function private.prune_union_cron_run_details();` (reversível enquanto política). **Logs já eliminados não retornam**.
