@@ -1,4 +1,5 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useLocation } from "react-router";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -363,9 +364,52 @@ const tableQueryKeys: TableQueryConfig[] = [
   { table: "profiles", keys: [queryKeys.employees.all, queryKeys.orders.all, queryKeys.orders.workspace(), queryKeys.registrations.details(), queryKeys.registrations.permissionsAll, queryKeys.registrations.accessAll] },
 ];
 
+// Consultas de um módulo inativo ficam apenas marcadas como desatualizadas.
+// Assim telas retidas/minimizadas não geram GETs a cada evento de outra área.
+function isForegroundQuery(queryKey: QueryKey, pathname: string) {
+  const family = String(queryKey[0] ?? "");
+  const route = pathname;
+  const inOrders = route.startsWith("/admin/orders");
+  const inInventory = route.startsWith("/admin/inventory");
+  const inPdv = route.startsWith("/admin/pdv");
+  const inFinance = route.startsWith("/admin/finance");
+  const inOperation = route.startsWith("/admin/operation");
+  const inSite = route.startsWith("/admin/site");
+  if (family === "public-site") return false;
+  if (family === "orders" || family === "orders-workspace" || family === "orders-total") return inOrders;
+  if (family === "admin") return route === "/admin" || route.startsWith("/admin/dashboard");
+  if (family === "finance") return inFinance || inPdv;
+  if (family === "pdv") return inPdv;
+  if (family === "inventory") return inInventory || inPdv || inOrders;
+  if (family === "catalog") return inSite || inInventory || inOrders || inPdv;
+  if (family === "appointments") return route.startsWith("/admin/agenda") || inOrders;
+  if (family === "checklists") return inOrders || route.startsWith("/admin/operation/checklists") || route.startsWith("/admin/operation/equipment");
+  if (family === "equipment") return inOrders || route.startsWith("/admin/operation/equipment");
+  if (family === "documents") return inOrders || route.startsWith("/admin/operation/documents");
+  if (family === "registrations") return route.startsWith("/admin/customers") || route.startsWith("/admin/partner-companies") || route.startsWith("/admin/operation/roles");
+  if (family === "customers") return inOrders || route.startsWith("/admin/customers") || route.startsWith("/admin/quotes");
+  if (family === "quotes") return route.startsWith("/admin/quotes");
+  if (family === "order-situations" || family === "order-statuses" || family === "service-types" || family === "general-services") return inOperation || inOrders;
+  if (family === "employees") return inOperation || inOrders || route.startsWith("/admin/agenda");
+  return true;
+}
+
 export function QueryRealtimeSync() {
   const queryClient = useQueryClient();
+  const { pathname } = useLocation();
+  const pathnameRef = useRef(pathname);
+  pathnameRef.current = pathname;
   const { activeOrganizationId, activeOrganization } = useAuth();
+
+  // Reativar somente os caches vencidos do módulo que acabou de ser aberto.
+  // Um cache não observado não é consultado apenas porque houve navegação.
+  useEffect(() => {
+    void queryClient.refetchQueries({
+      type: "active",
+      stale: true,
+      predicate: query => isForegroundQuery(query.queryKey, pathname),
+    });
+  }, [queryClient, pathname]);
   const isPlatformOperator = activeOrganization?.is_platform_operator === true;
 
   useEffect(() => {
@@ -378,13 +422,17 @@ export function QueryRealtimeSync() {
 
     const scheduleInvalidation = (queryKey: QueryKey) => {
       const id = JSON.stringify(queryKey);
-      const current = pending.get(id);
-      if (current) window.clearTimeout(current);
+      // Throttle em vez de debounce: eventos contínuos nunca podem deixar a
+      // tela sem atualização, nem gerar um SELECT para cada linha alterada.
+      if (pending.has(id)) return;
       pending.set(
         id,
         window.setTimeout(() => {
           pending.delete(id);
-          void queryClient.invalidateQueries({ queryKey });
+          void queryClient.invalidateQueries({
+            queryKey,
+            refetchType: isForegroundQuery(queryKey, pathnameRef.current) ? "active" : "none",
+          });
         }, 900),
       );
     };
