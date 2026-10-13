@@ -13,7 +13,6 @@ import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } fro
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
 import { CompanySegmentsOnboardingGate } from "@/features/segments/presentation/CompanySegments";
