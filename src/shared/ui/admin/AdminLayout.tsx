@@ -264,6 +264,7 @@ export function AdminDialog({
   minimizable = true,
   minimizedDescription,
   closable = true,
+  hideHeader = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -276,6 +277,7 @@ export function AdminDialog({
   minimizable?: boolean;
   minimizedDescription?: React.ReactNode;
   closable?: boolean;
+  hideHeader?: boolean;
 }) {
   const minimizedTitle = typeof title === "string" ? title : "Janela administrativa";
   const effectiveMinimizedDescription = minimizedDescription ?? (typeof description === "string" ? description : undefined);
@@ -322,7 +324,9 @@ export function AdminDialog({
         className,
       )}
     >
-      {(title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
+      {hideHeader
+        ? <DialogTitle className="sr-only">{title || "Janela administrativa"}</DialogTitle>
+        : (title || description || onClose) && <div className="flex min-w-0 shrink-0 items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0 flex-1">
           {title ? <DialogTitle className="break-words text-base font-bold text-foreground">{title}</DialogTitle> : <DialogTitle className="sr-only">Janela administrativa</DialogTitle>}
           {description && <DialogDescription className="mt-1 break-words text-sm leading-relaxed text-muted-foreground">{description}</DialogDescription>}
