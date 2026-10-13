@@ -82,7 +82,7 @@ export function OrderSignatureRequestDialog({
   const [sacEnabled, setSacEnabled] = useState<boolean | null>(null);
   const [sacStatusError, setSacStatusError] = useState("");
   const [signatureRequests, setSignatureRequests] = useState<DocumentSignatureRequestSummary[]>([]);
-  const [requestsLoading, setRequestsLoading] = useState(false);
+  const [requestsLoading, setRequestsLoading] = useState(true);
   const [requestsError, setRequestsError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
     customer?: string;
