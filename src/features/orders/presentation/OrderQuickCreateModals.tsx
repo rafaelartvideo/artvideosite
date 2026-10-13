@@ -8,6 +8,7 @@ import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FIntegerInput, FTextarea, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import {
+  addQuickEquipmentExtraFields,
   createEquipmentBrand,
   createEquipmentModel,
   createEquipmentType,
@@ -18,7 +19,6 @@ import {
 } from "../infrastructure/orders-catalog.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
-import { saveEquipmentTypeTechnicalFields } from "@/features/equipment/infrastructure/equipment.repository";
 
 type QuickEquipmentMode = "full" | "model";
 
@@ -277,6 +277,7 @@ export function QuickEquipmentModal({
   const [brandName, setBrandName] = useState(initialBrand?.name || "");
   const [modelName, setModelName] = useState("");
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
+  const [includeSerial, setIncludeSerial] = useState(true);
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -301,7 +302,7 @@ export function QuickEquipmentModal({
     [availableModels],
   );
   const activeTechnicalFields = useMemo(
-    () => technicalFields.filter(field => field.is_active !== false),
+    () => technicalFields.filter(field => field.is_active !== false && field.field_key !== "numero_serie"),
     [technicalFields],
   );
 
@@ -358,16 +359,6 @@ export function QuickEquipmentModal({
     }
   };
 
-  const persistTechnicalFields = async (typeId: string) => {
-    if (selectedFieldIds.length === 0) return;
-    const selectedLinks = selectedFieldIds.map((fieldId, index) => ({
-      technical_field_id: fieldId,
-      required: false,
-      sort_order: index * 10,
-    }));
-    await saveEquipmentTypeTechnicalFields(typeId, selectedLinks);
-  };
-
   const save = async () => {
     if (!canSave) return;
     setSaving(true);
@@ -389,7 +380,10 @@ export function QuickEquipmentModal({
         const typeResult = await createEquipmentType({ name: normalizedTypeName, slug: await generateUniqueSlug("equipment_types", normalizedTypeName), is_active: true, sort_order: 0 });
         if (typeResult.error || !typeResult.data) throw typeResult.error || new Error("Equipamento não foi cadastrado.");
         type = typeResult.data;
-        await persistTechnicalFields(type.id);
+      }
+
+      if (mode === "full" && (selectedFieldIds.length > 0 || includeSerial)) {
+        await addQuickEquipmentExtraFields(type.id, selectedFieldIds, includeSerial);
       }
 
       if (selectedBrandId) {
@@ -575,26 +569,34 @@ export function QuickEquipmentModal({
                 </div>
               </div>
 
-              {mode === "full" && activeTechnicalFields.length > 0 && !selectedTypeId && cleanCatalogValue(typeName) && !typeConflict && (
+              {mode === "full" && typeReady && !typeConflict && (
                 <div className="rounded-xl border border-border p-3 sm:p-5">
                   <div className="mb-3">
-                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Campos do equipamento</p>
-                    <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">Opcional. Escolha os campos técnicos que aparecerão nas OS deste novo equipamento.</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Campos extras do equipamento</p>
+                    <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">
+                      Selecione os campos que aparecerão nas OS. NÚMERO DE SÉRIE vem marcado somente neste cadastro rápido.
+                      {selectedTypeId ? " Os campos já vinculados serão mantidos." : ""}
+                    </p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {activeTechnicalFields.map(field => (
-                      <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5 text-sm font-medium text-[#0d1b2e] transition hover:border-primary/25 hover:bg-primary-soft/50">
-                        <Checkbox disabled={saving} checked={selectedFieldIds.includes(field.id)} onCheckedChange={checked => setSelectedFieldIds(current => checked === true ? [...current, field.id] : current.filter(id => id !== field.id))} />
-                        <span className="min-w-0 break-words">{field.label}</span>
-                      </label>
-                    ))}
+                    <label className="flex min-w-0 items-center gap-2 rounded-lg border border-primary/30 bg-primary-soft/50 px-3 py-2.5 text-sm font-bold text-[#0d1b2e]">
+                      <Checkbox disabled={saving} checked={includeSerial} onCheckedChange={checked => setIncludeSerial(checked === true)} />
+                      <span>NÚMERO DE SÉRIE</span>
+                    </label>
+                    {activeTechnicalFields.map(field => {
+                      const alreadyLinked = selectedTypeId && technicalFieldLinks.some(link =>
+                        link.equipment_type_id === selectedTypeId && link.technical_field_id === field.id
+                      );
+                      return <label key={field.id} className="flex min-w-0 items-center gap-2 rounded-lg border border-border bg-muted px-3 py-2.5 text-sm font-medium text-[#0d1b2e] transition hover:border-primary/25 hover:bg-primary-soft/50">
+                        <Checkbox disabled={saving || Boolean(alreadyLinked)}
+                          checked={Boolean(alreadyLinked) || selectedFieldIds.includes(field.id)}
+                          onCheckedChange={checked => setSelectedFieldIds(current => checked === true
+                            ? [...new Set([...current, field.id])]
+                            : current.filter(id => id !== field.id))} />
+                        <span className="min-w-0 break-words">{field.label}{alreadyLinked ? " · Já vinculado" : ""}</span>
+                      </label>;
+                    })}
                   </div>
-                </div>
-              )}
-
-              {mode === "full" && selectedTypeId && (
-                <div className="rounded-lg border border-primary/15 bg-primary-soft/60 px-3 py-2.5 text-[10px] leading-4 text-[#426080]">
-                  Os campos técnicos do equipamento existente serão mantidos sem alterações. Para editá-los, use <strong>Operação &gt; Equipamentos</strong>.
                 </div>
               )}
 
