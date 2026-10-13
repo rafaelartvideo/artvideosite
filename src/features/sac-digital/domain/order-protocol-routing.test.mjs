@@ -39,3 +39,20 @@ test('opening protocol is confirmed before message delivery', () => {
   assert.match(backend, /protocol_opening_pending/);
   assert.match(backend, /\bawait runResourceOperation\(\s*11/);
 });
+
+test('messages and attachments sent from an OS use a human operator label', () => {
+  const textRoute=action('send_order_message','send_message');
+  const mediaRoute=action('send_media','send_signature_invite');
+  assert.match(textRoute, /formatSacOutgoingText\(text, await resolveHumanSenderName\(\)\)/);
+  assert.match(mediaRoute, /formatSacOutgoingText\(text, await resolveHumanSenderName\(\)\)/);
+  assert.doesNotMatch(textRoute, /formatSacOutgoingText\(text, "Sistema"\)/);
+  assert.doesNotMatch(mediaRoute, /fromOrder \? 'Sistema'/);
+});
+
+test('deep-link syncs exact external protocol before selection and handles async availability', () => {
+  assert.match(sacPage, /refreshSacDigitalProtocol\(activeOrganizationId,routeExternalProtocol\)/);
+  assert.match(sacPage, /listSacDigitalProtocols\(activeOrganizationId,true,user\?\.id \|\| ""\)/);
+  assert.match(sacPage, /handledProtocolRouteRef\.current=targetKey/);
+  assert.match(sacPage, /Tentar novamente/);
+  assert.match(sacPage, /visibleProtocols\.find\(item=>\s*!item\.is_pending && item\.external_protocol_id===routeExternalProtocol\)/);
+});
