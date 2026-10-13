@@ -9,6 +9,7 @@ import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { CustomerTypeToggle, FBrazilianDateInput, FEmailInput, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatDateOnly, formatPhone, todayDateOnly } from "@/shared/domain/formatters";
 import { CustomerEquipmentsSection } from "./CustomerEquipmentsSection";
+import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 
 type Props = {
   detail: any; detailQuotes: any[]; detailOrders: any[]; detailEquipments: any[]; detailLoading: boolean;
@@ -39,7 +40,7 @@ export function CustomerDetailsPage(props: Props) {
   const whatsappPhone = normalizeContactPhone(detail?.whatsapp || detail?.phone);
   const callPhone = normalizeContactPhone(detail?.phone || detail?.whatsapp);
   const contactActions = whatsappPhone || callPhone ? <div className="flex flex-wrap items-center justify-end gap-2">
-    {whatsappPhone && <a href={`https://wa.me/${whatsappPhone}`} target="_blank" rel="noreferrer" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-0 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-50" aria-label="Abrir WhatsApp do cliente"><MessageCircle size={14} /> WhatsApp</a>}
+    {whatsappPhone && <CompanyWhatsAppAction phone={whatsappPhone} name={detail?.full_name || detail?.trade_name || detail?.legal_name} organizationId={detail?.organization_id} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-2.5 py-0 text-xs font-bold text-emerald-700 transition-colors hover:bg-emerald-50" title="Abrir conversa no WhatsApp"><MessageCircle size={14} /> WhatsApp</CompanyWhatsAppAction>}
     {callPhone && <a href={`tel:+${callPhone}`} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-2.5 py-0 text-xs font-bold text-[#0057e7] transition-colors hover:bg-[#0057e7]/5" aria-label="Ligar para o cliente"><Phone size={14} /> Ligar</a>}
   </div> : undefined;
 
