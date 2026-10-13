@@ -414,6 +414,9 @@ export function SacDigitalToolPage({
   const activePendingContactIdRef = useRef<string | null>(null);
   const handledCustomerRouteRef = useRef("");
   const handledProtocolRouteRef = useRef("");
+  const attemptedProtocolSyncRef = useRef("");
+  const [protocolRouteRetry, setProtocolRouteRetry] = useState(0);
+  const [protocolRouteLoading, setProtocolRouteLoading] = useState(false);
 
   const selectProtocol = useCallback((protocolId: string | null) => {
     if (selectedProtocolIdRef.current === protocolId) return;
@@ -760,52 +763,86 @@ export function SacDigitalToolPage({
     };
   }, [loadProtocols, loadStatus, loadUnreadCounts]);
 
-  // A OS pode fornecer o identificador REAL do protocolo devolvido pela SAC.
-  // Priorizar esse protocolo em vez de escolher a primeira conversa do cliente.
+  // O deep-link da OS deve abrir somente o protocolo informado no URL.
+  // Primeiro sincronizamos diretamente com o fornecedor (pode haver atraso
+  // entre o envio e a projeção local); só selecionamos quando ele aparecer
+  // na lista visível após o vínculo SAC do usuário ter carregado.
   useEffect(() => {
     if (loading || !activeOrganizationId || !routeExternalProtocol || !canViewMessages) return;
-    const targetKey = `${activeOrganizationId}:${routeExternalProtocol}`;
-    if (handledProtocolRouteRef.current === targetKey) return;
-    handledProtocolRouteRef.current = targetKey;
+    const targetKey=`${activeOrganizationId}:${routeExternalProtocol}`;
+    if (handledProtocolRouteRef.current===targetKey) return;
     if (!/^[A-Za-z0-9_-]{3,80}$/.test(routeExternalProtocol)) {
-      setMessage({text:"O número do protocolo informado pela OS é inválido.",error:true});
+      setMessage({text:"O protocolo informado pela OS é inválido.",error:true});
       return;
     }
-    let cancelled=false;
-    const openExactProtocol = async () => {
-      let found = visibleProtocols.find(item => !item.is_pending && item.external_protocol_id===routeExternalProtocol) || null;
-      for(let attempt=0;attempt<5&&!found;attempt++) {
-        if(attempt>0) await new Promise(resolve => setTimeout(resolve,400*attempt));
-        if(cancelled) return;
-        try {
-          const next = await listSacDigitalProtocols(activeOrganizationId,true,user?.id || "");
-          if(cancelled) return;
-          setProtocols(next);
-          found = next.find(item=>!item.is_pending && item.external_protocol_id===routeExternalProtocol) || null;
-        } catch { /* webhook/worker pode projetar o protocolo após alguns instantes */ }
-      }
-      if(cancelled) return;
-      if(!found) {
-        setMessage({
-          text:"O protocolo foi confirmado pela SAC Digital, mas ainda não aparece na Union. Atualize os atendimentos em alguns instantes.",
-          error:true,
-        });
-        return;
-      }
-      // A consulta é protegida por RLS e a lista visível mantém o filtro de
-      // Operador/Gestor já existente. Nunca selecionar outro protocolo como fallback.
-      setConversationSearch("");
-      setOperatorFilter("all");
-      setStatusFilter(found.status==="in_att" ? "in_att" : found.status==="finished" ? "finished"
-        : found.status==="self_service" ? "self_service" : "waiting");
-      setModuleSection("conversations");
-      selectProtocol(found.id);
-    };
-    void openExactProtocol();
-    return () => { cancelled=true; };
+    const found=visibleProtocols.find(item=>
+      !item.is_pending && item.external_protocol_id===routeExternalProtocol);
+    if (!found) return;
+    // Não reutilizar conversas do mesmo número nem assumir que o primeiro
+    // protocolo da lista pertence ao link. O status é o do próprio protocolo.
+    handledProtocolRouteRef.current=targetKey;
+    setProtocolRouteLoading(false);
+    setMessage(null);
+    setConversationSearch("");
+    setOperatorFilter("all");
+    const status=displayProtocolStatus(found,waitingProtocolSet);
+    setStatusFilter(status==="in_att" ? "in_att" : status==="finished" ? "finished"
+      : status==="self_service" ? "self_service"
+      : status==="abandoned" || status==="inbox" ? "abandoned" : "waiting");
+    setModuleSection("conversations");
+    selectProtocol(found.id);
   }, [
     activeOrganizationId, loading, routeExternalProtocol, canViewMessages,
-    selectProtocol, user?.id,
+    visibleProtocols, waitingProtocolSet, selectProtocol,
+  ]);
+
+  useEffect(() => {
+    if (loading || !activeOrganizationId || !routeExternalProtocol || !canViewMessages
+      || !/^[A-Za-z0-9_-]{3,80}$/.test(routeExternalProtocol)) return;
+    const targetKey=`${activeOrganizationId}:${routeExternalProtocol}:${protocolRouteRetry}`;
+    if (attemptedProtocolSyncRef.current===targetKey
+      || handledProtocolRouteRef.current===`${activeOrganizationId}:${routeExternalProtocol}`) return;
+    attemptedProtocolSyncRef.current=targetKey;
+    let cancelled=false;
+    const resolveFromProvider=async () => {
+      setProtocolRouteLoading(true);
+      setMessage({text:"Localizando e sincronizando o protocolo da OS...",error:false});
+      let lastError:unknown=null;
+      for(let attempt=0;attempt<5;attempt++){
+        if(cancelled) return;
+        try {
+          if(attempt===0 || attempt===2) {
+            await refreshSacDigitalProtocol(activeOrganizationId,routeExternalProtocol);
+          }
+          const list=await listSacDigitalProtocols(activeOrganizationId,true,user?.id || "");
+          if(cancelled) return;
+          setProtocols(current=>{
+            const existing=current.find(item=>item.external_protocol_id===routeExternalProtocol);
+            const fresh=list.find(item=>item.external_protocol_id===routeExternalProtocol);
+            // Don't replace a newer websocket/refresh result with a stale list.
+            if(!fresh && existing) return current;
+            return list;
+          });
+          if(list.some(item=>!item.is_pending && item.external_protocol_id===routeExternalProtocol)) {
+            setProtocolRouteLoading(false);
+            return;
+          }
+        } catch(error) {
+          lastError=error;
+        }
+        if(attempt<4) await new Promise(resolve=>setTimeout(resolve,450*(attempt+1)));
+      }
+      if(cancelled) return;
+      setProtocolRouteLoading(false);
+      setMessage({text:lastError
+        ? systemErrorMessage(lastError,"Não foi possível sincronizar o protocolo da OS.")
+        : "O protocolo da OS ainda não apareceu na lista da Union. Confira o vínculo do Operador SAC e tente novamente.",
+        error:true});
+    };
+    void resolveFromProvider();
+    return ()=>{cancelled=true;};
+  }, [
+    activeOrganizationId,loading,routeExternalProtocol,canViewMessages,protocolRouteRetry,user?.id,
   ]);
 
   useEffect(() => {
@@ -1603,6 +1640,15 @@ export function SacDigitalToolPage({
     />
 
     <AdminSubnav value={moduleSection} items={SAC_MODULE_SECTIONS} onSelect={setModuleSection} ariaLabel="Seções do SAC Digital" />
+    {routeExternalProtocol && !selectedProtocol && !loading && (
+      <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+        <span>{protocolRouteLoading ? "Abrindo a conversa vinculada à OS..." : "A conversa vinculada à OS ainda não foi selecionada."}</span>
+        <BtnSecondary disabled={protocolRouteLoading} onClick={() => setProtocolRouteRetry(v=>v+1)}>
+          Tentar novamente
+        </BtnSecondary>
+      </div>
+    )}
+
     {moduleSection === "contacts" && <Suspense fallback={<LoadingState text="Carregando clientes..." />}>
       <SacDigitalContactsPage organizationId={activeOrganizationId} canView={canViewMessages}
         canSendMessages={canSendMessages} hasPermission={hasPermission} onStartConversation={contact => {
