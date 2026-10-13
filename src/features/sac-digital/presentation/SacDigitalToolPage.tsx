@@ -320,6 +320,9 @@ export function SacDigitalToolPage({
   const navigate = useNavigate();
   const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
   const routeExternalProtocol = new URLSearchParams(location.search).get("protocol") || "";
+  const routeStartConversation = new URLSearchParams(location.search).get("new") === "1";
+  const routeStartPhone = new URLSearchParams(location.search).get("phone") || "";
+  const routeStartName = new URLSearchParams(location.search).get("name") || "";
   const canManage = hasPermission("sac_digital.settings.manage");
   const canManageProtocols = hasPermission("sac_digital.protocols.manage");
   const canViewMessages = hasPermission("sac_digital.messages.view");
@@ -439,6 +442,7 @@ export function SacDigitalToolPage({
   const lastResumeRefreshRef = useRef(0);
   const activePendingContactIdRef = useRef<string | null>(null);
   const handledCustomerRouteRef = useRef("");
+  const handledNewConversationRouteRef = useRef("");
   const handledProtocolRouteRef = useRef("");
   const attemptedProtocolSyncRef = useRef("");
   const [protocolRouteRetry, setProtocolRouteRetry] = useState(0);
@@ -929,6 +933,40 @@ export function SacDigitalToolPage({
     return ()=>{cancelled=true;};
   }, [
     activeOrganizationId,loading,routeExternalProtocol,canViewMessages,protocolRouteRetry,user?.id,
+  ]);
+
+  // Atalhos do CRM (Cadastros, Ficha do Cliente, Contatos, OS).
+  // Forçam o modal NOVA CONVERSA com o telefone escolhido; não disparam
+  // mensagens, não fazem encaminhamento e não escolhem outro cliente.
+  useEffect(() => {
+    if (loading || !activeOrganizationId || !routeStartConversation || !status?.enabled) return;
+    const digits = routeStartPhone.replace(/\D/g, "");
+    const key = `${activeOrganizationId}:${location.search}`;
+    if (handledNewConversationRouteRef.current === key) return;
+    handledNewConversationRouteRef.current = key;
+    if (!canSendMessages || !canViewMessages) {
+      setMessage({ text: "Você não tem permissão para iniciar conversas pelo SAC Digital.", error: true });
+      return;
+    }
+    if (digits.length < 10 || digits.length > 13) {
+      setMessage({ text: "O número de WhatsApp informado não é válido.", error: true });
+      return;
+    }
+    setModuleSection("conversations");
+    setNewConversationStarter({ phone: digits, name: routeStartName.slice(0, 180) });
+    setNewConversationOpen(true);
+    const params = new URLSearchParams(location.search);
+    params.delete("new");
+    params.delete("phone");
+    params.delete("name");
+    navigate({
+      pathname: location.pathname,
+      search: params.toString() ? `?${params.toString()}` : "",
+    }, { replace: true });
+  }, [
+    activeOrganizationId, loading, routeStartConversation, routeStartPhone,
+    routeStartName, status?.enabled, canSendMessages, canViewMessages,
+    location.search, location.pathname, navigate,
   ]);
 
   useEffect(() => {
