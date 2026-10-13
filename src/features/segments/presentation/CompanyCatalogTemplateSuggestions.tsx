@@ -2,16 +2,15 @@ import { useEffect, useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { BtnPrimary } from "@/shared/ui/admin/AdminLayout";
 import {
-  addTenantCatalogTechnicalField, addTenantCatalogChecklistItem, loadTenantCatalogTemplates,
+  addTenantCatalogChecklistItem, loadTenantCatalogTemplates,
   type TenantCatalogTemplates,
 } from "../infrastructure/company-catalog-enhancements.repository";
 
 export function CompanyCatalogTemplateSuggestions({
-  organizationId,equipmentCatalogId,canManage,canManageChecklists,onAdded,
+  organizationId,equipmentCatalogId,canManageChecklists,onAdded,
 }: {
   organizationId: string;
   equipmentCatalogId: string;
-  canManage: boolean;
   canManageChecklists: boolean;
   onAdded: () => Promise<unknown>;
 }) {
@@ -30,22 +29,6 @@ export function CompanyCatalogTemplateSuggestions({
       .finally(() => { if(live)setLoading(false); });
     return () => {live=false;};
   },[organizationId,equipmentCatalogId]);
-
-  const addField = async (id: string) => {
-    if (!canManage || busy) return;
-    setBusy(id);setError("");setNotice("");
-    try {
-      await addTenantCatalogTechnicalField(organizationId,equipmentCatalogId,id);
-      const [next] = await Promise.all([
-        loadTenantCatalogTemplates(organizationId,equipmentCatalogId),
-        onAdded(),
-      ]);
-      setTemplates(next);
-      setNotice("Campo técnico associado sem alterar os campos personalizados.");
-    } catch(cause) {
-      setError(systemErrorMessage(cause,"Não foi possível adicionar o campo técnico."));
-    } finally {setBusy("");}
-  };
 
   const addChecklist = async (id: string) => {
     if (!canManageChecklists || busy) return;
@@ -66,8 +49,7 @@ export function CompanyCatalogTemplateSuggestions({
   return <section className="space-y-3 rounded-lg border border-border bg-background p-4 text-card-foreground">
     <h3 className="text-sm font-extrabold">Templates oficiais deste equipamento</h3>
     <p className="text-xs leading-5 text-muted-foreground">
-      Campos técnicos podem ser adicionados individualmente. Checklists ficam disponíveis para consulta,
-      sem substituir os perfis e etapas configurados pela empresa.
+      Campos técnicos oficiais são vinculados automaticamente ao equipamento. Checklists podem ser configurados separadamente, sem substituir os perfis e etapas existentes.
     </p>
     {loading && <p className="text-sm text-muted-foreground">Carregando templates...</p>}
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
@@ -83,10 +65,9 @@ export function CompanyCatalogTemplateSuggestions({
             <p className="text-sm font-semibold">{field.label}</p>
             <p className="text-xs text-muted-foreground">{field.field_key} · {field.field_type === "number" ? "Número" : "Texto"}{field.required ? " · Obrigatório" : ""}</p>
           </div>
-          {field.applied
-            ? <span className="text-xs font-semibold text-green-700">Adicionado</span>
-            : <BtnPrimary size="sm" disabled={!canManage || Boolean(busy)} loading={busy===field.id}
-              onClick={() => void addField(field.id)}>Adicionar campo</BtnPrimary>}
+          <span className={field.applied ? "text-xs font-semibold text-green-700" : "text-xs font-semibold text-amber-700"}>
+            {field.applied ? "Sincronizado" : "Pendente — verificar conflito"}
+          </span>
         </div>)}
       </div>
       <div className="space-y-2 border-t border-border pt-3">
