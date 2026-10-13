@@ -8,8 +8,7 @@ import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import type { EquipmentDraft, EquipmentDraftBrand, EquipmentDraftModel, EquipmentTypeRow, TechnicalField } from "../domain/equipment";
 import { loadEquipmentCatalog, saveEquipmentHierarchy, saveTechnicalField, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
-import { CompanyOfficialCatalogSuggestions } from "@/features/segments/presentation/CompanyOfficialCatalogSuggestions";
-import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -28,7 +27,7 @@ const normalizeCatalogName = (value: string) => value.trim().replace(/\\s+/g, " 
 
 
 export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onRouteChange }: EquipmentAdminPanelProps) {
-  const { hasPermission, activeOrganizationId } = useAuth();
+  const { hasPermission } = useAuth();
   const canView = hasPermission("equipment.view");
   const canViewTable = hasPermission("equipment.table.view");
   const canViewDetails = hasPermission("equipment.details.view");
@@ -44,7 +43,6 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const showStatus = hasPermission("equipment.table.status");
   const showActions = hasPermission("equipment.table.actions");
   const showFieldName = hasPermission("equipment.technical_fields.column.name");
-  const showFieldKey = hasPermission("equipment.technical_fields.column.key");
   const showFieldType = hasPermission("equipment.technical_fields.column.type");
   const showFieldStatus = hasPermission("equipment.technical_fields.column.status");
   const showFieldActions = hasPermission("equipment.technical_fields.column.actions");
@@ -56,17 +54,16 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const models = catalog?.models ?? [];
   const technicalFields = catalog?.technicalFields ?? [];
   const [drafts, setDrafts] = useState<EquipmentDraft[]>([]);
-  const [showUnionCatalog, setShowUnionCatalog] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [activeArea, setActiveArea] = useState<"registered" | "fields">(routeResourceId === "fields" || routeResourceId === "new-field" || routeSubpage === "field" ? "fields" : "registered");
   const [fieldFormOpen, setFieldFormOpen] = useState(false);
   const [editingField, setEditingField] = useState<TechnicalField | null>(null);
-  const [fieldForm, setFieldForm] = useState({ label: "", field_key: "", field_type: "text" as "text" | "number", is_active: true });
+  const [fieldForm, setFieldForm] = useState({ label: "", field_type: "text" as "text" | "number", is_active: true });
   const loading = catalogQuery.isPending;
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [hierarchyErrors, setHierarchyErrors] = useState<Record<string, string>>({});
-  const [fieldErrors, setFieldErrors] = useState<{ label?: string; field_key?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ label?: string }>({});
   const [typePage, setTypePage] = useState(1);
   const [typePageSize, setTypePageSize] = useState(5);
   const [fieldPage, setFieldPage] = useState(1);
@@ -111,19 +108,19 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const removeModel = (ti: number, bi: number, mi: number) => canDelete && setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: brand.models.filter((_, k) => k !== mi) } : brand) } : type));
   const updateTechnicalField = (ti: number, fieldId: string, checked: boolean) => { if (!canManageFields) return; setDrafts(current => current.map((type, i) => { if (i !== ti) return type; const existing = type.technicalFields.find(field => field.technical_field_id === fieldId); return { ...type, technicalFields: checked ? existing ? type.technicalFields : [...type.technicalFields, { technical_field_id: fieldId, required: false, sort_order: type.technicalFields.length * 10 }] : type.technicalFields.filter(field => field.technical_field_id !== fieldId) }; })); };
   const updateTechnicalFieldRequired = (ti: number, fieldId: string, required: boolean) => { if (!canManageFields) return; setDrafts(current => current.map((type, i) => i === ti ? { ...type, technicalFields: type.technicalFields.map(field => field.technical_field_id === fieldId ? { ...field, required } : field) } : type)); };
-  const openNewField = () => { if (!canManageFields) return; setEditingField(null); setFieldForm({ label: "", field_key: "", field_type: "text", is_active: true }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
-  const openEditField = (field: TechnicalField) => { if (!canManageFields) return; setEditingField(field); setFieldForm({ label: field.label, field_key: field.field_key, field_type: field.field_type, is_active: field.is_active }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
+  const openNewField = () => { if (!canManageFields) return; setEditingField(null); setFieldForm({ label: "", field_type: "text", is_active: true }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
+  const openEditField = (field: TechnicalField) => { if (!canManageFields) return; setEditingField(field); setFieldForm({ label: field.label, field_type: field.field_type, is_active: field.is_active }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
   const closeEditor = () => { setFormOpen(false); setFieldFormOpen(false); onRouteChange?.(activeArea === "fields" ? "fields" : null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (type: EquipmentTypeRow) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(type.id, "edit") : openEdit(type));
   const openFieldsPage = () => { if (!canViewFields) return; if (onRouteChange) onRouteChange("fields", null); else setActiveArea("fields"); };
   const openRegisteredPage = () => { if (onRouteChange) onRouteChange(null, null); else setActiveArea("registered"); };
-  const openNewFieldPage = () => canManageFields && (onRouteChange ? onRouteChange("new-field", null) : openNewField());
-  const openEditFieldPage = (field: TechnicalField) => canManageFields && (onRouteChange ? onRouteChange(field.id, "field") : openEditField(field));
+  const openNewFieldPage = () => { if (canManageFields) openNewField(); };
+  const openEditFieldPage = (field: TechnicalField) => { if (canManageFields) openEditField(field); };
 
   useEffect(() => {
     if (!routeResourceId) { setActiveArea("registered"); if (formOpen) setFormOpen(false); if (fieldFormOpen) setFieldFormOpen(false); return; }
-    if (routeResourceId === "fields") { setActiveArea("fields"); if (formOpen) setFormOpen(false); if (fieldFormOpen) setFieldFormOpen(false); return; }
+    if (routeResourceId === "fields") { setActiveArea("fields"); if (formOpen) setFormOpen(false); return; }
     if (routeResourceId === "new") { if (canCreate && !formOpen) openNew(); return; }
     if (routeResourceId === "new-field") { if (canManageFields && !fieldFormOpen) openNewField(); return; }
     if (routeSubpage === "edit") {
@@ -141,7 +138,6 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     if (!canManageFields) return;
     const nextErrors: typeof fieldErrors = {};
     if (!fieldForm.label.trim()) nextErrors.label = "Informe o nome do campo.";
-    if (!editingField && !fieldForm.field_key.trim()) nextErrors.field_key = "Informe a chave do campo.";
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setSaving(true);
@@ -240,26 +236,12 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   };
 
   if (!canView) return null;
-  const editorRouteActive = Boolean(routeResourceId && routeResourceId !== "fields");
+  const editorRouteActive = Boolean(routeResourceId && routeResourceId !== "fields" && routeResourceId !== "new-field" && routeSubpage !== "field");
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastro hierárquico usado nas ordens de serviço" />
     <div className="flex gap-1 border-b border-[#0d1b2e]/10">{canViewTable && <button type="button" onClick={openRegisteredPage} className={`cursor-default border-b-2 px-4 py-2.5 text-xs font-bold ${activeArea === "registered" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>Cadastrados</button>}{canViewFields && <button type="button" onClick={openFieldsPage} className={`cursor-default border-b-2 px-4 py-2.5 text-xs font-bold ${activeArea === "fields" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>Campos Extras</button>}</div>
-    {activeArea === "registered" && canViewTable && activeOrganizationId && <>
-      <div className="flex justify-end">
-        <BtnSecondary onClick={() => setShowUnionCatalog(value => !value)}>
-          {showUnionCatalog ? "Ocultar Catálogo Union" : "Catálogo Union"}
-        </BtnSecondary>
-      </div>
-      {showUnionCatalog && <CompanyOfficialCatalogSuggestions
-        key={activeOrganizationId}
-        organizationId={activeOrganizationId}
-        canEdit={canEdit}
-        canManageChecklists={hasPermission("checklists.manage")}
-        onImported={refresh}
-      />}
-    </>}
-    {activeArea === "registered" && canViewTable ? <AdminCard>{loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." /> : <><div className="overflow-x-auto"><table className="min-w-[680px]"><thead><tr>{showEquipment && <th className="text-left">Equipamento</th>}{showBrands && <th className="text-left">Marcas</th>}{showModels && <th className="text-left">Modelos</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedTypes.map(type => { const typeBrands = brands.filter(brand => brand.equipment_type_id === type.id); const brandIds = new Set(typeBrands.map(brand => brand.id)); const modelCount = models.filter(model => brandIds.has(model.equipment_brand_id)).length; return <tr key={type.id}>{showEquipment && <td className="font-bold text-[#0d1b2e]"><span>{type.name}</span></td>}{showBrands && <td className="text-xs text-[#5a6a82]">{typeBrands.length}</td>}{showModels && <td className="text-xs text-[#5a6a82]">{modelCount}</td>}{showStatus && <td><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar equipamento" title="Editar equipamento" onClick={() => openEditPage(type)}><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={type.is_active} entityLabel="equipamento" onClick={() => void toggleEquipmentActive(type)} iconSize={14} />}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safeTypePage} pageSize={typePageSize} totalItems={types.length} onPageChange={setTypePage} onPageSizeChange={size => { setTypePageSize(size); setTypePage(1); }} /></>}</AdminCard> : activeArea === "fields" && canViewFields ? <AdminCard>{loading ? <LoadingState /> : technicalFields.length === 0 ? <EmptyState icon={Wrench} title="Nenhum campo extra cadastrado" message="Cadastre o primeiro campo extra." /> : <><div className="overflow-x-auto"><table className="min-w-[680px]"><thead><tr>{showFieldName && <th className="text-left">Campo</th>}{showFieldKey && <th className="text-left">Chave</th>}{showFieldType && <th className="text-left">Tipo</th>}{showFieldStatus && <th className="text-left">Status</th>}{showFieldActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedFields.map(field => <tr key={field.id}>{showFieldName && <td className="font-bold text-[#0d1b2e]"><span>{field.label}</span></td>}{showFieldKey && <td className="font-mono text-xs text-[#5a6a82]">{field.field_key}</td>}{showFieldType && <td className="text-xs text-[#5a6a82]">{field.field_type === "number" ? "Número" : "Texto"}</td>}{showFieldStatus && <td><StatusBadge status={field.is_active ? "Ativo" : "Inativo"} /></td>}{showFieldActions && <td><div className="flex justify-end gap-1">{canManageFields && <><AdminIconButton ariaLabel="Editar campo" title="Editar campo" onClick={() => openEditFieldPage(field)}><Edit2 size={14} /></AdminIconButton><AdminActiveStateButton active={field.is_active} entityLabel="campo" onClick={() => void toggleField(field)} iconSize={14} /></>}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safeFieldPage} pageSize={fieldPageSize} totalItems={technicalFields.length} onPageChange={setFieldPage} onPageSizeChange={size => { setFieldPageSize(size); setFieldPage(1); }} /></>}</AdminCard> : null}
+    {activeArea === "registered" && canViewTable ? <AdminCard>{loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." /> : <><div className="overflow-x-auto"><table className="min-w-[680px]"><thead><tr>{showEquipment && <th className="text-left">Equipamento</th>}{showBrands && <th className="text-left">Marcas</th>}{showModels && <th className="text-left">Modelos</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedTypes.map(type => { const typeBrands = brands.filter(brand => brand.equipment_type_id === type.id); const brandIds = new Set(typeBrands.map(brand => brand.id)); const modelCount = models.filter(model => brandIds.has(model.equipment_brand_id)).length; return <tr key={type.id}>{showEquipment && <td className="font-bold text-[#0d1b2e]"><span>{type.name}</span></td>}{showBrands && <td className="text-xs text-[#5a6a82]">{typeBrands.length}</td>}{showModels && <td className="text-xs text-[#5a6a82]">{modelCount}</td>}{showStatus && <td><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar equipamento" title="Editar equipamento" onClick={() => openEditPage(type)}><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={type.is_active} entityLabel="equipamento" onClick={() => void toggleEquipmentActive(type)} iconSize={14} />}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safeTypePage} pageSize={typePageSize} totalItems={types.length} onPageChange={setTypePage} onPageSizeChange={size => { setTypePageSize(size); setTypePage(1); }} /></>}</AdminCard> : activeArea === "fields" && canViewFields ? <AdminCard>{loading ? <LoadingState /> : technicalFields.length === 0 ? <EmptyState icon={Wrench} title="Nenhum campo extra cadastrado" message="Cadastre o primeiro campo extra." /> : <><div className="overflow-x-auto"><table className="min-w-[680px]"><thead><tr>{showFieldName && <th className="text-left">Campo</th>}{showFieldType && <th className="text-left">Tipo</th>}{showFieldStatus && <th className="text-left">Status</th>}{showFieldActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedFields.map(field => <tr key={field.id}>{showFieldName && <td className="font-bold text-[#0d1b2e]"><span>{field.label}</span></td>}{showFieldType && <td className="text-xs text-[#5a6a82]">{field.field_type === "number" ? "Número" : "Texto"}</td>}{showFieldStatus && <td><StatusBadge status={field.is_active ? "Ativo" : "Inativo"} /></td>}{showFieldActions && <td><div className="flex justify-end gap-1">{canManageFields && <><AdminIconButton ariaLabel="Editar campo" title="Editar campo" onClick={() => openEditFieldPage(field)}><Edit2 size={14} /></AdminIconButton><AdminActiveStateButton active={field.is_active} entityLabel="campo" onClick={() => void toggleField(field)} iconSize={14} /></>}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safeFieldPage} pageSize={fieldPageSize} totalItems={technicalFields.length} onPageChange={setFieldPage} onPageSizeChange={size => { setFieldPageSize(size); setFieldPage(1); }} /></>}</AdminCard> : null}
     <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
       {activeArea === "registered"
@@ -286,6 +268,30 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     });
   }}
 />}</div></Section><Section title="Marcas e modelos"><div className="divide-y divide-[#0d1b2e]/10 border-y border-[#0d1b2e]/8">{type.brands.length === 0 ? <div className="flex items-center justify-between gap-3 py-4"><p className="text-xs text-[#8a98aa]">Nenhuma marca cadastrada.</p>{canCreate && <AdminButton onClick={() => addBrand(ti)} aria-label="Adicionar marca" title="Adicionar marca" className="h-11 w-11 shrink-0 !px-0"><Plus size={17} /></AdminButton>}</div> : type.brands.map((brand, bi) => <div key={`${brand.id || "new-brand"}-${bi}`} className="py-4"><div className="flex items-end gap-2"><div className="min-w-0 flex-1"><FInput label={`Marca ${bi + 1}`} required error={hierarchyErrors[`brand-${ti}-${bi}`]} value={brand.name} onChange={(e: any) => { setHierarchyErrors(current => ({ ...current, [`brand-${ti}-${bi}`]: undefined as any })); updateBrand(ti, bi, { name: e.target.value }); }} /></div>{canCreate && bi === type.brands.length - 1 && <AdminButton onClick={() => addBrand(ti)} aria-label="Adicionar marca" title="Adicionar marca" className="h-11 w-11 shrink-0 !px-0"><Plus size={17} /></AdminButton>}{canDelete && <AdminIconButton ariaLabel="Excluir marca" title="Excluir marca" variant="danger" onClick={() => removeBrand(ti, bi)} className="h-11 w-11 shrink-0"><Trash2 size={16} /></AdminIconButton>}</div><div className="ml-3 mt-4 border-l-2 border-[#0057e7]/15 pl-4 sm:ml-5 sm:pl-5">{brand.models.length === 0 ? <div className="flex items-center justify-between gap-3 py-2"><p className="text-xs text-[#8a98aa]">Nenhum modelo cadastrado nesta marca.</p>{canCreate && <AdminButton onClick={() => addModel(ti, bi)} aria-label="Adicionar modelo" title="Adicionar modelo" className="h-11 w-11 shrink-0 !px-0"><Plus size={17} /></AdminButton>}</div> : <div className="divide-y divide-[#0d1b2e]/8">{brand.models.map((model, mi) => <div key={`${model.id || "new-model"}-${mi}`} className="flex items-end gap-2 py-3 first:pt-0 last:pb-0"><div className="min-w-0 flex-1"><FInput label={`Modelo ${mi + 1}`} value={model.name} required error={hierarchyErrors[`model-${ti}-${bi}-${mi}`]} placeholder="Nome do modelo" onChange={(e: any) => { setHierarchyErrors(current => ({ ...current, [`model-${ti}-${bi}-${mi}`]: undefined as any })); updateModel(ti, bi, mi, { name: e.target.value.toLocaleUpperCase("pt-BR") }); }} /></div>{canCreate && mi === brand.models.length - 1 && <AdminButton onClick={() => addModel(ti, bi)} aria-label="Adicionar modelo" title="Adicionar modelo" className="h-11 w-11 shrink-0 !px-0"><Plus size={17} /></AdminButton>}{canDelete && <AdminIconButton ariaLabel="Excluir modelo" title="Excluir modelo" variant="danger" onClick={() => removeModel(ti, bi, mi)} className="h-11 w-11 shrink-0"><Trash2 size={16} /></AdminIconButton>}</div>)}</div>}</div></div>)}</div></Section></div>)}{canCreate && drafts.every(type => !type.id) && <BtnSecondary onClick={addEquipment}><Plus size={15} /> Adicionar equipamento</BtnSecondary>}</div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage>
-    <AdminPage open={fieldFormOpen && canManageFields} onClose={closeEditor} breadcrumb="Equipamentos Técnicos > Campos Extras" title={editingField ? "Editar campo extra" : "Novo campo extra"} subtitle="Configure um campo extra reutilizável nos tipos de equipamento"><div className="space-y-5 p-4 sm:p-5"><Section title="Campo extra"><div className="grid gap-4"><FInput label="Nome do campo" required error={fieldErrors.label} value={fieldForm.label} onChange={(e: any) => { setFieldErrors(current => ({ ...current, label: undefined })); setFieldForm(current => ({ ...current, label: e.target.value, ...(!editingField && !current.field_key ? { field_key: slugify(e.target.value).replace(/-/g, "_") } : {}) })); }} /><FInput label="Chave" required error={fieldErrors.field_key} disabled={Boolean(editingField)} value={fieldForm.field_key} onChange={(e: any) => { setFieldErrors(current => ({ ...current, field_key: undefined })); setFieldForm(current => ({ ...current, field_key: e.target.value })); }} /><FSelect label="Tipo" value={fieldForm.field_type} onChange={(e: any) => setFieldForm(current => ({ ...current, field_type: e.target.value }))} options={[{ value: "text", label: "Texto" }, { value: "number", label: "Número" }]} /><FToggle label="Campo ativo" checked={fieldForm.is_active} onChange={is_active => setFieldForm(current => ({ ...current, is_active }))} /></div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary onClick={() => void saveField()} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage>
+    <AdminDialog
+      open={fieldFormOpen && canManageFields}
+      onClose={() => { if (!saving) closeEditor(); }}
+      title={editingField ? "Editar campo extra" : "Novo campo extra"}
+      description="Defina o nome, tipo e situação do campo. A chave técnica será gerada automaticamente."
+      className="max-w-lg"
+      minimizable={!saving}
+      footer={<div className="flex justify-end gap-2">
+        <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
+        <BtnPrimary onClick={() => void saveField()} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
+      </div>}
+    >
+      <div className="space-y-4">
+        <FInput label="Nome" required error={fieldErrors.label}
+          value={fieldForm.label} onChange={(e: any) => {
+            setFieldErrors(current => ({ ...current, label: undefined }));
+            setFieldForm(current => ({ ...current, label: e.target.value }));
+          }} />
+        <FSelect label="Tipo" value={fieldForm.field_type}
+          onChange={(e: any) => setFieldForm(current => ({ ...current, field_type: e.target.value }))}
+          options={[{ value: "text", label: "Texto" }, { value: "number", label: "Número" }]} />
+        <FToggle label="Ativo" checked={fieldForm.is_active}
+          onChange={is_active => setFieldForm(current => ({ ...current, is_active }))} />
+      </div>
+    </AdminDialog>
   </div>;
 }
