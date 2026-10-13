@@ -168,7 +168,13 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
     setCpfLoading(true);
     setErrors(current => ({ ...current, cpf: undefined }));
     try {
-      const result = await lookupCpf(requestedCpf, organizationId, editing?.entity_id || null);
+      // O cadastro consultado pode ser o próprio usuário editado. A função publicada
+      // nem sempre devolve entity_id na listagem, portanto só procure duplicidade
+      // quando o CPF tiver sido alterado ou se tratar de novo usuário.
+      const sameCpfBeingEdited = Boolean(editing) && requestedCpf === normalizeDigits(editing.cpf || "");
+      const result = await lookupCpf(requestedCpf, organizationId, editing?.entity_id || null, {
+        checkExisting: !sameCpfBeingEdited,
+      });
       setForm(current => {
         if (normalizeDigits(current.cpf) !== requestedCpf) return current;
         return {
