@@ -29,9 +29,8 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
           onChange={(event: any) => {
             const nextDate = event.target.value;
             if (!nextDate) return;
-            onFieldChange("scheduled_at", "");
-            onFieldChange("scheduled_end_at", "");
             onFieldChange("scheduled_at", nextDate + "T");
+            onFieldChange("scheduled_end_at", "");
           }} />
       </div>
     </div>
