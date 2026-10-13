@@ -68,8 +68,15 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
     if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
-      const finalSlug = await generateUniqueSlug("service_categories", form.name, editItem?.id);
-      await saveCategory({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug }, editItem?.id);
+      const finalSlug = editItem?.name === form.name.trim() && editItem?.slug
+        ? editItem.slug
+        : await generateUniqueSlug("service_categories", form.name, editItem?.id);
+      const payload = { ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug };
+      if (editItem && Object.entries(payload).every(([key, value]) => JSON.stringify(value ?? null) === JSON.stringify(editItem[key] ?? null))) {
+        setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
+        return;
+      }
+      await saveCategory(payload, editItem?.id);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar categoria: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
