@@ -49,3 +49,16 @@ test("Customer, contacts, OS completion and partner shortcuts reuse single SAC r
   assert.match(body,/CompanyWhatsAppAction/,path);
  }
 });
+
+test("signature requests send with SAC when active and open WhatsApp Web when disabled",async()=>{
+ const create=await source("features/orders/presentation/OrderSignatureRequestDialog.tsx");
+ const existing=await source("features/orders/presentation/OrderSignatureRequestsSection.tsx");
+ assert.match(create,/getSacDigitalIntegrationStatus\(order\.organization_id\)/);
+ assert.match(create,/if \(sacEnabled === true\)/);
+ assert.match(create,/await sendSacDigitalSignatureInvite\(/);
+ assert.match(create,/buildSignatureWhatsAppUrl\(externalSigner\.phone, result\.link/);
+ assert.match(create,/whatsappTab\.location\.replace\(whatsappUrl\)/);
+ assert.match(existing,/if \(integration\.enabled === true\)/);
+ assert.match(existing,/await sendSacDigitalSignatureInvite\(/);
+ assert.match(existing,/tab\.location\.replace\(whatsappUrl\)/);
+});
