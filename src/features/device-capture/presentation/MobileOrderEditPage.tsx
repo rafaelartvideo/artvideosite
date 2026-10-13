@@ -209,6 +209,15 @@ export function MobileOrderEditPage() {
   const options = data?.options;
   const brands = useMemo(() => (options?.equipment_brands || []).filter(item => !form.equipment_type_id || item.equipment_type_id === form.equipment_type_id), [options?.equipment_brands, form.equipment_type_id]);
   const models = useMemo(() => (options?.equipment_models || []).filter(item => !form.equipment_brand_id || item.equipment_brand_id === form.equipment_brand_id), [options?.equipment_models, form.equipment_brand_id]);
+  const filteredServices = useMemo(() => {
+    const services = options?.general_services || [];
+    const links = options?.equipment_service_links;
+    if (!form.equipment_type_id || links == null) return services;
+    const available = new Set(links.filter(link => link.equipment_type_id === form.equipment_type_id)
+      .map(link => link.general_service_id));
+    // Preserve a previously selected service for historical orders.
+    return services.filter(item => available.has(item.id) || item.id === form.general_service_id);
+  }, [options?.general_services, options?.equipment_service_links, form.equipment_type_id, form.general_service_id]);
 
   const update = (key: string, value: any) => setForm(current => ({ ...current, [key]: value }));
 
@@ -295,7 +304,7 @@ export function MobileOrderEditPage() {
 
       <Section title="Atendimento e OS"><div className="grid gap-4 sm:grid-cols-2">
         <Field label="Tipo de atendimento"><select value={form.service_type_id} onChange={event => update("service_type_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.service_types || []).map(item => <option key={item.id} value={item.id}>{item.title}</option>)}</select></Field>
-        <Field label="Serviço"><select value={form.general_service_id} onChange={event => update("general_service_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.general_services || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
+        <Field label="Serviço"><select value={form.general_service_id} onChange={event => update("general_service_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{filteredServices.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Status"><select value={form.status_id} onChange={event => update("status_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.statuses || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Situação *"><select required value={form.situation_id} onChange={event => update("situation_id", event.target.value)} className={inputClass}><option value="">Selecionar...</option>{(options?.situations || []).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></Field>
         <Field label="Valor estimado"><input inputMode="decimal" value={form.estimated_price || ""} onChange={event => update("estimated_price", event.target.value)} className={inputClass}/></Field>
