@@ -122,8 +122,9 @@ export async function saveEquipmentChecklistConfiguration(
   equipmentTypeId: string,
   profileId: string | null,
   items: EquipmentChecklistItem[],
+  organizationIdOverride?: string,
 ) {
-  const organizationId = await getActiveOrganizationId();
+  const organizationId = organizationIdOverride ?? await getActiveOrganizationId();
   const { error } = await supabase.rpc("save_equipment_checklist_configuration", {
     p_organization_id: organizationId,
     p_equipment_type_id: equipmentTypeId,
