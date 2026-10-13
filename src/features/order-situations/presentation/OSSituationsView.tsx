@@ -86,7 +86,7 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
       const slug = await generateUniqueSlug("os_situations", form.name, editItem?.id);
       const payload = { name: form.name.trim(), slug, color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
       if (editItem) await updateOrderSituation(editItem.id, payload); else await createOrderSituation(payload);
-      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Situação atualizada." : "Situação criada.", type: "success" }); await refresh();
+      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Situação atualizada." : "Situação criada.", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar situação: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }); }
     finally { setSaving(false); }
   };
@@ -122,7 +122,7 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
       await deleteOrderSituation(id);
       closeDelete();
       setToast({ msg: "Situação excluída.", type: "success" });
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: `Não foi possível remover a situação: ${systemErrorMessage(error)}`, type: "error" });
       await loadLinkedOrders(id);
