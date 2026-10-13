@@ -138,6 +138,14 @@ export function SacEmojiPicker({
           aria-label="Buscar emoji"
           value={query}
           onChange={event => setQuery(event.target.value)}
+          onKeyDown={event => {
+            // O catálogo fica dentro do formulário de envio; Enter na busca
+            // não pode disparar a mensagem que já estiver no rascunho.
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+            }
+          }}
           placeholder="Buscar emoji"
           className="min-w-0 flex-1 bg-transparent py-1.5 text-sm text-foreground outline-none placeholder:text-muted-foreground"
         />
