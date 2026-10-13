@@ -68,3 +68,31 @@ test('OS message modal has a separate success step with Open conversation and Cl
   assert.match(dialog, /setStep\("compose"\)/);
   assert.doesNotMatch(dialog, /sendSucceeded|notifyAdmin\(/);
 });
+
+test('OS text uses the authorized operator endpoint, not the Client API', () => {
+  const code=action('send_order_message','send_message');
+  assert.match(code,/runResourceOperation\(\s*78,/);
+  assert.doesNotMatch(code,/fetchJson\(\s*`\$\{SAC_API_BASE_URL\}\/protocol\/send`/);
+});
+
+test('OS attachments use the authorized operator instead of the Client API', () => {
+  const code=action('send_media','send_signature_invite');
+  assert.match(code,/const mediaTransport = fromOrder \? "operator-protocol"/);
+  assert.match(code,/runResourceOperation\(\s*78,/);
+  assert.doesNotMatch(code,/manager-client-protocol/);
+});
+
+test('legacy OS echoes are reconciled only when a matching OS send exists', () => {
+  assert.match(backend,/const legacyOrderEcho = historyBy === "contact"/);
+  assert.match(backend,/metadata\.sent_from_service_order/);
+  assert.match(backend,/Math\.abs\(localTime - targetTime\) <= 10_000/);
+});
+
+test('success step omits the redundant customer and OS summary card', () => {
+  const start=dialog.indexOf('{step === "success" ? (');
+  const end=dialog.indexOf(') : (',start);
+  assert.ok(start>=0 && end>start);
+  const success=dialog.slice(start,end);
+  assert.doesNotMatch(success,/orderCustomerName\(order\)|order\?\.os_number/);
+  assert.match(success,/Mensagem enviada com sucesso!/);
+});
