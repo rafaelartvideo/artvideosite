@@ -35,7 +35,7 @@ export function AgendaEventCard({ event, draggedEventId, onDraggedEventChange, o
 
   const { appointment } = event;
   const appointmentTechnicianNames = Array.from(new Set<string>([
-    ...(appointment.appointment_technicians || []).map(item => item.employee?.full_name).filter(Boolean),
+    ...(appointment.appointment_technicians || []).map(item => item.employee?.full_name).filter((name): name is string => Boolean(name)),
     ...(appointment.service_order?.technician_links || []).map((link: any) => link.employee?.full_name).filter(Boolean),
     ...(appointment.service_order?.technician?.full_name ? [appointment.service_order.technician.full_name] : []),
   ]));
