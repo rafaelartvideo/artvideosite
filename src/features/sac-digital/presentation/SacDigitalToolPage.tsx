@@ -40,6 +40,7 @@ import {
 import {
   assumeSacDigitalProtocol,
   beginSacOperatorAuthorization,
+  bringMySacOperatorOnline,
   finishSacDigitalProtocol,
   forwardSacDigitalProtocol,
   getMySacDigitalOperatorBinding,
@@ -647,6 +648,31 @@ export function SacDigitalToolPage({
       // A conversa continua funcional mesmo se o contador falhar temporariamente.
     }
   }, [activeOrganizationId, canViewMessages]);
+
+  const [presenceLoading, setPresenceLoading] = useState(false);
+  const [confirmedPresence, setConfirmedPresence] = useState<boolean | null>(null);
+  const checkMyPresence = async () => {
+    if (!activeOrganizationId || presenceLoading) return;
+    setPresenceLoading(true);
+    setMessage(null);
+    try {
+      const result = await bringMySacOperatorOnline(activeOrganizationId);
+      if (result.linked && result.online === true) {
+        setConfirmedPresence(true);
+        setMessage({text:result.already_online
+          ? "O Operador já está online na SAC Digital."
+          : "Operador colocado online e confirmado pela SAC Digital.",error:false});
+      } else {
+        setConfirmedPresence(false);
+        setMessage({text:"A SAC Digital ainda não confirmou a disponibilidade deste Operador.",error:true});
+      }
+    } catch (error) {
+      setConfirmedPresence(false);
+      setMessage({text:systemErrorMessage(error,"Não foi possível ativar o Operador na SAC Digital."),error:true});
+    } finally {
+      setPresenceLoading(false);
+    }
+  };
 
   const authorizeOperator = async () => {
     if(!activeOrganizationId || authorizingOperator) return;
@@ -1555,7 +1581,14 @@ export function SacDigitalToolPage({
             </AdminButton>
           )}
           {operatorBinding?.linked && operatorBinding.access_mode === 'operator' && status?.enabled && (
-            <AdminButton variant="secondary" disabled={authorizingOperator} onClick={() => void authorizeOperator()}>{authorizingOperator ? 'Abrindo SAC...' : 'Autorizar Operador'}</AdminButton>
+            <>
+              <AdminButton variant="secondary" disabled={presenceLoading} onClick={() => void checkMyPresence()}>
+                {presenceLoading ? "Verificando..." : confirmedPresence === true ? "Operador Online" : "Ficar Online"}
+              </AdminButton>
+              <AdminButton variant="secondary" disabled={authorizingOperator} onClick={() => void authorizeOperator()}>
+                {authorizingOperator ? "Abrindo SAC..." : "Autorizar Operador"}
+              </AdminButton>
+            </>
           )}
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
           {canManage && onOpenSettings && (
