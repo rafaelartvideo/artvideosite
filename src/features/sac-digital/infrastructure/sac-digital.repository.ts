@@ -710,8 +710,9 @@ export type SacDigitalOperatorAdminData = {
   operators: Array<{
     id: string;
     name: string;
-    online: boolean;
+    online: boolean | null;
   }>;
+  checked_at: string | null;
 };
 
 export async function getSacDigitalOperatorBindingsAdmin(organizationId: string) {
@@ -723,6 +724,7 @@ export async function getSacDigitalOperatorBindingsAdmin(organizationId: string)
   return {
     employees: Array.isArray(data.employees) ? data.employees : [],
     operators: Array.isArray(data.operators) ? data.operators : [],
+    checked_at: typeof data.checked_at === "string" ? data.checked_at : null,
   } as SacDigitalOperatorAdminData;
 }
 
