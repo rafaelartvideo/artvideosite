@@ -89,12 +89,18 @@ test('legacy OS echoes are reconciled only when a matching OS send exists', () =
 });
 
 test('success step omits the redundant customer and OS summary card', () => {
-  const start=dialog.indexOf('{step === "success" ? (');
+  // There are two success conditions: one in the footer and another in the
+  // actual modal BODY. Assert against the body, not the footer buttons.
+  const bodyMarker='    >\n      {step === "success" ? (';
+  const bodyStart=dialog.indexOf(bodyMarker);
+  assert.ok(bodyStart>=0, 'the modal must render a success body');
+  const start=bodyStart+bodyMarker.indexOf('{step === "success" ? (');
   const end=dialog.indexOf(') : (',start);
-  assert.ok(start>=0 && end>start);
+  assert.ok(end>start);
   const success=dialog.slice(start,end);
   assert.doesNotMatch(success,/orderCustomerName\(order\)|order\?\.os_number/);
   assert.match(success,/Mensagem enviada com sucesso!/);
+  assert.match(success,/Documento enviado com sucesso!/);
 });
 
 test('historical provider echoes from OS are hidden but retained for audit', async () => {
