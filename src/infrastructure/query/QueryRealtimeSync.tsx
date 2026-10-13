@@ -375,7 +375,7 @@ function isForegroundQuery(queryKey: QueryKey, pathname: string) {
   if (family === "queue-integration") return route.startsWith("/admin/tools/union-senhas");
   if (family === "admin-home" || family === "admin-notifications") return route === "/admin";
   if (family === "orders" || family === "orders-workspace" || family === "orders-total") return inOrders;
-  if (family === "admin") return route === "/admin" || route.startsWith("/admin/dashboard");
+  if (family === "admin") return route.startsWith("/admin/dashboard");
   if (family === "finance") return inFinance || inPdv;
   if (family === "pdv") return inPdv;
   if (family === "inventory") return inInventory || inPdv || inOrders;
