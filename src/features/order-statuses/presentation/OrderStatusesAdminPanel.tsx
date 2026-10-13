@@ -81,11 +81,11 @@ function OrderStatusesAdminPanelContent({ routeResourceId, routeSubpage, onRoute
     setSaving(true);
     try {
       await saveOrderStatus({ name: form.name.trim(), color: form.color.trim().toUpperCase(), sort_order: sortOrder }, editItem?.id);
-      setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" }); await refresh();
+      setFormOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Status atualizado." : "Status criado.", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar status: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderStatus(id); await refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const remove = async (id: string) => { if (!canDelete) return; try { await deleteOrderStatus(id); void refresh(); } catch (error) { setToast({ msg: `Não foi possível excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
