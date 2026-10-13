@@ -76,6 +76,10 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
             {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
           </div>
+          <span className="text-center text-xs text-[#5a6a82] sm:text-left">
+            Cadastrado em <strong>{formatDateTime(selected.created_at, "—")}</strong> por{" "}
+            <strong>{selected.created_by_profile?.full_name || "Sistema"}</strong>
+          </span>
           <div className="hidden h-7 w-px shrink-0 bg-[#0d1b2e]/14 sm:block" aria-hidden="true" />
         </>}
         <RegistrationDetailsToolbar
@@ -84,6 +88,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           canViewPermissions={canOpenPermissions}
           agendaAction={roles.includes("employee") && canEdit ? <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage /> : undefined}
           onOpenContacts={onOpenContacts}
+          onOpenCustomerHistory={roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory ? () => onOpenCustomerHistory(selected.legacy_customer_id!) : undefined}
           onOpenRecords={onOpenRecords}
           onOpenPermissions={onOpenPermissions}
         />
@@ -104,13 +109,6 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
           </> : detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
         </div></Section>
-
-        <Section title="Cadastro">
-          <div className="grid gap-4 sm:grid-cols-2">
-            {detailValue("Data de cadastro", formatDateTime(selected.created_at, "—"))}
-            {detailValue("Cadastrado por", selected.created_by_profile?.full_name || "Sistema")}
-          </div>
-        </Section>
 
         <Section title="Endereços">
           {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
@@ -153,7 +151,6 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
 
     <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
-      {roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory && <BtnSecondary onClick={() => onOpenCustomerHistory(selected.legacy_customer_id!)}>Ficha do cliente</BtnSecondary>}
       {canEdit && <BtnPrimary onClick={onEdit}>Editar</BtnPrimary>}
     </AdminStickyToolbar>
   </AdminPage>;
