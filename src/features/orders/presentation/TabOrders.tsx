@@ -226,6 +226,7 @@ export function TabOrders({
 
   const detailsController = useOrderDetails({
     loadPartRequests,
+    clearPartRequests: partRequests.clearActiveOrder,
     replaceOrderImages,
     organizationIdOverride,
     loadPartRequestsEnabled: !scopedReadOnly,
