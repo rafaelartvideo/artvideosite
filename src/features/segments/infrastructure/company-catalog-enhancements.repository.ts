@@ -15,6 +15,8 @@ export type TenantChecklistTemplate = {
   title: string;
   response_type: string;
   is_required: boolean;
+  applied: boolean;
+  can_apply: boolean;
 };
 export type TenantCatalogTemplates = {
   technical: TenantTechnicalTemplate[];
@@ -78,6 +80,17 @@ export async function reviewTenantCatalogNameUpdate(
     p_catalog_id: catalogId,
     p_equipment_catalog_id: equipmentCatalogId,
     p_action: action,
+  });
+  if (error) throw error;
+}
+
+export async function addTenantCatalogChecklistItem(
+  organizationId: string, equipmentCatalogId: string, templateId: string,
+) {
+  const { error } = await supabase.rpc("adopt_company_catalog_checklist_item_v1", {
+    p_organization_id: organizationId,
+    p_catalog_equipment_id: equipmentCatalogId,
+    p_catalog_template_id: templateId,
   });
   if (error) throw error;
 }
