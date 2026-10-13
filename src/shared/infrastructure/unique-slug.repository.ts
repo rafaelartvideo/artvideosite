@@ -14,7 +14,9 @@ export type SlugTable =
 
 export async function generateUniqueSlug(table: SlugTable, value: string, excludeId?: string) {
   const baseSlug = slugify(value) || "item";
-  const { data, error } = await supabase.from(table).select("id, slug");
+  // O slug contém somente [a-z0-9-]. Consultar apenas candidatos com esse
+  // prefixo evita buscar todos os registros da tabela a cada criação/renomeação.
+  const { data, error } = await supabase.from(table).select("id, slug").like("slug", `${baseSlug}%`);
   if (error) throw error;
 
   const existingSlugs = new Set(
