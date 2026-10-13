@@ -286,7 +286,12 @@ export async function listSacDigitalMessages(organizationId: string, protocolId:
       .order("sent_at", { ascending: true });
 
     if (error) throw error;
-    const messages = (data || []) as SacDigitalMessage[];
+    // Ecos históricos gerados pela antiga rota Client no envio pela OS
+    // permanecem no banco para rastreabilidade, mas não são mensagens
+    // independentes: a cópia de saída já existe e é exibida normalmente.
+    const messages = ((data || []) as SacDigitalMessage[]).filter(message =>
+      message.raw_metadata?.suppressed_legacy_order_echo !== true,
+    );
     const messageIds = privateMediaIds(messages);
     if (!messageIds.length) return messages;
     try {
