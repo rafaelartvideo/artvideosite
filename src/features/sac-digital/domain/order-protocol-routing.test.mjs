@@ -96,3 +96,10 @@ test('success step omits the redundant customer and OS summary card', () => {
   assert.doesNotMatch(success,/orderCustomerName\(order\)|order\?\.os_number/);
   assert.match(success,/Mensagem enviada com sucesso!/);
 });
+
+test('historical provider echoes from OS are hidden but retained for audit', async () => {
+  const repo = await readFile(new URL('../infrastructure/sac-digital.repository.ts', import.meta.url), 'utf8');
+  assert.match(repo, /suppressed_legacy_order_echo !== true/);
+  assert.match(sacPage, /const senderHeading =/);
+  assert.match(sacPage, /<strong className="font-bold">\{senderHeading\[1\]\}<\/strong>/);
+});
