@@ -132,7 +132,7 @@ export function TechnicianAvailabilityCalendar({
           else setHighlightEmployee(event.target.value);
         }}>
         <option value="">Todos os técnicos</option>
-        {ids.map(item => <option key={item.id} value={item.id}>{item.full_name}</option>)}
+        {technicians.filter(item => item.is_active !== false).map(item => <option key={item.id} value={item.id}>{item.full_name}</option>)}
       </select>}
       <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
         <input type="checkbox" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)} />
