@@ -74,7 +74,7 @@ export function NewAppointmentDialog({ controller, allowedTechnicianId }: Props)
     </div>}
   >
     <div className="space-y-4">
-{appointmentCustomer && !changingAppointmentCustomer ? (
+      {appointmentCustomer && !changingAppointmentCustomer ? (
         <div className="rounded-xl border border-border bg-card p-4">
           <div className="flex flex-wrap items-start gap-3">
             <div className="min-w-[200px] flex-1 space-y-1">
@@ -88,14 +88,14 @@ export function NewAppointmentDialog({ controller, allowedTechnicianId }: Props)
               </p>
               <p className="text-xs text-muted-foreground">
                 {appointmentCustomer.customer_type === "PJ"
-                  ? \`CNPJ: \${formatCnpj(appointmentCustomer.cnpj || "")}\`
-                  : \`CPF: \${formatCpf(appointmentCustomer.document || "")}\`}
+                  ? `CNPJ: ${formatCnpj(appointmentCustomer.cnpj || "")}`
+                  : `CPF: ${formatCpf(appointmentCustomer.document || "")}`}
               </p>
               {(appointmentCustomer.whatsapp || appointmentCustomer.phone) && (
                 <p className="text-xs text-muted-foreground">
                   {appointmentCustomer.whatsapp
-                    ? \`WhatsApp: \${formatPhone(appointmentCustomer.whatsapp)}\`
-                    : \`Telefone: \${formatPhone(appointmentCustomer.phone)}\`}
+                    ? `WhatsApp: ${formatPhone(appointmentCustomer.whatsapp)}`
+                    : `Telefone: ${formatPhone(appointmentCustomer.phone)}`}
                 </p>
               )}
               {appointmentCustomer.email && <p className="text-xs text-muted-foreground">E-mail: {appointmentCustomer.email}</p>}
