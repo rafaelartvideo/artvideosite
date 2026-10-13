@@ -23,10 +23,12 @@ export function useOrderFilters({
   organizationId,
   stateOptions,
   matchOrderNumberOrExternal = false,
+  enabled = true,
 }: {
   organizationId?: string | null;
   stateOptions: StateOption[];
   matchOrderNumberOrExternal?: boolean;
+  enabled?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [osNumberSearch, setOsNumberSearch] = useState("");
@@ -56,7 +58,7 @@ export function useOrderFilters({
   const selectedStateKey = [...selectedStates].sort().join(",");
   const citiesQuery = useQuery({
     queryKey: ["ibge", "cities", selectedStateKey],
-    enabled: selectedStates.length > 0,
+    enabled: enabled && selectedStates.length > 0,
     staleTime: 24 * 60 * 60 * 1000,
     queryFn: async () => {
       const results = await Promise.all(selectedStates.map(async state => {
@@ -122,14 +124,14 @@ export function useOrderFilters({
 
   const generalTotalQuery = useQuery({
     queryKey: queryKeys.orders.total(organizationId || "none"),
-    enabled: Boolean(organizationId) && hasActiveServerFilters,
+    enabled: enabled && Boolean(organizationId) && hasActiveServerFilters,
     staleTime: 30 * 60_000,
     queryFn: () => countServiceOrders(organizationId!),
   });
 
   const ordersQuery = useQuery({
     queryKey: listKey,
-    enabled: Boolean(organizationId) && !invalidPeriod,
+    enabled: enabled && Boolean(organizationId) && !invalidPeriod,
     placeholderData: keepPreviousData,
     queryFn: () => listServiceOrdersPageWithCustomerName({
       organizationId: organizationId!,
@@ -204,7 +206,7 @@ export function useOrderFilters({
     setOrders,
     totalItems,
     generalTotalItems: hasActiveServerFilters ? (generalTotalQuery.data ?? totalItems) : totalItems,
-    loading: Boolean(organizationId) && (ordersQuery.isPending || ordersQuery.isPlaceholderData),
+    loading: enabled && Boolean(organizationId) && (ordersQuery.isPending || ordersQuery.isPlaceholderData),
     isFetching: ordersQuery.isFetching,
     error: ordersQuery.error,
     osNumberSearch,
