@@ -29,7 +29,7 @@ test('order attachments require a real provider protocol, never a notification',
 
 test('the order send dialog opens the exact returned protocol', () => {
   assert.match(dialog, /setLastSentProtocol\(confirmedProtocol\)/);
-  assert.match(dialog, /onOpenChat\(lastSentProtocol \|\| undefined\)/);
+  assert.match(dialog, /onOpenChat\(lastSentProtocol\)/);
   assert.match(orderPage, /params\.set\("protocol", externalProtocol\)/);
   assert.match(sacPage, /item\.external_protocol_id===routeExternalProtocol/);
 });
