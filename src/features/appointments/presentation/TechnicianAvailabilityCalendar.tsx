@@ -6,7 +6,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { dayKey } from "../application/agenda-calendar";
 import { hhmm, minutes, rangeAvailable } from "../infrastructure/employee-agenda.repository";
 import {
-  availableAt, loadTechnicianAvailabilityWeek, technicianAvailable,
+  availableAt, loadTechnicianAvailabilityWeek,
   type AvailableTechnician,
 } from "../infrastructure/technician-availability.repository";
 
@@ -19,6 +19,8 @@ type Props = {
   selectedTechnicianId?: string;
   exceptOrderId?: string | null;
   technicianFilter?: string;
+  onNavigateWeek?: (amount: number) => void;
+  onGoToToday?: () => void;
   onChooseStart?: (date: string, time: string, technicianId: string) => void;
   onChooseEnd?: (date: string, time: string, technicianId: string) => void;
 };
@@ -38,14 +40,14 @@ const displayDay = (value: string) =>
 
 export function TechnicianAvailabilityCalendar({
   organizationId, technicians, date, selectedStart, selectedEnd, selectedTechnicianId,
-  exceptOrderId, technicianFilter, onChooseStart, onChooseEnd,
+  exceptOrderId, technicianFilter, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
 }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [highlightEmployee, setHighlightEmployee] = useState("");
   const [hideEmpty, setHideEmpty] = useState(false);
   const today = dayKey(new Date());
   const baseWeek = weekMonday(date || today);
-  const first = shiftWeek(baseWeek, weekOffset);
+  const first = shiftWeek(baseWeek, onNavigateWeek ? 0 : weekOffset);
   const ids = technicians.filter(item => item.is_active !== false)
     .filter(item => !technicianFilter || item.id === technicianFilter);
   const idsKey = ids.map(item => item.id).sort().join(",");
@@ -93,15 +95,15 @@ export function TechnicianAvailabilityCalendar({
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <AdminButton variant="secondary" size="sm" onClick={() => { setWeekOffset(0); setHighlightEmployee(""); }}>Esta semana</AdminButton>
-        <AdminIconButton ariaLabel="Semana anterior" onClick={() => setWeekOffset(value => value - 1)}><ChevronLeft size={16} /></AdminIconButton>
-        <AdminIconButton ariaLabel="Semana seguinte" onClick={() => setWeekOffset(value => value + 1)}><ChevronRight size={16} /></AdminIconButton>
+        <AdminButton variant="secondary" size="sm" onClick={() => { if (onGoToToday) onGoToToday(); else setWeekOffset(0); setHighlightEmployee(""); }}>{onGoToToday ? "Hoje" : "Data escolhida"}</AdminButton>
+        <AdminIconButton ariaLabel="Semana anterior" onClick={() => onNavigateWeek ? onNavigateWeek(-1) : setWeekOffset(value => value - 1)}><ChevronLeft size={16} /></AdminIconButton>
+        <AdminIconButton ariaLabel="Semana seguinte" onClick={() => onNavigateWeek ? onNavigateWeek(1) : setWeekOffset(value => value + 1)}><ChevronRight size={16} /></AdminIconButton>
       </div>
     </div>
     <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
       <Users size={14} className="text-muted-foreground" />
       <span className="mr-1 text-xs font-semibold text-muted-foreground">{ids.length} técnicos</span>
-      {ids.length > 0 && <select aria-label="Destacar técnico"
+      {ids.length > 0 && <select aria-label="Filtrar por técnico"
         className="max-w-[210px] rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
         value={highlightEmployee} onChange={event => setHighlightEmployee(event.target.value)}>
         <option value="">Todos os técnicos</option>
