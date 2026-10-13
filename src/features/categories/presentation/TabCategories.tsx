@@ -70,12 +70,12 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
     try {
       const finalSlug = await generateUniqueSlug("service_categories", form.name, editItem?.id);
       await saveCategory({ ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug }, editItem?.id);
-      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" }); await refresh();
+      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar categoria: ${systemErrorMessage(error)}`, type: "error" }); }
     finally { setSaving(false); }
   };
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteCategory(id); setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao excluir categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
-  const toggleActive = async (category: any) => { if (!canToggleActive) return; const nextActive = !category.is_active; try { await setCategoryActive(category.id, nextActive); queryClient.setQueryData(queryKeys.catalog.categories(), (current: any[] | undefined) => (current ?? []).map(item => item.id === category.id ? { ...item, is_active: nextActive } : item)); setToast({ msg: "Status atualizado!", type: "success" }); await refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteCategory(id); setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao excluir categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const toggleActive = async (category: any) => { if (!canToggleActive) return; const nextActive = !category.is_active; try { await setCategoryActive(category.id, nextActive); queryClient.setQueryData(queryKeys.catalog.categories(), (current: any[] | undefined) => (current ?? []).map(item => item.id === category.id ? { ...item, is_active: nextActive } : item)); setToast({ msg: "Status atualizado!", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
