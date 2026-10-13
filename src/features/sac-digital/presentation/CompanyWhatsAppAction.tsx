@@ -61,7 +61,7 @@ export function CompanyWhatsAppAction({
           phone: digits,
           name: String(name || "").trim(),
         });
-        tab.location.replace(`${adminPath("tools", "sac-digital")}?${params.toString()}`);
+        tab.location.replace(new URL(`${adminPath("tools", "sac-digital")}?${params.toString()}`, window.location.origin).toString());
         return;
       }
       // WhatsApp Web/native fallback somente quando o SAC está explicitamente desativado.
