@@ -43,3 +43,26 @@ test("assinatura já concluída não exige link externo", () => {
   assert.equal(feedback.type, "success");
   assert.match(feedback.message, /assinado/);
 });
+
+test("reutilizar solicitação visualizada não reporta novo documento", () => {
+  const feedback = signatureRequestCreationFeedback({
+    reused: true,
+    resent: false,
+    link: "https://example.com/assinatura/existente",
+    request: { status: "viewed" },
+  });
+  assert.equal(feedback.type, "success");
+  assert.match(feedback.message, /já estava ativa/i);
+  assert.doesNotMatch(feedback.message, /solicitação criada|documento foi criado/i);
+});
+
+test("falha no WhatsApp ao reutilizar mantém link e QR Code disponíveis", () => {
+  const feedback = signatureRequestCreationFeedback({
+    reused: true,
+    whatsapp_warning: "Integração indisponível",
+    link: "https://example.com/assinatura/existente",
+  });
+  assert.equal(feedback.type, "error");
+  assert.match(feedback.message, /QR Code/);
+  assert.match(feedback.message, /Integração indisponível/);
+});
