@@ -85,6 +85,34 @@ export async function loadEquipmentBrandDirectory(
   return (raw.brands || []).map(item => item.name);
 }
 
+export type EquipmentServiceSettings = {
+  services: Array<{ id: string; name: string; is_active: boolean }>;
+  links: Array<{ equipment_type_id: string; general_service_id: string }>;
+};
+
+/** Read an organization's service catalog and links in one scoped request. */
+export async function loadEquipmentServiceSettings(): Promise<EquipmentServiceSettings> {
+  const organizationId = await getActiveOrganizationId();
+  const { data, error } = await supabase.rpc("load_equipment_service_settings_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  const payload = (data || {}) as Partial<EquipmentServiceSettings>;
+  return {
+    services: Array.isArray(payload.services) ? payload.services : [],
+    links: Array.isArray(payload.links) ? payload.links : [],
+  };
+}
+
+async function saveEquipmentServiceLinks(equipmentTypeId: string, serviceIds: string[], organizationId: string) {
+  const { error } = await supabase.rpc("save_equipment_service_links_v1", {
+    p_organization_id: organizationId,
+    p_equipment_type_id: equipmentTypeId,
+    p_service_ids: [...new Set(serviceIds)],
+  });
+  if (error) throw error;
+}
+
 export async function listServiceOrderTechnicalValues(serviceOrderId: string) {
   const organizationId = await getActiveOrganizationId();
   const result = await supabase.from("service_order_technical_values").select("*").eq("organization_id", organizationId).eq("service_order_id", serviceOrderId).order("created_at");
@@ -224,6 +252,11 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
     });
     if (technicalFieldsChanged) {
       await saveEquipmentTypeTechnicalFields(typeId, type.technicalFields, previousLinks, organizationId);
+    }
+
+    // Unedited or unavailable catalog links must never be removed accidentally.
+    if (type.serviceIds !== undefined) {
+      await saveEquipmentServiceLinks(typeId, type.serviceIds, organizationId);
     }
 
     const previousChecklistItems = (catalog.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type.id);
