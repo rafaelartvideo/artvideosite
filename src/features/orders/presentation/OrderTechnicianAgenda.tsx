@@ -14,6 +14,7 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
 }) {
   const { activeOrganizationId } = useAuth();
   const selectedTechnicianId = technicianIds[0] || "";
+  const selectedNames = technicianIds.map(id => employees.find(item => item.id === id)?.full_name || "Técnico");
   const date = String(form.scheduled_at || "").slice(0, 10) || dayKey(new Date());
   const start = String(form.scheduled_at || "").slice(11, 16);
   const end = String(form.scheduled_end_at || "").slice(11, 16);
@@ -22,7 +23,7 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <p className="text-sm font-bold text-foreground">Agendamento da OS</p>
-        <p className="text-xs text-muted-foreground">Visualize todos os técnicos livres e reserve um intervalo contínuo.</p>
+        <p className="text-xs text-muted-foreground">Selecione um horário e marque todos os técnicos que trabalharão juntos na mesma OS.</p>
       </div>
       <div className="w-full sm:w-[190px]">
         <FInput label="Ir para a data" type="date" min={dayKey(new Date())} value={date}
@@ -31,6 +32,7 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
             if (!nextDate) return;
             onFieldChange("scheduled_at", nextDate + "T");
             onFieldChange("scheduled_end_at", "");
+            if (canAssign) onTechniciansChange([]);
           }} />
       </div>
     </div>
@@ -41,6 +43,12 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
       selectedStart={start}
       selectedEnd={end}
       selectedTechnicianId={selectedTechnicianId}
+      selectedTechnicianIds={technicianIds}
+      onToggleTechnician={canAssign ? employeeId => {
+        onTechniciansChange(technicianIds.includes(employeeId)
+          ? technicianIds.filter(id => id !== employeeId)
+          : [...technicianIds, employeeId]);
+      } : undefined}
       exceptOrderId={editingOrderId}
       onChooseStart={canAssign ? (nextDate, time, employeeId) => {
         onTechniciansChange([employeeId]);
@@ -51,9 +59,12 @@ export function OrderTechnicianAgenda({ form, employees, technicianIds, onTechni
         onFieldChange("scheduled_end_at", nextDate + "T" + time);
       } : undefined}
     />
-    {start && selectedTechnicianId && <p className="text-xs font-semibold text-primary">
-      {employees.find(item => item.id === selectedTechnicianId)?.full_name || "Técnico"} · {date.split("-").reverse().join("/")} · {start}{end ? " às " + end : " — escolha o término"}
-    </p>}
+    {start && technicianIds.length > 0 && <div className="space-y-1 text-xs text-primary">
+      <p className="font-semibold">
+        {technicianIds.length} técnico{technicianIds.length === 1 ? "" : "s"} · {date.split("-").reverse().join("/")} · {start}{end ? " às " + end : " — escolha o término"}
+      </p>
+      <p className="break-words text-muted-foreground">{selectedNames.join(", ")}</p>
+    </div>}
     {!canAssign && <p className="text-xs text-amber-700">Sem permissão para alterar o técnico responsável.</p>}
   </div>;
 }
