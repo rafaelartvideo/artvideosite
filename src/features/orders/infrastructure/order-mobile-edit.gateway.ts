@@ -18,6 +18,7 @@ export type MobileOrderEditorData = {
     situations: any[];
     service_types: any[];
     general_services: any[];
+    equipment_service_links: Array<{ equipment_type_id: string; general_service_id: string }>;
     equipment_types: any[];
     equipment_brands: any[];
     equipment_models: any[];
