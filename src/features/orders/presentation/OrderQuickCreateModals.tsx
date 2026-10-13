@@ -47,6 +47,70 @@ function cleanCatalogValue(value: unknown) {
   return String(value ?? "").trim().replace(/\s+/g, " ");
 }
 
+/**
+ * Sugestão inicial do cadastro rápido para equipamentos identificáveis por série.
+ * A fonte real da exibição na OS são os vínculos técnicos deste equipamento.
+ * Tipos novos/desconhecidos deixam o campo desmarcado, mas o usuário pode incluí-lo.
+ */
+const SUGGESTED_SERIAL_EQUIPMENT_NAMES = new Set(
+  [
+    "Celular",
+    "Tablet",
+    "Smartwatch",
+    "Fone de ouvido",
+    "Televisor",
+    "Micro-ondas",
+    "Refrigerador",
+    "Freezer",
+    "Lavadora de roupas",
+    "Lava e seca",
+    "Fogão",
+    "Forno elétrico",
+    "Air fryer",
+    "Liquidificador/Multiprocessador",
+    "Cafeteira",
+    "Ferro de passar",
+    "Aspirador de pó",
+    "Som/Caixa de som",
+    "Adega",
+    "Ar-condicionado Split",
+    "Ar-condicionado de janela",
+    "Ar-condicionado portátil",
+    "Climatizador",
+    "Cortina de ar",
+    "Câmara fria",
+    "Notebook",
+    "Desktop",
+    "All-in-one",
+    "Monitor",
+    "Impressora",
+    "Roteador",
+    "Nobreak",
+    "Painel solar",
+    "Inversor solar",
+    "Bateria solar",
+    "Controlador de carga",
+    "Airfryer",
+    "Ar-Condicionado",
+    "Caixa De Som",
+    "Ferro A Vapor",
+    "Fone",
+    "Forno Eletrico",
+    "Forno Embutir",
+    "Lavadoura De Roupas",
+    "Liquidificador / Multiprocessador",
+    "Microondas",
+    "Pipoqueira",
+    "Som",
+    "Tv",
+    "Tv 85 Polegadas"
+  ].map(normalizeCatalogValue),
+);
+function suggestSerialForEquipment(name: string) {
+  return SUGGESTED_SERIAL_EQUIPMENT_NAMES.has(normalizeCatalogValue(name));
+}
+
+
 function getQuickCreateErrorMessage(error: unknown) {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -277,7 +341,14 @@ export function QuickEquipmentModal({
   const [brandName, setBrandName] = useState(initialBrand?.name || "");
   const [modelName, setModelName] = useState("");
   const [selectedFieldIds, setSelectedFieldIds] = useState<string[]>([]);
-  const [includeSerial, setIncludeSerial] = useState(true);
+
+  const initialHasSerial = Boolean(initialTypeId && technicalFieldLinks.some((link) =>
+    link.equipment_type_id === initialTypeId
+      && technicalFields.some((field) =>
+        field.id === link.technical_field_id && field.field_key === "numero_serie"
+      ),
+  ));
+  const [includeSerial, setIncludeSerial] = useState(() => initialHasSerial || suggestSerialForEquipment(initialType?.name || ""));
   const [saving, setSaving] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -305,6 +376,12 @@ export function QuickEquipmentModal({
     () => technicalFields.filter(field => field.is_active !== false && field.field_key !== "numero_serie"),
     [technicalFields],
   );
+  const serialAlreadyLinked = Boolean(selectedTypeId && technicalFieldLinks.some(link =>
+    link.equipment_type_id === selectedTypeId
+      && technicalFields.some(field =>
+        field.id === link.technical_field_id && field.field_key === "numero_serie"
+      ),
+  ));
 
   const exactType = findExactCatalogOption(typeOptions, typeName);
   const typeConflict = Boolean(exactType && exactType.id !== selectedTypeId);
@@ -506,10 +583,20 @@ export function QuickEquipmentModal({
                       placeholder="Ex: Televisão"
                       onChange={(value) => {
                         setTypeName(value);
+                        setIncludeSerial(suggestSerialForEquipment(value));
                         setErrorMessage("");
                       }}
                       onSelect={(option) => {
                         setSelectedTypeId(option?.id || "");
+                        setIncludeSerial(Boolean(option && (
+                          suggestSerialForEquipment(option.name) ||
+                          technicalFieldLinks.some(link =>
+                            link.equipment_type_id === option.id
+                              && technicalFields.some(field =>
+                                field.id === link.technical_field_id && field.field_key === "numero_serie"
+                              ),
+                          )
+                        )));
                         resetBrand();
                         setErrorMessage("");
                       }}
@@ -574,14 +661,16 @@ export function QuickEquipmentModal({
                   <div className="mb-3">
                     <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#5a6a82]">Campos extras do equipamento</p>
                     <p className="mt-1 text-[11px] leading-4 text-[#5a6a82] sm:text-xs">
-                      Selecione os campos que aparecerão nas OS. NÚMERO DE SÉRIE vem marcado somente neste cadastro rápido.
+                      Selecione os campos que aparecerão nas OS. NÚMERO DE SÉRIE é sugerido somente para equipamentos apropriados e pode ser incluído manualmente nos demais.
                       {selectedTypeId ? " Os campos já vinculados serão mantidos." : ""}
                     </p>
                   </div>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                     <label className="flex min-w-0 items-center gap-2 rounded-lg border border-primary/30 bg-primary-soft/50 px-3 py-2.5 text-sm font-bold text-[#0d1b2e]">
-                      <Checkbox disabled={saving} checked={includeSerial} onCheckedChange={checked => setIncludeSerial(checked === true)} />
-                      <span>NÚMERO DE SÉRIE</span>
+                      <Checkbox disabled={saving || serialAlreadyLinked}
+                        checked={serialAlreadyLinked || includeSerial}
+                        onCheckedChange={checked => setIncludeSerial(checked === true)} />
+                      <span>NÚMERO DE SÉRIE{serialAlreadyLinked ? " · Já vinculado" : ""}</span>
                     </label>
                     {activeTechnicalFields.map(field => {
                       const alreadyLinked = selectedTypeId && technicalFieldLinks.some(link =>
