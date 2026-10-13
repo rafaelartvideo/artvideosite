@@ -55,10 +55,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
       const { error } = await cancelServiceOrder(detail.id, reason);
       if (error) throw error;
       setCancelledLocally(true);
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
-        queryClient.invalidateQueries({ queryKey: queryKeys.admin.all }),
-      ]);
+      void queryClient.invalidateQueries({ queryKey: queryKeys.orders.all });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.admin.all });
       notifyAdmin(`OS ${detail.os_number || ""} cancelada.`, "success");
       setCancelOpen(false);
       onClose();
