@@ -109,10 +109,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
     serviceFilter,
   });
   const calendarEvents = !canViewOthers && !myEmployeeId ? [] : filteredCalendarEvents;
-  const statuses = Array.from(new Map(orders.flatMap(order => {
-    const statusId = order.order_status?.id;
-    return statusId ? [[statusId, order.order_status] as const] : [];
-  })).values());
+  const statuses = query.data?.statuses ?? [];
 
   const moveCursor = (amount: number) => {
     const next = new Date(cursor);
