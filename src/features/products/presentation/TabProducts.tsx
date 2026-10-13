@@ -709,7 +709,7 @@ export function TabProducts({
       setDrawerOpen(false);
       onRouteChange?.(null, null);
       setToast({ msg: editItem ? "Item atualizado!" : "Item criado!", type: "success" });
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: `Erro ao salvar item: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
@@ -727,7 +727,7 @@ export function TabProducts({
         products: (current.products ?? []).map((item: any) => item.id === product.id ? { ...item, is_active: nextActive } : item),
       } : current);
       setToast({ msg: "Status atualizado!", type: "success" });
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: `Erro ao atualizar item: ${systemErrorMessage(error)}`, type: "error" });
     }
@@ -738,7 +738,7 @@ export function TabProducts({
     try {
       await updateProductFlags(activeOrganizationId, product.id, { is_featured: !product.is_featured }, user?.id ?? null);
       setToast({ msg: "Destaque atualizado!", type: "success" });
-      await refresh();
+      void refresh();
     } catch (error) {
       setToast({ msg: `Erro ao atualizar destaque: ${systemErrorMessage(error)}`, type: "error" });
     }
