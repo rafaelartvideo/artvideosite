@@ -221,7 +221,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const recordActivity = () => {
       const now = Date.now();
-      if (now - lastAcceptedActivityAt < 1_000) return;
+      // Pointermove/scroll chegam dezenas de vezes por segundo; persistir
+      // atividade a cada 5s é suficiente para a janela de 20 minutos e
+      // reduz gravações síncronas no storage do navegador.
+      if (now - lastAcceptedActivityAt < 5_000) return;
       lastAcceptedActivityAt = now;
       lastActivityAt = now;
       writeSessionActivity(userId, now);
