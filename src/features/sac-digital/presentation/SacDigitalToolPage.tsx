@@ -296,6 +296,7 @@ export function SacDigitalToolPage({
   const location = useLocation();
   const navigate = useNavigate();
   const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
+  const routeExternalProtocol = new URLSearchParams(location.search).get("protocol") || "";
   const canManage = hasPermission("sac_digital.settings.manage");
   const canManageProtocols = hasPermission("sac_digital.protocols.manage");
   const canViewMessages = hasPermission("sac_digital.messages.view");
@@ -411,6 +412,7 @@ export function SacDigitalToolPage({
   const lastResumeRefreshRef = useRef(0);
   const activePendingContactIdRef = useRef<string | null>(null);
   const handledCustomerRouteRef = useRef("");
+  const handledProtocolRouteRef = useRef("");
 
   const selectProtocol = useCallback((protocolId: string | null) => {
     if (selectedProtocolIdRef.current === protocolId) return;
@@ -729,8 +731,62 @@ export function SacDigitalToolPage({
     };
   }, [loadProtocols, loadStatus, loadUnreadCounts]);
 
+  // A OS pode fornecer o identificador REAL do protocolo devolvido pela SAC.
+  // Priorizar esse protocolo em vez de escolher a primeira conversa do cliente.
   useEffect(() => {
-    if (loading || !activeOrganizationId || !routeCustomerId) return;
+    if (loading || !activeOrganizationId || !routeExternalProtocol || !canViewMessages) return;
+    const targetKey = `${activeOrganizationId}:${routeExternalProtocol}`;
+    if (handledProtocolRouteRef.current === targetKey) return;
+    handledProtocolRouteRef.current = targetKey;
+    if (!/^[A-Za-z0-9_-]{3,80}$/.test(routeExternalProtocol)) {
+      setMessage({text:"O número do protocolo informado pela OS é inválido.",error:true});
+      return;
+    }
+    let cancelled=false;
+    const openExactProtocol = async () => {
+      let found = visibleProtocols.find(item => !item.is_pending && item.external_protocol_id===routeExternalProtocol) || null;
+      for(let attempt=0;attempt<5&&!found;attempt++) {
+        if(attempt>0) await new Promise(resolve => setTimeout(resolve,400*attempt));
+        if(cancelled) return;
+        try {
+          const next = await listSacDigitalProtocols(activeOrganizationId,true,user?.id || "");
+          if(cancelled) return;
+          setProtocols(next);
+          found = next.find(item=>!item.is_pending && item.external_protocol_id===routeExternalProtocol) || null;
+        } catch { /* webhook/worker pode projetar o protocolo após alguns instantes */ }
+      }
+      if(cancelled) return;
+      if(!found) {
+        setMessage({
+          text:"O protocolo foi confirmado pela SAC Digital, mas ainda não aparece na Union. Atualize os atendimentos em alguns instantes.",
+          error:true,
+        });
+        return;
+      }
+      const accessible = isSacManager || visibleProtocols.some(item=>item.id===found!.id)
+        || (operatorBinding?.access_mode==="operator"
+            && (!found.operator_id || found.operator_id===operatorBinding.operator?.id));
+      if(!accessible) {
+        setMessage({text:"Seu perfil SAC não tem acesso a este protocolo. Solicite permissão ao gestor.",error:true});
+        return;
+      }
+      setConversationSearch("");
+      setOperatorFilter("all");
+      setStatusFilter(found.status==="in_att" ? "in_att" : found.status==="finished" ? "finished"
+        : found.status==="self_service" ? "self_service" : "waiting");
+      setModuleSection("conversations");
+      selectProtocol(found.id);
+    };
+    void openExactProtocol();
+    return () => { cancelled=true; };
+  }, [
+    activeOrganizationId, loading, routeExternalProtocol, canViewMessages,
+    visibleProtocols, isSacManager, operatorBinding?.access_mode, operatorBinding?.operator?.id,
+    selectProtocol, user?.id,
+  ]);
+
+  useEffect(() => {
+    if (loading || !activeOrganizationId || !routeCustomerId || routeExternalProtocol) return;
     if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(routeCustomerId)) {
       setMessage({ text: "Cliente informado no link da OS é inválido.", error: true });
       return;
@@ -808,7 +864,7 @@ export function SacDigitalToolPage({
       setNewConversationOpen(true);
     })();
     return () => { cancelled = true; };
-  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, status?.enabled, visibleProtocols]);
+  }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, routeExternalProtocol, status?.enabled, visibleProtocols]);
 
   useEffect(() => {
     let cancelled = false;
