@@ -458,15 +458,16 @@ export function QueryRealtimeSync() {
         ? `organization_id=eq.${activeOrganizationId}`
         : null;
 
-      for (const event of ["INSERT", "UPDATE"] as const) {
-        channel = channel.on(
-          "postgres_changes",
-          organizationFilter
-            ? { event, schema: "public", table, filter: organizationFilter }
-            : { event, schema: "public", table },
-          payload => handleChange(payload as RealtimePayload),
-        );
-      }
+      // Uma única assinatura por tabela (em vez de INSERT + UPDATE).
+      // Quando o evento DELETE disponibilizar o identificador filtrável,
+      // ele também invalidará os caches afetados.
+      channel = channel.on(
+        "postgres_changes",
+        organizationFilter
+          ? { event: "*", schema: "public", table, filter: organizationFilter }
+          : { event: "*", schema: "public", table },
+        payload => handleChange(payload as RealtimePayload),
+      );
     }
 
     const handleOrganizationChange = () => {
