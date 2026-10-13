@@ -46,10 +46,7 @@ export async function loadEquipmentCatalog(): Promise<EquipmentCatalog> {
   } as EquipmentCatalog;
 }
 
-export type EquipmentBrandDirectoryEntry = {
-  name: string;
-  source: "union" | "company" | "both";
-};
+export type EquipmentBrandDirectoryEntry = { name: string };
 
 /**
  * Central brands are read through the existing permission-checked catalog RPCs.
@@ -83,6 +80,37 @@ export async function loadEquipmentBrandDirectory(
   if (error) throw error;
   const raw = (data || {}) as { brands?: Array<{ name: string }> };
   return (raw.brands || []).map(item => item.name);
+}
+
+/** Cria registros de uma marca apenas para os equipamentos selecionados. */
+export async function createEquipmentBrandForTypes(
+  name: string, equipmentTypeIds: string[], catalog: EquipmentCatalog,
+): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
+  const cleanName = name.trim().replace(/\s+/g, " ");
+  const typeIds = [...new Set(equipmentTypeIds)];
+  if (!cleanName || cleanName.length > 120) throw new Error("Informe uma marca com até 120 caracteres.");
+  if (!typeIds.length) throw new Error("Selecione ao menos um equipamento.");
+  if (typeIds.some(id => !catalog.types.some(type => type.id === id && type.is_active))) {
+    throw new Error("Selecione apenas equipamentos ativos desta empresa.");
+  }
+  const normalize = (value: string) => value.trim().normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  if (catalog.brands.some(brand => normalize(brand.name) === normalize(cleanName))) {
+    throw new Error("Esta marca já está cadastrada. Selecione-a no cadastro do equipamento.");
+  }
+  const usedSlugs = new Set(catalog.brands.map(item => (item as { slug?: string }).slug).filter(Boolean));
+  const base = slugify(cleanName) || "marca";
+  const payload = typeIds.map(equipmentTypeId => {
+    let slug = base;
+    let n = 2;
+    while (usedSlugs.has(slug)) slug = `${base}-${n++}`;
+    usedSlugs.add(slug);
+    return { organization_id: organizationId, equipment_type_id: equipmentTypeId,
+      name: cleanName, slug, is_active: true, sort_order: 0 };
+  });
+  const { error } = await supabase.from("equipment_brands").insert(payload);
+  if (error) throw toCatalogError(error, "Não foi possível cadastrar a marca.");
 }
 
 export type EquipmentServiceSettings = {
