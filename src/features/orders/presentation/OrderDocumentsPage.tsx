@@ -168,7 +168,7 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
   const uploading = controller.uploadingAttachment;
-  const firstPdf = files.find(file => file.type === "application/pdf" || /\\.pdf$/i.test(file.name)) ?? null;
+  const firstPdf = files.find(file => file.type === "application/pdf" || /\.pdf$/i.test(file.name)) ?? null;
 
   const chooseFiles = (list: FileList | null) => {
     setFiles(Array.from(list || []));
