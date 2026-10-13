@@ -129,7 +129,15 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   };
   const addModel = (ti: number, bi: number) => canCreate && setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: [...brand.models, { name: "", is_active: true }] } : brand) } : type));
   const updateModel = (ti: number, bi: number, mi: number, value: Partial<EquipmentDraftModel>) => setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: brand.models.map((model, k) => k === mi ? { ...model, ...value } : model) } : brand) } : type));
-  const removeModel = (ti: number, bi: number, mi: number) => canDelete && setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: brand.models.filter((_, k) => k !== mi) } : brand) } : type));
+  const removeModel = (ti: number, bi: number, mi: number) => setDrafts(current => current.map((type, i) => {
+    if (i !== ti) return type;
+    return { ...type, brands: type.brands.map((brand, j) => {
+      if (j !== bi) return brand;
+      const model = brand.models[mi];
+      if (!model || (model.id ? !canDelete : !canCreate)) return brand;
+      return { ...brand, models: brand.models.filter((_, k) => k !== mi) };
+    }) };
+  }));
   const updateTechnicalField = (ti: number, fieldId: string, checked: boolean) => { if (!canManageFields) return; setDrafts(current => current.map((type, i) => { if (i !== ti) return type; const existing = type.technicalFields.find(field => field.technical_field_id === fieldId); return { ...type, technicalFields: checked ? existing ? type.technicalFields : [...type.technicalFields, { technical_field_id: fieldId, required: false, sort_order: type.technicalFields.length * 10 }] : type.technicalFields.filter(field => field.technical_field_id !== fieldId) }; })); };
   const updateTechnicalFieldRequired = (ti: number, fieldId: string, required: boolean) => { if (!canManageFields) return; setDrafts(current => current.map((type, i) => i === ti ? { ...type, technicalFields: type.technicalFields.map(field => field.technical_field_id === fieldId ? { ...field, required } : field) } : type)); };
   const openNewField = () => { if (!canManageFields) return; setEditingField(null); setFieldForm({ label: "", field_type: "text", is_active: true }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
