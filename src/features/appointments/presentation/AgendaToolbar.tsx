@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Eraser, ListFilter, Plus, Search } from "lucide-react";
-import type { AppointmentSituation } from "@/lib/database.types";
 import { buildAgendaDays, type AgendaView } from "../application/agenda-calendar";
 import { cn } from "@/shared/domain/formatters";
 import { FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -21,7 +20,7 @@ type Props = {
   serviceFilter: string;
   employees: Employee[];
   statuses: NamedItem[];
-  situations: AppointmentSituation[];
+  situations: NamedItem[];
   services: Service[];
   generalServices: GeneralService[];
   canCreate: boolean;
