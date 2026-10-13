@@ -16,7 +16,7 @@ import { assertEmployeeScheduleAvailable } from "../infrastructure/employee-agen
 
 type Technician = { id: string; full_name: string };
 type ToastType = "success" | "error";
-type AppointmentSubmodal = "address" | "technicians" | null;
+type AppointmentSubmodal = "address" | null;
 type AppointmentFieldErrors = Partial<Record<"customer_id" | "appointment_date" | "start_time" | "end_time" | "situation_id", string>>;
 
 type Options = {
