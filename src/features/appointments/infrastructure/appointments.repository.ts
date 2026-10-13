@@ -84,7 +84,7 @@ export async function loadAgendaData({
     ordersQuery,
     supabase
       .from("appointments")
-      .select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)), service_order:service_orders(id,os_number,model,serial_number,service:services(id,title),general_service:general_services(id,name),order_status:order_statuses(id,name,color),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name))), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at), appointment_technicians(employee_id,employee:employees(id,full_name))")
+      .select("*, created_by_profile:profiles!created_by(id,full_name), customer:customers(id,full_name,document,cnpj,phone,whatsapp,addresses:customer_addresses(*)), service_order:service_orders(id,os_number,model,serial_number,service:services(id,title),general_service:general_services(id,name),order_status:order_statuses(id,name,color),situation:os_situations(id,name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name))), situation:appointment_situations(id,name,color,is_active,sort_order,created_at,updated_at), appointment_technicians(employee_id,employee:employees(id,full_name))")
       .eq("organization_id", org)
       .gte("appointment_date", dateFrom)
       .lt("appointment_date", dateToExclusive)
@@ -92,7 +92,7 @@ export async function loadAgendaData({
     supabase.from("employees").select("id,full_name,is_active").eq("organization_id", org).eq("is_active", true).order("full_name"),
     supabase.from("services").select("id,title").eq("organization_id", org).eq("is_active", true).order("title"),
     supabase.from("general_services").select("id,name").eq("organization_id", org).eq("is_active", true).order("name"),
-    supabase.from("order_statuses").select("id,name").eq("organization_id", org).order("name"),
+    supabase.from("order_statuses").select("id,name").eq("organization_id", org).order("sort_order"),
     supabase.from("os_situations").select("id,name,hours").eq("organization_id", org).eq("is_active", true).order("sort_order"),
     supabase
       .from("appointment_situations")
