@@ -2783,6 +2783,117 @@ Deno.serve(async request => {
       return json({ success: true, protocol, finished: true });
     }
 
+
+    // O envio originado na OS somente pode usar um protocolo real da SAC.
+    // Mesmo contato + atendimento em andamento = reutilizar; sem atendimento = abrir
+    // pelo Operador autorizado e AGUARDAR a confirmação do fornecedor.
+    const resolveOrderConversationProtocol = async (
+      externalContactId: string,
+      credentials: Awaited<ReturnType<typeof loadCredentials>>,
+      messageType: string,
+      orderId: string,
+    ): Promise<{protocol: string | null; error?: string; type?: string; outcome?: string}> => {
+      type OpenState = { protocol: string; operatorId: string; operatorName: string };
+      const findOpen = async (): Promise<OpenState | null> => {
+        const lookup = await apiRequest(
+          organizationId,credentials,
+          `/contact/info/protocols?p=1&id=${encodeURIComponent(externalContactId)}`,
+          {method:"GET"},
+        );
+        if(!lookup.response.ok || lookup.body.status===false || !Array.isArray(lookup.body.list)) {
+          throw new Error("Não foi possível confirmar os protocolos deste cliente. Nenhuma mensagem foi enviada.");
+        }
+        for(const row of lookup.body.list.filter((x:unknown)=>x && typeof x==="object" && !Array.isArray(x)) as Array<Record<string,unknown>>) {
+          if(row.is_open !== true || Boolean(row.closed_at)) continue;
+          const candidate=String(row.protocol || "").trim();
+          if(!validProtocol(candidate)) continue;
+          const detail=await apiRequest(
+            organizationId,credentials,
+            `/protocol/info?protocol=${encodeURIComponent(candidate)}`,
+            {method:"GET"},
+          );
+          if(!detail.response.ok || detail.body.status===false) continue;
+          const info=detail.body.info && typeof detail.body.info==="object" && !Array.isArray(detail.body.info)
+            ? detail.body.info as Record<string,unknown> : null;
+          if(info?.is_open===true && !String(info.closed_at || "").trim()) {
+            const operator=info.operator && typeof info.operator==="object" && !Array.isArray(info.operator)
+              ? info.operator as Record<string,unknown> : {};
+            return {
+              protocol:candidate,
+              operatorId:String(operator.id || info.operator_id || "").trim(),
+              operatorName:String(operator.name || info.operator_name || "").trim(),
+            };
+          }
+          if(info && (info.is_open===false || Boolean(info.closed_at))) {
+            try {await enrichProtocol(organizationId,candidate);} catch { /* webhook pode reconciliar */ }
+          }
+        }
+        return null;
+      };
+      const binding=await resolveMySacAccessBinding();
+      const current=await findOpen();
+      if(current) {
+        if(binding?.accessMode==='operator' && current.operatorId && binding.id!==current.operatorId) {
+          return {
+            protocol:null,type:"protocol_owned_by_other_operator",
+            error:`O cliente já está em atendimento com ${current.operatorName || "outro Operador SAC"}. Abra esse protocolo com um perfil autorizado; nenhuma mensagem foi enviada.`,
+          };
+        }
+        try { await enrichProtocol(organizationId,current.protocol); } catch { /* provedor confirmado */ }
+        return {protocol:current.protocol};
+      }
+      if(!binding || binding.accessMode!=='operator' || !binding.id) {
+        return {
+          protocol:null,type:"operator_required_to_start",
+          error:"Para iniciar um protocolo a partir da OS, vincule e autorize um Operador SAC. O perfil Gestor pode consultar atendimentos, mas não iniciar atendimento operacional sem um Operador. Nenhuma mensagem foi enviada.",
+        };
+      }
+      if(!(await requirePermission("sac_digital.protocols.manage"))) {
+        return {protocol:null,type:"permission_denied",error:"Sua função não pode abrir protocolos SAC. Nenhuma mensagem foi enviada."};
+      }
+      const channelResult=await apiRequest(organizationId,credentials,"/channel/all",{method:"GET"});
+      const channels=Array.isArray(channelResult.body.list)?channelResult.body.list:[];
+      const usable=channels.find((candidate:any)=>
+        candidate && candidate.actived!==false && String(candidate.id || "").trim()
+        && !channelCapabilityError(candidate,{type:messageType}),
+      );
+      if(!channelResult.response.ok || channelResult.body.status===false || !usable) {
+        return {
+          protocol:null,type:"channel_unavailable",
+          error:"Não há canal SAC ativo compatível com este tipo de mensagem. Nenhuma notificação foi enviada.",
+        };
+      }
+      const forwarded=await runResourceOperation(
+        11,{id:externalContactId,operator:binding.id},
+        typeof body.intent_key==="string"
+          ? `${userData.user.id}:order-protocol:${orderId}:${body.intent_key.slice(0,120)}`
+          : undefined,
+      );
+      let confirmed:OpenState|null=null;
+      for(let attempt=0;attempt<5&&!confirmed;attempt++) {
+        if(attempt>0) await new Promise(resolve=>setTimeout(resolve,300*attempt));
+        try {confirmed=await findOpen();} catch { /* Não assumir protocolo ainda */ }
+      }
+      if(!confirmed) {
+        return {
+          protocol:null,
+          type:forwarded.success ? "protocol_opening_pending" : forwarded.type || "protocol_opening_failed",
+          outcome:forwarded.outcome,
+          error:forwarded.success || forwarded.outcome==="unknown"
+            ? "A SAC Digital recebeu a abertura, mas ainda não confirmou o protocolo. Nenhuma mensagem foi enviada; consulte os atendimentos antes de repetir."
+            : forwarded.error || "A SAC Digital não abriu o protocolo. Nenhuma mensagem foi enviada.",
+        };
+      }
+      if(confirmed.operatorId && confirmed.operatorId!==binding.id) {
+        return {
+          protocol:null,type:"protocol_owned_by_other_operator",
+          error:`O contato já está com ${confirmed.operatorName || "outro Operador SAC"}. Nenhuma mensagem foi enviada.`,
+        };
+      }
+      try {await enrichProtocol(organizationId,confirmed.protocol);} catch { /* webhook reconciliará */ }
+      return {protocol:confirmed.protocol};
+    };
+
     if (action === "send_media") {
       if (!(await requirePermission("sac_digital.messages.send"))) {
         return json({ success: false, error: "Sem permissão para enviar anexos pelo SAC Digital." }, 403);
@@ -3615,65 +3726,16 @@ Deno.serve(async request => {
         }
       }
 
-      // Envio iniciado pela OS segue a mesma propriedade do atendimento da tela:
-      // Operador SAC nunca envia silenciosamente dentro de uma conversa de outro operador.
-      type OrderOpenProtocolState = {
-        protocol: string;
-        operatorId: string;
-        operatorName: string;
-      };
-
-      const findSacOpenProtocol = async (): Promise<OrderOpenProtocolState | null> => {
-        const lookup = await apiRequest(
-          organizationId,
-          credentials,
-          `/contact/info/protocols?p=1&id=${encodeURIComponent(externalContactId)}`,
-          { method: "GET" },
-        );
-        if (!lookup.response.ok || lookup.body.status === false) return null;
-        const rows = Array.isArray(lookup.body.list)
-          ? lookup.body.list.filter(row => row && typeof row === "object" && !Array.isArray(row)) as Record<string, unknown>[]
-          : [];
-        for (const row of rows) {
-          if (row.is_open !== true || Boolean(row.closed_at)) continue;
-          const candidate = String(row.protocol || "").trim();
-          if (!validProtocol(candidate)) continue;
-
-          const detail = await apiRequest(
-            organizationId,
-            credentials,
-            `/protocol/info?protocol=${encodeURIComponent(candidate)}`,
-            { method: "GET" },
-          );
-          if (!detail.response.ok || detail.body.status === false) continue;
-          const info = detail.body.info && typeof detail.body.info === "object"
-            && !Array.isArray(detail.body.info)
-            ? detail.body.info as Record<string, unknown>
-            : null;
-          if (info?.is_open === true && !String(info.closed_at || "").trim()) {
-            const operator = info.operator && typeof info.operator === "object"
-              && !Array.isArray(info.operator)
-              ? info.operator as Record<string, unknown>
-              : {};
-            return {
-              protocol: candidate,
-              operatorId: String(operator.id || info.operator_id || "").trim(),
-              operatorName: String(operator.name || info.operator_name || "").trim(),
-            };
-          }
-
-          if (info && (info.is_open === false || Boolean(info.closed_at))) {
-            try {
-              await enrichProtocol(organizationId, candidate);
-            } catch {
-              // A ausência de projeção local não autoriza enviar em protocolo fechado.
-            }
-          }
-        }
-        return null;
-      };
-
-      const openProtocol = await findSacOpenProtocol();
+      const resolution=await resolveOrderConversationProtocol(externalContactId,credentials,"text",orderId);
+      if(!resolution.protocol) {
+        return json({
+          success:false,
+          type:resolution.type || "protocol_not_confirmed",
+          outcome:resolution.outcome || "rejected",
+          error:resolution.error || "A SAC Digital não confirmou um protocolo. Nenhuma mensagem foi enviada.",
+        },resolution.type==="protocol_opening_pending"?502:409);
+      }
+      const openProtocol={protocol:resolution.protocol};
 
       if (openProtocol) {
         const openedProtocol = openProtocol.protocol;
@@ -3790,94 +3852,11 @@ Deno.serve(async request => {
         });
       }
 
-      const notification = await apiRequest(
-        organizationId,
-        credentials,
-        "/notification/contact",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            contact: externalContactId,
-            type: "text",
-            text,
-          }),
-        },
-      );
-
-      if (!notification.response.ok || notification.body.status === false || notification.body.success === false) {
-        return json({
-          success: false,
-          error: typeof notification.body.message === "string" && notification.body.message.trim()
-            ? `SAC Digital: ${notification.body.message.trim()}`
-            : "A SAC Digital não conseguiu enviar a mensagem ao cliente.",
-        });
-      }
-
-      // A SAC pode aceitar a mensagem da OS sem abrir um protocolo.
-      // Guardar o envio confirmado para aparecer na caixa de entrada como
-      // "Aguardando protocolo", sem inventar atendimento nem repetir envio.
-      let pendingStartId: string | null = null;
-      const { data: pendingContact, error: pendingContactError } = await admin
-        .from("sac_digital_contacts")
-        .select("id")
-        .eq("organization_id", organizationId)
-        .eq("external_contact_id", externalContactId)
-        .maybeSingle();
-      if (pendingContactError) {
-        console.warn("[SAC DIGITAL API] order pending contact lookup failed", {
-          organization_id: organizationId,
-          code: pendingContactError.code,
-        });
-      }
-      if (pendingContact?.id) {
-        const sentAt = new Date().toISOString();
-        const { data: pendingStart, error: pendingError } = await admin
-          .from("sac_digital_outbound_starts")
-          .upsert({
-            organization_id: organizationId,
-            contact_id: pendingContact.id,
-            external_contact_id: externalContactId,
-            message_text: text,
-            sender_id: userData.user.id,
-            sent_at: sentAt,
-            updated_at: sentAt,
-            notification_id: notification.body.notification_id || notification.body.id || null,
-            delivery_state: "accepted",
-          }, { onConflict: "organization_id,external_contact_id" })
-          .select("id")
-          .maybeSingle();
-        if (pendingError) {
-          console.warn("[SAC DIGITAL API] order pending start insert failed", {
-            organization_id: organizationId,
-            code: pendingError.code,
-          });
-        } else {
-          pendingStartId = String(pendingStart?.id || "") || null;
-        }
-      }
-
-      await writeSacAudit({
-        action: "sac_digital.order.send_message",
-        operation: "send",
-        entityType: "service_order",
-        entityId: orderId,
-        contextType: "service_order",
-        contextId: orderId,
-        metadata: {
-          transport: "notification",
-          pending_start_id: pendingStartId,
-          notification_id: notification.body.notification_id || notification.body.id || null,
-          message_length: text.length,
-        },
-      });
-
       return json({
-        success: true,
-        mode: "notification",
-        pending_start_id: pendingStartId,
-        notification_id: notification.body.notification_id || notification.body.id || null,
-        request_id: typeof notification.body.request_id === "string" ? notification.body.request_id : null,
-      });
+        success:false,
+        type:"protocol_required",
+        error:"A SAC Digital não confirmou um protocolo para esta OS. Nenhuma notificação foi enviada.",
+      },409);
     }
 
     if (action === "send_message") {
