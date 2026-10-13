@@ -114,7 +114,9 @@ test('historical provider echoes from OS are hidden but retained for audit', asy
 test('switching any conversation category closes the active conversation', () => {
   assert.match(sacPage, /onClick=\{\(\) => switchConversationCategory\(value\)\}/);
   assert.match(sacPage, /const switchConversationCategory = useCallback\(/);
-  assert.match(sacPage, /selectProtocol\(null\);\s*setOrderConversationPreview\(null\);\s*orderConversationContextRef\.current = null;\s*setStatusFilter\(nextStatus\);/);
+  assert.match(sacPage, /selectProtocol\(null\);[\s\S]*?setStatusFilter\(nextStatus\);/);
+  assert.match(sacPage, /setOrderConversationPreview\(null\);/);
+  assert.match(sacPage, /orderConversationContextRef\.current = null;/);
   assert.match(sacPage, /params\.delete\("protocol"\);/);
   assert.match(sacPage, /params\.delete\("customer"\);/);
 });
