@@ -46,6 +46,36 @@ export async function loadEquipmentCatalog(): Promise<EquipmentCatalog> {
   } as EquipmentCatalog;
 }
 
+export type EquipmentBrandDirectoryEntry = {
+  name: string;
+  source: "union" | "company" | "both";
+};
+
+/**
+ * Central brands are read through the existing permission-checked catalog RPCs.
+ * Partners see published brands for their segments; the platform sees its own
+ * central directory. Company brands always come from the tenant catalog.
+ */
+export async function loadEquipmentBrandDirectory(
+  isPlatformOperator: boolean,
+  canViewUnionCatalog: boolean,
+): Promise<string[]> {
+  const organizationId = await getActiveOrganizationId();
+  if (isPlatformOperator) {
+    if (!canViewUnionCatalog) return [];
+    const { data, error } = await supabase.rpc("load_union_catalog_admin_v1");
+    if (error) throw error;
+    const raw = (data || {}) as { brands?: Array<{ name: string; is_active: boolean }> };
+    return (raw.brands || []).filter(item => item.is_active).map(item => item.name);
+  }
+  const { data, error } = await supabase.rpc("load_company_catalog_suggestions_v1", {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  const raw = (data || {}) as { brands?: Array<{ name: string }> };
+  return (raw.brands || []).map(item => item.name);
+}
+
 export async function listServiceOrderTechnicalValues(serviceOrderId: string) {
   const organizationId = await getActiveOrganizationId();
   const result = await supabase.from("service_order_technical_values").select("*").eq("organization_id", organizationId).eq("service_order_id", serviceOrderId).order("created_at");
