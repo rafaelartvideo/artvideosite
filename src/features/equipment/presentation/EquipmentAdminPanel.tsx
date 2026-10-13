@@ -24,7 +24,7 @@ type EquipmentAdminPanelProps = {
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 };
 
-const normalizeCatalogName = (value: string) => value.trim().replace(/\\s+/g, " ").toLocaleLowerCase("pt-BR");
+const normalizeCatalogName = brandKey;
 
 
 export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onRouteChange }: EquipmentAdminPanelProps) {
