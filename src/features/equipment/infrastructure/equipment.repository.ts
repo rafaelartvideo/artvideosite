@@ -213,6 +213,7 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
       const brandId = originalBrand && !Object.keys(brandChanges).length ? originalBrand.id :
         await saveAndGetId("equipment_brands", brandChanges, brand.id, organizationId, "Marca técnica não foi salva.");
 
+      const newModels: Array<Record<string, unknown>> = [];
       for (const model of brand.models) {
         const originalModel = model.id ? originalModels.find(item => item.id === model.id) : undefined;
         const trimmedModelName = model.name.trim().toLocaleUpperCase("pt-BR");
@@ -232,9 +233,13 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
           const { error } = await supabase.from("equipment_models").update(modelChanges).eq("id", model.id).eq("organization_id", organizationId);
           if (error) throw toCatalogError(error, "Modelo não foi salvo.");
         } else {
-          const { error } = await supabase.from("equipment_models").insert({ ...modelChanges, organization_id: organizationId });
-          if (error) throw toCatalogError(error, "Modelo não foi salvo.");
+          newModels.push({ ...modelChanges, organization_id: organizationId });
         }
+      }
+      // Vários modelos novos da mesma marca são enviados num único INSERT.
+      if (newModels.length) {
+        const { error } = await supabase.from("equipment_models").insert(newModels);
+        if (error) throw toCatalogError(error, "Modelos não foram salvos.");
       }
       const removedModelIds = originalModels.filter(item => !brand.models.some(model => model.id === item.id)).map(item => item.id);
       if (removedModelIds.length) {
