@@ -369,7 +369,6 @@ async function invokeSacDigitalApi(body: Record<string, unknown> | FormData) {
         errorType = payload?.type || "integration_failure";
         correlation = { local_message_id: payload?.local_message_id, external_message_id: payload?.external_message_id, client_request_id: payload?.client_request_id };
         apiMessage = apiDiagnostic(payload);
-        if(payload?.type && !apiMessage.includes(String(payload.type))) apiMessage = `${payload.type}: ${apiMessage}`;
         if(mutation) requestIntents.finish(intentBody, payload?.outcome || "unknown");
       }
     } catch {

@@ -179,15 +179,17 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
 }
 
 export function Toast({ message, type = "success", onClose }: { message: unknown; type?: FeedbackType; onClose: () => void }) {
-  const displayMessage = normalizeFeedbackMessage(message);
+  const displayMessage = type === "error" ? systemErrorMessage(message) : normalizeFeedbackMessage(message);
   useEffect(() => {
-    const timeout = setTimeout(onClose, 3500);
+    const timeout = setTimeout(onClose, type === "error" ? 6000 : 3000);
     return () => clearTimeout(timeout);
   }, [displayMessage, type]);
 
   return <div className={cn(
-    "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
-    type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800",
+    "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[400] flex w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 items-start gap-3 rounded-xl border-2 px-4 py-4 text-left text-sm font-semibold shadow-[0_18px_48px_rgba(13,27,46,0.24)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[340px] md:max-w-lg md:translate-x-0",
+    type === "success"
+      ? "border-emerald-300 bg-emerald-50 text-emerald-900 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-100"
+      : "border-red-500 bg-red-100 text-red-950 shadow-[0_18px_48px_rgba(153,27,27,0.28)] dark:border-red-500 dark:bg-red-950 dark:text-red-100",
   )} role={type === "error" ? "alert" : "status"} aria-live={type === "error" ? "assertive" : "polite"}>
     {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
     <span className="min-w-0 flex-1 leading-relaxed">{displayMessage}</span>
@@ -197,7 +199,7 @@ export function Toast({ message, type = "success", onClose }: { message: unknown
 
 export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: { busy?: boolean; busyText?: string }) {
   const [loaders, setLoaders] = useState<Array<{ token: string; text: string }>>([]);
-  const [toast, setToast] = useState<{ message: string; type: FeedbackType } | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: FeedbackType; serial: number } | null>(null);
 
   useEffect(() => {
     const listener = (event: Event) => {
@@ -211,7 +213,7 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
         setLoaders(current => current.filter(item => item.token !== detail.token));
         return;
       }
-      setToast({ message: detail.message, type: detail.type });
+      setToast(current => ({ message: detail.message, type: detail.type, serial: (current?.serial || 0) + 1 }));
     };
     window.addEventListener(ADMIN_FEEDBACK_EVENT, listener);
     window.addEventListener(LEGACY_ADMIN_FEEDBACK_EVENT, listener);
@@ -336,7 +338,7 @@ export function AdminFeedbackHost({ busy = false, busyText = "Carregando..." }: 
       }
     `}</style>
     <LoadingOverlay show={busy || loaders.length > 0} text={activeLoader?.text || busyText} />
-    {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+    {toast && <Toast key={toast.serial} message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
   </>;
 }
 

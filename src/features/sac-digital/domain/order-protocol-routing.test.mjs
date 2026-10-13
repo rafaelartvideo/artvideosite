@@ -66,7 +66,8 @@ test('OS message modal has a separate success step with Open conversation and Cl
   assert.match(dialog, /onOpenChat\(lastSentProtocol\)/);
   assert.match(dialog, /<BtnSecondary onClick=\{onClose\}>Fechar<\/BtnSecondary>/);
   assert.match(dialog, /setStep\("compose"\)/);
-  assert.doesNotMatch(dialog, /sendSucceeded|notifyAdmin\(/);
+  assert.doesNotMatch(dialog, /sendSucceeded/);
+  assert.match(dialog, /notifyAdmin\(systemErrorMessage\(caught, "Não foi possível enviar pela SAC Digital\."\), "error"\)/);
 });
 
 test('OS text uses the authorized operator endpoint, not the Client API', () => {

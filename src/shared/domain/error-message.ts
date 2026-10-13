@@ -7,6 +7,7 @@ type ErrorLike = {
   code?: unknown;
   status?: unknown;
   statusCode?: unknown;
+  type?: unknown;
 };
 
 const isUsefulText = (value: unknown): value is string => {
@@ -49,7 +50,19 @@ export function systemErrorMessage(
   const code = errorCode(error);
   const status = errorStatus(error);
   const raw = extractErrorText(error);
-  const normalized = raw.toLocaleLowerCase("pt-BR");
+  // Os códigos internos são úteis para diagnóstico, não para o feedback visual.
+  const displayText = raw.replace(/^\s*[a-z][a-z0-9]*(?:_[a-z0-9]+)+:\s*/i, "").trim();
+  const normalized = displayText.toLocaleLowerCase("pt-BR");
+
+  // Uma conversa atribuída a outro operador deve exibir somente o responsável.
+  const typed = error && typeof error === "object" ? (error as ErrorLike).type : null;
+  const isOtherOperator = typed === "protocol_owned_by_other_operator"
+    || /^\s*protocol_owned_by_other_operator\s*:/i.test(raw);
+  if (isOtherOperator) {
+    const owner = displayText.match(/(?:O cliente|Este contato) já está em atendimento com\s+(.+?)(?:\.|$)/i)
+      || displayText.match(/Este atendimento pertence a\s+(.+?)(?:\.|$)/i);
+    if (owner?.[1]?.trim()) return "O cliente já está em atendimento com " + owner[1].trim() + ".";
+  }
 
   if (
     status === "401"
@@ -74,10 +87,10 @@ export function systemErrorMessage(
   }
 
   if (code === "23514" || normalized.includes("violates check constraint")) {
-    return raw && !normalized.includes("violates check constraint")
-      ? raw
+    return displayText && !normalized.includes("violates check constraint")
+      ? displayText
       : "Um dos valores informados é inválido.";
   }
 
-  return raw || fallback;
+  return displayText || fallback;
 }

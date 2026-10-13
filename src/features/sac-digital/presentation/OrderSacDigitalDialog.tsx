@@ -3,6 +3,7 @@ import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/docum
 import { useEffect, useRef, useState } from "react";
 import { CheckCircle2, MessageCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FSelect, FTextarea } from '@/shared/ui/admin/AdminFormControls';
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
@@ -170,7 +171,8 @@ export function OrderSacDigitalDialog({
       setDocumentTemplateId("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (caught) {
-      setError(systemErrorMessage(caught, "Não foi possível enviar pela SAC Digital."));
+      // A falha aparece no feedback acima do modal; o texto permanece para nova tentativa.
+      notifyAdmin(systemErrorMessage(caught, "Não foi possível enviar pela SAC Digital."), "error");
     } finally {
       sendInFlightRef.current = false;
       setSending(false);
