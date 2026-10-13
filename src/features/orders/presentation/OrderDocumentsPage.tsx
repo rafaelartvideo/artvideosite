@@ -25,6 +25,7 @@ import {
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
+import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
 import { OrderChecklistDocumentsSection } from "./OrderChecklistDocumentsSection";
@@ -167,6 +168,7 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
   const [files, setFiles] = useState<File[]>([]);
   const [error, setError] = useState("");
   const uploading = controller.uploadingAttachment;
+  const firstPdf = files.find(file => file.type === "application/pdf" || /\\.pdf$/i.test(file.name)) ?? null;
 
   const chooseFiles = (list: FileList | null) => {
     setFiles(Array.from(list || []));
@@ -231,6 +233,10 @@ function NewAttachmentModal({ controller, onClose, onSuccess }: { controller: Co
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {files.map((file, index) => <SelectedFilePreview key={`${file.name}-${file.lastModified}-${index}`} file={file} onRemove={() => removeSelectedFile(index)} />)}
                 </div>
+                {firstPdf && <div className="mt-3 min-w-0">
+                  <p className="mb-2 truncate text-xs font-bold text-foreground">Pré-visualização · {firstPdf.name}</p>
+                  <PdfInlineViewer source={firstPdf} title={firstPdf.name} className="h-[370px] rounded-xl border border-border" />
+                </div>}
               </div>
             )}
           </div>
