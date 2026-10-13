@@ -15,13 +15,16 @@ export type UnionEquipmentType = {
   name: string;
   sort_order: number;
   is_active: boolean;
+  is_published: boolean;
 };
 export type UnionBrand = {
   id: string;
   name: string;
   is_active: boolean;
+  is_published: boolean;
 };
 export type UnionCatalogData = {
+  revision: number;
   segments: UnionSegment[];
   equipmentTypes: UnionEquipmentType[];
   brands: UnionBrand[];
@@ -36,6 +39,7 @@ export async function loadUnionCatalogAdmin(): Promise<UnionCatalogData> {
   if (error) throw error;
   const raw = (data ?? {}) as Partial<UnionCatalogData>;
   return {
+    revision: typeof raw.revision === "number" ? raw.revision : 0,
     segments: Array.isArray(raw.segments) ? raw.segments : [],
     equipmentTypes: Array.isArray(raw.equipmentTypes) ? raw.equipmentTypes : [],
     brands: Array.isArray(raw.brands) ? raw.brands : [],
