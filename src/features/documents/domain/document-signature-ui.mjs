@@ -10,16 +10,17 @@ function brazilWhatsAppNumber(value) {
   return digits;
 }
 
-export function buildSignatureWhatsAppUrl(phone, link, { companyName = "Empresa", documentName = "Documento", expiresAt = null } = {}) {
+export function buildSignatureWhatsAppUrl(phone, link, { companyName = "Empresa", documentName = "Documento", signerName = "cliente", operatorName = "Atendente" } = {}) {
   const number = brazilWhatsAppNumber(phone);
   if (!number || !link) return "";
-  const expiration = expiresAt
-    ? new Date(expiresAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })
-    : "";
+  const sender = String(operatorName || "Atendente").trim().split(/\s+/)[0]?.replace(/[~_*\x60]/g, "") || "Atendente";
+  const senderFirstName = sender.charAt(0).toLocaleUpperCase("pt-BR") + sender.slice(1).toLocaleLowerCase("pt-BR");
+  const recipientFirstName = String(signerName || "cliente").trim().split(/\s+/)[0] || "cliente";
   const message = [
-    `Olá! ${companyName} enviou o documento “${documentName}” para sua assinatura eletrônica.`,
-    expiration ? `O link é válido até ${expiration}.` : "",
-    `Acesse: ${link}`,
-  ].filter(Boolean).join("\n\n");
+    `*${senderFirstName}*`,
+    `Olá, ${recipientFirstName}!`,
+    `${companyName} enviou o documento ${documentName} para sua assinatura eletrônica.`,
+    `Acesse para revisar e assinar:\n${link}`,
+  ].join("\n\n");
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }

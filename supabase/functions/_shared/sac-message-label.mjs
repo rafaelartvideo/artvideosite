@@ -11,3 +11,17 @@ export function formatSacOutgoingText(text, senderName) {
   if (!content) return '';
   return `*${sacSenderFirstName(senderName)}*\n\n${content}`;
 }
+
+// Convites de assinatura são ações humanas: usar o operador autenticado,
+// sem aspas tipográficas em títulos e sem horários no corpo do WhatsApp.
+export function formatSacSignatureInvite({ signerName, companyName, documentName, link }, senderName) {
+  const firstName = String(signerName || '').trim().split(/\s+/)[0] || 'cliente';
+  const company = String(companyName || 'Empresa').trim();
+  const document = String(documentName || 'Documento').trim();
+  const url = String(link || '').trim();
+  return formatSacOutgoingText([
+    `Olá, ${firstName}!`,
+    `${company} enviou o documento ${document} para sua assinatura eletrônica.`,
+    `Acesse para revisar e assinar:\n${url}`,
+  ].join('\n\n'), senderName);
+}

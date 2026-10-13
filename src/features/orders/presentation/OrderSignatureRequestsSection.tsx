@@ -179,7 +179,8 @@ export function OrderSignatureRequestsSection({
         const whatsappUrl = buildSignatureWhatsAppUrl(request.external_signer_phone, link, {
           companyName: company.name,
           documentName: request.template_name_snapshot,
-          expiresAt: request.expires_at,
+          signerName: request.external_signer_name,
+          operatorName: printedBy,
         });
         if (!whatsappUrl) throw new Error("Não foi possível preparar a mensagem do WhatsApp.");
         if (tab && !tab.closed) tab.location.replace(whatsappUrl);

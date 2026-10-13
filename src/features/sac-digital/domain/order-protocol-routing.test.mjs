@@ -127,3 +127,11 @@ test('an animated choose-conversation state is rendered whenever no protocol is 
   assert.match(sacPage, /<EmptySacConversationState \/>/);
   assert.doesNotMatch(sacPage, /Selecione um atendimento para visualizar as mensagens/);
 });
+
+test('signature invitation uses human sender and no timestamp or forced Sistema label', () => {
+  const code = action('send_signature_invite', 'send_order_message');
+  assert.match(code, /formatSacSignatureInvite\(/);
+  assert.match(code, /await resolveHumanSenderName\(\)/);
+  assert.doesNotMatch(code, /formatSacOutgoingText\([^;]+?, "Sistema"\)/);
+  assert.doesNotMatch(code, /toLocaleString\("pt-BR"/);
+});

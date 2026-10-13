@@ -1,6 +1,6 @@
 import { authorizationUrl, returnPath, stateHash } from '../_shared/sac-oauth.mjs';
 import { providerDelivery, submissionCanMatchHistory } from '../_shared/sac-delivery.mjs';
-import { formatSacOutgoingText } from '../_shared/sac-message-label.mjs';
+import { formatSacOutgoingText, formatSacSignatureInvite } from '../_shared/sac-message-label.mjs';
 import { createSacClientSessions } from '../_shared/sac-client-session.mjs';
 import { authorizedOperatorToken } from '../_shared/sac-oauth-session.ts';
 import { actionEnabled, conversationOwnership } from "../_shared/sac-runtime.mjs";
@@ -3489,7 +3489,7 @@ Deno.serve(async request => {
 
       const { data: signatureRequest, error: signatureRequestError } = await admin
         .from("document_signature_requests")
-        .select("id,service_order_id,status,require_external_signature,external_signer_name,external_signer_phone,template_name_snapshot,expires_at")
+        .select("id,service_order_id,status,require_external_signature,external_signer_name,external_signer_phone,template_name_snapshot")
         .eq("organization_id", organizationId)
         .eq("id", requestId)
         .eq("service_order_id", orderId)
@@ -3610,21 +3610,12 @@ Deno.serve(async request => {
         .select("name")
         .eq("organization_id", organizationId)
         .maybeSingle();
-      const signerFirstName = String(signatureRequest.external_signer_name || "").trim().split(/\s+/)[0] || "cliente";
-      const companyName = String(company?.name || "Empresa").trim();
-      const documentName = String(signatureRequest.template_name_snapshot || "Documento").trim();
-      const expiresAt = signatureRequest.expires_at
-        ? new Date(signatureRequest.expires_at).toLocaleString("pt-BR", {
-            timeZone: "America/Sao_Paulo",
-            dateStyle: "short",
-            timeStyle: "short",
-          })
-        : "";
-      const inviteText = formatSacOutgoingText([
-        `Olá, ${signerFirstName}! ${companyName} enviou o documento “${documentName}” para sua assinatura eletrônica.`,
-        expiresAt ? `O link é válido até ${expiresAt}.` : "",
-        `Acesse para revisar e assinar: ${link}`,
-      ].filter(Boolean).join("\n\n"), "Sistema");
+      const inviteText = formatSacSignatureInvite({
+        signerName: signatureRequest.external_signer_name,
+        companyName: company?.name,
+        documentName: signatureRequest.template_name_snapshot,
+        link,
+      }, await resolveHumanSenderName());
 
       const notification = await apiRequest(
         organizationId,

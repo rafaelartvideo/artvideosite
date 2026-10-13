@@ -27,3 +27,18 @@ test("builds a Brazil WhatsApp link with encoded signature message", () => {
   assert.match(url, /^https:\/\/wa\.me\/5579999990000\?text=/);
   assert.match(decodeURIComponent(url.split("text=")[1]), /https:\/\/artvideo\.example\/assinatura\/token/);
 });
+
+test("signature WhatsApp text shows sender's first name and removes expiration and smart quotes", () => {
+  const url = ui.buildSignatureWhatsAppUrl("79999990000", "https://example.com/assinatura/token", {
+    companyName: "Artvideo",
+    documentName: "Ordem de Serviço de Entrada de Equipamento",
+    signerName: "Mariana Souza",
+    operatorName: "RAFAEL LIMA",
+    expiresAt: "2026-10-14T18:00:00.000Z",
+  });
+  const message = new URL(url).searchParams.get("text") || "";
+  assert.match(message, /^\*Rafael\*\n\nOlá, Mariana!/);
+  assert.match(message, /Artvideo enviou o documento Ordem de Serviço de Entrada de Equipamento/);
+  assert.match(message, /Acesse para revisar e assinar:\nhttps:\/\/example.com\/assinatura\/token/);
+  assert.doesNotMatch(message, /Sistema|[“”]|\d{2}:\d{2}|válido até/);
+});

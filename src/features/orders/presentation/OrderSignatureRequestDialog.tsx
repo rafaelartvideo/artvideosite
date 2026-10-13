@@ -163,7 +163,8 @@ export function OrderSignatureRequestDialog({
             const whatsappUrl = buildSignatureWhatsAppUrl(activeRequest.external_signer_phone, link, {
               companyName: company.name,
               documentName: activeRequest.template_name_snapshot,
-              expiresAt: activeRequest.expires_at,
+              signerName: activeRequest.external_signer_name,
+              operatorName: printedBy,
             });
             if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura para WhatsApp.");
             if (whatsappTab && !whatsappTab.closed) whatsappTab.location.replace(whatsappUrl);
@@ -296,7 +297,8 @@ export function OrderSignatureRequestDialog({
             const whatsappUrl = buildSignatureWhatsAppUrl(externalSigner.phone, result.link, {
               companyName: company.name,
               documentName: selectedTemplate.name,
-              expiresAt: result.request.expires_at,
+              signerName: externalSigner.name,
+              operatorName: printedBy,
             });
             if (!whatsappUrl) throw new Error("Não foi possível preparar o convite de assinatura para WhatsApp.");
             if (whatsappTab && !whatsappTab.closed) whatsappTab.location.replace(whatsappUrl);
