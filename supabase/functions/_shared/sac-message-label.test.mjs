@@ -5,6 +5,11 @@ test('operador: primeiro nome em negrito', () => {
   assert.equal(formatSacOutgoingText('Olá, tudo bem?', 'Rafael Lima'), '*Rafael*\n\nOlá, tudo bem?');
   assert.equal(formatSacOutgoingText('Bem-vindo!', 'Ana Maria'), '*Ana*\n\nBem-vindo!');
 });
+test('primeiro nome sempre com inicial maiúscula e restante minúsculo', () => {
+  assert.equal(formatSacOutgoingText('Mensagem.', 'RAFAEL LIMA'), '*Rafael*\n\nMensagem.');
+  assert.equal(sacSenderFirstName('aNA MARIA'), 'Ana');
+  assert.equal(sacSenderFirstName('JOSÉ DA SILVA'), 'José');
+});
 test('mensagens institucionais: Sistema em negrito', () => {
   assert.equal(formatSacOutgoingText('Assine seu documento.', ''), '*Sistema*\n\nAssine seu documento.');
   assert.equal(sacSenderFirstName('Sistema'), 'Sistema');
