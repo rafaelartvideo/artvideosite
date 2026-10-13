@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import type { AppointmentWithRelations } from "../application/agenda-calendar";
+import { buildAgendaDays, dayKey, type AppointmentWithRelations } from "../application/agenda-calendar";
 import { useAgendaCalendar } from "../application/useAgendaCalendar";
 import { useNewAppointment } from "../application/useNewAppointment";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AgendaToolbar } from "./AgendaToolbar";
 import { AgendaCalendarView } from "./AgendaCalendarView";
+import { AgendaEventCard } from "./AgendaEventCard";
+import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TechnicianAvailabilityCalendar } from "./TechnicianAvailabilityCalendar";
 import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
@@ -41,7 +43,25 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   if (!canViewAgenda) return null;
   const canViewCurrent = agenda.view === "agenda" ? canViewList : canViewCalendar;
   const safeOpenOrder = (id: string) => { if (canOpenOrder) onOpenOrder(id); };
-  const visibleTechnicians = canViewOtherAgendas ? agenda.technicians : agenda.technicians.filter(item => item.id === agenda.myEmployeeId);
+  const weekDates = new Set(buildAgendaDays("week", agenda.cursor, 7).map(dayKey));
+  const matchingWeekEvents = agenda.calendarEvents
+    .filter(event => weekDates.has(event.date))
+    .sort((first, second) => first.date.localeCompare(second.date));
+  const searchText = agenda.search.trim().toLocaleLowerCase("pt-BR");
+  const relatedTechnicians = new Set(matchingWeekEvents.flatMap(event => {
+    if (event.kind === "service_order") {
+      return [event.order.technician?.id, ...(event.order.technician_links || []).map((link: any) => link.employee_id)].filter(Boolean);
+    }
+    return [
+      ...(event.appointment.appointment_technicians || []).map(link => link.employee_id),
+      event.appointment.service_order?.technician?.id,
+      ...(event.appointment.service_order?.technician_links || []).map((link: any) => link.employee_id),
+    ].filter(Boolean);
+  }));
+  const visibleTechnicians = (canViewOtherAgendas ? agenda.technicians : agenda.technicians.filter(item => item.id === agenda.myEmployeeId))
+    .filter(item => !searchText || item.full_name.toLocaleLowerCase("pt-BR").includes(searchText) || relatedTechnicians.has(item.id));
+  const hasActiveFilters = Boolean(agenda.search.trim() || (canViewOtherAgendas && agenda.technicianFilter)
+    || agenda.statusFilter || agenda.situationFilter || agenda.serviceFilter);
   const toolbar = <AgendaToolbar canViewOthers={canViewOtherAgendas} view={agenda.view} cursor={agenda.cursor} search={agenda.search} technicianFilter={agenda.technicianFilter} statusFilter={agenda.statusFilter} situationFilter={agenda.situationFilter} serviceFilter={agenda.serviceFilter} employees={agenda.employees} statuses={agenda.statuses as any[]} situations={agenda.situations} services={agenda.services} generalServices={agenda.generalServices} canCreate={canCreate} onViewChange={view => { if ((view === "agenda" && canViewList) || (view !== "agenda" && canViewCalendar)) agenda.setView(view); }} onSearchChange={agenda.setSearch} onTechnicianFilterChange={agenda.setTechnicianFilter} onStatusFilterChange={agenda.setStatusFilter} onSituationFilterChange={agenda.setSituationFilter} onServiceFilterChange={agenda.setServiceFilter} onPrevious={() => agenda.moveCursor(-1)} onNext={() => agenda.moveCursor(1)} onToday={() => agenda.setCursor(new Date())} onNew={() => canCreate && newAppointment.openDialog()} />;
 
   return <>
@@ -64,8 +84,23 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
         onGoToToday={() => agenda.setCursor(new Date())}
         date={agenda.cursor.getFullYear() + "-" + String(agenda.cursor.getMonth() + 1).padStart(2, "0") + "-" + String(agenda.cursor.getDate()).padStart(2, "0")}
         technicianFilter={canViewOtherAgendas ? agenda.technicianFilter : agenda.myEmployeeId || "none"}
+        onTechnicianFilterChange={canViewOtherAgendas ? agenda.setTechnicianFilter : undefined}
         onChooseStart={canCreate ? (date, start, employeeId) => newAppointment.openDialog(date, start, employeeId) : undefined}
       />}
+      {canViewCurrent && agenda.view === "availability" && hasActiveFilters && <AdminCard className="overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
+          <p className="text-sm font-bold text-foreground">Agendamentos encontrados nesta semana ({matchingWeekEvents.length})</p>
+          <p className="mt-1 text-xs text-muted-foreground">Busca, técnico, status, situação e serviço seguem os filtros da Agenda. Horários ocupados permanecem bloqueados mesmo quando um agendamento está oculto pelos filtros.</p>
+        </div>
+        {matchingWeekEvents.length
+          ? matchingWeekEvents.map(event => <div key={event.kind + "-" + event.id} className="border-b border-border p-3 last:border-b-0">
+              <AgendaEventCard event={event} draggedEventId={canReschedule ? draggedEventId : null}
+                onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined}
+                onOpenOrder={safeOpenOrder}
+                onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} />
+            </div>)
+          : <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhum agendamento corresponde aos filtros nesta semana.</p>}
+      </AdminCard>}
       {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
     </div>
     {canCreate && <NewAppointmentDialog controller={newAppointment} allowedTechnicianId={agenda.myEmployeeId} />}
