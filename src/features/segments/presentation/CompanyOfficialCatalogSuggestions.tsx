@@ -1,30 +1,27 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { CompanyCatalogTemplateSuggestions } from "./CompanyCatalogTemplateSuggestions";
-import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
-  addOfficialBrand, addOfficialEquipment, loadCompanyOfficialCatalog,
+  loadCompanyOfficialCatalog,
   type CompanyOfficialCatalog, type OfficialEquipmentSuggestion,
 } from "../infrastructure/company-official-catalog.repository";
 
 type Props = {
   organizationId: string;
-  canCreate: boolean;
   canEdit: boolean;
   canManageFields: boolean;
   canManageChecklists: boolean;
   onImported: () => Promise<unknown>;
 };
 
-export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, canEdit, canManageFields, canManageChecklists, onImported }: Props) {
+export function CompanyOfficialCatalogSuggestions({ organizationId, canEdit, canManageFields, canManageChecklists, onImported }: Props) {
   const [catalog, setCatalog] = useState<CompanyOfficialCatalog | null>(null);
   const [loading, setLoading] = useState(true);
-  const [workingKey, setWorkingKey] = useState("");
   const [selectedTypeId, setSelectedTypeId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [brandSearch, setBrandSearch] = useState("");
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const reload = useCallback(async () => {
     const next = await loadCompanyOfficialCatalog(organizationId);
@@ -67,33 +64,17 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
     .filter(item => item.name.toLocaleLowerCase("pt-BR")
       .includes(brandSearch.trim().toLocaleLowerCase("pt-BR"))), [catalog, selectedTypeId, brandSearch]);
 
-  const execute = async (key: string, work: () => Promise<unknown>, success: string) => {
-    if (workingKey || !canCreate) return;
-    setWorkingKey(key);
-    setError("");
-    setNotice("");
-    try {
-      await work();
-      await Promise.all([reload(), onImported()]);
-      setNotice(success);
-    } catch (cause) {
-      setError(systemErrorMessage(cause, "Não foi possível adicionar o cadastro."));
-    } finally {
-      setWorkingKey("");
-    }
-  };
-
   return <section className="space-y-4 rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-5">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
-        <h2 className="text-base font-extrabold">Sugestões do Catálogo Union</h2>
+        <h2 className="text-base font-extrabold">Catálogo Union — sincronização automática</h2>
         {catalog && <p className="text-xs text-muted-foreground">Revisão oficial: {catalog.revision}</p>}
         <p className="text-xs leading-5 text-muted-foreground">
-          Itens oficiais compatíveis com os segmentos desta empresa. Adicione somente o que utiliza.
-          Nenhum modelo será importado.
+          Equipamentos e marcas publicados pela Union são integrados automaticamente aos segmentos desta empresa.
+          Seus modelos e cadastros próprios permanecem preservados.
         </p>
       </div>
-      <BtnSecondary size="sm" disabled={Boolean(workingKey) || loading} onClick={() => {
+      <BtnSecondary size="sm" disabled={loading} onClick={() => {
         setLoading(true);
         setError("");
         void reload().catch(cause => setError(systemErrorMessage(cause, "Falha ao atualizar sugestões.")))
@@ -102,7 +83,6 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
     </div>
 
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
-    {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-800">{notice}</p>}
     {loading && <p className="py-5 text-sm text-muted-foreground">Carregando sugestões...</p>}
 
     {!loading && catalog && !catalog.hasSegments && <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
@@ -110,7 +90,7 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
       Os equipamentos já cadastrados continuam disponíveis normalmente.
     </p>}
     {!loading && catalog?.hasSegments && catalog.equipmentTypes.length === 0 && <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-      A Union ainda não publicou equipamentos aprovados para os segmentos desta empresa.
+      Nenhum equipamento foi publicado para os segmentos desta empresa.
       Continue utilizando seus cadastros existentes.
     </p>}
 
@@ -127,18 +107,15 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
               className="min-w-0 flex-1 text-left text-sm font-bold hover:text-primary">
               {item.name}
               {item.local_equipment_type_id && <span className="block text-xs font-normal text-muted-foreground">
-                {item.local_is_active ? "Já cadastrado" : "Já cadastrado (inativo)"}
+                {item.local_is_active ? "Sincronizado automaticamente" : "Sincronizado (inativo)"}
+              </span>}
+              {!item.local_equipment_type_id && <span className="block text-xs font-normal text-amber-700">
+                Integração pendente — consulte a Union
               </span>}
             </button>
-            {item.local_equipment_type_id
-              ? <BtnSecondary size="sm" disabled={Boolean(workingKey)} onClick={() => { setSelectedTypeId(item.id); setBrandSearch(""); }}>
-                  Ver marcas
-                </BtnSecondary>
-              : <BtnPrimary size="sm" disabled={!canCreate || Boolean(workingKey)} loading={workingKey === item.id}
-                  onClick={() => void execute(item.id,
-                    () => addOfficialEquipment(organizationId, item.id),
-                    "Equipamento adicionado ao cadastro local. Já pode ser usado nas OS.",
-                  )}>Adicionar</BtnPrimary>}
+            <BtnSecondary size="sm" onClick={() => { setSelectedTypeId(item.id); setBrandSearch(""); }}>
+              Ver marcas
+            </BtnSecondary>
           </div>)}
         </div>
       </div>
@@ -147,7 +124,7 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
         <h3 className="text-sm font-extrabold">Marcas compatíveis</h3>
         {!activeType && <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">Selecione um equipamento para ver as marcas recomendadas.</p>}
         {activeType && !activeType.local_equipment_type_id && <p className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
-          Adicione primeiro o equipamento <strong>{activeType.name}</strong>, depois escolha as marcas necessárias.
+          O equipamento <strong>{activeType.name}</strong> está aguardando integração automática. Não é necessária nenhuma ação nesta tela.
         </p>}
         {activeType?.local_equipment_type_id && <>
           <input aria-label="Buscar marca" className="w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm"
@@ -161,17 +138,14 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
               <div className="min-w-0">
                 <span className="block text-sm font-semibold">{brand.name}</span>
                 {brand.local_equipment_brand_id && <span className="block text-xs text-muted-foreground">
-                  {brand.local_is_active ? "Já cadastrada" : "Já cadastrada (inativa)"}
+                  {brand.local_is_active ? "Integrada automaticamente" : "Integrada (inativa)"}
                 </span>}
               </div>
-              {brand.local_equipment_brand_id
-                ? <span className="text-xs text-muted-foreground">Adicionada</span>
-                : <BtnPrimary size="sm" disabled={!canCreate || Boolean(workingKey)}
-                    loading={workingKey === brand.id}
-                    onClick={() => void execute(brand.id,
-                      () => addOfficialBrand(organizationId, activeType.id, brand.id),
-                      "Marca vinculada ao equipamento. Modelos não foram importados.",
-                    )}>Adicionar</BtnPrimary>}
+              <span className={brand.local_equipment_brand_id
+                ? "text-xs font-semibold text-green-700"
+                : "text-xs font-semibold text-amber-700"}>
+                {brand.local_equipment_brand_id ? "Sincronizada" : "Pendente"}
+              </span>
             </div>)}
           </div>
         </>}
@@ -185,8 +159,5 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
       canManageChecklists={canEdit && canManageChecklists}
       onAdded={onImported}
     />}
-    {!canCreate && <p className="text-xs text-muted-foreground">
-      Sua função permite consultar as sugestões, mas não adicionar equipamentos ou marcas.
-    </p>}
   </section>;
 }
