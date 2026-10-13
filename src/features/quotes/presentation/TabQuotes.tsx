@@ -170,12 +170,10 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     return () => { cancelled = true; };
   }, [routeResourceId, detail?.id, canViewDetails, organizationId]);
 
-  const syncQuotes = async () => {
-    await Promise.all([
-      queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.customers.all }),
-      queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() }),
-    ]);
+  const syncQuotes = () => {
+    void queryClient.invalidateQueries({ queryKey: queryKeys.quotes.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.customers.all });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() });
   };
 
   const updateStatus = async (id: string, statusId: string) => {
@@ -188,7 +186,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     }
     if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status", request_status: selectedStatus || detail.request_status });
     setToast({ msg: "Status atualizado!", type: "success" });
-    await syncQuotes();
+    syncQuotes();
   };
 
   const openDetails = (quote: any) => {
@@ -302,7 +300,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         if (error) { setToast({ msg: `Erro ao criar OS: ${systemErrorMessage(error)}`, type: "error" }); return; }
         closeDetails();
         setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
-        await syncQuotes();
+        syncQuotes();
         onNavigate?.("orders");
       }}><ClipboardList size={13} /> Converter em OS</AdminButton>}</div><BtnSecondary onClick={closeDetails} className="w-full sm:w-auto">Fechar</BtnSecondary></AdminStickyToolbar>
     </AdminPage>}
