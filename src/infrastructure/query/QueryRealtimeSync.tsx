@@ -416,7 +416,7 @@ export function QueryRealtimeSync() {
     void queryClient.refetchQueries({
       type: "active",
       stale: true,
-      predicate: query => isForegroundQuery(query.queryKey, pathname),
+      predicate: query => isForegroundQuery(query.queryKey, pathnameRef.current),
     });
   }, [queryClient, scope]);
   const isPlatformOperator = activeOrganization?.is_platform_operator === true;
