@@ -13,12 +13,22 @@ export const getOrderEditState = (orderId: string) => getServiceOrderResolutionS
 export async function getOrderSubmissionStatus({
   organizationId,
   editingOrder,
+  availableStatuses,
 }: {
   organizationId: string;
   editingOrder?: any;
   statusId?: string;
+  availableStatuses?: any[];
 }) {
-  const { data, error } = await listOrderStatusOptions(organizationId);
+  // A abertura do módulo já traz os status no RPC consolidado. Não executar
+  // o mesmo GET novamente em todo salvamento; consulta avulsa é fallback.
+  const statuses = availableStatuses?.length
+    ? availableStatuses
+    : null;
+  const result = statuses
+    ? { data: statuses, error: null }
+    : await listOrderStatusOptions(organizationId);
+  const { data, error } = result;
   if (error) return { status: null, error };
 
   // Em edição o valor atual é preservado internamente; na criação a preferência
