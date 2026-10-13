@@ -21,13 +21,14 @@ export function useFinanceCash() {
     queryFn: () => listFinancialCashSessions(organizationId),
   });
 
-  const invalidate = async () => {
-    await Promise.all([
+  const invalidate = () => {
+    // A mutação já foi confirmada: não manter isPending durante reconsultas.
+    [
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.cashSessions(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.balances(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.movements(organizationKey) }),
       queryClient.invalidateQueries({ queryKey: queryKeys.finance.accounts(organizationKey) }),
-    ]);
+    ].forEach(query => { void query; });
   };
 
   const openMutation = useMutation({
