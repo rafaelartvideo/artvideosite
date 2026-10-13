@@ -378,7 +378,9 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
     }, 200);
   }, [smoothMotion, stableOnClose]);
 
-  useEffect(() => {
+  // Sincronize cabeçalho/rota antes do próximo paint: evita um frame com o
+  // título antigo ou vazio ao alternar OS > Documentos > OS.
+  React.useLayoutEffect(() => {
     if (!open) {
       closingRef.current = false;
       setInternalClosing(false);
@@ -393,7 +395,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
-      setPage?.(null);
+      setPage?.(current => current?.onBack === requestClose ? null : current);
     };
   }, [open, breadcrumb, title, subtitle, titleVariant, requestClose, setPage]);
 
