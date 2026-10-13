@@ -1,4 +1,6 @@
 import { Check, UserPlus, X } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { TechnicianAvailabilityCalendar } from "./TechnicianAvailabilityCalendar";
 import type { AppointmentPeriod } from "@/lib/database.types";
 import type { NewAppointmentController } from "../application/useNewAppointment";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
@@ -11,6 +13,7 @@ import { AppointmentTechniciansDialog } from "./AppointmentTechniciansDialog";
 type Props = { controller: NewAppointmentController };
 
 export function NewAppointmentDialog({ controller }: Props) {
+  const { activeOrganizationId, hasPermission } = useAuth();
   const {
     open,
     setOpen,
@@ -65,7 +68,7 @@ export function NewAppointmentDialog({ controller }: Props) {
     description="Cadastre o atendimento sem sair da Agenda."
     minimizedDescription={minimizedDescription}
     minimizable={!appointmentSaving}
-    className="max-w-2xl"
+    className="max-w-6xl"
     footer={<div className="flex justify-end gap-2">
       <BtnSecondary onClick={() => onClose()} disabled={appointmentSaving}>Cancelar</BtnSecondary>
       <BtnPrimary onClick={() => void saveAppointment()} disabled={appointmentSaving || appointmentSituationsLoading}>{appointmentSaving ? "Agendando..." : <><Check size={15} /> Agendar</>}</BtnPrimary>
@@ -77,6 +80,23 @@ export function NewAppointmentDialog({ controller }: Props) {
           <div className="grid gap-3 sm:grid-cols-2"><FInput label="Data" required type="date" error={appointmentFieldErrors.appointment_date} value={appointmentForm.appointment_date} onChange={event => { setAppointmentFieldErrors(current => ({ ...current, appointment_date: undefined })); setAppointmentForm(current => ({ ...current, appointment_date: event.target.value })); }} /><FSelect label="Horário/Período" value={appointmentForm.period} onChange={event => { setAppointmentFieldErrors(current => ({ ...current, start_time: undefined, end_time: undefined })); setAppointmentForm(current => ({ ...current, period: event.target.value as AppointmentPeriod })); }} options={[{ value: "no_time", label: "Sem horário" }, { value: "morning", label: "Manhã" }, { value: "afternoon", label: "Tarde" }, { value: "evening", label: "Noite" }, { value: "custom", label: "Horário personalizado" }]} />{appointmentForm.period === "custom" && <><FInput label="Hora inicial" required type="time" error={appointmentFieldErrors.start_time} value={appointmentForm.start_time} onChange={event => { setAppointmentFieldErrors(current => ({ ...current, start_time: undefined, end_time: undefined })); setAppointmentForm(current => ({ ...current, start_time: event.target.value })); }} /><FInput label="Hora final" required type="time" error={appointmentFieldErrors.end_time} value={appointmentForm.end_time} onChange={event => { setAppointmentFieldErrors(current => ({ ...current, end_time: undefined })); setAppointmentForm(current => ({ ...current, end_time: event.target.value })); }} /></>}</div>
           <div className="flex flex-wrap items-center gap-2"><button type="button" disabled={!appointmentCustomer} onClick={() => setAppointmentSubmodal("address")} className="rounded-lg border border-primary/30 px-3 py-2 text-xs font-bold text-primary disabled:opacity-50">{appointmentForm.address_source ? "Editar endereço" : "Adicionar endereço"}</button>{appointmentForm.address_source && <span className="text-xs text-[#5a6a82]">{[appointmentForm.street, appointmentForm.number, appointmentForm.city, appointmentForm.state].filter(Boolean).join(", ")}</span>}</div>
           <div><div className="flex flex-wrap items-center gap-2">{selectedAppointmentTechnicians.map(id => <span key={id} className="inline-flex items-center gap-1 rounded-full bg-primary-soft-strong px-2.5 py-1 text-xs font-bold text-primary">{appointmentTechnicians.find(item => item.id === id)?.full_name}<button type="button" onClick={() => setSelectedAppointmentTechnicians(current => current.filter(item => item !== id))} aria-label="Remover técnico"><X size={12} /></button></span>)}<button type="button" onClick={() => setAppointmentSubmodal("technicians")} className="rounded-lg border border-primary/30 px-3 py-2 text-xs font-bold text-primary"><UserPlus size={13} className="mr-1 inline" />Selecionar técnicos</button></div></div>
+          {activeOrganizationId && <TechnicianAvailabilityCalendar
+            organizationId={activeOrganizationId}
+            technicians={hasPermission("agenda.view_others") ? appointmentTechnicians : appointmentTechnicians.filter(item => selectedAppointmentTechnicians.includes(item.id))}
+            date={appointmentForm.appointment_date}
+            selectedStart={appointmentForm.period === "custom" ? appointmentForm.start_time : ""}
+            selectedEnd={appointmentForm.period === "custom" ? appointmentForm.end_time : ""}
+            selectedTechnicianId={selectedAppointmentTechnicians[0] || ""}
+            onChooseStart={(date, time, employeeId) => {
+              setSelectedAppointmentTechnicians([employeeId]);
+              setAppointmentFieldErrors(current => ({ ...current, appointment_date: undefined, start_time: undefined, end_time: undefined }));
+              setAppointmentForm(current => ({ ...current, appointment_date: date, period: "custom", start_time: time, end_time: "" }));
+            }}
+            onChooseEnd={(date, time) => {
+              setAppointmentFieldErrors(current => ({ ...current, end_time: undefined }));
+              setAppointmentForm(current => ({ ...current, appointment_date: date, end_time: time }));
+            }}
+          />}
           <div className="grid gap-3 sm:grid-cols-2"><FInput label="Setor/Local" placeholder="Ex.: Sala 5" value={appointmentForm.sector_location} onChange={event => setAppointmentForm(current => ({ ...current, sector_location: event.target.value }))} /><FSelect label="Situação" required disabled={appointmentSituationsLoading} error={appointmentFieldErrors.situation_id} value={appointmentForm.situation_id} onChange={event => { setAppointmentFieldErrors(current => ({ ...current, situation_id: undefined })); setAppointmentForm(current => ({ ...current, situation_id: event.target.value })); }} options={appointmentSituations.map(situation => ({ value: situation.id, label: situation.name }))} /></div>
           <FTextarea label="Descrição" placeholder="O que será feito neste atendimento..." value={appointmentForm.description} onChange={event => setAppointmentForm(current => ({ ...current, description: event.target.value }))} rows={4} /><label className="flex items-center gap-2 text-sm font-semibold text-[#0d1b2e]"><Checkbox checked={appointmentForm.is_return} onCheckedChange={checked => setAppointmentForm(current => ({ ...current, is_return: checked === true }))} /> É retorno</label>
     </div>
