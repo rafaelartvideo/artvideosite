@@ -1133,9 +1133,11 @@ Deno.serve(async request => {
         rejectedType='presence_update_unverified';
         rejectedMessage='Não foi possível confirmar se a SAC Digital recebeu a atualização de disponibilidade.';
       } finally {
-        await admin.rpc('sac_digital_release_operator_lease',{
-          p_organization_id:organizationId,p_operator_id:binding.id,p_owner_id:ownerId,
-        }).catch(()=>{});
+        try {
+          await admin.rpc('sac_digital_release_operator_lease',{
+            p_organization_id:organizationId,p_operator_id:binding.id,p_owner_id:ownerId,
+          });
+        } catch { /* lease has a database TTL */ }
       }
 
       // PATCH accepted != online. Only the provider's /operator/all can
