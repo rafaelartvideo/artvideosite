@@ -331,6 +331,15 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [editable, order?.id, productSearch, productSearchOpen, selectedProduct]);
 
+  // O catálogo depende do equipamento da OS; não manter uma sugestão
+  // selecionada anteriormente quando o tipo de equipamento mudar.
+  useEffect(() => {
+    setSelectedService(null);
+    setServiceSearch("");
+    setServiceOptions([]);
+    setServiceSearchOpen(false);
+  }, [order?.id, order?.equipment_type_id]);
+
   useEffect(() => {
     if (!editable || !order?.id || !serviceSearchOpen || selectedService) return;
     let cancelled = false;
@@ -700,7 +709,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   setSelectedService(null);
                   setServiceSearchOpen(true);
                 }}
-                placeholder="Busque no catálogo de serviços"
+                placeholder={order?.equipment_type_id ? "Buscar serviços deste equipamento" : "Busque no catálogo de serviços"}
                 className={cn(INPUT, "pl-9")}
               />
             </div>
@@ -708,7 +717,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               open={serviceSearchOpen && !selectedService}
               loading={serviceSearching}
               options={serviceOptions}
-              emptyLabel="Nenhum serviço encontrado."
+              emptyLabel={order?.equipment_type_id ? "Nenhum serviço vinculado a este equipamento. Configure os vínculos em Equipamentos Técnicos." : "Nenhum serviço encontrado."}
               formatCurrency={formatCurrency}
               onSelect={selectService}
               isUnavailable={option => option.price == null}
