@@ -84,19 +84,14 @@ export function UnionEquipmentTemplates({
       setError(systemErrorMessage(cause, "Não foi possível salvar o template."));
     } finally { setSaving(false); }
   };
-  const fieldClass = "w-full min-w-0 rounded-lg border border-[#ccd6e5] bg-white px-3 py-2.5 text-sm text-[#17263b] focus:border-[#1032dc]";
-  const labelClass = "block space-y-1 text-xs font-bold text-[#53647c]";
+  const fieldClass = "w-full min-w-0 rounded-lg border border-border bg-background px-3 py-2.5 text-sm text-foreground focus:border-primary";
+  const labelClass = "block space-y-1 text-xs font-bold text-muted-foreground";
 
-  return <section className="mt-7 space-y-4 border-t border-[#e3e8f0] pt-5">
-    <div>
-      <h3 className="text-base font-extrabold text-[#17263b]">Templates por equipamento</h3>
-      <p className="mt-1 text-xs leading-5 text-[#738096]">
-        Configure campos técnicos e checklists oficiais. Os cadastros das empresas não são modificados automaticamente.
-      </p>
-    </div>
+  return <section className="mt-5 space-y-4 border-t border-border pt-4">
+    <h3 className="text-sm font-bold text-foreground">Templates do equipamento</h3>
     <div className="flex flex-wrap gap-2">
-      <BtnSecondary size="sm" onClick={() => { setKind("technical"); setEditing(false); }}>Campos técnicos ({templates.technical.length})</BtnSecondary>
-      <BtnSecondary size="sm" onClick={() => { setKind("checklist"); setEditing(false); }}>Itens de checklist ({templates.checklists.length})</BtnSecondary>
+      <BtnSecondary onClick={() => { setKind("technical"); setEditing(false); }}>Campos técnicos ({templates.technical.length})</BtnSecondary>
+      <BtnSecondary onClick={() => { setKind("checklist"); setEditing(false); }}>Itens de checklist ({templates.checklists.length})</BtnSecondary>
     </div>
     {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
     {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
