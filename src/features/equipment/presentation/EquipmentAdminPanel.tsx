@@ -113,7 +113,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     checklist_profile_id: type?.checklist_profile_id ?? null,
     checklistItems: (catalog?.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type?.id).map(item => ({ ...item })),
     technicalFields: (catalog?.technicalFieldLinks ?? []).filter(link => link.equipment_type_id === type?.id).map(link => ({ technical_field_id: link.technical_field_id, required: link.required, sort_order: link.sort_order })),
-    serviceIds: serviceSettings ? (type?.id ? serviceSettings.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) : []) : undefined,
+    // A seleção usa os vínculos carregados, sem regravá-los até o usuário editar.
     brands: brands.filter(brand => brand.equipment_type_id === type?.id).map(brand => ({ id: brand.id, name: brand.name, is_active: brand.is_active, models: models.filter(model => model.equipment_brand_id === brand.id).map(model => ({ id: model.id, name: model.name, is_active: model.is_active })) })),
   });
 
