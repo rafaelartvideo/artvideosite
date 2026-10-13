@@ -428,6 +428,26 @@ export async function getSacDigitalOrderConversation(
   };
 }
 
+export type SacParticipationProbeResult = {
+  success: true;
+  oauth_accepted: boolean;
+  panel_accepted: boolean;
+  panel_status: "not_checked" | "accepted" | "rejected" | "unverified";
+  rest_http_status: number | null;
+  panel_http_status: number | null;
+  detail: string;
+};
+
+export async function diagnoseSacDigitalOrderParticipation(
+  organizationId: string, orderId: string, protocol: string,
+): Promise<SacParticipationProbeResult> {
+  const data = await invokeSacDigitalApi({
+    action: "order_conversation_view", organization_id: organizationId,
+    order_id: orderId, protocol, diagnostic: true,
+  });
+  return data as SacParticipationProbeResult;
+}
+
 export function refreshSacDigitalProtocol(organizationId: string, protocol: string) {
   return invokeSacDigitalApi({
     action: "refresh_protocol",

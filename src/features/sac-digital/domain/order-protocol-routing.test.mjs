@@ -148,3 +148,22 @@ test('OS modal offers a read-only conversation shortcut without sending', async 
   assert.match(backend, /\.eq\("organization_id",organizationId\)\.eq\("id",orderId\)/);
   assert.match(backend, /\.eq\("protocol_id",selected\.id\)/);
 });
+
+test("SAC participation diagnostic is read-only, scoped to the OS and does not issue invitations", async () => {
+  const code = action("order_conversation_view","link_customer");
+  const repository = await readFile(new URL("../infrastructure/sac-digital.repository.ts", import.meta.url),"utf8");
+  const diag = code.slice(code.indexOf("if (body.diagnostic === true)"),code.indexOf("if(body.include_messages!==true)"));
+  assert.ok(diag.length > 500);
+  assert.match(code,/userClient\.from\("service_orders"\)/);
+  assert.match(diag,/resolveMyOperatorBinding\(\)/);
+  assert.match(diag,/authorizedOperatorToken\(/);
+  assert.match(diag,/https:\/\/api\.sac\.digital\/v2\/operator\/perfil\/info/);
+  assert.match(diag,/https:\/\/whatsapp\.sac\.digital\/api\/socket\/att/);
+  assert.match(diag,/event:"get_protocol"/);
+  assert.doesNotMatch(diag,/event:"call_in_request"|event:"return_call"|event:"recover_att"/);
+  assert.doesNotMatch(diag,/send_message|send_media|send_order_message/);
+  assert.doesNotMatch(diag,/console\.(log|info|warn|error)\(/);
+  assert.match(repository,/diagnostic: true/);
+  assert.match(sacPage,/Verificar participação/);
+  assert.match(sacPage,/participationDiagnostic\.oauth_accepted/);
+});

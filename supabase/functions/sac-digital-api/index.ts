@@ -1694,6 +1694,82 @@ Deno.serve(async request => {
       const protocol={...selected,contact:linkedContact ? {...linkedContact,
         customer_id:linkedContact.customer_id || customer.id,
         customer:{id:customer.id,full_name:customer.full_name}}:null};
+
+      // Compatibilidade em leitura: o protocolo já foi autenticado e
+      // vinculado à OS acima. Não solicitar participação nem tocar em estados.
+      if (body.diagnostic === true) {
+        if (!(await requirePermission("sac_digital.protocols.manage"))) {
+          return json({success:false,error:"Sem permissão para diagnosticar participação SAC."},403);
+        }
+        const binding=await resolveMyOperatorBinding();
+        if(!binding) return json({success:false,type:"operator_required",
+          error:"Este teste exige um Operador SAC vinculado e autorizado (não um perfil Gestor)."},409);
+        const credentials=await loadCredentials(organizationId);
+        if(!credentials.enabled) return json({success:false,error:"A integração SAC Digital está desativada."},409);
+
+        // Usar o OAuth do operador da sessão Union, jamais o token de painel
+        // copiado do navegador. Não retornar nem registrar credenciais.
+        let oauthToken="";
+        try {
+          oauthToken=await authorizedOperatorToken(admin,{
+            organizationId,userId:userData.user.id,operatorId:binding.id,
+            bindingVersion:binding.version,
+          },credentials);
+          if(operatorTokenError(oauthToken)) throw new Error("OAuth sem identidade de operador.");
+        } catch {
+          return json({success:true,oauth_accepted:false,panel_accepted:false,
+            panel_status:"not_checked",rest_http_status:null,panel_http_status:null,
+            detail:"Autorize novamente o Operador na Union antes deste teste."});
+        }
+        let restStatus:number|null=null;
+        let restAccepted=false;
+        try {
+          const rest=await fetchJson("https://api.sac.digital/v2/operator/perfil/info",{
+            method:"GET",redirect:"error",
+            headers:{Authorization:"Bearer "+oauthToken,Accept:"application/json"},
+          },8000);
+          restStatus=rest.response.status;
+          restAccepted=rest.response.ok && rest.body.status!==false && rest.body.success!==false;
+        } catch {
+          // A falha é relatada sem resposta/token do fornecedor.
+        }
+        if(!restAccepted) return json({success:true,oauth_accepted:false,panel_accepted:false,
+          panel_status:"not_checked",rest_http_status:restStatus,panel_http_status:null,
+          detail:"A API REST não confirmou o OAuth. O endpoint do painel não foi testado."});
+
+        // O endpoint interno do painel é diferente da API REST documentada.
+        // Executar exclusivamente get_protocol, um evento de consulta.
+        // Sem call_in_request, return_call, recover_att ou mensagens.
+        let panelStatus:number|null=null;
+        let panelAccepted=false;
+        let panelResult:"accepted"|"rejected"|"unverified"="unverified";
+        try {
+          const form=new URLSearchParams({
+            token:oauthToken,type:"web",event:"get_protocol",
+            protocol:String(selected.external_protocol_id),
+          });
+          const panel=await fetchJson("https://whatsapp.sac.digital/api/socket/att",{
+            method:"POST",redirect:"error",
+            headers:{Accept:"application/json","Content-Type":"application/x-www-form-urlencoded"},
+            body:form.toString(),
+          },8000);
+          panelStatus=panel.response.status;
+          const resultInfo=panel.body.info;
+          panelAccepted=panel.response.ok && panel.body.event==="get_protocol"
+            && panel.body.status!==false && panel.body.success!==false
+            && !!resultInfo && typeof resultInfo==="object" && !Array.isArray(resultInfo)
+            && String((resultInfo as Record<string,unknown>).protocol||"")===String(selected.external_protocol_id);
+          panelResult=panelAccepted?"accepted":"rejected";
+        } catch {
+          panelResult="unverified";
+        }
+        return json({success:true,oauth_accepted:true,panel_accepted:panelAccepted,
+          panel_status:panelResult,rest_http_status:restStatus,
+          panel_http_status:panelStatus,
+          detail:panelAccepted
+            ? "O OAuth da Union foi aceito para consultar o protocolo no painel. A participação ainda não foi testada."
+            : "O OAuth funcionou na API REST, mas a consulta pelo painel não foi confirmada."});
+      }
       if(body.include_messages!==true) return json({success:true,protocol});
       const {data:rawMessages,error:messagesError}=await admin.from("sac_digital_messages")
         .select("id,protocol_id,direction,message_type,body_text,media_url,sender_name,sent_at,raw_metadata")

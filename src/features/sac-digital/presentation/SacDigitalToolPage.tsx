@@ -49,6 +49,8 @@ import {
   getSacDigitalIntegrationStatus,
   getSacDigitalFinishedProtocolCount,
   getSacDigitalOrderConversation,
+  diagnoseSacDigitalOrderParticipation,
+  type SacParticipationProbeResult,
   listSacDigitalOperatorQueue,
   getSacDigitalRoutingOptions,
   getSacDigitalUnreadCounts,
@@ -448,6 +450,8 @@ export function SacDigitalToolPage({
   const handledProtocolRouteRef = useRef("");
   const handledOrderConversationRef = useRef("");
   const [orderConversationPreview, setOrderConversationPreview] = useState<SacDigitalProtocolListItem | null>(null);
+  const [participationDiagnosticLoading, setParticipationDiagnosticLoading] = useState(false);
+  const [participationDiagnostic, setParticipationDiagnostic] = useState<SacParticipationProbeResult | null>(null);
   const orderConversationContextRef = useRef<{ orderId: string; protocolId: string; externalProtocol: string } | null>(null);
   const attemptedProtocolSyncRef = useRef("");
   const [protocolRouteRetry, setProtocolRouteRetry] = useState(0);
@@ -511,6 +515,7 @@ export function SacDigitalToolPage({
     // novamente no bloco já ativo. Manter rascunhos por protocolo no outbox.
     selectProtocol(null);
     setOrderConversationPreview(null);
+    setParticipationDiagnostic(null);
     orderConversationContextRef.current = null;
     setStatusFilter(nextStatus);
     // Um link vindo da OS não pode reabrir o protocolo depois de o usuário
@@ -1000,6 +1005,7 @@ export function SacDigitalToolPage({
           externalProtocol: protocol.external_protocol_id,
         };
         setOrderConversationPreview(protocol);
+        setParticipationDiagnostic(null);
         setConversationSearch("");
         setOperatorFilter("all");
         const nextStatus = displayProtocolStatus(protocol, waitingProtocolSet);
@@ -1781,6 +1787,25 @@ export function SacDigitalToolPage({
     && selectedProtocol.operator_id && !isMyProtocol,
   );
 
+  const runParticipationDiagnostic = async () => {
+    const context = orderConversationContextRef.current;
+    if (!activeOrganizationId || !context || !selectedProtocol
+      || context.protocolId !== selectedProtocol.id || participationDiagnosticLoading) return;
+    setParticipationDiagnosticLoading(true);
+    setParticipationDiagnostic(null);
+    try {
+      const result = await diagnoseSacDigitalOrderParticipation(
+        activeOrganizationId, context.orderId, context.externalProtocol,
+      );
+      setParticipationDiagnostic(result);
+      notifyAdmin(result.detail, result.oauth_accepted && result.panel_accepted ? "success" : "error");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error,"Não foi possível verificar a compatibilidade da SAC."),"error");
+    } finally {
+      setParticipationDiagnosticLoading(false);
+    }
+  };
+
   // Focar sempre que uma conversa aberta permitir digitação, inclusive
   // após "Pegar atendimento" transformar um protocolo de fila em ativo.
   const canComposeSelected = Boolean(
@@ -2245,12 +2270,34 @@ export function SacDigitalToolPage({
                         Finalizar
                       </AdminButton>
                     )}
+                    {isOrderPreviewReadOnly && operatorBinding?.access_mode === "operator" && canManageProtocols && (
+                      <AdminButton
+                        variant="secondary"
+                        onClick={() => void runParticipationDiagnostic()}
+                        loading={participationDiagnosticLoading}
+                        disabled={participationDiagnosticLoading}
+                        className="shrink-0"
+                      >
+                        Verificar participação
+                      </AdminButton>
+                    )}
                     {canManageProtocols && selectedOperationalStatus === "in_att" && !isMyProtocol && isSacManager && (
                       <span className="shrink-0 rounded-lg bg-sky-500/10 px-3 py-2 text-xs font-bold text-sky-700 dark:text-sky-300">
                         Gestor SAC · atendimento de {selectedProtocol.operator_name || "outro Operador"}
                       </span>
                     )}
                   </div>
+                )}
+
+                {isOrderPreviewReadOnly && participationDiagnostic && (
+                  <p className="border-b border-border px-4 py-2 text-xs text-muted-foreground" role="status">
+                    Diagnóstico SAC: OAuth {participationDiagnostic.oauth_accepted ? "aceito" : "não confirmado"}
+                    {" · "}Painel {participationDiagnostic.panel_status === "accepted" ? "compatível para consulta"
+                      : participationDiagnostic.panel_status === "rejected" ? "recusou a consulta"
+                      : participationDiagnostic.panel_status === "not_checked" ? "não testado" : "inconclusivo"}
+                    {" · "}REST {participationDiagnostic.rest_http_status ?? "—"}
+                    {" · "}Painel {participationDiagnostic.panel_http_status ?? "—"}
+                  </p>
                 )}
 
                 {customerLinkOpen && canViewCustomers && selectedProtocol.contact && (
