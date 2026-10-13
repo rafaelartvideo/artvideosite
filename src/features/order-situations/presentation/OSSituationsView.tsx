@@ -83,8 +83,14 @@ export function OSSituationsView({ onBack, routeResourceId, routeSubpage, onRout
     if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
-      const slug = await generateUniqueSlug("os_situations", form.name, editItem?.id);
+      const slug = editItem?.name === form.name.trim() && editItem?.slug
+        ? editItem.slug
+        : await generateUniqueSlug("os_situations", form.name, editItem?.id);
       const payload = { name: form.name.trim(), slug, color: form.color.trim().toUpperCase() || null, hours: form.hours === "" ? null : Number(form.hours), is_active: form.is_active, sort_order: Number(form.sort_order) };
+      if (editItem && Object.entries(payload).every(([key, value]) => JSON.stringify(value ?? null) === JSON.stringify(editItem[key] ?? null))) {
+        setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
+        return;
+      }
       if (editItem) await updateOrderSituation(editItem.id, payload); else await createOrderSituation(payload);
       setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Situação atualizada." : "Situação criada.", type: "success" }); void refresh();
     } catch (error) { setToast({ msg: `Erro ao salvar situação: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }); }
