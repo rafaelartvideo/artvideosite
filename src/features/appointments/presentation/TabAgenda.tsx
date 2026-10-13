@@ -6,6 +6,7 @@ import { useNewAppointment } from "../application/useNewAppointment";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AgendaToolbar } from "./AgendaToolbar";
 import { AgendaCalendarView } from "./AgendaCalendarView";
+import { TechnicianAvailabilityCalendar } from "./TechnicianAvailabilityCalendar";
 import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 
@@ -28,8 +29,8 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const newAppointment = useNewAppointment({ organizationId, userId: user?.id ?? null, cursor: agenda.cursor, situations: agenda.appointmentSituations, situationsLoading: agenda.loading, technicians: agenda.technicians, onCreated: agenda.addAppointment, onToast: (msg, type) => setToast({ msg, type }) });
 
   useEffect(() => {
-    if (!canViewCalendar && canViewList && agenda.view !== "list") agenda.setView("list");
-    if (!canViewList && canViewCalendar && agenda.view === "list") agenda.setView("month");
+    if (!canViewCalendar && canViewList && agenda.view !== "agenda") agenda.setView("agenda");
+    if (!canViewList && canViewCalendar && agenda.view === "agenda") agenda.setView("availability");
   }, [canViewCalendar, canViewList, agenda.view]);
 
   useEffect(() => {
@@ -38,9 +39,10 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   }, [newAppointment.submodal, newAppointment.open, selectedAppointment]);
 
   if (!canViewAgenda) return null;
-  const canViewCurrent = agenda.view === "list" ? canViewList : canViewCalendar;
+  const canViewCurrent = agenda.view === "agenda" ? canViewList : canViewCalendar;
   const safeOpenOrder = (id: string) => { if (canOpenOrder) onOpenOrder(id); };
-  const toolbar = <AgendaToolbar view={agenda.view} cursor={agenda.cursor} search={agenda.search} technicianFilter={agenda.technicianFilter} statusFilter={agenda.statusFilter} situationFilter={agenda.situationFilter} serviceFilter={agenda.serviceFilter} employees={agenda.employees} statuses={agenda.statuses as any[]} situations={agenda.situations} services={agenda.services} generalServices={agenda.generalServices} canCreate={canCreate} onViewChange={view => { if ((view === "list" && canViewList) || (view !== "list" && canViewCalendar)) agenda.setView(view); }} onSearchChange={agenda.setSearch} onTechnicianFilterChange={agenda.setTechnicianFilter} onStatusFilterChange={agenda.setStatusFilter} onSituationFilterChange={agenda.setSituationFilter} onServiceFilterChange={agenda.setServiceFilter} onPrevious={() => agenda.moveCursor(-1)} onNext={() => agenda.moveCursor(1)} onToday={() => agenda.setCursor(new Date())} onNew={() => canCreate && newAppointment.openDialog()} />;
+  const visibleTechnicians = canViewOtherAgendas ? agenda.technicians : agenda.technicians.filter(item => item.id === agenda.myEmployeeId);
+  const toolbar = <AgendaToolbar canViewOthers={canViewOtherAgendas} view={agenda.view} cursor={agenda.cursor} search={agenda.search} technicianFilter={agenda.technicianFilter} statusFilter={agenda.statusFilter} situationFilter={agenda.situationFilter} serviceFilter={agenda.serviceFilter} employees={agenda.employees} statuses={agenda.statuses as any[]} situations={agenda.situations} services={agenda.services} generalServices={agenda.generalServices} canCreate={canCreate} onViewChange={view => { if ((view === "agenda" && canViewList) || (view !== "agenda" && canViewCalendar)) agenda.setView(view); }} onSearchChange={agenda.setSearch} onTechnicianFilterChange={agenda.setTechnicianFilter} onStatusFilterChange={agenda.setStatusFilter} onSituationFilterChange={agenda.setSituationFilter} onServiceFilterChange={agenda.setServiceFilter} onPrevious={() => agenda.moveCursor(-1)} onNext={() => agenda.moveCursor(1)} onToday={() => agenda.setCursor(new Date())} onNew={() => canCreate && newAppointment.openDialog()} />;
 
   return <>
     <div className="space-y-4">
@@ -55,7 +57,14 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
           </div>
         </div>
       </header>
-      {canViewCurrent && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
+      {canViewCurrent && agenda.view === "availability" && <TechnicianAvailabilityCalendar
+        organizationId={organizationId}
+        technicians={visibleTechnicians}
+        date={agenda.cursor.getFullYear() + "-" + String(agenda.cursor.getMonth() + 1).padStart(2, "0") + "-" + String(agenda.cursor.getDate()).padStart(2, "0")}
+        technicianFilter={canViewOtherAgendas ? agenda.technicianFilter : agenda.myEmployeeId || "none"}
+        onChooseStart={canCreate ? (date, start, employeeId) => newAppointment.openDialog(date, start, employeeId) : undefined}
+      />}
+      {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
     </div>
     {canCreate && <NewAppointmentDialog controller={newAppointment} />}
     {canViewDetails && <AppointmentDetailsDialog appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onOpenOrder={safeOpenOrder} />}
