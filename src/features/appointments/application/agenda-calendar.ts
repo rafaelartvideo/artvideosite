@@ -49,7 +49,12 @@ export function filterAgendaData({ orders, appointments, search, technicianFilte
       && (!serviceFilter || serviceId === serviceFilter);
   });
   const filteredAppointments = appointments.filter(appointment => {
-    const technicianIds = (appointment.appointment_technicians || []).map(item => item.employee_id);
+    const linkedOrder = appointment.service_order;
+    const technicianIds = [
+      ...(appointment.appointment_technicians || []).map(item => item.employee_id),
+      linkedOrder?.technician?.id,
+      ...((linkedOrder?.technician_links || []).map((link: any) => link.employee_id)),
+    ].filter(Boolean);
     const searchText = [appointment.customer?.full_name, appointment.description, appointment.sector_location,
       appointment.service_order?.os_number, ...((appointment.appointment_technicians || [])
         .map(item => item.employee?.full_name || ""))].filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
@@ -57,7 +62,7 @@ export function filterAgendaData({ orders, appointments, search, technicianFilte
     return (!normalizedSearch || searchText.includes(normalizedSearch))
       && (!technicianFilter || technicianIds.includes(technicianFilter))
       && (!situationFilter || appointment.situation_id === situationFilter)
-      && !statusFilter
+      && (!statusFilter || linkedOrder?.order_status?.id === statusFilter)
       && (!serviceFilter || appointmentServiceId === serviceFilter);
   });
   // A OS só é ocultada quando o agendamento vinculado também passou pelos filtros.
@@ -74,7 +79,11 @@ export function filterAgendaData({ orders, appointments, search, technicianFilte
 export function buildAgendaDays(view: AgendaView, cursor: Date, count: number) {
   const rangeStart = (() => {
     if (view === "month") return new Date(cursor.getFullYear(), cursor.getMonth(), 1);
-    if (view === "week") { const start = new Date(cursor); start.setDate(start.getDate() - start.getDay()); return start; }
+    if (view === "week" || view === "availability") {
+      const start = new Date(cursor);
+      start.setDate(start.getDate() - (start.getDay() + 6) % 7);
+      return start;
+    }
     return new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
   })();
   return Array.from({ length: count }, (_, index) => {
