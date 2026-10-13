@@ -76,7 +76,8 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const employees = query.data?.employees ?? [];
   const services = query.data?.services ?? [];
   const generalServices = query.data?.generalServices ?? [];
-  const situations = query.data?.situations ?? [];
+  const situations = [...(query.data?.situations ?? []), ...(query.data?.appointmentSituations ?? [])]
+    .filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
   const appointmentSituations = (query.data?.appointmentSituations ?? []) as AppointmentSituation[];
   const technicians = employees as { id: string; full_name: string }[];
   const myEmployeeId = query.data?.myEmployeeId ?? null;
