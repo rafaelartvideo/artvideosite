@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { List, MapPinned, MessageSquare, Phone } from "lucide-react";
+import { Database, List, MapPinned, MessageSquare, Phone } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -56,6 +56,7 @@ const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
+const UnionCatalogAdminPage = lazy(() => import("@/features/segments/presentation/UnionCatalogAdminPage").then(({ UnionCatalogAdminPage }) => ({ default: UnionCatalogAdminPage })));
 
 export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 
@@ -156,7 +157,8 @@ export function AdminDashboard({
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "tools") return hasPermission("tools.view") && (
-      ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
+      (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
+      ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
@@ -241,8 +243,10 @@ export function AdminDashboard({
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
   const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
+  const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
+    ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
@@ -272,6 +276,10 @@ export function AdminDashboard({
     centeredIcons
     actionLabel="Abrir"
     onSelect={id => {
+      if (id === "catalogo-inteligente" && canAccessUnionCatalogTool) {
+        navigateAdmin("tools", "catalogo-inteligente");
+        return;
+      }
       if (id === "fieldTracking") {
         navigateAdmin("fieldTracking", null, null, { menuTab: "tools" });
         return;
@@ -288,7 +296,11 @@ export function AdminDashboard({
       if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
   />;
-  const toolsContent = route.resourceId === "union-senhas"
+  const toolsContent = route.resourceId === "catalogo-inteligente"
+    ? canAccessUnionCatalogTool
+      ? <UnionCatalogAdminPage onBack={() => navigateAdmin("tools")} />
+      : <Navigate to={adminPath("tools")} replace />
+    : route.resourceId === "union-senhas"
     ? canManageQueueTool
       ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
