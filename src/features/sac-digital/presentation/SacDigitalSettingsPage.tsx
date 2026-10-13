@@ -736,6 +736,12 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
                 ? "manager"
                 : employee.operator?.id ? `operator:${employee.operator.id}` : "";
               const selectedOperatorId = employee.operator?.id || "";
+              const linkedOperator = operatorData.operators.find(operator => operator.id === selectedOperatorId);
+              const providerStatus = !selectedOperatorId
+                ? null
+                : !linkedOperator ? "missing"
+                  : linkedOperator.online === true ? "online"
+                    : linkedOperator.online === false ? "offline" : "unknown";
               const usedByOther = new Map(
                 operatorData.employees
                   .filter(item => item.user_id !== employee.user_id && item.operator?.id)
@@ -772,15 +778,32 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
                         .filter(operator=>!usedByOther.has(operator.id) || operator.id===selectedOperatorId)
                         .map(operator=>({
                           value:`operator:${operator.id}`,
-                          label:`Operador — ${operator.name}${operator.email ? ` — ${operator.email}` : ""}${operator.online ? " — online" : ""}`,
+                          label:`Operador — ${operator.name}${operator.email ? ` — ${operator.email}` : ""}${operator.online === true ? " — Online" : operator.online === false ? " — Offline" : " — Status não informado"}`,
                         })),
                     ]} />
+                  {providerStatus && <p
+                    className={`mt-2 text-xs font-semibold ${providerStatus === "online" ? "text-emerald-700 dark:text-emerald-400"
+                      : providerStatus === "offline" ? "text-red-700 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}
+                  >
+                    {providerStatus === "online"
+                      ? "Operador online na SAC Digital"
+                      : providerStatus === "offline"
+                        ? "Operador offline na SAC Digital — confirme que entrou na conta do Operador e está disponível para atendimento"
+                        : providerStatus === "missing"
+                          ? "Operador vinculado não foi encontrado na lista da SAC Digital. Confira o vínculo."
+                          : "A SAC Digital não informou se o operador está online. Confira no painel original."}
+                  </p>}
                 </div>
               );
             })}
           </div>
         </div>
       )}
+
+      {operatorData?.checked_at && <p className="mt-3 text-xs text-muted-foreground">
+        Status consultado na SAC Digital em {formatDate(operatorData.checked_at)}.
+        Clique em <strong>Recarregar</strong> para consultar novamente; o vínculo do operador não garante que ele esteja online.
+      </p>}
 
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
         O cargo do usuário na Union não define esta regra. Gestor SAC é o perfil da própria SAC e usa a conta Gestor configurada; Operador SAC usa /operator e só pode ficar associado a um usuário da Union por empresa.
