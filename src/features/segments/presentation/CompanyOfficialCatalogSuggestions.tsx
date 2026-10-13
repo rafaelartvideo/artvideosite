@@ -45,6 +45,18 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
     return () => { current = false; };
   }, [organizationId]);
 
+  // Revalida ao retornar à aba, sem polling nem Realtime permanente para catálogos estáticos.
+  useEffect(() => {
+    let live = true;
+    const refreshOnFocus = () => {
+      void loadCompanyOfficialCatalog(organizationId)
+        .then(next => { if (live) setCatalog(next); })
+        .catch(() => { /* preserva o catálogo carregado; erro aparece no próximo acesso */ });
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    return () => { live = false; window.removeEventListener("focus", refreshOnFocus); };
+  }, [organizationId]);
+
   const choices = useMemo(() => (catalog?.equipmentTypes || []).filter(item =>
     item.name.toLocaleLowerCase("pt-BR").includes(search.trim().toLocaleLowerCase("pt-BR"))
   ), [catalog, search]);
@@ -75,6 +87,7 @@ export function CompanyOfficialCatalogSuggestions({ organizationId, canCreate, c
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="space-y-1">
         <h2 className="text-base font-extrabold">Sugestões do Catálogo Union</h2>
+        {catalog && <p className="text-xs text-muted-foreground">Revisão oficial: {catalog.revision}</p>}
         <p className="text-xs leading-5 text-muted-foreground">
           Itens oficiais compatíveis com os segmentos desta empresa. Adicione somente o que utiliza.
           Nenhum modelo será importado.
