@@ -424,6 +424,15 @@ export function QueryRealtimeSync() {
   useEffect(() => {
     if (!activeOrganizationId) return;
 
+    const subscribedConfigs = tableQueryKeys.filter(({ table, keys }) => {
+      if (!realtimePublishedTables.has(table)) return false;
+      const relevantKeys = typeof keys === "function" ? keys({}) : keys;
+      return relevantKeys.some(key => isForegroundQuery(key, pathnameRef.current));
+    });
+    // Na Home não há tabelas do sincronizador global a observar.
+    // Notificações e avisos possuem seus próprios canais específicos.
+    if (subscribedConfigs.length === 0) return;
+
     const pending = new Map<string, ReturnType<typeof window.setTimeout>>();
     let channel = supabase.channel(
       `query-cache-sync:${activeOrganizationId}:${isPlatformOperator ? "platform" : "tenant"}:${scope.replace(/[^a-z0-9/-]/gi, "-")}`,
@@ -446,14 +455,7 @@ export function QueryRealtimeSync() {
       );
     };
 
-    for (const { table, keys } of tableQueryKeys) {
-      if (!realtimePublishedTables.has(table)) continue;
-      // Não assinar todas as tabelas do banco enquanto o usuário está,
-      // por exemplo, apenas na página inicial. Funções que geram chaves
-      // são avaliadas sem payload para obter seus prefixos de cache.
-      const relevantKeys = typeof keys === "function" ? keys({}) : keys;
-      if (!relevantKeys.some(key => isForegroundQuery(key, pathnameRef.current))) continue;
-
+    for (const { table, keys } of subscribedConfigs) {
       const handleChange = (payload: RealtimePayload) => {
         const resolvedKeys = typeof keys === "function" ? keys(payload) : keys;
         for (const queryKey of resolvedKeys) scheduleInvalidation(queryKey);
