@@ -68,3 +68,19 @@ export async function createServiceType(payload: Record<string, unknown>) {
     .select("id,title,description,forecast_days,is_active,sort_order")
     .single();
 }
+
+/** Acrescenta campos opcionais sem substituir vínculos técnicos já existentes. */
+export async function addQuickEquipmentExtraFields(
+  equipmentTypeId: string,
+  technicalFieldIds: string[],
+  includeSerial: boolean,
+): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
+  const { error } = await supabase.rpc("add_quick_equipment_extra_fields_v1", {
+    p_organization_id: organizationId,
+    p_equipment_type_id: equipmentTypeId,
+    p_field_ids: technicalFieldIds,
+    p_include_serial: includeSerial,
+  });
+  if (error) throw error;
+}
