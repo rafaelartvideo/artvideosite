@@ -116,6 +116,8 @@ export async function createEquipmentBrandForTypes(
 export type EquipmentServiceSettings = {
   services: Array<{ id: string; name: string; is_active: boolean }>;
   links: Array<{ equipment_type_id: string; general_service_id: string }>;
+  /** False when the SQL configuration is not installed in this organization database. */
+  available: boolean;
 };
 
 /** Read an organization's service catalog and links in one scoped request. */
@@ -124,11 +126,30 @@ export async function loadEquipmentServiceSettings(): Promise<EquipmentServiceSe
   const { data, error } = await supabase.rpc("load_equipment_service_settings_v1", {
     p_organization_id: organizationId,
   });
-  if (error) throw error;
+  if (error) {
+    // PGRST202: the feature migration has not been installed yet.
+    // Keep the equipment editor working, but do not offer any unsavable links.
+    if (["PGRST202", "42883"].includes(error.code || "")) {
+      const fallback = await supabase.from("general_services")
+        .select("id,name,is_active")
+        .eq("organization_id", organizationId)
+        .order("name");
+      if (fallback.error) throw fallback.error;
+      return {
+        services: (fallback.data ?? []).filter(service =>
+          service.name.trim().toLocaleLowerCase("pt-BR") !== "serviço avulso"
+        ),
+        links: [],
+        available: false,
+      };
+    }
+    throw error;
+  }
   const payload = (data || {}) as Partial<EquipmentServiceSettings>;
   return {
     services: Array.isArray(payload.services) ? payload.services : [],
     links: Array.isArray(payload.links) ? payload.links : [],
+    available: true,
   };
 }
 
