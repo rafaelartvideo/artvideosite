@@ -1,0 +1,87 @@
+import { useEffect, useState } from "react";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { BtnPrimary } from "@/shared/ui/admin/AdminLayout";
+import {
+  addTenantCatalogTechnicalField,loadTenantCatalogTemplates,
+  type TenantCatalogTemplates,
+} from "../infrastructure/company-catalog-enhancements.repository";
+
+export function CompanyCatalogTemplateSuggestions({
+  organizationId,equipmentCatalogId,canManage,onAdded,
+}: {
+  organizationId: string;
+  equipmentCatalogId: string;
+  canManage: boolean;
+  onAdded: () => Promise<unknown>;
+}) {
+  const [templates,setTemplates] = useState<TenantCatalogTemplates>({ technical: [],checklists: [] });
+  const [loading,setLoading] = useState(true);
+  const [busy,setBusy] = useState("");
+  const [error,setError] = useState("");
+  const [notice,setNotice] = useState("");
+
+  useEffect(() => {
+    let live=true;
+    setLoading(true);setError("");setNotice("");
+    void loadTenantCatalogTemplates(organizationId,equipmentCatalogId)
+      .then(data => { if(live)setTemplates(data); })
+      .catch(cause => { if(live)setError(systemErrorMessage(cause,"Não foi possível carregar os templates oficiais.")); })
+      .finally(() => { if(live)setLoading(false); });
+    return () => {live=false;};
+  },[organizationId,equipmentCatalogId]);
+
+  const addField = async (id: string) => {
+    if (!canManage || busy) return;
+    setBusy(id);setError("");setNotice("");
+    try {
+      await addTenantCatalogTechnicalField(organizationId,equipmentCatalogId,id);
+      const [next] = await Promise.all([
+        loadTenantCatalogTemplates(organizationId,equipmentCatalogId),
+        onAdded(),
+      ]);
+      setTemplates(next);
+      setNotice("Campo técnico associado sem alterar os campos personalizados.");
+    } catch(cause) {
+      setError(systemErrorMessage(cause,"Não foi possível adicionar o campo técnico."));
+    } finally {setBusy("");}
+  };
+
+  return <section className="space-y-3 rounded-lg border border-border bg-background p-4 text-card-foreground">
+    <h3 className="text-sm font-extrabold">Templates oficiais deste equipamento</h3>
+    <p className="text-xs leading-5 text-muted-foreground">
+      Campos técnicos podem ser adicionados individualmente. Checklists ficam disponíveis para consulta,
+      sem substituir os perfis e etapas configurados pela empresa.
+    </p>
+    {loading && <p className="text-sm text-muted-foreground">Carregando templates...</p>}
+    {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+    {notice && <p role="status" className="text-sm text-green-700">{notice}</p>}
+    {!loading && <>
+      <div className="space-y-2">
+        <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Campos técnicos ({templates.technical.length})
+        </h4>
+        {templates.technical.length === 0 && <p className="text-xs text-muted-foreground">Nenhum campo técnico oficial publicado.</p>}
+        {templates.technical.map(field => <div key={field.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-border py-2 last:border-b-0">
+          <div>
+            <p className="text-sm font-semibold">{field.label}</p>
+            <p className="text-xs text-muted-foreground">{field.field_key} · {field.field_type === "number" ? "Número" : "Texto"}{field.required ? " · Obrigatório" : ""}</p>
+          </div>
+          {field.applied
+            ? <span className="text-xs font-semibold text-green-700">Adicionado</span>
+            : <BtnPrimary size="sm" disabled={!canManage || Boolean(busy)} loading={busy===field.id}
+              onClick={() => void addField(field.id)}>Adicionar campo</BtnPrimary>}
+        </div>)}
+      </div>
+      <div className="space-y-2 border-t border-border pt-3">
+        <h4 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+          Checklists sugeridos ({templates.checklists.length})
+        </h4>
+        {templates.checklists.length === 0 && <p className="text-xs text-muted-foreground">Nenhum item de checklist oficial publicado.</p>}
+        {templates.checklists.map(item => <div key={item.id} className="border-b border-border py-2 text-sm last:border-b-0">
+          <p className="font-medium">{item.title}</p>
+          <p className="text-xs text-muted-foreground">Etapa: {item.stage_code} · {item.is_required ? "Obrigatório" : "Opcional"}</p>
+        </div>)}
+      </div>
+    </>}
+  </section>;
+}
