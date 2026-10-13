@@ -10,9 +10,9 @@ import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AppointmentAddressDialog } from "./AppointmentAddressDialog";
 import { AppointmentTechniciansDialog } from "./AppointmentTechniciansDialog";
 
-type Props = { controller: NewAppointmentController };
+type Props = { controller: NewAppointmentController; allowedTechnicianId?: string | null };
 
-export function NewAppointmentDialog({ controller }: Props) {
+export function NewAppointmentDialog({ controller, allowedTechnicianId }: Props) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const {
     open,
@@ -82,7 +82,7 @@ export function NewAppointmentDialog({ controller }: Props) {
           <div><div className="flex flex-wrap items-center gap-2">{selectedAppointmentTechnicians.map(id => <span key={id} className="inline-flex items-center gap-1 rounded-full bg-primary-soft-strong px-2.5 py-1 text-xs font-bold text-primary">{appointmentTechnicians.find(item => item.id === id)?.full_name}<button type="button" onClick={() => setSelectedAppointmentTechnicians(current => current.filter(item => item !== id))} aria-label="Remover técnico"><X size={12} /></button></span>)}<button type="button" onClick={() => setAppointmentSubmodal("technicians")} className="rounded-lg border border-primary/30 px-3 py-2 text-xs font-bold text-primary"><UserPlus size={13} className="mr-1 inline" />Selecionar técnicos</button></div></div>
           {activeOrganizationId && <TechnicianAvailabilityCalendar
             organizationId={activeOrganizationId}
-            technicians={hasPermission("agenda.view_others") ? appointmentTechnicians : appointmentTechnicians.filter(item => selectedAppointmentTechnicians.includes(item.id))}
+            technicians={hasPermission("agenda.view_others") ? appointmentTechnicians : appointmentTechnicians.filter(item => item.id === allowedTechnicianId)}
             date={appointmentForm.appointment_date}
             selectedStart={appointmentForm.period === "custom" ? appointmentForm.start_time : ""}
             selectedEnd={appointmentForm.period === "custom" ? appointmentForm.end_time : ""}
