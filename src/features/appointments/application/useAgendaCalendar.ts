@@ -47,7 +47,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const queryClient = useQueryClient();
   const [orders, setOrders] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [view, setView] = useState<AgendaView>("month");
+  const [view, setView] = useState<AgendaView>("availability");
   const [cursor, setCursor] = useState(() => new Date());
   const [technicianFilter, setTechnicianFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -98,7 +98,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   }, [canViewOthers, myEmployeeId]);
 
   const effectiveTechnicianFilter = !canViewOthers ? myEmployeeId || "" : technicianFilter;
-  const { calendarEvents } = filterAgendaData({
+  const { calendarEvents: filteredCalendarEvents } = filterAgendaData({
     orders,
     appointments,
     search,
@@ -107,6 +107,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
     situationFilter,
     serviceFilter,
   });
+  const calendarEvents = !canViewOthers && !myEmployeeId ? [] : filteredCalendarEvents;
   const statuses = Array.from(new Map(orders.flatMap(order => {
     const statusId = order.order_status?.id;
     return statusId ? [[statusId, order.order_status] as const] : [];
@@ -115,7 +116,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const moveCursor = (amount: number) => {
     const next = new Date(cursor);
     if (view === "month") next.setMonth(next.getMonth() + amount);
-    else if (view === "week") next.setDate(next.getDate() + amount * 7);
+    else if (view === "week" || view === "availability") next.setDate(next.getDate() + amount * 7);
     else next.setDate(next.getDate() + amount);
     setCursor(next);
   };
@@ -186,6 +187,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
     serviceFilter,
     setServiceFilter,
     employees,
+    myEmployeeId,
     statuses,
     situations,
     services,
