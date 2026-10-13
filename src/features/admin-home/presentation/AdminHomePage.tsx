@@ -164,8 +164,12 @@ export function AdminHomePage({
     queryKey: ["admin-home", "announcements", activeOrganizationId],
     enabled: Boolean(activeOrganizationId),
     queryFn: () => loadHomeAnnouncements(activeOrganizationId!),
-    refetchInterval: 15_000,
-    refetchOnWindowFocus: "always",
+    // Eventos Realtime atualizam os avisos imediatamente. Esta consulta é
+    // apenas contingência caso uma mudança não seja recebida.
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: true,
   });
 
   const activityQuery = useQuery({
