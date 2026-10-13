@@ -80,7 +80,7 @@ function SegmentPicker({
   const content = <div className="space-y-5">
     <h3 className="text-base font-extrabold text-[#132039]">Qual é o principal segmento da sua empresa?</h3>
 
-    <div className="grid grid-cols-1 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {data.segments.map(segment => {
         const selected = primary === segment.code;
         return <button
@@ -89,13 +89,12 @@ function SegmentPicker({
           aria-pressed={selected}
           disabled={saving}
           onClick={() => selectPrimary(segment.code)}
-          className={
-            "relative flex min-h-[138px] min-w-0 flex-col items-start gap-2 border-b border-r border-[#dce3ec] px-4 py-4 text-left transition-colors focus-visible:z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[#1032dc] disabled:opacity-60 " +
-            (selected ? "bg-[#edf1ff]" : "hover:bg-[#f5f7fc]")
-          }
+          className={`relative flex min-h-[166px] min-w-0 flex-col items-start gap-3 rounded-xl border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1032dc] disabled:opacity-60 ${selected
+            ? "border-[#1032dc] bg-[#edf1ff]"
+            : "border-[#dce3ec] bg-[#f8fafd] hover:border-[#7990e9]"}`}
         >
           {selected && <CheckCircle2 aria-label="Selecionado" className="absolute right-4 top-4 h-5 w-5 text-[#1032dc]" />}
-          <SegmentIcon segment={segment} />
+          <div className="rounded-xl bg-white p-3 shadow-sm"><SegmentIcon segment={segment} /></div>
           <span className="pr-6 text-base font-bold text-[#17263b]">{segment.name}</span>
           <span className="text-sm leading-5 text-[#6b7788]">{segment.description}</span>
         </button>;
@@ -107,20 +106,17 @@ function SegmentPicker({
         Sua empresa trabalha com outros segmentos?
         <span className="text-xs font-medium text-[#66758a]">(Opcional)</span>
       </h4>
-      <div className="grid grid-cols-1 overflow-hidden sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-6 border-y border-[#0d1b2e]/8 sm:grid-cols-2 lg:grid-cols-3">
         {data.segments.filter(item => item.code !== primary).map(segment => <label
           key={segment.code}
-          className={
-            "flex cursor-pointer items-center gap-2 border-b border-r border-[#dce3ec] px-3 py-3 text-sm font-medium text-[#20314b] hover:bg-[#f5f7fc] " +
-            (additional.includes(segment.code) ? "bg-[#edf1ff]" : "")
-          }
+          className="flex min-w-0 cursor-pointer items-center gap-3 border-b border-[#0d1b2e]/8 py-3 text-sm font-medium text-[#20314b]"
         >
           <input
             type="checkbox"
             checked={additional.includes(segment.code)}
             onChange={() => toggleAdditional(segment.code)}
             disabled={saving}
-            className="h-4 w-4 accent-[#1032dc]"
+            className="h-4 w-4 shrink-0 accent-[#1032dc]"
           />
           {segment.name}
         </label>)}
