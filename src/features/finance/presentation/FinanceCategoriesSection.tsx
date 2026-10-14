@@ -59,7 +59,7 @@ export function FinanceCategoriesSection() {
   return <div className="space-y-4">
     <Section
       title="Categorias financeiras"
-      description="Organize receitas e despesas para DRE e rateios."
+      description="Organize suas entradas e saídas por categoria."
       actions={<BtnPrimary onClick={() => { setForm(emptyForm()); setFieldErrors({}); setOpen(true); }}><Plus size={16} /> Nova categoria</BtnPrimary>}
       flush
     >

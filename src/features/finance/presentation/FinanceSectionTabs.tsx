@@ -2,14 +2,14 @@ import { cn } from "@/shared/domain/formatters";
 import type { FinanceSection } from "../domain/finance.types";
 
 const LABELS: Record<FinanceSection, string> = {
-  overview: "Visão geral",
-  receivables: "Contas a receber",
-  payables: "Contas a pagar",
-  movements: "Movimentações",
-  accounts: "Caixas e contas",
+  overview: "Resumo",
+  receivables: "A receber",
+  payables: "A pagar",
+  movements: "Extrato",
+  accounts: "Contas e caixa",
   recurring: "Recorrências",
   reports: "Relatórios",
-  registries: "Cadastros financeiros",
+  registries: "Configurações",
 };
 
 export function FinanceSubsectionTabs<T extends string>({
@@ -23,30 +23,18 @@ export function FinanceSubsectionTabs<T extends string>({
   onSelect: (value: T) => void;
   ariaLabel?: string;
 }) {
-  return <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-1.5 shadow-sm" aria-label={ariaLabel}>
-    <div className="flex min-w-max items-stretch gap-1">
-      {items.map(item => {
-        const selected = value === item.id;
-        return <button
-          key={item.id}
-          type="button"
-          onClick={() => onSelect(item.id)}
-          aria-current={selected ? "page" : undefined}
-          className={cn(
-            "group relative min-h-11 whitespace-nowrap px-4 py-3 text-xs font-bold transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-inset",
-            selected ? "text-primary" : "text-[#5a6a82] hover:text-primary",
-          )}
-        >
-          {item.label}
-          <span
-            aria-hidden="true"
-            className={cn(
-              "absolute inset-x-3 bottom-0 h-0.5 origin-center rounded-full bg-primary transition-transform duration-300 ease-out",
-              selected ? "scale-x-100" : "scale-x-0 group-hover:scale-x-50",
-            )}
-          />
-        </button>;
-      })}
+  return <nav className="max-w-full overflow-x-auto" aria-label={ariaLabel}>
+    <div className="flex w-max min-w-full items-center gap-1 rounded-lg border border-border bg-card p-1">
+      {items.map(item => <button
+        key={item.id}
+        type="button"
+        onClick={() => onSelect(item.id)}
+        aria-current={value === item.id ? "page" : undefined}
+        className={cn(
+          "min-h-9 whitespace-nowrap rounded-md px-3 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          value === item.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >{item.label}</button>)}
     </div>
   </nav>;
 }
@@ -60,10 +48,18 @@ export function FinanceSectionTabs({
   allowedSections: FinanceSection[];
   onSelect: (section: FinanceSection) => void;
 }) {
-  return <FinanceSubsectionTabs
-    value={section}
-    items={allowedSections.map(item => ({ id: item, label: LABELS[item] }))}
-    onSelect={onSelect}
-    ariaLabel="Áreas do financeiro"
-  />;
+  const primary = allowedSections.filter(id => id !== "recurring" && id !== "registries");
+  const secondary = allowedSections.filter(id => id === "recurring" || id === "registries");
+  return <div className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+    {primary.length > 0 && <FinanceSubsectionTabs value={section} items={primary.map(id => ({ id, label: LABELS[id] }))} onSelect={onSelect} ariaLabel="Navegação do financeiro" />}
+    {secondary.length > 0 && <select
+      aria-label="Outras opções do financeiro"
+      value={secondary.includes(section) ? section : ""}
+      onChange={event => { if (event.target.value) onSelect(event.target.value as FinanceSection); }}
+      className="min-h-11 max-w-full rounded-lg border border-border bg-card px-3 text-sm font-semibold text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+    >
+      <option value="" disabled>Mais opções</option>
+      {secondary.map(id => <option key={id} value={id}>{LABELS[id]}</option>)}
+    </select>}
+  </div>;
 }

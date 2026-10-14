@@ -52,7 +52,7 @@ export function TabFinance({
   };
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Financeiro" subtitle="Contas a pagar e receber, movimentações, caixas, cadastros e gestão financeira em um único módulo." />
+    <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa." />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
 
     {section === "overview" && <FinanceOverviewFoundation onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}

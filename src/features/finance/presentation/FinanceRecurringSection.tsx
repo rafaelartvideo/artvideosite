@@ -1,6 +1,6 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { CalendarClock, Pencil, Plus, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -8,7 +8,6 @@ import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/sha
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, AdminCardToolbar, AdminDialog, AdminIconButton, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { validateAllocationTotal } from "../domain/finance-entry.mjs";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import type {
@@ -17,7 +16,6 @@ import type {
   FinancialRecurringFrequency,
   FinancialRecurringRule,
 } from "../domain/finance.types";
-import { FinanceAllocationEditor } from "./FinanceAllocationEditor";
 
 function today() {
   const now = new Date();
@@ -77,9 +75,7 @@ export function FinanceRecurringSection() {
 
   const rules = recurring.rulesQuery.data || [];
   const categories = foundation.categoriesQuery.data || [];
-  const costCenters = foundation.costCentersQuery.data || [];
   const amount = Number(form.original_amount || 0);
-  const allocationValidation = useMemo(() => validateAllocationTotal(amount, form.allocations), [amount, form.allocations]);
   const pending = recurring.saveMutation.isPending || recurring.activeMutation.isPending || recurring.generateMutation.isPending;
 
   if (!canView) return <AdminCard className="p-6"><p className="text-sm text-[#5a6a82]">Você não possui permissão para visualizar recorrências.</p></AdminCard>;
@@ -129,11 +125,16 @@ export function FinanceRecurringSection() {
     const nextErrors: typeof fieldErrors = {};
     if (!form.description.trim()) nextErrors.description = "Informe a descrição da recorrência.";
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) nextErrors.amount = "Informe um valor maior que zero.";
-    if (!allocationValidation.ok) nextErrors.allocations = "O rateio deve fechar exatamente o valor da recorrência.";
+    if (!form.allocations[0]?.category_id) nextErrors.allocations = "Selecione uma categoria.";
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     try {
       setFieldErrors({});
+      const oldRule = rules.find(rule => rule.id === form.id);
+      const preserveHistoric = Boolean(oldRule && Math.round(Number(oldRule.original_amount) * 100) === Math.round(numericAmount * 100) && form.allocations.length === oldRule.allocations.length && form.allocations.every((item, index) => item.category_id === oldRule.allocations[index]?.category_id));
+      const savedAllocations: FinancialAllocationDraft[] = preserveHistoric
+        ? form.allocations
+        : [{ category_id: form.allocations[0]?.category_id || "", cost_center_id: null, mode: "percentage", value: 100, amount: numericAmount }];
       const id = await recurring.saveMutation.mutateAsync({
         id: form.id,
         payload: {
@@ -150,7 +151,7 @@ export function FinanceRecurringSection() {
           next_occurrence_date: form.next_occurrence_date,
           installment_count: Number(form.installment_count || 1),
           first_due_offset_days: Number(form.first_due_offset_days || 0),
-          allocations: form.allocations,
+          allocations: savedAllocations,
           notes: form.notes.trim() || null,
         },
       });
@@ -237,7 +238,14 @@ export function FinanceRecurringSection() {
             <FIntegerInput label="Dias até 1º vencimento" value={form.first_due_offset_days} onChange={(event: any) => setForm(current => ({ ...current, first_due_offset_days: event.target.value }))} />
           </div>
 
-          <FinanceAllocationEditor entryType={form.entry_type} total={amount} categories={categories} costCenters={costCenters} value={form.allocations} onChange={allocations => { setFieldErrors(current => ({ ...current, allocations: undefined })); setForm(current => ({ ...current, allocations })); }} />{fieldErrors.allocations && <p className="mt-1 text-[10px] font-semibold leading-relaxed text-red-600">{fieldErrors.allocations}</p>}
+          <FSelect label="Categoria" required error={fieldErrors.allocations} value={form.allocations[0]?.category_id || ""} options={[
+            { value: "", label: "Selecione uma categoria" },
+            ...categories.filter(item => item.nature === (form.entry_type === "receivable" ? "revenue" : "expense") && (item.is_active || item.id === form.allocations[0]?.category_id))
+              .map(item => ({ value: item.id, label: item.name })),
+          ]} onChange={(event: any) => {
+            setFieldErrors(current => ({ ...current, allocations: undefined }));
+            setForm(current => ({ ...current, allocations: [{ category_id: event.target.value, cost_center_id: null, mode: "percentage", value: 100, amount }] }));
+          }} />
           <FTextarea label="Observações" value={form.notes} onChange={(event: any) => setForm(current => ({ ...current, notes: event.target.value }))} rows={3} />
           
       </div>

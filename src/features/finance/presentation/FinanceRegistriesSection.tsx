@@ -3,14 +3,12 @@ import { useAuth } from "@/lib/auth";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import type { FinanceRegistrySection } from "../domain/finance.types";
 import { FinanceCategoriesSection } from "./FinanceCategoriesSection";
-import { FinanceCostCentersSection } from "./FinanceCostCentersSection";
 import { FinancePaymentMethodsSection } from "./FinancePaymentMethodsSection";
 import { FinanceSettingsSection } from "./FinanceSettingsSection";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 
 const REGISTRIES: Array<{ id: FinanceRegistrySection; label: string; permission: string }> = [
   { id: "categories", label: "Categorias", permission: "finance.categories.manage" },
-  { id: "cost-centers", label: "Centros de custo", permission: "finance.cost_centers.manage" },
   { id: "payment-methods", label: "Formas de pagamento", permission: "finance.payment_methods.manage" },
   { id: "settings", label: "Configurações", permission: "finance.settings.manage" },
 ];
@@ -42,7 +40,6 @@ export function FinanceRegistriesSection({
     />
 
     {selected === "categories" && <FinanceCategoriesSection />}
-    {selected === "cost-centers" && <FinanceCostCentersSection />}
     {selected === "payment-methods" && <FinancePaymentMethodsSection />}
     {selected === "settings" && <FinanceSettingsSection />}
   </div>;
