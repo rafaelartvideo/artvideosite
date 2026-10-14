@@ -76,6 +76,17 @@ test("permissões de tabelas dos 17 módulos nunca são classificadas como açã
   }
 });
 
+test("não exibe checkboxes de colunas antigas que a tabela de funções não usa", () => {
+  const keys = [
+    "roles.view", "roles.table.view", "roles.table.name", "roles.table.description",
+    "roles.table.permissions", "roles.table.type", "roles.table.users", "roles.table.actions",
+  ];
+  const grouped = taxonomy.buildPermissionGroups(keys.map((key, i) => ({ id: String(i), key, label: key })));
+  const roleGroup = grouped.find(group => group.name === "Funções e Permissões");
+  assert.ok(roleGroup);
+  assert.deepEqual(new Set(roleGroup.permissions.map(p => p.key)), new Set(["roles.view", "roles.table.view"]));
+});
+
 test("submódulos financeiros não se misturam numa lista genérica de ações", () => {
   assert.equal(taxonomy.permissionSectionName({ key: "finance.receivables.view" }), "Contas a Receber");
   assert.equal(taxonomy.permissionSectionName({ key: "finance.receivables.create" }), "Contas a Receber");
