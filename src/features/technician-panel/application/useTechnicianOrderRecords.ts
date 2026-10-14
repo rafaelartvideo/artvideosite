@@ -19,7 +19,8 @@ export function useTechnicianOrderRecords(orderId: string | null, open: boolean)
     if (!orderId) return;
     setLoading(true);
     try {
-      setRows(await listMyTechnicianOrderRecords(orderId));
+      // A tela compartilhada de registros mostra somente anotações humanas, não eventos automáticos.
+      setRows((await listMyTechnicianOrderRecords(orderId)).filter(row => row.type === "note"));
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, "Não foi possível carregar os registros da OS."), "error");
     } finally {
