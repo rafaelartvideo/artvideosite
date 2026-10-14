@@ -1,4 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { supabase } from "@/lib/supabase";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -75,6 +76,17 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
     }),
     enabled: canView,
   });
+  useEffect(() => {
+    if (!organizationId || !canView) return;
+    const channel = supabase.channel("agenda-service-schedule:" + organizationId)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "service_order_item_tasks",
+        filter: "organization_id=eq." + organizationId,
+      }, () => { void queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all }); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [organizationId, canView, queryClient]);
+
   const loading = canView && query.isPending;
   const employees = query.data?.employees ?? [];
   const services = query.data?.services ?? [];
