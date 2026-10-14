@@ -57,7 +57,7 @@ test("erros e sucessos dos itens da OS usam balões globais do CRM, sem caixa fi
   assert.match(section, /notifyAdmin\(feedback\.text, feedback\.type\)/);
   assert.match(section, /showFeedback\(\{ type: "success", text: "Serviço adicionado à OS\." \}\)/);
   assert.match(section, /showFeedback\(\{ type: "error", text: systemErrorMessage\(error, "Não foi possível adicionar o serviço\."\) \}\)/);
-  assert.match(section, /showFeedback\(\{ type: "success", text: "Agendamento do serviço confirmado\."/);
+  assert.match(section, /showFeedback\(\{ type: "success", text: start \? "Agendamento do serviço confirmado\."/);
   assert.doesNotMatch(section, /\{message && <div/);
   assert.doesNotMatch(section, /setMessage\(/);
 });
