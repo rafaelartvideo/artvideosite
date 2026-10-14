@@ -64,6 +64,26 @@ test("existe uma única entrada visual para tabela e nenhuma aba de colunas sepa
   assert.match(matrix, /permissionLabelForEditor/);
 });
 
+test("visualizar e ações aparecem dentro do mesmo módulo, sem abas globais", () => {
+  const matrix = read("src/features/roles/presentation/PermissionMatrix.tsx");
+  assert.doesNotMatch(matrix, /role="tablist"/);
+  assert.doesNotMatch(matrix, /setMode/);
+  assert.match(matrix, /groups\.map\(group =>/);
+  assert.match(matrix, /kinds\.map\(kind =>/);
+  assert.match(matrix, /kind\.title/);
+  assert.match(matrix, /permissionPresentationKind\(permission\) === kind\.key/);
+  assert.match(matrix, /title: "Visualizar"/);
+  assert.match(matrix, /title: "Ações"/);
+});
+
+test("o editor mantém a seleção ao atualizar a lista de funções e só salva após carregar o catálogo", () => {
+  const editor = read("src/features/roles/presentation/TabRoles.tsx");
+  assert.match(editor, /roleBeingEdited\?\.id, canViewDetails/);
+  assert.match(editor, /permissionListReady \|\| !catalogReady/);
+  assert.match(editor, /getRolePermissionIds\(roleId\)/);
+  assert.match(editor, /persistedIds/);
+});
+
 test("permissões de tabelas dos 17 módulos nunca são classificadas como ação", () => {
   for (const module of [
     "agenda", "brands", "categories", "customers", "documents", "employees",
