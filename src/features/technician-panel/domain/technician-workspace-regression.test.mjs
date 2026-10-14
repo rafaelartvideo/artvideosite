@@ -381,3 +381,20 @@ test("produtos têm formulário à esquerda, lista à direita e adicionar em lar
   assert.match(catalogUi, /Quantidade/);
   assert.match(catalogUi, /Busque no estoque por nome ou SKU/);
 });
+
+test("cabeçalhos da tabela técnica alinham com os valores na mesma coluna", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.ok(table.includes('<table className="min-w-[880px] text-left">'));
+  assert.equal(table.split('<th scope="col" className="px-4 py-3 text-left">').length - 1, 5);
+  assert.ok(table.includes('<td className="px-4 py-3 font-bold text-foreground">{services[0].os_number}</td>'));
+});
+
+test("painel principal não possui toolbar inferior mas a OS mantém a sua", () => {
+  const start = panel.indexOf('{!routeOrderId ? <>');
+  const end = panel.indexOf(' : orderLoadError', start);
+  assert.ok(start >= 0 && end > start, "Não foi possível localizar a tela principal");
+  const home = panel.slice(start, end);
+  assert.match(home, /<TechnicianOrdersTable/);
+  assert.doesNotMatch(home, /<AdminStickyToolbar/);
+  assert.match(panel.slice(end), /<AdminStickyToolbar/);
+});
