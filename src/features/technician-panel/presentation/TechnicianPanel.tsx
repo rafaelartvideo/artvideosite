@@ -341,6 +341,20 @@ export function TechnicianPanel() {
   const ongoingServices = orderServices.filter(service => service.status === "in_progress").length;
   const completedServices = orderServices.filter(service => service.status === "completed").length;
 
+  const renderEquipmentPhotos = (kind: "equipment" | "label") => {
+    const files = (orderDetails?.equipment_photos || []).filter(image => image.kind === kind);
+    if (!files.length) return <p className="text-xs text-muted-foreground">
+      {kind === "label" ? "Nenhuma foto da etiqueta cadastrada." : "Nenhuma foto do equipamento cadastrada."}
+    </p>;
+    return <div className="flex flex-wrap gap-3">
+      {files.map(image => {
+        const view = { key: image.id, name: image.name || "Imagem do equipamento", kind, url: equipmentPhotoUrls[image.path] };
+        return <OrderImageThumb key={image.id} image={view}
+          onView={() => { if (view.url) setViewEquipmentImage(view); }} />;
+      })}
+    </div>;
+  };
+
   return <div className="mx-auto max-w-6xl space-y-4">
     {!routeOrderId && <PageHeader title="Painel do Técnico"
       subtitle="Ordens de serviço e atividades atribuídas a você."
@@ -428,54 +442,27 @@ export function TechnicianPanel() {
             <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <div>
                 <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Foto da etiqueta</p>
-                {(orderDetails?.equipment_photos || []).some(image => image.kind === "label")
-                  ? <div className="flex flex-wrap gap-2">
-                    {orderDetails!.equipment_photos!.filter(image => image.kind === "label").map(image =>
-                      <a key={image.id} href={equipmentPhotoUrls[image.path] || "#"}
-                        onClick={event => { if (!equipmentPhotoUrls[image.path]) event.preventDefault(); }}
-                        target="_blank" rel="noreferrer"
-                        className="block h-24 w-24 overflow-hidden rounded-lg border border-border bg-muted">
-                        {equipmentPhotoUrls[image.path] && <img src={equipmentPhotoUrls[image.path]}
-                          alt={image.name || "Etiqueta do equipamento"} loading="lazy" className="h-full w-full object-cover" />}
-                      </a>)}
-                  </div> : <p className="text-xs text-muted-foreground">Nenhuma foto da etiqueta cadastrada.</p>}
+                {renderEquipmentPhotos("label")}
               </div>
               <div>
                 <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Fotos do equipamento</p>
-                {(orderDetails?.equipment_photos || []).some(image => image.kind === "equipment")
-                  ? <div className="flex flex-wrap gap-2">
-                    {orderDetails!.equipment_photos!.filter(image => image.kind === "equipment").map(image =>
-                      <a key={image.id} href={equipmentPhotoUrls[image.path] || "#"}
-                        onClick={event => { if (!equipmentPhotoUrls[image.path]) event.preventDefault(); }}
-                        target="_blank" rel="noreferrer"
-                        className="block h-24 w-24 overflow-hidden rounded-lg border border-border bg-muted">
-                        {equipmentPhotoUrls[image.path] && <img src={equipmentPhotoUrls[image.path]}
-                          alt={image.name || "Foto do equipamento"} loading="lazy" className="h-full w-full object-cover" />}
-                      </a>)}
-                  </div> : <p className="text-xs text-muted-foreground">Nenhuma foto do equipamento cadastrada.</p>}
+                {renderEquipmentPhotos("equipment")}
               </div>
             </div>
           </div>
-          {(hasPermission("technician_panel.data.problem") || hasPermission("technician_panel.data.internal_notes")) &&
-            <div className="mt-4 grid gap-4 border-t border-border/70 pt-4 sm:grid-cols-2">
-              {hasPermission("technician_panel.data.problem") && <div>
-                <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Descrição do problema</p>
-                <p className="whitespace-pre-wrap break-words text-sm">{selected.problem || "Ainda não informado."}</p>
-              </div>}
-              {hasPermission("technician_panel.data.internal_notes") && <div>
-                <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Observações internas</p>
-                <p className="whitespace-pre-wrap break-words text-sm">{orderDetails?.internal_notes || "Ainda não informado."}</p>
-              </div>}
-            </div>}
-          {hasPermission("technician_panel.data.diagnosis") && orderDetails && <div className="mt-4 border-t border-border/70 pt-4">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Diagnóstico</p>
-              {orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved &&
-                <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>}
-            </div>
-            <p className="whitespace-pre-wrap break-words text-sm">{orderDetails.diagnosis || "Ainda não informado."}</p>
-          </div>}
         </Section>
+        {hasPermission("technician_panel.data.problem") && <Section title="Descrição do problema">
+          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
+        </Section>}
+        {hasPermission("technician_panel.data.internal_notes") && <Section title="Observações internas">
+          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails?.internal_notes || "Ainda não informado."}</p>
+        </Section>}
+        {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section title="Diagnóstico"
+          actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
+            ? <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>
+            : undefined}>
+          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
+        </Section>}
       </> : <>
       <Section title={<span className="flex flex-wrap items-center gap-2">
         Serviços atribuídos
