@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { buildPermissionGroups, permissionLabel, permissionPresentationKind, type PermissionRecord, type PermissionPresentationKind } from "@/features/employees/domain/permission-taxonomy";
+import { buildPermissionGroups, permissionLabelForEditor, permissionPresentationKind, type PermissionRecord, type PermissionPresentationKind } from "@/features/employees/domain/permission-taxonomy";
 
 type Props = {
   permissions: PermissionRecord[];
@@ -15,7 +15,6 @@ type Props = {
 const choices: Array<{ value: PermissionPresentationKind; label: string }> = [
   { value: "visual", label: "Visualização" },
   { value: "actions", label: "Ações" },
-  { value: "columns", label: "Colunas das tabelas" },
 ];
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
@@ -31,7 +30,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
     const sections = group.sections.map(section => ({
       ...section,
       permissions: section.permissions.filter(p => permissionPresentationKind(p) === mode &&
-        (!term || normalize([permissionLabel(p), p.description || "", p.key, group.name, section.name].join(" ")).includes(term))),
+        (!term || normalize([permissionLabelForEditor(p), p.description || "", p.key, group.name, section.name].join(" ")).includes(term))),
     })).filter(section => section.permissions.length);
     return { ...group, sections, permissions: sections.flatMap(section => section.permissions) };
   }).filter(group => group.permissions.length);
@@ -49,7 +48,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
         value={search} onChange={event => setSearch(event.target.value)}
         className="min-w-0 flex-1 rounded-md border border-[#0d1b2e]/15 bg-transparent px-3 py-2 text-xs text-[#0d1b2e] outline-none focus:border-[#1032DC] sm:max-w-[250px]" />
     </div>
-    <p className="text-xs text-[#65748b]">{mode === "visual" ? "Defina o que pode ser consultado." : mode === "actions" ? "Defina o que pode ser realizado." : "Personalize quais colunas podem ser vistas."}</p>
+    <p className="text-xs text-[#65748b]">{mode === "visual" ? "Acesso aos módulos, tabelas, colunas e detalhes. As colunas ficam dentro de Tabela em cada módulo." : "Somente operações: criar, editar, excluir, aprovar, enviar e outras ações."}</p>
     <div className="divide-y divide-[#0d1b2e]/10 border-y border-[#0d1b2e]/10">
       {groups.map(group => {
         const opened = expanded.includes(group.name) || term.length > 0;
@@ -80,7 +79,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
                     className="flex min-w-0 items-start gap-2.5 border-b border-[#0d1b2e]/5 py-2.5 text-left disabled:cursor-default">
                     <Checkbox checked={selectedIds.has(p.id)} tabIndex={-1} />
                     <span className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-[#0d1b2e]">
-                      {permissionLabel(p)}
+                      {permissionLabelForEditor(p)}
                       {inherited && <span className="ml-2 text-[10px] text-[#65748b]">Herdada</span>}
                       {!inherited && individualIds?.has(p.id) && <span className="ml-2 text-[10px] text-[#1032DC]">Individual</span>}
                     </span>
