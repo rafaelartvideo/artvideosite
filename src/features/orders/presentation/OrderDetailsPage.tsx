@@ -6,7 +6,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { CheckCircle2, ChevronDown, Download, FileText, Mail, MessageCircle, Package, PackagePlus, Phone, Printer, Tag } from "lucide-react";
+import { CheckCircle2, ChevronDown, Download, FileText, Mail, MessageCircle, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
