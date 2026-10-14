@@ -9,7 +9,8 @@ const rpc = read("supabase/migrations/20261014180500_technician_order_address_pr
 
 test("painel técnico utiliza padrão de página, seção e toolbar do CRM", () => {
   assert.match(panel, /<PageHeader/);
-  assert.match(panel, /<Section title="Dados da OS"/);
+  assert.match(panel, /<Section title="Cliente"/);
+  assert.match(panel, /<Section title="Equipamento"/);
   assert.match(panel, /Serviços atribuídos/);
   assert.match(panel, /<AdminStickyToolbar/);
   assert.match(panel, /<BtnPrimary/);
@@ -49,9 +50,11 @@ const regularOrder = read("src/features/orders/presentation/OrderDetailsPage.tsx
 const sharedTabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
 const repository = read("src/features/technician-panel/infrastructure/technician-tasks.repository.ts");
 
-test("OS técnica usa duas seções e a OS regular preserva as abas existentes", () => {
-  assert.doesNotMatch(panel, /<OrderDetailSectionTabs/);
-  assert.match(panel, /<Section title="Dados da OS"/);
+test("OS técnica compartilha as abas da OS normal e separa Cliente e Equipamento", () => {
+  assert.match(panel, /<OrderDetailSectionTabs/);
+  assert.match(panel, /detailTab === "details"/);
+  assert.match(panel, /<Section title="Cliente"/);
+  assert.match(panel, /<Section title="Equipamento"/);
   assert.match(panel, /Serviços atribuídos/);
   assert.match(regularOrder, /<OrderDetailSectionTabs/);
   assert.match(sharedTabs, /Detalhes da OS/);
@@ -214,4 +217,23 @@ test("foto técnica tem limite também no banco, com validação de vínculo e s
   assert.match(panel, /photoCount >= 3/);
   assert.match(panel, /countMyTechnicianPhotos/);
   assert.doesNotMatch(migration, /'unit_price'|'final_total'|'subtotal'/);
+});
+
+const scopedMedia = read("supabase/migrations/20261014224000_technician_order_customer_equipment_media.sql");
+
+test("cliente e equipamento da OS técnica são carregados por RPC com permissões", () => {
+  assert.match(scopedMedia, /'customer_document'/);
+  assert.match(scopedMedia, /'customer_address'/);
+  assert.match(scopedMedia, /'equipment_photos'/);
+  assert.match(scopedMedia, /private\.can_access_technician_order_v1/);
+  assert.match(scopedMedia, /technician_panel\.data\.equipment/);
+  assert.doesNotMatch(scopedMedia, /'unit_price'|'final_total'|'subtotal'/);
+  assert.match(panel, /getMyTechnicianEquipmentPhotoUrl/);
+});
+
+test("problema e notas são somente leitura, registros ficam no cabeçalho", () => {
+  assert.doesNotMatch(panel, /openNoteEditor|saveOrderNote|noteField/);
+  assert.match(panel, /<nav aria-label="Navegação estrutural"/);
+  assert.match(panel, />Registros<\/BtnSecondary>/);
+  assert.match(panel, /ariaLabel="Alterar situação da OS"/);
 });
