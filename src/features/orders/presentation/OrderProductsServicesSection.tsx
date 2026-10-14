@@ -1137,13 +1137,18 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     </div>
                   </div>
 
-                  <div className="mt-4 grid min-w-0 grid-cols-2 items-end gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,.65fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-4">
-                    <div className="col-span-2 min-w-0 sm:col-span-4 lg:col-span-1">
+                  <div className={cn(
+                    "mt-4 grid min-w-0 grid-cols-2 items-end gap-x-3 gap-y-4 sm:grid-cols-3 lg:gap-x-4",
+                    item.item_type === "product"
+                      ? "lg:grid-cols-[minmax(0,.65fr)_minmax(0,1fr)_minmax(0,1fr)]"
+                      : "lg:grid-cols-[minmax(0,1.65fr)_minmax(0,.65fr)_minmax(0,1fr)_minmax(0,1fr)]",
+                  )}>
+                    {item.item_type !== "product" && <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-1">
                       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                        {item.item_type === "product" ? "Responsável" : "Técnicos responsáveis"}
+                        Técnicos responsáveis
                       </p>
                       {renderTechnicianColumn(item)}
-                    </div>
+                    </div>}
                     <div className="min-w-0">
                       <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Quantidade</label>
                       {renderQuantity(item, true)}
@@ -1159,7 +1164,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   </div>
 
                   {item.item_type !== "product" && (
-                    <div className="mt-4 min-w-0 rounded-lg bg-muted/35 p-3 sm:p-4">
+                    <div className="mt-4 min-w-0 rounded-lg bg-muted/35 p-3 transition-colors duration-200 group-hover:bg-muted/45 sm:p-4">
                       {renderTaskDetails(item)}
                     </div>
                   )}
