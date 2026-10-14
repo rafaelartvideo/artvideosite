@@ -63,7 +63,7 @@ function newDraft(): Draft {
 
 export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onRouteChange }: Props) {
   const { hasPermission } = useAuth();
-  const canView = hasPermission("checklists.view") || hasPermission("checklists.manage");
+  const canView = hasPermission("checklists.view");
   const canManage = hasPermission("checklists.manage");
   const queryClient = useQueryClient();
   const query = useQuery({ queryKey: queryKeys.checklists.profiles(), queryFn: loadChecklistAdminData, enabled: canView, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
