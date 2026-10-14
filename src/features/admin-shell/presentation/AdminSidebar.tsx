@@ -61,7 +61,7 @@ export function AdminSidebar({
   const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessOperation = !isPlatformOperatorOrganization && operationItems.some(item =>
+  const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
   const canAccessTools = hasPermission("tools.view")
