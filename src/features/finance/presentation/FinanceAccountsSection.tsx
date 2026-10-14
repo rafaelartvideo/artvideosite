@@ -52,7 +52,7 @@ export function FinanceAccountsSection() {
   const { hasPermission } = useAuth();
   const finance = useFinanceFoundation();
   const money = useFinanceMovements({ loadMovements: false, loadScheduledSettlements: false, loadTransfers: false });
-  const canView = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage");
+  const canView = hasPermission("finance.accounts.view");
   const canManage = hasPermission("finance.accounts.manage");
   const [formOpen, setFormOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
