@@ -32,7 +32,7 @@ import {
   type OrderCommercialPricing,
 } from "../infrastructure/order-commercial-items.repository";
 import {
-  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTask,
+  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians,
   type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician,
 } from "../infrastructure/order-service-tasks.repository";
 
@@ -233,6 +233,35 @@ function CatalogResults({
   </div>;
 }
 
+function TechnicianMultiPicker({
+  people, selected, onChange, disabled, label,
+}: {
+  people: OrderServiceTechnician[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
+  label: string;
+}) {
+  const names = people.filter(person => selected.includes(person.id)).map(person => person.name);
+  return <details className="relative w-full">
+    <summary aria-label={label} className={cn(
+      "flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground marker:hidden",
+      disabled && "pointer-events-none opacity-50",
+    )}>
+      <span className="min-w-0 truncate">{names.length ? names.join(", ") : "Selecionar técnicos"}</span>
+      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
+    </summary>
+    {!disabled && <div className="relative z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-sm">
+      {people.length ? people.map(person => <label key={person.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted">
+        <input type="checkbox" checked={selected.includes(person.id)}
+          onChange={event => onChange(event.target.checked ? [...selected, person.id] : selected.filter(id => id !== person.id))}
+          className="h-4 w-4 accent-primary" />
+        <span className="min-w-0 break-words">{person.name}</span>
+      </label>) : <p className="p-2 text-xs text-muted-foreground">Nenhum técnico ativo disponível.</p>}
+    </div>}
+  </details>;
+}
+
 export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange }: Props) {
   const editable = canEdit && !order?.completed_at && !order?.cancelled_at;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
@@ -259,14 +288,16 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [selectedService, setSelectedService] = useState<OrderCatalogOption | null>(null);
   const [servicePrice, setServicePrice] = useState("");
   const [serviceQuantity, setServiceQuantity] = useState("1");
-  const [serviceTechnicianId, setServiceTechnicianId] = useState("");
+  const [serviceTechnicianIds, setServiceTechnicianIds] = useState<string[]>([]);
 
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [customPrice, setCustomPrice] = useState("");
   const [customQuantity, setCustomQuantity] = useState("1");
-  const [customTechnicianId, setCustomTechnicianId] = useState("");
+  const [customTechnicianIds, setCustomTechnicianIds] = useState<string[]>([]);
+  const [editingTechnicianItem, setEditingTechnicianItem] = useState<OrderCommercialItem | null>(null);
+  const [editingTechnicianIds, setEditingTechnicianIds] = useState<string[]>([]);
 
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({});
   const [mutating, setMutating] = useState(false);
@@ -392,8 +423,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setSelectedProduct(null);
     setServiceSearch("");
     setSelectedService(null);
-    setServiceTechnicianId("");
-    setCustomTechnicianId("");
+    setServiceTechnicianIds([]);
+    setCustomTechnicianIds([]);
     setWorkflowReady(false);
     void loadItems();
   }, [loadItems, order?.id]);
@@ -515,11 +546,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         catalogId: selectedService.id,
         quantity: positiveInteger(serviceQuantity),
         unitPrice: null,
-        technicianId: workflowReady ? serviceTechnicianId : undefined,
+        technicianIds: workflowReady ? serviceTechnicianIds : undefined,
       });
       applyPricing(nextPricing);
       await loadItems(true);
-      setServiceTechnicianId("");
+      setServiceTechnicianIds([]);
       setSelectedService(null);
       setServiceSearch("");
       setServicePrice("");
@@ -543,11 +574,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         description: customDescription,
         quantity: positiveInteger(customQuantity),
         unitPrice: nonNegativeNumber(customPrice),
-        technicianId: workflowReady ? customTechnicianId : undefined,
+        technicianIds: workflowReady ? customTechnicianIds : undefined,
       });
       applyPricing(nextPricing);
       await loadItems(true);
-      setCustomTechnicianId("");
+      setCustomTechnicianIds([]);
       setCustomOpen(false);
       setCustomName("");
       setCustomDescription("");
@@ -623,15 +654,22 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     }
   };
 
-  const saveTask = async (item: OrderCommercialItem, employeeId: string | null, status: OrderServiceTaskStatus) => {
-    if (!editable || !workflowReady || savingTaskId || item.item_type === "product") return;
-    setSavingTaskId(item.id);
+  const saveTechnicianTeam = async () => {
+    if (!editingTechnicianItem || !editable || !workflowReady || savingTaskId) return;
+    if (!editingTechnicianIds.length) {
+      setMessage({ type: "error", text: "Selecione pelo menos um técnico responsável." });
+      return;
+    }
+    setSavingTaskId(editingTechnicianItem.id);
     setMessage(null);
     try {
-      const saved = await setOrderServiceTask({ itemId: item.id, employeeId, status });
-      setTasks(current => ({ ...current, [item.id]: saved }));
+      await setOrderServiceTaskTechnicians(editingTechnicianItem.id, editingTechnicianIds);
+      const next = await listOrderServiceTasks(order.id);
+      setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
+      setEditingTechnicianItem(null);
+      setMessage({ type: "success", text: "Equipe responsável atualizada." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar o responsável ou progresso.") });
+      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar os técnicos responsáveis.") });
     } finally {
       setSavingTaskId(null);
     }
@@ -677,34 +715,23 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const renderTechnicianColumn = (item: OrderCommercialItem) => {
     if (item.item_type === "product") return <span className="text-xs text-muted-foreground">—</span>;
     const task = tasks[item.id];
-    const status = task?.status || "pending";
-    if (!workflowReady || !editable || status === "completed") return <span className="block truncate text-xs font-semibold text-foreground">
-      {task?.technician_name || "Não atribuído"}
-    </span>;
-    return <AdminSelect
-      ariaLabel={`Técnico responsável por ${item.title_snapshot}`}
-      value={task?.assigned_employee_id || ""}
-      disabled={Boolean(savingTaskId)}
-      onValueChange={value => void saveTask(item, value || null, status)}
-      options={[
-        { value: "", label: "Sem técnico" },
-        ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
-      ]}
-      className="min-h-9 py-1.5 text-xs"
-    />;
-  };
-
-  const renderDescriptionEditor = (item: OrderCommercialItem) => {
-    const draft = drafts[item.id] || draftFromItem(item);
-    return <input
-      aria-label={`Descrição de ${item.title_snapshot}`}
-      disabled={!editable || savingItemId === item.id}
-      value={draft.description}
-      onChange={event => updateDraft(item.id, { description: event.target.value })}
-      onBlur={() => void saveItem(item)}
-      placeholder="Breve descrição do item (opcional)"
-      className="w-full min-w-0 border-0 border-b border-dashed border-border bg-transparent py-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/70 focus:border-primary"
-    />;
+    const assigned = task?.technicians?.length
+      ? task.technicians
+      : task?.assigned_employee_id
+        ? [{ id: task.assigned_employee_id, name: task.technician_name || "Técnico" }]
+        : [];
+    return <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+      {assigned.length ? <span title={assigned.map(person => person.name).join(", ")}
+        className="min-w-0 break-words text-xs font-semibold text-foreground">
+        {assigned.map(person => person.name).join(", ")}
+      </span> : <span className="text-xs text-muted-foreground">Não atribuído</span>}
+      {workflowReady && editable && task?.status !== "completed" && <AdminButton
+        size="sm" variant="secondary" className="h-7 shrink-0 px-2 py-1 text-[10px]"
+        onClick={() => {
+          setEditingTechnicianItem(item);
+          setEditingTechnicianIds(assigned.map(person => person.id));
+        }}>Editar</AdminButton>}
+    </div>;
   };
 
   const renderTaskDetails = (item: OrderCommercialItem) => {
@@ -740,7 +767,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         {task?.execution_report
           ? <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">{task.execution_report}</p>
           : <p className="text-xs text-muted-foreground">Ainda não informado.</p>}
-        <div className="mt-2 max-w-xl">{renderDescriptionEditor(item)}</div>
       </div>
       <div className="min-w-0">
         <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Localizações</p>
@@ -952,14 +978,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </div>
 
           {workflowReady && <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnico responsável</label>
-            <AdminSelect
-              value={serviceTechnicianId}
-              onValueChange={setServiceTechnicianId}
-              options={[
-                { value: "", label: "Selecione o técnico responsável" },
-                ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
-              ]}
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
+            <TechnicianMultiPicker
+              label="Selecionar técnicos do serviço"
+              people={technicians} selected={serviceTechnicianIds} onChange={setServiceTechnicianIds}
             />
             {technicians.length === 0 && <p className="mt-2 text-xs text-muted-foreground">
               Nenhum funcionário ativo com acesso ao sistema nesta empresa.
@@ -983,7 +1005,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               disabled
             />
             <BtnPrimary
-              disabled={!selectedService || mutating || (workflowReady && !serviceTechnicianId)}
+              disabled={!selectedService || mutating || (workflowReady && !serviceTechnicianIds.length)}
               loading={mutating}
               onClick={() => void addService()}
               className="h-[42px]"
@@ -1004,8 +1026,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         : items.length === 0
           ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
           : <>
-            <div className="hidden overflow-x-auto lg:block">
-              <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
+            <div className="hidden xl:block">
+              <table className="w-full table-fixed border-collapse text-sm">
                 <colgroup>
                   <col style={{ width: "24%" }} />
                   <col style={{ width: "19%" }} />
@@ -1018,7 +1040,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 <thead className="bg-muted/30 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                   <tr className="border-b border-border">
                     <th scope="col" className="px-5 py-3 text-left">Item</th>
-                    <th scope="col" className="px-3 py-3 text-left">Técnico responsável</th>
+                    <th scope="col" className="px-3 py-3 text-left">Técnicos responsáveis</th>
                     <th scope="col" className="px-3 py-3 text-center">Quantidade</th>
                     <th scope="col" className="px-3 py-3 text-left">Preço unitário</th>
                     <th scope="col" className="px-3 py-3 text-left">Custo adicional</th>
@@ -1031,7 +1053,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     <tr className="align-middle transition-colors hover:bg-muted/35">
                       <td className="min-w-0 px-5 py-4">
                         {renderItemIdentity(item)}
-                        {item.item_type === "product" && <div className="mt-2">{renderDescriptionEditor(item)}</div>}
                       </td>
                       <td className="px-3 py-4">{renderTechnicianColumn(item)}</td>
                       <td className="px-3 py-4">{renderQuantity(item)}</td>
@@ -1060,7 +1081,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               </table>
             </div>
 
-            <div className="divide-y divide-border lg:hidden">
+            <div className="divide-y divide-border xl:hidden">
               {items.map(item => <div key={item.id} className="space-y-3 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">{renderItemIdentity(item)}</div>
@@ -1070,10 +1091,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     onClick={() => void removeItem(item)}
                   ><Trash2 size={14} /></AdminIconButton>
                 </div>
-                {item.item_type === "product" && renderDescriptionEditor(item)}
                 <div className="grid grid-cols-1 items-end gap-3 border-t border-border/70 pt-3 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Técnico responsável</label>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
                     {renderTechnicianColumn(item)}
                   </div>
                   <div>
@@ -1184,6 +1204,31 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     </Section>
 
     <AdminDialog
+      open={Boolean(editingTechnicianItem)}
+      onClose={() => { if (!savingTaskId) setEditingTechnicianItem(null); }}
+      title="Técnicos responsáveis"
+      description={editingTechnicianItem?.title_snapshot || "Selecione os técnicos deste serviço."}
+      className="max-w-md"
+      footer={<div className="flex w-full justify-end gap-2">
+        <BtnSecondary disabled={Boolean(savingTaskId)} onClick={() => setEditingTechnicianItem(null)}>Cancelar</BtnSecondary>
+        <BtnPrimary disabled={Boolean(savingTaskId) || !editingTechnicianIds.length}
+          loading={Boolean(savingTaskId)} onClick={() => void saveTechnicianTeam()}>Salvar</BtnPrimary>
+      </div>}
+    >
+      <div className="max-h-[55vh] space-y-1 overflow-y-auto">
+        {technicians.map(person => <label key={person.id}
+          className="flex cursor-pointer items-center gap-3 border-b border-border px-2 py-3 text-sm hover:bg-muted/40">
+          <input type="checkbox" className="h-4 w-4 accent-primary"
+            checked={editingTechnicianIds.includes(person.id)}
+            disabled={Boolean(savingTaskId)}
+            onChange={event => setEditingTechnicianIds(current =>
+              event.target.checked ? [...current, person.id] : current.filter(id => id !== person.id))} />
+          <span>{person.name}</span>
+        </label>)}
+      </div>
+    </AdminDialog>
+
+    <AdminDialog
       open={customOpen}
       onClose={() => { if (!mutating) setCustomOpen(false); }}
       title="Serviço Avulso"
@@ -1192,7 +1237,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(false)}>Cancelar</BtnSecondary>
         <BtnPrimary
-          disabled={mutating || !customName.trim() || customPrice.trim() === "" || (workflowReady && !customTechnicianId)}
+          disabled={mutating || !customName.trim() || customPrice.trim() === "" || (workflowReady && !customTechnicianIds.length)}
           loading={mutating}
           onClick={() => void addCustomService()}
         >Adicionar serviço</BtnPrimary>
@@ -1231,14 +1276,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           />
         </div>
         {workflowReady && <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnico responsável</label>
-          <AdminSelect
-            value={customTechnicianId}
-            onValueChange={setCustomTechnicianId}
-            options={[
-              { value: "", label: "Selecione o técnico responsável" },
-              ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
-            ]}
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
+          <TechnicianMultiPicker
+            label="Selecionar técnicos do serviço avulso"
+            people={technicians} selected={customTechnicianIds} onChange={setCustomTechnicianIds}
           />
         </div>}
       </div>
