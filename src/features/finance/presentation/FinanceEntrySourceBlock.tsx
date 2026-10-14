@@ -7,7 +7,7 @@ function Value({ label, value }: { label: string; value: React.ReactNode }) {
   return <div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</p><div className="mt-1 break-words text-sm font-semibold text-[#0d1b2e]">{value}</div></div>;
 }
 
-export function FinanceEntrySourceBlock({ detail }: { detail: FinancialEntryDetail }) {
+export function FinanceEntrySourceBlock({ detail, showIcon = true }: { detail: FinancialEntryDetail; showIcon?: boolean }) {
   const integrated = detail.origin_type === "service_order" || detail.origin_type === "inventory_purchase";
   if (!integrated) return null;
 
@@ -15,7 +15,7 @@ export function FinanceEntrySourceBlock({ detail }: { detail: FinancialEntryDeta
 
   if (detail.origin_type === "service_order") {
     return <AdminCard>
-      <AdminCardHeader><div className="flex items-center gap-2"><Wrench size={17} className="text-[#0057e7]" /><div><h3 className="text-sm font-black text-[#0d1b2e]">Origem: Ordem de Serviço</h3><p className="text-xs text-[#5a6a82]">{source.os_number ? `OS #${source.os_number}` : "Receita gerada automaticamente na conclusão da OS."}</p></div></div></AdminCardHeader>
+      <AdminCardHeader><div className="flex items-center gap-2">{showIcon && <Wrench size={17} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">{showIcon ? "Origem: Ordem de Serviço" : "Origem"}</h3><p className="text-xs text-[#5a6a82]">{source.os_number ? `OS #${source.os_number}` : "Receita gerada automaticamente na conclusão da OS."}</p></div></div></AdminCardHeader>
       <AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Value label="OS" value={source.os_number ? `#${source.os_number}` : "—"} />
         <Value label="Serviço" value={source.general_service_name || "—"} />
@@ -29,7 +29,7 @@ export function FinanceEntrySourceBlock({ detail }: { detail: FinancialEntryDeta
   }
 
   return <AdminCard>
-    <AdminCardHeader><div className="flex items-center gap-2"><Package size={17} className="text-[#0057e7]" /><div><h3 className="text-sm font-black text-[#0d1b2e]">Origem: Compra de estoque</h3><p className="text-xs text-[#5a6a82]">Pré-lançamento criado automaticamente pela entrada da compra.</p></div></div></AdminCardHeader>
+    <AdminCardHeader><div className="flex items-center gap-2">{showIcon && <Package size={17} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">{showIcon ? "Origem: Compra de estoque" : "Origem"}</h3><p className="text-xs text-[#5a6a82]">Pré-lançamento criado automaticamente pela entrada da compra.</p></div></div></AdminCardHeader>
     <AdminCardContent><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
       <Value label="Item" value={source.inventory_item_name || "—"} />
       <Value label="SKU" value={source.inventory_item_sku || "—"} />
