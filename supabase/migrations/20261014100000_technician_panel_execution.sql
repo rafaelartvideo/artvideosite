@@ -42,8 +42,13 @@ alter table public.service_order_item_tasks
 create or replace function private.require_task_start_location()
 returns trigger language plpgsql set search_path = '' as $
 begin
-  if new.status = 'in_progress'
-    and (tg_op = 'INSERT' or old.status is distinct from 'in_progress')
+  if tg_op = 'INSERT' then
+    if new.status = 'in_progress'
+      and (new.started_lat is null or new.started_lng is null
+           or new.started_accuracy_m is null or new.started_location_at is null) then
+      raise exception 'O início da execução exige captura de localização.' using errcode='22023';
+    end if;
+  elsif new.status = 'in_progress' and old.status is distinct from 'in_progress'
     and (new.started_lat is null or new.started_lng is null
          or new.started_accuracy_m is null or new.started_location_at is null) then
     raise exception 'O início da execução exige captura de localização.' using errcode='22023';
