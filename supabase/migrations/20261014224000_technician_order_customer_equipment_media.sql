@@ -135,21 +135,29 @@ $$;
 
 -- Bucket de OS permanece privado. O técnico só pode assinar URLs das imagens
 -- realmente associadas à sua OS e se possuir permissão de visualizar equipamento.
-drop policy if exists technician_assigned_order_equipment_photo_select_v1 on storage.objects;
-create policy technician_assigned_order_equipment_photo_select_v1
-on storage.objects for select to authenticated
-using (
-  bucket_id='service-images'
-  and exists (
+create or replace function private.can_view_technician_order_equipment_photo_v1(p_name text)
+returns boolean language sql stable security definer set search_path=''
+as $
+  select (select auth.uid()) is not null and exists(
     select 1 from public.media media
     join public.service_order_media link on link.media_id=media.id
     join public.service_orders ord on ord.id=link.service_order_id
       and ord.organization_id=media.organization_id
     where media.bucket_id='service-images'
-      and media.storage_path=name
+      and media.storage_path=p_name
       and link.sort_order < 1000
       and private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
-  )
+  );
+$;
+revoke all on function private.can_view_technician_order_equipment_photo_v1(text) from public,anon;
+grant execute on function private.can_view_technician_order_equipment_photo_v1(text) to authenticated;
+
+drop policy if exists technician_assigned_order_equipment_photo_select_v1 on storage.objects;
+create policy technician_assigned_order_equipment_photo_select_v1
+on storage.objects for select to authenticated
+using (
+  bucket_id='service-images'
+  and private.can_view_technician_order_equipment_photo_v1(name)
 );
 
 commit;
