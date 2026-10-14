@@ -28,7 +28,7 @@ function localToIso(date: string, time: string) {
 }
 
 export function OrderServiceScheduleDraftDialog({
-  open, organizationId, orderId, title, dialogTitle = "Agendar serviço", technicians, initial, lockedTechnicianIds, onConfirm, onClose,
+  open, organizationId, orderId, title, dialogTitle = "Agendar serviço", technicians, loadingTechnicians = false, initial, lockedTechnicianIds, onConfirm, onClose,
 }: {
   open: boolean;
   organizationId: string;
@@ -36,6 +36,7 @@ export function OrderServiceScheduleDraftDialog({
   title: string;
   dialogTitle?: string;
   technicians: OrderServiceTechnician[];
+  loadingTechnicians?: boolean;
   initial: ServiceScheduleDraft | null;
   lockedTechnicianIds?: string[];
   onConfirm: (selection: ServiceScheduleDraft) => void;
@@ -114,6 +115,7 @@ export function OrderServiceScheduleDraftDialog({
         viewMode={viewMode}
         organizationId={organizationId}
         technicians={technicians.map(person => ({ id: person.id, full_name: person.name }))}
+        loadingTechnicians={loadingTechnicians}
         date={date || undefined}
         selectedStart={start}
         selectedEnd={end}
