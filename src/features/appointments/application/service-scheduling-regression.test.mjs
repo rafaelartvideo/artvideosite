@@ -56,3 +56,18 @@ test("a agenda exibe os serviços como eventos individuais", () => {
   assert.match(card, /event\.kind === "service_task"/);
   assert.match(card, /task\.item\?\.title_snapshot/);
 });
+
+const technicianNotifications = read("supabase/migrations/20261014234500_technician_assignment_schedule_notifications.sql");
+const notificationRepository = read("src/features/notifications/infrastructure/notifications.repository.ts");
+
+test("serviços atribuídos e agendamentos são auditados e notificados individualmente", () => {
+  assert.match(technicianNotifications, /after insert or delete on public\.service_order_item_task_assignees/);
+  assert.match(technicianNotifications, /audit_service_task_schedule_change/);
+  assert.match(technicianNotifications, /appointment_technicians/);
+  assert.match(technicianNotifications, /new\.changed_fields \? 'appointment_date'/);
+  assert.match(technicianNotifications, /recipient_user_id=\(select auth\.uid\(\)\)/);
+  assert.match(technicianNotifications, /recipient_user_id is null or/);
+  assert.match(technicianNotifications, /\/admin\/technician-panel\/os\//);
+  assert.match(technicianNotifications, /'technician_panel\.view'/);
+  assert.match(notificationRepository, /row\.recipient_user_id !== userId/);
+});
