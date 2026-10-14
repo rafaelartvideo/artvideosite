@@ -762,7 +762,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const renderItemIdentity = (item: OrderCommercialItem) => <div className="min-w-0">
-    <div className="flex flex-wrap items-center gap-1.5">
+    <h4 className="break-words text-sm font-bold leading-snug text-foreground sm:text-[15px]">{item.title_snapshot}</h4>
+    <div className="mt-2 flex flex-wrap items-center gap-1.5">
       <span className={cn(
         "inline-flex border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
         item.item_type === "product"
@@ -771,7 +772,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       )}>{typeLabel(item)}</span>
       {renderStatusTag(item)}
     </div>
-    <p className="mt-1.5 break-words text-sm font-semibold text-foreground">{item.title_snapshot}</p>
   </div>;
 
   const renderTechnicianColumn = (item: OrderCommercialItem) => {
@@ -828,7 +828,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       ["Início", task?.start_location],
       ["Conclusão", task?.finish_location],
     ] as const).filter(([, location]) => location?.lat != null && location.lng != null);
-    return <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(140px,.8fr)_minmax(190px,1.25fr)_minmax(160px,1fr)_minmax(120px,.8fr)] xl:gap-5">
+    return <div className="grid min-w-0 items-start gap-4 sm:grid-cols-2 lg:grid-cols-[minmax(140px,.85fr)_minmax(180px,1.2fr)_minmax(150px,1fr)_minmax(120px,.75fr)] lg:gap-5">
       <div className="min-w-0">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Progresso</p>
         <div className="mb-2 flex items-center gap-2">
@@ -904,6 +904,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const renderQuantity = (item: OrderCommercialItem, compact = false) => {
     const draft = drafts[item.id] || draftFromItem(item);
     return <NumberStepper
+      ariaLabel="Quantidade"
       value={draft.quantity}
       min={1}
       step={1}
@@ -1118,17 +1119,17 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 aria-label={item.title_snapshot}
                 className="group min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 hover:bg-muted/15 focus-within:border-primary/50">
                 <div className="min-w-0 p-3.5 sm:p-4">
-                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1 basis-[240px]">
-                      {renderItemIdentity(item)}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                      <div className="min-w-0 text-right">
-                        <span className="block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Subtotal</span>
-                        <strong className="mt-1 inline-flex min-h-9 items-center justify-end whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
-                          {formatCurrency(nonNegativeNumber(item.subtotal))}
-                        </strong>
+                  <div className="flex min-w-0 items-start gap-3 sm:gap-4">
+                    <div className="flex min-w-0 flex-1 flex-wrap items-start gap-x-5 gap-y-2">
+                      <div className="min-w-[150px] flex-1">
+                        {renderItemIdentity(item)}
                       </div>
+                      <strong aria-label={"Total do item: " + formatCurrency(nonNegativeNumber(item.subtotal))}
+                        className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
+                        {formatCurrency(nonNegativeNumber(item.subtotal))}
+                      </strong>
+                    </div>
+                    <div className="shrink-0">
                       <AdminIconButton
                         ariaLabel={"Remover " + item.title_snapshot} variant="danger"
                         disabled={!editable || savingItemId === item.id}
@@ -1137,30 +1138,27 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     </div>
                   </div>
 
-                  <div className={cn(
-                    "mt-4 grid min-w-0 grid-cols-2 items-end gap-x-3 gap-y-4 sm:grid-cols-3 lg:gap-x-4",
-                    item.item_type === "product"
-                      ? "lg:grid-cols-[minmax(0,.65fr)_minmax(0,1fr)_minmax(0,1fr)]"
-                      : "lg:grid-cols-[minmax(0,1.65fr)_minmax(0,.65fr)_minmax(0,1fr)_minmax(0,1fr)]",
-                  )}>
-                    {item.item_type !== "product" && <div className="col-span-2 min-w-0 sm:col-span-3 lg:col-span-1">
-                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                        Técnicos responsáveis
-                      </p>
-                      {renderTechnicianColumn(item)}
-                    </div>}
-                    <div className="min-w-0">
-                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Quantidade</label>
-                      {renderQuantity(item, true)}
+                  <div className="mt-4 flex min-w-0 flex-col gap-3 border-t border-border/60 pt-3 lg:flex-row lg:items-center lg:gap-4">
+                    <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-3">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Quantidade:</span>
+                        <div className="w-[94px] min-w-0">{renderQuantity(item, true)}</div>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Preço unitário:</span>
+                        <div className="w-[132px] min-w-0">{renderPrice(item, true)}</div>
+                      </div>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Custo adicional:</span>
+                        <div className="w-[132px] min-w-0">{renderAdditionalCost(item, true)}</div>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Preço unitário</label>
-                      {renderPrice(item, true)}
-                    </div>
-                    <div className="min-w-0">
-                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Custo adicional</label>
-                      {renderAdditionalCost(item, true)}
-                    </div>
+                    {item.item_type !== "product" && (
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2 border-t border-border/60 pt-3 lg:min-h-9 lg:border-l lg:border-t-0 lg:py-1 lg:pl-4">
+                        <span className="shrink-0 text-[11px] font-semibold text-muted-foreground">Técnicos responsáveis:</span>
+                        <div className="min-w-0 flex-1">{renderTechnicianColumn(item)}</div>
+                      </div>
+                    )}
                   </div>
 
                   {item.item_type !== "product" && (
