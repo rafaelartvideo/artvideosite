@@ -43,6 +43,7 @@ export function OrderServiceScheduleDraftDialog({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const [viewMode, setViewMode] = useState<"day" | "week">("day");
 
   useEffect(() => {
     if (!open) return;
@@ -52,6 +53,7 @@ export function OrderServiceScheduleDraftDialog({
     setStart(from.time);
     setEnd(to.time);
     setSelected(initial?.technicianIds || []);
+    setViewMode("day");
   }, [open]); // Reiniciar somente ao abrir: seleção do calendário permanece editável.
 
   const selectedNames = useMemo(() => technicians
@@ -88,12 +90,25 @@ export function OrderServiceScheduleDraftDialog({
           <FInput label="Dia do agendamento" type="date" min={dayKey(new Date())} value={date}
             onChange={(event: ChangeEvent<HTMLInputElement>) => changeDate(event.target.value)} />
         </div>
-        <p className="text-xs text-muted-foreground sm:pb-2">
-          Escolha o dia, o horário e quem realizará o serviço.
-        </p>
+        <div role="group" aria-label="Visualização do calendário"
+          className="inline-flex w-fit shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 sm:mb-0.5">
+          <button type="button" aria-pressed={viewMode === "day"}
+            onClick={() => setViewMode("day")}
+            className={"rounded-md px-3.5 py-2 text-xs font-bold transition-colors " +
+              (viewMode === "day" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            Dia
+          </button>
+          <button type="button" aria-pressed={viewMode === "week"}
+            onClick={() => setViewMode("week")}
+            className={"rounded-md px-3.5 py-2 text-xs font-bold transition-colors " +
+              (viewMode === "week" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            Semana
+          </button>
+        </div>
       </div>
       <TechnicianAvailabilityCalendar
         compact
+        viewMode={viewMode}
         organizationId={organizationId}
         technicians={technicians.map(person => ({ id: person.id, full_name: person.name }))}
         date={date || undefined}
