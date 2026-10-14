@@ -1,4 +1,5 @@
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 
 type Props = {
@@ -9,18 +10,19 @@ type Props = {
   disabled: boolean;
   available: boolean;
   onRetry?: () => void;
+  onCreate?: () => void;
   onChange: (ids: string[]) => void;
 };
 
-export function EquipmentServiceSelector({ selectedIds, services, loading, error, disabled, available, onRetry, onChange }: Props) {
+export function EquipmentServiceSelector({ selectedIds, services, loading, error, disabled, available, onRetry, onCreate, onChange }: Props) {
   const chosen = new Set(selectedIds);
-  const visible = services.filter(service => service.is_active || chosen.has(service.id));
+  const visible = services.filter(service => service.is_active || chosen.has(service.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   return <div className="border-t border-border pt-4">
-    <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Serviços vinculados</h3>
-    <p className="mt-1 text-xs text-muted-foreground">
-      Marque os Serviços Gerais que podem ser adicionados às OS deste equipamento.
-      Os serviços avulsos continuam disponíveis separadamente.
-    </p>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-xs font-black uppercase tracking-wider text-muted-foreground">Serviços vinculados</h3>
+      {onCreate && <BtnSecondary onClick={onCreate} disabled={disabled || loading || !available}>Novo serviço</BtnSecondary>}
+    </div>
     {loading && <p className="mt-3 text-xs text-muted-foreground">Carregando serviços da empresa...</p>}
     {!loading && !error && !available && <div role="status" className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
       <span>Vínculos de serviços indisponíveis até a atualização do banco de dados. Você ainda pode editar os demais dados do equipamento.</span>
@@ -38,7 +40,7 @@ export function EquipmentServiceSelector({ selectedIds, services, loading, error
         {!service.is_active && <span className="text-[10px] text-muted-foreground">Inativo</span>}
       </label>)}
       {visible.length === 0 && <p className="py-3 text-xs text-muted-foreground">
-        Nenhum Serviço Geral cadastrado. Cadastre os serviços no módulo Serviços Gerais para vinculá-los.
+        Nenhum Serviço Geral cadastrado. {onCreate ? "Use Novo serviço para cadastrar e vincular." : "Cadastre os serviços no módulo Serviços Gerais para vinculá-los."}
       </p>}
     </div>}
   </div>;
