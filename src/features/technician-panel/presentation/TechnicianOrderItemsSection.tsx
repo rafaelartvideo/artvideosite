@@ -1,5 +1,5 @@
 import { useEffect, useState, type ChangeEvent } from "react";
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { ChevronDown, ChevronUp, Plus, Search } from "lucide-react";
 import { AdminDialog, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -136,7 +136,7 @@ export function TechnicianOrderItemsSection({
       onClick={() => {
         setServiceSearch(""); setServiceOptions([]); setSelectedService(null);
         setServiceQuantity("1"); setServiceOpen(true);
-      }}>Adicionar novo</BtnSecondary>}
+      }}><Plus size={16} className="shrink-0" aria-hidden="true" /><span>Adicionar novo</span></BtnSecondary>}
     <AdminDialog open={serviceOpen} onClose={() => { if (!busy) setServiceOpen(false); }}
       title="Adicionar serviço" description="Selecione um serviço do catálogo para esta OS."
       footer={<div className="flex justify-end gap-2">
