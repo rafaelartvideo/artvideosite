@@ -52,7 +52,7 @@ function ReceivableDetail({
   detail, accounts, paymentMethods, canEdit, canApprove, canSettle, canReverseSettlement,
   currentUserId, decisionPending, decisionError, settlementPending, confirmSettlementPending,
   reverseSettlementPending, settlementError, onBack, onEdit, onApprove, onReject,
-  onRegisterSettlement, onConfirmSettlement, onReverseSettlement,
+  onRegisterSettlement, onConfirmSettlement, onReverseSettlement, scrollContainerRef,
 }: Parameters<typeof FinanceEntryDetail>[0]) {
   const [tab, setTab] = useState<ReceivableTab>("overview");
   const settledAmount = detail.installments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
@@ -82,7 +82,12 @@ function ReceivableDetail({
 
     <FinanceSubsectionTabs<ReceivableTab>
       value={tab}
-      onSelect={setTab}
+      onSelect={nextTab => {
+        setTab(nextTab);
+        // The header and tab buttons stay focused; only the dialog body resets.
+        // Never scroll the page behind the dialog when a shorter tab is opened.
+        if (scrollContainerRef?.current) scrollContainerRef.current.scrollTop = 0;
+      }}
       ariaLabel="Subseções da conta a receber"
       items={[
         { id: "overview", label: "Resumo" },
@@ -162,6 +167,7 @@ function ReceivableDetail({
 
 export function FinanceEntryDetail({
   detail,
+  scrollContainerRef,
   accounts,
   paymentMethods,
   canEdit,
@@ -184,6 +190,7 @@ export function FinanceEntryDetail({
   onReverseSettlement,
 }: {
   detail: FinancialEntryDetail;
+  scrollContainerRef?: React.RefObject<HTMLDivElement | null>;
   accounts: FinancialAccount[];
   paymentMethods: FinancialPaymentMethod[];
   canEdit: boolean;
@@ -208,6 +215,7 @@ export function FinanceEntryDetail({
   if (detail.entry_type === "receivable") {
     return <ReceivableDetail
       detail={detail} accounts={accounts} paymentMethods={paymentMethods}
+      scrollContainerRef={scrollContainerRef}
       canEdit={canEdit} canApprove={canApprove} canSettle={canSettle} canReverseSettlement={canReverseSettlement}
       currentUserId={currentUserId} decisionPending={decisionPending} decisionError={decisionError}
       settlementPending={settlementPending} confirmSettlementPending={confirmSettlementPending}
