@@ -361,8 +361,8 @@ export function TechnicianPanel() {
             tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
           { name: "Concluídas", count: items.filter(item => item.status === "completed").length,
             tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
-        ]).map(card => <AdminCard key={card.name} className={"border " + card.tone}>
-          <AdminCardContent className="p-3 sm:p-4">
+        ]).map(card => <AdminCard key={card.name}>
+          <AdminCardContent className={"border p-3 sm:p-4 " + card.tone}>
             <p className="text-xs font-semibold">{card.name}</p>
             <p className="mt-1 text-2xl font-black sm:text-3xl">{card.count}</p>
           </AdminCardContent>
@@ -409,7 +409,7 @@ export function TechnicianPanel() {
             {info("Condição do equipamento", orderDetails?.equipment_condition)}
             {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
             {info("Endereço", formattedAddress)}
-            {orderDetails?.technical_values?.map(value => info(value.label, value.value))}
+            {orderDetails?.technical_values?.map(value => <div key={value.id} className="min-w-0">{info(value.label, value.value)}</div>)}
           </div>
           {hasPermission("technician_panel.data.problem") && <div className="border-t border-border/70 pt-3">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
