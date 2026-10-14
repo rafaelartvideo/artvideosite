@@ -186,10 +186,11 @@ export function MarketplaceToolPage({ onBack }: { onBack: () => void }) {
             <div className="flex min-w-0 flex-1 items-center gap-3">
               <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-muted"><Store size={20} /></span>
               <div className="min-w-0"><p className="font-bold text-foreground">{store.display_name}</p>
-                <p className="break-all text-xs text-muted-foreground">/loja/{store.slug} · {store.city || "Localização não informada"} {store.state}</p></div>
+                <p className="break-all text-xs text-muted-foreground">/marketplace/loja/{store.slug} · {store.city || "Localização não informada"} {store.state}</p></div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={statusName[store.status]} />
+              {store.status === "approved" && <BtnSecondary onClick={() => window.open("/marketplace/loja/" + store.slug, "_blank", "noopener,noreferrer")}>Ver loja</BtnSecondary>}
               {canModerate && store.status !== "approved" && <BtnPrimary disabled={saving} onClick={() => void act(() => changeMarketplaceStoreStatus(store.organization_id, "approved"), "Loja aprovada.")}>Aprovar</BtnPrimary>}
               {canModerate && store.status === "approved" && <BtnSecondary disabled={saving} onClick={() => void act(() => changeMarketplaceStoreStatus(store.organization_id, "suspended"), "Loja suspensa.")}>Suspender</BtnSecondary>}
             </div>
@@ -212,6 +213,7 @@ export function MarketplaceToolPage({ onBack }: { onBack: () => void }) {
               {item.description && <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{item.description}</p>}
             </div>
             <div className="flex flex-wrap justify-end gap-2">
+              {item.status === "approved" && <BtnSecondary onClick={() => window.open("/marketplace/" + (item.source_kind === "service" ? "servico" : "produto") + "/" + item.id, "_blank", "noopener,noreferrer")}>Ver anúncio</BtnSecondary>}
               {canManageListings && <BtnSecondary onClick={() => openListing(item)}><Pencil size={14} /> Editar</BtnSecondary>}
               {canManageListings && ["draft","rejected","paused"].includes(item.status) && <BtnPrimary disabled={saving} onClick={() => void act(() => changeMarketplaceListingStatus(item.id, item.organization_id, "pending"), "Anúncio enviado para análise.")}><Send size={14} /> Enviar</BtnPrimary>}
               {canManageListings && ["approved","pending"].includes(item.status) && <BtnSecondary disabled={saving} onClick={() => void act(() => changeMarketplaceListingStatus(item.id, item.organization_id, "paused"), "Anúncio pausado.")}><CirclePause size={14} /> Pausar</BtnSecondary>}
