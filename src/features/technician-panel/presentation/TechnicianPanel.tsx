@@ -71,6 +71,8 @@ export function TechnicianPanel() {
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
+  const [photoLoadedServiceId, setPhotoLoadedServiceId] = useState<string | null>(null);
+  const [orderLoadError, setOrderLoadError] = useState<string | null>(null);
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
   const [photoCount, setPhotoCount] = useState(0);
   const [notice, setNotice] = useState<Notice | null>(null);
@@ -156,7 +158,10 @@ export function TechnicianPanel() {
     setPhotos([]);
     setPhotoCount(0);
     setReport(selected?.execution_report || "");
-    if (!selectedId || !(canSeePhotos || canSendPhotos)) return;
+    if (!selectedId || !(canSeePhotos || canSendPhotos)) {
+      setPhotoLoadedServiceId(selectedId);
+      return;
+    }
     let cancelled = false;
     setPhotoLoading(true);
     void (async () => {
@@ -174,7 +179,7 @@ export function TechnicianPanel() {
       } catch (error) {
         if (!cancelled) setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos.") });
       } finally {
-        if (!cancelled) setPhotoLoading(false);
+        if (!cancelled) { setPhotoLoading(false); setPhotoLoadedServiceId(selectedId); }
       }
     })();
     return () => { cancelled = true; };
@@ -185,6 +190,8 @@ export function TechnicianPanel() {
   // de serviços não substitui a verificação da atribuição no servidor.
   useEffect(() => {
     setOrderDetails(null);
+    setEquipmentPhotoUrls({});
+    setOrderLoadError(null);
     setDiagnosisDialogOpen(false);
   }, [activeOrganizationId, routeOrderId]);
 
@@ -195,13 +202,30 @@ export function TechnicianPanel() {
       return () => { cancelled = true; };
     }
     setOrderDetailsLoading(true);
-    void getMyTechnicianOrderDetails(routeOrderId)
-      .then(data => { if (!cancelled) setOrderDetails(data); })
-      .catch(error => { if (!cancelled) setNotice({
-        kind: "error",
-        text: systemErrorMessage(error, "Não foi possível consultar a OS."),
-      }); })
-      .finally(() => { if (!cancelled) setOrderDetailsLoading(false); });
+    void (async () => {
+      try {
+        const data = await getMyTechnicianOrderDetails(routeOrderId);
+        // Resolve as mídias autorizadas antes de mostrar a OS; nada aparece incompleto.
+        const signed = await Promise.allSettled((data.equipment_photos || []).map(async media => ({
+          path: media.path, url: await getMyTechnicianEquipmentPhotoUrl(media.path),
+        })));
+        if (!cancelled) {
+          setEquipmentPhotoUrls(Object.fromEntries(signed
+            .filter((item): item is PromiseFulfilledResult<{ path: string; url: string }> => item.status === "fulfilled")
+            .map(item => [item.value.path, item.value.url])));
+          setOrderDetails(data);
+          setOrderLoadError(null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          const message = systemErrorMessage(error, "Não foi possível consultar a OS.");
+          setOrderLoadError(message);
+          setNotice({ kind: "error", text: message });
+        }
+      } finally {
+        if (!cancelled) setOrderDetailsLoading(false);
+      }
+    })();
     return () => { cancelled = true; };
   }, [activeOrganizationId, routeOrderId, detailsRevision]);
 
@@ -209,21 +233,6 @@ export function TechnicianPanel() {
     setHistoryDialogOpen(false);
     setDetailTab("details");
   }, [routeOrderId]);
-
-  useEffect(() => {
-    let alive = true;
-    setEquipmentPhotoUrls({});
-    const media = orderDetails?.equipment_photos || [];
-    if (!routeOrderId || !media.length) return () => { alive = false; };
-    void Promise.all(media.map(async image => ({
-      path: image.path, url: await getMyTechnicianEquipmentPhotoUrl(image.path),
-    }))).then(entries => {
-      if (alive) setEquipmentPhotoUrls(Object.fromEntries(entries.map(entry => [entry.path, entry.url])));
-    }).catch(error => {
-      if (alive) setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos do equipamento.") });
-    });
-    return () => { alive = false; };
-  }, [routeOrderId, orderDetails?.equipment_photos]);
 
   const reloadCurrentOrder = () => {
     setDetailsRevision(current => current + 1);
@@ -329,14 +338,6 @@ export function TechnicianPanel() {
   };
 
   const address = orderDetails?.customer_address || selected?.service_address;
-  const formattedAddress = address ? [
-    [address.street, address.number].filter(Boolean).join(", "),
-    address.complement,
-    address.neighborhood,
-    [address.city, address.state].filter(Boolean).join(" / "),
-    address.zip_code ? "CEP " + address.zip_code : null,
-  ].filter(Boolean).join(" — ") : "";
-
   const info = (label: string, value: string | number | null | undefined) =>
     value ? <div className="min-w-0">
       <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -386,7 +387,19 @@ export function TechnicianPanel() {
       <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
-    </> : <AdminPage open={!historyDialogOpen} smoothMotion={false}
+    </> : orderLoadError && !orderDetails && !orderDetailsLoading && !loading
+      ? <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 text-center">
+          <p className="text-sm text-destructive">{orderLoadError}</p>
+          <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
+        </div>
+      : loading || (selected && (
+        !orderDetails || orderDetails.id !== routeOrderId ||
+        ((canSeePhotos || canSendPhotos) && photoLoadedServiceId !== selectedId)
+      ))
+      ? <div role="status" aria-label="Carregando dados da OS" className="flex min-h-[50dvh] items-center justify-center">
+          <LoadingSpinner size="lg" />
+        </div>
+      : <AdminPage open={!historyDialogOpen} smoothMotion={false}
       onClose={() => navigate("/admin/technician-panel")}
       breadcrumb="Painel do Técnico"
       title={String(selected?.os_number || "OS")} titleVariant="order-number"
@@ -402,6 +415,7 @@ export function TechnicianPanel() {
     </> : <>
       <div className="flex min-h-10 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
+          <h2 className="mr-1 text-2xl font-black tabular-nums text-foreground sm:text-3xl">OS {selected.os_number}</h2>
           {(situationUpdating || (orderDetailsLoading && !orderDetails)) && hasPermission("technician_panel.data.situation")
             ? <span role="status" aria-label="Carregando situação da OS"
                 className="inline-flex h-7 min-w-20 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-2.5 text-primary">
@@ -411,7 +425,7 @@ export function TechnicianPanel() {
         </div>
         {hasPermission("technician_panel.data.history") && <div className="flex items-center border-l border-border pl-3">
           <BtnSecondary disabled={busy || orderDetailsLoading}
-            onClick={() => setHistoryDialogOpen(true)}><History size={15} /> Registros</BtnSecondary>
+            onClick={() => setHistoryDialogOpen(true)}><History size={15} /> Histórico</BtnSecondary>
         </div>}
       </div>
       <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
@@ -432,9 +446,19 @@ export function TechnicianPanel() {
                 ? orderDetails.customer_type === "PJ" ? formatCnpj(orderDetails.customer_document) : formatCpf(orderDetails.customer_document)
                 : null)}
             {info("Contato", selected.customer_contact ? formatPhone(selected.customer_contact) : null)}
-            {info("Endereço", formattedAddress)}
           </div>
         </Section>
+        {address && <Section title="Endereço">
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {info("CEP", address.zip_code)}
+            {info("Rua", address.street)}
+            {info("Número", address.number)}
+            {info("Complemento", address.complement)}
+            {info("Bairro", address.neighborhood)}
+            {info("Cidade", address.city)}
+            {info("Estado", address.state)}
+          </div>
+        </Section>}
         <Section title="Equipamento">
           <div className="grid min-w-0 gap-5 lg:grid-cols-2">
             <div className="grid min-w-0 content-start gap-4 sm:grid-cols-2">
@@ -483,6 +507,17 @@ export function TechnicianPanel() {
           <span className={STATUS_CLASS.completed + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{completedServices} concluído{completedServices > 1 ? "s" : ""}</span>}
       </span>}>
         <div className="space-y-4">
+          {hasPermission("technician_panel.data.order_items") && orderDetails &&
+            <div className="flex justify-end">
+              <TechnicianOrderItemsSection mode="services"
+                orderId={routeOrderId} items={orderDetails.items}
+                canAddService={hasPermission("technician_panel.actions.add_service")}
+                canAddProduct={false} canRemoveProduct={false}
+                blocked={orderDetails.closed || orderDetails.solved || !online}
+                onChanged={reloadCurrentOrder}
+                onFeedback={(text, kind) => setNotice({ text, kind })}
+              />
+            </div>}
           <div className="grid gap-2 sm:grid-cols-2">
             {orderServices.map(service => <button key={service.item_id} type="button"
               onClick={() => openService(service)} aria-pressed={service.item_id === selectedId}
@@ -547,11 +582,11 @@ export function TechnicianPanel() {
                 {photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" title="Abrir foto">
                   <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover" />
                 </a>)}
-              </div> : <p className="text-xs text-muted-foreground">Nenhuma foto enviada.</p>)}
+              </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma foto enviada.</p>)}
           </Section>}
 
           {hasPermission("technician_panel.data.order_items") && orderDetails &&
-            <TechnicianOrderItemsSection
+            <TechnicianOrderItemsSection mode="products"
               orderId={routeOrderId} items={orderDetails.items}
               canAddService={hasPermission("technician_panel.actions.add_service")}
               canAddProduct={hasPermission("technician_panel.actions.add_product")}
