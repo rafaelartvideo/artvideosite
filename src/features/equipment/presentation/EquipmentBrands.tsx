@@ -1,11 +1,13 @@
 import { useState } from "react";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { Edit2, Plus, Search, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AdminButton, AdminCard, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 
 export function brandKey(value: string) {
   return value.trim().replace(/\s+/g, " ").normalize("NFD")
@@ -114,10 +116,13 @@ export function EquipmentBrandSelector(props: SelectorProps) {
   </div>;
 }
 
-export function EquipmentBrandsDirectory({ choices, brands, types }: {
+export function EquipmentBrandsDirectory({ choices, brands, types, onEditBrand, onToggleBrand, busyBrand = null }: {
   choices: EquipmentBrandDirectoryEntry[];
   brands: EquipmentBrandRow[];
   types: EquipmentTypeRow[];
+  onEditBrand?: (name: string) => void;
+  onToggleBrand?: (name: string, nextActive: boolean) => void;
+  busyBrand?: string | null;
 }) {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -143,15 +148,38 @@ export function EquipmentBrandsDirectory({ choices, brands, types }: {
     </div>
     <AdminCard>
       {visible.length ? <div className="overflow-x-auto">
-        <table className="min-w-[680px]">
+        <table className="min-w-[780px]">
           <thead><tr>
-            <th className="w-[35%] text-left">Marca</th>
+            <th className="w-[28%] text-left">Marca</th>
             <th className="text-left">Equipamentos</th>
+            <th className="w-[120px] text-left">Status</th>
+            <th className="w-[110px] text-right">Ações</th>
           </tr></thead>
-          <tbody>{visible.map(item => <tr key={brandKey(item.name)}>
-            <td className="font-bold text-foreground">{item.name}</td>
-            <td className="text-muted-foreground">{equipmentNames(item.name).join(", ") || "—"}</td>
-          </tr>)}</tbody>
+          <tbody>{visible.map(item => {
+            const linkedBrands = brands.filter(brand => brandKey(brand.name) === brandKey(item.name));
+            const hasLocalLinks = linkedBrands.length > 0;
+            const isActive = linkedBrands.some(brand => brand.is_active);
+            const status = !hasLocalLinks ? "Disponível" : !isActive ? "Inativo" :
+              linkedBrands.every(brand => brand.is_active) ? "Ativo" : "Parcial";
+            return <tr key={brandKey(item.name)}>
+              <td className="font-bold text-foreground">{item.name}</td>
+              <td className="text-muted-foreground">{equipmentNames(item.name).join(", ") || "—"}</td>
+              <td><StatusBadge status={status} /></td>
+              <td>
+                <div className="flex justify-end gap-1">
+                  {hasLocalLinks && onEditBrand && <AdminIconButton ariaLabel={`Editar marca ${item.name}`}
+                    title="Editar marca" disabled={busyBrand !== null} onClick={() => onEditBrand(item.name)}>
+                    <Edit2 size={14} />
+                  </AdminIconButton>}
+                  {hasLocalLinks && onToggleBrand && <AdminActiveStateButton
+                    active={isActive} entityLabel={`marca ${item.name}`} iconSize={14}
+                    disabled={busyBrand !== null} loading={busyBrand === brandKey(item.name)}
+                    onClick={() => onToggleBrand(item.name, !isActive)} />}
+                  {(!hasLocalLinks || (!onEditBrand && !onToggleBrand)) && <span className="text-xs text-muted-foreground">—</span>}
+                </div>
+              </td>
+            </tr>;
+          })}</tbody>
         </table>
       </div> : <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma marca encontrada.</p>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
