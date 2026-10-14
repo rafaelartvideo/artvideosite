@@ -85,6 +85,11 @@ export function OrderInformationSection({
   const existingSchedule: ServiceScheduleDraft | null = draftStart && draftEnd
     ? { startAt: draftStart, endAt: draftEnd, technicianIds: selectedTechnicianIds }
     : null;
+  const closeSchedule = () => {
+    setScheduleDialogOpen(false);
+    // Cancelar a primeira seleção não deve deixar o formulário exigindo um horário inexistente.
+    if (!validSchedule) setNeedsScheduling(false);
+  };
   const confirmSchedule = (selection: ServiceScheduleDraft) => {
     onTechniciansChange(selection.technicianIds);
     onFieldChange("scheduled_at", isoToLocalOrderTime(selection.startAt));
@@ -157,11 +162,11 @@ export function OrderInformationSection({
                     orderId={editingOS?.id || ""}
                     title={editingOS ? "OS #" + (editingOS.os_number || "") : "Nova ordem de serviço"}
                     dialogTitle={validSchedule ? "Reagendar OS" : "Agendar OS"}
-                    technicians={employees.map(person => ({ id: person.id, name: person.full_name }))}
+                    technicians={employees.filter(person => person.is_active !== false).map(person => ({ id: person.id, name: String(person.full_name || "Técnico") }))}
                     initial={existingSchedule}
                     lockedTechnicianIds={editingOS ? selectedTechnicianIds : undefined}
                     onConfirm={confirmSchedule}
-                    onClose={() => setScheduleDialogOpen(false)}
+                    onClose={closeSchedule}
                   />
                 </div>
                 <div className="space-y-4">
