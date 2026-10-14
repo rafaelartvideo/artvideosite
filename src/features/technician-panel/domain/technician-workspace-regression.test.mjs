@@ -240,6 +240,14 @@ test("problema e notas são somente leitura, registros ficam no cabeçalho", () 
 });
 
 
+test("o cabeçalho técnico centraliza a OS e o Histórico com divisória vertical", () => {
+  assert.match(panel, /items-center justify-center gap-3 sm:gap-4/);
+  assert.match(panel, /text-xl font-black tabular-nums text-foreground sm:text-2xl/);
+  assert.match(panel, /border-l border-border pl-3 sm:pl-4/);
+  assert.match(panel, /<AdminButton variant="secondary" size="sm"/);
+  assert.match(panel, /technician_panel\.data\.history/);
+});
+
 test("o painel utiliza o cabeçalho compartilhado e cinco seções independentes", () => {
   assert.match(panel, /<AdminPage open=\{!historyDialogOpen\}/);
   assert.match(panel, /breadcrumb="Painel do Técnico"/);
