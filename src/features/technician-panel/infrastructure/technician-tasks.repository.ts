@@ -137,8 +137,8 @@ export async function uploadTechnicianPhoto(organizationId: string, itemId: stri
     p_storage_path: path,
   });
   if (error) {
-    // Apenas o próprio upload pode ser removido. O backend continua sendo a fonte da autorização.
-    await storage.remove([path]);
+    // Manter a falha explícita. Uma limpeza de uploads órfãos deve usar
+    // processo administrativo seguro, sem conceder DELETE aos técnicos.
     throw error;
   }
 }
