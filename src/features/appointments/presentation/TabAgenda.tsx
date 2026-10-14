@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { useAuth } from "@/lib/auth";
 import { buildAgendaDays, dayKey, type AppointmentWithRelations } from "../application/agenda-calendar";
 import { useAgendaCalendar } from "../application/useAgendaCalendar";
@@ -14,13 +15,15 @@ import { NewAppointmentDialog } from "./NewAppointmentDialog";
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
+  const navigate = useNavigate();
   const canViewAgenda = hasPermission("agenda.view");
   const canViewList = hasPermission("agenda.table.view");
   const canViewCalendar = hasPermission("agenda.calendar.view");
   const canViewDetails = hasPermission("agenda.details.view");
   const canCreate = hasPermission("agenda.create");
   const canReschedule = hasPermission("agenda.reschedule");
-  const canOpenOrder = hasPermission("orders.details.view");
+  const canOpenRegularOrder = hasPermission("orders.view") && hasPermission("orders.details.view");
+  const canOpenTechnicianOrder = hasPermission("technician_panel.view");
   const canViewOtherAgendas = hasPermission("agenda.view_others");
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
@@ -42,7 +45,19 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
 
   if (!canViewAgenda) return null;
   const canViewCurrent = agenda.view === "agenda" ? canViewList : canViewCalendar;
-  const safeOpenOrder = (id: string) => { if (canOpenOrder) onOpenOrder(id); };
+  const safeOpenOrder = (id: string) => {
+    if (canOpenRegularOrder) onOpenOrder(id);
+    else if (canOpenTechnicianOrder) navigate(`/admin/technician-panel/os/${encodeURIComponent(id)}`);
+  };
+  const openAppointment = (appointment: AppointmentWithRelations) => {
+    // Técnicos sem acesso à OS administrativa entram pela tela restrita do próprio painel.
+    // A consulta do painel valida a atribuição do técnico no banco de dados.
+    if (!canOpenRegularOrder && canOpenTechnicianOrder && appointment.service_order_id) {
+      safeOpenOrder(appointment.service_order_id);
+    } else if (canViewDetails) {
+      setSelectedAppointment(appointment);
+    }
+  };
   const weekDates = new Set(buildAgendaDays("week", agenda.cursor, 7).map(dayKey));
   const matchingWeekEvents = agenda.calendarEvents
     .filter(event => weekDates.has(event.date))
@@ -101,11 +116,11 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
               <AgendaEventCard event={event} draggedEventId={canReschedule ? draggedEventId : null}
                 onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined}
                 onOpenOrder={safeOpenOrder}
-                onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} />
+                onOpenAppointment={openAppointment} />
             </div>)
           : <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhum agendamento corresponde aos filtros nesta semana.</p>}
       </AdminCard>}
-      {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={appointment => { if (canViewDetails) setSelectedAppointment(appointment); }} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
+      {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={openAppointment} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
     </div>
     {canCreate && <NewAppointmentDialog controller={newAppointment} allowedTechnicianId={agenda.myEmployeeId} />}
     {canViewDetails && <AppointmentDetailsDialog appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onOpenOrder={safeOpenOrder} />}
