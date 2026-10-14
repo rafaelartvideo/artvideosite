@@ -45,6 +45,10 @@ begin
     'diagnosis',case
       when private.can_access_technician_order_v1(ord.id,'technician_panel.data.diagnosis')
       then ord.diagnosis else null end,
+    'equipment_accessories',case when private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
+      then ord.accessories else null end,
+    'equipment_condition',case when private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
+      then ord.equipment_condition else null end,
     'equipment_brand',case when private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
       then equipment_brand.name else null end,
     'equipment_model',case when private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
