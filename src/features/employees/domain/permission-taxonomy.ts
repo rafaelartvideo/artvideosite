@@ -243,6 +243,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "technician_panel.actions.add_service": ["technician_panel.data.order_items", "technician_panel.view"],
   "technician_panel.actions.add_product": ["technician_panel.data.order_items", "technician_panel.view"],
   "technician_panel.actions.remove_product": ["technician_panel.data.order_items", "technician_panel.view"],
+  "technician_panel.actions.edit_problem": ["technician_panel.data.problem", "technician_panel.view"],
+  "technician_panel.actions.edit_internal_notes": ["technician_panel.data.internal_notes", "technician_panel.view"],
   "technician_panel.actions.change_situation": ["technician_panel.data.situation", "technician_panel.view"],
   "technician_panel.actions.edit_diagnosis": ["technician_panel.data.diagnosis", "technician_panel.view"],
   "technician_panel.actions.start": ["technician_panel.view"],
