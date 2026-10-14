@@ -131,6 +131,8 @@ const ENTITY_LABELS: Record<string, string> = {
   service_order_checklists: "Checklist da OS",
   service_order_history_notes: "Histórico da OS",
   service_order_items: "Item da OS",
+  service_order_item_task_assignees: "Técnico responsável pelo serviço",
+  service_order_item_tasks: "Agendamento do serviço",
   service_order_media: "Imagem da OS",
   service_order_notes: "Observação da OS",
   service_order_part_custody_events: "Movimentação de peça",
