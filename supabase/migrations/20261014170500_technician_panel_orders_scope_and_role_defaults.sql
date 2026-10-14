@@ -51,7 +51,7 @@ as $$
   end;
 $$;
 
--- Perfil tecnico do sistema recebe acesso ao proprio painel e as
+-- Cargo Técnico existente recebe acesso ao próprio painel e as
 -- operacoes de execucao basicas. Detalhes sensiveis (contato,
 -- cliente, fotos, localizacao, etc.) continuam opt-in, por checkbox.
 -- Nao afeta outras funcoes e nao libera acesso a OSs alheias.
@@ -69,7 +69,6 @@ join public.permissions p on p.key in (
   'technician_panel.actions.complete'
 )
 where lower(btrim(r.name)) = 'técnico'
-  and r.is_system
   and r.is_active
   and o.status = 'active'
   and private.permission_belongs_to_organization(r.organization_id, p.key)
