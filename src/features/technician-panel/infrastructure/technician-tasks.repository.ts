@@ -23,6 +23,18 @@ export type TechnicianTask = {
   customer_contact: string | null;
   equipment: string | null;
   diagnosis: string | null;
+  problem: string | null;
+  service_address: {
+    street: string | null;
+    number: string | null;
+    complement: string | null;
+    neighborhood: string | null;
+    city: string | null;
+    state: string | null;
+    zip_code: string | null;
+  } | null;
+  equipment_model: string | null;
+  serial_number: string | null;
   scheduled_at: string | null;
   start_location: TechnicianLocation | null;
   finish_location: TechnicianLocation | null;
