@@ -14,6 +14,7 @@ import type { FinancialCounterparty } from "../infrastructure/finance-entries.re
 import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
+import { formatFinancialDocument, maskFinancialDocumentInput } from "./financeDisplay";
 
 function today() {
   const date = new Date();
@@ -176,7 +177,7 @@ export function FinanceEntryEditorDialog({
     { value: "", label: "Sem vínculo / informar manualmente" },
     ...visibleCounterparties.map(item => ({
       value: item.id,
-      label: item.document ? `${item.name} · ${item.document}` : item.name,
+      label: item.document ? `${item.name} · ${formatFinancialDocument(item.document)}` : item.name,
     })),
   ];
 
@@ -221,7 +222,7 @@ export function FinanceEntryEditorDialog({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <FInput label="Data de emissão" required error={fieldErrors.issueDate} type="date" value={issueDate} onChange={(event: any) => { setIssueDate(event.target.value); if (!initial) setCompetenceDate(event.target.value); }} />
           <FInput label="Competência" required error={fieldErrors.competenceDate} type="date" value={competenceDate} onChange={(event: any) => setCompetenceDate(event.target.value)} />
-          <div className="sm:col-span-2"><FInput label="CPF/CNPJ" value={counterpartDocument} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartDocument(event.target.value)} /></div>
+          <div className="sm:col-span-2"><FInput label="CPF/CNPJ" inputMode="numeric" value={maskFinancialDocumentInput(counterpartDocument)} disabled={Boolean(counterpartId)} onChange={(event: any) => setCounterpartDocument(maskFinancialDocumentInput(event.target.value))} placeholder="000.000.000-00" /></div>
           <div className="sm:col-span-2"><FTextarea label="Observações" value={notes} onChange={(event: any) => setNotes(event.target.value)} /></div>
         </div>
       </details>
