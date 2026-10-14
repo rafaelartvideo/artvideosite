@@ -15,6 +15,8 @@ export type AdminButtonVariant = "primary" | "secondary" | "danger" | "ghost" | 
 export type AdminButtonSize = "sm" | "md" | "lg";
 
 const AdminPageCloseContext = React.createContext<{ onClose: () => void; requestClose: () => void } | null>(null);
+// Ações de retorno ficam compactas apenas nas toolbars mobile de todos os módulos.
+const AdminStickyToolbarContext = React.createContext(false);
 
 type AdminButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type"> & {
   variant?: AdminButtonVariant;
@@ -47,6 +49,9 @@ export function AdminButton({
   ...buttonProps
 }: AdminButtonProps) {
   const pageClose = React.useContext(AdminPageCloseContext);
+  const inStickyToolbar = React.useContext(AdminStickyToolbarContext);
+  const mobileBackOnly = inStickyToolbar && typeof children === "string" && children.trim().toLocaleLowerCase("pt-BR").startsWith("voltar");
+  const renderedChildren = mobileBackOnly ? <><ArrowLeft size={18} className="sm:hidden" aria-hidden="true" /><span className="hidden sm:inline">{children}</span></> : children;
   const resolvedOnClick = pageClose && onClick && onClick === (pageClose.onClose as unknown as typeof onClick)
     ? (pageClose.requestClose as unknown as typeof onClick)
     : onClick;
@@ -83,17 +88,18 @@ export function AdminButton({
     onClick={handleClick}
     disabled={disabled || resolvedLoading}
     aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
-    aria-label={buttonProps["aria-label"] ?? ariaLabel}
+    aria-label={buttonProps["aria-label"] ?? ariaLabel ?? (mobileBackOnly ? String(children).trim() : undefined)}
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
       "inline-flex min-w-0 max-w-full cursor-default items-center justify-center overflow-hidden whitespace-nowrap rounded-lg bg-clip-padding font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
       sizes[size],
+      mobileBackOnly && "max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0",
       className,
     )}
   >
-    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? children}</> : children}
+    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? renderedChildren}</> : renderedChildren}
   </button>;
 }
 
@@ -216,7 +222,7 @@ export function AdminStickyToolbar({ className = "", children, ...props }: React
       "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-primary bg-card px-4 py-4 text-card-foreground sm:px-5",
       className,
     )}
-  >{children}</div>;
+  ><AdminStickyToolbarContext.Provider value={true}>{children}</AdminStickyToolbarContext.Provider></div>;
 }
 
 export function AdminSegmentedControl<T extends string>({
