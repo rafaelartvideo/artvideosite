@@ -148,6 +148,31 @@ begin
 end;
 $$;
 
+-- Atualiza a versão da tarefa ao alterar dados operacionais da OS.
+-- O evento na tabela técnica é recebido somente por funcionários atribuídos,
+-- conforme RLS do Realtime; evita dar SELECT comercial ao técnico.
+create or replace function private.notify_technician_order_update_v1()
+returns trigger language plpgsql security definer set search_path=''
+as $
+begin
+  if new.situation_id is distinct from old.situation_id
+    or new.diagnosis is distinct from old.diagnosis
+    or new.customer_notes is distinct from old.customer_notes
+    or new.internal_notes is distinct from old.internal_notes then
+    update public.service_order_item_tasks
+      set updated_at=now()
+    where service_order_id=new.id and organization_id=new.organization_id;
+  end if;
+  return new;
+end;
+$;
+
+drop trigger if exists notify_technician_order_update_v1 on public.service_orders;
+create trigger notify_technician_order_update_v1
+after update of situation_id,diagnosis,customer_notes,internal_notes
+on public.service_orders for each row
+execute function private.notify_technician_order_update_v1();
+
 revoke all on function public.count_my_technician_task_photos_v1(uuid) from public,anon,authenticated;
 grant execute on function public.count_my_technician_task_photos_v1(uuid) to authenticated;
 
