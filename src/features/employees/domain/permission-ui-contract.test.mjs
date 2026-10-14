@@ -64,6 +64,29 @@ test("existe uma única entrada visual para tabela e nenhuma aba de colunas sepa
   assert.match(matrix, /permissionLabelForEditor/);
 });
 
+test("permissões de tabelas dos 17 módulos nunca são classificadas como ação", () => {
+  for (const module of [
+    "agenda", "brands", "categories", "customers", "documents", "employees",
+    "equipment", "general_services", "inventory", "order_statuses", "orders",
+    "products", "quotes", "roles", "service_types", "services", "situations",
+  ]) {
+    for (const suffix of ["table.view", "table.status", "table.actions"]) {
+      assert.equal(taxonomy.permissionPresentationKind({ key: module + "." + suffix }), "visual", module + "." + suffix);
+    }
+  }
+});
+
+test("submódulos financeiros não se misturam numa lista genérica de ações", () => {
+  assert.equal(taxonomy.permissionSectionName({ key: "finance.receivables.view" }), "Contas a Receber");
+  assert.equal(taxonomy.permissionSectionName({ key: "finance.receivables.create" }), "Contas a Receber");
+  assert.equal(taxonomy.permissionSectionName({ key: "finance.payables.approve" }), "Contas a Pagar");
+  assert.equal(taxonomy.permissionSectionName({ key: "finance.reports.dre" }), "Relatórios");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "finance.reports.dre" }), "visual");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "documents.signatures.audit" }), "visual");
+  assert.equal(taxonomy.permissionSectionName({ key: "equipment.technical_fields.column.name" }), "Tabela — Campos Técnicos");
+});
+
+
 test("o formulário nunca salva permissões da função antes de carregá-las", () => {
   const editor = read("src/features/roles/presentation/TabRoles.tsx");
   assert.match(editor, /disabled=\{!permissionListReady\}/);
