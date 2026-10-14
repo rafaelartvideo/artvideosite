@@ -130,3 +130,26 @@ test("a consulta do login usa o mesmo escopo de módulos", () => {
   assert.match(migration, /where private.permission_belongs_to_organization/);
   assert.doesNotMatch(migration, /candidate.permission_key not like 'orders.images.situation.%'/);
 });
+
+test("Painel do Técnico aparece no catálogo usando o módulo orders", () => {
+  const migration = read("supabase/migrations/20261014170000_fix_technician_panel_permission_catalog.sql");
+  assert.ok(migration.includes("when p_key like 'technician_panel.%' then array['orders']"));
+  assert.ok(migration.includes("private.permission_required_module_keys('technician_panel.view')"));
+  assert.ok(!migration.includes("insert into public.role_permissions"));
+
+  const permissions = [
+    { id: "tp-1", key: "technician_panel.view", label: "Acessar painel técnico" },
+    { id: "tp-2", key: "technician_panel.data.customer", label: "Ver cliente" },
+    { id: "tp-3", key: "technician_panel.actions.start", label: "Iniciar serviço" },
+  ];
+  const moduleGroup = taxonomy.buildPermissionGroups(permissions)
+    .find(group => group.name === "Painel do Técnico");
+  assert.ok(moduleGroup, "o grupo precisa estar disponível para selecionar permissões");
+  assert.deepEqual(
+    new Set(moduleGroup.sections.map(section => section.name)),
+    new Set(["Acesso", "Dados", "Ações"]),
+  );
+  assert.equal(taxonomy.permissionPresentationKind(permissions[0]), "visual");
+  assert.equal(taxonomy.permissionPresentationKind(permissions[1]), "visual");
+  assert.equal(taxonomy.permissionPresentationKind(permissions[2]), "actions");
+});
