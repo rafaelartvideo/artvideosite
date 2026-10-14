@@ -122,9 +122,9 @@ test("a consulta do login usa o mesmo escopo de módulos", () => {
 
 test("Painel do Técnico aparece no catálogo usando o módulo orders", () => {
   const migration = read("supabase/migrations/20261014170000_fix_technician_panel_permission_catalog.sql");
-  assert.match(migration, /when p_key like 'technician_panel\\.%' then array\\['orders'\\]/);
-  assert.match(migration, /private\\.permission_required_module_keys\\('technician_panel\\.view'\\)/);
-  assert.doesNotMatch(migration, /insert into public\\.role_permissions/i);
+  assert.ok(migration.includes("when p_key like 'technician_panel.%' then array['orders']"));
+  assert.ok(migration.includes("private.permission_required_module_keys('technician_panel.view')"));
+  assert.ok(!migration.includes("insert into public.role_permissions"));
 
   const permissions = [
     { id: "tp-1", key: "technician_panel.view", label: "Acessar painel técnico" },
