@@ -85,7 +85,7 @@ export async function loadTechnicianAvailabilityWeek(
   const individualTasks = taskResult.filter(task => task.status === "pending" || task.status === "in_progress");
   const individualOrderEmployeeKeys = new Set(individualTasks.flatMap(task =>
     [task.assigned_employee_id, ...(task.assignees || []).map(assignee => assignee.employee_id)]
-      .filter(Boolean).map(employeeId => task.service_order_id + ":" + employeeId),
+      .filter((employeeId): employeeId is string => Boolean(employeeId)).map(employeeId => task.service_order_id + ":" + employeeId),
   ));
   const days: AvailabilityDay[] = dates.map(date => {
     const dateStart = new Date(date + "T00:00:00").getTime();
@@ -113,7 +113,8 @@ export async function loadTechnicianAvailabilityWeek(
       const start = new Date(task.scheduled_start_at!).getTime();
       const end = new Date(task.scheduled_end_at!).getTime();
       if (!Number.isFinite(start) || !Number.isFinite(end) || start >= dateEnd || end <= dateStart) continue;
-      const assigned = new Set([task.assigned_employee_id, ...(task.assignees || []).map(link => link.employee_id)].filter(Boolean));
+      const assigned = new Set([task.assigned_employee_id, ...(task.assignees || []).map(link => link.employee_id)]
+        .filter((employeeId): employeeId is string => Boolean(employeeId)));
       for (const employeeId of assigned) {
         blocks.get(employeeId)?.push({
           start: Math.max(0, Math.floor((start - dateStart) / 60_000)),
