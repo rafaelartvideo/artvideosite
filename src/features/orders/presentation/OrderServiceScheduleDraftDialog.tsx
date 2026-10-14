@@ -28,7 +28,7 @@ function localToIso(date: string, time: string) {
 }
 
 export function OrderServiceScheduleDraftDialog({
-  open, organizationId, orderId, title, technicians, initial, onConfirm, onClose,
+  open, organizationId, orderId, title, technicians, initial, lockedTechnicianIds, onConfirm, onClose,
 }: {
   open: boolean;
   organizationId: string;
@@ -36,6 +36,7 @@ export function OrderServiceScheduleDraftDialog({
   title: string;
   technicians: OrderServiceTechnician[];
   initial: ServiceScheduleDraft | null;
+  lockedTechnicianIds?: string[];
   onConfirm: (selection: ServiceScheduleDraft) => void;
   onClose: () => void;
 }) {
@@ -43,6 +44,7 @@ export function OrderServiceScheduleDraftDialog({
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
+  const teamLocked = lockedTechnicianIds !== undefined;
   const [viewMode, setViewMode] = useState<"day" | "week">("day");
 
   useEffect(() => {
@@ -52,7 +54,7 @@ export function OrderServiceScheduleDraftDialog({
     setDate(from.date || dayKey(new Date()));
     setStart(from.time);
     setEnd(to.time);
-    setSelected(initial?.technicianIds || []);
+    setSelected(teamLocked ? lockedTechnicianIds : initial?.technicianIds || []);
     setViewMode("day");
   }, [open]); // Reiniciar somente ao abrir: seleção do calendário permanece editável.
 
@@ -115,22 +117,25 @@ export function OrderServiceScheduleDraftDialog({
         selectedStart={start}
         selectedEnd={end}
         selectedTechnicianIds={selected}
-        exceptOrderId={orderId}
+        exceptOrderId={orderId || undefined}
         onChangeDate={changeDate}
         onChooseStart={(selectedDate, time, technicianId) => {
           setDate(selectedDate);
           setStart(time);
           setEnd("");
-          setSelected([technicianId]);
+          setSelected(teamLocked ? lockedTechnicianIds : [technicianId]);
         }}
         onChooseEnd={(_selectedDate, time) => setEnd(time)}
-        onToggleTechnician={technicianId => {
+        onToggleTechnician={teamLocked ? undefined : technicianId => {
           setSelected(current => current.includes(technicianId)
             ? current.filter(id => id !== technicianId)
             : [...current, technicianId]);
           setEnd("");
         }}
       />
+      {teamLocked && lockedTechnicianIds.length === 0 && <p role="status" className="text-xs text-amber-700 dark:text-amber-300">
+        A OS não possui técnicos responsáveis. Atribua a equipe antes de agendar.
+      </p>}
       {date && start && end && selected.length > 0 && <p role="status" className="rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
         {date.split("-").reverse().join("/")} · {start} às {end} · {selectedNames.join(", ")}
       </p>}
