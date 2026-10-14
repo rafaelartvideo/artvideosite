@@ -275,11 +275,13 @@ test("Produtos e Serviços mantêm seções independentes e ações de execuçã
   assert.match(panel, /<Section title="Imagens do serviço">/);
   assert.match(panel, /<TechnicianOrderItemsSection\s/);
   assert.doesNotMatch(panel, /<TechnicianOrderItemsSection inline/);
-  const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="flex-wrap">'));
-  assert.match(toolbar, />Iniciar serviço<\/BtnPrimary>/);
-  assert.match(toolbar, />Finalizar serviço<\/BtnPrimary>/);
-  assert.equal(panel.split('>Iniciar serviço</BtnPrimary>').length - 1, 1);
-  assert.equal(panel.split('>Finalizar serviço</BtnPrimary>').length - 1, 1);
+  const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="!flex-nowrap'));
+  assert.match(toolbar, /<Play size={18} className="sm:hidden"/);
+  assert.match(toolbar, /<Check size={18} className="sm:hidden"/);
+  assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Iniciar serviço<\/span>/);
+  assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Finalizar serviço<\/span>/);
+  assert.equal(panel.split('Iniciar serviço</span>').length - 1, 1);
+  assert.equal(panel.split('Finalizar serviço</span>').length - 1, 1);
 });
 
 test("carregamento de situação ocorre apenas dentro da tag, sem loader global de OS", () => {
@@ -307,4 +309,31 @@ test("OS técnica aguarda dados e mídias antes da abertura e mostra endereço s
   for (const field of ["CEP", "Rua", "Número", "Complemento", "Bairro", "Cidade", "Estado"]) {
     assert.ok(panel.includes('info("' + field + '"'), "Campo ausente: " + field);
   }
+});
+
+test("busca e filtros do painel técnico ficam separados da tabela paginada", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.match(table, /<h2[^>]*>Minhas ordens de serviço<\\/h2>/);
+  assert.match(table, /<table/);
+  assert.match(table, /<PaginationBar/);
+  assert.match(table, /space-y-4/);
+  assert.doesNotMatch(table, /<Section title="Minhas ordens de serviço"/);
+});
+
+test("toolbar mantém ações em uma linha no mobile e Realtime evita consultas periódicas conectadas", () => {
+  assert.match(panel, /!flex-nowrap/);
+  assert.match(panel, /activeOrderIdRef/);
+  assert.match(panel, /if \(!connected\) reconcile\(\)/);
+  assert.match(panel, /postgres_changes/);
+  assert.doesNotMatch(panel, /window\.setInterval\(reconcile, 60000\)/);
+});
+
+test("loader compartilhado exibe texto sobre as bolinhas animadas", () => {
+  const feedback = read("src/shared/ui/admin/AdminFeedback.tsx");
+  const layout = read("src/shared/ui/admin/AdminLayout.tsx");
+  assert.match(feedback, /export function LoadingDots/);
+  assert.match(feedback, /animate-bounce/);
+  assert.match(feedback, /<LoadingDots \/>/);
+  assert.match(layout, /AdminStickyToolbarContext\.Provider/);
+  assert.match(layout, /mobileBackOnly/);
 });
