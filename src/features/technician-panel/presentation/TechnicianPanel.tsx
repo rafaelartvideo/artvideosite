@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { History, WifiOff } from "lucide-react";
+import { Check, History, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { LoadingSpinner, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminCardContent, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -50,6 +50,8 @@ export function TechnicianPanel() {
   const { search } = useLocation();
   const orderMatch = useMatch("/admin/technician-panel/os/:orderId");
   const routeOrderId = orderMatch?.params.orderId || null;
+  const activeOrderIdRef = useRef(routeOrderId);
+  activeOrderIdRef.current = routeOrderId;
   const routeServiceId = new URLSearchParams(search).get("service");
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -118,33 +120,53 @@ export function TechnicianPanel() {
     void refresh(true);
   }, [refresh]);
 
-  // Atualização pontual por evento, com reconciliação ao retornar à aba.
-  // Não é necessário conceder acesso à tabela comercial de OS.
+  // Eventos em tempo real são a fonte primária. Não consultar a situação
+  // a cada minuto enquanto o canal estiver conectado.
   useEffect(() => {
     if (!activeOrganizationId) return;
+    let connected = false;
+    let subscribedBefore = false;
+    let wasHidden = document.visibilityState === "hidden";
     const reconcile = () => {
-      if (document.visibilityState !== "hidden" && navigator.onLine) {
-        void refresh();
-        if (routeOrderId) setDetailsRevision(current => current + 1);
-      }
+      if (document.visibilityState === "hidden" || !navigator.onLine) return;
+      void refresh();
+      if (activeOrderIdRef.current) setDetailsRevision(current => current + 1);
+    };
+    const visibilityChanged = () => {
+      if (document.visibilityState === "hidden") { wasHidden = true; return; }
+      if (wasHidden) { wasHidden = false; reconcile(); }
     };
     const channel = supabase.channel("technician-panel-tasks:" + activeOrganizationId)
       .on("postgres_changes", {
         event: "*", schema: "public", table: "service_order_item_tasks",
         filter: "organization_id=eq." + activeOrganizationId,
-      }, () => reconcile())
-      .subscribe(status => { if (status === "SUBSCRIBED") reconcile(); });
-    document.addEventListener("visibilitychange", reconcile);
-    const fallback = window.setInterval(reconcile, 60000);
+      }, payload => {
+        if (document.visibilityState === "hidden") { wasHidden = true; return; }
+        void refresh();
+        const eventOrderId = (payload.new as { service_order_id?: string } | null)?.service_order_id
+          || (payload.old as { service_order_id?: string } | null)?.service_order_id;
+        if (eventOrderId && eventOrderId === activeOrderIdRef.current) {
+          setDetailsRevision(current => current + 1);
+        }
+      })
+      .subscribe(status => {
+        const wasConnected = connected;
+        connected = status === "SUBSCRIBED";
+        if (connected && subscribedBefore && !wasConnected) reconcile();
+        if (connected) subscribedBefore = true;
+      });
+    document.addEventListener("visibilitychange", visibilityChanged);
+    // Apenas reconciliação de contingência quando o Realtime estiver indisponível.
+    const fallback = window.setInterval(() => { if (!connected) reconcile(); }, 120000);
     return () => {
       window.clearInterval(fallback);
-      document.removeEventListener("visibilitychange", reconcile);
+      document.removeEventListener("visibilitychange", visibilityChanged);
       void supabase.removeChannel(channel);
     };
-  }, [activeOrganizationId, routeOrderId, refresh]);
+  }, [activeOrganizationId, refresh]);
 
   useEffect(() => {
-    const handleOnline = () => { setOnline(true); void refresh(); };
+    const handleOnline = () => { setOnline(true); void refresh(); if (activeOrderIdRef.current) setDetailsRevision(current => current + 1); };
     const handleOffline = () => setOnline(false);
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
@@ -396,8 +418,8 @@ export function TechnicianPanel() {
         !orderDetails || orderDetails.id !== routeOrderId ||
         ((canSeePhotos || canSendPhotos) && photoLoadedServiceId !== selectedId)
       ))
-      ? <div role="status" aria-label="Carregando dados da OS" className="flex min-h-[50dvh] items-center justify-center">
-          <LoadingSpinner size="lg" />
+      ? <div aria-label="Carregando dados da OS" className="flex min-h-[50dvh] items-center justify-center">
+          <LoadingState />
         </div>
       : <AdminPage open={!historyDialogOpen} smoothMotion={false}
       onClose={() => navigate("/admin/technician-panel")}
@@ -577,7 +599,7 @@ export function TechnicianPanel() {
             <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
               multiple className="sr-only" aria-label="Selecionar imagens do dispositivo"
               disabled={!online || uploading || busy || photoCount >= 3} onChange={event => void onUpload(event)} />
-            {canSeePhotos && (photoLoading ? <p className="text-xs text-muted-foreground">Carregando imagens...</p>
+            {canSeePhotos && (photoLoading ? <LoadingState />
               : photos.length ? <div className="flex flex-wrap gap-3">
                 {photos.map(photo => {
                   const image: OrderImage = { key: photo.id, name: "Foto da execução técnica", url: photo.url };
@@ -599,25 +621,33 @@ export function TechnicianPanel() {
             />}
       </>}
 
-      <AdminStickyToolbar className="flex-wrap">
+      <AdminStickyToolbar className="!flex-nowrap !gap-2 !px-2 sm:!gap-3 sm:!px-5">
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
         {orderDetails?.can_change_situation && !orderDetails.closed &&
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="shrink-0 text-xs font-semibold text-muted-foreground">Alterar situação:</span>
-            <div className="min-w-[170px] max-w-sm flex-1">
-            <AdminSelect value={orderDetails.situation_id || ""}
-              options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
-              onValueChange={value => { if (value) void onSituationChange(value); }}
-              ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
-              className="min-h-9 w-full min-w-0 text-xs" />
+          <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
+            <span className="hidden shrink-0 text-xs font-semibold text-muted-foreground lg:inline">Alterar situação:</span>
+            <div className="min-w-0 flex-1 sm:min-w-[180px] sm:max-w-sm">
+              <AdminSelect value={orderDetails.situation_id || ""}
+                options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
+                onValueChange={value => { if (value) void onSituationChange(value); }}
+                ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
+                className="min-h-9 w-full min-w-0 text-xs" />
             </div>
           </div>}
         {detailTab === "products-services" && selected.status === "pending" && canStart &&
-          <BtnPrimary disabled={busy || uploading || !online} loading={busy}
-            onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
+          <BtnPrimary className="max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0"
+            disabled={busy || uploading || !online} loading={busy}
+            onClick={() => void runWithGps("start")}>
+            <Play size={18} className="sm:hidden" aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Iniciar serviço</span>
+          </BtnPrimary>}
         {detailTab === "products-services" && selected.status === "in_progress" && canComplete &&
-          <BtnPrimary disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
-            onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
+          <BtnPrimary className="max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0"
+            disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
+            onClick={() => void runWithGps("finish")}>
+            <Check size={18} className="sm:hidden" aria-hidden="true" />
+            <span className="sr-only sm:not-sr-only">Finalizar serviço</span>
+          </BtnPrimary>}
       </AdminStickyToolbar>
       <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
         title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
