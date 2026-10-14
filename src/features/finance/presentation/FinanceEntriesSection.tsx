@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { BanknoteArrowDown, BanknoteArrowUp, Eye, Plus, Search } from "lucide-react";
+import { BanknoteArrowDown, BanknoteArrowUp, Eye, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceEntries } from "../application/useFinanceEntries";
@@ -168,7 +169,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   return <div className="space-y-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-semibold text-muted-foreground">{totalItems} {totalItems === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
-      {canCreate && <AdminButton onClick={() => { setCounterpartySearch(""); setEditing(null); setEditorOpen(true); }}><Plus size={16} /> {isReceivable ? "Nova conta a receber" : "Nova conta a pagar"}</AdminButton>}
+
     </div>
     <div className="grid gap-3 border-b border-border pb-4 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-end">
       <div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><FInput aria-label="Pesquisar contas" className="pl-9" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição, cliente, fornecedor, OS ou documento" /></div>
@@ -176,7 +177,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     </div>
       {finance.entriesQuery.isLoading ? <div className="p-10"><LoadingState /></div> : finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
         <div className="grid gap-3 p-3 md:hidden">{entries.map(entry => <button key={entry.id} type="button" onClick={() => onSelectEntry(entry.id)} className="rounded-xl border border-[#0d1b2e]/8 bg-white p-4 text-left shadow-sm"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-sm font-black text-[#0d1b2e]">{entry.description}</p><p className="mt-1 truncate text-xs text-[#5a6a82]">{entry.counterpart_name_snapshot || "Sem contraparte"}</p></div><p className="shrink-0 text-sm font-black text-[#0057e7]">{formatCurrency(entry.original_amount)}</p></div><div className="mt-3 flex flex-wrap gap-1.5"><Badge tone="blue">{originText(entry)}</Badge><Badge tone={approvalTone(entry.approval_status)}>{approvalText(entry)}</Badge><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></div><div className="mt-3 grid grid-cols-2 gap-2 text-xs text-[#5a6a82]"><span>Emissão: <strong>{formatDate(entry.issue_date)}</strong></span><span>Vencimento: <strong>{formatDate(entry.next_due_date)}</strong></span></div></button>)}</div>
-        <FinanceTableSurface className="hidden md:block"><table className="min-w-[860px]"><thead><tr><th className="text-left">Descrição</th><th className="text-left">Cliente / fornecedor</th><th className="text-left">Vencimento</th><th className="text-right">Valor</th><th className="text-left">Aprovação</th><th className="text-left">Situação</th><th className="text-right">Ações</th></tr></thead><tbody>{entries.map((entry: FinancialEntry) => <tr key={entry.id}><td><p className="font-bold text-[#0d1b2e]">{entry.description}</p><p className="text-[10px] font-bold uppercase text-[#0057e7]">{originText(entry)}</p></td><td className="text-xs text-[#5a6a82]">{entry.counterpart_name_snapshot || "—"}</td><td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td><td className="text-right font-black text-[#0057e7]">{formatCurrency(entry.original_amount)}</td><td><Badge tone={approvalTone(entry.approval_status)}>{approvalText(entry)}</Badge></td><td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td><td><div className="flex justify-end"><AdminIconButton ariaLabel="Ver detalhes" onClick={() => onSelectEntry(entry.id)}><Eye size={15} /></AdminIconButton></div></td></tr>)}</tbody></table></FinanceTableSurface>
+        <FinanceTableSurface className="hidden md:block"><table className="min-w-[860px]"><thead><tr><th className="text-left">Descrição</th><th className="text-left">Cliente / fornecedor</th><th className="text-left">Vencimento</th><th className="text-right">Valor</th><th className="text-left">Aprovação</th><th className="text-left">Situação</th><th className="text-right">Ações</th></tr></thead><tbody>{entries.map((entry: FinancialEntry) => <FinanceTableRow key={entry.id} label={`Abrir ${entry.description}`} onOpen={() => onSelectEntry(entry.id)}><td><p className="font-bold text-[#0d1b2e]">{entry.description}</p><p className="text-[10px] font-bold uppercase text-[#0057e7]">{originText(entry)}</p></td><td className="text-xs text-[#5a6a82]">{entry.counterpart_name_snapshot || "—"}</td><td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td><td className="text-right font-black text-[#0057e7]">{formatCurrency(entry.original_amount)}</td><td><Badge tone={approvalTone(entry.approval_status)}>{approvalText(entry)}</Badge></td><td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td><td><div className="flex justify-end"><AdminIconButton ariaLabel="Ver detalhes" onClick={() => onSelectEntry(entry.id)}><Eye size={15} /></AdminIconButton></div></td></FinanceTableRow>)}</tbody></table></FinanceTableSurface>
         <PaginationBar
           page={page}
           pageSize={pageSize}
@@ -187,6 +188,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           pageSizeOptions={[10, 20, 50, 100]}
         />
       </>}
+
+    {canCreate && <AdminStickyToolbar className="justify-end">
+      <AdminButton onClick={() => { setCounterpartySearch(""); setEditing(null); setEditorOpen(true); }}>Novo</AdminButton>
+    </AdminStickyToolbar>}
 
     <FinanceEntryEditorDialog
       open={editorOpen}

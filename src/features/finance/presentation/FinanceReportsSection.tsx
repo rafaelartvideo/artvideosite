@@ -14,11 +14,12 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceReports } from "../application/useFinanceReports";
-import type { FinancialEntryOriginType, FinancialReportFilters } from "../domain/finance.types";
+import type { FinancialCashFlowRow, FinancialDreRow, FinancialEntryOriginType, FinancialReportFilters } from "../domain/finance.types";
 import { FinanceSubsectionTabs } from "./FinanceSectionTabs";
 
 type ReportTab = "dre" | "cash-flow";
@@ -81,6 +82,8 @@ export function FinanceReportsSection() {
   const canDre = hasPermission("finance.reports.view") && hasPermission("finance.reports.dre");
   const canCashFlow = hasPermission("finance.reports.view") && hasPermission("finance.reports.cash_flow");
   const [tab, setTab] = useState<ReportTab>(canDre ? "dre" : "cash-flow");
+  const [selectedDreRow, setSelectedDreRow] = useState<FinancialDreRow | null>(null);
+  const [selectedCashRow, setSelectedCashRow] = useState<FinancialCashFlowRow | null>(null);
   const [filters, setFilters] = useState<FinancialReportFilters>(() => currentMonthFilters());
   const foundation = useFinanceFoundation();
   const reports = useFinanceReports(filters, { dashboard: false, dre: tab === "dre", cashFlow: tab === "cash-flow" });
@@ -201,7 +204,7 @@ export function FinanceReportsSection() {
                 <thead className="border-b border-[#0d1b2e]/8 bg-slate-50 text-[#5a6a82]"><tr>
                   <th className="px-4 py-3">Competência</th><th className="px-4 py-3">Natureza</th><th className="px-4 py-3">Grupo</th><th className="px-4 py-3">Categoria</th><th className="px-4 py-3">Origem</th><th className="px-4 py-3 text-right">Valor</th>
                 </tr></thead>
-                <tbody className="divide-y divide-[#0d1b2e]/6">{dre.rows.map((row, index) => <tr key={`${row.competence_month}-${row.category_id}-${row.cost_center_id || "none"}-${row.origin_type}-${index}`}>
+                <tbody className="divide-y divide-[#0d1b2e]/6">{dre.rows.map((row, index) => <FinanceTableRow key={`${row.competence_month}-${row.category_id}-${row.cost_center_id || "none"}-${row.origin_type}-${index}`} label={`Abrir resumo de ${row.category_name}`} onOpen={() => setSelectedDreRow(row)}>
                   <td className="px-4 py-3 font-semibold text-[#0d1b2e]">{monthLabel(row.competence_month)}</td>
                   <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${row.nature === "revenue" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{row.nature === "revenue" ? "Receita" : "Despesa"}</span></td>
                   <td className="px-4 py-3 text-[#5a6a82]">{row.report_group}</td>
@@ -209,7 +212,7 @@ export function FinanceReportsSection() {
                   
                   <td className="px-4 py-3 text-[#5a6a82]">{row.origin_type}</td>
                   <td className="px-4 py-3 text-right font-black text-[#0d1b2e]">{formatCurrency(row.amount)}</td>
-                </tr>)}</tbody>
+                </FinanceTableRow>)}</tbody>
               </table></FinanceTableSurface>}
         </section>
       </>}
@@ -256,7 +259,7 @@ export function FinanceReportsSection() {
                 <thead className="border-b border-[#0d1b2e]/8 bg-slate-50 text-[#5a6a82]"><tr>
                   <th className="px-4 py-3">Data</th><th className="px-4 py-3 text-right">Entrada prevista</th><th className="px-4 py-3 text-right">Saída prevista</th><th className="px-4 py-3 text-right">Líquido previsto</th><th className="px-4 py-3 text-right">Entrada realizada</th><th className="px-4 py-3 text-right">Saída realizada</th><th className="px-4 py-3 text-right">Líquido realizado</th>
                 </tr></thead>
-                <tbody className="divide-y divide-[#0d1b2e]/6">{cashFlow.rows.map(row => <tr key={row.date}>
+                <tbody className="divide-y divide-[#0d1b2e]/6">{cashFlow.rows.map(row => <FinanceTableRow key={row.date} label={`Abrir fluxo de ${row.date}`} onOpen={() => setSelectedCashRow(row)}>
                   <td className="px-4 py-3 font-semibold text-[#0d1b2e]">{new Date(`${row.date}T12:00:00`).toLocaleDateString("pt-BR")}</td>
                   <td className="px-4 py-3 text-right text-emerald-700">{formatCurrency(row.forecast_in)}</td>
                   <td className="px-4 py-3 text-right text-red-700">{formatCurrency(row.forecast_out)}</td>
@@ -264,10 +267,29 @@ export function FinanceReportsSection() {
                   <td className="px-4 py-3 text-right text-emerald-700">{formatCurrency(row.realized_in)}</td>
                   <td className="px-4 py-3 text-right text-red-700">{formatCurrency(row.realized_out)}</td>
                   <td className="px-4 py-3 text-right font-black text-[#0d1b2e]">{formatCurrency(row.realized_net)}</td>
-                </tr>)}</tbody>
+                </FinanceTableRow>)}</tbody>
               </table></FinanceTableSurface>}
         </section>
       </>}
     </>}
+    <AdminDialog open={Boolean(selectedDreRow)} onClose={() => setSelectedDreRow(null)} title="Detalhes do resultado" className="max-w-lg">
+      {selectedDreRow && <dl className="grid gap-4 sm:grid-cols-2">
+        <div><dt className="text-xs text-muted-foreground">Competência</dt><dd className="font-semibold text-foreground">{monthLabel(selectedDreRow.competence_month)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Natureza</dt><dd className="font-semibold text-foreground">{selectedDreRow.nature === "revenue" ? "Receita" : "Despesa"}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Categoria</dt><dd className="font-semibold text-foreground">{selectedDreRow.category_name}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Origem</dt><dd className="font-semibold text-foreground">{selectedDreRow.origin_type}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Valor</dt><dd className="text-lg font-bold text-foreground">{formatCurrency(selectedDreRow.amount)}</dd></div>
+      </dl>}
+    </AdminDialog>
+    <AdminDialog open={Boolean(selectedCashRow)} onClose={() => setSelectedCashRow(null)} title="Fluxo financeiro do dia" className="max-w-lg">
+      {selectedCashRow && <dl className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Data</dt><dd className="font-semibold text-foreground">{new Date(`${selectedCashRow.date}T12:00:00`).toLocaleDateString("pt-BR")}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Entradas previstas</dt><dd className="font-semibold text-foreground">{formatCurrency(selectedCashRow.forecast_in)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Saídas previstas</dt><dd className="font-semibold text-foreground">{formatCurrency(selectedCashRow.forecast_out)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Entradas realizadas</dt><dd className="font-semibold text-foreground">{formatCurrency(selectedCashRow.realized_in)}</dd></div>
+        <div><dt className="text-xs text-muted-foreground">Saídas realizadas</dt><dd className="font-semibold text-foreground">{formatCurrency(selectedCashRow.realized_out)}</dd></div>
+        <div className="sm:col-span-2"><dt className="text-xs text-muted-foreground">Saldo realizado</dt><dd className="text-lg font-bold text-foreground">{formatCurrency(selectedCashRow.realized_net)}</dd></div>
+      </dl>}
+    </AdminDialog>
   </div>;
 }

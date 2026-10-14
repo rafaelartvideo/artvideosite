@@ -1,11 +1,12 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useState } from "react";
-import { Banknote, Landmark, Pencil, Plus } from "lucide-react";
+import { Banknote, Landmark, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
@@ -122,13 +123,13 @@ export function FinanceAccountsSection() {
         <p className="text-sm font-semibold text-muted-foreground">{accounts.length} {accounts.length === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
         <p className="text-sm font-semibold text-muted-foreground">Saldo total: <strong className="text-lg font-bold text-foreground">{formatCurrency(totalBalance)}</strong></p>
       </div>
-      {canManage && <AdminButton onClick={openNew}><Plus size={16} /> Nova conta</AdminButton>}
+
     </div>
       {errorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
       {loading ? <div className="p-8"><LoadingState /></div> : accounts.length === 0 ? <div className="p-8"><EmptyState icon={Landmark} title="Nenhuma conta financeira" /></div> : <FinanceTableSurface>
         <table className="min-w-[980px]">
           <thead><tr><th className="text-left">Nome</th><th className="text-left">Tipo</th><th className="text-left">Dados</th><th className="text-right">Saldo</th><th className="text-left">Saldo inicial</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
-          <tbody>{accounts.map(account => <tr key={account.id}>
+          <tbody>{accounts.map(account => <FinanceTableRow key={account.id} label={`Abrir conta ${account.name}`} onOpen={canManage ? () => openEdit(account) : undefined}>
             <td><p className="font-bold text-[#0d1b2e]">{account.name}</p>{account.description && <p className="mt-0.5 text-xs text-[#5a6a82]">{account.description}</p>}</td>
             <td className="text-xs font-semibold text-[#5a6a82]">{typeLabel(account.account_type)}</td>
             <td className="text-xs text-[#5a6a82]">{accountDetails(account)}</td>
@@ -136,11 +137,13 @@ export function FinanceAccountsSection() {
             <td>{account.opening_balance_configured_at ? <span className="text-xs font-semibold text-emerald-700">Configurado</span> : <span className="text-xs font-semibold text-amber-700">Não configurado</span>}</td>
             <td><StatusBadge status={account.is_active ? "Ativo" : "Inativo"} /></td>
             {canManage && <td><div className="flex justify-end gap-1">{!account.opening_balance_configured_at && <AdminIconButton ariaLabel="Configurar saldo inicial" title="Configurar saldo inicial" onClick={() => { setOpeningAccount(account); setNameError(""); }}><Banknote size={15} /></AdminIconButton>}<AdminIconButton ariaLabel="Editar conta" title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={account.is_active} entityLabel="conta" onClick={() => void finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })} /></div></td>}
-          </tr>)}</tbody>
+          </FinanceTableRow>)}</tbody>
         </table>
       </FinanceTableSurface>}
 
     {Boolean(finance.settingsQuery.data?.cash_session_enabled) && <FinanceCashSection accounts={accounts} />}
+
+    {canManage && <AdminStickyToolbar className="justify-end"><AdminButton onClick={openNew}>Novo</AdminButton></AdminStickyToolbar>}
 
     {formOpen && <AdminDialog
       open

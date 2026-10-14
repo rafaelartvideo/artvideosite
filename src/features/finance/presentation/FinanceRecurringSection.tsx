@@ -1,12 +1,13 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useState } from "react";
-import { CalendarClock, Pencil, Plus, RefreshCw } from "lucide-react";
+import { CalendarClock, Pencil, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
@@ -182,12 +183,12 @@ export function FinanceRecurringSection() {
 
     <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-semibold text-muted-foreground">{rules.length} {rules.length === 1 ? "recorrência cadastrada" : "recorrências cadastradas"}</p>
-      {canManage && <AdminButton onClick={openNew}><Plus size={16} /> Nova recorrência</AdminButton>}
+
     </div>
       {recurring.rulesQuery.isLoading ? <div className="p-10"><LoadingState text="Carregando recorrências..." /></div> : recurring.rulesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{recurring.rulesQuery.error instanceof Error ? recurring.rulesQuery.error.message : "Não foi possível carregar as recorrências."}</div> : rules.length === 0 ? <div className="p-10"><EmptyState icon={CalendarClock} title="Nenhuma recorrência cadastrada" /></div> : <FinanceTableSurface>
         <table className="min-w-[980px]">
           <thead><tr><th className="text-left">Descrição</th><th className="text-left">Tipo</th><th className="text-left">Periodicidade</th><th className="text-left">Próxima</th><th className="text-right">Valor</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
-          <tbody>{rules.map(rule => <tr key={rule.id}>
+          <tbody>{rules.map(rule => <FinanceTableRow key={rule.id} label={`Abrir recorrência ${rule.description}`} onOpen={canManage ? () => edit(rule) : undefined}>
             <td><p className="font-bold text-[#0d1b2e]">{rule.description}</p>{rule.counterpart_name_snapshot && <p className="text-xs text-[#5a6a82]">{rule.counterpart_name_snapshot}</p>}</td>
             <td className="text-xs font-semibold text-[#5a6a82]">{rule.entry_type === "receivable" ? "Receber" : "Pagar"}</td>
             <td className="text-xs text-[#5a6a82]">{frequencyLabel(rule)}</td>
@@ -199,9 +200,11 @@ export function FinanceRecurringSection() {
               <AdminIconButton ariaLabel="Editar recorrência" title="Editar" onClick={() => edit(rule)}><Pencil size={15} /></AdminIconButton>
               <AdminActiveStateButton active={rule.is_active} entityLabel="recorrência" onClick={() => void recurring.activeMutation.mutateAsync({ id: rule.id, active: !rule.is_active })} />
             </div></td>}
-          </tr>)}</tbody>
+          </FinanceTableRow>)}</tbody>
         </table></FinanceTableSurface>}
 
+
+    {canManage && <AdminStickyToolbar className="justify-end"><AdminButton onClick={openNew}>Novo</AdminButton></AdminStickyToolbar>}
 
     {open && <AdminDialog
       open
