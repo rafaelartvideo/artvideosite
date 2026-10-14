@@ -115,7 +115,7 @@ test("inclusões técnicas não alteram atribuições de serviços existentes", 
   assert.match(catalogMigration, /service_order_item_task_assignees/);
   assert.match(catalogMigration, /assigned_employee_id,status,updated_by/);
   assert.match(catalogMigration, /inventory\.quantity,0\)<p_quantity\*v_factor/);
-  assert.match(catalogMigration, /not (v_order\.is_solved)/);
+  assert.match(catalogMigration, /or v_order\.is_solved or v_order\.cannot_be_solved/);
   assert.match(catalogUi, /addMyTechnicianOrderItem/);
   assert.match(catalogUi, /removeMyTechnicianOrderProduct/);
   assert.match(catalogMigration, /'technician_panel\.actions\.remove_product'/);
