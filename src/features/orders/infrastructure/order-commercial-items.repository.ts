@@ -117,15 +117,21 @@ export async function addOrderCatalogItem(input: {
   quantity: number;
   unitPrice: number | null;
   technicianIds?: string[];
+  scheduledStartAt?: string | null;
+  scheduledEndAt?: string | null;
 }) {
   const withTechnician = input.itemType === "service" && Boolean(input.technicianIds?.length);
+  const scheduled = withTechnician && Boolean(input.scheduledStartAt && input.scheduledEndAt);
   const { data, error } = await supabase.rpc(
-    withTechnician ? "add_service_order_catalog_item_with_technicians_v1" : "add_service_order_catalog_item_v1",
+    scheduled ? "add_service_order_catalog_item_scheduled_v1"
+      : withTechnician ? "add_service_order_catalog_item_with_technicians_v1"
+        : "add_service_order_catalog_item_v1",
     withTechnician ? {
       p_service_order_id: input.serviceOrderId,
       p_catalog_id: input.catalogId,
       p_employee_ids: input.technicianIds,
       p_quantity: input.quantity,
+      ...(scheduled ? { p_start_at: input.scheduledStartAt, p_end_at: input.scheduledEndAt } : {}),
     } : {
       p_service_order_id: input.serviceOrderId,
       p_item_type: input.itemType,
