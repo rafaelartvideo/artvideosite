@@ -8,6 +8,7 @@ import {
   updateAppointmentDate,
   updateServiceOrderSchedule,
 } from "../infrastructure/appointments.repository";
+import { setOrderServiceTaskSchedule } from "@/features/orders/infrastructure/order-service-tasks.repository";
 import {
   eventDay,
   filterAgendaData,
@@ -15,6 +16,7 @@ import {
   type AgendaView,
   type AppointmentWithRelations,
   type CalendarEvent,
+  type ServiceTaskSchedule,
 } from "./agenda-calendar";
 
 type Options = {
@@ -47,6 +49,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const queryClient = useQueryClient();
   const [orders, setOrders] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
+  const [taskSchedules, setTaskSchedules] = useState<ServiceTaskSchedule[]>([]);
   const [view, setView] = useState<AgendaView>("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [technicianFilter, setTechnicianFilter] = useState("");
@@ -88,6 +91,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
     if (!query.data) return;
     setOrders(query.data.orders);
     setAppointments(query.data.appointments as AppointmentWithRelations[]);
+    setTaskSchedules(query.data.taskSchedules as ServiceTaskSchedule[]);
   }, [query.data]);
 
   useEffect(() => {
@@ -104,6 +108,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const { calendarEvents: filteredCalendarEvents } = filterAgendaData({
     orders,
     appointments,
+    taskSchedules,
     search,
     technicianFilter: effectiveTechnicianFilter,
     statusFilter,
@@ -124,6 +129,25 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const updateEventDate = async (event: CalendarEvent | any, targetDay: string) => {
     if (!event.kind) {
       return updateEventDate({ kind: "service_order", id: event.id, date: eventDay(event), order: event }, targetDay);
+    }
+    if (event.kind === "service_task") {
+      const oldStart = new Date(event.task.scheduled_start_at);
+      const oldEnd = new Date(event.task.scheduled_end_at);
+      const target = parseDay(targetDay);
+      target.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+      const end = new Date(target.getTime() + oldEnd.getTime() - oldStart.getTime());
+      try {
+        await setOrderServiceTaskSchedule({ itemId: event.id,
+          startAt: target.toISOString(), endAt: end.toISOString() });
+        setTaskSchedules(current => current.map(task => task.item_id === event.id ? {
+          ...task, scheduled_start_at: target.toISOString(), scheduled_end_at: end.toISOString(),
+        } : task));
+        onToast("Serviço reagendado.", "success");
+        void queryClient.invalidateQueries({ queryKey: queryKeys.appointments.all });
+      } catch (error) {
+        onToast(`Não foi possível reagendar o serviço: ${systemErrorMessage(error)}`, "error");
+      }
+      return;
     }
     if (event.kind === "appointment") {
       try {
