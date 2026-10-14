@@ -58,7 +58,8 @@ export function OrderServiceScheduleDraftDialog({
     .map(technician => technician.name), [selected, technicians]);
 
   const valid = Boolean(date && start && end && end > start && selected.length &&
-    selected.every(id => technicians.some(person => person.id === id)));
+    selected.every(id => technicians.some(person => person.id === id)) &&
+    new Date(date + "T" + start + ":00-03:00").getTime() > Date.now());
   const confirm = () => {
     if (!valid) return;
     const startAt = localToIso(date, start);
