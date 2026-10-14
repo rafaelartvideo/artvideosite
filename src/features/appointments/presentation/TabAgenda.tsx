@@ -52,6 +52,9 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     if (event.kind === "service_order") {
       return [event.order.technician?.id, ...(event.order.technician_links || []).map((link: any) => link.employee_id)].filter(Boolean);
     }
+    if (event.kind === "service_task") {
+      return [event.task.assigned_employee_id, ...(event.task.assignees || []).map(link => link.employee_id)].filter(Boolean);
+    }
     return [
       ...(event.appointment.appointment_technicians || []).map(link => link.employee_id),
       event.appointment.service_order?.technician?.id,
