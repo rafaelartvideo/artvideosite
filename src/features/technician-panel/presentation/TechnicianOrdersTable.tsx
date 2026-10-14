@@ -78,11 +78,11 @@ export function TechnicianOrdersTable({
       : !visible.length ? <p className="p-6 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>
       : <>
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-[880px]">
+          <table className="min-w-[880px] text-left">
             <thead><tr>
-                <th className="px-4 py-3">OS</th><th className="px-4 py-3">Cliente</th>
-                <th className="px-4 py-3">Equipamento</th><th className="px-4 py-3">Serviços atribuídos</th>
-                <th className="px-4 py-3">Andamento</th>
+                <th scope="col" className="px-4 py-3 text-left">OS</th><th scope="col" className="px-4 py-3 text-left">Cliente</th>
+                <th scope="col" className="px-4 py-3 text-left">Equipamento</th><th scope="col" className="px-4 py-3 text-left">Serviços atribuídos</th>
+                <th scope="col" className="px-4 py-3 text-left">Andamento</th>
               </tr></thead>
             <tbody>
               {visible.map(services => <tr key={services[0].service_order_id} tabIndex={0}
