@@ -578,10 +578,12 @@ export function TechnicianPanel() {
               multiple className="sr-only" aria-label="Selecionar imagens do dispositivo"
               disabled={!online || uploading || busy || photoCount >= 3} onChange={event => void onUpload(event)} />
             {canSeePhotos && (photoLoading ? <p className="text-xs text-muted-foreground">Carregando imagens...</p>
-              : photos.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" title="Abrir foto">
-                  <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover" />
-                </a>)}
+              : photos.length ? <div className="flex flex-wrap gap-3">
+                {photos.map(photo => {
+                  const image: OrderImage = { key: photo.id, name: "Foto da execução técnica", url: photo.url };
+                  return <OrderImageThumb key={photo.id} image={image}
+                    onView={() => setViewEquipmentImage(image)} />;
+                })}
               </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma foto enviada.</p>)}
           </Section>}
 
