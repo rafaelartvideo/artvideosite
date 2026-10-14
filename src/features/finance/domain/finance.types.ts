@@ -103,6 +103,10 @@ export interface FinancialEntry {
   next_due_date?: string | null;
   operational_status?: FinancialOperationalStatus;
   approval_count?: number;
+  /** Payment methods already used in recorded settlements; not a promised payment method. */
+  payment_method_summary?: string | null;
+  settled_amount?: number;
+  remaining_amount?: number;
 }
 
 export interface FinancialInstallment {
@@ -303,6 +307,11 @@ export interface FinancialEvent {
 }
 
 export interface FinancialEntryDetail extends FinancialEntry {
+  created_by_name?: string | null;
+  updated_by_name?: string | null;
+  last_settlement_by_name?: string | null;
+  concluded_by_name?: string | null;
+  actor_names?: Record<string, string>;
   installments: FinancialInstallment[];
   allocations: FinancialAllocation[];
   approvals: FinancialApproval[];
