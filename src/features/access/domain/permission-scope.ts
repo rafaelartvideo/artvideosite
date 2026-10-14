@@ -77,6 +77,8 @@ function requiredModuleKeys(key: string): readonly string[] | null {
   if (key.startsWith("customers.") || key.startsWith("registrations.")) return ["customers"];
   if (key.startsWith("employees.") || key.startsWith("roles.") || key.startsWith("users.")) return ["employees"];
   if (key.startsWith("agenda.")) return ["agenda"];
+  // O painel técnico é uma área de OS, não um módulo de assinatura separado.
+  if (key.startsWith("technician_panel.")) return ["orders"];
   if (key.startsWith("field_tracking.")) return ["field_tracking"];
   if (key.startsWith("inventory.") || key.startsWith("products.")) return ["inventory", "products"];
   if (key.startsWith("pdv.")) return ["pdv"];
