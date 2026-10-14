@@ -83,6 +83,8 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId);
+  const roleBeingEdited = roles.find(item => item.id === routeResourceId) ?? null;
+  const catalogReady = !loading && permissions.length > 0;
 
   const load = async () => {
     if (!activeOrganizationId || !canView) {
@@ -130,7 +132,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       setNameError("");
       return () => { cancelled = true; };
     }
-    const role = roles.find(item => item.id === routeResourceId);
+    const role = roleBeingEdited;
     if (!role || !canViewDetails) return () => { cancelled = true; };
     setEditing(role);
     setPermissionListReady(false);
@@ -146,7 +148,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       setPermissionListReady(true);
     });
     return () => { cancelled = true; };
-  }, [editorOpen, routeResourceId, roles, canViewDetails]);
+  }, [editorOpen, routeResourceId, roleBeingEdited?.id, canViewDetails]);
 
   const permissionByKey = useMemo(
     () => new Map(permissions.map(permission => [permission.key, permission])),
@@ -212,7 +214,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const openRole = (role: RoleRecord) => canViewDetails && onRouteChange?.(role.id, "edit");
 
   const save = async () => {
-    if (!activeOrganizationId || saving || !permissionListReady) return;
+    if (!activeOrganizationId || saving || !permissionListReady || !catalogReady) return;
     const creating = !editing;
     if (creating && !canCreate) return;
     if (!creating && !canEdit && !canManagePermissions) return;
@@ -303,7 +305,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         </Section>
 
         <Section title="Permissões">
-          {permissionListReady ? <PermissionMatrix
+          {permissionListReady && catalogReady ? <PermissionMatrix
             permissions={permissions}
             selectedIds={new Set(form.selected)}
             canManage={canManagePermissions}
@@ -314,7 +316,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       </div>
       <AdminStickyToolbar className="justify-end">
         <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
-        {(creating ? canCreate : canEdit || canManagePermissions) && <BtnPrimary onClick={save} disabled={!permissionListReady} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+        {(creating ? canCreate : canEdit || canManagePermissions) && <BtnPrimary onClick={save} disabled={!permissionListReady || !catalogReady} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>;
   }
