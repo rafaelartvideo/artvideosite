@@ -248,8 +248,8 @@ export function AdminSegmentedControl<T extends string>({
         aria-pressed={value === option.value}
         onClick={() => onChange(option.value)}
         className={cn(
-          "cursor-default border px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset",
-          value === option.value ? "border-primary bg-primary-soft text-primary" : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+          "cursor-default rounded-md border border-transparent px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-inset",
+          value === option.value ? "bg-primary-soft text-primary ring-1 ring-inset ring-primary" : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
           disabled && "cursor-default opacity-70",
         )}
       >
