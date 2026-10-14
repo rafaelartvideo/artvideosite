@@ -18,6 +18,7 @@ import {
   INPUT,
 } from "@/shared/ui/admin/AdminFormControls";
 import { cn } from "@/shared/domain/formatters";
+import { OrderServiceScheduleDialog } from "./OrderServiceScheduleDialog";
 import {
   addOrderCatalogItem,
   addOrderCustomService,
@@ -32,7 +33,7 @@ import {
   type OrderCommercialPricing,
 } from "../infrastructure/order-commercial-items.repository";
 import {
-  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians, listOrderTaskPhotos, createOrderTaskPhotoUrl,
+  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians, setOrderServiceTaskSchedule, listOrderTaskPhotos, createOrderTaskPhotoUrl,
   type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician, type OrderTaskPhoto,
 } from "../infrastructure/order-service-tasks.repository";
 
@@ -306,6 +307,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [customTechnicianIds, setCustomTechnicianIds] = useState<string[]>([]);
   const [editingTechnicianItem, setEditingTechnicianItem] = useState<OrderCommercialItem | null>(null);
   const [editingTechnicianIds, setEditingTechnicianIds] = useState<string[]>([]);
+  const [schedulingItem, setSchedulingItem] = useState<OrderCommercialItem | null>(null);
+  const [scheduleSaving, setScheduleSaving] = useState(false);
 
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({});
   const [mutating, setMutating] = useState(false);
@@ -746,6 +749,29 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     }
   };
 
+  const saveServiceSchedule = async (start: string | null, end: string | null) => {
+    if (!schedulingItem || !editable || scheduleSaving) return;
+    setScheduleSaving(true);
+    setMessage(null);
+    try {
+      await setOrderServiceTaskSchedule({ itemId: schedulingItem.id, startAt: start, endAt: end });
+      const next = await listOrderServiceTasks(order.id);
+      setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
+      setSchedulingItem(null);
+      setMessage({ type: "success", text: start ? "Agendamento do serviço confirmado." : "Agendamento do serviço removido." });
+    } catch (error) {
+      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível agendar o serviço.") });
+    } finally {
+      setScheduleSaving(false);
+    }
+  };
+
+  const formatServiceSchedule = (value: string | null | undefined) => value
+    ? new Date(value).toLocaleString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit",
+      }) : "";
+
   const renderStatusTag = (item: OrderCommercialItem) => {
     if (item.item_type === "product") return null;
     const status = tasks[item.id]?.status || "pending";
@@ -1173,6 +1199,24 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     )}
                   </div>
 
+                  {item.item_type !== "product" && workflowReady && <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
+                    <div className="min-w-0">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Agendamento do serviço</p>
+                      {tasks[item.id]?.scheduled_start_at && tasks[item.id]?.scheduled_end_at
+                        ? <p className="mt-1 text-xs font-semibold text-foreground">
+                            {formatServiceSchedule(tasks[item.id].scheduled_start_at)} às {new Date(tasks[item.id].scheduled_end_at!).toLocaleTimeString("pt-BR", {
+                              timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
+                            })}
+                          </p>
+                        : <p className="mt-1 text-xs text-muted-foreground">Não agendado.</p>}
+                    </div>
+                    {editable && tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
+                      <BtnSecondary onClick={() => setSchedulingItem(item)}
+                        disabled={scheduleSaving}>
+                        {tasks[item.id]?.scheduled_start_at ? "Reagendar" : "Agendar"}
+                      </BtnSecondary>}
+                  </div>}
+
                   {item.item_type !== "product" && (
                     <div className="mt-4 min-w-0 rounded-lg bg-muted/35 p-3 transition-colors duration-200 group-hover:bg-muted/45 sm:p-4">
                       {renderTaskDetails(item)}
@@ -1280,6 +1324,26 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </a>)}
       </div>
     </AdminDialog>
+
+    <OrderServiceScheduleDialog
+      open={Boolean(schedulingItem)}
+      title={schedulingItem?.title_snapshot || ""}
+      organizationId={order?.organization_id || ""}
+      orderId={order?.id || ""}
+      itemId={schedulingItem?.id || ""}
+      technicians={schedulingItem
+        ? tasks[schedulingItem.id]?.technicians?.length
+          ? tasks[schedulingItem.id].technicians!
+          : tasks[schedulingItem.id]?.assigned_employee_id
+            ? [{ id: tasks[schedulingItem.id].assigned_employee_id!, name: tasks[schedulingItem.id].technician_name || "Técnico" }]
+            : []
+        : []}
+      scheduledStart={schedulingItem ? tasks[schedulingItem.id]?.scheduled_start_at : null}
+      scheduledEnd={schedulingItem ? tasks[schedulingItem.id]?.scheduled_end_at : null}
+      saving={scheduleSaving}
+      onSave={(start, end) => void saveServiceSchedule(start, end)}
+      onClose={() => { if (!scheduleSaving) setSchedulingItem(null); }}
+    />
 
     <AdminDialog
       open={Boolean(editingTechnicianItem)}
