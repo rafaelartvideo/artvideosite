@@ -32,6 +32,7 @@ export type RegistrationFormState = {
   team_name: string;
   admission_date: string;
   field_tracking_prompt_on_login: boolean;
+  disable_inactivity_logout: boolean;
 };
 
 export type RegistrationAddressForm = Address & {
@@ -59,6 +60,7 @@ export const emptyRegistrationForm = (): RegistrationFormState => ({
   team_name: "",
   admission_date: "",
   field_tracking_prompt_on_login: false,
+  disable_inactivity_logout: false,
 });
 
 export const emptyRegistrationAddress = (primary = false): RegistrationAddressForm => ({
@@ -109,6 +111,7 @@ export function registrationFormFromRecord(registration: Registration): Registra
     team_name: employee?.team_name || "",
     admission_date: employee?.admission_date || "",
     field_tracking_prompt_on_login: registration.legacy_employee?.field_tracking_prompt_on_login === true,
+    disable_inactivity_logout: registration.legacy_employee?.disable_inactivity_logout === true,
   };
 }
 
