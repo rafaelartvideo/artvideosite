@@ -22,6 +22,7 @@ import {
 
 type Notice = { kind: "success" | "error"; text: string };
 type PhotoPreview = { id: string; url: string };
+type ServicePhotoCache = { count: number; photos: PhotoPreview[] };
 
 const STATUS_LABEL: Record<TechnicianTaskStatus, string> = {
   pending: "Pendente",
@@ -70,11 +71,9 @@ export function TechnicianPanel() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [photoLoading, setPhotoLoading] = useState(false);
-  const [photoLoadedServiceId, setPhotoLoadedServiceId] = useState<string | null>(null);
+  // Galerias consultadas uma vez por serviço; a seleção não desmonta a OS.
+  const [photoCache, setPhotoCache] = useState<Record<string, ServicePhotoCache>>({});
   const [orderLoadError, setOrderLoadError] = useState<string | null>(null);
-  const [photos, setPhotos] = useState<PhotoPreview[]>([]);
-  const [photoCount, setPhotoCount] = useState(0);
   const [notice, setNotice] = useState<Notice | null>(null);
   useEffect(() => { if (notice) notifyAdmin(notice.text, notice.kind); }, [notice]);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
@@ -93,7 +92,14 @@ export function TechnicianPanel() {
     ? items.filter(item => item.service_order_id === routeOrderId) : [], [items, routeOrderId]);
   const selected = orderServices.find(item => item.item_id === routeServiceId) || orderServices[0] || null;
   const selectedId = selected?.item_id || null;
-  const openService = (item: TechnicianTask) => navigate("/admin/technician-panel/os/" + encodeURIComponent(item.service_order_id) + "?service=" + encodeURIComponent(item.item_id));
+  const servicePhotos = selectedId ? photoCache[selectedId] : undefined;
+  const photos = servicePhotos?.photos || [];
+  const photoCount = servicePhotos?.count || 0;
+  const photoLoading = Boolean(selectedId && (canSeePhotos || canSendPhotos) && !servicePhotos);
+  const openService = (item: TechnicianTask) => {
+    if (item.item_id === selectedId && item.service_order_id === routeOrderId) return;
+    navigate("/admin/technician-panel/os/" + encodeURIComponent(item.service_order_id) + "?service=" + encodeURIComponent(item.item_id));
+  };
 
   const refresh = useCallback(async (showLoading = false) => {
     if (!activeOrganizationId) {
@@ -155,42 +161,43 @@ export function TechnicianPanel() {
   }, [refresh]);
 
   useEffect(() => {
-    setPhotos([]);
-    setPhotoCount(0);
     setReport(selected?.execution_report || "");
-    if (!selectedId || !(canSeePhotos || canSendPhotos)) {
-      setPhotoLoadedServiceId(selectedId);
-      return;
-    }
+  }, [selectedId, selected?.execution_report]);
+
+  useEffect(() => {
+    if (!selectedId || !(canSeePhotos || canSendPhotos) || photoCache[selectedId]) return;
     let cancelled = false;
-    setPhotoLoading(true);
     void (async () => {
       try {
         const count = await countMyTechnicianPhotos(selectedId);
-        if (!cancelled) setPhotoCount(count);
-        if (canSeePhotos) {
-          const attachments = await listMyTechnicianPhotos(selectedId);
-          const previews = await Promise.all(attachments.map(async attachment => ({
-            id: attachment.id,
-            url: await getTechnicianPhotoSignedUrl(attachment.path),
-          })));
-          if (!cancelled) setPhotos(previews);
-        }
+        const previews = canSeePhotos
+          ? await (async () => {
+              const attachments = await listMyTechnicianPhotos(selectedId);
+              return Promise.all(attachments.map(async attachment => ({
+                id: attachment.id,
+                url: await getTechnicianPhotoSignedUrl(attachment.path),
+              })));
+            })()
+          : [];
+        if (!cancelled) setPhotoCache(current => ({
+          ...current, [selectedId]: { count, photos: previews },
+        }));
       } catch (error) {
-        if (!cancelled) setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos.") });
-      } finally {
-        if (!cancelled) { setPhotoLoading(false); setPhotoLoadedServiceId(selectedId); }
+        if (!cancelled) {
+          setPhotoCache(current => ({ ...current, [selectedId]: { count: 0, photos: [] } }));
+          setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos.") });
+        }
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedId, canSeePhotos, canSendPhotos, selected?.execution_report]);
-
+  }, [selectedId, canSeePhotos, canSendPhotos, photoCache]);
 
   // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
   // de serviços não substitui a verificação da atribuição no servidor.
   useEffect(() => {
     setOrderDetails(null);
     setEquipmentPhotoUrls({});
+    setPhotoCache({});
     setOrderLoadError(null);
     setDiagnosisDialogOpen(false);
   }, [activeOrganizationId, routeOrderId]);
@@ -318,17 +325,19 @@ export function TechnicianPanel() {
       for (const file of selectedFiles) {
         await uploadTechnicianPhoto(activeOrganizationId, selected.item_id, file);
       }
-      // Enviar e visualizar fotos são permissões independentes. Não consultar
-      // a galeria caso o cargo tenha só autorização de envio.
-      if (canSeePhotos) {
-        const attachments = await listMyTechnicianPhotos(selected.item_id);
-        const previews = await Promise.all(attachments.map(async attachment => ({
-          id: attachment.id,
-          url: await getTechnicianPhotoSignedUrl(attachment.path),
-        })));
-        setPhotos(previews);
-      }
-      setPhotoCount(await countMyTechnicianPhotos(selected.item_id));
+      // Atualiza apenas o cache do serviço enviado, sem reabrir a página.
+      const serviceId = selected.item_id;
+      const previews = canSeePhotos
+        ? await (async () => {
+            const attachments = await listMyTechnicianPhotos(serviceId);
+            return Promise.all(attachments.map(async attachment => ({
+              id: attachment.id,
+              url: await getTechnicianPhotoSignedUrl(attachment.path),
+            })));
+          })()
+        : (photoCache[serviceId]?.photos || []);
+      const nextCount = await countMyTechnicianPhotos(serviceId);
+      setPhotoCache(current => ({ ...current, [serviceId]: { count: nextCount, photos: previews } }));
       setNotice({ kind: "success", text: "Fotos anexadas ao serviço." });
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível anexar todas as fotos.") });
@@ -392,10 +401,7 @@ export function TechnicianPanel() {
           <p className="text-sm text-destructive">{orderLoadError}</p>
           <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
         </div>
-      : loading || (selected && (
-        !orderDetails || orderDetails.id !== routeOrderId ||
-        ((canSeePhotos || canSendPhotos) && photoLoadedServiceId !== selectedId)
-      ))
+      : loading || (selected && (!orderDetails || orderDetails.id !== routeOrderId))
       ? <div role="status" aria-label="Carregando dados da OS" className="flex min-h-[50dvh] items-center justify-center">
           <LoadingSpinner size="lg" />
         </div>
@@ -505,19 +511,18 @@ export function TechnicianPanel() {
         {ongoingServices > 0 && <span className={STATUS_CLASS.in_progress + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{ongoingServices} em andamento</span>}
         {!pendingServices && !ongoingServices && completedServices > 0 &&
           <span className={STATUS_CLASS.completed + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{completedServices} concluído{completedServices > 1 ? "s" : ""}</span>}
-      </span>}>
+      </span>}
+        actions={hasPermission("technician_panel.data.order_items") && hasPermission("technician_panel.actions.add_service") && orderDetails && !orderDetails.closed && !orderDetails.solved && online
+          ? <TechnicianOrderItemsSection mode="services"
+              orderId={routeOrderId} items={orderDetails.items}
+              canAddService={true}
+              canAddProduct={false} canRemoveProduct={false}
+              blocked={false}
+              onChanged={reloadCurrentOrder}
+              onFeedback={(text, kind) => setNotice({ text, kind })}
+            />
+          : undefined}>
         <div className="space-y-4">
-          {hasPermission("technician_panel.data.order_items") && hasPermission("technician_panel.actions.add_service") && orderDetails && !orderDetails.closed && !orderDetails.solved && online &&
-            <div className="flex justify-end">
-              <TechnicianOrderItemsSection mode="services"
-                orderId={routeOrderId} items={orderDetails.items}
-                canAddService={hasPermission("technician_panel.actions.add_service")}
-                canAddProduct={false} canRemoveProduct={false}
-                blocked={orderDetails.closed || orderDetails.solved || !online}
-                onChanged={reloadCurrentOrder}
-                onFeedback={(text, kind) => setNotice({ text, kind })}
-              />
-            </div>}
           <div className="grid gap-2 sm:grid-cols-2">
             {orderServices.map(service => <button key={service.item_id} type="button"
               onClick={() => openService(service)} aria-pressed={service.item_id === selectedId}
@@ -561,10 +566,10 @@ export function TechnicianPanel() {
 
       </Section>
 
-          {(canSendPhotos || canSeePhotos) && <Section title="Imagens do serviço">
-            <div className="mb-3 flex items-center justify-end gap-2">
-              <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold">{photoCount}/3</span>
-            </div>
+          {(canSendPhotos || canSeePhotos) && <Section title={<span className="inline-flex items-center gap-2">
+            Imagens do serviço
+            <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold text-foreground">{photoLoading ? "…" : photoCount}/3</span>
+          </span>}>
             {selected.status === "in_progress" && canSendPhotos && <div className="mb-3 flex flex-wrap gap-2">
               <BtnSecondary onClick={() => cameraInputRef.current?.click()}
                 disabled={!online || busy || uploading || photoCount >= 3} loading={uploading}>Abrir câmera</BtnSecondary>
