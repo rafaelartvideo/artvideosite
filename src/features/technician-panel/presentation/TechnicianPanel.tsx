@@ -3,12 +3,14 @@ import { useLocation, useMatch, useNavigate } from "react-router";
 import { MapPin, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminCardContent, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
-import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  captureTechnicianLocation, finishMyTechnicianTask, getTechnicianPhotoSignedUrl,
+  captureTechnicianLocation, changeMyTechnicianOrderSituation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
   listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask,
-  uploadTechnicianPhoto, type TechnicianTask, type TechnicianTaskStatus,
+  updateMyTechnicianOrderDiagnosis, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
   type TechnicianLocation,
 } from "../infrastructure/technician-tasks.repository";
 
@@ -59,6 +61,12 @@ export function TechnicianPanel() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TechnicianTask[]>([]);
+  const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
+  const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
+  const [detailsRevision, setDetailsRevision] = useState(0);
+  const [detailTab, setDetailTab] = useState<OrderDetailTab>("details");
+  const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
+  const [diagnosisDraft, setDiagnosisDraft] = useState("");
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -140,6 +148,59 @@ export function TechnicianPanel() {
     })();
     return () => { cancelled = true; };
   }, [selectedId, canSeePhotos, selected?.execution_report]);
+
+
+  // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
+  // de serviços não substitui a verificação da atribuição no servidor.
+  useEffect(() => {
+    let cancelled = false;
+    setOrderDetails(null);
+    setDetailTab("details");
+    setDiagnosisDialogOpen(false);
+    if (!activeOrganizationId || !routeOrderId) {
+      setOrderDetailsLoading(false);
+      return () => { cancelled = true; };
+    }
+    setOrderDetailsLoading(true);
+    void getMyTechnicianOrderDetails(routeOrderId)
+      .then(data => { if (!cancelled) setOrderDetails(data); })
+      .catch(error => { if (!cancelled) setNotice({
+        kind: "error",
+        text: systemErrorMessage(error, "Não foi possível consultar a OS."),
+      }); })
+      .finally(() => { if (!cancelled) setOrderDetailsLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeOrganizationId, routeOrderId, detailsRevision]);
+
+  const onSituationChange = async (nextId: string) => {
+    if (!routeOrderId || !orderDetails?.can_change_situation || busy ||
+        !orderDetails.available_situations.some(situation => situation.id === nextId)) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await changeMyTechnicianOrderSituation(routeOrderId, nextId);
+      setDetailsRevision(current => current + 1);
+      await refresh();
+      setNotice({ kind: "success", text: "Situação da OS atualizada." });
+    } catch (error) {
+      setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível alterar a situação.") });
+    } finally { setBusy(false); }
+  };
+
+  const saveDiagnosis = async () => {
+    if (!routeOrderId || !orderDetails?.can_edit_diagnosis || busy) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await updateMyTechnicianOrderDiagnosis(routeOrderId, diagnosisDraft);
+      setDiagnosisDialogOpen(false);
+      setDetailsRevision(current => current + 1);
+      await refresh();
+      setNotice({ kind: "success", text: "Diagnóstico atualizado na OS." });
+    } catch (error) {
+      setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível editar o diagnóstico.") });
+    } finally { setBusy(false); }
+  };
 
   const runWithGps = async (action: "start" | "finish") => {
     if (!selected || busy) return;
