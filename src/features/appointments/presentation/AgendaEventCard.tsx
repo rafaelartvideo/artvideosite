@@ -21,6 +21,7 @@ export function AgendaEventCard({ event, draggedEventId, onDraggedEventChange, o
       return;
     }
     if (event.kind === "service_order") onOpenOrder(event.order.id);
+    else if (event.kind === "service_task") onOpenOrder(event.task.service_order_id);
     else onOpenAppointment(event.appointment);
   };
 
@@ -31,6 +32,32 @@ export function AgendaEventCard({ event, draggedEventId, onDraggedEventChange, o
       ...(!(order.technician_links || []).length && order.technician?.full_name ? [order.technician.full_name] : []),
     ]));
     return <button type="button" draggable onDragStart={startDrag} onClick={openEvent} className="mb-1 w-full rounded-md border-l-4 bg-white px-2 py-1.5 text-left shadow-sm hover:shadow-md" style={{ borderLeftColor: order.order_status?.color || "var(--primary)" }} title={`${order.os_number || "OS"} - ${order.customer?.full_name || "Cliente"}`}><p className="truncate font-mono text-[10px] font-black text-foreground">{order.os_number || `OS #${order.id.slice(0, 8)}`}</p><p className="truncate text-[11px] font-semibold text-[#0d1b2e]">{order.customer?.full_name || "Cliente"}</p><p className="truncate text-[10px] text-[#5a6a82]">{eventLabel(order)} · {new Date(order.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}–{new Date(order.scheduled_end_at || new Date(order.scheduled_at).getTime() + 60 * 60_000).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>{technicianNames.length > 0 && <p className="mt-1 line-clamp-2 text-[10px] font-semibold text-muted-foreground" title={technicianNames.join(", ")}>Técnicos: {technicianNames.join(", ")}</p>}</button>;
+  }
+
+  if (event.kind === "service_task") {
+    const { task } = event;
+    const start = new Date(task.scheduled_start_at);
+    const end = new Date(task.scheduled_end_at);
+    const technicians = [...new Set((task.assignees || [])
+      .map(item => item.employee?.full_name).filter((name): name is string => Boolean(name)))];
+    const time = (value: Date) => value.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    return <button type="button" draggable onDragStart={startDrag} onClick={openEvent}
+      className="mb-1 w-full rounded-md border-l-4 bg-card px-2 py-1.5 text-left shadow-sm hover:shadow-md"
+      style={{ borderLeftColor: task.order?.order_status?.color || "var(--primary)" }}
+      title={task.item?.title_snapshot || "Serviço agendado"}>
+      <p className="truncate font-mono text-[10px] font-black text-foreground">
+        OS {task.order?.os_number || task.service_order_id.slice(0, 8)}
+      </p>
+      <p className="truncate text-[11px] font-semibold text-foreground">
+        {task.item?.title_snapshot || "Serviço"}
+      </p>
+      <p className="truncate text-[10px] text-muted-foreground">
+        {time(start)}–{time(end)} · {task.order?.customer?.full_name || "Cliente"}
+      </p>
+      {technicians.length > 0 && <p className="mt-1 line-clamp-2 text-[10px] text-muted-foreground">
+        Técnicos: {technicians.join(", ")}
+      </p>}
+    </button>;
   }
 
   const { appointment } = event;
