@@ -19,6 +19,7 @@ import {
 } from "@/shared/ui/admin/AdminFormControls";
 import { cn } from "@/shared/domain/formatters";
 import { OrderServiceScheduleDialog } from "./OrderServiceScheduleDialog";
+import { OrderServiceScheduleDraftDialog, type ServiceScheduleDraft } from "./OrderServiceScheduleDraftDialog";
 import {
   addOrderCatalogItem,
   addOrderCustomService,
@@ -298,6 +299,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [servicePrice, setServicePrice] = useState("");
   const [serviceQuantity, setServiceQuantity] = useState("1");
   const [serviceTechnicianIds, setServiceTechnicianIds] = useState<string[]>([]);
+  const [serviceNeedsSchedule, setServiceNeedsSchedule] = useState(false);
+  const [serviceScheduleDraft, setServiceScheduleDraft] = useState<ServiceScheduleDraft | null>(null);
+  const [serviceScheduleOpen, setServiceScheduleOpen] = useState(false);
 
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
@@ -527,6 +531,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setServiceSearch("");
     setServiceOptions([]);
     setServiceSearchOpen(false);
+    setServiceNeedsSchedule(false);
+    setServiceScheduleDraft(null);
+    setServiceTechnicianIds([]);
   }, [order?.id, order?.equipment_type_id]);
 
   useEffect(() => {
@@ -571,6 +578,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setServiceSearch(option.name);
     setServicePrice(String(option.price));
     setServiceQuantity("1");
+    setServiceNeedsSchedule(false);
+    setServiceScheduleDraft(null);
+    setServiceTechnicianIds([]);
     setServiceSearchOpen(false);
   };
 
@@ -611,6 +621,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
   const addService = async () => {
     if (!selectedService || !order?.id) return;
+    if (serviceNeedsSchedule && (!serviceScheduleDraft || !serviceScheduleDraft.technicianIds.length)) {
+      setMessage({ type: "error", text: "Selecione uma data, horário e técnicos disponíveis no calendário." });
+      setServiceScheduleOpen(true);
+      return;
+    }
     setMutating(true);
     setMessage(null);
     try {
@@ -620,11 +635,16 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         catalogId: selectedService.id,
         quantity: positiveInteger(serviceQuantity),
         unitPrice: null,
-        technicianIds: workflowReady ? serviceTechnicianIds : undefined,
+        technicianIds: workflowReady ? serviceNeedsSchedule ? serviceScheduleDraft!.technicianIds : serviceTechnicianIds : undefined,
+        scheduledStartAt: serviceNeedsSchedule ? serviceScheduleDraft?.startAt : null,
+        scheduledEndAt: serviceNeedsSchedule ? serviceScheduleDraft?.endAt : null,
       });
       applyPricing(nextPricing);
       await loadItems(true);
       setServiceTechnicianIds([]);
+      setServiceNeedsSchedule(false);
+      setServiceScheduleDraft(null);
+      setServiceScheduleOpen(false);
       setSelectedService(null);
       setServiceSearch("");
       setServicePrice("");
@@ -730,6 +750,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
   const saveTechnicianTeam = async () => {
     if (!editingTechnicianItem || !editable || !workflowReady || savingTaskId) return;
+    if (tasks[editingTechnicianItem.id]?.scheduled_start_at) {
+      setMessage({ type: "error", text: "Remova o agendamento antes de alterar os técnicos responsáveis." });
+      return;
+    }
     if (!editingTechnicianIds.length) {
       setMessage({ type: "error", text: "Selecione pelo menos um técnico responsável." });
       return;
@@ -812,6 +836,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const renderTechnicianColumn = (item: OrderCommercialItem) => {
     if (item.item_type === "product") return <span className="text-xs text-muted-foreground">—</span>;
     const task = tasks[item.id];
+    const teamLocked = Boolean(task?.scheduled_start_at);
     const assigned = task?.technicians?.length
       ? task.technicians
       : task?.assigned_employee_id
@@ -822,8 +847,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         className="min-w-0 break-words text-xs font-semibold text-foreground">
         {assigned.map(person => person.name).join(", ")}
       </span> : <span className="text-xs text-muted-foreground">Não atribuído</span>}
+      {teamLocked && <span className="text-[10px] text-muted-foreground">Equipe do agendamento</span>}
       {workflowReady && editable && task?.status !== "completed" && <AdminButton
         size="sm" variant="secondary" className="h-7 shrink-0 px-2 py-1 text-[10px]"
+        disabled={teamLocked} title={teamLocked ? "Remova o agendamento para alterar os responsáveis." : undefined}
         onClick={() => {
           setEditingTechnicianItem(item);
           setEditingTechnicianIds(assigned.map(person => person.id));
