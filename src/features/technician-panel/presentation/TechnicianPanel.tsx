@@ -57,6 +57,7 @@ export function TechnicianPanel() {
   const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [detailsRevision, setDetailsRevision] = useState(0);
+  const [situationUpdating, setSituationUpdating] = useState(false);
   const [detailTab, setDetailTab] = useState<OrderDetailTab>("details");
   const [equipmentPhotoUrls, setEquipmentPhotoUrls] = useState<Record<string, string>>({});
   const [viewEquipmentImage, setViewEquipmentImage] = useState<OrderImage | null>(null);
@@ -233,15 +234,20 @@ export function TechnicianPanel() {
     if (!routeOrderId || !orderDetails?.can_change_situation || busy ||
         !orderDetails.available_situations.some(situation => situation.id === nextId)) return;
     setBusy(true);
+    setSituationUpdating(true);
     setNotice(null);
     try {
       await changeMyTechnicianOrderSituation(routeOrderId, nextId);
+      setOrderDetails(current => current?.id === routeOrderId ? {
+        ...current, situation_id: nextId,
+        situation_name: current.available_situations.find(item => item.id === nextId)?.name || current.situation_name,
+      } : current);
       setDetailsRevision(current => current + 1);
       await refresh();
       setNotice({ kind: "success", text: "Situação da OS atualizada." });
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível alterar a situação.") });
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setSituationUpdating(false); }
   };
 
   const saveDiagnosis = async () => {
@@ -396,14 +402,18 @@ export function TechnicianPanel() {
     </> : <>
       <div className="flex min-h-10 flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          {orderDetails?.situation_name && <StatusBadge status={orderDetails.situation_name} />}
+          {(situationUpdating || (orderDetailsLoading && !orderDetails)) && hasPermission("technician_panel.data.situation")
+            ? <span role="status" aria-label="Carregando situação da OS"
+                className="inline-flex h-7 min-w-20 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-2.5 text-primary">
+                <LoadingSpinner size="sm" />
+              </span>
+            : orderDetails?.situation_name && <StatusBadge status={orderDetails.situation_name} />}
         </div>
         {hasPermission("technician_panel.data.history") && <div className="flex items-center border-l border-border pl-3">
           <BtnSecondary disabled={busy || orderDetailsLoading}
             onClick={() => setHistoryDialogOpen(true)}><History size={15} /> Registros</BtnSecondary>
         </div>}
       </div>
-      {orderDetailsLoading && !orderDetails && <div role="status" aria-label="Carregando OS" className="flex items-center justify-center py-5"><LoadingSpinner size="sm" /></div>}
       <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
         itemBadge={pendingServices > 0
           ? { label: pendingServices + " pendente" + (pendingServices > 1 ? "s" : ""), style: STATUS_CLASS.pending }
@@ -482,11 +492,22 @@ export function TechnicianPanel() {
               <span className={"self-start rounded-md border px-2 py-1 text-[10px] font-bold " + STATUS_CLASS[service.status]}>{STATUS_LABEL[service.status]}</span>
             </button>)}
           </div>
-          <div className="space-y-4 border-t border-border/70 pt-4">
+        </div>
+      </Section>
+
+      <Section title="Execução do serviço">
+          <div className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-foreground">{selected.title}</h3>
               <span className={"rounded-md border px-2.5 py-1 text-xs font-bold " + STATUS_CLASS[selected.status]}>{STATUS_LABEL[selected.status]}</span>
             </div>
+            {selected.description && <div>
+              <p className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">Descrição do serviço</p>
+              <p className="whitespace-pre-wrap break-words text-sm">{selected.description}</p>
+            </div>}
+            {selected.status === "pending" && canStart && <p className="text-xs text-muted-foreground">
+              Ao iniciar, autorize a localização do dispositivo. O horário e o local serão registrados na OS.
+            </p>}
             {selected.started_at && info("Iniciado em", formatDate(selected.started_at))}
             {selected.status === "in_progress" && canComplete && <FTextarea
               id="technician-report" label="O que foi realizado? *"
@@ -501,19 +522,12 @@ export function TechnicianPanel() {
               </div>}
             </>}
             {selected.status === "cancelled" && <p className="text-sm text-muted-foreground">Serviço cancelado. Consulte o responsável pela OS.</p>}
-            <div className="flex flex-wrap items-center gap-2">
-              {selected.status === "pending" && canStart &&
-                <BtnPrimary disabled={busy || uploading || !online} loading={busy}
-                  onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
-              {selected.status === "in_progress" && canComplete &&
-                <BtnPrimary disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
-                  onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
-            </div>
           </div>
 
-          {(canSendPhotos || canSeePhotos) && <div className="border-t border-border/70 pt-4">
-            <div className="mb-3 flex items-center gap-2">
-              <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">Imagens do serviço</h3>
+      </Section>
+
+          {(canSendPhotos || canSeePhotos) && <Section title="Imagens do serviço">
+            <div className="mb-3 flex items-center justify-end gap-2">
               <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold">{photoCount}/3</span>
             </div>
             {selected.status === "in_progress" && canSendPhotos && <div className="mb-3 flex flex-wrap gap-2">
@@ -534,9 +548,10 @@ export function TechnicianPanel() {
                   <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover" />
                 </a>)}
               </div> : <p className="text-xs text-muted-foreground">Nenhuma foto enviada.</p>)}
-          </div>}
+          </Section>}
+
           {hasPermission("technician_panel.data.order_items") && orderDetails &&
-            <TechnicianOrderItemsSection inline
+            <TechnicianOrderItemsSection
               orderId={routeOrderId} items={orderDetails.items}
               canAddService={hasPermission("technician_panel.actions.add_service")}
               canAddProduct={hasPermission("technician_panel.actions.add_product")}
@@ -545,13 +560,9 @@ export function TechnicianPanel() {
               onChanged={reloadCurrentOrder}
               onFeedback={(text, kind) => setNotice({ text, kind })}
             />}
-        </div>
-      </Section>
-
-
       </>}
 
-      <AdminStickyToolbar>
+      <AdminStickyToolbar className="flex-wrap">
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
         {orderDetails?.can_change_situation && !orderDetails.closed &&
           <div className="flex min-w-0 flex-wrap items-center gap-2">
@@ -564,6 +575,12 @@ export function TechnicianPanel() {
               className="min-h-9 w-full min-w-0 text-xs" />
             </div>
           </div>}
+        {detailTab === "products-services" && selected.status === "pending" && canStart &&
+          <BtnPrimary disabled={busy || uploading || !online} loading={busy}
+            onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
+        {detailTab === "products-services" && selected.status === "in_progress" && canComplete &&
+          <BtnPrimary disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
+            onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
       </AdminStickyToolbar>
       <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
         title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
