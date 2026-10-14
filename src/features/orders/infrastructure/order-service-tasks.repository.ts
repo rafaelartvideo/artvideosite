@@ -61,3 +61,25 @@ export async function setOrderServiceTaskTechnicians(itemId: string, employeeIds
   if (error) throw error;
   return data as { item_id: string; technicians: OrderServiceTechnician[] };
 }
+
+export type OrderTaskPhoto = {
+  id: string;
+  item_id: string;
+  path: string;
+  created_at: string;
+};
+
+export async function listOrderTaskPhotos(serviceOrderId: string): Promise<OrderTaskPhoto[]> {
+  const { data, error } = await supabase.rpc("list_order_service_task_photos_v1", {
+    p_service_order_id: serviceOrderId,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data as OrderTaskPhoto[] : [];
+}
+
+export async function createOrderTaskPhotoUrl(path: string) {
+  const { data, error } = await supabase.storage.from("technician-task-photos")
+    .createSignedUrl(path, 600);
+  if (error || !data?.signedUrl) throw error || new Error("Não foi possível abrir a foto do serviço.");
+  return data.signedUrl;
+}
