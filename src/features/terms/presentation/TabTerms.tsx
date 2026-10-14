@@ -85,7 +85,7 @@ function warrantyDraft(row: ServiceWarrantyTermRow): WarrantyDraft {
 
 export function TabTerms({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canView = hasPermission("terms.view") || hasPermission("terms.manage");
+  const canView = hasPermission("terms.view");
   const canManage = hasPermission("terms.manage");
   const [drafts, setDrafts] = useState<Record<OrganizationTermType, Draft>>(DEFAULTS);
   const [warranties, setWarranties] = useState<ServiceWarrantyTermRow[]>([]);
