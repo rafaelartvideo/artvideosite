@@ -36,3 +36,39 @@ A consulta técnica `get_my_technician_order_details_v1` não devolve preço uni
 - Testar mobile, câmera, GPS, validação de situação por fluxo, suspensão e revogação de atribuição após o deploy.
 
 Este relatório não certifica a segurança integral de todas as OS; é o escopo da etapa incremental.
+
+
+## Continuação — catálogo, histórico e notas restritas
+
+Foram implementadas mais **seis permissões** além das 18 da primeira etapa (total atual **24**):
+
+| Chave | Finalidade |
+| --- | --- |
+| `technician_panel.data.history` | Acompanhar histórico de situação e execução autorizado |
+| `technician_panel.actions.add_service` | Inserir novo serviço do catálogo e atribuir a execução ao próprio técnico |
+| `technician_panel.actions.add_product` | Inserir produto do estoque sem revelar preço/custo |
+| `technician_panel.actions.remove_product` | Remover somente produto da OS, sem apagar execução de serviços |
+| `technician_panel.actions.edit_problem` | Editar descrição do problema |
+| `technician_panel.actions.edit_internal_notes` | Editar observações internas |
+
+O frontend agora reutiliza as abas da OS, e apresenta ações em `TechnicianOrderItemsSection` e `TechnicianOrderHistoryDialog`, utilizando `Section`, `AdminDialog`, `BtnPrimary`, `BtnSecondary` e a toolbar do CRM.
+
+Novas funções protegidas em `20261014194500_technician_order_catalog_and_history.sql`:
+- `search_my_technician_order_catalog_v1`: pesquisa restrita a produtos/serviços da própria empresa, sem preços e somente com permissão para incluir o respectivo tipo.
+- `add_my_technician_order_item_v1`: exige acesso à OS atribuída, quantidade válida e estoque. Serviços já existentes não podem ser alterados por este atalho; novos serviços são automaticamente atribuídos ao técnico que os incluiu. Gatilhos comerciais recalculam os totais.
+- `remove_my_technician_order_product_v1`: limita remoção a produtos e recálculo automático, sem permitir remoção de serviço com execução.
+- `get_my_technician_order_history_v1`: retorna eventos sanitizados de situação e andamento técnico, não o histórico comercial/financeiro completo.
+
+O ajuste `20261014201500_technician_commercial_recalc_guard.sql` autoriza somente o recálculo interno provocado por essas RPCs, com flags transitórias e verificação das permissões, sem conceder `orders.complete`. O ajuste `20261014204000_technician_order_problem_internal_notes.sql` cria a RPC para editar exclusivamente `problem` e `internal_notes`, sem `orders.edit`.
+
+### Verificações adicionais concluídas
+- **Teste transacional reversível** de inclusão e remoção de produto na OS atribuída de um usuário com papel Técnico, temporariamente habilitado apenas para essas ações: `orders.complete=false`, `orders.edit=false`, ambas as operações passaram. Concessões, atribuições e alterações foram revertidas com `ROLLBACK`.
+- **Teste transacional reversível** de edição de descrição do problema e de observações internas pelo papel Técnico sem `orders.edit`: ambas passaram. Campo fora da whitelist `payment` recusado com SQLSTATE `22023`, revertido.
+- Consulta do catálogo sem campos financeiros retornados. Nenhum produto ou nota de teste ficou salvo.
+- Conjunto de testes de contrato e regressão atualizado no repositório, incluído no `test:regressions`, mas **não executado localmente**.
+
+### Próximos limites
+- A inclusão de **serviço novo** foi implementada e preserva a atribuição ao próprio técnico, mas ainda precisa de validação com catálogo real habilitado; a amostra de OS atribuídas usada nos testes não continha serviços de catálogo adicionais disponíveis.
+- Não implementamos remoção de serviços, ajuste de quantidade/preço, movimentação física de estoque, edição de equipamento/endereços, documentos completos ou alterações de pagamentos pela OS técnica. Estes fluxos precisam de permissões e testes específicos.
+- Continua pendente verificação do build/deploy da `main` e testes de navegador, câmera, GPS e mobile com usuários reais.
+
