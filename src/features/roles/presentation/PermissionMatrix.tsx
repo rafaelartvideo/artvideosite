@@ -71,6 +71,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
           {opened && <div className="pb-3 pl-0 sm:pl-6">
             {group.sections.map(section => <div key={section.name} className="border-t border-[#0d1b2e]/10 py-3">
               <div className="mb-2 text-[11px] font-semibold text-[#65748b]">{section.name}</div>
+              {section.name === "Tabela" && <p className="mb-2 text-[11px] text-[#65748b]">Acesso à tabela e colunas que podem ser exibidas.</p>}
               <div className="grid grid-cols-1 gap-x-5 sm:grid-cols-2">
                 {section.permissions.map(p => {
                   const inherited = inheritedIds?.has(p.id) || false;
