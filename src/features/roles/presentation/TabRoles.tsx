@@ -63,8 +63,8 @@ const emptyForm = (): FormState => ({
 export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteProps) {
   const { hasPermission, activeOrganizationId } = useAuth();
   const canView = hasPermission("roles.view");
-  const canViewTable = hasPermission("roles.table.view") || canView;
-  const canViewDetails = hasPermission("roles.details.view") || canView;
+  const canViewTable = hasPermission("roles.table.view");
+  const canViewDetails = hasPermission("roles.details.view");
   const canCreate = hasPermission("roles.create");
   const canEdit = hasPermission("roles.edit");
   const canManagePermissions = hasPermission("roles.permissions.manage");
@@ -250,8 +250,17 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         const selectedVisible = form.selected.filter(id => visibleSet.has(id));
         const { error } = await saveRolePermissions(roleId, selectedVisible, visibleIds);
         if (error) throw error;
-      }
 
+        // Confirma a persistência real antes de anunciar sucesso. Permissões fora
+        // do catálogo são preservadas pelo RPC, mas as exibidas devem coincidir.
+        const verification = await getRolePermissionIds(roleId);
+        if (verification.error) throw verification.error;
+        const persistedIds = new Set((verification.data || []).map(item => String(item.permission_id)));
+        const expectedIds = new Set(selectedVisible);
+        if (visibleIds.some(id => persistedIds.has(id) !== expectedIds.has(id))) {
+          throw new Error("As permissões salvas não correspondem à seleção. Recarregue a função e tente novamente.");
+        }
+      }
 
       setToast({ msg: creating ? "Função criada." : "Função atualizada.", type: "success" });
       await load();
@@ -294,13 +303,13 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         </Section>
 
         <Section title="Permissões">
-          <PermissionMatrix
+          {permissionListReady ? <PermissionMatrix
             permissions={permissions}
             selectedIds={new Set(form.selected)}
             canManage={canManagePermissions}
             onToggle={togglePermission}
             onToggleMany={toggleGroup}
-          />
+          /> : <LoadingState text="Carregando permissões da função..." />}
         </Section>
       </div>
       <AdminStickyToolbar className="justify-end">
