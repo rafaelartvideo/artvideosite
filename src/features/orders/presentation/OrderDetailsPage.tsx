@@ -1,4 +1,7 @@
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
+import { supabase } from "@/lib/supabase";
+import { listOrderCommercialItems } from "../infrastructure/order-commercial-items.repository";
+import { listOrderServiceTasks } from "../infrastructure/order-service-tasks.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
@@ -108,6 +111,50 @@ export function OrderDetailsPage(props: Props) {
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
+  const [itemsOverview, setItemsOverview] = useState<{ total: number; pending: number; inProgress: number; completed: number } | null>(null);
+  // Apenas uma assinatura por OS: na aba de itens, a própria seção atualiza
+  // o resumo. Na aba de detalhes, mantemos o badge sincronizado.
+  useEffect(() => {
+    if (!visible || !detail?.id || detailSection !== "details") return;
+    let cancelled = false;
+    const refresh = async () => {
+      try {
+        const [commercial, tasks] = await Promise.all([
+          listOrderCommercialItems(detail.id), listOrderServiceTasks(detail.id),
+        ]);
+        if (cancelled) return;
+        const statuses = new Map(tasks.map(task => [task.item_id, task.status]));
+        const services = commercial.filter(item => item.item_type !== "product");
+        setItemsOverview({
+          total: commercial.length,
+          pending: services.filter(item => !statuses.has(item.id) || statuses.get(item.id) === "pending" || statuses.get(item.id) === "cancelled").length,
+          inProgress: services.filter(item => statuses.get(item.id) === "in_progress").length,
+          completed: services.filter(item => statuses.get(item.id) === "completed").length,
+        });
+      } catch { if (!cancelled) setItemsOverview(null); }
+    };
+    void refresh();
+    const channel = supabase.channel("os-items-badge:" + detail.id)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_order_item_tasks", filter: "service_order_id=eq." + detail.id },
+        () => { void refresh(); })
+      .subscribe();
+    return () => { cancelled = true; void supabase.removeChannel(channel); };
+  }, [visible, detail?.id, detailSection]);
+
+  useEffect(() => { setItemsOverview(null); }, [detail?.id]);
+
+  const itemBadge = itemsOverview
+    ? itemsOverview.pending > 0
+      ? { label: itemsOverview.pending + " pendente" + (itemsOverview.pending > 1 ? "s" : ""), style: "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300" }
+      : itemsOverview.inProgress > 0
+        ? { label: itemsOverview.inProgress + " em andamento", style: "border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-300" }
+        : itemsOverview.completed > 0
+          ? { label: itemsOverview.completed + " concluído" + (itemsOverview.completed > 1 ? "s" : ""), style: "border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300" }
+          : itemsOverview.total > 0
+            ? { label: itemsOverview.total + " itens", style: "border-slate-500/30 bg-slate-500/10 text-muted-foreground" }
+            : null
+    : null;
+
   const [sacMessageOpen, setSacMessageOpen] = useState(false);
   const [checkingSac, setCheckingSac] = useState(false);
   const [sacEnabled, setSacEnabled] = useState(false);
@@ -492,7 +539,9 @@ export function OrderDetailsPage(props: Props) {
         <div className="border-b border-border">
           <div className="flex min-w-0 gap-5 overflow-x-auto">
             <button type="button" onClick={() => setDetailSection("details")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "details" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><FileText size={15} /> Detalhes da OS</button>
-            <button type="button" onClick={() => setDetailSection("products-services")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "products-services" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Package size={15} /> Produtos e Serviços</button>
+            <button type="button" onClick={() => setDetailSection("products-services")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "products-services" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Package size={15} /> Produtos e Serviços
+              {itemBadge && <span className={"inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold " + itemBadge.style}>{itemBadge.label}</span>}
+            </button>
           </div>
         </div>
         {detailSection === "products-services" ? <OrderProductsServicesSection
@@ -500,6 +549,7 @@ export function OrderDetailsPage(props: Props) {
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
           formatCurrency={formatCurrency}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
+          onOverviewChange={setItemsOverview}
         /> : <>
           {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
           <OrderDetailsContent
