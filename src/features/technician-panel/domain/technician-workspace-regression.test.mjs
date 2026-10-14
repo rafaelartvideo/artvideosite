@@ -139,7 +139,7 @@ test("recálculo interno não permite editar preços, concluir nem acessar outra
 test("histórico técnico e textos da OS usam o mesmo padrão do CRM e RPCs restritas", () => {
   assert.match(panel, /<TechnicianOrderHistoryDialog/);
   assert.match(panel, /<TechnicianOrderItemsSection/);
-  assert.match(panel, /updateMyTechnicianOrderNote/);
+  assert.doesNotMatch(panel, /updateMyTechnicianOrderNote/);
   assert.match(historyUi, /<AdminDialog/);
   assert.match(historyUi, /getMyTechnicianOrderHistory/);
   assert.match(catalogMigration, /get_my_technician_order_history_v1/);
