@@ -11,7 +11,14 @@ const migration = read("supabase/migrations/20261014172500_service_item_schedule
 const teamGuard = read("supabase/migrations/20261014174500_lock_scheduled_service_technician.sql");
 
 test("a seção de incluir serviço pergunta agendamento e abre calendário de disponibilidade", () => {
-  assert.match(section, /Necessita agendamento\?/);
+  assert.match(section, /Necessita agendamento/);
+  assert.match(section, /<AdminSegmentedControl/);
+  assert.match(section, /value=\{serviceNeedsSchedule \? "yes" : "no"\}/);
+  assert.match(section, /className="w-fit grid-cols-2"/);
+  assert.doesNotMatch(section, /name="include-service-scheduling"/);
+  assert.match(section, /<EmployeeMultiSelect/);
+  assert.match(section, /className=\{cn\(INPUT,/);
+  assert.match(section, /Selecionar técnicos e horário/);
   assert.match(section, /setServiceScheduleOpen\(true\)/);
   assert.match(section, /<OrderServiceScheduleDraftDialog/);
   assert.match(calendar, /<TechnicianAvailabilityCalendar/);
