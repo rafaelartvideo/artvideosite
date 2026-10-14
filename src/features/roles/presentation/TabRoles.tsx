@@ -61,7 +61,7 @@ const emptyForm = (): FormState => ({
 });
 
 export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteProps) {
-  const { hasPermission, activeOrganizationId } = useAuth();
+  const { hasPermission, activeOrganizationId, organizations } = useAuth();
   const canView = hasPermission("roles.view");
   const canViewTable = hasPermission("roles.table.view");
   const canViewDetails = hasPermission("roles.details.view");
@@ -85,6 +85,9 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const editorOpen = routeResourceId === "new" || Boolean(routeResourceId);
   const roleBeingEdited = roles.find(item => item.id === routeResourceId) ?? null;
   const catalogReady = !loading && permissions.length > 0;
+  const activeCompany = organizations.find(organization => organization.organization_id === activeOrganizationId);
+  const hasPlatformOperatorAccess = activeCompany?.is_platform_operator !== true
+    && organizations.some(organization => organization.is_platform_operator && organization.is_direct_member);
 
   const load = async () => {
     if (!activeOrganizationId || !canView) {
@@ -305,6 +308,10 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         </Section>
 
         <Section title="Permissões">
+          {hasPlatformOperatorAccess && <p className="mb-3 text-xs text-[#65748b]">
+            Os acessos administrativos da operadora da plataforma são independentes das permissões desta função.
+            Para verificar as restrições de um cargo, utilize uma conta que tenha somente acesso à empresa.
+          </p>}
           {permissionListReady && catalogReady ? <PermissionMatrix
             permissions={permissions}
             selectedIds={new Set(form.selected)}
