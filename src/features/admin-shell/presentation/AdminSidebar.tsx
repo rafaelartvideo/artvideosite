@@ -39,6 +39,8 @@ export function AdminSidebar({
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "home") return true;
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
+    if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "announcements") return isPlatformOperatorOrganization && hasPermission("platform.announcements.view");
     if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "finance" && isPlatformOperatorOrganization) return hasPermission("platform.billing.view");
