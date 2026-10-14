@@ -23,6 +23,7 @@ import type { AdminNotification } from "../infrastructure/notifications.reposito
 
 const moduleVisuals: Record<string, { label: string; icon: ElementType }> = {
   orders: { label: "Ordens de Serviço", icon: ClipboardList },
+  technicianPanel: { label: "Painel do Técnico", icon: Wrench },
   customers: { label: "Cadastros", icon: Users },
   quotes: { label: "Orçamentos", icon: FileText },
   agenda: { label: "Agenda", icon: CalendarDays },
