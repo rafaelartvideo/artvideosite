@@ -1105,22 +1105,24 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       </Section>
     </div>}
 
-    <Section title="Itens da OS" flush>
+    <Section title={<span className="inline-flex items-center gap-2">Itens da OS
+      <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{items.length}</span>
+    </span>} flush>
       {loadingItems
         ? <div className="p-5 text-sm text-muted-foreground">Carregando itens...</div>
         : items.length === 0
           ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
           : <>
             <div className="hidden xl:block">
-              <table className="w-full table-fixed border-collapse text-sm">
+              <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
                 <colgroup>
-                  <col style={{ width: "24%" }} />
-                  <col style={{ width: "19%" }} />
-                  <col style={{ width: "12%" }} />
-                  <col style={{ width: "14%" }} />
-                  <col style={{ width: "14%" }} />
-                  <col style={{ width: "12%" }} />
-                  <col style={{ width: "5%" }} />
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "9%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "7%" }} />
                 </colgroup>
                 <thead className="bg-muted/30 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                   <tr className="border-b border-border">
@@ -1133,22 +1135,22 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     <th scope="col" className="px-2 py-3 text-center">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody>
                   {items.map(item => <Fragment key={item.id}>
-                    <tr className="align-middle transition-colors hover:bg-muted/35">
-                      <td className="min-w-0 px-5 py-4">
+                    <tr className="bg-card align-middle transition-colors hover:bg-muted/20">
+                      <td className="min-w-0 border-l border-t border-border px-3 py-3">
                         {renderItemIdentity(item)}
                       </td>
-                      <td className="px-3 py-4">{renderTechnicianColumn(item)}</td>
-                      <td className="px-3 py-4">{renderQuantity(item)}</td>
-                      <td className="px-3 py-4">{renderPrice(item)}</td>
-                      <td className="px-3 py-4">{renderAdditionalCost(item)}</td>
-                      <td className="px-3 py-4 text-right">
-                        <span className="inline-flex whitespace-nowrap bg-emerald-500/10 px-2.5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                      <td className="border-t border-border px-2 py-3">{renderTechnicianColumn(item)}</td>
+                      <td className="border-t border-border px-2 py-3">{renderQuantity(item)}</td>
+                      <td className="border-t border-border px-2 py-3">{renderPrice(item)}</td>
+                      <td className="border-t border-border px-2 py-3">{renderAdditionalCost(item)}</td>
+                      <td className="border-t border-border px-2 py-3 text-right">
+                        <span className="inline-flex max-w-full whitespace-nowrap rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">
                           {formatCurrency(nonNegativeNumber(item.subtotal))}
                         </span>
                       </td>
-                      <td className="px-2 py-4 text-center">
+                      <td className="border-r border-t border-border px-2 py-3 text-center">
                         <AdminIconButton
                           ariaLabel="Remover item" variant="danger"
                           disabled={!editable || savingItemId === item.id}
@@ -1156,18 +1158,20 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                         ><Trash2 size={14} /></AdminIconButton>
                       </td>
                     </tr>
-                    {item.item_type !== "product" && <tr className="bg-muted/20">
-                      <td colSpan={7} className="px-5 pb-4 pt-3">
+                    {item.item_type !== "product" && <tr className="bg-card">
+                      <td colSpan={7} className="border-b border-x border-border bg-muted/10 px-3 pb-4 pt-2">
                         {renderTaskDetails(item)}
                       </td>
                     </tr>}
+                    {item.item_type === "product" && <tr aria-hidden="true"><td colSpan={7} className="h-px border-b border-x border-border" /></tr>}
+                    <tr aria-hidden="true"><td colSpan={7} className="h-3 bg-background" /></tr>
                   </Fragment>)}
                 </tbody>
               </table>
             </div>
 
-            <div className="divide-y divide-border xl:hidden">
-              {items.map(item => <div key={item.id} className="space-y-3 p-4">
+            <div className="space-y-3 p-3 xl:hidden">
+              {items.map(item => <div key={item.id} className="space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">{renderItemIdentity(item)}</div>
                   <AdminIconButton
@@ -1200,7 +1204,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     {formatCurrency(nonNegativeNumber(item.subtotal))}
                   </strong>
                 </div>
-                {item.item_type !== "product" && <div className="border-t border-border bg-muted/20 p-3">
+                {item.item_type !== "product" && <div className="bg-muted/20 p-3">
                   {renderTaskDetails(item)}
                 </div>}
               </div>)}
