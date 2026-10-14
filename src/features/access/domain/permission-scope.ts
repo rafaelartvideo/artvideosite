@@ -10,6 +10,7 @@ const PLATFORM_SHARED_PREFIXES = [
   "employees.",
   "roles.",
   "users.",
+  "technician_panel.",
   "settings.",
   "field_tracking.",
   "tools.",
