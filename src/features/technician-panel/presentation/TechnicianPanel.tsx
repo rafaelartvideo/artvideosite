@@ -339,6 +339,12 @@ export function TechnicianPanel() {
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
+      <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab} itemBadge={orderDetails?.items?.length ? { label: orderDetails.items.length + " itens", style: "border-border bg-muted text-muted-foreground" } : null} />
+      {orderDetailsLoading && <p className="text-xs text-muted-foreground">Carregando detalhes autorizados da OS...</p>}
+      {detailTab === "details" ? <>
+      {orderDetails?.situation_name && <Section title="Situação da OS">
+        <p className="text-sm font-semibold text-foreground">{orderDetails.situation_name}</p>
+      </Section>}
       <Section title="Dados da OS" description="Somente informações autorizadas para o seu perfil.">
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {info("Cliente", selected.customer_name)}
@@ -354,10 +360,31 @@ export function TechnicianPanel() {
       {selected.problem && <Section title="Descrição do problema">
         <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem}</p>
       </Section>}
-      {selected.diagnosis && <Section title="Diagnóstico">
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.diagnosis}</p>
+      {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section
+        title="Diagnóstico"
+        actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
+          ? <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>
+          : undefined}>
+        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
       </Section>}
-
+      {orderDetails?.internal_notes && <Section title="Observações internas">
+        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes}</p>
+      </Section>}
+      </> : <>
+      {hasPermission("technician_panel.data.order_items") && orderDetails && <Section
+        title="Produtos e serviços da OS"
+        description="Itens da OS sem valores financeiros. A execução permanece restrita aos serviços atribuídos a você.">
+        {orderDetails.items.length ? <div className="divide-y divide-border">
+          {orderDetails.items.map(item => <div key={item.id} className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0">
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-foreground">{item.title}</p>
+              {item.description && <p className="mt-1 whitespace-pre-wrap break-words text-xs text-muted-foreground">{item.description}</p>}
+              <p className="mt-1 text-xs text-muted-foreground">{item.type === "product" ? "Produto" : "Serviço"}</p>
+            </div>
+            <span className="text-xs font-semibold text-muted-foreground">Qtd. {item.quantity}</span>
+          </div>)}
+        </div> : <p className="text-sm text-muted-foreground">Nenhum item nesta OS.</p>}
+      </Section>}
       <Section title="Serviços atribuídos nesta OS" description="Cada serviço possui andamento independente da situação geral da OS.">
         <div className="grid gap-2 sm:grid-cols-2">
           {orderServices.map(service => <button key={service.item_id} type="button" onClick={() => openService(service)}
@@ -426,17 +453,34 @@ export function TechnicianPanel() {
           {!selected.start_location?.lat && !selected.finish_location?.lat && <p className="text-xs text-muted-foreground">Nenhuma localização registrada.</p>}
         </div>
       </Section>}
+      </>}
 
       <AdminStickyToolbar className="flex-wrap">
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
-        <BtnSecondary onClick={() => void refresh(true)} disabled={busy || uploading || loading}>Atualizar</BtnSecondary>
-        {selected.status === "pending" && canStart && <BtnPrimary
+        <BtnSecondary onClick={() => { void refresh(true); setDetailsRevision(current => current + 1); }} disabled={busy || uploading || loading}>Atualizar</BtnSecondary>
+        {detailTab === "details" && orderDetails?.can_change_situation && !orderDetails.closed && <div className="min-w-[180px] max-w-xs flex-1 sm:flex-none">
+          <AdminSelect value={orderDetails.situation_id || ""}
+            options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
+            onValueChange={value => { if (value) void onSituationChange(value); }}
+            ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
+            className="min-h-10 w-full min-w-0 text-xs font-bold" />
+        </div>}
+        {detailTab === "products-services" && selected.status === "pending" && canStart && <BtnPrimary
           disabled={busy || uploading || !online} loading={busy}
           onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
-        {selected.status === "in_progress" && canComplete && <BtnPrimary
+        {detailTab === "products-services" && selected.status === "in_progress" && canComplete && <BtnPrimary
           disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
           onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
       </AdminStickyToolbar>
+      <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
+        title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
+          <BtnSecondary onClick={() => setDiagnosisDialogOpen(false)} disabled={busy}>Cancelar</BtnSecondary>
+          <BtnPrimary onClick={() => void saveDiagnosis()} disabled={busy || diagnosisDraft.length > 10000} loading={busy}>Salvar</BtnPrimary>
+        </div>}>
+        <FTextarea label="Diagnóstico da OS" value={diagnosisDraft}
+          onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setDiagnosisDraft(event.target.value)}
+          rows={7} maxLength={10000} placeholder="Descreva o diagnóstico do equipamento..." />
+      </AdminDialog>
     </>}
   </div>;
 }
