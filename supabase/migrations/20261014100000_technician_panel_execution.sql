@@ -87,6 +87,11 @@ as $$
     join public.service_orders ord
       on ord.id=task.service_order_id and ord.organization_id=task.organization_id
     where task.item_id=p_item_id
+      and exists(
+        select 1 from public.organization_modules module
+        where module.organization_id=task.organization_id
+          and module.module_key='orders' and module.is_enabled
+      )
       and employee.profile_id=(select auth.uid())
       and employee.is_active
       and private.has_effective_organization_permission(task.organization_id,'technician_panel.view')
@@ -104,6 +109,8 @@ declare
   v_result jsonb;
 begin
   if v_user is null or not private.has_effective_organization_permission(p_organization_id,'technician_panel.view')
+    or not exists(select 1 from public.organization_modules module
+      where module.organization_id=p_organization_id and module.module_key='orders' and module.is_enabled)
     then raise exception 'Acesso negado ao Painel do Técnico.' using errcode='42501';
   end if;
   select coalesce(jsonb_agg(
