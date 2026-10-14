@@ -181,7 +181,8 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
 
   const filteredRelated = related.filter(item =>
     item.name.toLocaleLowerCase("pt-BR").includes(linkQuery.toLocaleLowerCase("pt-BR").trim())
-  );
+  ).sort((a, b) => Number(b.selected) - Number(a.selected)
+    || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const currentTotal = kind === "segment" ? catalog.segments.length
     : kind === "equipment" ? catalog.equipmentTypes.length : catalog.brands.length;
   const editorOpen = creating || Boolean(active);
