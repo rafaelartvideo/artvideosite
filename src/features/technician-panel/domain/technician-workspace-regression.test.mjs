@@ -111,8 +111,8 @@ test("consulta o catálogo com permissões específicas sem expor preços", () =
     .split("create or replace function public.add_my_technician_order_item_v1")[0];
   assert.doesNotMatch(query, /'unit_price'|'sale_price'|'final_total'|'cost_price'/);
   assert.match(query, /'name',x\.name/);
-  assert.match(catalogUi, />Adicionar serviço<\/BtnSecondary>/);
-  assert.match(catalogUi, />Adicionar produto<\/BtnSecondary>/);
+  assert.match(catalogUi, />Adicionar novo<\/BtnSecondary>/);
+  assert.match(catalogUi, />Adicionar produto<\/BtnPrimary>/);
   assert.match(catalogUi, /searchMyTechnicianOrderCatalog/);
 });
 
@@ -234,7 +234,7 @@ test("cliente e equipamento da OS técnica são carregados por RPC com permissõ
 test("problema e notas são somente leitura, registros ficam no cabeçalho", () => {
   assert.doesNotMatch(panel, /openNoteEditor|saveOrderNote|noteField/);
   assert.match(panel, /<AdminPage open={!historyDialogOpen}/);
-  assert.match(panel, /Registros<\/BtnSecondary>/);
+  assert.match(panel, /Histórico<\/BtnSecondary>/);
   assert.match(panel, /ariaLabel="Alterar situação da OS"/);
 });
 
@@ -286,4 +286,25 @@ test("carregamento de situação ocorre apenas dentro da tag, sem loader global 
   assert.match(panel, /aria-label="Carregando situação da OS"/);
   assert.match(panel, /situationUpdating/);
   assert.doesNotMatch(panel, /aria-label="Carregando OS"/);
+});
+
+test("o técnico adiciona serviços na seção atribuída e produtos na seção própria sem preços", () => {
+  const hook = read("src/features/technician-panel/application/useTechnicianOrderRecords.ts");
+  assert.match(panel, /<TechnicianOrderItemsSection mode="services"/);
+  assert.match(panel, /<TechnicianOrderItemsSection mode="products"/);
+  assert.match(catalogUi, /<Section title="Produtos">/);
+  assert.match(catalogUi, /Busque no estoque por nome ou SKU/);
+  assert.match(catalogUi, /type === "product"/);
+  assert.doesNotMatch(catalogUi, /unit_price|sale_price|final_total/);
+  assert.match(hook, /row\.type === "note"/);
+});
+
+test("OS técnica aguarda dados e mídias antes da abertura e mostra endereço separado", () => {
+  assert.match(panel, /aria-label="Carregando dados da OS"/);
+  assert.match(panel, /Promise\.allSettled/);
+  assert.match(panel, /photoLoadedServiceId !== selectedId/);
+  assert.match(panel, /<Section title="Endereço">/);
+  for (const field of ["CEP", "Rua", "Número", "Complemento", "Bairro", "Cidade", "Estado"]) {
+    assert.ok(panel.includes('info("' + field + '"'), "Campo ausente: " + field);
+  }
 });
