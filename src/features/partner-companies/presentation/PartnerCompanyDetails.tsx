@@ -32,7 +32,7 @@ function brazilPhoneDigits(value?: string | null) {
 export function PartnerCompanyDetails({ company, canEdit, onBack, onEdit }: { company: any; canEdit: boolean; onBack: () => void; onEdit: () => void }) {
   const { hasPermission } = useAuth();
   const [activeSection, setActiveSection] = useState<CompanySection>("general");
-  const canViewMonitoring = hasPermission("orders.monitor.view") || hasPermission("orders.monitor.manage");
+  const canViewMonitoring = hasPermission("orders.monitor.view");
   const visibleSections = COMPANY_SECTIONS.filter(section => section.key !== "monitoring" || canViewMonitoring);
   const settings = company.settings || {};
   const phone = brazilPhoneDigits(settings.phone || settings.whatsapp);
