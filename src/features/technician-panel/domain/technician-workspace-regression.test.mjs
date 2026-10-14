@@ -157,3 +157,12 @@ test("novos checkboxes de técnico exigem visualização e vínculo ao painel", 
   assert.match(repository, /get_my_technician_order_history_v1/);
   assert.match(repository, /update_my_technician_order_note_v1/);
 });
+
+
+const strictMigration = read("supabase/migrations/20261014211000_technician_strict_action_type_validation.sql");
+
+test("RPCs técnicas rejeitam discriminadores nulos ou desconhecidos", () => {
+  assert.match(strictMigration, /p_item_type is null or p_item_type not in/);
+  assert.match(strictMigration, /p_field is null or p_field not in/);
+  assert.match(strictMigration, /private\.can_access_technician_order_v1/);
+});
