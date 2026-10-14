@@ -10,7 +10,7 @@ const rpc = read("supabase/migrations/20261014180500_technician_order_address_pr
 test("painel técnico utiliza padrão de página, seção e toolbar do CRM", () => {
   assert.match(panel, /<PageHeader/);
   assert.match(panel, /<Section title="Dados da OS"/);
-  assert.match(panel, /<Section title="Serviços atribuídos nesta OS"/);
+  assert.match(panel, /Serviços atribuídos/);
   assert.match(panel, /<AdminStickyToolbar/);
   assert.match(panel, /<BtnPrimary/);
   assert.match(panel, /<BtnSecondary/);
@@ -49,8 +49,10 @@ const regularOrder = read("src/features/orders/presentation/OrderDetailsPage.tsx
 const sharedTabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
 const repository = read("src/features/technician-panel/infrastructure/technician-tasks.repository.ts");
 
-test("OS técnica e OS regular reutilizam o mesmo componente de abas", () => {
-  assert.match(panel, /<OrderDetailSectionTabs/);
+test("OS técnica usa duas seções e a OS regular preserva as abas existentes", () => {
+  assert.doesNotMatch(panel, /<OrderDetailSectionTabs/);
+  assert.match(panel, /<Section title="Dados da OS"/);
+  assert.match(panel, /Serviços atribuídos/);
   assert.match(regularOrder, /<OrderDetailSectionTabs/);
   assert.match(sharedTabs, /Detalhes da OS/);
   assert.match(sharedTabs, /Produtos e Serviços/);
@@ -173,6 +175,7 @@ test("as telas do Painel do Técnico possuem JSX sintaticamente válido", async 
     "TechnicianPanel.tsx",
     "TechnicianOrderItemsSection.tsx",
     "TechnicianOrderHistoryDialog.tsx",
+    "TechnicianOrdersTable.tsx",
   ]) {
     const file = "src/features/technician-panel/presentation/" + filename;
     await assert.doesNotReject(
@@ -180,4 +183,35 @@ test("as telas do Painel do Técnico possuem JSX sintaticamente válido", async 
       "JSX inválido em " + filename,
     );
   }
+});
+
+test("lista inicial possui tabela responsiva, paginação e indicadores de andamento", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.match(panel, /<TechnicianOrdersTable/);
+  assert.match(table, /<table/);
+  assert.match(table, /<PaginationBar/);
+  assert.match(table, /aria-label="Buscar minhas ordens de serviço"/);
+  assert.match(table, /md:hidden/);
+  assert.match(table, /pendente/);
+  assert.match(table, /em andamento/);
+});
+
+test("painel técnico usa Realtime e notificações em balão, sem atualizar manualmente", () => {
+  assert.match(panel, /service_order_item_tasks/);
+  assert.match(panel, /postgres_changes/);
+  assert.match(panel, /notifyAdmin/);
+  assert.doesNotMatch(panel, />Atualizar<\/BtnSecondary>/);
+  assert.doesNotMatch(panel, /eyebrow="Atendimento"/);
+  assert.doesNotMatch(panel, /<Section title="Localização da execução"/);
+});
+
+test("foto técnica tem limite também no banco, com validação de vínculo e sem preço", () => {
+  const migration = read("supabase/migrations/20261014215500_technician_equipment_fields_and_photo_limit.sql");
+  assert.match(migration, /count\(\*\) from public\.service_order_item_task_photos/);
+  assert.match(migration, /Limite de 3 imagens por serviço/);
+  assert.match(migration, /private\.is_my_technician_task/);
+  assert.match(migration, /technician_panel\.data\.equipment/);
+  assert.match(panel, /photoCount >= 3/);
+  assert.match(panel, /countMyTechnicianPhotos/);
+  assert.doesNotMatch(migration, /'unit_price'|'final_total'|'subtotal'/);
 });
