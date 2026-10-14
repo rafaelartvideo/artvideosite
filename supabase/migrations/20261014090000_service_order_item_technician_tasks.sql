@@ -159,6 +159,11 @@ begin
   if found and v_previous.status='completed' then
     raise exception 'O serviço concluído não pode ser reatribuído por esta ação.' using errcode='22023';
   end if;
+  if found and v_previous.status='in_progress'
+    and v_previous.assigned_employee_id is distinct from p_employee_id
+    and coalesce(p_status, v_previous.status)='in_progress' then
+    raise exception 'Retorne o serviço para Pendente antes de trocar o técnico em andamento.' using errcode='22023';
+  end if;
 
   v_status := coalesce(p_status, nullif(v_previous.status, ''), 'pending');
   if v_status not in ('pending','in_progress','cancelled') then
