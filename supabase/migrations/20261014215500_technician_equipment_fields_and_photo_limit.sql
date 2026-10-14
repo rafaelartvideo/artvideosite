@@ -55,11 +55,11 @@ begin
       then coalesce(equipment_model.name,nullif(ord.model,'')) else null end,
     'technical_values',case when private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
       then coalesce((
-        select jsonb_agg(jsonb_build_object('id',val.id,
+        select jsonb_agg(jsonb_build_object('id',val.technical_field_id,
           'label',val.label_snapshot,'type',val.field_type_snapshot,
           'value',case when val.field_type_snapshot='number'
             then val.value_number::text else val.value_text end)
-          order by val.label_snapshot,val.id)
+          order by val.label_snapshot,val.technical_field_id)
         from public.service_order_technical_values val
         where val.service_order_id=ord.id and val.organization_id=ord.organization_id
           and (
