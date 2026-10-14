@@ -507,7 +507,7 @@ export function TechnicianPanel() {
           <span className={STATUS_CLASS.completed + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{completedServices} concluído{completedServices > 1 ? "s" : ""}</span>}
       </span>}>
         <div className="space-y-4">
-          {hasPermission("technician_panel.data.order_items") && orderDetails &&
+          {hasPermission("technician_panel.data.order_items") && hasPermission("technician_panel.actions.add_service") && orderDetails && !orderDetails.closed && !orderDetails.solved && online &&
             <div className="flex justify-end">
               <TechnicianOrderItemsSection mode="services"
                 orderId={routeOrderId} items={orderDetails.items}
