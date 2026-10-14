@@ -55,6 +55,7 @@ import {
   listRegistrationsPage,
   saveRegistration,
   setEmployeeFieldTrackingPrompt,
+  setEmployeeInactivityLogoutDisabled,
   syncRegistrationAddresses,
   syncRegistrationSupplierItems,
   type Registration,
@@ -497,6 +498,18 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         if (trackingRequirement.error) throw trackingRequirement.error;
       }
 
+      const desiredInactivityException = form.roles.includes("employee") && form.disable_inactivity_logout;
+      const inactivitySettingChanged = Boolean(refreshed.legacy_employee_id)
+        && (selected
+          ? Boolean(selected.legacy_employee?.disable_inactivity_logout) !== desiredInactivityException
+          : desiredInactivityException);
+      if (inactivitySettingChanged && refreshed.legacy_employee_id) {
+        const inactivityResult = await setEmployeeInactivityLogoutDisabled(
+          activeOrganizationId, refreshed.legacy_employee_id, desiredInactivityException,
+        );
+        if (inactivityResult.error) throw inactivityResult.error;
+      }
+
       if (form.roles.includes("employee") && refreshed.legacy_employee_id && accessDirty) {
         const result = await saveEmployeeAccess({
           organizationId: activeOrganizationId,
@@ -526,7 +539,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         void queryClient.invalidateQueries({ queryKey: queryKeys.registrations.access(activeOrganizationId, refreshed.legacy_employee_id) });
       }
 
-      if (accessDirty || removingEmployeeWithAccess || trackingPromptChanged) {
+      if (accessDirty || removingEmployeeWithAccess || trackingPromptChanged || inactivitySettingChanged) {
         const refreshedAgain = await getRegistration(activeOrganizationId, savedId);
         if (!refreshedAgain.error && refreshedAgain.data) refreshed = refreshedAgain.data as unknown as Registration;
       }
