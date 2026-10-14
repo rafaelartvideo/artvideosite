@@ -174,9 +174,9 @@ export function TechnicianOrderItemsSection({
       Produtos
       <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold text-foreground">{products.length}</span>
     </span>}>
-      <div className="space-y-4">
-        {canAddProduct && !blocked && <div className="space-y-3">
-          <div className="max-w-2xl">
+      <div className={canAddProduct && !blocked ? "grid min-w-0 gap-5 lg:grid-cols-2" : "min-w-0"}>
+        {canAddProduct && !blocked && <div className="min-w-0 space-y-3">
+          <div className="min-w-0">
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Produto</label>
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -202,28 +202,29 @@ export function TechnicianOrderItemsSection({
                 </button>)}
             </div>}
           </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="w-28">
-              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>
-              <QuantityStepper value={productQuantity} onChange={setProductQuantity} disabled={busy} />
-            </div>
-            <BtnPrimary disabled={busy || !selectedProduct} loading={busy}
-              onClick={() => void addItem("product", selectedProduct?.id, productQuantity)}>Adicionar produto</BtnPrimary>
+          <div className="min-w-0">
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>
+            <QuantityStepper value={productQuantity} onChange={setProductQuantity} disabled={busy} />
           </div>
+          <BtnPrimary className="w-full" disabled={busy || !selectedProduct} loading={busy}
+            onClick={() => void addItem("product", selectedProduct?.id, productQuantity)}>Adicionar produto</BtnPrimary>
         </div>}
-        {products.length ? <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-          {products.map(item => <div key={item.id}
-            className="flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
-            <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-bold text-foreground">{item.title}</p>
-              <p className="mt-1 text-xs text-muted-foreground">Qtd. {item.quantity}</p>
-            </div>
-            {!blocked && canRemoveProduct && <BtnSecondary disabled={busy}
-              onClick={() => setRemoving(item)}>Remover</BtnSecondary>}
-          </div>)}
-        </div> : <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-          Nenhum produto adicionado à OS.
-        </p>}
+        <div className="min-w-0">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Produtos adicionados</p>
+          {products.length ? <div className="divide-y divide-border overflow-hidden border border-border">
+            {products.map(item => <div key={item.id}
+              className="flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 transition-colors hover:bg-muted/30 sm:p-4">
+              <div className="min-w-0 flex-1">
+                <p className="break-words text-sm font-bold text-foreground">{item.title}</p>
+                <p className="mt-1 text-xs text-muted-foreground">Qtd. {item.quantity}</p>
+              </div>
+              {!blocked && canRemoveProduct && <BtnSecondary disabled={busy}
+                onClick={() => setRemoving(item)}>Remover</BtnSecondary>}
+            </div>)}
+          </div> : <div className="border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            Nenhum produto adicionado à OS.
+          </div>}
+        </div>
       </div>
     </Section>
     <AdminDialog open={Boolean(removing)} onClose={() => { if (!busy) setRemoving(null); }}
