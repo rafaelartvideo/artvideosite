@@ -300,7 +300,8 @@ test("ações do mobile são mais largas e ocultam o ícone original durante o l
 
   assert.ok(layout.includes('mobileBackOnly && "max-sm:!h-10 max-sm:!w-[72px]'));
   assert.ok(toolbar.includes('max-sm:!w-[72px] max-sm:!min-w-[72px]'));
-  assert.ok(layout.includes('{resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? null}</> : renderedChildren}'));
+  assert.ok(layout.includes('resolvedLoading && "[&_svg]:hidden"'));
+  assert.ok(layout.includes('{resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? renderedChildren}</> : renderedChildren}'));
   assert.ok(panel.includes('<Pencil size={16} className="shrink-0" aria-hidden="true" /><span>Editar</span>'));
   assert.ok(catalogUi.includes('<Plus size={16} className="shrink-0" aria-hidden="true" /><span>Adicionar novo</span>'));
 });
