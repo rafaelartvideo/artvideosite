@@ -5,6 +5,7 @@ export type NotificationEventType = "created" | "updated" | "deleted";
 export type AdminNotification = {
   id: number;
   organization_id: string;
+  recipient_user_id?: string | null;
   audit_log_id: number | null;
   actor_user_id: string | null;
   actor_name_snapshot: string | null;
@@ -51,7 +52,7 @@ export async function listAdminNotifications(
 ): Promise<AdminNotification[]> {
   const { data: notificationRows, error: notificationError } = await supabase
     .from("organization_notifications")
-    .select("id,organization_id,audit_log_id,actor_user_id,actor_name_snapshot,module_key,event_type,entity_type,entity_id,title,message,route,metadata,created_at")
+    .select("id,organization_id,recipient_user_id,audit_log_id,actor_user_id,actor_name_snapshot,module_key,event_type,entity_type,entity_id,title,message,route,metadata,created_at")
     .eq("organization_id", organizationId)
     .order("created_at", { ascending: false })
     .limit(limit);
@@ -156,6 +157,8 @@ export function subscribeToAdminNotifications(
       payload => {
         const row = payload.new as NotificationRow;
         if (!row?.id) return;
+        // Filtro de defesa adicional à RLS para notificações individuais.
+        if (row.recipient_user_id && row.recipient_user_id !== userId) return;
         handlers.onNotification({ ...row, read_at: null });
       },
     )
