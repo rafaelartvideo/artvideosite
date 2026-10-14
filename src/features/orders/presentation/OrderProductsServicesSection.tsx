@@ -611,7 +611,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           onValueChange={value => void saveTask(item, task?.assigned_employee_id || null, value as OrderServiceTaskStatus)}
           options={[
             { value: "pending", label: "Pendente" },
-            { value: "in_progress", label: "Em andamento" },
+            ...(status === "in_progress" ? [{ value: "in_progress", label: "Em andamento (via Painel do Técnico)" }] : []),
             { value: "cancelled", label: "Cancelado" },
             ...(status === "completed" ? [{ value: "completed", label: "Concluído" }] : []),
           ]}
@@ -619,6 +619,24 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       </div> : <p className="text-xs text-muted-foreground">
         Técnico: {task?.technician_name || "Não atribuído"}
       </p>}
+      {task?.execution_report && <div className="border-l-2 border-primary/35 pl-2 text-xs text-foreground">
+        <span className="font-bold">Serviço realizado:</span>
+        <p className="mt-1 whitespace-pre-wrap">{task.execution_report}</p>
+      </div>}
+      {(task?.start_location?.lat != null && task.start_location?.lng != null || task?.finish_location?.lat != null && task.finish_location?.lng != null) && (
+        <div className="flex flex-wrap gap-3 text-xs">
+          {([
+            ["Início", task?.start_location],
+            ["Conclusão", task?.finish_location],
+          ] as const).map(([label, location]) => location?.lat != null && location.lng != null ? (
+            <a key={label} href={`https://www.google.com/maps?q=${encodeURIComponent(`${location.lat},${location.lng}`)}`}
+              target="_blank" rel="noreferrer" className="text-primary underline underline-offset-2">
+              Local de {label.toLocaleLowerCase("pt-BR")}
+              {location.accuracy_m != null ? ` (±${Math.round(location.accuracy_m)} m)` : ""}
+            </a>
+          ) : null)}
+        </div>
+      )}
     </div>;
   };
 
