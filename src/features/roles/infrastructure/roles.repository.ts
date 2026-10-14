@@ -64,3 +64,18 @@ export async function removeRolePermission(roleId: string, permissionId: string)
   if (!result.error) notifyPermissionChange();
   return result;
 }
+
+/** Altera apenas permissões visíveis e válidas; o banco aplica tudo numa transação. */
+export async function saveRolePermissions(
+  roleId: string,
+  selectedPermissionIds: string[],
+  visiblePermissionIds: string[],
+) {
+  const result = await supabase.rpc("save_role_permission_selection_v1", {
+    p_role_id: roleId,
+    p_selected_permission_ids: Array.from(new Set(selectedPermissionIds)),
+    p_visible_permission_ids: Array.from(new Set(visiblePermissionIds)),
+  });
+  if (!result.error) notifyPermissionChange();
+  return result;
+}
