@@ -64,11 +64,12 @@ O ajuste `20261014201500_technician_commercial_recalc_guard.sql` autoriza soment
 ### Verificações adicionais concluídas
 - **Teste transacional reversível** de inclusão e remoção de produto na OS atribuída de um usuário com papel Técnico, temporariamente habilitado apenas para essas ações: `orders.complete=false`, `orders.edit=false`, ambas as operações passaram. Concessões, atribuições e alterações foram revertidas com `ROLLBACK`.
 - **Teste transacional reversível** de edição de descrição do problema e de observações internas pelo papel Técnico sem `orders.edit`: ambas passaram. Campo fora da whitelist `payment` recusado com SQLSTATE `22023`, revertido.
+- **Teste transacional reversível** de adição de serviço novo por papel Técnico com permissão específica, sem `orders.edit`: serviço incluído com sucesso e tarefa vinculada ao próprio funcionário.
 - Consulta do catálogo sem campos financeiros retornados. Nenhum produto ou nota de teste ficou salvo.
 - Conjunto de testes de contrato e regressão atualizado no repositório, incluído no `test:regressions`, mas **não executado localmente**.
 
 ### Próximos limites
-- A inclusão de **serviço novo** foi implementada e preserva a atribuição ao próprio técnico, mas ainda precisa de validação com catálogo real habilitado; a amostra de OS atribuídas usada nos testes não continha serviços de catálogo adicionais disponíveis.
+- A inclusão de **serviço novo** também foi validada com serviço de catálogo temporário criado apenas dentro de uma transação reversível: pesquisa encontrou 1 resultado, inclusão passou para usuário Técnico sem `orders.edit` e a nova tarefa foi automaticamente atribuída ao próprio funcionário. Tudo foi revertido com `ROLLBACK`.
 - Não implementamos remoção de serviços, ajuste de quantidade/preço, movimentação física de estoque, edição de equipamento/endereços, documentos completos ou alterações de pagamentos pela OS técnica. Estes fluxos precisam de permissões e testes específicos.
 - Continua pendente verificação do build/deploy da `main` e testes de navegador, câmera, GPS e mobile com usuários reais.
 
