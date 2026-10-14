@@ -420,11 +420,13 @@ export function TechnicianPanel() {
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
-      <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
-        <span className="text-sm font-bold text-foreground">OS {selected.os_number}</span>
-        {hasPermission("technician_panel.data.history") && <AdminButton variant="secondary" size="sm"
-          className="!h-8 !gap-1.5 !px-2.5 !text-xs" disabled={busy || orderDetailsLoading}
-          onClick={() => setHistoryDialogOpen(true)}><History size={14} /> Histórico</AdminButton>}
+      <div className="flex min-h-10 min-w-0 flex-wrap items-center justify-center gap-3 sm:gap-4">
+        <span className="text-xl font-black tabular-nums text-foreground sm:text-2xl">OS {selected.os_number}</span>
+        {hasPermission("technician_panel.data.history") && <div className="flex items-center border-l border-border pl-3 sm:pl-4">
+          <AdminButton variant="secondary" size="sm"
+            className="!h-8 !gap-1.5 !px-2.5 !text-xs" disabled={busy || orderDetailsLoading}
+            onClick={() => setHistoryDialogOpen(true)}><History size={14} /> Histórico</AdminButton>
+        </div>}
       </div>
       <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
         itemBadge={pendingServices > 0
