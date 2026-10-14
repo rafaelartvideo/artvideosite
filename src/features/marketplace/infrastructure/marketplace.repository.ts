@@ -106,18 +106,82 @@ export async function saveMarketplaceCategory(input: { name: string; slug: strin
   if (error) throw error;
 }
 
-export async function loadPublicMarketplace() {
-  const [stores, listings, categories] = await Promise.all([
+
+export type MarketplaceCatalogFilters = {
+  query?: string;
+  kind?: "all" | "service" | "product";
+  categoryId?: string;
+  state?: string;
+  city?: string;
+  priceMode?: "all" | "fixed" | "quote" | "appointment";
+  minPrice?: number | null;
+  maxPrice?: number | null;
+  sort?: "newest" | "price_asc" | "price_desc";
+  page?: number;
+  pageSize?: number;
+  storeId?: string | null;
+};
+
+export async function loadPublicMarketplaceShell() {
+  const [stores, categories] = await Promise.all([
     supabase.from("marketplace_stores").select(STORE_COLUMNS).eq("status", "approved").order("display_name"),
-    supabase.from("marketplace_listings").select(LISTING_COLUMNS).eq("status", "approved").order("created_at", { ascending: false }).limit(100),
     supabase.from("marketplace_categories").select("id,name,slug,is_active,sort_order").eq("is_active", true).order("sort_order"),
   ]);
   if (stores.error) throw stores.error;
-  if (listings.error) throw listings.error;
   if (categories.error) throw categories.error;
   return {
     stores: (stores.data || []) as MarketplaceStore[],
-    listings: (listings.data || []) as MarketplaceListing[],
     categories: (categories.data || []) as MarketplaceCategory[],
   };
+}
+
+export async function loadPublicMarketplaceListing(id: string): Promise<MarketplaceListing | null> {
+  if (!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(id)) return null;
+  const { data, error } = await supabase.from("marketplace_listings")
+    .select(LISTING_COLUMNS).eq("id", id).eq("status", "approved").maybeSingle();
+  if (error) throw error;
+  return (data as MarketplaceListing | null) || null;
+}
+
+export async function searchPublicMarketplaceListings(
+  filters: MarketplaceCatalogFilters,
+  approvedStores: MarketplaceStore[],
+): Promise<{ listings: MarketplaceListing[]; total: number }> {
+  // Filtrar sempre dentro das lojas publicamente aprovadas. As policies RLS
+  // continuam sendo a barreira de segurança em toda consulta anonima.
+  const allowed = approvedStores.filter(store =>
+    (!filters.storeId || store.organization_id === filters.storeId)
+    && (!filters.state || store.state.toLocaleUpperCase("pt-BR") === filters.state.toLocaleUpperCase("pt-BR"))
+    && (!filters.city || store.city.toLocaleLowerCase("pt-BR") === filters.city.toLocaleLowerCase("pt-BR"))
+  );
+  if (!allowed.length) return { listings: [], total: 0 };
+  const pageSize = Math.min(48, Math.max(1, Math.floor(filters.pageSize || 12)));
+  const page = Math.max(1, Math.floor(filters.page || 1));
+  let request = supabase.from("marketplace_listings")
+    .select(LISTING_COLUMNS, { count: "exact" })
+    .eq("status", "approved")
+    .in("organization_id", allowed.map(store => store.organization_id));
+
+  if (filters.kind && filters.kind !== "all") request = request.eq("source_kind", filters.kind);
+  if (filters.categoryId) {
+    if (!/^[0-9a-f]{8}-[0-9a-f-]{27,36}$/i.test(filters.categoryId)) return { listings: [], total: 0 };
+    request = request.eq("category_id", filters.categoryId);
+  }
+  if (filters.priceMode && filters.priceMode !== "all") request = request.eq("price_type", filters.priceMode);
+  if (filters.minPrice != null && Number.isFinite(filters.minPrice)) request = request.gte("price", Math.max(0, filters.minPrice));
+  if (filters.maxPrice != null && Number.isFinite(filters.maxPrice)) request = request.lte("price", Math.max(0, filters.maxPrice));
+
+  // Normalizar caracteres especiais antes de construir os dois predicados OR.
+  // Nunca concatenar sintaxe PostgREST fornecida diretamente pelo visitante.
+  const term = (filters.query || "").normalize("NFC")
+    .replace(/[^a-zA-ZÀ-ÿ0-9\s-]/g, " ").replace(/\s+/g, " ").trim().slice(0,100);
+  if (term) request = request.or("title.ilike.%" + term + "%,description.ilike.%" + term + "%");
+
+  if (filters.sort === "price_asc") request = request.order("price", { ascending: true, nullsFirst: false });
+  else if (filters.sort === "price_desc") request = request.order("price", { ascending: false, nullsFirst: false });
+  else request = request.order("created_at", { ascending: false });
+  const { data, count, error } = await request.order("id", { ascending: true })
+    .range((page - 1) * pageSize, page * pageSize - 1);
+  if (error) throw error;
+  return { listings: (data || []) as MarketplaceListing[], total: count || 0 };
 }

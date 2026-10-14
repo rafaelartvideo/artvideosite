@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 import {
   ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ClipboardList,
@@ -6,8 +6,9 @@ import {
   Store, Wrench, X,
 } from "lucide-react";
 import {
-  loadPublicMarketplace, type MarketplaceCategory, type MarketplaceListing, type MarketplaceStore,
+  loadPublicMarketplaceShell, loadPublicMarketplaceListing, type MarketplaceCategory, type MarketplaceListing, type MarketplaceStore,
 } from "../infrastructure/marketplace.repository";
+import { MarketplaceCatalog } from "./MarketplaceCatalog";
 
 const money = (value: number | null) => value == null
   ? "Sob orçamento"
@@ -34,22 +35,22 @@ export function MarketplaceHomePage() {
   const location = useLocation();
   const navigate = useNavigate();
   const [stores, setStores] = useState<MarketplaceStore[]>([]);
-  const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [detail, setDetail] = useState<MarketplaceListing | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState("");
   const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [query, setQuery] = useState("");
-  const [kind, setKind] = useState<"all" | "service" | "product">("all");
-  const [category, setCategory] = useState<string | null>(null);
+  const [searchDraft, setSearchDraft] = useState(() => new URLSearchParams(location.search).get("q") || "");
   const [banner, setBanner] = useState(0);
   const [notice, setNotice] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-    loadPublicMarketplace().then(data => {
+    loadPublicMarketplaceShell().then(data => {
       if (!mounted) return;
-      setStores(data.stores); setListings(data.listings); setCategories(data.categories);
+      setStores(data.stores); setCategories(data.categories);
     }).catch(() => { if (mounted) setError("Não foi possível carregar o catálogo neste momento."); })
       .finally(() => { if (mounted) setLoading(false); });
     return () => { mounted = false; };
@@ -58,45 +59,68 @@ export function MarketplaceHomePage() {
   const path = location.pathname;
   const listingId = path.match(/^\/marketplace\/(?:servico|produto)\/([^/]+)$/)?.[1];
   const storeSlug = path.match(/^\/marketplace\/loja\/([^/]+)$/)?.[1];
-  const detail = listings.find(x => x.id === listingId);
-  const selectedStore = stores.find(x => x.slug === storeSlug);
+  const selectedStore = stores.find(x => x.slug === storeSlug) || null;
   const vendor = detail ? stores.find(x => x.organization_id === detail.organization_id) : null;
-  const visible = useMemo(() => listings.filter(item => {
-    if (kind !== "all" && item.source_kind !== kind) return false;
-    if (category && item.category_id !== category) return false;
-    if (selectedStore && item.organization_id !== selectedStore.organization_id) return false;
-    const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    if (!normalized) return true;
-    const company = stores.find(x => x.organization_id === item.organization_id);
-    return [item.title, item.description, company?.display_name].some(text => text?.toLocaleLowerCase("pt-BR").includes(normalized));
-  }), [listings, kind, category, query, selectedStore, stores]);
+
+  useEffect(() => {
+    setSearchDraft(new URLSearchParams(location.search).get("q") || "");
+  }, [location.search]);
+
+  useEffect(() => {
+    let active = true;
+    if (!listingId) {
+      setDetail(null);
+      setDetailLoading(false);
+      setDetailError("");
+      return () => { active = false; };
+    }
+    setDetail(null);
+    setDetailLoading(true);
+    setDetailError("");
+    void loadPublicMarketplaceListing(listingId)
+      .then(item => { if (active) setDetail(item); })
+      .catch(() => { if (active) setDetailError("Não foi possível carregar este anúncio."); })
+      .finally(() => { if (active) setDetailLoading(false); });
+    return () => { active = false; };
+  }, [listingId]);
+
   const openListing = (item: MarketplaceListing) => {
-    navigate(`/marketplace/${item.source_kind === "service" ? "servico" : "produto"}/${item.id}`);
+    navigate({
+      pathname: "/marketplace/" + (item.source_kind === "service" ? "servico" : "produto") + "/" + item.id,
+      search: location.search,
+    }, { state: { from: location.pathname + location.search } });
     window.scrollTo({ top: 0 });
   };
   const openStore = (store: MarketplaceStore) => {
-    setCategory(null); setQuery(""); setKind("all");
-    navigate(`/marketplace/loja/${store.slug}`); window.scrollTo({ top: 0 });
+    navigate("/marketplace/loja/" + store.slug);
+    window.scrollTo({ top: 0 });
   };
-  const backHome = () => { navigate("/marketplace"); setCategory(null); setQuery(""); setKind("all"); window.scrollTo({ top: 0 }); };
+  const backHome = () => {
+    navigate("/marketplace");
+    window.scrollTo({ top: 0 });
+  };
+  const previousPath = (location.state as { from?: string } | null)?.from;
+  const backToResults = () => {
+    navigate(previousPath?.startsWith("/marketplace") && previousPath !== location.pathname + location.search
+      ? previousPath : "/marketplace");
+    window.scrollTo({ top: 0 });
+  };
+  const applyFilters = (patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(location.search);
+    Object.entries(patch).forEach(([key, value]) => {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    });
+    next.delete("pagina");
+    navigate({ pathname: "/marketplace", search: next.toString() ? "?" + next.toString() : "" });
+    window.scrollTo({ top: 0 });
+  };
+  const submitSearch = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    applyFilters({ q: searchDraft.trim() || null });
+  };
   const activeBanner = promotions[banner];
   const PromoIcon = activeBanner.icon;
-  const serviceItems = visible.filter(x => x.source_kind === "service");
-  const productItems = visible.filter(x => x.source_kind === "product");
-
-  function itemCard(item: MarketplaceListing) {
-    const company = stores.find(x => x.organization_id === item.organization_id);
-    return <button key={item.id} type="button" onClick={() => openListing(item)} className={`group min-w-0 overflow-hidden rounded-xl text-left ${cardBorder}`}>
-      <ListingPhoto listing={item} />
-      <div className="space-y-2 border-t border-[#edf0f6] p-4">
-        <span className="text-[10px] font-bold uppercase tracking-wide text-[#1032dc]">{item.source_kind === "service" ? "Serviço" : "Produto"}</span>
-        <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-[#18253d]">{item.title}</h3>
-        <p className="truncate text-xs text-[#738097]">{company?.display_name || "Empresa participante"}</p>
-        <p className="text-xl font-black text-[#112244]">{item.price_type === "quote" ? "Sob orçamento" : money(item.price)}</p>
-        <p className="flex items-center gap-1 text-xs font-bold text-[#1032dc]">Ver detalhes <ChevronRight size={13} /></p>
-      </div>
-    </button>;
-  }
 
   return <div className="min-h-dvh bg-[#f5f6fa] text-[#16243c]">
     <header className="sticky top-0 z-40 border-b border-[#e5e9f0] bg-white shadow-sm">
@@ -105,10 +129,11 @@ export function MarketplaceHomePage() {
           <img src="/assets/crm/login/logotelalogin.png" alt="Union World" className="h-8 max-w-[128px] object-contain" />
           <span className="hidden border-l border-[#d7ddeb] pl-2 text-xs font-black uppercase text-[#1032dc] sm:block">Marketplace</span>
         </button>
-        <label className="order-3 flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-[#d4dbe7] bg-[#f8faff] px-3 transition focus-within:border-[#1032dc] lg:order-none lg:flex-1">
+        <form onSubmit={submitSearch} role="search" className="order-3 flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-[#d4dbe7] bg-[#f8faff] px-3 transition focus-within:border-[#1032dc] lg:order-none lg:flex-1">
           <Search size={18} className="shrink-0 text-[#78859b]" />
-          <input value={query} onChange={e => { if (detail) { navigate("/marketplace"); setCategory(null); setKind("all"); } setQuery(e.target.value); }} placeholder="O que você precisa contratar?" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8b96a7]" />
-        </label>
+          <input aria-label="Buscar serviços e produtos" value={searchDraft} onChange={e => setSearchDraft(e.target.value)} placeholder="Qual serviço ou produto você procura?" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8b96a7]" />
+          <button type="submit" className="shrink-0 rounded-md bg-[#1032dc] px-4 py-2 text-xs font-black text-white hover:bg-[#0928b8]">Buscar</button>
+        </form>
         <div className="ml-auto flex shrink-0 items-center gap-3">
           <a href="/admin" className="hidden text-xs font-bold text-[#304563] hover:text-[#1032dc] sm:block">Área da empresa</a>
           <button type="button" className="rounded-lg border border-[#dfe4ed] p-2 lg:hidden" onClick={() => setMenuOpen(v => !v)} aria-label="Abrir menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
@@ -116,9 +141,9 @@ export function MarketplaceHomePage() {
       </div>
       <nav className={`mx-auto max-w-[1400px] items-center gap-1 overflow-x-auto px-4 pb-3 lg:flex lg:px-6 ${menuOpen ? "flex" : "hidden lg:flex"}`}>
         <button onClick={backHome} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Início</button>
-        <button onClick={() => { backHome(); setKind("service"); }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Serviços</button>
-        <button onClick={() => { backHome(); setKind("product"); }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Produtos</button>
-        {categories.slice(0, 6).map(item => <button key={item.id} onClick={() => { backHome(); setCategory(item.id); }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-[#526178] hover:bg-[#eef1ff]">{item.name}</button>)}
+        <button onClick={() => applyFilters({ tipo: "service", categoria: null })} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Serviços</button>
+        <button onClick={() => applyFilters({ tipo: "product", categoria: null })} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Produtos</button>
+        {categories.slice(0, 6).map(item => <button key={item.id} onClick={() => applyFilters({ categoria: item.id })} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-[#526178] hover:bg-[#eef1ff]">{item.name}</button>)}
         <a href="/admin" className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-[#1032dc] sm:hidden">Área da empresa</a>
       </nav>
     </header>
@@ -127,8 +152,19 @@ export function MarketplaceHomePage() {
       {notice && <div role="status" className="flex items-center justify-between gap-4 rounded-lg border border-[#c8d1f5] bg-[#eef1ff] px-4 py-3 text-sm text-[#233d91]">{notice}<button onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={18} /></button></div>}
       {loading ? <div className="py-20 text-center text-sm text-[#66758e]">Carregando catálogo...</div> :
       error ? <div className="rounded-xl bg-white p-10 text-center text-sm text-red-700">{error}</div> :
+      listingId && detailLoading ? <div className="flex min-h-[55vh] items-center justify-center text-sm text-[#66758e]" role="status">Carregando anúncio...</div> :
+      listingId && (detailError || !detail) ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
+        <h1 className="text-lg font-black">{detailError || "Anúncio indisponível"}</h1>
+        <p className="mt-2 text-sm text-[#768399]">Este anúncio pode ter sido pausado ou retirado da vitrine.</p>
+        <button onClick={backToResults} className="mt-5 rounded-lg border border-[#dfe4ee] px-4 py-2 text-sm font-bold">Voltar aos anúncios</button>
+      </div> :
+      storeSlug && !selectedStore ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
+        <h1 className="text-lg font-black">Loja indisponível</h1>
+        <p className="mt-2 text-sm text-[#768399]">A loja não está publicada neste momento.</p>
+        <button onClick={backHome} className="mt-5 rounded-lg border border-[#dfe4ee] px-4 py-2 text-sm font-bold">Ver outras lojas</button>
+      </div> :
       detail ? <div className="space-y-6">
-        <button onClick={backHome} className="flex items-center gap-2 text-sm font-semibold text-[#53657f] hover:text-[#1032dc]"><ArrowLeft size={16} /> Voltar ao marketplace</button>
+        <button onClick={backToResults} className="flex items-center gap-2 text-sm font-semibold text-[#53657f] hover:text-[#1032dc]"><ArrowLeft size={16} /> Voltar aos anúncios</button>
         <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr_.8fr]">
           <div className="overflow-hidden rounded-xl border border-[#e1e6ef] bg-white"><ListingPhoto listing={detail} large /></div>
           <div className="rounded-xl border border-[#e1e6ef] bg-white p-6">
@@ -181,22 +217,15 @@ export function MarketplaceHomePage() {
         {!selectedStore && <section className="space-y-4">
           <div className="flex items-end justify-between"><div><p className="text-xs font-bold uppercase text-[#1032dc]">Explore</p><h2 className="text-xl font-black">Categorias de serviços</h2></div></div>
           <div className="flex gap-3 overflow-x-auto pb-2">
-            {categories.map(item => <button key={item.id} onClick={() => setCategory(category === item.id ? null : item.id)} className={`min-w-[160px] flex-1 shrink-0 rounded-xl border p-4 text-left text-sm font-bold transition ${category === item.id ? "border-[#1032dc] bg-[#edf1ff] text-[#1032dc]" : "border-[#e4e8f0] bg-white hover:border-[#9cadde]"}`}><div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef1ff]"><SlidersHorizontal size={18} className="text-[#1032dc]" /></div>{item.name}</button>)}
+            {categories.map(item => <button key={item.id} onClick={() => applyFilters({ categoria: item.id })}
+              className={"min-w-[160px] flex-1 shrink-0 rounded-xl border p-4 text-left text-sm font-bold transition " +
+                (new URLSearchParams(location.search).get("categoria") === item.id ? "border-[#1032dc] bg-[#edf1ff] text-[#1032dc]" : "border-[#e4e8f0] bg-white hover:border-[#9cadde]")}>
+              <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef1ff]"><SlidersHorizontal size={18} className="text-[#1032dc]" /></div>{item.name}
+            </button>)}
           </div>
         </section>}
 
-        <section id="catalogo" className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div><p className="text-xs font-bold uppercase text-[#1032dc]">Marketplace</p><h2 className="text-xl font-black">{selectedStore ? "Anúncios desta empresa" : "Encontre o que você precisa"}</h2><p className="text-sm text-[#7b8799]">{visible.length} {visible.length === 1 ? "anúncio disponível" : "anúncios disponíveis"}</p></div>
-            <div className="flex gap-1 rounded-lg border border-[#e0e6ef] bg-white p-1">
-              {([["all","Tudo"],["service","Serviços"],["product","Produtos"]] as const).map(([id,label]) => <button key={id} onClick={() => setKind(id)} className={`rounded-md px-3 py-2 text-xs font-bold ${kind === id ? "bg-[#1032dc] text-white" : "text-[#53627a]"}`}>{label}</button>)}
-            </div>
-          </div>
-          {visible.length === 0 ? <div className="rounded-xl border border-[#e1e7ef] bg-white px-6 py-16 text-center"><Search size={28} className="mx-auto mb-3 text-[#a3b0c2]" /><h3 className="font-black">Nenhum anúncio disponível</h3><p className="mt-2 text-sm text-[#73829a]">As empresas participantes poderão publicar serviços e produtos após aprovação.</p>{(query || category || kind !== "all") && <button onClick={() => { setQuery(""); setCategory(null); setKind("all"); }} className="mt-4 rounded-lg border border-[#dfe4ee] px-4 py-2 text-sm font-bold">Limpar filtros</button>}</div> : <>
-            {(kind !== "product" && serviceItems.length > 0) && <div className="space-y-3"><h3 className="text-lg font-black">Serviços disponíveis</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{serviceItems.map(itemCard)}</div></div>}
-            {(kind !== "service" && productItems.length > 0) && <div className="space-y-3"><h3 className="text-lg font-black">Produtos</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{productItems.map(itemCard)}</div></div>}
-          </>}
-        </section>
+        <MarketplaceCatalog stores={stores} categories={categories} selectedStore={selectedStore} onOpenListing={openListing} />
         {!selectedStore && stores.length > 0 && <section className="space-y-4">
           <h2 className="text-xl font-black">Lojas participantes</h2>
           <div className="flex gap-3 overflow-x-auto pb-2">{stores.map(store => <button key={store.organization_id} onClick={() => openStore(store)} className={`min-w-64 max-w-80 shrink-0 rounded-xl p-5 text-left ${cardBorder}`}><div className="mb-4 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-[#edf1ff]">{store.logo_url ? <img src={store.logo_url} alt="" className="h-full w-full object-cover" /> : <Store size={23} className="text-[#1032dc]" />}</div><p className="font-black">{store.display_name}</p><p className="mt-1 line-clamp-2 text-xs text-[#728097]">{store.description || "Empresa participante"}</p><p className="mt-4 flex items-center gap-1 text-xs font-bold text-[#1032dc]">Ver loja <ChevronRight size={15} /></p></button>)}</div>
