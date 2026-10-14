@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { loadVisibleServiceTaskSchedules } from "./service-schedule-occupancy.repository";
 
 export type WorkInterval = { start_time: string; end_time: string };
 export type EmployeeWeekday = {
@@ -103,19 +104,12 @@ export async function loadEmployeeOccupiedIntervals(
     supabase.from("appointments")
       .select("id,period,start_time,end_time,appointment_technicians(employee_id)")
       .eq("organization_id", organizationId).eq("appointment_date", date),
-    supabase.from("service_order_item_tasks")
-      .select("item_id,service_order_id,scheduled_start_at,scheduled_end_at,status,assigned_employee_id,assignees:service_order_item_task_assignees(employee_id)")
-      .eq("organization_id", organizationId)
-      .not("scheduled_start_at", "is", null)
-      .in("status", ["pending", "in_progress"])
-      .gt("scheduled_end_at", previous.toISOString())
-      .lt("scheduled_start_at", next.toISOString()),
+    loadVisibleServiceTaskSchedules(organizationId, previous.toISOString(), next.toISOString()),
   ]);
   if (orders.error) throw orders.error;
   if (appointments.error) throw appointments.error;
-  if (scheduledTasks.error) throw scheduledTasks.error;
   const intervals: OccupiedInterval[] = [];
-  const taskRows = scheduledTasks.data || [];
+  const taskRows = scheduledTasks.filter(task => task.status === "pending" || task.status === "in_progress");
   const withIndividualSchedule = new Set(taskRows.filter(task =>
     task.assigned_employee_id === employeeId || (task.assignees || []).some(a => a.employee_id === employeeId),
   ).map(task => task.service_order_id));
