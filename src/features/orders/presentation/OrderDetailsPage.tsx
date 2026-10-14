@@ -110,6 +110,7 @@ export function OrderDetailsPage(props: Props) {
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
+  const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const [itemsOverview, setItemsOverview] = useState<{ total: number; pending: number; inProgress: number; completed: number } | null>(null);
   // Apenas uma assinatura por OS: na aba de itens, a própria seção atualiza
@@ -161,7 +162,7 @@ export function OrderDetailsPage(props: Props) {
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
   const { statuses, situations } = workspace;
-  const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
+
   const effectiveRouteSubpage = routeSubpage;
   const canOpenDocumentsPage = hasPermission("orders.section.images") || hasPermission("documents.signatures.view");
   const historyPageOpen = Boolean(detail) && effectiveRouteSubpage === "history" && hasPermission("orders.section.history");
