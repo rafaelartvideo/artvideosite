@@ -51,7 +51,8 @@ export function useFinanceEntries(
         approvalStatus: filters.approvalStatus,
       },
     ] as const,
-    enabled: Boolean(activeOrganizationId && !selectedEntryId),
+    // Keep the paginated table mounted behind the receivable details modal.
+    enabled: Boolean(activeOrganizationId),
     queryFn: () => listFinancialEntriesPage({
       organizationId,
       entryType,
