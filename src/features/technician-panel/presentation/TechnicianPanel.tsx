@@ -338,8 +338,28 @@ export function TechnicianPanel() {
   const completedServices = orderServices.filter(service => service.status === "completed").length;
 
   return <div className="mx-auto max-w-6xl space-y-4">
+    {routeOrderId && <nav aria-label="Navegação estrutural"
+      className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+      <button type="button" onClick={() => navigate("/admin/technician-panel")}
+        className="text-primary hover:underline">Painel do Técnico</button>
+      <ChevronRight size={14} aria-hidden="true" />
+      <span aria-current="page" className="text-foreground">OS {selected?.os_number || ""}</span>
+    </nav>}
     <PageHeader
-      title={routeOrderId ? (selected ? "OS " + selected.os_number : "Ordem de Serviço") : "Painel do Técnico"}
+      title={routeOrderId
+        ? <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span>OS {selected?.os_number || ""}</span>
+          {orderDetails?.situation_name && <span
+            className="inline-flex rounded-md border border-primary/25 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
+            {orderDetails.situation_name}
+          </span>}
+          {hasPermission("technician_panel.data.history") && <span
+            className="inline-flex items-center gap-2 border-l border-border pl-3">
+            <BtnSecondary disabled={busy || orderDetailsLoading}
+              onClick={() => setHistoryDialogOpen(true)}>Registros</BtnSecondary>
+          </span>}
+        </span>
+        : "Painel do Técnico"}
       subtitle={routeOrderId ? undefined : "Ordens de serviço e atividades atribuídas a você."}
       actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined}
     />
@@ -373,61 +393,93 @@ export function TechnicianPanel() {
       </AdminStickyToolbar>
     </> : <>
       {orderDetailsLoading && <p className="text-xs text-muted-foreground">Carregando dados autorizados da OS...</p>}
-      <Section title="Dados da OS"
-        actions={hasPermission("technician_panel.data.history")
-          ? <BtnSecondary disabled={busy || orderDetailsLoading}
-              onClick={() => setHistoryDialogOpen(true)}>Histórico</BtnSecondary>
-          : undefined}>
-        <div className="space-y-4">
-          {orderDetails?.situation_name && <div className="flex flex-wrap items-center gap-3">
-            <span className="rounded-md border border-primary/25 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">{orderDetails.situation_name}</span>
-            {orderDetails.can_change_situation && !orderDetails.closed &&
-              <div className="min-w-[180px] max-w-xs flex-1 sm:flex-none">
-                <AdminSelect value={orderDetails.situation_id || ""}
-                  options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
-                  onValueChange={value => { if (value) void onSituationChange(value); }}
-                  ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
-                  className="min-h-9 w-full min-w-0 text-xs" />
-              </div>}
-          </div>}
+      <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
+        itemBadge={pendingServices > 0
+          ? { label: pendingServices + " pendente" + (pendingServices > 1 ? "s" : ""), style: STATUS_CLASS.pending }
+          : ongoingServices > 0
+            ? { label: ongoingServices + " em andamento", style: STATUS_CLASS.in_progress }
+            : completedServices > 0
+              ? { label: completedServices + " concluído" + (completedServices > 1 ? "s" : ""), style: STATUS_CLASS.completed }
+              : null} />
+
+      {detailTab === "details" ? <>
+        <Section title="Cliente">
           <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {info("Cliente", selected.customer_name)}
-            {info("Contato", selected.customer_contact)}
-            {info("Equipamento", selected.equipment)}
-            {info("Marca", orderDetails?.equipment_brand)}
-            {info("Modelo", orderDetails?.equipment_model || selected.equipment_model)}
-            {info("Número de série", selected.serial_number)}
-            {info("Acessórios", orderDetails?.equipment_accessories)}
-            {info("Condição do equipamento", orderDetails?.equipment_condition)}
-            {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
+            {info("Nome", selected.customer_name)}
+            {info(orderDetails?.customer_type === "PJ" ? "CNPJ" : "CPF",
+              orderDetails?.customer_document
+                ? orderDetails.customer_type === "PJ" ? formatCnpj(orderDetails.customer_document) : formatCpf(orderDetails.customer_document)
+                : null)}
+            {info("Contato", selected.customer_contact ? formatPhone(selected.customer_contact) : null)}
             {info("Endereço", formattedAddress)}
-            {orderDetails?.technical_values?.map(value => <div key={value.id} className="min-w-0">{info(value.label, value.value)}</div>)}
           </div>
-          {hasPermission("technician_panel.data.problem") && <div className="border-t border-border/70 pt-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Descrição do problema</p>
-              {canEditProblem && <BtnSecondary onClick={() => openNoteEditor("problem", selected.problem)}>Editar</BtnSecondary>}
+        </Section>
+        <Section title="Equipamento">
+          <div className="grid min-w-0 gap-5 lg:grid-cols-2">
+            <div className="grid min-w-0 content-start gap-4 sm:grid-cols-2">
+              {info("Equipamento", selected.equipment)}
+              {info("Marca", orderDetails?.equipment_brand)}
+              {info("Modelo", orderDetails?.equipment_model || selected.equipment_model)}
+              {info("Número de série", selected.serial_number)}
+              {info("Acessórios", orderDetails?.equipment_accessories)}
+              {info("Condição do equipamento", orderDetails?.equipment_condition)}
+              {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
+              {orderDetails?.technical_values?.map(value => <div key={value.id} className="min-w-0">
+                {info(value.label, value.value)}
+              </div>)}
             </div>
-            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
-          </div>}
-          {hasPermission("technician_panel.data.diagnosis") && orderDetails && <div className="border-t border-border/70 pt-3">
+            <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Foto da etiqueta</p>
+                {(orderDetails?.equipment_photos || []).some(image => image.kind === "label")
+                  ? <div className="flex flex-wrap gap-2">
+                    {orderDetails!.equipment_photos!.filter(image => image.kind === "label").map(image =>
+                      <a key={image.id} href={equipmentPhotoUrls[image.path] || "#"}
+                        onClick={event => { if (!equipmentPhotoUrls[image.path]) event.preventDefault(); }}
+                        target="_blank" rel="noreferrer"
+                        className="block h-24 w-24 overflow-hidden rounded-lg border border-border bg-muted">
+                        {equipmentPhotoUrls[image.path] && <img src={equipmentPhotoUrls[image.path]}
+                          alt={image.name || "Etiqueta do equipamento"} loading="lazy" className="h-full w-full object-cover" />}
+                      </a>)}
+                  </div> : <p className="text-xs text-muted-foreground">Nenhuma foto da etiqueta cadastrada.</p>}
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase text-muted-foreground">Fotos do equipamento</p>
+                {(orderDetails?.equipment_photos || []).some(image => image.kind === "equipment")
+                  ? <div className="flex flex-wrap gap-2">
+                    {orderDetails!.equipment_photos!.filter(image => image.kind === "equipment").map(image =>
+                      <a key={image.id} href={equipmentPhotoUrls[image.path] || "#"}
+                        onClick={event => { if (!equipmentPhotoUrls[image.path]) event.preventDefault(); }}
+                        target="_blank" rel="noreferrer"
+                        className="block h-24 w-24 overflow-hidden rounded-lg border border-border bg-muted">
+                        {equipmentPhotoUrls[image.path] && <img src={equipmentPhotoUrls[image.path]}
+                          alt={image.name || "Foto do equipamento"} loading="lazy" className="h-full w-full object-cover" />}
+                      </a>)}
+                  </div> : <p className="text-xs text-muted-foreground">Nenhuma foto do equipamento cadastrada.</p>}
+              </div>
+            </div>
+          </div>
+          {(hasPermission("technician_panel.data.problem") || hasPermission("technician_panel.data.internal_notes")) &&
+            <div className="mt-4 grid gap-4 border-t border-border/70 pt-4 sm:grid-cols-2">
+              {hasPermission("technician_panel.data.problem") && <div>
+                <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Descrição do problema</p>
+                <p className="whitespace-pre-wrap break-words text-sm">{selected.problem || "Ainda não informado."}</p>
+              </div>}
+              {hasPermission("technician_panel.data.internal_notes") && <div>
+                <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Observações internas</p>
+                <p className="whitespace-pre-wrap break-words text-sm">{orderDetails?.internal_notes || "Ainda não informado."}</p>
+              </div>}
+            </div>}
+          {hasPermission("technician_panel.data.diagnosis") && orderDetails && <div className="mt-4 border-t border-border/70 pt-4">
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Diagnóstico</p>
+              <p className="text-xs font-bold uppercase text-muted-foreground">Diagnóstico</p>
               {orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved &&
                 <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>}
             </div>
-            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
+            <p className="whitespace-pre-wrap break-words text-sm">{orderDetails.diagnosis || "Ainda não informado."}</p>
           </div>}
-          {hasPermission("technician_panel.data.internal_notes") && orderDetails && <div className="border-t border-border/70 pt-3">
-            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Observações internas</p>
-              {canEditNotes && <BtnSecondary onClick={() => openNoteEditor("internal_notes", orderDetails.internal_notes)}>Editar</BtnSecondary>}
-            </div>
-            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes || "Ainda não informado."}</p>
-          </div>}
-        </div>
-      </Section>
-
+        </Section>
+      </> : <>
       <Section title={<span className="flex flex-wrap items-center gap-2">
         Serviços atribuídos
         <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-bold text-foreground">{orderServices.length}</span>
@@ -512,24 +564,23 @@ export function TechnicianPanel() {
         </div>
       </Section>
 
+
+      </>}
+
       <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
+        {orderDetails?.can_change_situation && !orderDetails.closed &&
+          <div className="min-w-[190px] max-w-sm">
+            <AdminSelect value={orderDetails.situation_id || ""}
+              options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
+              onValueChange={value => { if (value) void onSituationChange(value); }}
+              ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
+              className="min-h-9 w-full min-w-0 text-xs" />
+          </div>}
       </AdminStickyToolbar>
       <TechnicianOrderHistoryDialog open={historyDialogOpen}
         onClose={() => setHistoryDialogOpen(false)}
         orderId={routeOrderId} orderNumber={selected.os_number} />
-      <AdminDialog open={Boolean(noteField)} onClose={() => { if (!busy) setNoteField(null); }}
-        title={noteField === "problem" ? "Editar descrição do problema" : "Editar observações internas"}
-        description={"OS " + selected.os_number}
-        footer={<div className="flex justify-end gap-2">
-          <BtnSecondary disabled={busy} onClick={() => setNoteField(null)}>Cancelar</BtnSecondary>
-          <BtnPrimary disabled={busy || noteDraft.length > 10000} loading={busy}
-            onClick={() => void saveOrderNote()}>Salvar</BtnPrimary>
-        </div>}>
-        <FTextarea label={noteField === "problem" ? "Descrição do problema" : "Observações internas"}
-          value={noteDraft} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setNoteDraft(event.target.value)}
-          rows={7} maxLength={10000} placeholder="Descreva as informações da OS..." />
-      </AdminDialog>
       <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
         title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
           <BtnSecondary onClick={() => setDiagnosisDialogOpen(false)} disabled={busy}>Cancelar</BtnSecondary>
