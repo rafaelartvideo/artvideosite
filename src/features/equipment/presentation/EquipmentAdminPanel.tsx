@@ -9,7 +9,7 @@ import type { EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow, TechnicalFi
 import { createEquipmentBrandForTypes, loadEquipmentBrandDirectory, loadEquipmentCatalog, loadEquipmentServiceSettings, renameEquipmentBrandGroup, saveEquipmentHierarchy, saveTechnicalField, setEquipmentBrandGroupActive, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 import { createGeneralService } from "@/features/general-services/infrastructure/general-services.repository";
-import { EquipmentServiceSelector } from "./EquipmentServiceSelector";
+import { EquipmentServiceCreate, EquipmentServiceSelector } from "./EquipmentServiceSelector";
 import { brandKey, buildEquipmentBrandChoices, EquipmentBrandCreate, EquipmentBrandSelector, EquipmentBrandsDirectory, EquipmentModelCreate, EquipmentModelsSelector } from "./EquipmentBrands";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
@@ -259,10 +259,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     }
   };
 
-  const openNewService = (draftIndex: number) => {
+  const openNewService = (draftIndex: number, name = "") => {
     if (!canCreateGeneralService || !serviceSettings?.available || !(drafts[draftIndex]?.id ? canEdit : canCreate)) return;
     setServiceDraftIndex(draftIndex);
-    setServiceForm({ name: "", price: "", priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
+    setServiceForm({ name, price: "", priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
     setServiceFormErrors({});
   };
   const closeNewService = () => { if (!savingService) setServiceDraftIndex(null); };
@@ -474,11 +474,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </Section>
 
           <Section title="Serviços vinculados"
+            className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header>div:last-child]:!max-w-full"
             actions={canCreateGeneralService && (type.id ? canEdit : canCreate)
-              ? <BtnSecondary onClick={() => openNewService(ti)}
-                  disabled={saving || equipmentServicesQuery.isPending || !serviceSettings?.available}>
-                  <Plus size={14} /> Novo serviço
-                </BtnSecondary> : undefined}>
+              ? <EquipmentServiceCreate onCreate={name => openNewService(ti, name)}
+                  disabled={saving || equipmentServicesQuery.isPending || !serviceSettings?.available} /> : undefined}>
             <EquipmentServiceSelector
               services={serviceSettings?.services ?? []}
               selectedIds={type.serviceIds ?? (serviceSettings?.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) ?? [])}
@@ -535,7 +534,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               }} />
           </Section>}
 
-          <Section title="Marcas"
+          <Section title="Marcas" className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header>div:last-child]:!max-w-full"
             actions={canCreate ? <EquipmentBrandCreate disabled={saving}
               onCreate={name => toggleDraftBrand(ti, name, true)} /> : undefined}>
             <EquipmentBrandSelector
@@ -544,7 +543,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
             />
           </Section>
 
-          <Section title="Modelos"
+          <Section title="Modelos" className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header>div:last-child]:!max-w-full"
             actions={canCreate ? <EquipmentModelCreate disabled={saving} brands={type.brands}
               onCreate={(bi, name) => addModel(ti, bi, name)} /> : undefined}>
             <EquipmentModelsSelector
