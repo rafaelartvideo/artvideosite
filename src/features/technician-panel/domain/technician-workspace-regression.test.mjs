@@ -137,7 +137,7 @@ test("recálculo interno não permite editar preços, concluir nem acessar outra
 });
 
 test("histórico técnico e textos da OS usam o mesmo padrão do CRM e RPCs restritas", () => {
-  assert.match(panel, /<TechnicianOrderHistoryDialog/);
+  assert.match(panel, /<OrderHistoryPage/);
   assert.match(panel, /<TechnicianOrderItemsSection/);
   assert.doesNotMatch(panel, /updateMyTechnicianOrderNote/);
   assert.match(historyUi, /<AdminDialog/);
@@ -233,7 +233,39 @@ test("cliente e equipamento da OS técnica são carregados por RPC com permissõ
 
 test("problema e notas são somente leitura, registros ficam no cabeçalho", () => {
   assert.doesNotMatch(panel, /openNoteEditor|saveOrderNote|noteField/);
-  assert.match(panel, /<nav aria-label="Navegação estrutural"/);
-  assert.match(panel, />Registros<\/BtnSecondary>/);
+  assert.match(panel, /<AdminPage open={!historyDialogOpen}/);
+  assert.match(panel, /Registros<\/BtnSecondary>/);
   assert.match(panel, /ariaLabel="Alterar situação da OS"/);
+});
+
+
+test("o painel utiliza o cabeçalho compartilhado e cinco seções independentes", () => {
+  assert.match(panel, /<AdminPage open=\{!historyDialogOpen\}/);
+  assert.match(panel, /breadcrumb="Painel do Técnico"/);
+  for (const title of ["Cliente", "Equipamento", "Descrição do problema", "Observações internas", "Diagnóstico"]) {
+    assert.ok(panel.includes('<Section title="' + title + '"'), "Seção ausente: " + title);
+  }
+  assert.match(panel, /<StatusBadge/);
+  assert.match(panel, /<OrderDetailSectionTabs/);
+  assert.doesNotMatch(panel, /<nav aria-label="Navegação estrutural"/);
+});
+
+test("modal e miniaturas de imagens são os mesmos componentes da OS normal", () => {
+  assert.match(panel, /<OrderImageLightbox/);
+  assert.match(panel, /<OrderImageThumb/);
+  assert.match(panel, /setViewEquipmentImage/);
+  assert.doesNotMatch(panel, /target="_blank" rel="noreferrer"[\s\S]*?Foto da etiqueta/);
+});
+
+test("registros escritos são compartilhados com a OS normal por RPC segura", () => {
+  const history = read("src/features/orders/presentation/OrderHistoryPage.tsx");
+  const hook = read("src/features/technician-panel/application/useTechnicianOrderRecords.ts");
+  const sql = read("supabase/migrations/20261014231500_technician_shared_order_history_records.sql");
+  assert.match(panel, /<OrderHistoryPage/);
+  assert.match(history, /Novo registro/);
+  assert.match(hook, /createMyTechnicianOrderRecord/);
+  assert.match(sql, /service_order_history_notes/);
+  assert.match(sql, /technician_panel\.actions\.history\.create/);
+  assert.match(sql, /private\.can_access_technician_order_v1/);
+  assert.doesNotMatch(sql, /'unit_price'|'final_total'|'subtotal'/);
 });
