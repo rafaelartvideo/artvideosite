@@ -21,7 +21,7 @@ export function TechnicianOrderHistoryDialog({
   orderNumber: number | string;
 }) {
   const [entries, setEntries] = useState<TechnicianOrderHistoryEntry[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!open) return;
@@ -39,9 +39,9 @@ export function TechnicianOrderHistoryDialog({
     title="Histórico da OS" description={"OS " + orderNumber}
     className="max-w-2xl"
     footer={<div className="flex justify-end"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>}>
-    {loading ? <p className="text-sm text-muted-foreground">Carregando histórico...</p>
-      : !entries.length ? <p className="text-sm text-muted-foreground">Nenhum registro técnico disponível para esta OS.</p>
-      : <div className="divide-y divide-border">
+    {loading ? <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Carregando histórico...</div>
+      : !entries.length ? <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Nenhum registro técnico disponível para esta OS.</div>
+      : <div className="min-h-40 divide-y divide-border">
         {entries.map((entry, index) => <div key={entry.kind + entry.at + index} className="space-y-1 py-3 first:pt-0 last:pb-0">
           <p className="text-xs font-semibold text-muted-foreground">{dateText(entry.at)}</p>
           <p className="break-words text-sm font-medium text-foreground">{entry.description}</p>
