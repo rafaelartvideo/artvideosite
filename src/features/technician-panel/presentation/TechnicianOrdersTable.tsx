@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminCard, Section } from "@/shared/ui/admin/AdminLayout";
 import type { TechnicianTask } from "../infrastructure/technician-tasks.repository";
 
 type Row = TechnicianTask[];
@@ -52,42 +53,38 @@ export function TechnicianOrdersTable({
   };
 
   return <div className="min-w-0 space-y-4">
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Minhas ordens de serviço</h2>
-        <span className="text-xs font-semibold text-muted-foreground">{rows.length} OS</span>
+    <Section title={<span className="inline-flex items-center gap-2">Minhas ordens de serviço
+      <span className="inline-flex items-center border border-primary/25 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{rows.length}</span>
+    </span>}>
+      <div className="flex min-w-0 flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative min-w-0 flex-1 lg:max-w-sm">
+          <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input value={search} onChange={event => setSearch(event.target.value)}
+            aria-label="Buscar minhas ordens de serviço" placeholder="Buscar OS, cliente ou serviço"
+            className="min-h-10 w-full border border-border bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" />
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar andamento">
+          {statuses.map(option => <button key={option.value} type="button"
+            aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}
+            className={"border px-2.5 py-2 text-xs font-semibold transition-colors " +
+              (filter === option.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>
+            {option.label}
+          </button>)}
+        </div>
       </div>
-      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="relative min-w-0 flex-1 sm:max-w-sm">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-        <input value={search} onChange={event => setSearch(event.target.value)}
-          aria-label="Buscar minhas ordens de serviço" placeholder="Buscar OS, cliente ou serviço"
-          className="min-h-10 w-full rounded-lg border border-border bg-card py-2 pl-9 pr-3 text-sm text-foreground outline-none focus:border-primary" />
-      </div>
-      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Filtrar andamento">
-        {statuses.map(option => <button key={option.value} type="button"
-          aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}
-          className={"rounded-md border px-2.5 py-2 text-xs font-semibold transition-colors " +
-            (filter === option.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted")}>
-          {option.label}
-        </button>)}
-      </div>
-      </div>
-    </div>
-    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+    </Section>
+    <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
     {loading ? <LoadingState />
       : !visible.length ? <p className="p-6 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>
       : <>
         <div className="hidden overflow-x-auto md:block">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-muted/35 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-              <tr className="border-b border-border">
+          <table className="min-w-[880px]">
+            <thead><tr>
                 <th className="px-4 py-3">OS</th><th className="px-4 py-3">Cliente</th>
                 <th className="px-4 py-3">Equipamento</th><th className="px-4 py-3">Serviços atribuídos</th>
                 <th className="px-4 py-3">Andamento</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
+              </tr></thead>
+            <tbody>
               {visible.map(services => <tr key={services[0].service_order_id} tabIndex={0}
                 role="button" aria-label={"Abrir OS " + services[0].os_number}
                 onClick={() => onOpen(services[0])}
@@ -105,7 +102,7 @@ export function TechnicianOrdersTable({
         <div className="divide-y divide-border md:hidden">
           {visible.map(services => <button key={services[0].service_order_id} type="button"
             onClick={() => onOpen(services[0])}
-            className="grid w-full grid-cols-2 gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/45">
+            className="grid w-full grid-cols-2 gap-3 px-4 py-4 text-left transition-colors hover:bg-muted/45 active:bg-muted/65">
             <div><p className="text-[10px] font-bold uppercase text-muted-foreground">OS</p><p className="text-sm font-bold">{services[0].os_number}</p></div>
             <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Cliente</p><p className="break-words text-sm">{services[0].customer_name || "—"}</p></div>
             <div><p className="text-[10px] font-bold uppercase text-muted-foreground">Equipamento</p><p className="break-words text-sm">{services[0].equipment || "—"}</p></div>
@@ -116,6 +113,6 @@ export function TechnicianOrdersTable({
       </>}
     <PaginationBar page={currentPage} pageSize={pageSize} totalItems={rows.length}
       onPageChange={setPage} onPageSizeChange={next => { setPageSize(next); setPage(1); }} />
-    </div>
+    </AdminCard>
   </div>;
 }
