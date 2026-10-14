@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { supabase } from "@/lib/supabase";
 import {
@@ -32,8 +32,8 @@ import {
   type OrderCommercialPricing,
 } from "../infrastructure/order-commercial-items.repository";
 import {
-  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians,
-  type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician,
+  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians, listOrderTaskPhotos, createOrderTaskPhotoUrl,
+  type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician, type OrderTaskPhoto,
 } from "../infrastructure/order-service-tasks.repository";
 
 type ItemDraft = {
@@ -48,6 +48,7 @@ type Props = {
   canEdit: boolean;
   formatCurrency: (value: number) => string;
   onPricingChange: (pricing: OrderCommercialPricing) => void;
+  onOverviewChange?: (overview: { total: number; pending: number; inProgress: number; completed: number }) => void;
 };
 
 function positiveInteger(value: unknown) {
@@ -262,13 +263,18 @@ function TechnicianMultiPicker({
   </details>;
 }
 
-export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange }: Props) {
+export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange, onOverviewChange }: Props) {
   const editable = canEdit && !order?.completed_at && !order?.cancelled_at;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
+  const itemsRef = useRef<OrderCommercialItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [tasks, setTasks] = useState<Record<string, OrderServiceTask>>({});
   const [technicians, setTechnicians] = useState<OrderServiceTechnician[]>([]);
   const [workflowReady, setWorkflowReady] = useState(false);
+  const [taskPhotos, setTaskPhotos] = useState<OrderTaskPhoto[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const photoUrlsRef = useRef<Record<string, { url: string; expires: number }>>({});
+  const [galleryItem, setGalleryItem] = useState<OrderCommercialItem | null>(null);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<OrderCommercialPricing>(() => pricingFromOrder(order));
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -317,16 +323,66 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setDiscountValue(String(next.discount_type === "amount" ? next.discount_amount : next.discount_percentage));
   }, [onPricingChange]);
 
+  const refreshTaskPhotos = useCallback(async () => {
+    if (!order?.id) return;
+    try {
+      const incoming = await listOrderTaskPhotos(order.id);
+      setTaskPhotos(incoming);
+      const previewPaths = incoming.filter((photo, index, all) =>
+        all.filter(other => other.item_id === photo.item_id).findIndex(other => other.id === photo.id) < 2);
+      const missing = previewPaths.filter(photo => !photoUrlsRef.current[photo.path] ||
+        photoUrlsRef.current[photo.path].expires < Date.now());
+      if (missing.length) {
+        const signed = await Promise.all(missing.map(async photo => ({
+          path: photo.path, url: await createOrderTaskPhotoUrl(photo.path),
+        })));
+        for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
+      }
+      setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
+    } catch {
+      // A OS continua funcional se a migração de leitura de fotos ainda não foi aplicada.
+    }
+  }, [order?.id]);
+
+  const openTaskGallery = async (item: OrderCommercialItem) => {
+    setGalleryItem(item);
+    const missing = taskPhotos.filter(photo => photo.item_id === item.id &&
+      (!photoUrlsRef.current[photo.path] || photoUrlsRef.current[photo.path].expires < Date.now()));
+    try {
+      const signed = await Promise.all(missing.map(async photo => ({
+        path: photo.path, url: await createOrderTaskPhotoUrl(photo.path),
+      })));
+      for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
+      setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
+    } catch (error) {
+      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível abrir as fotos da execução.") });
+    }
+  };
+
+  const publishOverview = (nextItems: OrderCommercialItem[], nextTasks: OrderServiceTask[]) => {
+    const services = nextItems.filter(item => item.item_type !== "product");
+    const byItem = new Map(nextTasks.map(task => [task.item_id, task.status]));
+    onOverviewChange?.({
+      total: nextItems.length,
+      pending: services.filter(item => !byItem.has(item.id) || byItem.get(item.id) === "pending" || byItem.get(item.id) === "cancelled").length,
+      inProgress: services.filter(item => byItem.get(item.id) === "in_progress").length,
+      completed: services.filter(item => byItem.get(item.id) === "completed").length,
+    });
+  };
+
   const loadItems = useCallback(async (quiet = false) => {
     if (!order?.id) return;
     if (!quiet) setLoadingItems(true);
     try {
       const next = await listOrderCommercialItems(order.id);
       setItems(next);
+      itemsRef.current = next;
       setDrafts(Object.fromEntries(next.map(item => [item.id, draftFromItem(item)])));
       try {
         const nextTasks = await listOrderServiceTasks(order.id);
         setTasks(Object.fromEntries(nextTasks.map(task => [task.item_id, task])));
+        publishOverview(next, nextTasks);
+        void refreshTaskPhotos();
         setTechnicians(editable ? await listOrderServiceTechnicians(order.id) : []);
         setWorkflowReady(true);
       } catch {
@@ -340,7 +396,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     } finally {
       if (!quiet) setLoadingItems(false);
     }
-  }, [order?.id, editable]);
+  }, [order?.id, editable, refreshTaskPhotos, onOverviewChange]);
 
   // Escuta somente a OS aberta. Quando o técnico inicia/finaliza em outra sessão,
   // o Postgres Changes entrega o evento sem atualizar o editor comercial da OS.
@@ -358,6 +414,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         const next = await listOrderServiceTasks(order.id);
         if (!active) return;
         setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
+        publishOverview(itemsRef.current, next);
+        void refreshTaskPhotos();
         setWorkflowReady(true);
         lastRefreshAt = Date.now();
       } catch {
@@ -399,7 +457,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       window.removeEventListener("online", refreshOnReturn);
       void supabase.removeChannel(channel);
     };
-  }, [order?.id]);
+  }, [order?.id, refreshTaskPhotos]);
 
   useEffect(() => {
     setPricing(pricingFromOrder(order));
@@ -418,6 +476,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   ]);
 
   useEffect(() => {
+    setTaskPhotos([]);
+    setPhotoUrls({});
+    photoUrlsRef.current = {};
+    setGalleryItem(null);
     setMessage(null);
     setProductSearch("");
     setSelectedProduct(null);
