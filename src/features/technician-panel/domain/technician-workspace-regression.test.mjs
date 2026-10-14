@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 const panel = read("src/features/technician-panel/presentation/TechnicianPanel.tsx");
@@ -165,4 +166,18 @@ test("RPCs técnicas rejeitam discriminadores nulos ou desconhecidos", () => {
   assert.match(strictMigration, /p_item_type is null or p_item_type not in/);
   assert.match(strictMigration, /p_field is null or p_field not in/);
   assert.match(strictMigration, /private\.can_access_technician_order_v1/);
+});
+
+test("as telas do Painel do Técnico possuem JSX sintaticamente válido", async () => {
+  for (const filename of [
+    "TechnicianPanel.tsx",
+    "TechnicianOrderItemsSection.tsx",
+    "TechnicianOrderHistoryDialog.tsx",
+  ]) {
+    const file = "src/features/technician-panel/presentation/" + filename;
+    await assert.doesNotReject(
+      transformWithEsbuild(read(file), file, { loader: "tsx", jsx: "automatic" }),
+      "JSX inválido em " + filename,
+    );
+  }
 });
