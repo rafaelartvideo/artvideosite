@@ -33,6 +33,7 @@ export function availableAt(day: AvailabilityDay, start: string, durationMinutes
 export async function loadTechnicianAvailabilityWeek(
   organizationId: string, weekStart: string, technicians: AvailableTechnician[],
   exceptOrderId?: string | null,
+  exceptTaskId?: string | null,
 ): Promise<AvailabilityWeek> {
   const active = technicians.filter(item => item.is_active !== false);
   const dates = Array.from({ length: 7 }, (_, index) => nextDate(weekStart, index));
@@ -43,7 +44,7 @@ export async function loadTechnicianAvailabilityWeek(
   const previous = new Date(nextDate(weekStart, -1) + "T00:00:00");
   const until = new Date(nextDate(weekStart, 7) + "T00:00:00");
   const ids = active.map(item => item.id);
-  const [weekResult, ordersResult, appointmentsResult] = await Promise.all([
+  const [weekResult, ordersResult, appointmentsResult, taskResult] = await Promise.all([
     supabase.from("employee_work_schedules")
       .select("employee_id,weekday,is_available,start_time,end_time,work_intervals")
       .eq("organization_id", organizationId).in("employee_id", ids),
@@ -56,10 +57,18 @@ export async function loadTechnicianAvailabilityWeek(
       .select("id,appointment_date,period,start_time,end_time,appointment_technicians(employee_id)")
       .eq("organization_id", organizationId)
       .gte("appointment_date", weekStart).lt("appointment_date", nextDate(weekStart, 7)),
+    supabase.from("service_order_item_tasks")
+      .select("item_id,service_order_id,scheduled_start_at,scheduled_end_at,status,assigned_employee_id,assignees:service_order_item_task_assignees(employee_id)")
+      .eq("organization_id", organizationId)
+      .not("scheduled_start_at", "is", null)
+      .in("status", ["pending", "in_progress"])
+      .gt("scheduled_end_at", previous.toISOString())
+      .lt("scheduled_start_at", until.toISOString()),
   ]);
   if (weekResult.error) throw weekResult.error;
   if (ordersResult.error) throw ordersResult.error;
   if (appointmentsResult.error) throw appointmentsResult.error;
+  if (taskResult.error) throw taskResult.error;
 
   const schedules = new Map<string, EmployeeWeekday[]>(
     active.map(technician => [technician.id, defaultWorkWeek()]),
@@ -79,6 +88,11 @@ export async function loadTechnicianAvailabilityWeek(
     };
   }
 
+  const individualTasks = taskResult.data || [];
+  const individualOrderEmployeeKeys = new Set(individualTasks.flatMap(task =>
+    [task.assigned_employee_id, ...(task.assignees || []).map(assignee => assignee.employee_id)]
+      .filter(Boolean).map(employeeId => task.service_order_id + ":" + employeeId),
+  ));
   const days: AvailabilityDay[] = dates.map(date => {
     const dateStart = new Date(date + "T00:00:00").getTime();
     const dateEnd = new Date(nextDate(date, 1) + "T00:00:00").getTime();
@@ -91,6 +105,21 @@ export async function loadTechnicianAvailabilityWeek(
       if (!Number.isFinite(start) || !Number.isFinite(end) || start >= dateEnd || end <= dateStart) continue;
       const links = (order as any).technician_links || [];
       const assigned = new Set<string>([order.technician_id, ...links.map((link: any) => link.employee_id)].filter(Boolean));
+      for (const employeeId of assigned) {
+        if (individualOrderEmployeeKeys.has(order.id + ":" + employeeId)) continue;
+        blocks.get(employeeId)?.push({
+          start: Math.max(0, Math.floor((start - dateStart) / 60_000)),
+          end: Math.min(24 * 60, Math.ceil((end - dateStart) / 60_000)),
+          source: "os",
+        });
+      }
+    }
+    for (const task of individualTasks) {
+      if (task.item_id === exceptTaskId) continue;
+      const start = new Date(task.scheduled_start_at!).getTime();
+      const end = new Date(task.scheduled_end_at!).getTime();
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start >= dateEnd || end <= dateStart) continue;
+      const assigned = new Set([task.assigned_employee_id, ...(task.assignees || []).map(link => link.employee_id)].filter(Boolean));
       for (const employeeId of assigned) {
         blocks.get(employeeId)?.push({
           start: Math.max(0, Math.floor((start - dateStart) / 60_000)),
