@@ -51,3 +51,13 @@ test("compilador JSX reconhece os componentes alterados antes do build de site e
     );
   }
 });
+
+test("erros e sucessos dos itens da OS usam balões globais do CRM, sem caixa fixa", () => {
+  assert.match(section, /import \{ notifyAdmin \} from "@\/shared\/ui\/admin\/AdminFeedback"/);
+  assert.match(section, /notifyAdmin\(feedback\.text, feedback\.type\)/);
+  assert.match(section, /showFeedback\(\{ type: "success", text: "Serviço adicionado à OS\." \}\)/);
+  assert.match(section, /showFeedback\(\{ type: "error", text: systemErrorMessage\(error, "Não foi possível adicionar o serviço\."\) \}\)/);
+  assert.match(section, /showFeedback\(\{ type: "success", text: "Agendamento do serviço confirmado\."/);
+  assert.doesNotMatch(section, /\{message && <div/);
+  assert.doesNotMatch(section, /setMessage\(/);
+});
