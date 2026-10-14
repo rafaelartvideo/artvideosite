@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { TechnicianAvailabilityCalendar } from "@/features/appointments/presentation/TechnicianAvailabilityCalendar";
@@ -78,7 +78,7 @@ export function OrderServiceScheduleDraftDialog({
       </p>
       <div className="max-w-60">
         <FInput label="Dia do agendamento" type="date" value={date}
-          onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+          onChange={(event: ChangeEvent<HTMLInputElement>) => {
             setDate(event.target.value); setStart(""); setEnd(""); setSelected([]);
           }} />
       </div>
