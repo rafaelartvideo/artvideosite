@@ -193,3 +193,50 @@ test("Painel do Técnico aparece no catálogo usando o módulo orders", () => {
   assert.equal(taxonomy.permissionPresentationKind(permissions[1]), "visual");
   assert.equal(taxonomy.permissionPresentationKind(permissions[2]), "actions");
 });
+
+
+test("cada módulo reúne visualização e ações sem abas globais de permissão", () => {
+  const matrix = read("src/features/roles/presentation/PermissionMatrix.tsx");
+  assert.match(matrix, /choices\.map\(category/);
+  assert.match(matrix, /group\.sections\.map/);
+  assert.doesNotMatch(matrix, /role="tablist"/);
+});
+
+test("a permissão Visualizar Operação governa menu, rota e submódulos", () => {
+  const sidebar = read("src/features/admin-shell/presentation/AdminSidebar.tsx");
+  const admin = read("src/app/Admin.tsx");
+  assert.match(sidebar, /const canAccessOperation = !isPlatformOperatorOrganization && hasPermission\("operation\.view"\)/);
+  assert.match(sidebar, /parentAdminTab\(tab\) === "operation" && !hasPermission\("operation\.view"\)/);
+  assert.match(admin, /if \(tab === "operation"\) return !isPlatformOperatorOrganization && hasPermission\("operation\.view"\)/);
+  assert.match(admin, /parentAdminTab\(tab\) === "operation" && !hasPermission\("operation\.view"\)/);
+});
+
+test("visualização não é reativada implicitamente por permissões de ação", () => {
+  for (const [path, key] of [
+    ["src/features/finance/presentation/FinanceAccountsSection.tsx", "finance.accounts.view"],
+    ["src/features/finance/presentation/FinanceDocumentsPanel.tsx", "finance.documents.view"],
+    ["src/features/finance/presentation/FinanceCollectionsPanel.tsx", "finance.collections.view"],
+    ["src/features/finance/presentation/FinanceRecurringSection.tsx", "finance.recurring.view"],
+    ["src/features/checklists/presentation/ChecklistAdminPanel.tsx", "checklists.view"],
+    ["src/features/terms/presentation/TabTerms.tsx", "terms.view"],
+  ]) {
+    assert.match(read(path), new RegExp('const canView = hasPermission\\("' + key.replaceAll(".", "\\.") + '"\\);'), path);
+  }
+  for (const [action, view] of [
+    ["finance.accounts.manage", "finance.accounts.view"],
+    ["finance.documents.manage", "finance.documents.view"],
+    ["finance.collections.create", "finance.collections.view"],
+    ["finance.recurring.manage", "finance.recurring.view"],
+  ]) {
+    assert.ok(taxonomy.permissionDependencies(action).includes(view), action);
+  }
+});
+
+test("salvamento de função confere resultado persistido e atualização ao foco é leve", () => {
+  const roleEditor = read("src/features/roles/presentation/TabRoles.tsx");
+  const auth = read("src/lib/auth.tsx");
+  assert.match(roleEditor, /const verification = await getRolePermissionIds\(roleId\)/);
+  assert.match(roleEditor, /const canViewTable = hasPermission\("roles\.table\.view"\);/);
+  assert.match(roleEditor, /const canViewDetails = hasPermission\("roles\.details\.view"\);/);
+  assert.match(auth, /now - lastCheck < 10_000/);
+});
