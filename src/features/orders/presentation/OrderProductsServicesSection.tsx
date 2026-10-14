@@ -311,6 +311,65 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     }
   }, [order?.id, editable]);
 
+  // Escuta somente a OS aberta. Quando o técnico inicia/finaliza em outra sessão,
+  // o Postgres Changes entrega o evento sem atualizar o editor comercial da OS.
+  useEffect(() => {
+    if (!order?.id) return;
+    let active = true;
+    let subscribed = false;
+    let fetching = false;
+    let lastRefreshAt = 0;
+
+    const refreshTechnicalStatus = async () => {
+      if (!active || fetching || document.visibilityState === "hidden" || !navigator.onLine) return;
+      fetching = true;
+      try {
+        const next = await listOrderServiceTasks(order.id);
+        if (!active) return;
+        setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
+        setWorkflowReady(true);
+        lastRefreshAt = Date.now();
+      } catch {
+        // Erros transitórios no Realtime não devem apagar alterações comerciais locais.
+        // A carga inicial informa falhas de acesso e migração separadamente.
+      } finally {
+        fetching = false;
+      }
+    };
+
+    const channel = supabase.channel(\`order-service-tasks:\${order.id}\`)
+      .on("postgres_changes", {
+        event: "*",
+        schema: "public",
+        table: "service_order_item_tasks",
+        filter: \`service_order_id=eq.\${order.id}\`,
+      }, () => { void refreshTechnicalStatus(); })
+      .subscribe(status => {
+        subscribed = status === "SUBSCRIBED";
+        if (subscribed) void refreshTechnicalStatus();
+      });
+
+    const refreshOnReturn = () => { void refreshTechnicalStatus(); };
+    document.addEventListener("visibilitychange", refreshOnReturn);
+    window.addEventListener("online", refreshOnReturn);
+
+    // Recuperação se o Realtime cair ou um evento for perdido. Nunca cria
+    // polling de tabelas comerciais e pausa quando a aba não está visível.
+    const poll = window.setInterval(() => {
+      if (!subscribed || Date.now() - lastRefreshAt > 45000) {
+        void refreshTechnicalStatus();
+      }
+    }, 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(poll);
+      document.removeEventListener("visibilitychange", refreshOnReturn);
+      window.removeEventListener("online", refreshOnReturn);
+      void supabase.removeChannel(channel);
+    };
+  }, [order?.id]);
+
   useEffect(() => {
     setPricing(pricingFromOrder(order));
     setDiscountType(order?.discount_type === "amount" ? "amount" : "percentage");
