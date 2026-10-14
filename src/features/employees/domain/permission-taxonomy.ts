@@ -228,6 +228,7 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
+  "orders.monitor.manage": ["orders.monitor.view"],
   "field_tracking.view": ["tools.view"],
   "technician_panel.data.customer": ["technician_panel.view"],
   "technician_panel.data.contact": ["technician_panel.view"],
