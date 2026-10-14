@@ -272,7 +272,7 @@ test("registros escritos são compartilhados com a OS normal por RPC segura", ()
 
 test("Produtos e Serviços mantêm seções independentes e ações de execução na toolbar", () => {
   assert.match(panel, /<Section title="Execução do serviço">/);
-  assert.match(panel, /<Section title="Imagens do serviço">/);
+  assert.match(panel, /<Section title=\{<span className="inline-flex items-center gap-2">\s*Imagens do serviço/);
   assert.match(panel, /<TechnicianOrderItemsSection\s/);
   assert.doesNotMatch(panel, /<TechnicianOrderItemsSection inline/);
   const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="flex-wrap">'));
@@ -292,7 +292,7 @@ test("o técnico adiciona serviços na seção atribuída e produtos na seção 
   const hook = read("src/features/technician-panel/application/useTechnicianOrderRecords.ts");
   assert.match(panel, /<TechnicianOrderItemsSection mode="services"/);
   assert.match(panel, /<TechnicianOrderItemsSection mode="products"/);
-  assert.match(catalogUi, /<Section title="Produtos">/);
+  assert.match(catalogUi, /<Section title=\{<span className="inline-flex items-center gap-2">\s*Produtos/);
   assert.match(catalogUi, /Busque no estoque por nome ou SKU/);
   assert.match(catalogUi, /type === "product"/);
   assert.doesNotMatch(catalogUi, /unit_price|sale_price|final_total/);
@@ -302,9 +302,21 @@ test("o técnico adiciona serviços na seção atribuída e produtos na seção 
 test("OS técnica aguarda dados e mídias antes da abertura e mostra endereço separado", () => {
   assert.match(panel, /aria-label="Carregando dados da OS"/);
   assert.match(panel, /Promise\.allSettled/);
-  assert.match(panel, /photoLoadedServiceId !== selectedId/);
+  assert.doesNotMatch(panel, /photoLoadedServiceId !== selectedId/);
+  assert.match(panel, /!orderDetails \|\| orderDetails\.id !== routeOrderId/);
   assert.match(panel, /<Section title="Endereço">/);
   for (const field of ["CEP", "Rua", "Número", "Complemento", "Bairro", "Cidade", "Estado"]) {
     assert.ok(panel.includes('info("' + field + '"'), "Campo ausente: " + field);
   }
+});
+
+test("trocar de serviço não aciona loading global nem refaz consultas de fotos já visitadas", () => {
+  assert.match(panel, /const servicePhotos = selectedId \? photoCache\[selectedId\]/);
+  assert.match(panel, /if \(!selectedId \|\| !\(canSeePhotos \|\| canSendPhotos\) \|\| photoCache\[selectedId\]\) return/);
+  assert.match(panel, /const photoLoading = Boolean\(/);
+  assert.doesNotMatch(panel, /setPhotoLoadedServiceId/);
+  assert.match(panel, /onClick=\{\(\) => openService\(service\)\}/);
+  assert.match(panel, /actions=\{hasPermission\("technician_panel\.data\.order_items"\)/);
+  assert.match(panel, /photoLoading \? "…" : photoCount/);
+  assert.match(catalogUi, /\{products\.length\}/);
 });
