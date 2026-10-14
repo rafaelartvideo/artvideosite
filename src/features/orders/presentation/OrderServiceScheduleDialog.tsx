@@ -50,8 +50,8 @@ export function OrderServiceScheduleDialog({
   const submit = () => {
     if (!canSave) return;
     // Mesma regra de horário local usada no calendário existente do CRM.
-    const from = new Date(date + "T" + start + ":00");
-    const to = new Date(date + "T" + end + ":00");
+    const from = new Date(date + "T" + start + ":00-03:00");
+    const to = new Date(date + "T" + end + ":00-03:00");
     if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to <= from) return;
     onSave(from.toISOString(), to.toISOString());
   };
