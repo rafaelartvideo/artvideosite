@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Search } from "lucide-react";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import type { TechnicianTask } from "../infrastructure/technician-tasks.repository";
 
 type Row = TechnicianTask[];
@@ -51,8 +51,13 @@ export function TechnicianOrdersTable({
     </div>;
   };
 
-  return <Section title="Minhas ordens de serviço" flush>
-    <div className="flex min-w-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+  return <div className="min-w-0 space-y-4">
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-black uppercase tracking-wide text-foreground">Minhas ordens de serviço</h2>
+        <span className="text-xs font-semibold text-muted-foreground">{rows.length} OS</span>
+      </div>
+      <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="relative min-w-0 flex-1 sm:max-w-sm">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input value={search} onChange={event => setSearch(event.target.value)}
@@ -67,8 +72,10 @@ export function TechnicianOrdersTable({
           {option.label}
         </button>)}
       </div>
+      </div>
     </div>
-    {loading ? <p className="p-6 text-sm text-muted-foreground">Carregando ordens de serviço...</p>
+    <div className="min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+    {loading ? <LoadingState />
       : !visible.length ? <p className="p-6 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>
       : <>
         <div className="hidden overflow-x-auto md:block">
@@ -109,5 +116,6 @@ export function TechnicianOrdersTable({
       </>}
     <PaginationBar page={currentPage} pageSize={pageSize} totalItems={rows.length}
       onPageChange={setPage} onPageSizeChange={next => { setPageSize(next); setPage(1); }} />
-  </Section>;
+    </div>
+  </div>;
 }
