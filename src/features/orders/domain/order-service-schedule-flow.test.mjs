@@ -28,6 +28,19 @@ test("a seção de incluir serviço pergunta agendamento e abre calendário de d
   assert.match(calendar, /Confirmar agendamento/);
 });
 
+test("dropdown de técnicos respeita o card e permite rolar até o último nome", () => {
+  const picker = read("src/features/orders/presentation/OrderFormControls.tsx");
+  const segmented = read("src/shared/ui/admin/AdminLayout.tsx");
+  assert.match(section, /<EmployeeMultiSelect/);
+  assert.match(section, /inlineDropdown/);
+  assert.match(picker, /inlineDropdown = false/);
+  assert.match(picker, /inlineDropdown \? "relative mb-3 mt-2 w-full" : "absolute/);
+  assert.match(picker, /max-h-48 overflow-y-auto overscroll-contain pb-3 pr-1/);
+  assert.match(segmented, /cursor-default rounded-md border border-transparent/);
+  assert.match(segmented, /bg-primary-soft text-primary ring-1 ring-inset ring-primary/);
+  assert.doesNotMatch(segmented, /value === option.value \? "border-primary bg-primary-soft/);
+});
+
 test("a inclusão agendada grava equipe e horário juntos em uma transação", () => {
   assert.match(section, /serviceNeedsSchedule \? serviceScheduleDraft!\.technicianIds : serviceTechnicianIds/);
   assert.match(repository, /add_service_order_catalog_item_scheduled_v1/);
