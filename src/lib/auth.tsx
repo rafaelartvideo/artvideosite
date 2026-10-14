@@ -170,6 +170,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Atualiza permissões alteradas em outra sessão sem reexecutar o bootstrap
+  // completo, abrir canais Realtime adicionais ou desmontar o módulo ativo.
+  useEffect(() => {
+    const organizationId = activeOrganization?.organization_id;
+    if (!session?.user?.id || !organizationId) return;
+    let lastCheck = Date.now();
+    let disposed = false;
+    let inFlight = false;
+
+    const checkPermissionsOnReturn = async () => {
+      if (document.visibilityState !== "visible" || inFlight) return;
+      const now = Date.now();
+      if (now - lastCheck < 120_000) return;
+      lastCheck = now;
+      inFlight = true;
+      try {
+        const { data, error } = await supabase.rpc("my_organization_permissions", {
+          p_organization_id: organizationId,
+        });
+        if (disposed || activeOrganizationIdRef.current !== organizationId || error || !Array.isArray(data)) return;
+        const keys = data.map((entry: any) => String(entry.permission_key || "")).filter(Boolean);
+        setPermissions(current => {
+          const currentKeys = current.map(item => item.key);
+          return currentKeys.length === keys.length && currentKeys.every((key, index) => key === keys[index])
+            ? current
+            : keys.map(key => ({ key }));
+        });
+      } catch (error) {
+        console.warn("[ACESSO] Não foi possível sincronizar permissões:", error);
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    window.addEventListener("focus", checkPermissionsOnReturn);
+    document.addEventListener("visibilitychange", checkPermissionsOnReturn);
+    return () => {
+      disposed = true;
+      window.removeEventListener("focus", checkPermissionsOnReturn);
+      document.removeEventListener("visibilitychange", checkPermissionsOnReturn);
+    };
+  }, [session?.user?.id, activeOrganization?.organization_id]);
+
   useEffect(() => {
     // Evita expirar técnicos antes da leitura do acesso da empresa ativa.
     if (!session?.user || loading) return;
