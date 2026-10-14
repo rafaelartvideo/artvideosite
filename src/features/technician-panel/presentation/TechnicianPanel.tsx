@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { ChevronRight, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -392,7 +392,7 @@ export function TechnicianPanel() {
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
-      {orderDetailsLoading && <p className="text-xs text-muted-foreground">Carregando dados autorizados da OS...</p>}
+      {orderDetailsLoading && !orderDetails && <div role="status" aria-label="Carregando OS" className="flex items-center justify-center py-5"><LoadingSpinner size="sm" /></div>}
       <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
         itemBadge={pendingServices > 0
           ? { label: pendingServices + " pendente" + (pendingServices > 1 ? "s" : ""), style: STATUS_CLASS.pending }
