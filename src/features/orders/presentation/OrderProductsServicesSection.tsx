@@ -252,6 +252,7 @@ function TechnicianMultiPicker({
   // Usa o mesmo input arredondado, pesquisa e seleção múltipla da Nova OS.
   return <EmployeeMultiSelect
     label={label}
+    inlineDropdown
     employees={people.map(person => ({ id: person.id, full_name: person.name }))}
     selectedIds={selected}
     onChange={onChange}
