@@ -98,6 +98,46 @@ test("submódulos financeiros não se misturam numa lista genérica de ações",
 });
 
 
+
+test("Painel do Técnico é exibido em Funções, com dados e ações separados", () => {
+  const keys = [
+    "technician_panel.view", "technician_panel.data.customer",
+    "technician_panel.data.equipment", "technician_panel.data.diagnosis",
+    "technician_panel.actions.start", "technician_panel.actions.complete",
+    "technician_panel.actions.photo",
+  ];
+  const groups = taxonomy.buildPermissionGroups(
+    keys.map((key, index) => ({ id: String(index), key, label: key })),
+  );
+  const tech = groups.find(group => group.name === "Painel do Técnico");
+  assert.ok(tech, "o grupo do Painel do Técnico deve aparecer");
+  assert.equal(tech.permissions.length, keys.length);
+  assert.deepEqual(
+    new Set(tech.permissions.filter(item => taxonomy.permissionPresentationKind(item) === "visual").map(item => item.key)),
+    new Set(keys.slice(0, 4)),
+  );
+  assert.deepEqual(
+    new Set(tech.permissions.filter(item => taxonomy.permissionPresentationKind(item) === "actions").map(item => item.key)),
+    new Set(keys.slice(4)),
+  );
+});
+
+test("Painel do Técnico segue orders e não exige módulo técnico inexistente", async () => {
+  const scope = await import("../../access/domain/permission-scope.ts");
+  const isVisible = (modules) => scope.isPermissionVisibleForOrganization(
+    "technician_panel.view",
+    { isPlatformOperator: false, isArtvideoTenant: true, enabledModules: new Set(modules) },
+  );
+  assert.equal(isVisible(["orders"]), true);
+  assert.equal(isVisible([]), false);
+  assert.equal(scope.isPermissionVisibleForOrganization("technician_panel.view", {
+    isPlatformOperator: true, isArtvideoTenant: false, enabledModules: new Set(),
+  }), true);
+  const migration = read("supabase/migrations/20261014170500_technician_panel_orders_scope_and_role_defaults.sql");
+  assert.match(migration, /when p_key like 'technician_panel.%' then array\['orders'\]/);
+  assert.match(migration, /private.permission_belongs_to_organization\(r.organization_id, p.key\)/);
+});
+
 test("o formulário nunca salva permissões da função antes de carregá-las", () => {
   const editor = read("src/features/roles/presentation/TabRoles.tsx");
   assert.match(editor, /disabled=\{!permissionListReady\}/);
