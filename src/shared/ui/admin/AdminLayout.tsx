@@ -50,8 +50,8 @@ export function AdminButton({
 }: AdminButtonProps) {
   const pageClose = React.useContext(AdminPageCloseContext);
   const inStickyToolbar = React.useContext(AdminStickyToolbarContext);
-  const mobileBackOnly = inStickyToolbar && typeof children === "string" && children.trim().toLocaleLowerCase("pt-BR") === "voltar";
-  const renderedChildren = mobileBackOnly ? <><ArrowLeft size={18} className="sm:hidden" aria-hidden="true" /><span className="hidden sm:inline">Voltar</span></> : children;
+  const mobileBackOnly = inStickyToolbar && typeof children === "string" && children.trim().toLocaleLowerCase("pt-BR").startsWith("voltar");
+  const renderedChildren = mobileBackOnly ? <><ArrowLeft size={18} className="sm:hidden" aria-hidden="true" /><span className="hidden sm:inline">{children}</span></> : children;
   const resolvedOnClick = pageClose && onClick && onClick === (pageClose.onClose as unknown as typeof onClick)
     ? (pageClose.requestClose as unknown as typeof onClick)
     : onClick;
@@ -88,7 +88,7 @@ export function AdminButton({
     onClick={handleClick}
     disabled={disabled || resolvedLoading}
     aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
-    aria-label={buttonProps["aria-label"] ?? ariaLabel ?? (mobileBackOnly ? "Voltar" : undefined)}
+    aria-label={buttonProps["aria-label"] ?? ariaLabel ?? (mobileBackOnly ? String(children).trim() : undefined)}
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
