@@ -2,10 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { Check, History, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { LoadingSpinner, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
-import { AdminCard, AdminCardContent, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
-import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
@@ -15,7 +15,7 @@ import { OrderImageLightbox, OrderImageThumb, type OrderImage } from "@/features
 import { useTechnicianOrderRecords } from "../application/useTechnicianOrderRecords";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  captureTechnicianLocation, changeMyTechnicianOrderSituation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
+  captureTechnicianLocation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
   countMyTechnicianPhotos, listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask, getMyTechnicianEquipmentPhotoUrl,
   updateMyTechnicianOrderDiagnosis, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
  } from "../infrastructure/technician-tasks.repository";
@@ -60,7 +60,6 @@ export function TechnicianPanel() {
   const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [detailsRevision, setDetailsRevision] = useState(0);
-  const [situationUpdating, setSituationUpdating] = useState(false);
   const [detailTab, setDetailTab] = useState<OrderDetailTab>("details");
   const [equipmentPhotoUrls, setEquipmentPhotoUrls] = useState<Record<string, string>>({});
   const [viewEquipmentImage, setViewEquipmentImage] = useState<OrderImage | null>(null);
@@ -268,26 +267,6 @@ export function TechnicianPanel() {
     void refresh();
   };
 
-  const onSituationChange = async (nextId: string) => {
-    if (!routeOrderId || !orderDetails?.can_change_situation || busy ||
-        !orderDetails.available_situations.some(situation => situation.id === nextId)) return;
-    setBusy(true);
-    setSituationUpdating(true);
-    setNotice(null);
-    try {
-      await changeMyTechnicianOrderSituation(routeOrderId, nextId);
-      setOrderDetails(current => current?.id === routeOrderId ? {
-        ...current, situation_id: nextId,
-        situation_name: current.available_situations.find(item => item.id === nextId)?.name || current.situation_name,
-      } : current);
-      setDetailsRevision(current => current + 1);
-      await refresh();
-      setNotice({ kind: "success", text: "Situação da OS atualizada." });
-    } catch (error) {
-      setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível alterar a situação.") });
-    } finally { setBusy(false); setSituationUpdating(false); }
-  };
-
   const saveDiagnosis = async () => {
     if (!routeOrderId || !orderDetails?.can_edit_diagnosis || busy) return;
     setBusy(true);
@@ -441,20 +420,11 @@ export function TechnicianPanel() {
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
-      <div className="flex min-h-10 flex-wrap items-center gap-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="mr-1 text-2xl font-black tabular-nums text-foreground sm:text-3xl">OS {selected.os_number}</h2>
-          {(situationUpdating || (orderDetailsLoading && !orderDetails)) && hasPermission("technician_panel.data.situation")
-            ? <span role="status" aria-label="Carregando situação da OS"
-                className="inline-flex h-7 min-w-20 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-2.5 text-primary">
-                <LoadingSpinner size="sm" />
-              </span>
-            : orderDetails?.situation_name && <StatusBadge status={orderDetails.situation_name} />}
-        </div>
-        {hasPermission("technician_panel.data.history") && <div className="flex items-center border-l border-border pl-3">
-          <BtnSecondary disabled={busy || orderDetailsLoading}
-            onClick={() => setHistoryDialogOpen(true)}><History size={15} /> Histórico</BtnSecondary>
-        </div>}
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-3">
+        <span className="text-sm font-bold text-foreground">OS {selected.os_number}</span>
+        {hasPermission("technician_panel.data.history") && <AdminButton variant="secondary" size="sm"
+          className="!h-8 !gap-1.5 !px-2.5 !text-xs" disabled={busy || orderDetailsLoading}
+          onClick={() => setHistoryDialogOpen(true)}><History size={14} /> Histórico</AdminButton>}
       </div>
       <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
         itemBadge={pendingServices > 0
@@ -628,17 +598,6 @@ export function TechnicianPanel() {
 
       <AdminStickyToolbar className="!flex-nowrap !gap-2 !px-2 sm:!gap-3 sm:!px-5">
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
-        {orderDetails?.can_change_situation && !orderDetails.closed &&
-          <div className="flex min-w-0 flex-1 items-center gap-2 sm:flex-none">
-            <span className="hidden shrink-0 text-xs font-semibold text-muted-foreground lg:inline">Alterar situação:</span>
-            <div className="min-w-0 flex-1 sm:min-w-[180px] sm:max-w-sm">
-              <AdminSelect value={orderDetails.situation_id || ""}
-                options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
-                onValueChange={value => { if (value) void onSituationChange(value); }}
-                ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
-                className="min-h-9 w-full min-w-0 text-xs" />
-            </div>
-          </div>}
         {detailTab === "products-services" && selected.status === "pending" && canStart &&
           <BtnPrimary className="max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0"
             disabled={busy || uploading || !online} loading={busy}
