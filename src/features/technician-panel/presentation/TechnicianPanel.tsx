@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { MapPin, WifiOff } from "lucide-react";
+import { WifiOff } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
+import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
 import { TechnicianOrderHistoryDialog } from "./TechnicianOrderHistoryDialog";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   captureTechnicianLocation, changeMyTechnicianOrderSituation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
-  listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask,
+  countMyTechnicianPhotos, listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask,
   updateMyTechnicianOrderDiagnosis, updateMyTechnicianOrderNote, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
-  type TechnicianLocation,
-} from "../infrastructure/technician-tasks.repository";
+ } from "../infrastructure/technician-tasks.repository";
 
 type Notice = { kind: "success" | "error"; text: string };
 type PhotoPreview = { id: string; url: string };
@@ -39,19 +40,6 @@ function formatDate(value?: string | null) {
   });
 }
 
-function LocationRecord({ value, label }: { value: TechnicianLocation | null; label: string }) {
-  if (value?.lat == null || value.lng == null) return null;
-  const mapUrl = `https://www.google.com/maps?q=${encodeURIComponent(`${value.lat},${value.lng}`)}`;
-  return <a href={mapUrl} target="_blank" rel="noreferrer"
-    className="flex items-start gap-2 text-xs font-semibold text-primary underline-offset-2 hover:underline">
-    <MapPin size={15} className="mt-0.5 shrink-0" />
-    <span>{label}: {value.lat}, {value.lng}
-      {value.accuracy_m ? ` (precisão ±${Math.round(value.accuracy_m)} m)` : ""}
-      <span className="block font-normal text-muted-foreground">{formatDate(value.captured_at)}</span>
-    </span>
-  </a>;
-}
-
 export function TechnicianPanel() {
   const { activeOrganizationId, hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -65,7 +53,7 @@ export function TechnicianPanel() {
   const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [detailsRevision, setDetailsRevision] = useState(0);
-  const [detailTab, setDetailTab] = useState<OrderDetailTab>("details");
+
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
   const [diagnosisDraft, setDiagnosisDraft] = useState("");
@@ -77,14 +65,16 @@ export function TechnicianPanel() {
   const [uploading, setUploading] = useState(false);
   const [photoLoading, setPhotoLoading] = useState(false);
   const [photos, setPhotos] = useState<PhotoPreview[]>([]);
+  const [photoCount, setPhotoCount] = useState(0);
   const [notice, setNotice] = useState<Notice | null>(null);
+  useEffect(() => { if (notice) notifyAdmin(notice.text, notice.kind); }, [notice]);
   const [online, setOnline] = useState(() => typeof navigator === "undefined" || navigator.onLine);
 
   const canStart = hasPermission("technician_panel.actions.start");
   const canComplete = hasPermission("technician_panel.actions.complete");
   const canSendPhotos = hasPermission("technician_panel.actions.photo");
   const canSeePhotos = hasPermission("technician_panel.data.photos");
-  const canSeeLocation = hasPermission("technician_panel.data.location");
+
   const assignedOrders = useMemo(() => {
     const grouped = new Map<string, TechnicianTask[]>();
     for (const item of items) grouped.set(item.service_order_id, [...(grouped.get(item.service_order_id) || []), item]);
@@ -119,6 +109,31 @@ export function TechnicianPanel() {
     void refresh(true);
   }, [refresh]);
 
+  // Atualização pontual por evento, com reconciliação ao retornar à aba.
+  // Não é necessário conceder acesso à tabela comercial de OS.
+  useEffect(() => {
+    if (!activeOrganizationId) return;
+    const reconcile = () => {
+      if (document.visibilityState !== "hidden" && navigator.onLine) {
+        void refresh();
+        if (routeOrderId) setDetailsRevision(current => current + 1);
+      }
+    };
+    const channel = supabase.channel("technician-panel-tasks:" + activeOrganizationId)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "service_order_item_tasks",
+        filter: "organization_id=eq." + activeOrganizationId,
+      }, () => reconcile())
+      .subscribe(status => { if (status === "SUBSCRIBED") reconcile(); });
+    document.addEventListener("visibilitychange", reconcile);
+    const fallback = window.setInterval(reconcile, 60000);
+    return () => {
+      window.clearInterval(fallback);
+      document.removeEventListener("visibilitychange", reconcile);
+      void supabase.removeChannel(channel);
+    };
+  }, [activeOrganizationId, routeOrderId, refresh]);
+
   useEffect(() => {
     const handleOnline = () => { setOnline(true); void refresh(); };
     const handleOffline = () => setOnline(false);
@@ -132,18 +147,23 @@ export function TechnicianPanel() {
 
   useEffect(() => {
     setPhotos([]);
+    setPhotoCount(0);
     setReport(selected?.execution_report || "");
-    if (!selectedId || !canSeePhotos) return;
+    if (!selectedId || !(canSeePhotos || canSendPhotos)) return;
     let cancelled = false;
     setPhotoLoading(true);
     void (async () => {
       try {
-        const attachments = await listMyTechnicianPhotos(selectedId);
-        const previews = await Promise.all(attachments.map(async attachment => ({
-          id: attachment.id,
-          url: await getTechnicianPhotoSignedUrl(attachment.path),
-        })));
-        if (!cancelled) setPhotos(previews);
+        const count = await countMyTechnicianPhotos(selectedId);
+        if (!cancelled) setPhotoCount(count);
+        if (canSeePhotos) {
+          const attachments = await listMyTechnicianPhotos(selectedId);
+          const previews = await Promise.all(attachments.map(async attachment => ({
+            id: attachment.id,
+            url: await getTechnicianPhotoSignedUrl(attachment.path),
+          })));
+          if (!cancelled) setPhotos(previews);
+        }
       } catch (error) {
         if (!cancelled) setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos.") });
       } finally {
@@ -151,7 +171,7 @@ export function TechnicianPanel() {
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedId, canSeePhotos, selected?.execution_report]);
+  }, [selectedId, canSeePhotos, canSendPhotos, selected?.execution_report]);
 
 
   // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
@@ -176,10 +196,7 @@ export function TechnicianPanel() {
     return () => { cancelled = true; };
   }, [activeOrganizationId, routeOrderId, detailsRevision]);
 
-  useEffect(() => {
-    setDetailTab("details");
-    setHistoryDialogOpen(false);
-  }, [routeOrderId]);
+  useEffect(() => { setHistoryDialogOpen(false); }, [routeOrderId]);
 
   const reloadCurrentOrder = () => {
     setDetailsRevision(current => current + 1);
@@ -277,6 +294,11 @@ export function TechnicianPanel() {
     setUploading(true);
     setNotice(null);
     try {
+      const currentCount = await countMyTechnicianPhotos(selected.item_id);
+      if (currentCount + selectedFiles.length > 3) {
+        throw new Error("Limite de 3 imagens por serviço. Você pode enviar apenas mais " +
+          Math.max(0, 3 - currentCount) + ".");
+      }
       for (const file of selectedFiles) {
         await uploadTechnicianPhoto(activeOrganizationId, selected.item_id, file);
       }
@@ -290,6 +312,7 @@ export function TechnicianPanel() {
         })));
         setPhotos(previews);
       }
+      setPhotoCount(await countMyTechnicianPhotos(selected.item_id));
       setNotice({ kind: "success", text: "Fotos anexadas ao serviço." });
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível anexar todas as fotos.") });
