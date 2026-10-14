@@ -2,9 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } f
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { MapPin, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminCard, AdminCardContent, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
