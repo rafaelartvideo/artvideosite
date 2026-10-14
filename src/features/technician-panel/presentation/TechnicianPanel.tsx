@@ -380,7 +380,7 @@ export function TechnicianPanel() {
       <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
-    </> : <AdminPage open={!historyDialogOpen} fullPage smoothMotion={false}
+    </> : <AdminPage open={!historyDialogOpen} smoothMotion={false}
       onClose={() => navigate("/admin/technician-panel")}
       breadcrumb="Painel do Técnico"
       title={String(selected?.os_number || "OS")} titleVariant="order-number"
