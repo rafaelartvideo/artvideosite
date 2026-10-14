@@ -61,8 +61,7 @@ export function EquipmentChecklistSection({ draft, catalog, onChange, errorFor, 
   };
   const removeItem = (index: number) => onChange({ checklistItems: draft.checklistItems.filter((_, itemIndex) => itemIndex !== index) });
 
-  return <div className="border-t border-border pt-4">
-    <div className="mb-4"><p className="text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Checklist</p></div>
+  return <div>
     <div className="space-y-4">
       <FSelect
         label="Perfil de checklist"
