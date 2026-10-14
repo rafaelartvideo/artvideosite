@@ -153,7 +153,7 @@ $$;
 -- conforme RLS do Realtime; evita dar SELECT comercial ao técnico.
 create or replace function private.notify_technician_order_update_v1()
 returns trigger language plpgsql security definer set search_path=''
-as $
+as $$
 begin
   if new.situation_id is distinct from old.situation_id
     or new.diagnosis is distinct from old.diagnosis
@@ -165,7 +165,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 
 drop trigger if exists notify_technician_order_update_v1 on public.service_orders;
 create trigger notify_technician_order_update_v1
