@@ -249,9 +249,10 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
     inheritedPermissionIds: (inherited || [])
       .map((item: any) => String(item.permission_id))
       .filter((permissionId: string) => visiblePermissionIds.has(permissionId)),
+    // Preservar concessões antigas que não aparecem no filtro visual atual.
+    // O salvamento de outra categoria não pode apagar IDs ocultos por módulo.
     individualPermissionIds: (overrides || [])
-      .map((item: any) => String(item.permission_id))
-      .filter((permissionId: string) => visiblePermissionIds.has(permissionId)),
+      .map((item: any) => String(item.permission_id)),
   };
 }
 
