@@ -61,7 +61,8 @@ export function MarketplaceHomePage() {
   const listingId = path.match(/^\/marketplace\/(?:servico|produto)\/([^/]+)$/)?.[1];
   const storeSlug = path.match(/^\/marketplace\/loja\/([^/]+)$/)?.[1];
   const selectedStore = stores.find(x => x.slug === storeSlug) || null;
-  const vendor = detail ? stores.find(x => x.organization_id === detail.organization_id) : null;
+  const currentDetail = listingId && resolvedListingId === listingId ? detail : null;
+  const vendor = currentDetail ? stores.find(x => x.organization_id === currentDetail.organization_id) : null;
 
   useEffect(() => {
     setSearchDraft(new URLSearchParams(location.search).get("q") || "");
@@ -156,7 +157,7 @@ export function MarketplaceHomePage() {
       {loading ? <div className="py-20 text-center text-sm text-[#66758e]">Carregando catálogo...</div> :
       error ? <div className="rounded-xl bg-white p-10 text-center text-sm text-red-700">{error}</div> :
       listingId && (detailLoading || resolvedListingId !== listingId) ? <div className="flex min-h-[55vh] items-center justify-center text-sm text-[#66758e]" role="status">Carregando anúncio...</div> :
-      listingId && (detailError || !detail) ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
+      listingId && (detailError || !currentDetail) ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
         <h1 className="text-lg font-black">{detailError || "Anúncio indisponível"}</h1>
         <p className="mt-2 text-sm text-[#768399]">Este anúncio pode ter sido pausado ou retirado da vitrine.</p>
         <button onClick={backToResults} className="mt-5 rounded-lg border border-[#dfe4ee] px-4 py-2 text-sm font-bold">Voltar aos anúncios</button>
@@ -166,22 +167,22 @@ export function MarketplaceHomePage() {
         <p className="mt-2 text-sm text-[#768399]">A loja não está publicada neste momento.</p>
         <button onClick={backHome} className="mt-5 rounded-lg border border-[#dfe4ee] px-4 py-2 text-sm font-bold">Ver outras lojas</button>
       </div> :
-      detail ? <div className="space-y-6">
+      currentDetail ? <div className="space-y-6">
         <button onClick={backToResults} className="flex items-center gap-2 text-sm font-semibold text-[#53657f] hover:text-[#1032dc]"><ArrowLeft size={16} /> Voltar aos anúncios</button>
         <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr_.8fr]">
-          <div className="overflow-hidden rounded-xl border border-[#e1e6ef] bg-white"><ListingPhoto listing={detail} large /></div>
+          <div className="overflow-hidden rounded-xl border border-[#e1e6ef] bg-white"><ListingPhoto listing={currentDetail} large /></div>
           <div className="rounded-xl border border-[#e1e6ef] bg-white p-6">
-            <span className="text-xs font-bold uppercase tracking-wide text-[#1032dc]">{detail.source_kind === "service" ? "Serviço" : "Produto"}</span>
-            <h1 className="mt-3 text-2xl font-black leading-tight">{detail.title}</h1>
+            <span className="text-xs font-bold uppercase tracking-wide text-[#1032dc]">{currentDetail.source_kind === "service" ? "Serviço" : "Produto"}</span>
+            <h1 className="mt-3 text-2xl font-black leading-tight">{currentDetail.title}</h1>
             <div className="my-5 h-px bg-[#e8ecf3]" />
             <h2 className="mb-2 text-sm font-black">Descrição</h2>
-            <p className="whitespace-pre-line text-sm leading-7 text-[#596981]">{detail.description || "Entre em contato com a empresa para saber mais sobre este anúncio."}</p>
-            <div className="mt-6 flex flex-wrap gap-2">{detail.price_type === "appointment" && <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-bold text-[#1032dc]">Agendamento</span>}{detail.price_type === "quote" && <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-bold text-[#1032dc]">Mediante orçamento</span>}</div>
+            <p className="whitespace-pre-line text-sm leading-7 text-[#596981]">{currentDetail.description || "Entre em contato com a empresa para saber mais sobre este anúncio."}</p>
+            <div className="mt-6 flex flex-wrap gap-2">{currentDetail.price_type === "appointment" && <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-bold text-[#1032dc]">Agendamento</span>}{currentDetail.price_type === "quote" && <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-bold text-[#1032dc]">Mediante orçamento</span>}</div>
           </div>
           <aside className="h-fit space-y-4 rounded-xl border border-[#e1e6ef] bg-white p-5">
             <p className="text-xs text-[#78859b]">Valor anunciado</p>
-            <p className="text-3xl font-black">{detail.price_type === "quote" ? "Sob orçamento" : money(detail.price)}</p>
-            <button className="w-full rounded-lg bg-[#1032dc] px-4 py-3 text-sm font-black text-white hover:bg-[#0928b8]" onClick={() => setNotice("A contratação direta e o envio de solicitações serão habilitados na etapa de intermediação.")}>{detail.price_type === "quote" ? "Solicitar orçamento" : detail.price_type === "appointment" ? "Solicitar agendamento" : "Solicitar contratação"}</button>
+            <p className="text-3xl font-black">{currentDetail.price_type === "quote" ? "Sob orçamento" : money(currentDetail.price)}</p>
+            <button className="w-full rounded-lg bg-[#1032dc] px-4 py-3 text-sm font-black text-white hover:bg-[#0928b8]" onClick={() => setNotice("A contratação direta e o envio de solicitações serão habilitados na etapa de intermediação.")}>{currentDetail.price_type === "quote" ? "Solicitar orçamento" : currentDetail.price_type === "appointment" ? "Solicitar agendamento" : "Solicitar contratação"}</button>
             <p className="text-xs leading-5 text-[#8a96a7]">Contratação online em preparação. Nenhuma cobrança é realizada nesta etapa.</p>
             {vendor && <button onClick={() => openStore(vendor)} className="flex w-full items-center gap-3 border-t border-[#e8ecf3] pt-4 text-left"><Store size={22} className="text-[#1032dc]" /><span className="min-w-0"><strong className="block truncate text-sm">{vendor.display_name}</strong><span className="text-xs text-[#75849b]">{vendor.city} {vendor.state}</span></span><ChevronRight size={16} className="ml-auto" /></button>}
           </aside>
