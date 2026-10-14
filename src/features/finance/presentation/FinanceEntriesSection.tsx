@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BanknoteArrowDown, BanknoteArrowUp, Eye, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -67,6 +67,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [search, setSearch] = useState("");
   const [approvalFilter, setApprovalFilter] = useState("all");
   const [page, setPage] = useState(1);
+  const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
@@ -247,7 +248,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       title="Conta a receber"
       description={finance.detailQuery.data?.description || "Extrato e movimentações da conta"}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
-      className="max-w-5xl"
+      // Keep the dialog the same size across subsections, including short ones.
+      className="h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"
+      bodyClassName="overscroll-contain"
+      bodyRef={receivableScrollRef}
     >
       {finance.detailQuery.isLoading
         ? <div className="py-10"><LoadingState text="Carregando extrato..." /></div>
@@ -255,6 +259,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{finance.detailQuery.error instanceof Error ? finance.detailQuery.error.message : "Não foi possível carregar a conta."}</div>
           : finance.detailQuery.data
             ? <FinanceEntryDetail
+              scrollContainerRef={receivableScrollRef}
               detail={finance.detailQuery.data}
               accounts={accounts}
               paymentMethods={paymentMethods}
