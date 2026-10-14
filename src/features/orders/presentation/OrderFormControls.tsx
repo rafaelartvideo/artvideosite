@@ -24,8 +24,8 @@ export function getResponsibleName(order: ServiceOrderWithRelations) {
   return profile?.full_name?.trim() || "Responsável não informado";
 }
 
-export function EmployeeMultiSelect({ label, employees, selectedIds, onChange, disabled, placeholder, clearLabel, loading = false }: {
-  label: string; employees: EmployeeOption[]; selectedIds: string[]; onChange: (ids: string[]) => void; disabled?: boolean; placeholder: string; clearLabel: string; loading?: boolean;
+export function EmployeeMultiSelect({ label, employees, selectedIds, onChange, disabled, placeholder, clearLabel, loading = false, inlineDropdown = false }: {
+  label: string; employees: EmployeeOption[]; selectedIds: string[]; onChange: (ids: string[]) => void; disabled?: boolean; placeholder: string; clearLabel: string; loading?: boolean; inlineDropdown?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -42,7 +42,22 @@ export function EmployeeMultiSelect({ label, employees, selectedIds, onChange, d
     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>
     <button type="button" disabled={disabled || loading} onClick={() => setOpen(value => !value)} className={cn(INPUT, "min-h-[42px] text-left", disabled || loading ? "cursor-not-allowed opacity-70" : "cursor-pointer")} aria-busy={loading}>{loading ? "Carregando funcionários..." : selectedIds.length ? `${selectedIds.length} selecionado(s)` : placeholder}</button>
     {!loading && selectedIds.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{selectedIds.map(id => <span key={id} className="inline-flex items-center gap-1 rounded-full bg-[#e8eef8] px-2 py-1 text-[11px] font-bold text-[#0057e7]">{employees.find(employee => employee.id === id)?.full_name || "Funcionário"}<button type="button" disabled={disabled} onClick={() => toggle(id)} aria-label={`Remover ${employees.find(employee => employee.id === id)?.full_name || "funcionário"}`}><X size={12} /></button></span>)}<button type="button" disabled={disabled} onClick={() => onChange([])} className="text-[11px] font-bold text-red-600 hover:text-red-700">{clearLabel}</button></div>}
-    {open && !disabled && !loading && <div className="absolute left-0 right-0 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-lg border border-[#0d1b2e]/10 bg-white p-2 shadow-xl"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nome" className={cn(INPUT, "mb-2 py-2 text-xs")} />{filtered.length === 0 ? <p className="px-2 py-3 text-xs text-[#5a6a82]">Nenhum funcionário encontrado.</p> : filtered.map(employee => <label key={employee.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-[#f5f7fa]"><Checkbox checked={selectedIds.includes(employee.id)} onCheckedChange={() => toggle(employee.id)} />{employee.full_name}</label>)}</div>}
+    {open && !disabled && !loading && <div className={cn(
+      "rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-sm",
+      inlineDropdown ? "relative mb-3 mt-2 w-full" : "absolute left-0 right-0 top-full z-30 mt-1 shadow-xl",
+    )}>
+      <input value={search} onChange={event => setSearch(event.target.value)}
+        placeholder="Buscar por nome" className={cn(INPUT, "mb-2 py-2 text-xs")} />
+      <div className="max-h-48 overflow-y-auto overscroll-contain pb-3 pr-1">
+        {filtered.length === 0
+          ? <p className="px-2 py-3 text-xs text-muted-foreground">Nenhum funcionário encontrado.</p>
+          : filtered.map(employee => <label key={employee.id}
+              className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted">
+              <Checkbox checked={selectedIds.includes(employee.id)} onCheckedChange={() => toggle(employee.id)} />
+              <span className="min-w-0 break-words">{employee.full_name}</span>
+            </label>)}
+      </div>
+    </div>}
   </div>;
 }
 
