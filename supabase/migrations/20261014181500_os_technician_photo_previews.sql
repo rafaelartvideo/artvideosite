@@ -20,8 +20,9 @@ using (
 create or replace function public.list_order_service_task_photos_v1(p_service_order_id uuid)
 returns jsonb language plpgsql stable security definer set search_path = ''
 as $$
-declare v_result jsonb;
-declare v_organization_id uuid;
+declare
+  v_result jsonb;
+  v_organization_id uuid;
 begin
   if (select auth.uid()) is null or not private.can_view_service_order(p_service_order_id) then
     raise exception 'Sem acesso à OS.' using errcode='42501';
