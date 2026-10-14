@@ -4,11 +4,6 @@ import {
   LEGACY_PERMISSIONS_CHANGED_EVENT,
   dispatchCompatibleEvent,
 } from "@/lib/platform-identifiers";
-import {
-  getArtVideoOrganizationId,
-  getPlatformOperatorOrganizationId,
-} from "@/lib/organization-identity";
-import { filterPermissionsForOrganization } from "@/features/access/domain/permission-scope";
 
 const notifyPermissionChange = () => {
   dispatchCompatibleEvent(PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT);
@@ -31,47 +26,12 @@ export const listActiveRoles = (organizationId: string) =>
     .order("sort_order")
     .order("name");
 
-export async function listPermissions(organizationId: string) {
-  const [permissionsResult, situationsResult, modulesResult] = await Promise.all([
-    supabase
-      .from("permissions")
-      .select("id,key,label,description,module_name,sort_order")
-      .order("sort_order")
-      .order("label"),
-    supabase
-      .from("os_situations")
-      .select("id")
-      .eq("organization_id", organizationId),
-    supabase
-      .from("organization_modules")
-      .select("module_key,is_enabled")
-      .eq("organization_id", organizationId)
-      .eq("is_enabled", true),
-  ]);
-
-  const error = permissionsResult.error || situationsResult.error || modulesResult.error;
-  if (error) return { data: null, error };
-
-  const [platformOperatorId, artvideoOrganizationId] = await Promise.all([
-    getPlatformOperatorOrganizationId(),
-    getArtVideoOrganizationId(),
-  ]);
-
-  const enabledModules = new Set((modulesResult.data || []).map((item: any) => String(item.module_key)));
-  const situationIds = new Set((situationsResult.data || []).map((item: any) => String(item.id)));
-  const scopedPermissions = filterPermissionsForOrganization(permissionsResult.data || [], {
-    isPlatformOperator: organizationId === platformOperatorId,
-    isArtvideoTenant: organizationId === artvideoOrganizationId,
-    enabledModules,
+// O banco agora define o catálogo válido, inclusive módulos habilitados e
+// permissões de situações; não duplicar a regra no navegador.
+export const listPermissions = (organizationId: string) =>
+  supabase.rpc("list_organization_permission_catalog_v1", {
+    p_organization_id: organizationId,
   });
-  const data = scopedPermissions.filter((permission: any) => {
-    const key = String(permission.key || "");
-    const match = key.match(/^orders\.images\.situation\.([0-9a-f-]{36})\.upload$/i);
-    return !match || situationIds.has(match[1]);
-  });
-
-  return { data, error: null };
-}
 
 export const listRoleMembers = (organizationId: string) =>
   supabase
