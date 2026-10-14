@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { supabase } from "@/lib/supabase";
 import {
   AdminButton,
@@ -281,7 +282,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [galleryItem, setGalleryItem] = useState<OrderCommercialItem | null>(null);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<OrderCommercialPricing>(() => pricingFromOrder(order));
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  // Usa o balão global do CRM em vez de reservar espaço fixo no início da seção.
+  const showFeedback = (feedback: { type: "success" | "error"; text: string }) => {
+    notifyAdmin(feedback.text, feedback.type);
+  };
 
   const [productSearch, setProductSearch] = useState("");
   const [productOptions, setProductOptions] = useState<OrderCatalogOption[]>([]);
@@ -364,7 +368,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
       setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível abrir as fotos da execução.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível abrir as fotos da execução.") });
     }
   };
 
@@ -404,7 +408,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         setWorkflowReady(false);
       }
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível carregar os produtos e serviços da OS.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível carregar os produtos e serviços da OS.") });
     } finally {
       if (!quiet) {
         setTechniciansLoading(false);
@@ -495,7 +499,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setPhotoUrls({});
     photoUrlsRef.current = {};
     setGalleryItem(null);
-    setMessage(null);
     setProductSearch("");
     setSelectedProduct(null);
     setServiceSearch("");
@@ -516,7 +519,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         const options = await searchOrderProducts(order.id, productSearch);
         if (!cancelled) setProductOptions(options);
       } catch (error) {
-        if (!cancelled) setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível buscar produtos.") });
+        if (!cancelled) showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível buscar produtos.") });
       } finally {
         if (!cancelled) setProductSearching(false);
       }
@@ -545,7 +548,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         const options = await searchOrderServices(order.id, serviceSearch);
         if (!cancelled) setServiceOptions(options);
       } catch (error) {
-        if (!cancelled) setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível buscar serviços.") });
+        if (!cancelled) showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível buscar serviços.") });
       } finally {
         if (!cancelled) setServiceSearching(false);
       }
@@ -555,11 +558,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
   const selectProduct = (option: OrderCatalogOption) => {
     if (option.stock != null && option.stock <= 0) {
-      setMessage({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` });
+      showFeedback({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` });
       setSelectedProduct(null);
       return;
     }
-    setMessage(null);
     setSelectedProduct(option);
     setProductSearch(option.name);
     setProductPrice(option.price == null ? "" : String(option.price));
@@ -569,11 +571,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
   const selectService = (option: OrderCatalogOption) => {
     if (option.price == null) {
-      setMessage({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` });
+      showFeedback({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` });
       setSelectedService(null);
       return;
     }
-    setMessage(null);
     setSelectedService(option);
     setServiceSearch(option.name);
     setServicePrice(String(option.price));
@@ -587,16 +588,15 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const addProduct = async () => {
     if (!selectedProduct || !order?.id) return;
     if (selectedProduct.stock != null && selectedProduct.stock <= 0) {
-      setMessage({ type: "error", text: `${selectedProduct.name} está sem estoque disponível e não pode ser adicionado à OS.` });
+      showFeedback({ type: "error", text: `${selectedProduct.name} está sem estoque disponível e não pode ser adicionado à OS.` });
       return;
     }
     if (productPrice.trim() === "") {
-      setMessage({ type: "error", text: "Informe o preço unitário do produto." });
+      showFeedback({ type: "error", text: "Informe o preço unitário do produto." });
       return;
     }
 
     setMutating(true);
-    setMessage(null);
     try {
       const nextPricing = await addOrderCatalogItem({
         serviceOrderId: order.id,
@@ -611,9 +611,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       setProductSearch("");
       setProductPrice("");
       setProductQuantity("1");
-      setMessage({ type: "success", text: "Produto adicionado à OS." });
+      showFeedback({ type: "success", text: "Produto adicionado à OS." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o produto.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o produto.") });
     } finally {
       setMutating(false);
     }
@@ -622,12 +622,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const addService = async () => {
     if (!selectedService || !order?.id) return;
     if (serviceNeedsSchedule && (!serviceScheduleDraft || !serviceScheduleDraft.technicianIds.length)) {
-      setMessage({ type: "error", text: "Selecione uma data, horário e técnicos disponíveis no calendário." });
+      showFeedback({ type: "error", text: "Selecione uma data, horário e técnicos disponíveis no calendário." });
       setServiceScheduleOpen(true);
       return;
     }
     setMutating(true);
-    setMessage(null);
     try {
       const nextPricing = await addOrderCatalogItem({
         serviceOrderId: order.id,
@@ -649,9 +648,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       setServiceSearch("");
       setServicePrice("");
       setServiceQuantity("1");
-      setMessage({ type: "success", text: "Serviço adicionado à OS." });
+      showFeedback({ type: "success", text: "Serviço adicionado à OS." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o serviço.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o serviço.") });
     } finally {
       setMutating(false);
     }
@@ -660,7 +659,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const addCustomService = async () => {
     if (!order?.id || !customName.trim() || customPrice.trim() === "") return;
     setMutating(true);
-    setMessage(null);
     try {
       const nextPricing = await addOrderCustomService({
         serviceOrderId: order.id,
@@ -678,9 +676,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       setCustomDescription("");
       setCustomPrice("");
       setCustomQuantity("1");
-      setMessage({ type: "success", text: "Serviço Avulso adicionado somente a esta OS." });
+      showFeedback({ type: "success", text: "Serviço Avulso adicionado somente a esta OS." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o Serviço Avulso.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível adicionar o Serviço Avulso.") });
     } finally {
       setMutating(false);
     }
@@ -713,7 +711,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     if (unchanged || !editable) return;
 
     setSavingItemId(item.id);
-    setMessage(null);
     try {
       const nextPricing = await updateOrderCommercialItem({
         itemId: item.id,
@@ -725,7 +722,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       applyPricing(nextPricing);
       await loadItems(true);
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar o item.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar o item.") });
       await loadItems(true);
     } finally {
       setSavingItemId(null);
@@ -735,14 +732,13 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const removeItem = async (item: OrderCommercialItem) => {
     if (!editable) return;
     setSavingItemId(item.id);
-    setMessage(null);
     try {
       const nextPricing = await deleteOrderCommercialItem(item.id);
       applyPricing(nextPricing);
       await loadItems(true);
-      setMessage({ type: "success", text: "Item removido da OS." });
+      showFeedback({ type: "success", text: "Item removido da OS." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível remover o item.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível remover o item.") });
     } finally {
       setSavingItemId(null);
     }
@@ -751,23 +747,22 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const saveTechnicianTeam = async () => {
     if (!editingTechnicianItem || !editable || !workflowReady || savingTaskId) return;
     if (tasks[editingTechnicianItem.id]?.scheduled_start_at) {
-      setMessage({ type: "error", text: "Remova o agendamento antes de alterar os técnicos responsáveis." });
+      showFeedback({ type: "error", text: "Remova o agendamento antes de alterar os técnicos responsáveis." });
       return;
     }
     if (!editingTechnicianIds.length) {
-      setMessage({ type: "error", text: "Selecione pelo menos um técnico responsável." });
+      showFeedback({ type: "error", text: "Selecione pelo menos um técnico responsável." });
       return;
     }
     setSavingTaskId(editingTechnicianItem.id);
-    setMessage(null);
     try {
       await setOrderServiceTaskTechnicians(editingTechnicianItem.id, editingTechnicianIds);
       const next = await listOrderServiceTasks(order.id);
       setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
       setEditingTechnicianItem(null);
-      setMessage({ type: "success", text: "Equipe responsável atualizada." });
+      showFeedback({ type: "success", text: "Equipe responsável atualizada." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar os técnicos responsáveis.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar os técnicos responsáveis.") });
     } finally {
       setSavingTaskId(null);
     }
@@ -776,15 +771,14 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const saveServiceSchedule = async (start: string | null, end: string | null) => {
     if (!schedulingItem || !editable || scheduleSaving) return;
     setScheduleSaving(true);
-    setMessage(null);
     try {
       await setOrderServiceTaskSchedule({ itemId: schedulingItem.id, startAt: start, endAt: end });
       const next = await listOrderServiceTasks(order.id);
       setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
       setSchedulingItem(null);
-      setMessage({ type: "success", text: start ? "Agendamento do serviço confirmado." : "Agendamento do serviço removido." });
+      showFeedback({ type: "success", text: start ? "Agendamento do serviço confirmado." : "Agendamento do serviço removido." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível agendar o serviço.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível agendar o serviço.") });
     } finally {
       setScheduleSaving(false);
     }
@@ -936,13 +930,12 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const applyDiscount = async () => {
     if (!order?.id || !editable) return;
     setMutating(true);
-    setMessage(null);
     try {
       const nextPricing = await setOrderCommercialDiscount(order.id, discountType, nonNegativeNumber(discountValue));
       applyPricing(nextPricing);
-      setMessage({ type: "success", text: "Desconto atualizado." });
+      showFeedback({ type: "success", text: "Desconto atualizado." });
     } catch (error) {
-      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível aplicar o desconto.") });
+      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível aplicar o desconto.") });
     } finally {
       setMutating(false);
     }
@@ -1014,13 +1007,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   return <div className="space-y-4">
-    {message && <div className={cn(
-      "border px-3 py-2 text-xs font-semibold",
-      message.type === "success"
-        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-        : "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
-    )}>{message.text}</div>}
-
     {!editable && <div className="border border-border bg-muted/60 px-3 py-2 text-xs text-muted-foreground">
       {order?.completed_at
         ? "Esta OS está concluída. Produtos, serviços e desconto estão bloqueados para edição."
@@ -1058,7 +1044,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               onSelect={selectProduct}
               isUnavailable={option => option.stock != null && option.stock <= 0}
               unavailableLabel={() => "Sem estoque"}
-              onUnavailable={option => setMessage({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` })}
+              onUnavailable={option => showFeedback({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` })}
             />
           </div>
 
@@ -1121,7 +1107,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               onSelect={selectService}
               isUnavailable={option => option.price == null}
               unavailableLabel={() => "Sem preço cadastrado"}
-              onUnavailable={option => setMessage({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` })}
+              onUnavailable={option => showFeedback({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` })}
             />
           </div>
 
