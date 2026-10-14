@@ -61,14 +61,14 @@ test("OS técnica compartilha as abas da OS normal e separa Cliente e Equipament
   assert.match(sharedTabs, /Produtos e Serviços/);
 });
 
-test("permissões específicas controlam situação e diagnóstico na interface e na RPC", () => {
-  assert.match(panel, /orderDetails\?\.can_change_situation/);
+test("diagnóstico permanece autorizado e alteração de situação foi retirada do técnico", () => {
+  assert.doesNotMatch(panel, /orderDetails\?\.can_change_situation/);
   assert.match(panel, /orderDetails\.can_edit_diagnosis/);
   assert.match(panel, /getMyTechnicianOrderDetails\(routeOrderId\)/);
-  assert.match(panel, /changeMyTechnicianOrderSituation\(routeOrderId, nextId\)/);
+  assert.doesNotMatch(panel, /changeMyTechnicianOrderSituation/);
   assert.match(panel, /updateMyTechnicianOrderDiagnosis\(routeOrderId, diagnosisDraft\)/);
   assert.match(repository, /get_my_technician_order_details_v1/);
-  assert.match(repository, /change_my_technician_order_situation_v1/);
+  assert.doesNotMatch(repository, /change_my_technician_order_situation_v1/);
   assert.match(repository, /update_my_technician_order_diagnosis_v1/);
   assert.match(secureMigration, /private\.can_access_technician_order_v1/);
   assert.match(secureMigration, /service_order_item_task_assignees/);
@@ -235,7 +235,7 @@ test("problema e notas são somente leitura, registros ficam no cabeçalho", () 
   assert.doesNotMatch(panel, /openNoteEditor|saveOrderNote|noteField/);
   assert.match(panel, /<AdminPage open={!historyDialogOpen}/);
   assert.match(panel, /Histórico<\/BtnSecondary>/);
-  assert.match(panel, /ariaLabel="Alterar situação da OS"/);
+  assert.doesNotMatch(panel, /ariaLabel="Alterar situação da OS"/);
 });
 
 
@@ -245,7 +245,7 @@ test("o painel utiliza o cabeçalho compartilhado e cinco seções independentes
   for (const title of ["Cliente", "Equipamento", "Descrição do problema", "Observações internas", "Diagnóstico"]) {
     assert.ok(panel.includes('<Section title="' + title + '"'), "Seção ausente: " + title);
   }
-  assert.match(panel, /<StatusBadge/);
+  assert.doesNotMatch(panel, /<StatusBadge/);
   assert.match(panel, /<OrderDetailSectionTabs/);
   assert.doesNotMatch(panel, /<nav aria-label="Navegação estrutural"/);
 });
@@ -284,10 +284,15 @@ test("Produtos e Serviços mantêm seções independentes e ações de execuçã
   assert.equal(panel.split('Finalizar serviço</span>').length - 1, 1);
 });
 
-test("carregamento de situação ocorre apenas dentro da tag, sem loader global de OS", () => {
-  assert.match(panel, /aria-label="Carregando situação da OS"/);
-  assert.match(panel, /situationUpdating/);
+test("OS técnica não exibe tag nem permite alterar situação", () => {
+  assert.doesNotMatch(panel, /aria-label="Carregando situação da OS"/);
+  assert.doesNotMatch(panel, /situationUpdating|can_change_situation|onSituationChange|StatusBadge/);
+  assert.doesNotMatch(panel, /ariaLabel="Alterar situação da OS"/);
   assert.doesNotMatch(panel, /aria-label="Carregando OS"/);
+  const migration = read("supabase/migrations/20261015001000_remove_technician_order_situation_change.sql");
+  assert.match(migration, /revoke execute on function public\.change_my_technician_order_situation_v1/);
+  assert.match(migration, /delete from public\.user_permission_overrides/);
+  assert.match(migration, /delete from public\.permissions/);
 });
 
 test("o técnico adiciona serviços na seção atribuída e produtos na seção própria sem preços", () => {
@@ -325,11 +330,12 @@ test("trocar de serviço não aciona loading global nem refaz consultas de fotos
 
 test("busca e filtros do painel técnico ficam separados da tabela paginada", () => {
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
-  assert.ok(table.includes('>Minhas ordens de serviço</h2>'));
+  assert.ok(table.includes('Minhas ordens de serviço'));
   assert.match(table, /<table/);
   assert.match(table, /<PaginationBar/);
   assert.match(table, /space-y-4/);
-  assert.doesNotMatch(table, /<Section title="Minhas ordens de serviço"/);
+  assert.match(table, /<Section title=\{<span/);
+  assert.match(table, /<AdminCard square/);
 });
 
 test("toolbar mantém ações em uma linha no mobile e Realtime evita consultas periódicas conectadas", () => {
@@ -348,4 +354,21 @@ test("loader compartilhado exibe texto sobre as bolinhas animadas", () => {
   assert.ok(feedback.includes('<LoadingDots />'));
   assert.match(layout, /AdminStickyToolbarContext\.Provider/);
   assert.match(layout, /mobileBackOnly/);
+});
+
+test("lista técnica usa a mesma UI quadrada e sem radius extra da lista de OS", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.match(table, /<AdminCard square/);
+  assert.match(table, /<Section title=/);
+  assert.doesNotMatch(table, /rounded-lg/);
+  assert.match(table, /<PaginationBar/);
+});
+
+test("produtos têm formulário à esquerda, lista à direita e adicionar em largura total", () => {
+  const catalogUi = read("src/features/technician-panel/presentation/TechnicianOrderItemsSection.tsx");
+  assert.match(catalogUi, /lg:grid-cols-2/);
+  assert.match(catalogUi, /Produtos adicionados/);
+  assert.match(catalogUi, /<BtnPrimary className="w-full"/);
+  assert.match(catalogUi, /Quantidade/);
+  assert.match(catalogUi, /Busque no estoque por nome ou SKU/);
 });
