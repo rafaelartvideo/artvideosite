@@ -413,7 +413,7 @@ export function TechnicianPanel() {
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
-      <div className="flex min-h-10 flex-wrap items-center justify-between gap-3">
+      <div className="flex min-h-10 flex-wrap items-center gap-3">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="mr-1 text-2xl font-black tabular-nums text-foreground sm:text-3xl">OS {selected.os_number}</h2>
           {(situationUpdating || (orderDetailsLoading && !orderDetails)) && hasPermission("technician_panel.data.situation")
