@@ -40,7 +40,8 @@ type Props = {
 export function EquipmentServiceSelector({ selectedIds, services, loading, error, disabled, available, onRetry, onChange }: Props) {
   const chosen = new Set(selectedIds);
   const visible = services.filter(service => service.is_active || chosen.has(service.id))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+    .sort((a, b) => Number(chosen.has(b.id)) - Number(chosen.has(a.id))
+      || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   return <div className="space-y-3">
     {loading && <div className="flex min-h-40 items-center justify-center text-xs text-muted-foreground" role="status">Carregando serviços da empresa...</div>}
     {!loading && !error && !available && <div role="status" className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
