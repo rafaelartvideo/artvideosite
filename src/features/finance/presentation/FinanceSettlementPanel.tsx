@@ -24,6 +24,7 @@ function statusLabel(status: string) {
 
 export function FinanceSettlementPanel({
   detail,
+  showIcon = true,
   accounts,
   paymentMethods,
   canSettle,
@@ -37,6 +38,7 @@ export function FinanceSettlementPanel({
   onReverse,
 }: {
   detail: FinancialEntryDetail;
+  showIcon?: boolean;
   accounts: FinancialAccount[];
   paymentMethods: FinancialPaymentMethod[];
   canSettle: boolean;
@@ -78,7 +80,7 @@ export function FinanceSettlementPanel({
     <AdminCard>
       <AdminCardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2"><WalletCards size={18} className="text-[#0057e7]" /><div><h3 className="text-sm font-black text-[#0d1b2e]">Baixas</h3><p className="text-xs text-[#5a6a82]">Saldo principal em aberto: {formatCurrency(openBalance)}</p></div></div>
+          <div className="flex items-center gap-2">{showIcon && <WalletCards size={18} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">Baixas</h3><p className="text-xs text-[#5a6a82]">Saldo principal em aberto: {formatCurrency(openBalance)}</p></div></div>
           {canRegister && <AdminButton onClick={() => setDialogOpen(true)}>{actionLabel}</AdminButton>}
         </div>
       </AdminCardHeader>
