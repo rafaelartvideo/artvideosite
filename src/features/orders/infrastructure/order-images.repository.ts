@@ -5,12 +5,12 @@ import { extensionForUploadFile, prepareImageForUpload } from "@/shared/applicat
 const ORDER_IMAGE_BUCKET = "service-images";
 
 export const uploadOrderImageFile = (path: string, file: File) =>
-  supabase.storage.from(ORDER_IMAGE_BUCKET).upload(path, file, { upsert: true });
+  supabase.storage.from(ORDER_IMAGE_BUCKET).upload(path, file, { upsert: false });
 
 export const removeOrderImageFile = (path: string) =>
   supabase.storage.from(ORDER_IMAGE_BUCKET).remove([path]);
 
-export async function uploadOrderImage(file: File, organizationId?: string | null, kind: "label" | "equipment" = "equipment") {
+export async function uploadOrderImage(file: File, organizationId?: string | null, kind: "label" | "equipment" = "equipment", serviceOrderId?: string | null) {
   if (!organizationId) {
     throw new Error("Não foi possível identificar a empresa para enviar a imagem da OS.");
   }
@@ -18,8 +18,12 @@ export async function uploadOrderImage(file: File, organizationId?: string | nul
   const preparedFile = await prepareImageForUpload(file, kind === "label" ? "service-label" : "service-photo");
   const extension = extensionForUploadFile(preparedFile);
 
-  const path =
-    `orders/${organizationId}/draft/${Date.now()}-${crypto.randomUUID()}.${extension}`;
+  // Fotos de uma nova OS usam um rascunho da empresa (orders.create).
+  // Durante a edição, o arquivo pertence à OS existente e usa a permissão
+  // específica para imagens da OS, sem exigir orders.create novamente.
+  const path = serviceOrderId
+    ? `orders/${serviceOrderId}/attachments/${Date.now()}-${crypto.randomUUID()}.${extension}`
+    : `orders/${organizationId}/draft/${Date.now()}-${crypto.randomUUID()}.${extension}`;
 
   const { error: uploadError } = await uploadOrderImageFile(path, preparedFile);
 
