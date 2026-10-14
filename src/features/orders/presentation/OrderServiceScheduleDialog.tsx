@@ -37,6 +37,7 @@ export function OrderServiceScheduleDialog({
   const [date, setDate] = useState("");
   const [start, setStart] = useState("");
   const [end, setEnd] = useState("");
+  const [viewMode, setViewMode] = useState<"day" | "week">("day");
   useEffect(() => {
     if (!open) return;
     const from = localParts(scheduledStart);
@@ -44,6 +45,7 @@ export function OrderServiceScheduleDialog({
     setDate(from.date || dayKey(new Date()));
     setStart(from.start);
     setEnd(to.start);
+    setViewMode("day");
   }, [open, itemId, scheduledStart, scheduledEnd]);
 
   const changeDate = (nextDate: string) => { setDate(nextDate); setStart(""); setEnd(""); };
@@ -75,9 +77,21 @@ export function OrderServiceScheduleDialog({
           <FInput label="Dia do agendamento" type="date" min={dayKey(new Date())}
             value={date} onChange={event => changeDate(event.target.value)} />
         </div>
-        <p className="text-xs text-muted-foreground sm:pb-2">
-          Escolha o dia e o horário do serviço.
-        </p>
+        <div role="group" aria-label="Visualização do calendário"
+          className="inline-flex w-fit shrink-0 items-center gap-1 rounded-lg border border-border bg-muted/50 p-1 sm:mb-0.5">
+          <button type="button" aria-pressed={viewMode === "day"}
+            onClick={() => setViewMode("day")}
+            className={"rounded-md px-3.5 py-2 text-xs font-bold transition-colors " +
+              (viewMode === "day" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            Dia
+          </button>
+          <button type="button" aria-pressed={viewMode === "week"}
+            onClick={() => setViewMode("week")}
+            className={"rounded-md px-3.5 py-2 text-xs font-bold transition-colors " +
+              (viewMode === "week" ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            Semana
+          </button>
+        </div>
       </div>
       <div className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs">
         <span className="font-bold text-foreground">Equipe responsável: </span>
@@ -88,6 +102,7 @@ export function OrderServiceScheduleDialog({
       </div>
       {technicians.length > 0 && <TechnicianAvailabilityCalendar
         compact
+        viewMode={viewMode}
         organizationId={organizationId}
         technicians={technicians.map(person => ({ id: person.id, full_name: person.name }))}
         date={date || undefined}
