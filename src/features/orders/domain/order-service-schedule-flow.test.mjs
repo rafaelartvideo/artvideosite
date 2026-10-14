@@ -51,6 +51,7 @@ test("compilador JSX reconhece os componentes alterados antes do build de site e
     "src/features/orders/presentation/OrderProductsServicesSection.tsx",
     "src/features/orders/presentation/OrderServiceScheduleDraftDialog.tsx",
     "src/features/orders/presentation/OrderServiceScheduleDialog.tsx",
+    "src/features/appointments/presentation/TechnicianAvailabilityCalendar.tsx",
   ]) {
     await assert.doesNotReject(
       transformWithEsbuild(read(file), file, { loader: "tsx", jsx: "automatic" }),
@@ -82,4 +83,24 @@ test("o modal de criação é compacto, abre no dia atual e preserva seleção m
   assert.match(availabilityCalendar, /max-h-\[min\(40dvh,340px\)\]/);
   assert.match(availabilityCalendar, /minutes\(time\) > minutesNow/);
   assert.doesNotMatch(availabilityCalendar, /<CalendarDays/);
+});
+
+test("os dois modais alternam entre Dia e Semana sem alterar os dados selecionados", () => {
+  const schedule = read("src/features/orders/presentation/OrderServiceScheduleDialog.tsx");
+  const available = read("src/features/appointments/presentation/TechnicianAvailabilityCalendar.tsx");
+  for (const dialog of [calendar, schedule]) {
+    assert.match(dialog, /useState<"day" \| "week">\("day"\)/);
+    assert.match(dialog, /aria-pressed=\{viewMode === "day"\}/);
+    assert.match(dialog, /aria-pressed=\{viewMode === "week"\}/);
+    assert.match(dialog, /viewMode=\{viewMode\}/);
+    assert.match(dialog, /onChangeDate=\{changeDate\}/);
+  }
+  assert.match(available, /viewMode\?: "day" \| "week"/);
+  assert.match(available, /viewMode === "week"/);
+  assert.match(available, /weeklyHours\.map\(time/);
+  assert.match(available, /days\.map\(day/);
+  assert.match(available, /max-h-\[min\(40dvh,340px\)\]/);
+  assert.match(available, /onChooseStart\?\.\(day\.date, time, employee\.id\)/);
+  assert.match(available, /onToggleTechnician && active/);
+  assert.match(available, /fixedTeam/);
 });
