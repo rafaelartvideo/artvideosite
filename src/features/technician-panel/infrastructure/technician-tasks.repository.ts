@@ -61,6 +61,9 @@ export type TechnicianOrderDetails = {
   available_situations: Array<{ id: string; name: string }>;
   diagnosis: string | null;
   internal_notes: string | null;
+  equipment_brand?: string | null;
+  equipment_model?: string | null;
+  technical_values?: Array<{ id: string; label: string; type: string; value: string | null }>;
   items: TechnicianOrderItem[];
 };
 
@@ -223,6 +226,14 @@ export async function finishMyTechnicianTask(itemId: string, report: string, gps
     p_captured_at: gps.capturedAt,
   });
   if (error) throw error;
+}
+
+export async function countMyTechnicianPhotos(itemId: string): Promise<number> {
+  const { data, error } = await supabase.rpc("count_my_technician_task_photos_v1", {
+    p_item_id: itemId,
+  });
+  if (error) throw error;
+  return Number(data || 0);
 }
 
 export async function listMyTechnicianPhotos(itemId: string): Promise<TechnicianPhoto[]> {
