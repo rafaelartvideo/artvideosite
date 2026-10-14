@@ -175,7 +175,7 @@ export function MarketplaceToolPage({ onBack }: { onBack: () => void }) {
       {platform && <button type="button" onClick={() => setTab("categories")} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === "categories" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>Categorias</button>}
     </div>
 
-    {loading ? <LoadingState /> : tab === "requests" ? <MarketplaceRequestsPanel categories={categories} enabled={canModerate || canManageListings} /> : tab === "stores" ? <Section
+    {loading ? <LoadingState /> : tab === "requests" ? <MarketplaceRequestsPanel categories={categories} stores={stores} enabled={canModerate || canManageListings} platform={platform} organizationId={activeOrganizationId} storeApproved={ownStore?.status === "approved"} /> : tab === "stores" ? <Section
       title={platform ? "Empresas participantes" : "Dados comerciais da loja"}
       description={platform ? "Somente empresas com o módulo ativado podem criar lojas." : "Sua loja depende de aprovação da Union para ficar pública."}
       actions={!platform && canManageStore ? <BtnPrimary onClick={openStore}>{ownStore ? "Editar loja" : "Criar loja"}</BtnPrimary> : undefined}

@@ -6,7 +6,8 @@ import { marketplaceBuyerClient } from "../infrastructure/marketplace-buyer.clie
 import {
   cancelMyMarketplaceRequest, createMarketplaceServiceRequest, listMyMarketplaceRequests,
   loadMarketplaceBuyerProfile, saveMarketplaceBuyerProfile,
-  type MarketplaceBuyer, type MarketplaceServiceRequest,
+  loadBuyerMarketplaceProposals, respondToMarketplaceProposal,
+  type MarketplaceBuyer, type MarketplaceServiceRequest, type MarketplaceBuyerProposal,
 } from "../infrastructure/marketplace-requests.repository";
 import { loadPublicMarketplaceListing, type MarketplaceCategory, type MarketplaceListing } from "../infrastructure/marketplace.repository";
 
@@ -38,6 +39,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
   const [phone, setPhone] = useState("");
   const [editingProfile, setEditingProfile] = useState(false);
   const [requests, setRequests] = useState<MarketplaceServiceRequest[]>([]);
+  const [proposals, setProposals] = useState<MarketplaceBuyerProposal[]>([]);
   const [requestsLoading, setRequestsLoading] = useState(false);
   const [sourceListing, setSourceListing] = useState<MarketplaceListing | null>(null);
   const [sourceLoading, setSourceLoading] = useState(false);
@@ -63,7 +65,9 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
   const reloadRequests = useCallback(async (userId: string) => {
     setRequestsLoading(true);
     try {
-      setRequests(await listMyMarketplaceRequests(userId));
+      const items = await listMyMarketplaceRequests(userId);
+      setRequests(items);
+      setProposals(await loadBuyerMarketplaceProposals(items.map(item => item.id)));
     } catch (cause) {
       setError(getError(cause));
     } finally {
@@ -75,6 +79,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
     if (!user) {
       setProfile(null);
       setRequests([]);
+      setProposals([]);
       return;
     }
     let active = true;
@@ -225,6 +230,24 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
     }
   };
 
+  const respondToProposal = async (proposalId: string, status: "accepted" | "declined") => {
+    if (!user || busy) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    try {
+      await respondToMarketplaceProposal(proposalId, status);
+      setMessage(status === "accepted"
+        ? "Seu interesse foi enviado à Union World. A confirmação depende da intermediação."
+        : "Sua resposta foi registrada pela Union World.");
+      await reloadRequests(user.id);
+    } catch (cause) {
+      setError(getError(cause));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const signOut = async () => {
     setBusy(true);
     setError("");
@@ -250,14 +273,14 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
           <p className="text-xs font-black uppercase tracking-wide text-[#1032dc]">Marketplace Union</p>
           <h1 className="mt-1 text-2xl font-black">{mode === "request" ? "Preciso de um serviço" : "Minha conta"}</h1>
           <p className="mt-2 text-sm text-[#738097]">{mode === "request"
-            ? "Descreva sua necessidade para que as empresas participantes possam conhecer a oportunidade."
+            ? "Descreva sua necessidade. A Union World analisará sua solicitação antes de apresentar às empresas."
             : "Gerencie seus dados e acompanhe suas solicitações."}</p>
         </div>
         {user && <button type="button" onClick={() => void signOut()} disabled={busy} className={secondary}>Sair da conta</button>}
       </div>
 
       {(message || new URLSearchParams(location.search).has("enviado")) && <div role="status" className="mb-5 flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
-        <CheckCircle2 size={18} />{new URLSearchParams(location.search).has("enviado") ? "Solicitação publicada com sucesso. Você pode acompanhá-la aqui." : message}
+        <CheckCircle2 size={18} />{new URLSearchParams(location.search).has("enviado") ? "Solicitação enviada para análise da Union World. Acompanhe o andamento aqui." : message}
       </div>}
       {error && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
@@ -303,7 +326,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
             <button type="button" onClick={() => { setSourceListing(null); navigate("/marketplace/solicitar", { replace: true }); }} aria-label="Remover serviço de referência"><X size={16} /></button>
           </div>}
           <p className="rounded-lg bg-[#f6f8fc] p-3 text-xs leading-6 text-[#64738a]">
-            Evite incluir telefone, e-mail, CPF ou endereço completo na descrição. Seus dados pessoais não são mostrados às empresas nesta fase.
+            A Union World é responsável pela intermediação. Seu pedido será analisado antes de ficar disponível às empresas. Evite colocar telefone, e-mail, CPF ou endereço completo na descrição.
           </p>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className={label + " sm:col-span-2"}>O que você precisa?
@@ -334,7 +357,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
           </div>
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#e4e8f0] pt-5">
             <button type="button" className={secondary} onClick={() => navigate("/marketplace/conta")}>Minhas solicitações</button>
-            <button type="submit" disabled={busy || sourceLoading} className={primary}>{busy ? "Publicando..." : "Publicar solicitação"}</button>
+            <button type="submit" disabled={busy || sourceLoading} className={primary}>{busy ? "Enviando..." : "Enviar para análise da Union"}</button>
           </div>
         </form> : <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -352,7 +375,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-black">{item.title}</h3>
                   <span className={"rounded-md px-2 py-1 text-[11px] font-bold " + (item.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-[#f0f2f7] text-[#6f7d91]")}>
-                    {item.status === "open" ? "Aberta" : item.status === "cancelled" ? "Cancelada" : "Encerrada"}
+                    {item.status === "pending_union" ? "Em análise pela Union" : item.status === "open" ? "Aprovada pela Union" : item.status === "rejected" ? "Não aprovada" : item.status === "cancelled" ? "Cancelada" : "Encerrada"}
                   </span>
                 </div>
                 <p className="line-clamp-3 whitespace-pre-wrap text-sm text-[#64738a]">{item.description}</p>
@@ -360,8 +383,35 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
                   <span className="flex items-center gap-1"><MapPin size={13} /> {item.city} · {item.state}</span>
                   <span className="flex items-center gap-1"><CalendarDays size={13} /> {new Date(item.created_at).toLocaleDateString("pt-BR")}</span>
                 </div>
-                {item.status === "open" && <button className="text-xs font-bold text-red-600 hover:underline" type="button" disabled={busy}
-                  onClick={() => void cancelRequest(item.id)}>Cancelar solicitação</button>}
+                {(item.status === "open" || item.status === "pending_union") && <button className="text-xs font-bold text-red-600 hover:underline" type="button" disabled={busy}
+                  onClick={() => void cancelRequest(item.id)}>Cancelar solicitação</button>
+                {proposals.filter(proposal => proposal.request_id === item.id).length > 0 && <div className="mt-3 space-y-3 rounded-lg border border-[#dde4f0] bg-[#f8faff] p-4">
+                  <h4 className="text-sm font-black text-[#203b8c]">Propostas intermediadas pela Union World</h4>
+                  {proposals.filter(proposal => proposal.request_id === item.id).map(proposal =>
+                    <div key={proposal.id} className="space-y-2 border-t border-[#e2e6f2] pt-3 first:border-0 first:pt-0">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <strong className="text-sm">{proposal.amount == null
+                          ? "Valor sob orçamento"
+                          : Number(proposal.amount).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</strong>
+                        <span className="text-xs font-bold text-[#44577a]">
+                          {proposal.status === "presented" ? "Aguardando sua resposta"
+                            : proposal.status === "accepted" ? "Aceite enviado à Union"
+                            : proposal.status === "declined" ? "Proposta recusada"
+                            : proposal.status === "confirmed" ? "Confirmada pela Union" : "Retirada pela Union"}
+                        </span>
+                      </div>
+                      <p className="whitespace-pre-wrap break-words text-sm text-[#596983]">{proposal.description}</p>
+                      {proposal.estimated_days && <p className="text-xs text-[#70829b]">Prazo estimado: {proposal.estimated_days} dias</p>}
+                      {proposal.status === "presented" && item.status === "open" && <div className="flex flex-wrap gap-2 pt-1">
+                        <button type="button" disabled={busy} className={primary}
+                          onClick={() => void respondToProposal(proposal.id, "accepted")}>Tenho interesse</button>
+                        <button type="button" disabled={busy} className={secondary}
+                          onClick={() => void respondToProposal(proposal.id, "declined")}>Recusar proposta</button>
+                      </div>}
+                    </div>)}
+                  <p className="text-xs text-[#7b89a0]">Toda negociação e confirmação é coordenada pela Union World. Seu aceite não confirma o serviço automaticamente.</p>
+                </div>}
+}
               </div>)}
             </div>}
         </div>}
