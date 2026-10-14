@@ -1,8 +1,27 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useState, type Dispatch, type SetStateAction } from "react";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
 import { EmployeeMultiSelect } from "./OrderFormControls";
-import { OrderTechnicianAgenda } from "./OrderTechnicianAgenda";
+import { OrderServiceScheduleDraftDialog, type ServiceScheduleDraft } from "./OrderServiceScheduleDraftDialog";
+import { useAuth } from "@/lib/auth";
+
+function localOrderTimeToIso(value: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return "";
+  const date = new Date(value + ":00-03:00");
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function isoToLocalOrderTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const get = (part: string) => parts.find(item => item.type === part)?.value || "";
+  return get("year") + "-" + get("month") + "-" + get("day")
+    + "T" + get("hour") + ":" + get("minute");
+}
 
 export function OrderInformationSection({
   form,
@@ -53,6 +72,26 @@ export function OrderInformationSection({
   ) => { hours: number; isDefault: boolean } | null;
 }) {
   const editingOS = editingOrder;
+  const { activeOrganizationId } = useAuth();
+  const [scheduleDialogOpen, setScheduleDialogOpen] = useState(false);
+  const scheduleStart = String(form.scheduled_at || "");
+  const scheduleEnd = String(form.scheduled_end_at || "");
+  const validSchedule = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduleStart)
+    && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(scheduleEnd)
+    && scheduleEnd > scheduleStart
+    && scheduleStart.slice(0, 10) === scheduleEnd.slice(0, 10);
+  const draftStart = validSchedule ? localOrderTimeToIso(scheduleStart) : "";
+  const draftEnd = validSchedule ? localOrderTimeToIso(scheduleEnd) : "";
+  const existingSchedule: ServiceScheduleDraft | null = draftStart && draftEnd
+    ? { startAt: draftStart, endAt: draftEnd, technicianIds: selectedTechnicianIds }
+    : null;
+  const confirmSchedule = (selection: ServiceScheduleDraft) => {
+    onTechniciansChange(selection.technicianIds);
+    onFieldChange("scheduled_at", isoToLocalOrderTime(selection.startAt));
+    onFieldChange("scheduled_end_at", isoToLocalOrderTime(selection.endAt));
+    setNeedsScheduling(true);
+    setScheduleDialogOpen(false);
+  };
   const upF = onFieldChange;
   const setSelectedTechnicianIds = onTechniciansChange;
   const setSelectedSellerIds = onSellersChange;
@@ -74,20 +113,56 @@ export function OrderInformationSection({
                     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">Necessita agendamento</label>
                     <AdminSegmentedControl
                       value={needsScheduling ? "yes" : "no"}
-                      onChange={value => { const scheduling = value === "yes"; setNeedsScheduling(scheduling); if (!scheduling) { upF("scheduled_at", ""); upF("scheduled_end_at", ""); } }}
+                      onChange={value => {
+                        const scheduling = value === "yes";
+                        setNeedsScheduling(scheduling);
+                        if (scheduling) {
+                          if (canAssign) setScheduleDialogOpen(true);
+                        } else {
+                          setScheduleDialogOpen(false);
+                          upF("scheduled_at", "");
+                          upF("scheduled_end_at", "");
+                        }
+                      }}
                       options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
                       className="w-fit grid-cols-2"
                     />
                   </div>
-                  {needsScheduling && <OrderTechnicianAgenda
-                    form={form}
-                    employees={employees}
-                    technicianIds={selectedTechnicianIds}
-                    onTechniciansChange={setSelectedTechnicianIds}
-                    onFieldChange={upF}
-                    canAssign={canAssign}
-                    editingOrderId={editingOS?.id}
-                  />}
+                  {needsScheduling && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/20 px-3 py-3">
+                    <div className="min-w-0">
+                      {validSchedule
+                        ? <>
+                            <p className="text-sm font-semibold text-foreground">
+                              {scheduleStart.slice(8, 10)}/{scheduleStart.slice(5, 7)}/{scheduleStart.slice(0, 4)} · {scheduleStart.slice(11, 16)} às {scheduleEnd.slice(11, 16)}
+                            </p>
+                            <p className="mt-1 break-words text-xs text-muted-foreground">
+                              {selectedTechnicianIds.length} técnico{selectedTechnicianIds.length === 1 ? "" : "s"} · {selectedTechnicianIds.map(id => employees.find(person => person.id === id)?.full_name || "Técnico").join(", ")}
+                            </p>
+                          </>
+                        : <>
+                            <p className="text-sm font-semibold text-foreground">Horário ainda não escolhido</p>
+                            <p className="mt-1 text-xs text-muted-foreground">Selecione uma data e os técnicos disponíveis.</p>
+                          </>}
+                    </div>
+                    <button type="button"
+                      disabled={!canAssign || employeesLoading}
+                      onClick={() => setScheduleDialogOpen(true)}
+                      className="inline-flex min-h-10 items-center justify-center rounded-lg border border-border bg-card px-4 py-2 text-xs font-bold text-foreground transition-colors hover:bg-muted disabled:opacity-50">
+                      {validSchedule ? "Reagendar" : "Escolher horário"}
+                    </button>
+                  </div>}
+                  <OrderServiceScheduleDraftDialog
+                    open={scheduleDialogOpen && needsScheduling && canAssign}
+                    organizationId={activeOrganizationId || ""}
+                    orderId={editingOS?.id || ""}
+                    title={editingOS ? "OS #" + (editingOS.os_number || "") : "Nova ordem de serviço"}
+                    dialogTitle={validSchedule ? "Reagendar OS" : "Agendar OS"}
+                    technicians={employees.map(person => ({ id: person.id, name: person.full_name }))}
+                    initial={existingSchedule}
+                    lockedTechnicianIds={editingOS ? selectedTechnicianIds : undefined}
+                    onConfirm={confirmSchedule}
+                    onClose={() => setScheduleDialogOpen(false)}
+                  />
                 </div>
                 <div className="space-y-4">
                   <div>
