@@ -113,6 +113,56 @@ export async function createEquipmentBrandForTypes(
   if (error) throw toCatalogError(error, "Não foi possível cadastrar a marca.");
 }
 
+/** Renames the organization's local brand records, preserving their IDs, model links and equipment associations. */
+export async function renameEquipmentBrandGroup(
+  previousName: string,
+  nextName: string,
+  catalog: EquipmentCatalog,
+): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
+  const normalize = (value: string) => value.trim().replace(/\s+/g, " ").normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+  const name = nextName.trim().replace(/\s+/g, " ");
+  if (!name || name.length > 120) throw new Error("Informe uma marca com até 120 caracteres.");
+  const current = catalog.brands.filter(item => normalize(item.name) === normalize(previousName));
+  if (!current.length) throw new Error("Essa marca ainda não está vinculada a equipamentos desta empresa.");
+  const currentIds = new Set(current.map(item => item.id));
+  if (catalog.brands.some(item => !currentIds.has(item.id) && normalize(item.name) === normalize(name))) {
+    throw new Error("Já existe uma marca com esse nome nesta empresa.");
+  }
+  if (current.every(item => item.name === name)) return;
+  const equipmentIds = new Set(current.map(item => item.equipment_type_id));
+  const occupiedSlugs = new Set(catalog.brands
+    .filter(item => !currentIds.has(item.id) && equipmentIds.has(item.equipment_type_id))
+    .map(item => (item as typeof item & { slug?: string }).slug)
+    .filter((value): value is string => Boolean(value)));
+  const baseSlug = slugify(name) || "marca";
+  let slug = baseSlug;
+  for (let suffix = 2; occupiedSlugs.has(slug); suffix++) slug = `${baseSlug}-${suffix}`;
+
+  const { data, error } = await supabase.from("equipment_brands")
+    .update({ name, slug })
+    .eq("organization_id", organizationId)
+    .in("id", [...currentIds])
+    .select("id");
+  if (error) throw toCatalogError(error, "Não foi possível editar a marca.");
+  if ((data ?? []).length !== current.length) throw new Error("Não foi possível atualizar todos os vínculos da marca.");
+}
+
+/** Activates/deactivates every local equipment link of the chosen brand in one request. */
+export async function setEquipmentBrandGroupActive(brandIds: string[], isActive: boolean): Promise<void> {
+  const ids = [...new Set(brandIds)];
+  if (!ids.length) throw new Error("Nenhum vínculo local encontrado para esta marca.");
+  const organizationId = await getActiveOrganizationId();
+  const { data, error } = await supabase.from("equipment_brands")
+    .update({ is_active: isActive })
+    .eq("organization_id", organizationId)
+    .in("id", ids)
+    .select("id");
+  if (error) throw toCatalogError(error, "Não foi possível alterar a situação da marca.");
+  if ((data ?? []).length !== ids.length) throw new Error("Não foi possível atualizar todos os vínculos da marca.");
+}
+
 export type EquipmentServiceSettings = {
   services: Array<{ id: string; name: string; is_active: boolean }>;
   links: Array<{ equipment_type_id: string; general_service_id: string }>;
