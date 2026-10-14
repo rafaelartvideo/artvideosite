@@ -64,6 +64,10 @@ export type TechnicianOrderDetails = {
   equipment_accessories?: string | null;
   equipment_condition?: string | null;
   equipment_brand?: string | null;
+  customer_document?: string | null;
+  customer_type?: string | null;
+  customer_address?: TechnicianTask["service_address"];
+  equipment_photos?: Array<{ id: string; name: string | null; path: string; kind: "label" | "equipment" }>;
   equipment_model?: string | null;
   technical_values?: Array<{ id: string; label: string; type: string; value: string | null }>;
   items: TechnicianOrderItem[];
@@ -74,6 +78,12 @@ export async function getMyTechnicianOrderDetails(orderId: string): Promise<Tech
   if (error) throw error;
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Dados da OS indisponíveis.");
   return data as TechnicianOrderDetails;
+}
+
+export async function getMyTechnicianEquipmentPhotoUrl(path: string): Promise<string> {
+  const { data, error } = await supabase.storage.from("service-images").createSignedUrl(path, 600);
+  if (error || !data?.signedUrl) throw error || new Error("Não foi possível visualizar a imagem do equipamento.");
+  return data.signedUrl;
 }
 
 export async function changeMyTechnicianOrderSituation(orderId: string, situationId: string): Promise<void> {
