@@ -170,7 +170,10 @@ export function TechnicianOrderItemsSection({
 
   const products = items.filter(item => item.type === "product");
   return <>
-    <Section title="Produtos">
+    <Section title={<span className="inline-flex items-center gap-2">
+      Produtos
+      <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold text-foreground">{products.length}</span>
+    </span>}>
       <div className="space-y-4">
         {canAddProduct && !blocked && <div className="space-y-3">
           <div className="max-w-2xl">
