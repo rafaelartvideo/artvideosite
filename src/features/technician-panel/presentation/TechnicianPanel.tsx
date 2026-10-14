@@ -177,10 +177,13 @@ export function TechnicianPanel() {
   // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
   // de serviços não substitui a verificação da atribuição no servidor.
   useEffect(() => {
-    let cancelled = false;
     setOrderDetails(null);
     setDiagnosisDialogOpen(false);
     setNoteField(null);
+  }, [activeOrganizationId, routeOrderId]);
+
+  useEffect(() => {
+    let cancelled = false;
     if (!activeOrganizationId || !routeOrderId) {
       setOrderDetailsLoading(false);
       return () => { cancelled = true; };
