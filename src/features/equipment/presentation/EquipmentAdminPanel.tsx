@@ -10,7 +10,7 @@ import { createEquipmentBrandForTypes, loadEquipmentBrandDirectory, loadEquipmen
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 import { createGeneralService } from "@/features/general-services/infrastructure/general-services.repository";
 import { EquipmentServiceSelector } from "./EquipmentServiceSelector";
-import { brandKey, buildEquipmentBrandChoices, EquipmentBrandSelector, EquipmentBrandsDirectory } from "./EquipmentBrands";
+import { brandKey, buildEquipmentBrandChoices, EquipmentBrandCreate, EquipmentBrandSelector, EquipmentBrandsDirectory, EquipmentModelCreate, EquipmentModelsSelector } from "./EquipmentBrands";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -154,7 +154,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       return { ...type, brands: [...type.brands, { name: name.trim(), is_active: true, models: [] }] };
     }));
   };
-  const addModel = (ti: number, bi: number) => canCreate && setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: [...brand.models, { name: "", is_active: true }] } : brand) } : type));
+  const addModel = (ti: number, bi: number, name: string) => canCreate && setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: [...brand.models, { name, is_active: true }] } : brand) } : type));
   const updateModel = (ti: number, bi: number, mi: number, value: Partial<EquipmentDraftModel>) => setDrafts(current => current.map((type, i) => i === ti ? { ...type, brands: type.brands.map((brand, j) => j === bi ? { ...brand, models: brand.models.map((model, k) => k === mi ? { ...model, ...value } : model) } : brand) } : type));
   const removeModel = (ti: number, bi: number, mi: number) => setDrafts(current => current.map((type, i) => {
     if (i !== ti) return type;
@@ -452,50 +452,119 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         : activeArea === "brands" && canCreate ? <BtnPrimary onClick={openNewBrand}>Novo</BtnPrimary> : null}
     </AdminStickyToolbar></>}
     {editorRouteActive && !formOpen && !fieldFormOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos" title="Cadastro de equipamentos" subtitle="Monte equipamento, marcas e modelos antes de salvar"><div className="space-y-5 p-4 sm:p-5">{drafts.map((type, ti) => <div key={`${type.id || "new"}-${ti}`} className="space-y-4"><Section title="Equipamento"><div className="space-y-5"><div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"><FInput label="Nome do equipamento" required error={hierarchyErrors[`type-${ti}`]} value={type.name} onChange={(e: any) => { setHierarchyErrors(current => ({ ...current, [`type-${ti}`]: undefined as any })); updateDraft(ti, { name: e.target.value }); }} placeholder="Ex: Televisão" /><div className="flex items-center gap-2">{type.id && <FToggle label="Equipamento ativo" disabled={!canToggleActive} checked={type.is_active} onChange={is_active => updateDraft(ti, { is_active })} />}{drafts.length > 1 && canDelete && <button type="button" onClick={() => setDrafts(current => current.filter((_, i) => i !== ti))} className="cursor-default rounded-lg p-2.5 text-red-500 hover:bg-red-50"><Trash2 size={16} /></button>}</div></div><EquipmentServiceSelector
-  services={serviceSettings?.services ?? []}
-  selectedIds={type.serviceIds ?? (serviceSettings?.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) ?? [])}
-  loading={equipmentServicesQuery.isPending}
-  error={equipmentServicesQuery.error ? systemErrorMessage(equipmentServicesQuery.error, "Não foi possível carregar os vínculos de serviços.") : null}
-  disabled={saving || !(type.id ? canEdit : canCreate) || !serviceSettings || !serviceSettings.available}
-  available={Boolean(serviceSettings?.available)}
-  onRetry={() => { void queryClient.invalidateQueries({ queryKey: ["equipment", "service-settings", activeOrganizationId] }); }}
-  onCreate={canCreateGeneralService && (type.id ? canEdit : canCreate) ? () => openNewService(ti) : undefined}
-  onChange={serviceIds => updateDraft(ti, { serviceIds })}
-/>{canViewFields && <div className="border-t border-[#0d1b2e]/8 pt-4"><div className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Campos Extras</div><div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{technicalFields.filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id)).sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })).map(field => { const link = type.technicalFields.find(item => item.technical_field_id === field.id); return <div key={field.id} className="border-b border-[#0d1b2e]/8 py-3"><div className="flex min-w-0 items-start gap-3 text-left"><Checkbox disabled={!canManageFields} checked={Boolean(link)} onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} /><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#0d1b2e]">{field.label}</span>{link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-[#5a6a82]"><Checkbox disabled={!canManageFields} checked={link.required} onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />Obrigatório</label>}</span></div></div>; })}</div></div>}{catalog && <EquipmentChecklistSection
-  draft={type}
-  catalog={catalog}
-  onChange={patch => updateDraft(ti, patch)}
-  errorFor={(field, ci) => field === "profile"
-    ? hierarchyErrors[`checklist-${ti}-profile`]
-    : hierarchyErrors[`checklist-${ti}-${ci}-${field}`]}
-  clearError={(field, ci) => {
-    const key = field === "profile"
-      ? `checklist-${ti}-profile`
-      : `checklist-${ti}-${ci}-${field}`;
-    setHierarchyErrors(current => {
-      if (!current[key]) return current;
-      const next = { ...current };
-      delete next[key];
-      return next;
-    });
-  }}
-/>}</div></Section><Section title="Marcas e modelos"><EquipmentBrandSelector
-  draft={type}
-  choices={brandChoices}
-  canEdit={canEdit}
-  canCreate={canCreate}
-  canDelete={canDelete}
-  onToggleBrand={(name, checked) => toggleDraftBrand(ti, name, checked)}
-  onAddModel={bi => addModel(ti, bi)}
-  onUpdateModel={(bi, mi, patch) => updateModel(ti, bi, mi, patch)}
-  onRemoveModel={(bi, mi) => removeModel(ti, bi, mi)}
-  errorFor={(bi, mi) => hierarchyErrors[mi == null ? `brand-${ti}-${bi}` : `model-${ti}-${bi}-${mi}`]}
-  clearError={(bi, mi) => {
-    const key = mi == null ? `brand-${ti}-${bi}` : `model-${ti}-${bi}-${mi}`;
-    setHierarchyErrors(current => ({ ...current, [key]: undefined as any }));
-  }}
-/></Section></div>)}</div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage>
+    <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos"
+      title="Cadastro de equipamentos" subtitle="Configure os dados e os vínculos do equipamento">
+      <div className="space-y-5 p-4 sm:p-5">
+        {drafts.map((type, ti) => <div key={`${type.id || "new"}-${ti}`} className="space-y-5">
+          <Section title="Equipamento">
+            <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+              <FInput label="Nome do equipamento" required error={hierarchyErrors[`type-${ti}`]}
+                value={type.name} onChange={(e: any) => {
+                  setHierarchyErrors(current => ({ ...current, [`type-${ti}`]: undefined as any }));
+                  updateDraft(ti, { name: e.target.value });
+                }} placeholder="Ex: Televisão" />
+              <div className="flex items-center gap-2">
+                {type.id && <FToggle label="Equipamento ativo" disabled={!canToggleActive}
+                  checked={type.is_active} onChange={is_active => updateDraft(ti, { is_active })} />}
+                {drafts.length > 1 && canDelete && <button type="button"
+                  onClick={() => setDrafts(current => current.filter((_, i) => i !== ti))}
+                  className="cursor-default rounded-lg p-2.5 text-red-500 hover:bg-red-50"><Trash2 size={16} /></button>}
+              </div>
+            </div>
+          </Section>
+
+          <Section title="Serviços vinculados"
+            actions={canCreateGeneralService && (type.id ? canEdit : canCreate)
+              ? <BtnSecondary onClick={() => openNewService(ti)}
+                  disabled={saving || equipmentServicesQuery.isPending || !serviceSettings?.available}>
+                  <Plus size={14} /> Novo serviço
+                </BtnSecondary> : undefined}>
+            <EquipmentServiceSelector
+              services={serviceSettings?.services ?? []}
+              selectedIds={type.serviceIds ?? (serviceSettings?.links.filter(link => link.equipment_type_id === type.id).map(link => link.general_service_id) ?? [])}
+              loading={equipmentServicesQuery.isPending}
+              error={equipmentServicesQuery.error ? systemErrorMessage(equipmentServicesQuery.error, "Não foi possível carregar os vínculos de serviços.") : null}
+              disabled={saving || !(type.id ? canEdit : canCreate) || !serviceSettings || !serviceSettings.available}
+              available={Boolean(serviceSettings?.available)}
+              onRetry={() => { void queryClient.invalidateQueries({ queryKey: ["equipment", "service-settings", activeOrganizationId] }); }}
+              onChange={serviceIds => updateDraft(ti, { serviceIds })}
+            />
+          </Section>
+
+          {canViewFields && <Section title="Campos extras">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
+              {technicalFields
+                .filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id))
+                .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }))
+                .map(field => {
+                  const link = type.technicalFields.find(item => item.technical_field_id === field.id);
+                  return <div key={field.id} className="py-2">
+                    <div className="flex min-w-0 items-start gap-3 text-left">
+                      <Checkbox disabled={!canManageFields} checked={Boolean(link)}
+                        onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-xs font-bold text-foreground">{field.label}</span>
+                        {link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-muted-foreground">
+                          <Checkbox disabled={!canManageFields} checked={link.required}
+                            onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />
+                          Obrigatório
+                        </label>}
+                      </span>
+                    </div>
+                  </div>;
+                })}
+            </div>
+          </Section>}
+
+          {catalog && <Section title="Checklist">
+            <EquipmentChecklistSection draft={type} catalog={catalog}
+              onChange={patch => updateDraft(ti, patch)}
+              errorFor={(field, ci) => field === "profile"
+                ? hierarchyErrors[`checklist-${ti}-profile`]
+                : hierarchyErrors[`checklist-${ti}-${ci}-${field}`]}
+              clearError={(field, ci) => {
+                const key = field === "profile"
+                  ? `checklist-${ti}-profile`
+                  : `checklist-${ti}-${ci}-${field}`;
+                setHierarchyErrors(current => {
+                  if (!current[key]) return current;
+                  const next = { ...current };
+                  delete next[key];
+                  return next;
+                });
+              }} />
+          </Section>}
+
+          <Section title="Marcas"
+            actions={canCreate ? <EquipmentBrandCreate disabled={saving}
+              onCreate={name => toggleDraftBrand(ti, name, true)} /> : undefined}>
+            <EquipmentBrandSelector
+              draft={type} choices={brandChoices} canEdit={canEdit} canCreate={canCreate}
+              onToggleBrand={(name, checked) => toggleDraftBrand(ti, name, checked)}
+            />
+          </Section>
+
+          <Section title="Modelos"
+            actions={canCreate ? <EquipmentModelCreate disabled={saving} brands={type.brands}
+              onCreate={(bi, name) => addModel(ti, bi, name)} /> : undefined}>
+            <EquipmentModelsSelector
+              draft={type} canEdit={canEdit} canCreate={canCreate} canDelete={canDelete}
+              onUpdateModel={(bi, mi, patch) => updateModel(ti, bi, mi, patch)}
+              onRemoveModel={(bi, mi) => removeModel(ti, bi, mi)}
+              errorFor={(bi, mi) => hierarchyErrors[mi == null ? `brand-${ti}-${bi}` : `model-${ti}-${bi}-${mi}`]}
+              clearError={(bi, mi) => {
+                const key = mi == null ? `brand-${ti}-${bi}` : `model-${ti}-${bi}-${mi}`;
+                setHierarchyErrors(current => ({ ...current, [key]: undefined as any }));
+              }}
+            />
+          </Section>
+        </div>)}
+      </div>
+      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-border bg-background px-4 py-4 sm:px-5">
+        <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
+        <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
+      </div>
+    </AdminPage>
     <AdminDialog
       open={serviceDraftIndex !== null && formOpen && canCreateGeneralService}
       onClose={closeNewService}
