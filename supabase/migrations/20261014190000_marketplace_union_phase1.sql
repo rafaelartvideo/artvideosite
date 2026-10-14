@@ -11,11 +11,13 @@ on conflict (key) do update set label=excluded.label,description=excluded.descri
 insert into public.role_permissions(role_id,permission_id)
 select distinct rp.role_id,newperm.id
 from public.role_permissions rp
+join public.roles role_row on role_row.id=rp.role_id
 join public.permissions base on base.id=rp.permission_id
 join public.permissions newperm on (
  (base.key='marketplace.view' and newperm.key in ('marketplace.store.manage','marketplace.listings.manage'))
  or (base.key='organizations.edit' and newperm.key='platform.marketplace.manage')
 )
+where private.permission_belongs_to_organization(role_row.organization_id,newperm.key)
 on conflict (role_id,permission_id) do nothing;
 
 create table if not exists public.marketplace_stores (
