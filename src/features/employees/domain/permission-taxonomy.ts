@@ -60,6 +60,14 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
   "orders.update",
   "customers.update",
   "quotes.update",
+  // A tabela atual de Funções usa colunas fixas. Estes controles legados
+  // não alteram a UI; mantidos no banco por compatibilidade, mas ocultos do editor.
+  "roles.table.name",
+  "roles.table.description",
+  "roles.table.users",
+  "roles.table.type",
+  "roles.table.permissions",
+  "roles.table.actions",
 ]);
 
 export function permissionModuleName(permission: PermissionRecord) {
