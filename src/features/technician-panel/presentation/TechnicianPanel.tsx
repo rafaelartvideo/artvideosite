@@ -570,12 +570,15 @@ export function TechnicianPanel() {
       <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
         {orderDetails?.can_change_situation && !orderDetails.closed &&
-          <div className="min-w-[190px] max-w-sm">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="shrink-0 text-xs font-semibold text-muted-foreground">Alterar situação:</span>
+            <div className="min-w-[170px] max-w-sm flex-1">
             <AdminSelect value={orderDetails.situation_id || ""}
               options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
               onValueChange={value => { if (value) void onSituationChange(value); }}
               ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
               className="min-h-9 w-full min-w-0 text-xs" />
+            </div>
           </div>}
       </AdminStickyToolbar>
       <TechnicianOrderHistoryDialog open={historyDialogOpen}
