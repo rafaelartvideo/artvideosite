@@ -29,6 +29,7 @@ type Props = {
   onChooseStart?: (date: string, time: string, technicianId: string) => void;
   onChooseEnd?: (date: string, time: string, technicianId: string) => void;
   compact?: boolean;
+  viewMode?: "day" | "week";
   onChangeDate?: (date: string) => void;
 };
 
@@ -59,7 +60,7 @@ export function TechnicianAvailabilityCalendar({
   organizationId, technicians, loadingTechnicians = false, date, selectedStart, selectedEnd, selectedTechnicianId,
   selectedTechnicianIds, onToggleTechnician,
   exceptOrderId, exceptTaskId, technicianFilter, onTechnicianFilterChange, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
-  compact = false, onChangeDate,
+  compact = false, viewMode = "day", onChangeDate,
 }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [highlightEmployee, setHighlightEmployee] = useState("");
@@ -122,31 +123,41 @@ export function TechnicianAvailabilityCalendar({
   const fixedTeam = !onToggleTechnician && selectedIds.length > 0;
   const now = new Date();
   const minutesNow = now.getHours() * 60 + now.getMinutes();
-  const compactSlotAvailable = (time: string) => {
-    if (!compactDay) return [];
-    const available = availableAt(compactDay, time)
+  const compactAvailableAt = (day: (typeof days)[number], time: string) => {
+    if (day.date < today || (day.date === today && minutes(time) <= minutesNow)) return [];
+    const available = availableAt(day, time)
       .filter(employee => !selectedEmployeeFilter || employee.id === selectedEmployeeFilter);
     // Reagendamento com equipe fixa: só oferecer horários livres para TODOS os responsáveis.
     if (fixedTeam && !selectedIds.every(id => available.some(employee => employee.id === id))) return [];
     return available;
   };
+  const compactSlotAvailable = (time: string) =>
+    compactDay ? compactAvailableAt(compactDay, time) : [];
+  const weeklyHours = hours.filter(time => !hideEmpty ||
+    days.some(day => compactAvailableAt(day, time).length > 0));
+  const previousWeek = weekMonday(activeDate) > weekMonday(today);
+  const moveCompactDate = (direction: -1 | 1) => {
+    if (!onChangeDate) return;
+    const next = shiftDay(activeDate, direction * (viewMode === "week" ? 7 : 1));
+    onChangeDate(direction < 0 && next < today ? today : next);
+  };
   const displayedHours = hours.filter(time =>
     activeDate >= today && (activeDate !== today || minutes(time) > minutesNow)
     && (!hideEmpty || compactSlotAvailable(time).length > 0));
 
-  // Nos modais de agendamento, o próprio campo de data define o dia:
-  // mostrar sete colunas da semana cria rolagem lateral e compete com a altura do modal.
+  // Modais oferecem Dia ou Semana, com a grade semanal rolando apenas dentro do calendário.
   if (compact) return <AdminCard className="min-w-0 overflow-hidden rounded-lg border-border">
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/30 px-3 py-2.5 sm:px-4">
       <div className="min-w-0">
-        <p className="text-sm font-bold text-foreground">Horários disponíveis</p>
-        <p className="text-xs text-muted-foreground">{displayDay(activeDate)} · Intervalos de 30 minutos</p>
+        <p className="text-sm font-bold text-foreground">{viewMode === "week" ? "Disponibilidade semanal" : "Horários disponíveis"}</p>
+        <p className="text-xs text-muted-foreground">{viewMode === "week" ? `Semana de ${displayDay(first)} · Intervalos de 30 minutos` : `${displayDay(activeDate)} · Intervalos de 30 minutos`}</p>
       </div>
       <div className="flex items-center gap-1">
-        <AdminIconButton ariaLabel="Dia anterior" disabled={activeDate <= today || !onChangeDate}
-          onClick={() => onChangeDate?.(shiftDay(activeDate, -1))}><ChevronLeft size={16} /></AdminIconButton>
-        <AdminIconButton ariaLabel="Próximo dia" disabled={!onChangeDate}
-          onClick={() => onChangeDate?.(shiftDay(activeDate, 1))}><ChevronRight size={16} /></AdminIconButton>
+        <AdminIconButton ariaLabel={viewMode === "week" ? "Semana anterior" : "Dia anterior"}
+          disabled={!(viewMode === "week" ? previousWeek : activeDate > today) || !onChangeDate}
+          onClick={() => moveCompactDate(-1)}><ChevronLeft size={16} /></AdminIconButton>
+        <AdminIconButton ariaLabel={viewMode === "week" ? "Próxima semana" : "Próximo dia"} disabled={!onChangeDate}
+          onClick={() => moveCompactDate(1)}><ChevronRight size={16} /></AdminIconButton>
       </div>
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 sm:px-4">
@@ -180,6 +191,58 @@ export function TechnicianAvailabilityCalendar({
       : !ids.length ? <p className="px-4 py-12 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível.</p>
       : query.error ? <p role="alert" className="px-4 py-8 text-sm text-red-600">{systemErrorMessage(query.error, "Não foi possível consultar a disponibilidade.")}</p>
       : !query.data?.hasSchedules ? <p className="px-4 py-10 text-center text-sm text-muted-foreground">Não há expediente cadastrado. Configure os horários dos técnicos para poder agendar.</p>
+      : viewMode === "week"
+        ? weeklyHours.length === 0
+          ? <p role="status" className="px-4 py-10 text-center text-sm text-muted-foreground">Nenhum horário livre nesta semana. Avance para a próxima semana ou desmarque “Ocultar horários sem vagas”.</p>
+          : <div className="max-h-[min(40dvh,340px)] w-full min-w-0 overflow-auto overscroll-contain" role="region"
+              aria-label="Tabela semanal de disponibilidade" tabIndex={0}>
+              <table className="w-full min-w-[910px] table-fixed border-collapse text-xs">
+                <thead className="sticky top-0 z-10 bg-muted">
+                  <tr>
+                    <th scope="col" className="sticky left-0 z-20 w-[76px] border-b border-r border-border bg-muted px-2 py-2 text-center font-bold text-foreground">Hora</th>
+                    {days.map(day => <th key={day.date} scope="col"
+                        className={"border-b border-r border-border px-1.5 py-2 text-center font-semibold " +
+                          (day.date === activeDate ? "bg-primary/10 text-primary" : "text-foreground")}>
+                      {displayDay(day.date)}{day.date === today && <span className="block text-[10px] font-medium">Hoje</span>}
+                    </th>)}
+                  </tr>
+                </thead>
+                <tbody>{weeklyHours.map(time => <tr key={time}>
+                  <th scope="row" className="sticky left-0 z-[5] border-b border-r border-border bg-card px-2 py-2 text-center font-bold tabular-nums text-foreground">{time}</th>
+                  {days.map(day => {
+                    const available = compactAvailableAt(day, time);
+                    const active = day.date === date && time === selectedStart;
+                    return <td key={day.date} className={"border-b border-r border-border p-1 align-top " +
+                      (active ? "bg-primary/5" : day.date === today ? "bg-primary/[0.025]" : "")}>
+                      {available.length ? <div className="flex flex-col gap-1">
+                        {fixedTeam
+                          ? <button type="button" disabled={!selectable} aria-pressed={active}
+                              title="Todos os responsáveis estão livres neste horário"
+                              onClick={() => onChooseStart?.(day.date, time, selectedIds[0])}
+                              className={"min-h-7 w-full rounded-md border px-1 py-1 text-center text-[11px] font-semibold " +
+                                (active ? "border-primary bg-primary text-white" : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300")}>
+                              {selectedIds.length} técnico{selectedIds.length === 1 ? "" : "s"} livres
+                            </button>
+                          : available.map(employee => {
+                            const checked = active && selectedIds.includes(employee.id);
+                            return <button key={employee.id} type="button" disabled={!selectable} aria-pressed={checked}
+                                title={employee.full_name + " disponível às " + time}
+                                onClick={() => {
+                                  if (onToggleTechnician && active) onToggleTechnician(employee.id);
+                                  else onChooseStart?.(day.date, time, employee.id);
+                                }}
+                                className={"min-h-7 w-full rounded-md border px-1 py-1 text-center text-[11px] font-semibold " +
+                                  (checked ? "border-primary bg-primary text-white" :
+                                    "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-primary dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300")}>
+                              <span className="block truncate">{employee.full_name}</span>
+                            </button>;
+                          })}
+                      </div> : <span className="block py-1.5 text-center text-xs text-muted-foreground/60">—</span>}
+                    </td>;
+                  })}
+                </tr>)}</tbody>
+              </table>
+            </div>
       : displayedHours.length === 0 ? <p role="status" className="px-4 py-10 text-center text-sm text-muted-foreground">
           Nenhum horário livre neste dia. Escolha outra data ou desmarque “Ocultar horários sem vagas”.
         </p>
