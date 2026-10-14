@@ -95,11 +95,11 @@ export function AdminButton({
       "inline-flex min-w-0 max-w-full cursor-default items-center justify-center overflow-hidden whitespace-nowrap rounded-lg bg-clip-padding font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 disabled:cursor-default disabled:opacity-50",
       variants[variant],
       sizes[size],
-      mobileBackOnly && "max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0",
+      mobileBackOnly && "max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0",
       className,
     )}
   >
-    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? renderedChildren}</> : renderedChildren}
+    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? null}</> : renderedChildren}
   </button>;
 }
 
