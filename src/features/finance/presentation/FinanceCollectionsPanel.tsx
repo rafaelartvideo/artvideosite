@@ -40,7 +40,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
-  const canView = hasPermission("finance.collections.view") || hasPermission("finance.collections.create");
+  const canView = hasPermission("finance.collections.view");
   const canCreate = hasPermission("finance.collections.create");
   const [open, setOpen] = useState(false);
   const [channel, setChannel] = useState<FinancialCollectionChannel>("whatsapp");
