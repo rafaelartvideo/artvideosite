@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit2, ShieldCheck } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   createRole,
@@ -16,7 +16,6 @@ import {
 } from "@/features/employees/domain/permission-taxonomy";
 import {
   AdminCard,
-  AdminIconButton,
   AdminPage,
   BtnPrimary,
   BtnSecondary,
@@ -322,13 +321,13 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       {loading ? <LoadingState /> : roles.length === 0 ? <EmptyState icon={ShieldCheck} title="Nenhuma função cadastrada" message="Cadastre a primeira função para definir permissões." /> : <>
         <div className="overflow-x-auto">
           <table className="min-w-[720px]">
-            <thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Vinculados</th><th className="text-left">Status</th><th className="text-right">Ações</th></tr></thead>
-            <tbody>{pagedRoles.map(role => <tr key={role.id} onClick={() => openRole(role)} className={canViewDetails ? "cursor-default" : undefined}>
+            <thead><tr><th className="text-left">Função</th><th className="text-left">Descrição</th><th className="text-left">Vinculados</th><th className="text-left">Status</th></tr></thead>
+            <tbody>{pagedRoles.map(role => <tr key={role.id} onClick={() => openRole(role)} className={canViewDetails ? "cursor-pointer" : undefined}>
               <td className="font-bold text-[#0d1b2e]">{role.name}</td>
               <td className="max-w-sm text-xs text-[#5a6a82]">{role.description || "—"}</td>
               <td className="text-xs text-[#5a6a82]">{memberCounts[role.id] || 0}</td>
               <td><StatusBadge status={role.is_active ? "Ativo" : "Inativo"} /></td>
-              <td className="text-right" onClick={event => event.stopPropagation()}>{canViewDetails && <AdminIconButton ariaLabel={`Abrir função ${role.name}`} title="Abrir" onClick={() => openRole(role)}><Edit2 size={14} /></AdminIconButton>}</td>
+              
             </tr>)}</tbody>
           </table>
         </div>
