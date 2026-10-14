@@ -25,11 +25,8 @@ begin
     raise exception 'Sem acesso a esta empresa.' using errcode = '42501';
   end if;
 
-  if not (
-    private.has_effective_organization_permission(p_organization_id, 'customers.edit')
-    or private.has_effective_organization_permission(p_organization_id, 'customers.update')
-    or private.has_organization_permission(p_organization_id, 'employees.edit')
-  ) then
+  -- Alterar exceções de sessão é atribuição de quem administra usuários.
+  if not private.has_organization_permission(p_organization_id, 'employees.edit') then
     raise exception 'Sem permissão para alterar a política de inatividade.' using errcode = '42501';
   end if;
 
