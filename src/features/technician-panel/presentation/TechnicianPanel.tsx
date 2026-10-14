@@ -401,7 +401,7 @@ export function TechnicianPanel() {
           ? <BtnSecondary onClick={() => openNoteEditor("problem", selected.problem)}>Editar</BtnSecondary>
           : undefined}>
         <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
-      </Section>
+      </Section>}
       {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section
         title="Diagnóstico"
         actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
@@ -414,7 +414,7 @@ export function TechnicianPanel() {
           ? <BtnSecondary onClick={() => openNoteEditor("internal_notes", orderDetails.internal_notes)}>Editar</BtnSecondary>
           : undefined}>
         <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes || "Ainda não informado."}</p>
-      </Section>
+      </Section>}
       </> : <>
       {hasPermission("technician_panel.data.order_items") && orderDetails && <TechnicianOrderItemsSection
         orderId={routeOrderId}
