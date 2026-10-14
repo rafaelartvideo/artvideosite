@@ -494,7 +494,9 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
             <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2">
               {technicalFields
                 .filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id))
-                .sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }))
+                .sort((a, b) => Number(type.technicalFields.some(link => link.technical_field_id === b.id))
+                  - Number(type.technicalFields.some(link => link.technical_field_id === a.id))
+                  || a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }))
                 .map(field => {
                   const link = type.technicalFields.find(item => item.technical_field_id === field.id);
                   return <div key={field.id} className="py-2">
@@ -634,7 +636,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         <div>
           <p className="mb-2 text-xs font-bold text-foreground">Equipamentos</p>
           <div className="grid max-h-64 grid-cols-1 gap-x-4 overflow-y-auto border-y border-border sm:grid-cols-2">
-            {types.filter(type => type.is_active).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(type => (
+            {types.filter(type => type.is_active).sort((a, b) =>
+              Number(brandEquipmentIds.includes(b.id)) - Number(brandEquipmentIds.includes(a.id))
+              || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
+            ).map(type => (
               <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border py-3 text-xs text-foreground">
                 <Checkbox checked={brandEquipmentIds.includes(type.id)} disabled={savingBrand}
                   onCheckedChange={checked => {
