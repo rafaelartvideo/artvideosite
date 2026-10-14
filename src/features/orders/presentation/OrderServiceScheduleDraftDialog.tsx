@@ -28,12 +28,13 @@ function localToIso(date: string, time: string) {
 }
 
 export function OrderServiceScheduleDraftDialog({
-  open, organizationId, orderId, title, technicians, initial, lockedTechnicianIds, onConfirm, onClose,
+  open, organizationId, orderId, title, dialogTitle = "Agendar serviço", technicians, initial, lockedTechnicianIds, onConfirm, onClose,
 }: {
   open: boolean;
   organizationId: string;
   orderId: string;
   title: string;
+  dialogTitle?: string;
   technicians: OrderServiceTechnician[];
   initial: ServiceScheduleDraft | null;
   lockedTechnicianIds?: string[];
@@ -80,7 +81,7 @@ export function OrderServiceScheduleDraftDialog({
     onConfirm({ startAt, endAt, technicianIds: selected });
   };
 
-  return <AdminDialog open={open} title="Agendar serviço" description={title}
+  return <AdminDialog open={open} title={dialogTitle} description={title}
     className="w-[calc(100vw-1.5rem)] max-w-4xl" bodyClassName="p-3 sm:p-4"
     onClose={onClose} footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
       <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
