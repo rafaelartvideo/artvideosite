@@ -44,7 +44,7 @@ export type FinancialCounterparty = {
 async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Promise<FinancialEntry[]> {
   if (!rows.length) return [];
   const ids = rows.map(row => row.id);
-  const [installmentsResult, approvalsResult] = await Promise.all([
+  const [installmentsResult, approvalsResult, settlementsResult] = await Promise.all([
     supabase
       .from("financial_installments")
       .select(INSTALLMENT_COLUMNS)
@@ -58,9 +58,16 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
       .in("financial_entry_id", ids)
       .eq("action", "approve")
       .order("created_at"),
+    supabase
+      .from("financial_settlements")
+      .select("financial_entry_id,payment_method_name_snapshot,principal_amount,settlement_status")
+      .eq("organization_id", organizationId)
+      .in("financial_entry_id", ids)
+      .neq("settlement_status", "reversed"),
   ]);
   if (installmentsResult.error) throw installmentsResult.error;
   if (approvalsResult.error) throw approvalsResult.error;
+  if (settlementsResult.error) throw settlementsResult.error;
 
   const installmentsByEntry = new Map<string, FinancialInstallment[]>();
   for (const installment of (installmentsResult.data || []) as FinancialInstallment[]) {
@@ -76,16 +83,27 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
     approvalsByEntry.set(approval.financial_entry_id, list);
   }
 
+  const methodsByEntry = new Map<string, Set<string>>();
+  for (const settlement of settlementsResult.data || []) {
+    const methods = methodsByEntry.get(settlement.financial_entry_id) || new Set<string>();
+    if (settlement.payment_method_name_snapshot) methods.add(settlement.payment_method_name_snapshot);
+    methodsByEntry.set(settlement.financial_entry_id, methods);
+  }
   const today = todayDate();
   return rows.map(entry => {
     const entryInstallments = installmentsByEntry.get(entry.id) || [];
     const pending = entryInstallments.filter(item => Number(item.settled_amount || 0) < Number(item.original_amount || 0));
     const currentApprovals = (approvalsByEntry.get(entry.id) || []).filter(item => item.approval_cycle === entry.approval_cycle);
     const approvalUsers = new Set(currentApprovals.map(item => item.approver_user_id));
+    const settledAmount = entryInstallments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
+    const methods = [...(methodsByEntry.get(entry.id) || [])];
     return {
       ...entry,
       source_details: entry.source_details || {},
       approval_count: approvalUsers.size,
+      payment_method_summary: methods.length ? methods.join(", ") : null,
+      settled_amount: settledAmount,
+      remaining_amount: entryInstallments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount || 0) - Number(item.settled_amount || 0)), 0),
       next_due_date: pending[0]?.due_date || null,
       operational_status: entry.approval_status === "cancelled" || entry.approval_status === "reversed"
         ? "cancelled"
@@ -203,6 +221,27 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
   if (settlementsResult.error) throw settlementsResult.error;
   if (eventsResult.error) throw eventsResult.error;
 
+  // Resolve display names for the actors involved. Never infer a name from a UUID.
+  const typedEvents = (eventsResult.data || []) as FinancialEvent[];
+  const typedSettlements = (settlementsResult.data || []) as FinancialSettlement[];
+  const actorIds = [...new Set([
+    (entry as FinancialEntry).created_by,
+    (entry as FinancialEntry).updated_by,
+    ...typedEvents.map(event => event.created_by),
+    ...typedSettlements.map(item => item.created_by),
+  ].filter((id): id is string => Boolean(id)))];
+  const profileNames = new Map<string, string>();
+  if (actorIds.length) {
+    const profilesResult = await supabase.from("profiles").select("id,full_name").in("id", actorIds);
+    // A user's record may be invisible to the current role; never block viewing the account.
+    if (!profilesResult.error) {
+      for (const profile of profilesResult.data || []) {
+        if (profile.full_name) profileNames.set(profile.id, profile.full_name);
+      }
+    }
+  }
+  const conclusionEvent = typedEvents.find(event => ["settlement_posted", "settlement_registered"].includes(event.event_type) && event.created_by);
+  const lastSettlement = typedSettlements.find(item => item.settlement_status !== "reversed" && item.created_by);
   const typedEntry = { ...(entry as FinancialEntry), source_details: (entry as FinancialEntry).source_details || {} };
   const approvals = (approvalsResult.data || []) as FinancialApproval[];
   const currentApprovers = new Set(approvals
@@ -211,6 +250,11 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
   return {
     ...typedEntry,
     approval_count: currentApprovers.size,
+    created_by_name: profileNames.get(typedEntry.created_by || "") || null,
+    updated_by_name: profileNames.get(typedEntry.updated_by || "") || null,
+    last_settlement_by_name: profileNames.get(lastSettlement?.created_by || "") || null,
+    concluded_by_name: profileNames.get(conclusionEvent?.created_by || "") || null,
+    actor_names: Object.fromEntries(profileNames),
     installments: (installmentsResult.data || []) as FinancialInstallment[],
     allocations: (allocationsResult.data || []) as FinancialAllocation[],
     approvals,
