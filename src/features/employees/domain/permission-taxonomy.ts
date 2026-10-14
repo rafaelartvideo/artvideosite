@@ -240,6 +240,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "technician_panel.data.order_items": ["technician_panel.view"],
   "technician_panel.data.internal_notes": ["technician_panel.view"],
   "technician_panel.data.history": ["technician_panel.view"],
+  "technician_panel.actions.history.create": ["technician_panel.data.history", "technician_panel.view"],
   "technician_panel.actions.add_service": ["technician_panel.data.order_items", "technician_panel.view"],
   "technician_panel.actions.add_product": ["technician_panel.data.order_items", "technician_panel.view"],
   "technician_panel.actions.remove_product": ["technician_panel.data.order_items", "technician_panel.view"],
