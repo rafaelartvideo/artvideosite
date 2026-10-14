@@ -86,14 +86,6 @@ export async function getMyTechnicianEquipmentPhotoUrl(path: string): Promise<st
   return data.signedUrl;
 }
 
-export async function changeMyTechnicianOrderSituation(orderId: string, situationId: string): Promise<void> {
-  const { error } = await supabase.rpc("change_my_technician_order_situation_v1", {
-    p_order_id: orderId,
-    p_situation_id: situationId,
-  });
-  if (error) throw error;
-}
-
 export async function updateMyTechnicianOrderDiagnosis(orderId: string, diagnosis: string): Promise<void> {
   const { error } = await supabase.rpc("update_my_technician_order_diagnosis_v1", {
     p_order_id: orderId,
