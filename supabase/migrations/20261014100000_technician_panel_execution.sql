@@ -17,13 +17,23 @@ insert into public.permissions (key,label,description,module_name,sort_order) va
 on conflict (key) do update set label=excluded.label,description=excluded.description,
   module_name=excluded.module_name,sort_order=excluded.sort_order;
 
--- Proprietários existentes podem habilitar as permissões nas funções.
+-- Concede as novas permissões apenas às funções de proprietários válidas
+-- na própria empresa. O trigger de proteção multiempresa continua habilitado.
 insert into public.role_permissions(role_id,permission_id)
-select distinct member.role_id, permission.id
+select distinct role_row.id, permission.id
 from public.organization_members member
-cross join public.permissions permission
-where member.is_owner and member.status='active' and member.role_id is not null
-  and permission.key like 'technician_panel.%'
+join public.roles role_row
+  on role_row.id = member.role_id
+ and role_row.organization_id = member.organization_id
+join public.organizations organization
+  on organization.id = role_row.organization_id
+join public.permissions permission
+  on permission.key like 'technician_panel.%'
+where member.is_owner
+  and member.status = 'active'
+  and role_row.is_active
+  and organization.status = 'active'
+  and private.permission_belongs_to_organization(role_row.organization_id, permission.key)
 on conflict(role_id,permission_id) do nothing;
 
 alter table public.service_order_item_tasks
