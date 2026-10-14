@@ -22,10 +22,12 @@ export async function listGeneralServices(): Promise<GeneralService[]> {
   return data ?? [];
 }
 
-export async function createGeneralService(service: GeneralServiceWrite): Promise<void> {
+export async function createGeneralService(service: GeneralServiceWrite): Promise<string> {
   const organizationId = await getActiveOrganizationId();
-  const { error } = await supabase.from("general_services").insert({ ...service, organization_id: organizationId });
+  const { data, error } = await supabase.from("general_services").insert({ ...service, organization_id: organizationId }).select("id").single();
   if (error) throw error;
+  if (!data?.id) throw new Error("O serviço foi cadastrado, mas não foi possível obter seu identificador.");
+  return data.id;
 }
 
 export async function updateGeneralService(
