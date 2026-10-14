@@ -137,7 +137,7 @@ $$;
 -- realmente associadas à sua OS e se possuir permissão de visualizar equipamento.
 create or replace function private.can_view_technician_order_equipment_photo_v1(p_name text)
 returns boolean language sql stable security definer set search_path=''
-as $
+as $$
   select (select auth.uid()) is not null and exists(
     select 1 from public.media media
     join public.service_order_media link on link.media_id=media.id
@@ -148,7 +148,7 @@ as $
       and link.sort_order < 1000
       and private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
   );
-$;
+$$;
 revoke all on function private.can_view_technician_order_equipment_photo_v1(text) from public,anon;
 grant execute on function private.can_view_technician_order_equipment_photo_v1(text) to authenticated;
 
