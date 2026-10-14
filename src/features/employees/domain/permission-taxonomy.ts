@@ -11,7 +11,7 @@ export type PermissionSectionGroup = { name: string; permissions: PermissionReco
 export type PermissionModuleGroup = { name: string; sections: PermissionSectionGroup[]; permissions: PermissionRecord[] };
 
 const MODULE_LABELS: Record<string, string> = {
-  dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço",
+  dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço", technician_panel: "Painel do Técnico",
   customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
@@ -83,6 +83,11 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (TOOL_MODULE_SECTIONS[module]) return TOOL_MODULE_SECTIONS[module];
   if (key.includes(".table.")) return "Tabela";
   if (key.includes(".details.")) return "Detalhes";
+  if (module === "technician_panel") {
+    if (key === "technician_panel.view") return "Acesso";
+    if (key.startsWith("technician_panel.data.")) return "Dados";
+    if (key.startsWith("technician_panel.actions.")) return "Ações";
+  }
   if (module === "orders") {
     if (key === "orders.view") return "Acesso";
     if (key.includes(".kanban.")) return "Kanban";
@@ -180,6 +185,16 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "field_tracking.view": ["tools.view"],
+  "technician_panel.data.customer": ["technician_panel.view"],
+  "technician_panel.data.contact": ["technician_panel.view"],
+  "technician_panel.data.equipment": ["technician_panel.view"],
+  "technician_panel.data.diagnosis": ["technician_panel.view"],
+  "technician_panel.data.schedule": ["technician_panel.view"],
+  "technician_panel.data.location": ["technician_panel.view"],
+  "technician_panel.data.photos": ["technician_panel.view"],
+  "technician_panel.actions.start": ["technician_panel.view"],
+  "technician_panel.actions.complete": ["technician_panel.view"],
+  "technician_panel.actions.photo": ["technician_panel.view"],
   "field_tracking.share": ["tools.view"],
   "queue.view": ["tools.view"],
   "pbx.view": ["tools.view"],
