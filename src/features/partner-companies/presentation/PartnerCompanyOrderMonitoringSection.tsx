@@ -24,7 +24,7 @@ const EMPTY_DRAFT: Draft = { title: "", description: "", forecastDays: "" };
 export function PartnerCompanyOrderMonitoringSection({ organizationId }: { organizationId: string }) {
   const { hasPermission } = useAuth();
   const queryClient = useQueryClient();
-  const canView = hasPermission("orders.monitor.view") || hasPermission("orders.monitor.manage");
+  const canView = hasPermission("orders.monitor.view");
   const canManage = hasPermission("orders.monitor.manage");
   const [selectedExistingId, setSelectedExistingId] = useState("");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
