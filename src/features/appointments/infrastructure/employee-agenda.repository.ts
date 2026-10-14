@@ -94,7 +94,7 @@ export async function loadEmployeeOccupiedIntervals(
   if (Number.isNaN(start.getTime())) throw new Error("Data de agenda inválida.");
   const previous = new Date(start); previous.setDate(previous.getDate() - 1);
   const next = new Date(start); next.setDate(next.getDate() + 1);
-  const [orders, appointments] = await Promise.all([
+  const [orders, appointments, scheduledTasks] = await Promise.all([
     supabase.from("service_orders")
       .select("id,scheduled_at,scheduled_end_at,technician_id,technician_links:service_order_technicians(employee_id)")
       .eq("organization_id", organizationId).not("scheduled_at", "is", null)
@@ -103,12 +103,24 @@ export async function loadEmployeeOccupiedIntervals(
     supabase.from("appointments")
       .select("id,period,start_time,end_time,appointment_technicians(employee_id)")
       .eq("organization_id", organizationId).eq("appointment_date", date),
+    supabase.from("service_order_item_tasks")
+      .select("item_id,service_order_id,scheduled_start_at,scheduled_end_at,status,assigned_employee_id,assignees:service_order_item_task_assignees(employee_id)")
+      .eq("organization_id", organizationId)
+      .not("scheduled_start_at", "is", null)
+      .in("status", ["pending", "in_progress"])
+      .gt("scheduled_end_at", previous.toISOString())
+      .lt("scheduled_start_at", next.toISOString()),
   ]);
   if (orders.error) throw orders.error;
   if (appointments.error) throw appointments.error;
+  if (scheduledTasks.error) throw scheduledTasks.error;
   const intervals: OccupiedInterval[] = [];
+  const taskRows = scheduledTasks.data || [];
+  const withIndividualSchedule = new Set(taskRows.filter(task =>
+    task.assigned_employee_id === employeeId || (task.assignees || []).some(a => a.employee_id === employeeId),
+  ).map(task => task.service_order_id));
   for (const order of orders.data || []) {
-    if (order.id === exceptOrderId) continue;
+    if (order.id === exceptOrderId || withIndividualSchedule.has(order.id)) continue;
     const links = (order as any).technician_links || [];
     if (order.technician_id !== employeeId && !links.some((link: any) => link.employee_id === employeeId)) continue;
     const orderStart = new Date(order.scheduled_at!);
@@ -123,6 +135,18 @@ export async function loadEmployeeOccupiedIntervals(
         source: "os",
       });
     }
+  }
+  for (const task of taskRows) {
+    if (task.assigned_employee_id !== employeeId &&
+        !(task.assignees || []).some(a => a.employee_id === employeeId)) continue;
+    const from = new Date(task.scheduled_start_at!);
+    const to = new Date(task.scheduled_end_at!);
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || from >= next || to <= start) continue;
+    intervals.push({
+      start: Math.max(0, Math.floor((from.getTime() - start.getTime()) / 60_000)),
+      end: Math.min(24 * 60, Math.ceil((to.getTime() - start.getTime()) / 60_000)),
+      source: "os",
+    });
   }
   for (const appointment of appointments.data || []) {
     const links = (appointment as any).appointment_technicians || [];
