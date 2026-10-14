@@ -2,14 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Edit2, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
-  addRolePermission,
   createRole,
   getRolePermissionIds,
   listPermissions,
   listRoleMembers,
   listRoles,
-  removeRolePermission,
   updateRole,
+  saveRolePermissions,
 } from "../infrastructure/roles.repository";
 import {
   permissionDependencies,
@@ -247,23 +246,13 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       }
 
       if (canManagePermissions) {
-        const { data: currentRows, error: currentError } = await getRolePermissionIds(roleId);
-        if (currentError) throw currentError;
-        const current = new Set((currentRows || []).map((item: any) => String(item.permission_id)));
-        const selected = new Set(form.selected);
-        for (const permissionId of selected) {
-          if (!current.has(permissionId)) {
-            const { error } = await addRolePermission(roleId, permissionId);
-            if (error) throw error;
-          }
-        }
-        for (const permissionId of current) {
-          if (!selected.has(permissionId)) {
-            const { error } = await removeRolePermission(roleId, permissionId);
-            if (error) throw error;
-          }
-        }
+        const visibleIds = permissions.map(item => item.id);
+        const visibleSet = new Set(visibleIds);
+        const selectedVisible = form.selected.filter(id => visibleSet.has(id));
+        const { error } = await saveRolePermissions(roleId, selectedVisible, visibleIds);
+        if (error) throw error;
       }
+
 
       setToast({ msg: creating ? "Função criada." : "Função atualizada.", type: "success" });
       await load();
