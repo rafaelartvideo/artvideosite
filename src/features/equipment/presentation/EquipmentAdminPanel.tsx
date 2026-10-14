@@ -7,13 +7,15 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import type { EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow, TechnicalField } from "../domain/equipment";
 import { createEquipmentBrandForTypes, loadEquipmentBrandDirectory, loadEquipmentCatalog, loadEquipmentServiceSettings, saveEquipmentHierarchy, saveTechnicalField, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
+import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
+import { createGeneralService } from "@/features/general-services/infrastructure/general-services.repository";
 import { EquipmentServiceSelector } from "./EquipmentServiceSelector";
 import { brandKey, buildEquipmentBrandChoices, EquipmentBrandSelector, EquipmentBrandsDirectory } from "./EquipmentBrands";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { slugify } from "@/shared/domain/formatters";
@@ -37,6 +39,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const canEdit = hasPermission("equipment.edit");
   const canToggleActive = hasPermission("equipment.toggle_active");
   const canDelete = hasPermission("equipment.delete");
+  const canCreateGeneralService = hasPermission("general_services.create");
   const canViewFields = hasPermission("equipment.technical_fields.view");
   const canManageFields = hasPermission("equipment.technical_fields.manage");
   const showEquipment = hasPermission("equipment.table.equipment");
@@ -78,6 +81,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [brandEquipmentIds, setBrandEquipmentIds] = useState<string[]>([]);
   const [brandError, setBrandError] = useState("");
   const [savingBrand, setSavingBrand] = useState(false);
+  const [serviceDraftIndex, setServiceDraftIndex] = useState<number | null>(null);
+  const [serviceForm, setServiceForm] = useState({ name: "", price: "", priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
+  const [serviceFormErrors, setServiceFormErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({});
+  const [savingService, setSavingService] = useState(false);
   const [editingField, setEditingField] = useState<TechnicalField | null>(null);
   const [fieldForm, setFieldForm] = useState({ label: "", field_type: "text" as "text" | "number", is_active: true });
   const loading = catalogQuery.isPending;
@@ -98,7 +105,8 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const pagedTypes = types.slice((safeTypePage - 1) * typePageSize, safeTypePage * typePageSize);
   const fieldTotalPages = Math.max(1, Math.ceil(technicalFields.length / fieldPageSize));
   const safeFieldPage = Math.min(fieldPage, fieldTotalPages);
-  const pagedFields = technicalFields.slice((safeFieldPage - 1) * fieldPageSize, safeFieldPage * fieldPageSize);
+  const sortedTechnicalFields = [...technicalFields].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
+  const pagedFields = sortedTechnicalFields.slice((safeFieldPage - 1) * fieldPageSize, safeFieldPage * fieldPageSize);
   useEffect(() => { if (typePage > typeTotalPages) setTypePage(typeTotalPages); }, [typePage, typeTotalPages]);
   useEffect(() => { if (fieldPage > fieldTotalPages) setFieldPage(fieldTotalPages); }, [fieldPage, fieldTotalPages]);
 
@@ -122,8 +130,8 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     brands: brands.filter(brand => brand.equipment_type_id === type?.id).map(brand => ({ id: brand.id, name: brand.name, is_active: brand.is_active, models: models.filter(model => model.equipment_brand_id === brand.id).map(model => ({ id: model.id, name: model.name, is_active: model.is_active })) })),
   });
 
-  const openNew = () => { if (!canCreate) return; setDrafts([makeDraft()]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
-  const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return; setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
+  const openNew = () => { if (!canCreate) return; setServiceDraftIndex(null); setDrafts([makeDraft()]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
+  const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return; setServiceDraftIndex(null); setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
   const addEquipment = () => canCreate && setDrafts(current => [...current, makeDraft()]);
   const updateDraft = (index: number, value: Partial<EquipmentDraft>) => setDrafts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item));
   const toggleDraftBrand = (ti: number, name: string, checked: boolean) => {
@@ -157,7 +165,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const updateTechnicalFieldRequired = (ti: number, fieldId: string, required: boolean) => { if (!canManageFields) return; setDrafts(current => current.map((type, i) => i === ti ? { ...type, technicalFields: type.technicalFields.map(field => field.technical_field_id === fieldId ? { ...field, required } : field) } : type)); };
   const openNewField = () => { if (!canManageFields) return; setEditingField(null); setFieldForm({ label: "", field_type: "text", is_active: true }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
   const openEditField = (field: TechnicalField) => { if (!canManageFields) return; setEditingField(field); setFieldForm({ label: field.label, field_type: field.field_type, is_active: field.is_active }); setFormOpen(false); setActiveArea("fields"); setFieldFormOpen(true); };
-  const closeEditor = () => { setFormOpen(false); setFieldFormOpen(false); onRouteChange?.(activeArea === "fields" ? "fields" : null, null); };
+  const closeEditor = () => { setServiceDraftIndex(null); setFormOpen(false); setFieldFormOpen(false); onRouteChange?.(activeArea === "fields" ? "fields" : null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (type: EquipmentTypeRow) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(type.id, "edit") : openEdit(type));
   const openFieldsPage = () => { if (!canViewFields) return; if (onRouteChange) onRouteChange("fields", null); else setActiveArea("fields"); };
@@ -194,6 +202,54 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       setSavingBrand(false);
     }
   };
+  const openNewService = (draftIndex: number) => {
+    if (!canCreateGeneralService || !serviceSettings?.available || !(drafts[draftIndex]?.id ? canEdit : canCreate)) return;
+    setServiceDraftIndex(draftIndex);
+    setServiceForm({ name: "", price: "", priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
+    setServiceFormErrors({});
+  };
+  const closeNewService = () => { if (!savingService) setServiceDraftIndex(null); };
+  const saveNewService = async () => {
+    if (serviceDraftIndex === null || savingService || !canCreateGeneralService || !serviceSettings?.available) return;
+    const name = serviceForm.name.trim().replace(/\s+/g, " ");
+    const parsedPrice = serviceForm.priceAtCompletion || serviceForm.price === "" ? null : Number(serviceForm.price);
+    const parsedPercentage = serviceForm.maxDiscountPercentage === "" ? null : Number(serviceForm.maxDiscountPercentage);
+    const parsedAmount = serviceForm.maxDiscountAmount === "" ? null : Number(serviceForm.maxDiscountAmount);
+    const errors: typeof serviceFormErrors = {};
+    if (!name) errors.name = "Informe o nome do serviço.";
+    else if (serviceSettings.services.some(service => normalizeCatalogName(service.name) === normalizeCatalogName(name))) errors.name = "Este Serviço Geral já está cadastrado. Selecione-o na lista.";
+    if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) errors.price = "Informe um valor válido e não negativo.";
+    if (parsedPercentage !== null && (!Number.isFinite(parsedPercentage) || parsedPercentage < 0 || parsedPercentage > 100)) errors.maxDiscountPercentage = "O desconto deve estar entre 0% e 100%.";
+    if (parsedAmount !== null && (!Number.isFinite(parsedAmount) || parsedAmount < 0)) errors.maxDiscountAmount = "Informe um valor válido e não negativo.";
+    setServiceFormErrors(errors);
+    if (Object.keys(errors).length) return;
+    setSavingService(true);
+    try {
+      const id = await createGeneralService({
+        name, price: parsedPrice, price_at_completion: serviceForm.priceAtCompletion,
+        max_discount_percentage: parsedPercentage, max_discount_amount: parsedAmount,
+        is_active: true, sort_order: serviceSettings.services.length,
+      });
+      const selectedDraftIndex = serviceDraftIndex;
+      const savedLinks = serviceSettings.links;
+      setDrafts(current => current.map((draft, index) => {
+        if (index !== selectedDraftIndex) return draft;
+        const selectedIds = draft.serviceIds ?? savedLinks.filter(link => link.equipment_type_id === draft.id).map(link => link.general_service_id);
+        return { ...draft, serviceIds: [...new Set([...selectedIds, id])] };
+      }));
+      queryClient.setQueryData<EquipmentServiceSettings>(["equipment", "service-settings", activeOrganizationId], previous =>
+        previous ? { ...previous, services: [...previous.services, { id, name, is_active: true }] } : previous);
+      setServiceDraftIndex(null);
+      setToast({ msg: "Serviço cadastrado e selecionado. Salve o equipamento para confirmar o vínculo.", type: "success" });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
+      void queryClient.invalidateQueries({ queryKey: ["equipment", "service-settings", activeOrganizationId] });
+    } catch (error) {
+      setToast({ msg: `Erro ao cadastrar serviço: ${systemErrorMessage(error)}`, type: "error" });
+    } finally {
+      setSavingService(false);
+    }
+  };
+
   const openEditFieldPage = (field: TechnicalField) => { if (canManageFields) openEditField(field); };
 
   useEffect(() => {
@@ -344,8 +400,9 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   disabled={saving || !(type.id ? canEdit : canCreate) || !serviceSettings || !serviceSettings.available}
   available={Boolean(serviceSettings?.available)}
   onRetry={() => { void queryClient.invalidateQueries({ queryKey: ["equipment", "service-settings", activeOrganizationId] }); }}
+  onCreate={canCreateGeneralService && (type.id ? canEdit : canCreate) ? () => openNewService(ti) : undefined}
   onChange={serviceIds => updateDraft(ti, { serviceIds })}
-/>{canViewFields && <div className="border-t border-[#0d1b2e]/8 pt-4"><div className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Campos Extras</div><div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{technicalFields.filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id)).map(field => { const link = type.technicalFields.find(item => item.technical_field_id === field.id); return <div key={field.id} className="border-b border-[#0d1b2e]/8 py-3"><div className="flex min-w-0 items-start gap-3 text-left"><Checkbox disabled={!canManageFields} checked={Boolean(link)} onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} /><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#0d1b2e]">{field.label}</span>{link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-[#5a6a82]"><Checkbox disabled={!canManageFields} checked={link.required} onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />Obrigatório</label>}</span></div></div>; })}</div></div>}{catalog && <EquipmentChecklistSection
+/>{canViewFields && <div className="border-t border-[#0d1b2e]/8 pt-4"><div className="mb-1 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Campos Extras</div><div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">{technicalFields.filter(field => field.is_active || type.technicalFields.some(link => link.technical_field_id === field.id)).sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" })).map(field => { const link = type.technicalFields.find(item => item.technical_field_id === field.id); return <div key={field.id} className="border-b border-[#0d1b2e]/8 py-3"><div className="flex min-w-0 items-start gap-3 text-left"><Checkbox disabled={!canManageFields} checked={Boolean(link)} onCheckedChange={checked => updateTechnicalField(ti, field.id, checked === true)} /><span className="min-w-0 flex-1"><span className="block text-xs font-bold text-[#0d1b2e]">{field.label}</span>{link && <label className="mt-2 flex cursor-default items-center gap-2 text-[11px] text-[#5a6a82]"><Checkbox disabled={!canManageFields} checked={link.required} onCheckedChange={checked => updateTechnicalFieldRequired(ti, field.id, checked === true)} />Obrigatório</label>}</span></div></div>; })}</div></div>}{catalog && <EquipmentChecklistSection
   draft={type}
   catalog={catalog}
   onChange={patch => updateDraft(ti, patch)}
@@ -380,6 +437,35 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   }}
 /></Section></div>)}{canCreate && drafts.every(type => !type.id) && <BtnSecondary onClick={addEquipment}><Plus size={15} /> Adicionar equipamento</BtnSecondary>}</div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage>
     <AdminDialog
+      open={serviceDraftIndex !== null && formOpen && canCreateGeneralService}
+      onClose={closeNewService}
+      title="Novo Serviço Geral"
+      className="max-w-lg"
+      minimizable={!savingService}
+      footer={<div className="flex justify-end gap-2">
+        <BtnSecondary onClick={closeNewService} disabled={savingService}>Cancelar</BtnSecondary>
+        <BtnPrimary onClick={() => void saveNewService()} loading={savingService} loadingText="Salvando...">Cadastrar e vincular</BtnPrimary>
+      </div>}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="sm:col-span-2">
+          <FInput label="Nome do serviço" required disabled={savingService} value={serviceForm.name}
+            error={serviceFormErrors.name}
+            onChange={(event: any) => { setServiceForm(current => ({ ...current, name: event.target.value })); setServiceFormErrors(current => ({ ...current, name: undefined })); }} />
+        </div>
+        <div className="sm:col-span-2">
+          <FToggle label="Definir valor na conclusão da OS" disabled={savingService} checked={serviceForm.priceAtCompletion}
+            onChange={value => setServiceForm(current => ({ ...current, priceAtCompletion: value, price: value ? "" : current.price }))} />
+        </div>
+        <FCurrencyInput label="Valor" disabled={savingService || serviceForm.priceAtCompletion} value={serviceForm.priceAtCompletion ? "" : serviceForm.price}
+          error={serviceFormErrors.price} onChange={(event: any) => { setServiceForm(current => ({ ...current, price: event.target.value })); setServiceFormErrors(current => ({ ...current, price: undefined })); }} />
+        <FDecimalInput label="Desconto máximo (%)" disabled={savingService} decimalPlaces={2} value={serviceForm.maxDiscountPercentage}
+          error={serviceFormErrors.maxDiscountPercentage} onChange={(event: any) => { setServiceForm(current => ({ ...current, maxDiscountPercentage: event.target.value })); setServiceFormErrors(current => ({ ...current, maxDiscountPercentage: undefined })); }} />
+        <FCurrencyInput label="Desconto máximo (R$)" disabled={savingService} value={serviceForm.maxDiscountAmount}
+          error={serviceFormErrors.maxDiscountAmount} onChange={(event: any) => { setServiceForm(current => ({ ...current, maxDiscountAmount: event.target.value })); setServiceFormErrors(current => ({ ...current, maxDiscountAmount: undefined })); }} />
+      </div>
+    </AdminDialog>
+    <AdminDialog
       open={brandFormOpen && canCreate}
       onClose={closeBrandForm}
       title="Nova marca"
@@ -397,7 +483,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         <div>
           <p className="mb-2 text-xs font-bold text-foreground">Equipamentos</p>
           <div className="grid max-h-64 grid-cols-1 gap-x-4 overflow-y-auto border-y border-border sm:grid-cols-2">
-            {types.filter(type => type.is_active).map(type => (
+            {types.filter(type => type.is_active).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(type => (
               <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border py-3 text-xs text-foreground">
                 <Checkbox checked={brandEquipmentIds.includes(type.id)} disabled={savingBrand}
                   onCheckedChange={checked => {
