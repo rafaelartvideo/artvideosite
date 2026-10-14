@@ -1,16 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { ChevronRight, WifiOff } from "lucide-react";
+import { History, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
-import { AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
-import { TechnicianOrderHistoryDialog } from "./TechnicianOrderHistoryDialog";
+import { OrderHistoryPage } from "@/features/orders/presentation/OrderHistoryPage";
+import { OrderImageLightbox, OrderImageThumb, type OrderImage } from "@/features/orders/presentation/OrderImages";
+import { useTechnicianOrderRecords } from "../application/useTechnicianOrderRecords";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   captureTechnicianLocation, changeMyTechnicianOrderSituation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
@@ -57,8 +59,10 @@ export function TechnicianPanel() {
   const [detailsRevision, setDetailsRevision] = useState(0);
   const [detailTab, setDetailTab] = useState<OrderDetailTab>("details");
   const [equipmentPhotoUrls, setEquipmentPhotoUrls] = useState<Record<string, string>>({});
+  const [viewEquipmentImage, setViewEquipmentImage] = useState<OrderImage | null>(null);
 
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const writtenHistory = useTechnicianOrderRecords(routeOrderId, historyDialogOpen);
   const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
   const [diagnosisDraft, setDiagnosisDraft] = useState("");
   const [report, setReport] = useState("");
@@ -338,31 +342,9 @@ export function TechnicianPanel() {
   const completedServices = orderServices.filter(service => service.status === "completed").length;
 
   return <div className="mx-auto max-w-6xl space-y-4">
-    {routeOrderId && <nav aria-label="Navegação estrutural"
-      className="flex min-w-0 flex-wrap items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-      <button type="button" onClick={() => navigate("/admin/technician-panel")}
-        className="text-primary hover:underline">Painel do Técnico</button>
-      <ChevronRight size={14} aria-hidden="true" />
-      <span aria-current="page" className="text-foreground">OS {selected?.os_number || ""}</span>
-    </nav>}
-    <PageHeader
-      title={routeOrderId
-        ? <span className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span>OS {selected?.os_number || ""}</span>
-          {orderDetails?.situation_name && <span
-            className="inline-flex rounded-md border border-primary/25 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">
-            {orderDetails.situation_name}
-          </span>}
-          {hasPermission("technician_panel.data.history") && <span
-            className="inline-flex items-center gap-2 border-l border-border pl-3">
-            <BtnSecondary disabled={busy || orderDetailsLoading}
-              onClick={() => setHistoryDialogOpen(true)}>Registros</BtnSecondary>
-          </span>}
-        </span>
-        : "Painel do Técnico"}
-      subtitle={routeOrderId ? undefined : "Ordens de serviço e atividades atribuídas a você."}
-      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined}
-    />
+    {!routeOrderId && <PageHeader title="Painel do Técnico"
+      subtitle="Ordens de serviço e atividades atribuídas a você."
+      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined} />}
 
     {!routeOrderId ? <>
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
@@ -384,7 +366,13 @@ export function TechnicianPanel() {
       <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
-    </> : !selected ? <>
+    </> : <AdminPage open={!historyDialogOpen} fullPage smoothMotion={false}
+      onClose={() => navigate("/admin/technician-panel")}
+      breadcrumb="Painel do Técnico"
+      title={String(selected?.os_number || "OS")} titleVariant="order-number"
+      maxW="max-w-[1440px]">
+      <div className="space-y-5 p-4 sm:p-5">
+      {!selected ? <>
       <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
         {loading ? "Verificando serviços atribuídos..." : "Esta OS não possui serviços atribuídos a você nesta empresa."}
       </div>
@@ -392,6 +380,15 @@ export function TechnicianPanel() {
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
+      <div className="flex min-h-10 flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          {orderDetails?.situation_name && <StatusBadge status={orderDetails.situation_name} />}
+        </div>
+        {hasPermission("technician_panel.data.history") && <div className="flex items-center border-l border-border pl-3">
+          <BtnSecondary disabled={busy || orderDetailsLoading}
+            onClick={() => setHistoryDialogOpen(true)}><History size={15} /> Registros</BtnSecondary>
+        </div>}
+      </div>
       {orderDetailsLoading && !orderDetails && <div role="status" aria-label="Carregando OS" className="flex items-center justify-center py-5"><LoadingSpinner size="sm" /></div>}
       <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
         itemBadge={pendingServices > 0
@@ -581,9 +578,6 @@ export function TechnicianPanel() {
             </div>
           </div>}
       </AdminStickyToolbar>
-      <TechnicianOrderHistoryDialog open={historyDialogOpen}
-        onClose={() => setHistoryDialogOpen(false)}
-        orderId={routeOrderId} orderNumber={selected.os_number} />
       <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
         title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
           <BtnSecondary onClick={() => setDiagnosisDialogOpen(false)} disabled={busy}>Cancelar</BtnSecondary>
@@ -594,5 +588,18 @@ export function TechnicianPanel() {
           rows={7} maxLength={10000} placeholder="Descreva o diagnóstico do equipamento..." />
       </AdminDialog>
     </>}
+      </div>
+    </AdminPage>}
+    <OrderHistoryPage
+      open={historyDialogOpen && Boolean(routeOrderId && selected)}
+      order={{ os_number: selected?.os_number }}
+      history={writtenHistory}
+      canCreate={hasPermission("technician_panel.actions.history.create")}
+      formatDate={formatDate}
+      breadcrumb="Painel do Técnico"
+      onClose={() => { setHistoryDialogOpen(false); writtenHistory.resetPageState(); }}
+    />
+    {viewEquipmentImage && <OrderImageLightbox image={viewEquipmentImage}
+      onClose={() => setViewEquipmentImage(null)} />}
   </div>;
 }
