@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { supabase } from "@/lib/supabase";
@@ -945,117 +945,101 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         : items.length === 0
           ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
           : <>
-            <div className="hidden md:block">
-              <div className="grid grid-cols-[minmax(250px,1fr)_150px_140px_140px_120px_44px] items-center gap-4 border-b border-border px-5 py-2.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                <span>Item</span>
-                <span className="text-center">Quantidade</span>
-                <span>Preço unitário</span>
-                <span>Custo adicional</span>
-                <span className="text-right">Subtotal</span>
-                <span className="text-center">Ações</span>
-              </div>
-
-              <div className="divide-y divide-border">
-                {items.map(item => {
-                  const draft = drafts[item.id] || draftFromItem(item);
-                  return <div
-                    key={item.id}
-                    className="grid grid-cols-[minmax(250px,1fr)_150px_140px_140px_120px_44px] items-center gap-4 px-5 py-4 transition-colors hover:bg-muted/35"
-                  >
-                    <div className="min-w-0">
-                      <span className={cn(
-                        "inline-flex border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
-                        item.item_type === "product"
-                          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                          : "border-primary/25 bg-primary-soft text-primary",
-                      )}>{typeLabel(item)}</span>
-                      <p className="mt-1.5 truncate text-sm font-semibold text-foreground">{item.title_snapshot}</p>
-                      {renderServiceTask(item)}
-                      <input
-                        aria-label={`Descrição de ${item.title_snapshot}`}
-                        disabled={!editable || savingItemId === item.id}
-                        value={draft.description}
-                        onChange={event => updateDraft(item.id, { description: event.target.value })}
-                        onBlur={() => void saveItem(item)}
-                        placeholder="Breve descrição (opcional)"
-                        className="mt-1 w-full border-0 border-b border-dashed border-border bg-transparent px-0 py-1 text-xs text-muted-foreground outline-none placeholder:text-muted-foreground/55 focus:border-primary"
-                      />
-                    </div>
-
-                    <div>{renderQuantity(item)}</div>
-                    <div>{renderPrice(item)}</div>
-                    <div>{renderAdditionalCost(item)}</div>
-                    <div className="text-right">
-                      <span className="inline-flex bg-emerald-500/10 px-3 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(item.subtotal))}</span>
-                    </div>
-                    <div className="text-center">
-                      <AdminIconButton
-                        ariaLabel="Remover item"
-                        variant="danger"
-                        disabled={!editable || savingItemId === item.id}
-                        onClick={() => void removeItem(item)}
-                      ><Trash2 size={14} /></AdminIconButton>
-                    </div>
-                  </div>;
-                })}
-              </div>
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[1080px] table-fixed border-collapse text-sm">
+                <colgroup>
+                  <col style={{ width: "24%" }} />
+                  <col style={{ width: "19%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "14%" }} />
+                  <col style={{ width: "12%" }} />
+                  <col style={{ width: "5%" }} />
+                </colgroup>
+                <thead className="bg-muted/30 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b border-border">
+                    <th scope="col" className="px-5 py-3 text-left">Item</th>
+                    <th scope="col" className="px-3 py-3 text-left">Técnico responsável</th>
+                    <th scope="col" className="px-3 py-3 text-center">Quantidade</th>
+                    <th scope="col" className="px-3 py-3 text-left">Preço unitário</th>
+                    <th scope="col" className="px-3 py-3 text-left">Custo adicional</th>
+                    <th scope="col" className="px-3 py-3 text-right">Subtotal</th>
+                    <th scope="col" className="px-2 py-3 text-center">Ações</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {items.map(item => <Fragment key={item.id}>
+                    <tr className="align-middle transition-colors hover:bg-muted/35">
+                      <td className="min-w-0 px-5 py-4">
+                        {renderItemIdentity(item)}
+                        {item.item_type === "product" && <div className="mt-2">{renderDescriptionEditor(item)}</div>}
+                      </td>
+                      <td className="px-3 py-4">{renderTechnicianColumn(item)}</td>
+                      <td className="px-3 py-4">{renderQuantity(item)}</td>
+                      <td className="px-3 py-4">{renderPrice(item)}</td>
+                      <td className="px-3 py-4">{renderAdditionalCost(item)}</td>
+                      <td className="px-3 py-4 text-right">
+                        <span className="inline-flex whitespace-nowrap bg-emerald-500/10 px-2.5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                          {formatCurrency(nonNegativeNumber(item.subtotal))}
+                        </span>
+                      </td>
+                      <td className="px-2 py-4 text-center">
+                        <AdminIconButton
+                          ariaLabel="Remover item" variant="danger"
+                          disabled={!editable || savingItemId === item.id}
+                          onClick={() => void removeItem(item)}
+                        ><Trash2 size={14} /></AdminIconButton>
+                      </td>
+                    </tr>
+                    {item.item_type !== "product" && <tr className="bg-muted/20">
+                      <td colSpan={7} className="px-5 pb-4 pt-3">
+                        {renderTaskDetails(item)}
+                      </td>
+                    </tr>}
+                  </Fragment>)}
+                </tbody>
+              </table>
             </div>
 
-            <div className="divide-y divide-border md:hidden">
-              {items.map(item => {
-                const draft = drafts[item.id] || draftFromItem(item);
-                return <div key={item.id} className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <span className={cn(
-                        "inline-flex border px-2 py-0.5 text-[9px] font-black uppercase tracking-wide",
-                        item.item_type === "product"
-                          ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
-                          : "border-primary/25 bg-primary-soft text-primary",
-                      )}>{typeLabel(item)}</span>
-                      <p className="mt-1.5 break-words text-sm font-semibold text-foreground">{item.title_snapshot}</p>
-                    </div>
-                    <AdminIconButton
-                      ariaLabel="Remover item"
-                      variant="danger"
-                      disabled={!editable || savingItemId === item.id}
-                      onClick={() => void removeItem(item)}
-                    ><Trash2 size={14} /></AdminIconButton>
+            <div className="divide-y divide-border lg:hidden">
+              {items.map(item => <div key={item.id} className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">{renderItemIdentity(item)}</div>
+                  <AdminIconButton
+                    ariaLabel="Remover item" variant="danger"
+                    disabled={!editable || savingItemId === item.id}
+                    onClick={() => void removeItem(item)}
+                  ><Trash2 size={14} /></AdminIconButton>
+                </div>
+                {item.item_type === "product" && renderDescriptionEditor(item)}
+                <div className="grid grid-cols-1 items-end gap-3 border-t border-border/70 pt-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Técnico responsável</label>
+                    {renderTechnicianColumn(item)}
                   </div>
-
-                  {renderServiceTask(item)}
-                  <div className="mt-3">
-                    <FInput
-                      label="Descrição"
-                      disabled={!editable || savingItemId === item.id}
-                      value={draft.description}
-                      onChange={(event: any) => updateDraft(item.id, { description: event.target.value })}
-                      onBlur={() => void saveItem(item)}
-                      placeholder="Breve descrição (opcional)"
-                    />
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>
+                    {renderQuantity(item, true)}
                   </div>
-
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>
-                      {renderQuantity(item, true)}
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Preço unitário</label>
-                      {renderPrice(item, true)}
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Custo adicional</label>
-                      {renderAdditionalCost(item, true)}
-                    </div>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preço unitário</label>
+                    {renderPrice(item, true)}
                   </div>
-
-                  <div className="mt-3 flex items-center justify-between border-t border-border pt-3 text-xs">
-                    <span className="text-muted-foreground">Subtotal</span>
-                    <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(item.subtotal))}</strong>
+                  <div>
+                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Custo adicional</label>
+                    {renderAdditionalCost(item, true)}
                   </div>
-                </div>;
-              })}
+                </div>
+                <div className="flex items-center justify-between border-t border-border/70 pt-3">
+                  <span className="text-xs text-muted-foreground">Subtotal</span>
+                  <strong className="text-sm font-black text-emerald-700 dark:text-emerald-300">
+                    {formatCurrency(nonNegativeNumber(item.subtotal))}
+                  </strong>
+                </div>
+                {item.item_type !== "product" && <div className="border-t border-border bg-muted/20 p-3">
+                  {renderTaskDetails(item)}
+                </div>}
+              </div>)}
             </div>
           </>}
     </Section>
