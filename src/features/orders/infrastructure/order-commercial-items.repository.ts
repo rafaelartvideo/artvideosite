@@ -116,15 +116,15 @@ export async function addOrderCatalogItem(input: {
   catalogId: string;
   quantity: number;
   unitPrice: number | null;
-  technicianId?: string;
+  technicianIds?: string[];
 }) {
-  const withTechnician = input.itemType === "service" && Boolean(input.technicianId);
+  const withTechnician = input.itemType === "service" && Boolean(input.technicianIds?.length);
   const { data, error } = await supabase.rpc(
-    withTechnician ? "add_service_order_catalog_item_with_technician_v1" : "add_service_order_catalog_item_v1",
+    withTechnician ? "add_service_order_catalog_item_with_technicians_v1" : "add_service_order_catalog_item_v1",
     withTechnician ? {
       p_service_order_id: input.serviceOrderId,
       p_catalog_id: input.catalogId,
-      p_employee_id: input.technicianId,
+      p_employee_ids: input.technicianIds,
       p_quantity: input.quantity,
     } : {
       p_service_order_id: input.serviceOrderId,
@@ -144,18 +144,18 @@ export async function addOrderCustomService(input: {
   description: string;
   quantity: number;
   unitPrice: number;
-  technicianId?: string;
+  technicianIds?: string[];
 }) {
-  const withTechnician = Boolean(input.technicianId);
+  const withTechnician = Boolean(input.technicianIds?.length);
   const { data, error } = await supabase.rpc(
-    withTechnician ? "add_service_order_custom_service_with_technician_v1" : "add_service_order_custom_service_v1",
+    withTechnician ? "add_service_order_custom_service_with_technicians_v1" : "add_service_order_custom_service_v1",
     {
       p_service_order_id: input.serviceOrderId,
       p_name: input.name.trim(),
       p_description: input.description.trim() || null,
       p_quantity: input.quantity,
       p_unit_price: input.unitPrice,
-      ...(withTechnician ? { p_employee_id: input.technicianId } : {}),
+      ...(withTechnician ? { p_employee_ids: input.technicianIds } : {}),
     },
   );
   if (error) throw error;
