@@ -594,6 +594,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       {!workflowReady ? <p className="text-[10px] text-muted-foreground">
         Aguardando migração de gestão técnica no banco. O item comercial continua disponível.
       </p> : editable ? <div className="grid grid-cols-1 gap-2">
+        <div className="text-[10px] font-semibold text-muted-foreground">Técnico responsável</div>
         <AdminSelect
           value={task?.assigned_employee_id || ""}
           disabled={Boolean(savingTaskId) || status === "completed"}
@@ -603,6 +604,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
           ]}
         />
+        <div className="text-[10px] font-semibold text-muted-foreground">Progresso do serviço</div>
         <AdminSelect
           value={status}
           disabled={Boolean(savingTaskId) || status === "completed"}
@@ -821,6 +823,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
               ]}
             />
+            {technicians.length === 0 && <p className="mt-2 text-xs text-muted-foreground">
+              Nenhum funcionário ativo com acesso ao sistema nesta empresa.
+            </p>}
           </div>}
           <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
             <NumberStepper
