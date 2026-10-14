@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import { AdminDialog, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -136,8 +136,8 @@ export function TechnicianOrderItemsSection({
       <div className="space-y-3">
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1"><FInput label="Buscar no catálogo" value={search}
-            placeholder="Digite o nome" maxLength={100} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)}
-            onKeyDown={(event: React.KeyboardEvent<HTMLInputElement>) => {
+            placeholder="Digite o nome" maxLength={100} onChange={(event: ChangeEvent<HTMLInputElement>) => setSearch(event.target.value)}
+            onKeyDown={(event: KeyboardEvent<HTMLInputElement>) => {
               if (event.key === "Enter" && catalogType) { event.preventDefault(); void loadCatalog(catalogType, search); }
             }}/></div>
           <BtnSecondary disabled={loading || busy || !catalogType} onClick={() => { if (catalogType) void loadCatalog(catalogType, search); }}>Buscar</BtnSecondary>
@@ -153,7 +153,7 @@ export function TechnicianOrderItemsSection({
             </button>)}
           </div>}
         <FInput label="Quantidade" type="number" min={1} max={99} step={1}
-          value={quantity} onChange={(event: React.ChangeEvent<HTMLInputElement>) => setQuantity(event.target.value)}/>
+          value={quantity} onChange={(event: ChangeEvent<HTMLInputElement>) => setQuantity(event.target.value)}/>
         {errorText && <p role="alert" className="text-sm text-destructive">{errorText}</p>}
       </div>
     </AdminDialog>
