@@ -337,12 +337,12 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       }
     };
 
-    const channel = supabase.channel(\`order-service-tasks:\${order.id}\`)
+    const channel = supabase.channel(`order-service-tasks:${order.id}`)
       .on("postgres_changes", {
         event: "*",
         schema: "public",
         table: "service_order_item_tasks",
-        filter: \`service_order_id=eq.\${order.id}\`,
+        filter: `service_order_id=eq.${order.id}`,
       }, () => { void refreshTechnicalStatus(); })
       .subscribe(status => {
         subscribed = status === "SUBSCRIBED";
@@ -682,7 +682,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       {task?.technician_name || "Não atribuído"}
     </span>;
     return <AdminSelect
-      ariaLabel={\`Técnico responsável por \${item.title_snapshot}\`}
+      ariaLabel={`Técnico responsável por ${item.title_snapshot}`}
       value={task?.assigned_employee_id || ""}
       disabled={Boolean(savingTaskId)}
       onValueChange={value => void saveTask(item, value || null, status)}
@@ -697,7 +697,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const renderDescriptionEditor = (item: OrderCommercialItem) => {
     const draft = drafts[item.id] || draftFromItem(item);
     return <input
-      aria-label={\`Descrição de \${item.title_snapshot}\`}
+      aria-label={`Descrição de ${item.title_snapshot}`}
       disabled={!editable || savingItemId === item.id}
       value={draft.description}
       onChange={event => updateDraft(item.id, { description: event.target.value })}
@@ -726,12 +726,12 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             {status === "pending" ? "Aguardando início" : status === "in_progress" ? "Em execução" : status === "completed" ? "Finalizado" : "Cancelado"}
           </span>
         </div>
-        <div role="progressbar" aria-label={\`Progresso de \${item.title_snapshot}\`}
+        <div role="progressbar" aria-label={`Progresso de ${item.title_snapshot}`}
           aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}
           className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
           <div className={cn("h-full rounded-full transition-[width] duration-700 ease-out", progressTone,
             status === "in_progress" && "animate-pulse motion-reduce:animate-none")}
-            style={{ width: \`\${progress}%\` }} />
+            style={{ width: `${progress}%` }} />
         </div>
         {!workflowReady && <p className="mt-2 text-[11px] text-muted-foreground">Aguardando dados técnicos.</p>}
       </div>
@@ -747,9 +747,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         {locations.length ? <div className="flex flex-wrap gap-x-4 gap-y-2">
           {locations.map(([label, location]) => <a
             key={label}
-            href={\`https://www.google.com/maps?q=\${encodeURIComponent(\`\${location!.lat},\${location!.lng}\`)}\`}
+            href={`https://www.google.com/maps?q=${encodeURIComponent(`${location!.lat},${location!.lng}`)}`}
             target="_blank" rel="noreferrer"
-            title={\`Abrir localização de \${label.toLocaleLowerCase("pt-BR")} no mapa\`}
+            title={`Abrir localização de ${label.toLocaleLowerCase("pt-BR")} no mapa`}
             className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
           ><MapPin size={14} className="shrink-0" />
             {label}
