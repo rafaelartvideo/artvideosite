@@ -3,7 +3,7 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { AdminButton, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
@@ -135,26 +135,27 @@ export function EquipmentBrandsDirectory({ choices, brands, types }: {
   const safePage = Math.min(page,Math.max(1,Math.ceil(filtered.length/pageSize)));
   const visible = filtered.slice((safePage-1)*pageSize,safePage*pageSize);
   return <div className="min-w-0 space-y-4">
-    <div>
-      <div className="relative w-full min-w-0 sm:max-w-md">
-        <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-        <input className={INPUT + " h-10 pl-9"} value={search}
-          onChange={event => { setSearch(event.target.value); setPage(1); }}
-          placeholder="Buscar marca ou equipamento..." aria-label="Buscar marcas ou equipamentos" />
-      </div>
+    <div className="relative w-full min-w-0 sm:max-w-md">
+      <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input className={INPUT + " h-10 pl-9"} value={search}
+        onChange={event => { setSearch(event.target.value); setPage(1); }}
+        placeholder="Buscar marca ou equipamento..." aria-label="Buscar marcas ou equipamentos" />
     </div>
-    <div>
+    <AdminCard>
       {visible.length ? <div className="overflow-x-auto">
-        <table className="w-full min-w-[440px] text-xs">
-          <thead><tr><th className="text-left">Marca</th><th className="text-left">Equipamentos</th></tr></thead>
-          <tbody>{visible.map(item => <tr key={brandKey(item.name)} className="border-b border-border">
-            <td className="font-semibold text-foreground">{item.name}</td>
+        <table className="min-w-[680px]">
+          <thead><tr>
+            <th className="w-[35%] text-left">Marca</th>
+            <th className="text-left">Equipamentos</th>
+          </tr></thead>
+          <tbody>{visible.map(item => <tr key={brandKey(item.name)}>
+            <td className="font-bold text-foreground">{item.name}</td>
             <td className="text-muted-foreground">{equipmentNames(item.name).join(", ") || "—"}</td>
           </tr>)}</tbody>
         </table>
-      </div> : <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma marca encontrada.</p>}
+      </div> : <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma marca encontrada.</p>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
-    </div>
+    </AdminCard>
   </div>;
 }
