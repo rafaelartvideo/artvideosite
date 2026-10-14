@@ -22,6 +22,7 @@ import {
   Tag,
   Users,
   Wrench,
+  HardHat,
 } from "lucide-react";
 import type { AdminTab } from "./domain/admin.types";
 import type { AdminHubItem, AdminNavigationItem } from "./presentation/AdminNavigation";
@@ -33,6 +34,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "quotes", label: "Orçamentos", icon: FileText },
   { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
+  { id: "technicianPanel", label: "Painel do Técnico", icon: HardHat },
   { id: "customers", label: "Cadastros", icon: Users },
   { id: "agenda", label: "Agenda", icon: CalendarDays },
   { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned },
@@ -74,6 +76,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   announcements: "platform.announcements.view",
   quotes: "quotes.view",
   orders: "orders.view",
+  technicianPanel: "technician_panel.view",
   customers: "customers.view",
   agenda: "agenda.view",
   fieldTracking: "field_tracking.view",
@@ -113,6 +116,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   announcements: null,
   quotes: "quotes",
   orders: "orders",
+  technicianPanel: "orders",
   customers: "customers",
   agenda: "agenda",
   fieldTracking: "field_tracking",
