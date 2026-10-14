@@ -30,6 +30,10 @@ import {
   type OrderCommercialItem,
   type OrderCommercialPricing,
 } from "../infrastructure/order-commercial-items.repository";
+import {
+  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTask,
+  type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician,
+} from "../infrastructure/order-service-tasks.repository";
 
 type ItemDraft = {
   quantity: string;
@@ -232,6 +236,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const editable = canEdit && !order?.completed_at && !order?.cancelled_at;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
+  const [tasks, setTasks] = useState<Record<string, OrderServiceTask>>({});
+  const [technicians, setTechnicians] = useState<OrderServiceTechnician[]>([]);
+  const [workflowReady, setWorkflowReady] = useState(false);
+  const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<OrderCommercialPricing>(() => pricingFromOrder(order));
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -250,12 +258,14 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [selectedService, setSelectedService] = useState<OrderCatalogOption | null>(null);
   const [servicePrice, setServicePrice] = useState("");
   const [serviceQuantity, setServiceQuantity] = useState("1");
+  const [serviceTechnicianId, setServiceTechnicianId] = useState("");
 
   const [customOpen, setCustomOpen] = useState(false);
   const [customName, setCustomName] = useState("");
   const [customDescription, setCustomDescription] = useState("");
   const [customPrice, setCustomPrice] = useState("");
   const [customQuantity, setCustomQuantity] = useState("1");
+  const [customTechnicianId, setCustomTechnicianId] = useState("");
 
   const [drafts, setDrafts] = useState<Record<string, ItemDraft>>({});
   const [mutating, setMutating] = useState(false);
@@ -282,12 +292,23 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       const next = await listOrderCommercialItems(order.id);
       setItems(next);
       setDrafts(Object.fromEntries(next.map(item => [item.id, draftFromItem(item)])));
+      try {
+        const nextTasks = await listOrderServiceTasks(order.id);
+        setTasks(Object.fromEntries(nextTasks.map(task => [task.item_id, task])));
+        setTechnicians(editable ? await listOrderServiceTechnicians(order.id) : []);
+        setWorkflowReady(true);
+      } catch {
+        // Compatibilidade: a migração pode ainda não ter sido aplicada.
+        setTasks({});
+        setTechnicians([]);
+        setWorkflowReady(false);
+      }
     } catch (error) {
       setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível carregar os produtos e serviços da OS.") });
     } finally {
       if (!quiet) setLoadingItems(false);
     }
-  }, [order?.id]);
+  }, [order?.id, editable]);
 
   useEffect(() => {
     setPricing(pricingFromOrder(order));
@@ -311,6 +332,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setSelectedProduct(null);
     setServiceSearch("");
     setSelectedService(null);
+    setServiceTechnicianId("");
+    setCustomTechnicianId("");
+    setWorkflowReady(false);
     void loadItems();
   }, [loadItems, order?.id]);
 
@@ -431,9 +455,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         catalogId: selectedService.id,
         quantity: positiveInteger(serviceQuantity),
         unitPrice: null,
+        technicianId: workflowReady ? serviceTechnicianId : undefined,
       });
       applyPricing(nextPricing);
       await loadItems(true);
+      setServiceTechnicianId("");
       setSelectedService(null);
       setServiceSearch("");
       setServicePrice("");
@@ -457,9 +483,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         description: customDescription,
         quantity: positiveInteger(customQuantity),
         unitPrice: nonNegativeNumber(customPrice),
+        technicianId: workflowReady ? customTechnicianId : undefined,
       });
       applyPricing(nextPricing);
       await loadItems(true);
+      setCustomTechnicianId("");
       setCustomOpen(false);
       setCustomName("");
       setCustomDescription("");
@@ -533,6 +561,63 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     } finally {
       setSavingItemId(null);
     }
+  };
+
+  const saveTask = async (item: OrderCommercialItem, employeeId: string | null, status: OrderServiceTaskStatus) => {
+    if (!editable || !workflowReady || savingTaskId || item.item_type === "product") return;
+    setSavingTaskId(item.id);
+    setMessage(null);
+    try {
+      const saved = await setOrderServiceTask({ itemId: item.id, employeeId, status });
+      setTasks(current => ({ ...current, [item.id]: saved }));
+    } catch (error) {
+      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível atualizar o responsável ou progresso.") });
+    } finally {
+      setSavingTaskId(null);
+    }
+  };
+
+  const renderServiceTask = (item: OrderCommercialItem) => {
+    if (item.item_type === "product") return null;
+    const task = tasks[item.id];
+    const status = task?.status || "pending";
+    const labels: Record<OrderServiceTaskStatus, string> = {
+      pending: "Pendente", in_progress: "Em andamento",
+      completed: "Concluído", cancelled: "Cancelado",
+    };
+    const tone = status === "completed" ? "border-emerald-500/30 text-emerald-700 dark:text-emerald-300"
+      : status === "cancelled" ? "border-red-500/30 text-red-600 dark:text-red-400"
+      : status === "in_progress" ? "border-amber-500/30 text-amber-700 dark:text-amber-300"
+      : "border-border text-muted-foreground";
+    return <div className="mt-2 space-y-2">
+      <span className={cn("inline-flex border px-2 py-0.5 text-[10px] font-semibold", tone)}>{labels[status]}</span>
+      {!workflowReady ? <p className="text-[10px] text-muted-foreground">
+        Aguardando migração de gestão técnica no banco. O item comercial continua disponível.
+      </p> : editable ? <div className="grid grid-cols-1 gap-2">
+        <AdminSelect
+          value={task?.assigned_employee_id || ""}
+          disabled={Boolean(savingTaskId) || status === "completed"}
+          onValueChange={value => void saveTask(item, value || null, status)}
+          options={[
+            { value: "", label: "Sem técnico" },
+            ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
+          ]}
+        />
+        <AdminSelect
+          value={status}
+          disabled={Boolean(savingTaskId) || status === "completed"}
+          onValueChange={value => void saveTask(item, task?.assigned_employee_id || null, value as OrderServiceTaskStatus)}
+          options={[
+            { value: "pending", label: "Pendente" },
+            { value: "in_progress", label: "Em andamento" },
+            { value: "cancelled", label: "Cancelado" },
+            ...(status === "completed" ? [{ value: "completed", label: "Concluído" }] : []),
+          ]}
+        />
+      </div> : <p className="text-xs text-muted-foreground">
+        Técnico: {task?.technician_name || "Não atribuído"}
+      </p>}
+    </div>;
   };
 
   const applyDiscount = async () => {
@@ -726,6 +811,17 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             />
           </div>
 
+          {workflowReady && <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnico responsável</label>
+            <AdminSelect
+              value={serviceTechnicianId}
+              onValueChange={setServiceTechnicianId}
+              options={[
+                { value: "", label: "Selecione o técnico responsável" },
+                ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
+              ]}
+            />
+          </div>}
           <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
             <NumberStepper
               label="Quantidade"
@@ -744,7 +840,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               disabled
             />
             <BtnPrimary
-              disabled={!selectedService || mutating}
+              disabled={!selectedService || mutating || (workflowReady && !serviceTechnicianId)}
               loading={mutating}
               onClick={() => void addService()}
               className="h-[42px]"
@@ -790,6 +886,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                           : "border-primary/25 bg-primary-soft text-primary",
                       )}>{typeLabel(item)}</span>
                       <p className="mt-1.5 truncate text-sm font-semibold text-foreground">{item.title_snapshot}</p>
+                      {renderServiceTask(item)}
                       <input
                         aria-label={`Descrição de ${item.title_snapshot}`}
                         disabled={!editable || savingItemId === item.id}
@@ -842,6 +939,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     ><Trash2 size={14} /></AdminIconButton>
                   </div>
 
+                  {renderServiceTask(item)}
                   <div className="mt-3">
                     <FInput
                       label="Descrição"
@@ -967,7 +1065,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(false)}>Cancelar</BtnSecondary>
         <BtnPrimary
-          disabled={mutating || !customName.trim() || customPrice.trim() === ""}
+          disabled={mutating || !customName.trim() || customPrice.trim() === "" || (workflowReady && !customTechnicianId)}
           loading={mutating}
           onClick={() => void addCustomService()}
         >Adicionar serviço</BtnPrimary>
@@ -1005,6 +1103,17 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             onChange={(event: any) => setCustomPrice(event.target.value)}
           />
         </div>
+        {workflowReady && <div>
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnico responsável</label>
+          <AdminSelect
+            value={customTechnicianId}
+            onValueChange={setCustomTechnicianId}
+            options={[
+              { value: "", label: "Selecione o técnico responsável" },
+              ...technicians.map(technician => ({ value: technician.id, label: technician.name })),
+            ]}
+          />
+        </div>}
       </div>
     </AdminDialog>
   </div>;
