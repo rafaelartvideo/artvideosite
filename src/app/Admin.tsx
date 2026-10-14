@@ -155,8 +155,10 @@ export function AdminDashboard({
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
+    if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
+    if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
-    if (tab === "operation") return operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
+    if (tab === "operation") return !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "tools") return hasPermission("tools.view") && (
       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
