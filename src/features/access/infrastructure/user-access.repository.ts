@@ -6,11 +6,6 @@ import {
   dispatchCompatibleEvent,
 } from "@/lib/platform-identifiers";
 import {
-  getArtVideoOrganizationId,
-  getPlatformOperatorOrganizationId,
-} from "@/lib/organization-identity";
-import { filterPermissionsForOrganization } from "@/features/access/domain/permission-scope";
-import {
   authEmailForUsername,
   isValidUsername,
   normalizeUsername,
@@ -180,57 +175,27 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
     { data: membership, error: membershipError },
     { data: permissions, error: permissionsError },
     { data: overrides, error: overridesError },
-    { data: situations, error: situationsError },
-    { data: modules, error: modulesError },
   ] = await Promise.all([
-    supabase
-      .from("organization_members")
+    supabase.from("organization_members")
       .select("role_id,role:roles(id,name)")
       .eq("organization_id", organizationId)
       .eq("user_id", userId)
       .maybeSingle(),
-    supabase
-      .from("permissions")
-      .select("id,key,label,description,module_name,sort_order")
-      .order("sort_order")
-      .order("label"),
-    supabase
-      .from("user_permission_overrides")
+    supabase.rpc("list_organization_permission_catalog_v1", {
+      p_organization_id: organizationId,
+    }),
+    supabase.from("user_permission_overrides")
       .select("permission_id")
       .eq("organization_id", organizationId)
       .eq("user_id", userId),
-    supabase
-      .from("os_situations")
-      .select("id")
-      .eq("organization_id", organizationId),
-    supabase
-      .from("organization_modules")
-      .select("module_key,is_enabled")
-      .eq("organization_id", organizationId)
-      .eq("is_enabled", true),
   ]);
-
-  const error = membershipError || permissionsError || overridesError || situationsError || modulesError;
+  const error = membershipError || permissionsError || overridesError;
   if (error) throw error;
 
-  const [platformOperatorId, artvideoOrganizationId] = await Promise.all([
-    getPlatformOperatorOrganizationId(),
-    getArtVideoOrganizationId(),
-  ]);
-
-  const enabledModules = new Set((modules || []).map((item: any) => String(item.module_key)));
-  const situationIds = new Set((situations || []).map((item: any) => String(item.id)));
-  const scopedPermissions = filterPermissionsForOrganization(permissions || [], {
-    isPlatformOperator: organizationId === platformOperatorId,
-    isArtvideoTenant: organizationId === artvideoOrganizationId,
-    enabledModules,
-  });
-  const visiblePermissions = scopedPermissions.filter((permission: any) => {
-    const key = String(permission.key || "");
-    const situationMatch = key.match(/^orders\.images\.situation\.([0-9a-f-]{36})\.upload$/i);
-    return !situationMatch || situationIds.has(situationMatch[1]);
-  }) as PermissionAccess["permissions"];
-  const visiblePermissionIds = new Set(visiblePermissions.map(permission => permission.id));
+  // A mesma regra de escopo usada para cargos também governa usuários:
+  // a UI não interpreta módulos, permissões da Union ou situações por conta.
+  const visiblePermissions = (permissions || []) as PermissionAccess["permissions"];
+  const visiblePermissionIds = new Set(visiblePermissions.map(item => item.id));
 
   const roleId = membership?.role_id ?? null;
   const { data: inherited, error: inheritedError } = roleId
