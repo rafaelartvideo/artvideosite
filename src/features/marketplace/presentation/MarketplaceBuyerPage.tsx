@@ -384,7 +384,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
                   <span className="flex items-center gap-1"><CalendarDays size={13} /> {new Date(item.created_at).toLocaleDateString("pt-BR")}</span>
                 </div>
                 {(item.status === "open" || item.status === "pending_union") && <button className="text-xs font-bold text-red-600 hover:underline" type="button" disabled={busy}
-                  onClick={() => void cancelRequest(item.id)}>Cancelar solicitação</button>
+                  onClick={() => void cancelRequest(item.id)}>Cancelar solicitação</button>}
                 {proposals.filter(proposal => proposal.request_id === item.id).length > 0 && <div className="mt-3 space-y-3 rounded-lg border border-[#dde4f0] bg-[#f8faff] p-4">
                   <h4 className="text-sm font-black text-[#203b8c]">Propostas intermediadas pela Union World</h4>
                   {proposals.filter(proposal => proposal.request_id === item.id).map(proposal =>
@@ -411,7 +411,6 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
                     </div>)}
                   <p className="text-xs text-[#7b89a0]">Toda negociação e confirmação é coordenada pela Union World. Seu aceite não confirma o serviço automaticamente.</p>
                 </div>}
-}
               </div>)}
             </div>}
         </div>}
