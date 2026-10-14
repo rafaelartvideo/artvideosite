@@ -160,15 +160,16 @@ export function OrderDetailsContent({
 
       {hasPermission("orders.section.equipment") && (
         <Section title="Equipamento">
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="grid min-w-0 content-start gap-3 sm:grid-cols-2">
             <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
             <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
             <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || undefined} />
             <InfoRow label="Número de série" value={detail.serial_number || undefined} />
             {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.field_type_snapshot === "number" ? (value.value_number == null ? undefined : String(value.value_number)) : value.value_text} />)}
-          </div>
+            </div>
           {hasPermission("orders.section.images") && (
-            <div className="mt-4 space-y-4 border-t border-[#0d1b2e]/8 pt-4">
+            <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Foto da etiqueta</p>
@@ -185,12 +186,13 @@ export function OrderDetailsContent({
               </div>
             </div>
           )}
+          </div>
         </Section>
       )}
 
       {hasPermission("orders.section.information") && (
         <Section title="Informações da OS">
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
             <InfoRow label="Nº da OS" value={detail.os_number} />
             <InfoRow label="OS Externa" value={detail.external_os_number?.trim() || "Não informada"} />
             {detail.queue_ticket_number && <InfoRow label="Origem" value="Fila Eletrônica" />}
@@ -216,13 +218,14 @@ export function OrderDetailsContent({
         <Section title="Observações internas"><p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{detail.internal_notes}</p></Section>
       )}
 
-      {detail.customer_notes && hasPermission("orders.section.problem") && (
+      <div className="grid min-w-0 items-stretch gap-4 lg:grid-cols-2">
+        {detail.customer_notes && hasPermission("orders.section.problem") && (
         <Section title="Descrição do problema"><p className="text-sm text-[#0d1b2e] whitespace-pre-line break-words">{detail.customer_notes}</p></Section>
       )}
 
       {hasPermission("orders.section.service_location") && (
         <Section title="Local do atendimento">
-          <div className="grid sm:grid-cols-2 gap-3">
+          <div className="grid gap-3 sm:grid-cols-2">
             <InfoRow label="Tipo da OS" value={detail.order_type === "external" ? "Externa" : "Interna"} />
             {detail.order_type === "external" && <InfoRow label="Origem do endereço" value={detail.service_address_source === "customer" ? "Endereço cadastrado do cliente" : "Endereço informado para esta OS"} />}
             {detail.order_type === "external" && <InfoRow label="CEP" value={detail.service_zip_code} />}
@@ -235,6 +238,7 @@ export function OrderDetailsContent({
           </div>
         </Section>
       )}
+      </div>
     </>
   );
 }
