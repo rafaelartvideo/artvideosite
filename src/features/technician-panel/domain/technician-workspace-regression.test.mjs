@@ -234,7 +234,8 @@ test("cliente e equipamento da OS técnica são carregados por RPC com permissõ
 test("problema e notas são somente leitura, registros ficam no cabeçalho", () => {
   assert.doesNotMatch(panel, /openNoteEditor|saveOrderNote|noteField/);
   assert.match(panel, /<AdminPage open={!historyDialogOpen}/);
-  assert.match(panel, /Histórico<\/BtnSecondary>/);
+  assert.match(panel, /<AdminButton variant="secondary" size="sm"/);
+  assert.ok(panel.includes('onClick={() => setHistoryDialogOpen(true)}><History size={14} /> Histórico</AdminButton>'));
   assert.doesNotMatch(panel, /ariaLabel="Alterar situação da OS"/);
 });
 
