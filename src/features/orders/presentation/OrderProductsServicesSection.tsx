@@ -1125,18 +1125,49 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             />
           </div>
 
-          {editable && <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
-            <TechnicianMultiPicker
-              label="Selecionar técnicos do serviço"
-              people={technicians} selected={serviceTechnicianIds} onChange={setServiceTechnicianIds}
-              loading={techniciansLoading}
-              disabled={!workflowReady}
-            />
-            {!techniciansLoading && workflowReady && technicians.length === 0 && <p className="mt-2 text-xs text-muted-foreground">
-              Nenhum funcionário ativo com acesso ao sistema nesta empresa.
-            </p>}
-            {!techniciansLoading && !workflowReady && <p className="mt-2 text-xs text-muted-foreground">A seleção de equipe está indisponível nesta OS.</p>}
+          {editable && selectedService && <div className="space-y-3">
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Necessita agendamento?</p>
+              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Necessita agendamento?">
+                <label className={cn("flex cursor-pointer items-center gap-2 border px-4 py-2 text-sm font-semibold", !serviceNeedsSchedule ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground")}>
+                  <input type="radio" name="include-service-scheduling" checked={!serviceNeedsSchedule}
+                    onChange={() => { setServiceNeedsSchedule(false); setServiceScheduleDraft(null); }} />
+                  Não
+                </label>
+                <label className={cn("flex cursor-pointer items-center gap-2 border px-4 py-2 text-sm font-semibold", serviceNeedsSchedule ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground")}>
+                  <input type="radio" name="include-service-scheduling" checked={serviceNeedsSchedule}
+                    onChange={() => { setServiceNeedsSchedule(true); setServiceScheduleOpen(true); }} />
+                  Sim
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
+              {serviceNeedsSchedule
+                ? <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 border border-border bg-muted/40 px-3 py-2">
+                    <span className="min-w-0 flex-1 text-xs font-semibold text-foreground">
+                      {serviceScheduleDraft
+                        ? technicians.filter(person => serviceScheduleDraft.technicianIds.includes(person.id)).map(person => person.name).join(", ")
+                        : "Selecione os técnicos pelo calendário"}
+                    </span>
+                    <BtnSecondary disabled={!workflowReady || techniciansLoading} onClick={() => setServiceScheduleOpen(true)}>
+                      {serviceScheduleDraft ? "Alterar horário" : "Abrir calendário"}
+                    </BtnSecondary>
+                  </div>
+                : <TechnicianMultiPicker
+                    label="Selecionar técnicos do serviço"
+                    people={technicians} selected={serviceTechnicianIds} onChange={setServiceTechnicianIds}
+                    loading={techniciansLoading} disabled={!workflowReady}
+                  />}
+              {serviceNeedsSchedule && serviceScheduleDraft && <p className="mt-2 text-xs font-semibold text-primary">
+                {formatServiceSchedule(serviceScheduleDraft.startAt)} às {new Date(serviceScheduleDraft.endAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
+                {" · "}Equipe definida pelo agendamento
+              </p>}
+              {!techniciansLoading && workflowReady && technicians.length === 0 && <p className="mt-2 text-xs text-muted-foreground">
+                Nenhum funcionário ativo com acesso ao sistema nesta empresa.
+              </p>}
+              {!techniciansLoading && !workflowReady && <p className="mt-2 text-xs text-muted-foreground">A seleção de equipe está indisponível nesta OS.</p>}
+            </div>
           </div>}
           <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
             <NumberStepper
@@ -1156,7 +1187,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               disabled
             />
             <BtnPrimary
-              disabled={!selectedService || mutating || techniciansLoading || (workflowReady && !serviceTechnicianIds.length)}
+              disabled={!selectedService || mutating || techniciansLoading ||
+                (workflowReady && (serviceNeedsSchedule
+                  ? !serviceScheduleDraft?.technicianIds.length
+                  : !serviceTechnicianIds.length))}
               loading={mutating}
               onClick={() => void addService()}
               className="h-[42px]"
@@ -1189,10 +1223,16 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                       <div className="min-w-[150px] flex-1">
                         {renderItemIdentity(item)}
                       </div>
-                      <strong aria-label={"Total do item: " + formatCurrency(nonNegativeNumber(item.subtotal))}
-                        className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
-                        {formatCurrency(nonNegativeNumber(item.subtotal))}
-                      </strong>
+                      <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+                        {item.item_type !== "product" && workflowReady && editable &&
+                          tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
+                          !tasks[item.id]?.scheduled_start_at && <BtnSecondary
+                            disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>Agendar</BtnSecondary>}
+                        <strong aria-label={"Total do item: " + formatCurrency(nonNegativeNumber(item.subtotal))}
+                          className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
+                          {formatCurrency(nonNegativeNumber(item.subtotal))}
+                        </strong>
+                      </div>
                     </div>
                     <div className="shrink-0">
                       <AdminIconButton
@@ -1226,23 +1266,17 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     )}
                   </div>
 
-                  {item.item_type !== "product" && workflowReady && <div className="mt-3 flex min-w-0 flex-wrap items-center justify-between gap-3 border-t border-border/60 pt-3">
-                    <div className="min-w-0">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Agendamento do serviço</p>
-                      {tasks[item.id]?.scheduled_start_at && tasks[item.id]?.scheduled_end_at
-                        ? <p className="mt-1 text-xs font-semibold text-foreground">
-                            {formatServiceSchedule(tasks[item.id].scheduled_start_at)} às {new Date(tasks[item.id].scheduled_end_at!).toLocaleTimeString("pt-BR", {
-                              timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
-                            })}
-                          </p>
-                        : <p className="mt-1 text-xs text-muted-foreground">Não agendado.</p>}
-                    </div>
-                    {editable && tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
-                      <BtnSecondary onClick={() => setSchedulingItem(item)}
-                        disabled={scheduleSaving}>
-                        {tasks[item.id]?.scheduled_start_at ? "Reagendar" : "Agendar"}
-                      </BtnSecondary>}
-                  </div>}
+                  {item.item_type !== "product" && workflowReady &&
+                    tasks[item.id]?.scheduled_start_at && tasks[item.id]?.scheduled_end_at &&
+                    <div className="mt-3 flex min-w-0 flex-wrap items-center gap-3 border-t border-border/60 pt-3">
+                      <span className="text-xs font-semibold text-foreground">
+                        {formatServiceSchedule(tasks[item.id].scheduled_start_at)} às {new Date(tasks[item.id].scheduled_end_at!).toLocaleTimeString("pt-BR", {
+                          timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </span>
+                      {editable && tasks[item.id]?.status !== "completed" && tasks[item.id]?.status !== "cancelled" &&
+                        <BtnSecondary disabled={scheduleSaving} onClick={() => setSchedulingItem(item)}>Reagendar</BtnSecondary>}
+                    </div>}
 
                   {item.item_type !== "product" && (
                     <div className="mt-4 min-w-0 rounded-lg bg-muted/35 p-3 transition-colors duration-200 group-hover:bg-muted/45 sm:p-4">
@@ -1351,6 +1385,24 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </a>)}
       </div>
     </AdminDialog>
+
+    <OrderServiceScheduleDraftDialog
+      open={serviceScheduleOpen && Boolean(selectedService)}
+      organizationId={order?.organization_id || ""}
+      orderId={order?.id || ""}
+      title={selectedService?.name || ""}
+      technicians={technicians}
+      initial={serviceScheduleDraft}
+      onConfirm={selection => {
+        setServiceScheduleDraft(selection);
+        setServiceTechnicianIds(selection.technicianIds);
+        setServiceScheduleOpen(false);
+      }}
+      onClose={() => {
+        setServiceScheduleOpen(false);
+        if (!serviceScheduleDraft) setServiceNeedsSchedule(false);
+      }}
+    />
 
     <OrderServiceScheduleDialog
       open={Boolean(schedulingItem)}
