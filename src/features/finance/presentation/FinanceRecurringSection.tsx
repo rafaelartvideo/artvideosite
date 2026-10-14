@@ -68,7 +68,7 @@ export function FinanceRecurringSection() {
   const { hasPermission } = useAuth();
   const recurring = useFinanceRecurring();
   const foundation = useFinanceFoundation();
-  const canView = hasPermission("finance.recurring.view") || hasPermission("finance.recurring.manage");
+  const canView = hasPermission("finance.recurring.view");
   const canManage = hasPermission("finance.recurring.manage");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
