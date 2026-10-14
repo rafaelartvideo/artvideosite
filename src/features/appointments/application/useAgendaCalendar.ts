@@ -1,5 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import type { AppointmentSituation } from "@/lib/database.types";
@@ -82,7 +82,9 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const technicians = employees as { id: string; full_name: string }[];
   const myEmployeeId = query.data?.myEmployeeId ?? null;
 
-  useEffect(() => {
+  // Sincroniza o snapshot antes do paint para não exibir um calendário vazio
+  // durante um frame quando a consulta retorna do cache ou da rede.
+  useLayoutEffect(() => {
     if (!query.data) return;
     setOrders(query.data.orders);
     setAppointments(query.data.appointments as AppointmentWithRelations[]);
