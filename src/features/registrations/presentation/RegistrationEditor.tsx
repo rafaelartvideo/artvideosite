@@ -189,6 +189,21 @@ export function RegistrationEditor({
           </span>
         </label>}
 
+        <label className="mt-5 flex items-start gap-3 border-t border-[#0d1b2e]/8 pt-5">
+          <Checkbox
+            checked={form.disable_inactivity_logout}
+            disabled={!canModify}
+            onCheckedChange={checked => setForm(current => ({ ...current, disable_inactivity_logout: checked === true }))}
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-black text-[#0d1b2e] dark:text-foreground">Desativar logout por inatividade</span>
+            <span className="mt-1 block text-xs leading-5 text-[#5a6a82] dark:text-muted-foreground">
+              Para técnicos em campo: desativa o encerramento automático após 20 minutos sem uso.
+              Logout manual, controle de acesso e exigências de localização continuam funcionando.
+            </span>
+          </span>
+        </label>
+
         {canShowAccess && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-5">
           <div className="mb-4 text-sm font-black text-[#0d1b2e]">Acesso ao sistema</div>
           <UserAccessSection
