@@ -1,4 +1,4 @@
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { supabase } from "@/lib/supabase";
@@ -1112,104 +1112,61 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         ? <div className="p-5 text-sm text-muted-foreground">Carregando itens...</div>
         : items.length === 0
           ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
-          : <>
-            <div className="hidden xl:block">
-              <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
-                <colgroup>
-                  <col style={{ width: "20%" }} />
-                  <col style={{ width: "18%" }} />
-                  <col style={{ width: "9%" }} />
-                  <col style={{ width: "15%" }} />
-                  <col style={{ width: "15%" }} />
-                  <col style={{ width: "16%" }} />
-                  <col style={{ width: "7%" }} />
-                </colgroup>
-                <thead className="bg-muted/30 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                  <tr className="border-b border-border">
-                    <th scope="col" className="px-5 py-3 text-left">Item</th>
-                    <th scope="col" className="px-3 py-3 text-left">Técnicos responsáveis</th>
-                    <th scope="col" className="px-3 py-3 text-center">Quantidade</th>
-                    <th scope="col" className="px-3 py-3 text-left">Preço unitário</th>
-                    <th scope="col" className="px-3 py-3 text-left">Custo adicional</th>
-                    <th scope="col" className="px-3 py-3 text-right">Subtotal</th>
-                    <th scope="col" className="px-2 py-3 text-center">Ações</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.map(item => <Fragment key={item.id}>
-                    <tr className="bg-card align-middle transition-colors hover:bg-muted/20">
-                      <td className="min-w-0 border-l border-t border-border px-3 py-3">
-                        {renderItemIdentity(item)}
-                      </td>
-                      <td className="border-t border-border px-2 py-3">{renderTechnicianColumn(item)}</td>
-                      <td className="border-t border-border px-2 py-3">{renderQuantity(item)}</td>
-                      <td className="border-t border-border px-2 py-3">{renderPrice(item)}</td>
-                      <td className="border-t border-border px-2 py-3">{renderAdditionalCost(item)}</td>
-                      <td className="border-t border-border px-2 py-3 text-right">
-                        <span className="inline-flex max-w-full whitespace-nowrap rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">
+          : <div className="grid min-w-0 gap-3 p-3 sm:gap-4 sm:p-4">
+            {items.map(item => (
+              <article key={item.id}
+                aria-label={item.title_snapshot}
+                className="group min-w-0 overflow-hidden rounded-xl border border-border bg-card transition-colors duration-200 hover:border-primary/40 hover:bg-muted/15 focus-within:border-primary/50">
+                <div className="min-w-0 p-3.5 sm:p-4">
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 basis-[240px]">
+                      {renderItemIdentity(item)}
+                    </div>
+                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                      <div className="min-w-0 text-right">
+                        <span className="block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Subtotal</span>
+                        <strong className="mt-1 inline-flex min-h-9 items-center justify-end whitespace-nowrap rounded-lg border border-border bg-muted/45 px-3 py-1.5 text-sm font-black text-emerald-700 dark:text-emerald-300">
                           {formatCurrency(nonNegativeNumber(item.subtotal))}
-                        </span>
-                      </td>
-                      <td className="border-r border-t border-border px-2 py-3 text-center">
-                        <AdminIconButton
-                          ariaLabel="Remover item" variant="danger"
-                          disabled={!editable || savingItemId === item.id}
-                          onClick={() => void removeItem(item)}
-                        ><Trash2 size={14} /></AdminIconButton>
-                      </td>
-                    </tr>
-                    {item.item_type !== "product" && <tr className="bg-card">
-                      <td colSpan={7} className="border-b border-x border-border bg-muted/10 px-3 pb-4 pt-2">
-                        {renderTaskDetails(item)}
-                      </td>
-                    </tr>}
-                    {item.item_type === "product" && <tr aria-hidden="true"><td colSpan={7} className="h-px border-b border-x border-border" /></tr>}
-                    <tr aria-hidden="true"><td colSpan={7} className="h-3 bg-background" /></tr>
-                  </Fragment>)}
-                </tbody>
-              </table>
-            </div>
+                        </strong>
+                      </div>
+                      <AdminIconButton
+                        ariaLabel={"Remover " + item.title_snapshot} variant="danger"
+                        disabled={!editable || savingItemId === item.id}
+                        onClick={() => void removeItem(item)}
+                      ><Trash2 size={14} /></AdminIconButton>
+                    </div>
+                  </div>
 
-            <div className="space-y-3 p-3 xl:hidden">
-              {items.map(item => <div key={item.id} className="space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1">{renderItemIdentity(item)}</div>
-                  <AdminIconButton
-                    ariaLabel="Remover item" variant="danger"
-                    disabled={!editable || savingItemId === item.id}
-                    onClick={() => void removeItem(item)}
-                  ><Trash2 size={14} /></AdminIconButton>
+                  <div className="mt-4 grid min-w-0 grid-cols-2 items-end gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(0,.65fr)_minmax(0,1fr)_minmax(0,1fr)] lg:gap-x-4">
+                    <div className="col-span-2 min-w-0 sm:col-span-4 lg:col-span-1">
+                      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                        {item.item_type === "product" ? "Responsável" : "Técnicos responsáveis"}
+                      </p>
+                      {renderTechnicianColumn(item)}
+                    </div>
+                    <div className="min-w-0">
+                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Quantidade</label>
+                      {renderQuantity(item, true)}
+                    </div>
+                    <div className="min-w-0">
+                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Preço unitário</label>
+                      {renderPrice(item, true)}
+                    </div>
+                    <div className="min-w-0">
+                      <label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Custo adicional</label>
+                      {renderAdditionalCost(item, true)}
+                    </div>
+                  </div>
+
+                  {item.item_type !== "product" && (
+                    <div className="mt-4 min-w-0 rounded-lg bg-muted/35 p-3 sm:p-4">
+                      {renderTaskDetails(item)}
+                    </div>
+                  )}
                 </div>
-                <div className="grid grid-cols-1 items-end gap-3 border-t border-border/70 pt-3 sm:grid-cols-2">
-                  <div>
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
-                    {renderTechnicianColumn(item)}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Quantidade</label>
-                    {renderQuantity(item, true)}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Preço unitário</label>
-                    {renderPrice(item, true)}
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Custo adicional</label>
-                    {renderAdditionalCost(item, true)}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between border-t border-border/70 pt-3">
-                  <span className="text-xs text-muted-foreground">Subtotal</span>
-                  <strong className="text-sm font-black text-emerald-700 dark:text-emerald-300">
-                    {formatCurrency(nonNegativeNumber(item.subtotal))}
-                  </strong>
-                </div>
-                {item.item_type !== "product" && <div className="bg-muted/20 p-3">
-                  {renderTaskDetails(item)}
-                </div>}
-              </div>)}
-            </div>
-          </>}
+              </article>
+            ))}
+          </div>}
     </Section>
 
     <Section title="Resumo da OS">
