@@ -71,3 +71,13 @@ test("serviços atribuídos e agendamentos são auditados e notificados individu
   assert.match(technicianNotifications, /'technician_panel\.view'/);
   assert.match(notificationRepository, /row\.recipient_user_id !== userId/);
 });
+
+test("reagendamento mostra somente horários da equipe fixa, sem calendário semanal no modal", () => {
+  assert.match(modal, /<TechnicianAvailabilityCalendar\s+compact/);
+  assert.match(modal, /onChangeDate=\{changeDate\}/);
+  assert.match(modal, /Confirmar agendamento/);
+  assert.match(calendar, /fixedTeam/);
+  assert.match(calendar, /selectedIds\.every\(id => available\.some/);
+  assert.match(calendar, /Equipe disponível/);
+  assert.match(calendar, /min-w-\[1540px\]/); // Vista semanal da Agenda permanece disponível.
+});
