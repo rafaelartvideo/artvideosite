@@ -1,6 +1,6 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
@@ -31,7 +31,6 @@ export function UserPermissionOverridesPage({
   const { hasPermission } = useAuth();
   const canView = hasPermission("roles.view");
   const canManage = hasPermission("roles.permissions.manage");
-  const queryClient = useQueryClient();
   const queryKey = queryKeys.registrations.permissions(organizationId, userId);
   const accessIdentity = `${organizationId}:${userId}`;
   const accessQuery = useQuery({
@@ -108,17 +107,31 @@ export function UserPermissionOverridesPage({
   };
 
   const save = async () => {
-    if (!canManage || saving) return;
+    if (!canManage || saving || !dirty || !access) return;
+    const requestedIds = [...selected];
     setSaving(true);
-    const { error } = await setUserPermissionOverrides(organizationId, userId, selected);
-    setSaving(false);
-    if (error) {
-      setToast({ msg: `Erro ao salvar permissões individuais: ${systemErrorMessage(error)}`, type: "error" });
-      return;
+    try {
+      const { error } = await setUserPermissionOverrides(organizationId, userId, requestedIds);
+      if (error) throw error;
+      // Mantém a seleção local até conferir a gravação, sem restaurar
+      // valores antigos do cache durante a atualização.
+      const refreshed = await accessQuery.refetch();
+      if (refreshed.error) throw refreshed.error;
+      if (!refreshed.data) throw new Error("Não foi possível conferir as permissões salvas.");
+      const visibleIds = new Set(refreshed.data.permissions.map(item => item.id));
+      const persisted = new Set(refreshed.data.individualPermissionIds);
+      const expected = new Set(requestedIds);
+      if ([...visibleIds].some(id =>
+        (persisted.has(id) && !refreshed.data!.inheritedPermissionIds.includes(id)) !== expected.has(id))) {
+        throw new Error("As permissões gravadas não correspondem à seleção. Recarregue e confira os acessos.");
+      }
+      setDirty(false);
+      setToast({ msg: "Permissões individuais atualizadas.", type: "success" });
+    } catch (error) {
+      setToast({ msg: `Erro ao conferir permissões individuais: ${systemErrorMessage(error)}`, type: "error" });
+    } finally {
+      setSaving(false);
     }
-    setToast({ msg: "Permissões individuais atualizadas.", type: "success" });
-    setDirty(false);
-    void queryClient.invalidateQueries({ queryKey });
   };
 
   if (!canView) return null;
@@ -153,7 +166,7 @@ export function UserPermissionOverridesPage({
     </div>}
     <AdminStickyToolbar className="justify-end">
       <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
-      {canManage && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+      {canManage && <BtnPrimary onClick={save} disabled={!dirty || accessQuery.isFetching} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </AdminStickyToolbar>
   </AdminPage>;
 }
