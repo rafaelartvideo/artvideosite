@@ -150,6 +150,29 @@ export async function getMyTechnicianOrderHistory(orderId: string): Promise<Tech
   return Array.isArray(data) ? data as TechnicianOrderHistoryEntry[] : [];
 }
 
+export type TechnicianOrderRecord = {
+  id: string;
+  type: "note" | "system";
+  authorId: string | null;
+  author: string;
+  title: string;
+  content: string;
+  createdAt: string;
+};
+
+export async function listMyTechnicianOrderRecords(orderId: string): Promise<TechnicianOrderRecord[]> {
+  const { data, error } = await supabase.rpc("list_my_technician_order_records_v1", { p_order_id: orderId });
+  if (error) throw error;
+  return Array.isArray(data) ? data as TechnicianOrderRecord[] : [];
+}
+
+export async function createMyTechnicianOrderRecord(orderId: string, content: string): Promise<void> {
+  const { error } = await supabase.rpc("create_my_technician_order_record_v1", {
+    p_order_id: orderId, p_content: content.trim(),
+  });
+  if (error) throw error;
+}
+
 export async function updateMyTechnicianOrderNote(
   orderId: string,
   field: "problem" | "internal_notes",
