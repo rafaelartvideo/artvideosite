@@ -87,6 +87,8 @@ export function permissionSectionName(permission: PermissionRecord) {
   }
   if (TOOL_MODULE_SECTIONS[module]) return TOOL_MODULE_SECTIONS[module];
   if (key.includes(".table.")) return "Tabela";
+  if (key.includes(".technical_fields.column.")) return "Tabela — Campos Técnicos";
+  if (key.includes(".column.")) return "Tabela";
   if (key.includes(".details.")) return "Detalhes";
   if (module === "technician_panel") {
     if (key === "technician_panel.view") return "Acesso";
@@ -104,6 +106,35 @@ export function permissionSectionName(permission: PermissionRecord) {
     if (key.startsWith("orders.section.")) return "Detalhes";
     if (ORDER_FLOW_KEYS.has(key)) return "Fluxo da OS";
     return key.endsWith(".view") ? "Acesso" : "Ações";
+  }
+  if (module === "finance") {
+    const sections: Record<string, string> = {
+      accounts: "Contas e Caixa",
+      cash: "Caixa",
+      categories: "Categorias",
+      collections: "Cobranças",
+      cost_centers: "Centros de Custo",
+      dashboard: "Visão Geral",
+      documents: "Documentos",
+      payables: "Contas a Pagar",
+      payment_methods: "Formas de Pagamento",
+      receivables: "Contas a Receber",
+      recurring: "Recorrências",
+      reports: "Relatórios",
+      settings: "Configurações",
+      settlements: "Baixas",
+      transfers: "Transferências",
+    };
+    return sections[key.split(".")[1]] || (key === "finance.view" ? "Acesso" : "Ações");
+  }
+  if (module === "site") {
+    const sections: Record<string, string> = {
+      brands: "Marcas",
+      categories: "Categorias",
+      products: "Produtos",
+      services: "Serviços",
+    };
+    return sections[key.split(".")[1]] || (key === "site.view" ? "Acesso" : "Configurações");
   }
   if (module === "registrations") {
     if (key === "registrations.employee_signature.manage") return "Funcionários";
