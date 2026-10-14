@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { loadVisibleServiceTaskSchedules } from "./service-schedule-occupancy.repository";
 
 type LoadAgendaInput = {
   organizationId: string;
@@ -40,12 +41,7 @@ export async function loadAgendaData({
     myEmployeeId = data?.id ?? null;
   }
 
-  const taskScheduleQuery = supabase.from("service_order_item_tasks")
-    .select("item_id,service_order_id,status,scheduled_start_at,scheduled_end_at,assigned_employee_id,assignees:service_order_item_task_assignees(employee_id,employee:employees(id,full_name)),item:service_order_items!item_id(title_snapshot,general_service_id),order:service_orders!service_order_id(id,os_number,customer:customers(full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color))")
-    .eq("organization_id", org)
-    .not("scheduled_start_at", "is", null)
-    .gt("scheduled_end_at", timestampFrom)
-    .lt("scheduled_start_at", timestampToExclusive);
+  const taskScheduleQuery = loadVisibleServiceTaskSchedules(org, timestampFrom, timestampToExclusive);
 
   let ordersQuery = supabase
     .from("service_orders")
@@ -120,8 +116,7 @@ export async function loadAgendaData({
     generalServicesResult.error ||
     statusesResult.error ||
     situationsResult.error ||
-    appointmentSituationsResult.error ||
-    taskSchedulesResult.error;
+    appointmentSituationsResult.error;
 
   if (error) throw error;
 
@@ -135,8 +130,8 @@ export async function loadAgendaData({
     statuses: statusesResult.data ?? [],
     situations: situationsResult.data ?? [],
     appointmentSituations: appointmentSituationsResult.data ?? [],
-    taskSchedules: canViewOtherAgendas ? (taskSchedulesResult.data ?? []) :
-      (taskSchedulesResult.data ?? []).filter(task => myEmployeeId && (
+    taskSchedules: canViewOtherAgendas ? taskSchedulesResult :
+      taskSchedulesResult.filter(task => myEmployeeId && (
         task.assigned_employee_id === myEmployeeId ||
         (task.assignees || []).some(assignee => assignee.employee_id === myEmployeeId))),
   };
