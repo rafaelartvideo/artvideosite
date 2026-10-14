@@ -180,12 +180,16 @@ export function TechnicianPanel() {
       for (const file of selectedFiles) {
         await uploadTechnicianPhoto(activeOrganizationId, selected.item_id, file);
       }
-      const attachments = await listMyTechnicianPhotos(selected.item_id);
-      const previews = await Promise.all(attachments.map(async attachment => ({
-        id: attachment.id,
-        url: await getTechnicianPhotoSignedUrl(attachment.path),
-      })));
-      setPhotos(previews);
+      // Enviar e visualizar fotos são permissões independentes. Não consultar
+      // a galeria caso o cargo tenha só autorização de envio.
+      if (canSeePhotos) {
+        const attachments = await listMyTechnicianPhotos(selected.item_id);
+        const previews = await Promise.all(attachments.map(async attachment => ({
+          id: attachment.id,
+          url: await getTechnicianPhotoSignedUrl(attachment.path),
+        })));
+        setPhotos(previews);
+      }
       setNotice({ kind: "success", text: "Fotos anexadas ao serviço." });
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível anexar todas as fotos.") });
