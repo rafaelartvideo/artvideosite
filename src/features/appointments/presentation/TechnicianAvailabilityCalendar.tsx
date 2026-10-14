@@ -119,11 +119,20 @@ export function TechnicianAvailabilityCalendar({
   const selectable = Boolean(onChooseStart);
   const activeDate = date || today;
   const compactDay = days.find(item => item.date === activeDate);
-  const displayedHours = hours.filter(time => !hideEmpty || Boolean(compactDay
-    && availableAt(compactDay, time).some(employee => !selectedEmployeeFilter || employee.id === selectedEmployeeFilter)));
-  const compactSlotAvailable = (time: string) => compactDay
-    ? availableAt(compactDay, time).filter(employee => !selectedEmployeeFilter || employee.id === selectedEmployeeFilter)
-    : [];
+  const fixedTeam = !onToggleTechnician && selectedIds.length > 0;
+  const now = new Date();
+  const minutesNow = now.getHours() * 60 + now.getMinutes();
+  const compactSlotAvailable = (time: string) => {
+    if (!compactDay) return [];
+    const available = availableAt(compactDay, time)
+      .filter(employee => !selectedEmployeeFilter || employee.id === selectedEmployeeFilter);
+    // Reagendamento com equipe fixa: só oferecer horários livres para TODOS os responsáveis.
+    if (fixedTeam && !selectedIds.every(id => available.some(employee => employee.id === id))) return [];
+    return available;
+  };
+  const displayedHours = hours.filter(time =>
+    activeDate >= today && (activeDate !== today || minutes(time) > minutesNow)
+    && (!hideEmpty || compactSlotAvailable(time).length > 0));
 
   // Nos modais de agendamento, o próprio campo de data define o dia:
   // mostrar sete colunas da semana cria rolagem lateral e compete com a altura do modal.
@@ -141,12 +150,14 @@ export function TechnicianAvailabilityCalendar({
       </div>
     </div>
     <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2 sm:px-4">
-      <select aria-label="Filtrar por técnico" className="min-w-0 max-w-[230px] rounded-md border border-border bg-background px-2.5 py-2 text-xs text-foreground"
-        value={selectedEmployeeFilter} onChange={event => setHighlightEmployee(event.target.value)}>
-        <option value="">Todos os técnicos ({ids.length})</option>
-        {technicians.filter(employee => employee.is_active !== false).map(employee =>
-          <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
-      </select>
+      {fixedTeam
+        ? <span className="text-xs font-semibold text-muted-foreground">Equipe fixa · {selectedIds.length} técnico{selectedIds.length === 1 ? "" : "s"}</span>
+        : <select aria-label="Filtrar por técnico" className="min-w-0 max-w-[230px] rounded-md border border-border bg-background px-2.5 py-2 text-xs text-foreground"
+          value={selectedEmployeeFilter} onChange={event => setHighlightEmployee(event.target.value)}>
+          <option value="">Todos os técnicos ({ids.length})</option>
+          {technicians.filter(employee => employee.is_active !== false).map(employee =>
+            <option key={employee.id} value={employee.id}>{employee.full_name}</option>)}
+        </select>}
       <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
         <input type="checkbox" checked={hideEmpty} onChange={event => setHideEmpty(event.target.checked)}
           className="h-4 w-4 shrink-0 accent-primary" />
@@ -183,21 +194,29 @@ export function TechnicianAvailabilityCalendar({
             (active ? "bg-primary/5" : "")}>
             <span className={"pt-2 text-xs font-bold tabular-nums " + (active ? "text-primary" : "text-foreground")}>{time}</span>
             <div className="flex min-w-0 flex-wrap gap-1.5">
-              {available.length ? available.map(employee => {
-                const checked = active && selectedIds.includes(employee.id);
-                return <button key={employee.id} type="button" title={employee.full_name + " disponível às " + time}
-                  disabled={!selectable} aria-pressed={checked}
-                  onClick={() => {
-                    if (onToggleTechnician && active) onToggleTechnician(employee.id);
-                    else onChooseStart?.(activeDate, time, employee.id);
-                  }}
-                  className={"max-w-full rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors " +
-                    (checked ? "border-primary bg-primary text-white"
-                      : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300") +
-                    (selectable ? " hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35" : " cursor-default")}>
-                  <span className="block max-w-[195px] truncate">{employee.full_name}</span>
-                </button>;
-              }) : <span className="py-1.5 text-xs text-muted-foreground">Sem vagas</span>}
+              {available.length ? fixedTeam
+                ? <button type="button" disabled={!selectable} aria-pressed={active}
+                    onClick={() => onChooseStart?.(activeDate, time, selectedIds[0])}
+                    className={"rounded-md border px-3 py-1.5 text-xs font-semibold transition-colors " +
+                      (active ? "border-primary bg-primary text-white"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-800 hover:border-primary dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300")}>
+                    Equipe disponível · {selectedIds.length} técnico{selectedIds.length === 1 ? "" : "s"}
+                  </button>
+                : available.map(employee => {
+                  const checked = active && selectedIds.includes(employee.id);
+                  return <button key={employee.id} type="button" title={employee.full_name + " disponível às " + time}
+                    disabled={!selectable} aria-pressed={checked}
+                    onClick={() => {
+                      if (onToggleTechnician && active) onToggleTechnician(employee.id);
+                      else onChooseStart?.(activeDate, time, employee.id);
+                    }}
+                    className={"max-w-full rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors " +
+                      (checked ? "border-primary bg-primary text-white"
+                        : "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-300") +
+                      (selectable ? " hover:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35" : " cursor-default")}>
+                    <span className="block max-w-[195px] truncate">{employee.full_name}</span>
+                  </button>;
+                }) : <span className="py-1.5 text-xs text-muted-foreground">Sem vagas</span>}
             </div>
           </div>;
         })}
@@ -205,7 +224,7 @@ export function TechnicianAvailabilityCalendar({
     {selectable && <p className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground sm:px-4">
       {onToggleTechnician
         ? "Toque no nome para selecionar. Toque em mais nomes no mesmo horário para adicionar técnicos."
-        : "Toque no técnico e escolha até que horas será o atendimento."}
+        : "Escolha o horário em que toda a equipe está disponível e defina o término."}
     </p>}
   </AdminCard>;
 
