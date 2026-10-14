@@ -12,17 +12,19 @@ export function OrderHistoryPage({
   canCreate,
   formatDate,
   onClose,
+  breadcrumb = "Ordens de Serviço",
 }: {
   open: boolean;
   order: any;
-  history: ReturnType<typeof useOrderHistory>;
+  history: Pick<ReturnType<typeof useOrderHistory>, "userFilter" | "setUserFilter" | "authorOptions" | "dateFilter" | "setDateFilter" | "sort" | "setSort" | "clearFilters" | "loading" | "entries" | "modalOpen" | "setModalOpen" | "text" | "setText" | "saving" | "submit">;
   canCreate: boolean;
   formatDate: (value?: string | null, time?: boolean) => string;
   onClose: () => void;
+  breadcrumb?: string;
 }) {
   if (!open) return null;
   return <>
-    <AdminPage open onClose={onClose} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Histórico`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
+    <AdminPage open onClose={onClose} breadcrumb={`${breadcrumb} > ${order.os_number || "OS"} > Histórico`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
       <div className="space-y-4 p-4 sm:p-5">
         <AdminCard className="bg-muted/35 p-3 shadow-none">
           <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
