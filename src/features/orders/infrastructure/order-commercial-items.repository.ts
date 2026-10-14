@@ -116,14 +116,24 @@ export async function addOrderCatalogItem(input: {
   catalogId: string;
   quantity: number;
   unitPrice: number | null;
+  technicianId?: string;
 }) {
-  const { data, error } = await supabase.rpc("add_service_order_catalog_item_v1", {
-    p_service_order_id: input.serviceOrderId,
-    p_item_type: input.itemType,
-    p_catalog_id: input.catalogId,
-    p_quantity: input.quantity,
-    p_unit_price: input.unitPrice,
-  });
+  const withTechnician = input.itemType === "service" && Boolean(input.technicianId);
+  const { data, error } = await supabase.rpc(
+    withTechnician ? "add_service_order_catalog_item_with_technician_v1" : "add_service_order_catalog_item_v1",
+    withTechnician ? {
+      p_service_order_id: input.serviceOrderId,
+      p_catalog_id: input.catalogId,
+      p_employee_id: input.technicianId,
+      p_quantity: input.quantity,
+    } : {
+      p_service_order_id: input.serviceOrderId,
+      p_item_type: input.itemType,
+      p_catalog_id: input.catalogId,
+      p_quantity: input.quantity,
+      p_unit_price: input.unitPrice,
+    },
+  );
   if (error) throw error;
   return normalizePricing(data);
 }
@@ -134,14 +144,20 @@ export async function addOrderCustomService(input: {
   description: string;
   quantity: number;
   unitPrice: number;
+  technicianId?: string;
 }) {
-  const { data, error } = await supabase.rpc("add_service_order_custom_service_v1", {
-    p_service_order_id: input.serviceOrderId,
-    p_name: input.name.trim(),
-    p_description: input.description.trim() || null,
-    p_quantity: input.quantity,
-    p_unit_price: input.unitPrice,
-  });
+  const withTechnician = Boolean(input.technicianId);
+  const { data, error } = await supabase.rpc(
+    withTechnician ? "add_service_order_custom_service_with_technician_v1" : "add_service_order_custom_service_v1",
+    {
+      p_service_order_id: input.serviceOrderId,
+      p_name: input.name.trim(),
+      p_description: input.description.trim() || null,
+      p_quantity: input.quantity,
+      p_unit_price: input.unitPrice,
+      ...(withTechnician ? { p_employee_id: input.technicianId } : {}),
+    },
+  );
   if (error) throw error;
   return normalizePricing(data);
 }
