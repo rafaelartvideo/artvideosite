@@ -251,7 +251,7 @@ function TechnicianMultiPicker({
       <span className="min-w-0 truncate">{names.length ? names.join(", ") : "Selecionar técnicos"}</span>
       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
     </summary>
-    {!disabled && <div className="absolute left-0 top-full z-40 mt-1 max-h-52 w-full min-w-[225px] overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-lg">
+    {!disabled && <div className="relative z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-sm">
       {people.length ? people.map(person => <label key={person.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted">
         <input type="checkbox" checked={selected.includes(person.id)}
           onChange={event => onChange(event.target.checked ? [...selected, person.id] : selected.filter(id => id !== person.id))}
@@ -1040,7 +1040,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 <thead className="bg-muted/30 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                   <tr className="border-b border-border">
                     <th scope="col" className="px-5 py-3 text-left">Item</th>
-                    <th scope="col" className="px-3 py-3 text-left">Técnico responsável</th>
+                    <th scope="col" className="px-3 py-3 text-left">Técnicos responsáveis</th>
                     <th scope="col" className="px-3 py-3 text-center">Quantidade</th>
                     <th scope="col" className="px-3 py-3 text-left">Preço unitário</th>
                     <th scope="col" className="px-3 py-3 text-left">Custo adicional</th>
