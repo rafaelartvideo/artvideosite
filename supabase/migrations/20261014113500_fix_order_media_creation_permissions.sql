@@ -16,8 +16,8 @@ with check (
   and exists (
     select 1
     from public.service_orders service_order
-    where service_order.id = service_order_id
-      and service_order.organization_id = organization_id
+    where service_order.id = service_order_media.service_order_id
+      and service_order.organization_id = service_order_media.organization_id
   )
   and (
     private.can_access_service_order_child(
