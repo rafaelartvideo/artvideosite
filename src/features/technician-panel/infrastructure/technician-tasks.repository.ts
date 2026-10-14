@@ -40,6 +40,53 @@ export type TechnicianTask = {
   finish_location: TechnicianLocation | null;
 };
 
+
+export type TechnicianOrderItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  type: "service" | "custom_service" | "product";
+  quantity: number;
+};
+
+export type TechnicianOrderDetails = {
+  id: string;
+  os_number: number | string;
+  closed: boolean;
+  solved: boolean;
+  can_change_situation: boolean;
+  can_edit_diagnosis: boolean;
+  situation_id: string | null;
+  situation_name: string | null;
+  available_situations: Array<{ id: string; name: string }>;
+  diagnosis: string | null;
+  internal_notes: string | null;
+  items: TechnicianOrderItem[];
+};
+
+export async function getMyTechnicianOrderDetails(orderId: string): Promise<TechnicianOrderDetails> {
+  const { data, error } = await supabase.rpc("get_my_technician_order_details_v1", { p_order_id: orderId });
+  if (error) throw error;
+  if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Dados da OS indisponíveis.");
+  return data as TechnicianOrderDetails;
+}
+
+export async function changeMyTechnicianOrderSituation(orderId: string, situationId: string): Promise<void> {
+  const { error } = await supabase.rpc("change_my_technician_order_situation_v1", {
+    p_order_id: orderId,
+    p_situation_id: situationId,
+  });
+  if (error) throw error;
+}
+
+export async function updateMyTechnicianOrderDiagnosis(orderId: string, diagnosis: string): Promise<void> {
+  const { error } = await supabase.rpc("update_my_technician_order_diagnosis_v1", {
+    p_order_id: orderId,
+    p_diagnosis: diagnosis,
+  });
+  if (error) throw error;
+}
+
 export type GpsCapture = {
   latitude: number;
   longitude: number;
