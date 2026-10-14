@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link2, Unlink } from "lucide-react";
 import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -44,15 +44,16 @@ export function InventorySuppliersEditor({
   const selectedIds = useMemo(() => new Set(value.map(supplier => supplier.id)), [value]);
   const selectedIdList = useMemo(() => Array.from(selectedIds), [selectedIds]);
   const selectedKey = selectedIdList.join(",");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(organizationId));
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let cancelled = false;
     const load = async () => {
       if (!organizationId) {
         setAvailable([]);
         setTotalItems(0);
+        setLoading(false);
         return;
       }
       setLoading(true);
@@ -106,7 +107,7 @@ export function InventorySuppliersEditor({
   return <AdminListSection
     title="Fornecedores"
     description="Vincule os fornecedores disponíveis a este item do estoque."
-    count={totalItems}
+    count={loading ? undefined : totalItems}
     countSingular="fornecedor"
     countPlural="fornecedores"
     searchValue={search}

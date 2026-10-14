@@ -42,13 +42,13 @@ export function EquipmentServiceSelector({ selectedIds, services, loading, error
   const visible = services.filter(service => service.is_active || chosen.has(service.id))
     .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   return <div className="space-y-3">
-    {loading && <p className="text-xs text-muted-foreground">Carregando serviços da empresa...</p>}
+    {loading && <div className="flex min-h-40 items-center justify-center text-xs text-muted-foreground" role="status">Carregando serviços da empresa...</div>}
     {!loading && !error && !available && <div role="status" className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
       <span>Vínculos de serviços indisponíveis até a atualização do banco de dados. Você ainda pode editar os demais dados do equipamento.</span>
       {onRetry && <button type="button" onClick={onRetry} className="font-semibold text-primary underline underline-offset-2">Verificar novamente</button>}
     </div>}
     {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
-    {!loading && !error && <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+    {!loading && !error && <div className="grid min-h-40 grid-cols-1 content-start gap-x-6 sm:grid-cols-2">
       {visible.map(service => <label key={service.id} className="flex cursor-pointer items-center gap-3 py-2.5 text-xs text-foreground">
         <Checkbox checked={chosen.has(service.id)} disabled={disabled || !available || (!service.is_active && !chosen.has(service.id))}
           onCheckedChange={value => {

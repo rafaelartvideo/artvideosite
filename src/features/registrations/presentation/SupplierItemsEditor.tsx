@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link2, Unlink } from "lucide-react";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
@@ -23,26 +23,28 @@ export function SupplierItemsEditor({
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(Boolean(organizationId));
   const [error, setError] = useState("");
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     let active = true;
     if (!organizationId) {
       setItems([]);
+      setLoading(false);
       return () => { active = false; };
     }
     setLoading(true);
     setError("");
     void listSupplierInventoryItems(organizationId).then(({ data, error: queryError }) => {
       if (!active) return;
-      setLoading(false);
       if (queryError) {
         setError(queryError.message);
         return;
       }
       setItems((data || []) as SupplierInventoryItem[]);
-    });
+    }).catch(cause => {
+      if (active) setError(cause instanceof Error ? cause.message : "Não foi possível carregar os itens.");
+    }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [organizationId]);
 
@@ -68,7 +70,7 @@ export function SupplierItemsEditor({
   return <AdminListSection
     title="Itens fornecidos"
     description="Vincule os itens do estoque fornecidos por este cadastro."
-    count={filtered.length}
+    count={loading ? undefined : filtered.length}
     searchValue={search}
     onSearchChange={setSearch}
     searchPlaceholder="Buscar por nome ou SKU"

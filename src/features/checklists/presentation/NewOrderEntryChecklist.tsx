@@ -12,6 +12,7 @@ import {
 export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: string | null }) {
   const [draft, setDraft] = useState<EntryChecklistDraft | null>(null);
   const [loading, setLoading] = useState(false);
+  const [resolvedEquipmentTypeId, setResolvedEquipmentTypeId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
   useEffect(() => subscribeNewOrderEntryChecklistContent(() => {
@@ -21,6 +22,7 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
   useEffect(() => {
     let cancelled = false;
     setDraft(null);
+    setResolvedEquipmentTypeId(null);
     setNewOrderEntryChecklistDraft(null);
     if (!equipmentTypeId) return;
 
@@ -37,7 +39,10 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
         if (!cancelled) setError(reason instanceof Error ? reason.message : String(reason));
       })
       .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          setResolvedEquipmentTypeId(equipmentTypeId);
+          setLoading(false);
+        }
       });
 
     return () => {
@@ -57,7 +62,8 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
     });
   };
 
-  if (!equipmentTypeId || (!loading && !error && !draft)) return null;
+  const pending = Boolean(equipmentTypeId && (loading || resolvedEquipmentTypeId !== equipmentTypeId));
+  if (!equipmentTypeId || (!pending && !error && !draft)) return null;
 
   return (
     <div className="min-w-0 border-t border-border pt-4 sm:col-span-2">
@@ -71,10 +77,10 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
         </div>
       </div>
 
-      {loading && <div className="rounded-xl border border-[#0057e7]/15 bg-primary-soft p-4 text-sm font-semibold text-[#0057e7]">Carregando checklist de entrada...</div>}
-      {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
+      {pending && <div className="flex min-h-40 items-center justify-center rounded-xl border border-[#0057e7]/15 bg-primary-soft p-4 text-sm font-semibold text-[#0057e7]">Carregando checklist de entrada...</div>}
+      {!pending && error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
-      {draft && (
+      {!pending && draft && (
         <div className="overflow-hidden rounded-xl border border-border bg-white">
           <div className="flex items-center justify-between gap-2 border-b border-border bg-muted px-3 py-2.5">
             <strong className="text-xs font-black text-[#0057e7]">{draft.stageName}</strong>

@@ -35,6 +35,14 @@ export function TechnicianOrderItemsSection({
   const [busy, setBusy] = useState(false);
   const showError = (message: string) => notifyAdmin(message, "error");
   const [removing, setRemoving] = useState<TechnicianOrderItem | null>(null);
+  const openCatalog = (type: ItemType) => {
+    setCatalog([]);
+    setSelectedCatalog(null);
+    setSearch("");
+    setQuantity("1");
+    setLoading(true);
+    setCatalogType(type);
+  };
 
   const loadCatalog = async (type: ItemType, term: string) => {
     setLoading(true);
@@ -109,8 +117,8 @@ export function TechnicianOrderItemsSection({
     {inline ? <div className="border-t border-border/70 pt-4"><p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">Produtos e serviços da OS</p>
       <div className="space-y-4">
         {!blocked && (canAddService || canAddProduct) && <div className="flex flex-wrap gap-2">
-          {canAddService && <BtnSecondary disabled={busy} onClick={() => setCatalogType("service")}>Adicionar serviço</BtnSecondary>}
-          {canAddProduct && <BtnSecondary disabled={busy} onClick={() => setCatalogType("product")}>Adicionar produto</BtnSecondary>}
+          {canAddService && <BtnSecondary disabled={busy} onClick={() => openCatalog("service")}>Adicionar serviço</BtnSecondary>}
+          {canAddProduct && <BtnSecondary disabled={busy} onClick={() => openCatalog("product")}>Adicionar produto</BtnSecondary>}
         </div>}
         {items.length ? <div className="divide-y divide-border">
           {items.map(item => <div key={item.id}
@@ -161,9 +169,9 @@ export function TechnicianOrderItemsSection({
             }}/></div>
           <BtnSecondary disabled={loading || busy || !catalogType} onClick={() => { if (catalogType) void loadCatalog(catalogType, search); }}>Buscar</BtnSecondary>
         </div>
-        {loading ? <p className="text-sm text-muted-foreground">Consultando itens...</p> : !catalog.length
-          ? <p className="text-sm text-muted-foreground">Nenhum item disponível.</p>
-          : <div className="max-h-60 divide-y divide-border overflow-y-auto border border-border">
+        {loading ? <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Consultando itens...</div> : !catalog.length
+          ? <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Nenhum item disponível.</div>
+          : <div className="min-h-40 max-h-60 divide-y divide-border overflow-y-auto border border-border">
             {catalog.map(option => <button key={option.id} type="button"
               aria-pressed={selectedCatalog === option.id} onClick={() => setSelectedCatalog(option.id)}
               className={"flex w-full cursor-pointer px-3 py-3 text-left text-sm font-medium hover:bg-muted " +

@@ -14,7 +14,7 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage }:
 }) {
   const [open, setOpen] = useState(false);
   const [days, setDays] = useState<EmployeeWeekday[]>(defaultWorkWeek);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -67,7 +67,7 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage }:
 
   if (!canManage || !employeeId) return null;
   return <>
-    <AdminButton variant="secondary" size="sm" onClick={() => setOpen(true)}
+    <AdminButton variant="secondary" size="sm" onClick={() => { setLoading(true); setError(""); setOpen(true); }}
       aria-label="Configurar agenda do funcionário" title="Agenda" className="h-9 px-2.5 sm:px-3">
       <CalendarDays size={15} /><span className="hidden sm:inline">Agenda</span>
     </AdminButton>
@@ -79,7 +79,7 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage }:
         <BtnSecondary disabled={saving} onClick={() => setOpen(false)}>Cancelar</BtnSecondary>
         <BtnPrimary disabled={loading} loading={saving} loadingText="Salvando..." onClick={() => void save()}>Salvar agenda</BtnPrimary>
       </div>}>
-      {loading ? <p className="text-sm text-muted-foreground">Carregando horários...</p> :
+      {loading ? <div className="flex min-h-[340px] items-center justify-center text-sm text-muted-foreground">Carregando horários...</div> :
         <div className="space-y-3">
           {days.map(day => <div key={day.weekday} className="space-y-3 rounded-xl border border-border p-3">
             <div className="flex items-center justify-between gap-2">

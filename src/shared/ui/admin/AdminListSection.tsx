@@ -54,7 +54,7 @@ export function AdminListSection({
           <p className="text-sm font-black text-foreground">{title}</p>
           {description && <p className="mt-0.5 text-[11px] text-muted-foreground">{description}</p>}
         </div>
-        {typeof count === "number" && <span className="shrink-0 text-[10px] font-bold text-muted-foreground">{count} {countLabel}</span>}
+        {typeof count === "number" && <span className="shrink-0 text-[10px] font-bold text-muted-foreground" aria-live="polite">{loading ? "…" : `${count} ${countLabel}`}</span>}
       </div>
 
       {hasSearch && <div className="relative mt-3">
@@ -76,7 +76,7 @@ export function AdminListSection({
         ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
         : empty
           ? <div className="flex min-h-40 flex-col items-center justify-center px-4 text-center"><Search size={20} className="mb-2 text-muted-foreground/70" /><p className="text-xs font-bold text-muted-foreground">{emptyText}</p></div>
-          : <div className="divide-y divide-border px-4">{children}</div>}
+          : <div className="min-h-40 divide-y divide-border px-4">{children}</div>}
 
     {footer}
   </section>;
