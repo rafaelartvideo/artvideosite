@@ -11,6 +11,9 @@ export type OrderServiceTask = {
   completed_at: string | null;
   cancelled_at: string | null;
   updated_at: string;
+  execution_report?: string | null;
+  start_location?: { lat: number | null; lng: number | null; accuracy_m: number | null; captured_at: string | null } | null;
+  finish_location?: { lat: number | null; lng: number | null; accuracy_m: number | null; captured_at: string | null } | null;
 };
 
 export type OrderServiceTechnician = {
