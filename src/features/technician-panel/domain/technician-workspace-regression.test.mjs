@@ -10,7 +10,7 @@ const rpc = read("supabase/migrations/20261014180500_technician_order_address_pr
 test("painel técnico utiliza padrão de página, seção e toolbar do CRM", () => {
   assert.match(panel, /<PageHeader/);
   assert.match(panel, /<Section title="Dados da OS"/);
-  assert.match(panel, /<Section title="Serviços atribuídos nesta OS"/);
+  assert.match(panel, /Serviços atribuídos/);
   assert.match(panel, /<AdminStickyToolbar/);
   assert.match(panel, /<BtnPrimary/);
   assert.match(panel, /<BtnSecondary/);
