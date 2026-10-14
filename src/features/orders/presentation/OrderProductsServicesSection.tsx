@@ -1361,7 +1361,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             loading={techniciansLoading}
             disabled={!workflowReady}
           />
-        </div>
+        </div>}
       </div>
     </AdminDialog>
   </div>;
