@@ -276,8 +276,8 @@ test("Produtos e Serviços mantêm seções independentes e ações de execuçã
   assert.match(panel, /<TechnicianOrderItemsSection\s/);
   assert.doesNotMatch(panel, /<TechnicianOrderItemsSection inline/);
   const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="!flex-nowrap'));
-  assert.match(toolbar, /<Play size={18} className="sm:hidden"/);
-  assert.match(toolbar, /<Check size={18} className="sm:hidden"/);
+  assert.ok(toolbar.includes('<Play size={18} className="sm:hidden"'));
+  assert.ok(toolbar.includes('<Check size={18} className="sm:hidden"'));
   assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Iniciar serviço<\/span>/);
   assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Finalizar serviço<\/span>/);
   assert.equal(panel.split('Iniciar serviço</span>').length - 1, 1);
