@@ -111,7 +111,7 @@ test("consulta o catálogo com permissões específicas sem expor preços", () =
     .split("create or replace function public.add_my_technician_order_item_v1")[0];
   assert.doesNotMatch(query, /'unit_price'|'sale_price'|'final_total'|'cost_price'/);
   assert.match(query, /'name',x\.name/);
-  assert.match(catalogUi, />Adicionar novo<\/BtnSecondary>/);
+  assert.match(catalogUi, /<Plus size=\{16\} className="shrink-0" aria-hidden="true" \/><span>Adicionar novo<\/span>/);
   assert.match(catalogUi, />Adicionar produto<\/BtnPrimary>/);
   assert.match(catalogUi, /searchMyTechnicianOrderCatalog/);
 });
@@ -291,6 +291,18 @@ test("Produtos e Serviços mantêm seções independentes e ações de execuçã
   assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Finalizar serviço<\/span>/);
   assert.equal(panel.split('Iniciar serviço</span>').length - 1, 1);
   assert.equal(panel.split('Finalizar serviço</span>').length - 1, 1);
+});
+
+test("ações do mobile são mais largas e ocultam o ícone original durante o loading", () => {
+  const layout = read("src/shared/ui/admin/AdminLayout.tsx");
+  const catalogUi = read("src/features/technician-panel/presentation/TechnicianOrderItemsSection.tsx");
+  const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="!flex-nowrap'));
+
+  assert.match(layout, /mobileBackOnly && "max-sm:!h-10 max-sm:!w-\\[72px\\]/);
+  assert.match(toolbar, /max-sm:!w-\\[72px\\] max-sm:!min-w-\\[72px\\]/);
+  assert.match(layout, /resolvedLoading \\? <><ButtonLoadingSpinner \\/>\\{loadingText \\?\\? null\\}<\\/> : renderedChildren/);
+  assert.match(panel, /<Pencil size=\\{16\\} className="shrink-0" aria-hidden="true" \\/><span>Editar<\\/span>/);
+  assert.match(catalogUi, /<Plus size=\\{16\\} className="shrink-0" aria-hidden="true" \\/><span>Adicionar novo<\\/span>/);
 });
 
 test("OS técnica não exibe tag nem permite alterar situação", () => {
