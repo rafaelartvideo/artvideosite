@@ -40,7 +40,7 @@ alter table public.service_order_item_tasks
 
 -- Nenhuma atualização de status pode inaugurar uma execução sem GPS.
 create or replace function private.require_task_start_location()
-returns trigger language plpgsql set search_path = '' as $
+returns trigger language plpgsql set search_path = '' as $$
 begin
   if tg_op = 'INSERT' then
     if new.status = 'in_progress'
@@ -55,7 +55,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 drop trigger if exists require_task_start_location on public.service_order_item_tasks;
 create trigger require_task_start_location
 before insert or update of status on public.service_order_item_tasks
@@ -168,7 +168,7 @@ $$;
 -- Gestão da OS: leitura de execução, sem acesso direto à tabela de tarefas.
 create or replace function public.list_order_service_tasks_v1(p_service_order_id uuid)
 returns jsonb language plpgsql stable security definer set search_path = ''
-as $
+as $$
 declare v_result jsonb;
 begin
   if (select auth.uid()) is null or not private.can_view_service_order(p_service_order_id) then
@@ -194,7 +194,7 @@ begin
   where task.service_order_id=p_service_order_id;
   return v_result;
 end;
-$;
+$$;
 
 -- Coordenadas são obrigatórias e recentes; GPS de navegador não é prova anti-fraude.
 create or replace function private.validate_technician_gps(
