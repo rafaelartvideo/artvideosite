@@ -3,7 +3,7 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardToolbar, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
@@ -48,7 +48,7 @@ export function EquipmentBrandSelector(props: SelectorProps) {
   const visibleChoices = [...choices.values()]
     .filter(option => brandKey(option.name).includes(brandKey(search)))
     .sort((a,b) => a.name.localeCompare(b.name, "pt-BR"));
-  const selected = props.draft.brands.flatMap((brand, index) => brand.is_active ? [{ brand, index }] : []);
+  const selected = props.draft.brands.flatMap((brand, index) => brand.is_active ? [{ brand, index }] : []).sort((a, b) => a.brand.name.localeCompare(b.brand.name, "pt-BR", { sensitivity: "base" }));
   const registerBrand = () => {
     const name = customName.trim().replace(/\s+/g, " ");
     if (!name) return;
@@ -94,9 +94,9 @@ export function EquipmentBrandSelector(props: SelectorProps) {
           {props.errorFor(bi) && <p className="mb-2 text-xs text-red-600">{props.errorFor(bi)}</p>}
           {brand.models.length === 0
             ? <p className="text-xs text-muted-foreground">Nenhum modelo cadastrado para esta marca neste equipamento.</p>
-            : <div className="grid gap-2 md:grid-cols-2">{brand.models.map((model, mi) => <div key={model.id || "new-" + mi} className="flex items-end gap-2">
+            : <div className="grid gap-2 md:grid-cols-2">{brand.models.map((model, index) => ({ model, index })).sort((a, b) => a.model.name.localeCompare(b.model.name, "pt-BR", { sensitivity: "base" })).map(({ model, index: mi }, order) => <div key={model.id || "new-" + mi} className="flex items-end gap-2">
               <div className="min-w-0 flex-1">
-                <FInput label={"Modelo " + (mi + 1)} required value={model.name}
+                <FInput label={"Modelo " + (order + 1)} required value={model.name}
                   disabled={model.id ? !props.canEdit : !props.canCreate}
                   error={props.errorFor(bi, mi)}
                   onChange={(event: any) => {
@@ -134,16 +134,16 @@ export function EquipmentBrandsDirectory({ choices, brands, types }: {
   );
   const safePage = Math.min(page,Math.max(1,Math.ceil(filtered.length/pageSize)));
   const visible = filtered.slice((safePage-1)*pageSize,safePage*pageSize);
-  return <AdminCard>
-    <AdminCardToolbar>
+  return <div className="min-w-0 space-y-4">
+    <div>
       <div className="relative w-full min-w-0 sm:max-w-md">
         <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
         <input className={INPUT + " h-10 pl-9"} value={search}
           onChange={event => { setSearch(event.target.value); setPage(1); }}
           placeholder="Buscar marca ou equipamento..." aria-label="Buscar marcas ou equipamentos" />
       </div>
-    </AdminCardToolbar>
-    <AdminCardContent>
+    </div>
+    <div>
       {visible.length ? <div className="overflow-x-auto">
         <table className="w-full min-w-[440px] text-xs">
           <thead><tr><th className="text-left">Marca</th><th className="text-left">Equipamentos</th></tr></thead>
@@ -155,6 +155,6 @@ export function EquipmentBrandsDirectory({ choices, brands, types }: {
       </div> : <p className="py-6 text-center text-xs text-muted-foreground">Nenhuma marca encontrada.</p>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
-    </AdminCardContent>
-  </AdminCard>;
+    </div>
+  </div>;
 }
