@@ -130,6 +130,14 @@ export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   />;
 }
 
+export function LoadingDots({ className = "" }: { className?: string }) {
+  return <span aria-hidden="true" className={cn("flex items-center justify-center gap-2 text-primary", className)}>
+    {[0, 1, 2].map(index => <span key={index}
+      className="h-2.5 w-2.5 rounded-full bg-current animate-bounce motion-reduce:animate-none"
+      style={{ animationDelay: `${index * 150}ms` }} />)}
+  </span>;
+}
+
 export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?: boolean; text?: string }) {
   if (!show) return null;
   return <div
@@ -139,8 +147,8 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
     aria-busy="true"
   >
     <div className="flex min-w-[190px] flex-col items-center gap-3 px-6 py-5 text-center">
-      <LoadingSpinner size="lg" />
       <p className="text-sm font-semibold text-white drop-shadow-sm">{text}</p>
+      <LoadingDots className="text-white" />
     </div>
   </div>;
 }
@@ -152,8 +160,8 @@ export function LoadingState({ text = "Carregando..." }: { text?: string }) {
     aria-live="polite"
     aria-busy="true"
   >
-    <LoadingSpinner size="lg" />
     <p className="text-sm font-semibold text-muted-foreground">{text}</p>
+    <LoadingDots />
   </div>;
 }
 
