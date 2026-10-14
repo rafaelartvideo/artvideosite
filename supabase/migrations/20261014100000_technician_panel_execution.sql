@@ -219,6 +219,9 @@ begin
   end if;
   perform private.validate_technician_gps(p_lat,p_lng,p_accuracy_m,p_captured_at);
   select * into v_task from public.service_order_item_tasks where item_id=p_item_id for update;
+  if not private.is_my_technician_task(p_item_id,'technician_panel.actions.start') then
+    raise exception 'A atribuição ou permissão deste serviço mudou.' using errcode='42501';
+  end if;
   if v_task.status <> 'pending' then
     raise exception 'Somente serviços pendentes podem ser iniciados.' using errcode='22023';
   end if;
@@ -255,6 +258,9 @@ begin
     raise exception 'Descreva o serviço realizado com pelo menos 10 caracteres.' using errcode='22023';
   end if;
   select * into v_task from public.service_order_item_tasks where item_id=p_item_id for update;
+  if not private.is_my_technician_task(p_item_id,'technician_panel.actions.complete') then
+    raise exception 'A atribuição ou permissão deste serviço mudou.' using errcode='42501';
+  end if;
   if v_task.status <> 'in_progress' or v_task.started_location_at is null then
     raise exception 'Inicie o serviço com localização antes de finalizá-lo.' using errcode='22023';
   end if;
