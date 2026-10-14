@@ -8,6 +8,8 @@ export type OrderServiceTask = {
   technician_name: string | null;
   technicians?: OrderServiceTechnician[];
   status: OrderServiceTaskStatus;
+  scheduled_start_at?: string | null;
+  scheduled_end_at?: string | null;
   started_at: string | null;
   completed_at: string | null;
   cancelled_at: string | null;
@@ -60,6 +62,21 @@ export async function setOrderServiceTaskTechnicians(itemId: string, employeeIds
   });
   if (error) throw error;
   return data as { item_id: string; technicians: OrderServiceTechnician[] };
+}
+
+export async function setOrderServiceTaskSchedule(input: {
+  itemId: string;
+  startAt: string | null;
+  endAt: string | null;
+}): Promise<{ item_id: string; scheduled_start_at: string | null; scheduled_end_at: string | null }> {
+  const { data, error } = await supabase.rpc("set_order_service_task_schedule_v1", {
+    p_item_id: input.itemId,
+    p_start_at: input.startAt,
+    p_end_at: input.endAt,
+  });
+  if (error) throw error;
+  if (!data || typeof data !== "object") throw new Error("Não foi possível confirmar o agendamento do serviço.");
+  return data as { item_id: string; scheduled_start_at: string | null; scheduled_end_at: string | null };
 }
 
 export type OrderTaskPhoto = {
