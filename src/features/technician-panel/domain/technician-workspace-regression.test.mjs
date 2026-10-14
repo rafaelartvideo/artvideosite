@@ -88,3 +88,72 @@ test("nenhuma permissão nova concede orders.edit ou visão geral de OS", () => 
   assert.match(secureMigration, /from public,anon,authenticated/);
   assert.match(secureMigration, /grant execute on function public\.get_my_technician_order_details_v1\(uuid\) to authenticated/);
 });
+
+
+const catalogMigration = read("supabase/migrations/20261014194500_technician_order_catalog_and_history.sql");
+const guardMigration = read("supabase/migrations/20261014201500_technician_commercial_recalc_guard.sql");
+const notesMigration = read("supabase/migrations/20261014204000_technician_order_problem_internal_notes.sql");
+const catalogUi = read("src/features/technician-panel/presentation/TechnicianOrderItemsSection.tsx");
+const historyUi = read("src/features/technician-panel/presentation/TechnicianOrderHistoryDialog.tsx");
+const taxonomy = read("src/features/employees/domain/permission-taxonomy.ts");
+
+test("consulta o catálogo com permissões específicas sem expor preços", () => {
+  assert.match(catalogMigration, /search_my_technician_order_catalog_v1/);
+  assert.match(catalogMigration, /private\.can_access_technician_order_v1\(p_order_id,v_perm\)/);
+  assert.match(catalogMigration, /technician_panel\.data\.order_items/);
+  const query = catalogMigration.split("create or replace function public.search_my_technician_order_catalog_v1")[1]
+    .split("create or replace function public.add_my_technician_order_item_v1")[0];
+  assert.doesNotMatch(query, /'unit_price'|'sale_price'|'final_total'|'cost_price'/);
+  assert.match(query, /'name',x\.name/);
+  assert.match(catalogUi, />Adicionar serviço<\/BtnSecondary>/);
+  assert.match(catalogUi, />Adicionar produto<\/BtnSecondary>/);
+  assert.match(catalogUi, /searchMyTechnicianOrderCatalog/);
+});
+
+test("inclusões técnicas não alteram atribuições de serviços existentes", () => {
+  assert.match(catalogMigration, /Este serviço já existe na OS/);
+  assert.match(catalogMigration, /service_order_item_task_assignees/);
+  assert.match(catalogMigration, /assigned_employee_id,status,updated_by/);
+  assert.match(catalogMigration, /inventory\.quantity,0\)<p_quantity\*v_factor/);
+  assert.match(catalogMigration, /not (v_order\.is_solved)/);
+  assert.match(catalogUi, /addMyTechnicianOrderItem/);
+  assert.match(catalogUi, /removeMyTechnicianOrderProduct/);
+  assert.match(catalogMigration, /'technician_panel\.actions\.remove_product'/);
+});
+
+test("recálculo interno não permite editar preços, concluir nem acessar outra OS", () => {
+  assert.match(guardMigration, /app\.technician_order_commercial_write/);
+  assert.match(guardMigration, /app\.update_order_commercial_totals/);
+  assert.match(guardMigration, /technician_panel\.actions\.add_product/);
+  assert.match(guardMigration, /to_jsonb\(new\)/);
+  assert.match(guardMigration, /orders\.complete/);
+  assert.match(guardMigration, /set_config\('app\.technician_order_commercial_write','false',true\)/);
+});
+
+test("histórico técnico e textos da OS usam o mesmo padrão do CRM e RPCs restritas", () => {
+  assert.match(panel, /<TechnicianOrderHistoryDialog/);
+  assert.match(panel, /<TechnicianOrderItemsSection/);
+  assert.match(panel, /updateMyTechnicianOrderNote/);
+  assert.match(historyUi, /<AdminDialog/);
+  assert.match(historyUi, /getMyTechnicianOrderHistory/);
+  assert.match(catalogMigration, /get_my_technician_order_history_v1/);
+  assert.match(catalogMigration, /technician_panel\.data\.history/);
+  assert.match(notesMigration, /update_my_technician_order_note_v1/);
+  assert.match(notesMigration, /p_field not in \('problem','internal_notes'\)/);
+  assert.match(notesMigration, /technician_panel\.actions\.edit_problem/);
+  assert.match(notesMigration, /technician_panel\.actions\.edit_internal_notes/);
+  assert.match(notesMigration, /private\.can_access_technician_order_v1\(p_order_id,v_view_permission\)/);
+  assert.match(notesMigration, /revoke all on function public\.update_my_technician_order_note_v1/);
+});
+
+test("novos checkboxes de técnico exigem visualização e vínculo ao painel", () => {
+  const actions = ["add_service","add_product","remove_product","edit_problem","edit_internal_notes"];
+  for (const action of actions) assert.match(taxonomy,
+    new RegExp('technician_panel\\.actions\\.' + action + '": \\["technician_panel\\.data\\.'));
+  assert.match(taxonomy, /technician_panel\.data\.history/);
+  assert.match(repository, /search_my_technician_order_catalog_v1/);
+  assert.match(repository, /add_my_technician_order_item_v1/);
+  assert.match(repository, /remove_my_technician_order_product_v1/);
+  assert.match(repository, /get_my_technician_order_history_v1/);
+  assert.match(repository, /update_my_technician_order_note_v1/);
+});
