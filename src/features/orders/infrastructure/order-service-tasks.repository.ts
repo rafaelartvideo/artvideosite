@@ -6,6 +6,7 @@ export type OrderServiceTask = {
   item_id: string;
   assigned_employee_id: string | null;
   technician_name: string | null;
+  technicians?: OrderServiceTechnician[];
   status: OrderServiceTaskStatus;
   started_at: string | null;
   completed_at: string | null;
@@ -50,4 +51,13 @@ export async function setOrderServiceTask(input: {
   if (error) throw error;
   if (!data || typeof data !== "object") throw new Error("O servidor não retornou o andamento do serviço.");
   return data as OrderServiceTask;
+}
+
+export async function setOrderServiceTaskTechnicians(itemId: string, employeeIds: string[]) {
+  const { data, error } = await supabase.rpc("set_order_service_task_technicians_v1", {
+    p_item_id: itemId,
+    p_employee_ids: employeeIds,
+  });
+  if (error) throw error;
+  return data as { item_id: string; technicians: OrderServiceTechnician[] };
 }
