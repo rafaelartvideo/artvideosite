@@ -132,7 +132,6 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
 
   const openNew = () => { if (!canCreate) return; setServiceDraftIndex(null); setDrafts([makeDraft()]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
   const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return; setServiceDraftIndex(null); setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
-  const addEquipment = () => canCreate && setDrafts(current => [...current, makeDraft()]);
   const updateDraft = (index: number, value: Partial<EquipmentDraft>) => setDrafts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item));
   const toggleDraftBrand = (ti: number, name: string, checked: boolean) => {
     setDrafts(current => current.map((type, index) => {
@@ -435,7 +434,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     const key = mi == null ? `brand-${ti}-${bi}` : `model-${ti}-${bi}-${mi}`;
     setHierarchyErrors(current => ({ ...current, [key]: undefined as any }));
   }}
-/></Section></div>)}{canCreate && drafts.every(type => !type.id) && <BtnSecondary onClick={addEquipment}><Plus size={15} /> Adicionar equipamento</BtnSecondary>}</div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage>
+/></Section></div>)}</div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary><BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary></div></AdminPage>
     <AdminDialog
       open={serviceDraftIndex !== null && formOpen && canCreateGeneralService}
       onClose={closeNewService}
