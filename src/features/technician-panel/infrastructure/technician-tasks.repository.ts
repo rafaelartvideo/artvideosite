@@ -61,6 +61,8 @@ export type TechnicianOrderDetails = {
   available_situations: Array<{ id: string; name: string }>;
   diagnosis: string | null;
   internal_notes: string | null;
+  equipment_accessories?: string | null;
+  equipment_condition?: string | null;
   equipment_brand?: string | null;
   equipment_model?: string | null;
   technical_values?: Array<{ id: string; label: string; type: string; value: string | null }>;
