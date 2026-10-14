@@ -40,7 +40,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
         className="w-full min-w-0 rounded-md border border-[#0d1b2e]/15 bg-transparent px-3 py-2 text-xs text-[#0d1b2e] outline-none focus:border-[#1032DC] sm:max-w-[300px]" />
     </div>
     <p className="text-xs text-[#65748b]">
-      Cada módulo reúne seus controles de visualização e ações. Desmarcar uma visualização também desmarca as ações que dependem dela.
+      Cada módulo reúne Visualização e Ações. Desmarcar uma visualização também desmarca as ações que dependem dela.
     </p>
     <div className="divide-y divide-[#0d1b2e]/10 border-y border-[#0d1b2e]/10">
       {groups.map(group => {
