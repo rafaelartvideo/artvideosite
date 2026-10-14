@@ -55,6 +55,11 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
   "products.table.status",
   "products.table.actions",
   "products.toggle_active",
+  // Chaves de compatibilidade: continuam no banco e nos papéis existentes,
+  // mas não devem aparecer como ações duplicadas de edição.
+  "orders.update",
+  "customers.update",
+  "quotes.update",
 ]);
 
 export function permissionModuleName(permission: PermissionRecord) {
@@ -284,6 +289,19 @@ export function permissionDependencies(key: string) {
   }
   if (!isModuleView) dependencies.add(`${module}.view`);
   return Array.from(dependencies);
+}
+
+export type PermissionPresentationKind = "visual" | "actions" | "columns";
+
+// Classificação somente visual. Nunca mesclar IDs nem remover permissões do
+// banco: o mesmo nome pode corresponder a verificações RLS diferentes.
+export function permissionPresentationKind(permission: PermissionRecord): PermissionPresentationKind {
+  const key = String(permission.key || "");
+  if ((/\\.table\\.(?!view$)[^.]+$/.test(key) || key.includes(".column."))) return "columns";
+  if (key.endsWith(".view") || key === "orders.view_all"
+    || key.startsWith("orders.section.") || key.startsWith("technician_panel.data.")
+    || key.endsWith(".read") || key.endsWith(".view_others")) return "visual";
+  return "actions";
 }
 
 export function permissionLabel(permission: PermissionRecord) {
