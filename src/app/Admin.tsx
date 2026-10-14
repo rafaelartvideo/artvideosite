@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { Database, List, MapPinned, MessageSquare, Phone } from "lucide-react";
+import { Database, List, MapPinned, MessageSquare, Phone, Store } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -52,6 +52,7 @@ const TabSettings = lazy(() => import("@/features/settings/presentation/TabSetti
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
+const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
@@ -273,6 +274,7 @@ export function AdminDashboard({
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
   const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
+  const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
     ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
@@ -282,6 +284,9 @@ export function AdminDashboard({
     ] : []),
     ...(canAccessSacDigitalTool ? [
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
+    ] : []),
+    ...(canAccessMarketplaceTool ? [
+      { id: "marketplace", label: "Marketplace Union", icon: Store, description: isPlatformOperatorOrganization ? "Modere lojas, anúncios e categorias do marketplace." : "Configure sua loja e gerencie serviços e produtos publicados.", href: null },
     ] : []),
     ...((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use") ? [
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
@@ -321,11 +326,19 @@ export function AdminDashboard({
         navigateAdmin("tools", "sac-digital");
         return;
       }
+      if (id === "marketplace" && canAccessMarketplaceTool) {
+        navigateAdmin("tools", "marketplace");
+        return;
+      }
       const tool = toolItems.find(item => item.id === id);
       if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
   />;
-  const toolsContent = route.resourceId === "catalogo-inteligente"
+  const toolsContent = route.resourceId === "marketplace"
+    ? canAccessMarketplaceTool
+      ? <MarketplaceToolPage onBack={() => navigateAdmin("tools")} />
+      : <Navigate to={adminPath("tools")} replace />
+    : route.resourceId === "catalogo-inteligente"
     ? canAccessUnionCatalogTool
       ? <UnionCatalogAdminPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />

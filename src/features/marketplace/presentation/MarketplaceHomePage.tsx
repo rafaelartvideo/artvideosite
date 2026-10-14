@@ -1,530 +1,208 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router";
 import {
-  ArrowRight,
-  BadgeCheck,
-  Building2,
-  ChevronRight,
-  Eraser,
-  Heart,
-  Laptop,
-  MapPin,
-  Menu,
-  PackageCheck,
-  Search,
-  ShieldCheck,
-  ShoppingBag,
-  ShoppingCart,
-  Smartphone,
-  Sparkles,
-  Star,
-  Store,
-  Tag,
-  Truck,
-  UserRound,
-  Wrench,
-  X,
+  ArrowLeft, ArrowRight, ChevronLeft, ChevronRight, ClipboardList,
+  MapPin, Menu, Search, ShieldCheck, ShoppingBag, SlidersHorizontal,
+  Store, Wrench, X,
 } from "lucide-react";
+import {
+  loadPublicMarketplace, type MarketplaceCategory, type MarketplaceListing, type MarketplaceStore,
+} from "../infrastructure/marketplace.repository";
 
-type MarketplaceKind = "product" | "service";
+const money = (value: number | null) => value == null
+  ? "Sob orçamento"
+  : value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-type MarketplaceCompany = {
-  id: string;
-  name: string;
-  tagline: string;
-  city: string;
-  verified: boolean;
-  initials: string;
-};
-
-type MarketplaceItem = {
-  id: string;
-  companyId: string;
-  kind: MarketplaceKind;
-  title: string;
-  description: string;
-  category: string;
-  price: number;
-  oldPrice?: number;
-  rating: number;
-  reviews: number;
-  badge?: string;
-  icon: typeof Smartphone;
-};
-
-const companies: MarketplaceCompany[] = [
-  { id: "techplus", name: "TechPlus", tagline: "Tecnologia que conecta você ao futuro.", city: "Aracaju, SE", verified: true, initials: "T+" },
-  { id: "artvideo", name: "Eletrônica Artvideo", tagline: "Assistência técnica e soluções em eletrônica.", city: "Aracaju, SE", verified: true, initials: "AV" },
-  { id: "casamoderna", name: "Casa Moderna", tagline: "Produtos selecionados para casa e escritório.", city: "Aracaju, SE", verified: true, initials: "CM" },
-  { id: "alphaconsult", name: "Alpha Consultoria", tagline: "Serviços profissionais para empresas.", city: "Online", verified: true, initials: "AC" },
+const promotions = [
+  { label: "Encontre o profissional certo", title: "O serviço que você precisa, em um só lugar.", text: "Compare soluções oferecidas por empresas participantes da Union World.", accent: "bg-[#e7ecff]", icon: Wrench },
+  { label: "Contrate com mais informação", title: "Conheça os serviços antes de contratar.", text: "Explore descrições, preços anunciados e perfis das empresas.", accent: "bg-[#e7f6f1]", icon: ShieldCheck },
+  { label: "Empresas participantes", title: "Encontre prestadores perto de você.", text: "Descubra profissionais e fornecedores cadastrados e habilitados na Union.", accent: "bg-[#fff0dc]", icon: Store },
 ];
 
-const items: MarketplaceItem[] = [
-  {
-    id: "smartphone-s24",
-    companyId: "techplus",
-    kind: "product",
-    title: "Smartphone Galaxy S24 128GB",
-    description: "Smartphone 5G, 128GB, câmera tripla e tela AMOLED.",
-    category: "Eletrônicos",
-    price: 3499,
-    oldPrice: 3899,
-    rating: 4.8,
-    reviews: 320,
-    badge: "Frete grátis",
-    icon: Smartphone,
-  },
-  {
-    id: "notebook-pro",
-    companyId: "techplus",
-    kind: "product",
-    title: "Notebook Pro 15",
-    description: "Notebook para trabalho e estudo com SSD de alta velocidade.",
-    category: "Informática",
-    price: 2999,
-    oldPrice: 3299,
-    rating: 4.7,
-    reviews: 184,
-    badge: "Oferta",
-    icon: Laptop,
-  },
-  {
-    id: "reparo-smartphone",
-    companyId: "artvideo",
-    kind: "service",
-    title: "Manutenção de smartphone",
-    description: "Diagnóstico e reparo técnico com acompanhamento do serviço.",
-    category: "Assistência técnica",
-    price: 149,
-    rating: 4.9,
-    reviews: 412,
-    badge: "Agendamento",
-    icon: Wrench,
-  },
-  {
-    id: "reparo-tv",
-    companyId: "artvideo",
-    kind: "service",
-    title: "Diagnóstico de TV",
-    description: "Análise técnica completa para TVs e equipamentos eletrônicos.",
-    category: "Assistência técnica",
-    price: 120,
-    rating: 4.8,
-    reviews: 238,
-    icon: Wrench,
-  },
-  {
-    id: "cadeira-office",
-    companyId: "casamoderna",
-    kind: "product",
-    title: "Cadeira Office Comfort",
-    description: "Cadeira ergonômica com regulagem de altura e apoio lombar.",
-    category: "Casa e escritório",
-    price: 799,
-    oldPrice: 949,
-    rating: 4.6,
-    reviews: 96,
-    badge: "Mais vendido",
-    icon: ShoppingBag,
-  },
-  {
-    id: "consultoria-financeira",
-    companyId: "alphaconsult",
-    kind: "service",
-    title: "Consultoria financeira empresarial",
-    description: "Diagnóstico financeiro e plano de ação para pequenas empresas.",
-    category: "Serviços profissionais",
-    price: 350,
-    rating: 4.9,
-    reviews: 67,
-    badge: "Online",
-    icon: Building2,
-  },
-];
-
-const categories = [
-  { label: "Eletrônicos", icon: Smartphone },
-  { label: "Informática", icon: Laptop },
-  { label: "Assistência técnica", icon: Wrench },
-  { label: "Casa e escritório", icon: ShoppingBag },
-  { label: "Serviços profissionais", icon: Building2 },
-];
-
-function money(value: number) {
-  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const cardBorder = "border border-[#e4e8f0] bg-white shadow-sm transition hover:border-[#b9c4e0] hover:shadow-md";
+function ListingPhoto({ listing, large = false }: { listing: MarketplaceListing; large?: boolean }) {
+  return <div className={`relative flex w-full items-center justify-center overflow-hidden bg-[#f5f7fb] ${large ? "aspect-[4/3]" : "aspect-[5/4]"}`}>
+    {listing.cover_image_url
+      ? <img src={listing.cover_image_url} alt={listing.title} className="h-full w-full object-contain" loading="lazy" />
+      : listing.source_kind === "service"
+        ? <Wrench size={large ? 88 : 50} strokeWidth={1.1} className="text-[#9aa8c3]" />
+        : <ShoppingBag size={large ? 88 : 50} strokeWidth={1.1} className="text-[#9aa8c3]" />}
+  </div>;
 }
 
 export function MarketplaceHomePage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [stores, setStores] = useState<MarketplaceStore[]>([]);
+  const [listings, setListings] = useState<MarketplaceListing[]>([]);
+  const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [activeKind, setActiveKind] = useState<"all" | MarketplaceKind>("all");
-  const [activeCategory, setActiveCategory] = useState<string | null>(null);
-  const [activeCompany, setActiveCompany] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [kind, setKind] = useState<"all" | "service" | "product">("all");
+  const [category, setCategory] = useState<string | null>(null);
+  const [banner, setBanner] = useState(0);
+  const [notice, setNotice] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
 
-  const selectedCompany = activeCompany ? companies.find(company => company.id === activeCompany) ?? null : null;
+  useEffect(() => {
+    let mounted = true;
+    loadPublicMarketplace().then(data => {
+      if (!mounted) return;
+      setStores(data.stores); setListings(data.listings); setCategories(data.categories);
+    }).catch(() => { if (mounted) setError("Não foi possível carregar o catálogo neste momento."); })
+      .finally(() => { if (mounted) setLoading(false); });
+    return () => { mounted = false; };
+  }, []);
 
-  const visibleItems = useMemo(() => {
+  const path = location.pathname;
+  const listingId = path.match(/^\/marketplace\/(?:servico|produto)\/([^/]+)$/)?.[1];
+  const storeSlug = path.match(/^\/marketplace\/loja\/([^/]+)$/)?.[1];
+  const detail = listings.find(x => x.id === listingId);
+  const selectedStore = stores.find(x => x.slug === storeSlug);
+  const vendor = detail ? stores.find(x => x.organization_id === detail.organization_id) : null;
+  const visible = useMemo(() => listings.filter(item => {
+    if (kind !== "all" && item.source_kind !== kind) return false;
+    if (category && item.category_id !== category) return false;
+    if (selectedStore && item.organization_id !== selectedStore.organization_id) return false;
     const normalized = query.trim().toLocaleLowerCase("pt-BR");
-    return items.filter(item => {
-      if (activeKind !== "all" && item.kind !== activeKind) return false;
-      if (activeCategory && item.category !== activeCategory) return false;
-      if (activeCompany && item.companyId !== activeCompany) return false;
-      if (!normalized) return true;
-      const company = companies.find(current => current.id === item.companyId);
-      return [item.title, item.description, item.category, company?.name]
-        .filter(Boolean)
-        .some(value => String(value).toLocaleLowerCase("pt-BR").includes(normalized));
-    });
-  }, [activeCategory, activeCompany, activeKind, query]);
-
-  const clearFilters = () => {
-    setQuery("");
-    setActiveKind("all");
-    setActiveCategory(null);
-    setActiveCompany(null);
+    if (!normalized) return true;
+    const company = stores.find(x => x.organization_id === item.organization_id);
+    return [item.title, item.description, company?.display_name].some(text => text?.toLocaleLowerCase("pt-BR").includes(normalized));
+  }), [listings, kind, category, query, selectedStore, stores]);
+  const openListing = (item: MarketplaceListing) => {
+    navigate(`/marketplace/${item.source_kind === "service" ? "servico" : "produto"}/${item.id}`);
+    window.scrollTo({ top: 0 });
   };
+  const openStore = (store: MarketplaceStore) => {
+    setCategory(null); setQuery(""); setKind("all");
+    navigate(`/marketplace/loja/${store.slug}`); window.scrollTo({ top: 0 });
+  };
+  const backHome = () => { navigate("/marketplace"); setCategory(null); setQuery(""); setKind("all"); window.scrollTo({ top: 0 }); };
+  const activeBanner = promotions[banner];
+  const PromoIcon = activeBanner.icon;
+  const serviceItems = visible.filter(x => x.source_kind === "service");
+  const productItems = visible.filter(x => x.source_kind === "product");
 
-  return (
-    <div className="min-h-dvh bg-[#f6f7fb] text-[#0d1b2e]">
-      <header className="sticky top-0 z-40 border-b border-[#dfe4ec] bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <a href="/marketplace" className="flex min-w-0 items-center gap-3">
-            <img src="/assets/crm/login/logotelalogin.png" alt="Union World" className="h-8 w-auto max-w-[132px] object-contain" />
-            <span className="hidden border-l border-[#dfe4ec] pl-3 text-sm font-black text-[#1032dc] sm:block">Marketplace</span>
-          </a>
+  function itemCard(item: MarketplaceListing) {
+    const company = stores.find(x => x.organization_id === item.organization_id);
+    return <button key={item.id} type="button" onClick={() => openListing(item)} className={`group min-w-0 overflow-hidden rounded-xl text-left ${cardBorder}`}>
+      <ListingPhoto listing={item} />
+      <div className="space-y-2 border-t border-[#edf0f6] p-4">
+        <span className="text-[10px] font-bold uppercase tracking-wide text-[#1032dc]">{item.source_kind === "service" ? "Serviço" : "Produto"}</span>
+        <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-[#18253d]">{item.title}</h3>
+        <p className="truncate text-xs text-[#738097]">{company?.display_name || "Empresa participante"}</p>
+        <p className="text-xl font-black text-[#112244]">{item.price_type === "quote" ? "Sob orçamento" : money(item.price)}</p>
+        <p className="flex items-center gap-1 text-xs font-bold text-[#1032dc]">Ver detalhes <ChevronRight size={13} /></p>
+      </div>
+    </button>;
+  }
 
-          <div className="hidden flex-1 md:block">
-            <label className="relative mx-auto block max-w-2xl">
-              <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#7a8799]" size={18} />
-              <input
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                placeholder="Buscar produtos, serviços ou empresas"
-                className="h-11 w-full border border-[#d7deea] bg-[#f8fafc] pl-11 pr-4 text-sm font-medium outline-none transition focus:border-[#1032dc] focus:bg-white"
-              />
-            </label>
-          </div>
-
-          <div className="ml-auto hidden items-center gap-2 md:flex">
-            <button className="flex h-10 items-center gap-2 px-3 text-sm font-bold text-[#334155] transition hover:text-[#1032dc]">
-              <UserRound size={18} /> Entrar
-            </button>
-            <button className="relative flex h-10 items-center gap-2 px-3 text-sm font-bold text-[#334155] transition hover:text-[#1032dc]">
-              <ShoppingCart size={18} /> Carrinho
-              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#1032dc] px-1 text-[10px] font-black text-white">0</span>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            className="ml-auto flex h-10 w-10 items-center justify-center md:hidden"
-            onClick={() => setMobileMenuOpen(open => !open)}
-            aria-label="Abrir menu"
-          >
-            {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
-          </button>
+  return <div className="min-h-dvh bg-[#f5f6fa] text-[#16243c]">
+    <header className="sticky top-0 z-40 border-b border-[#e5e9f0] bg-white shadow-sm">
+      <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-3 px-4 py-3 lg:flex-nowrap lg:gap-6 lg:px-6">
+        <button type="button" onClick={backHome} className="flex shrink-0 items-center gap-2 text-left">
+          <img src="/assets/crm/login/logotelalogin.png" alt="Union World" className="h-8 max-w-[128px] object-contain" />
+          <span className="hidden border-l border-[#d7ddeb] pl-2 text-xs font-black uppercase text-[#1032dc] sm:block">Marketplace</span>
+        </button>
+        <label className="order-3 flex h-11 w-full min-w-0 items-center gap-3 rounded-lg border border-[#d4dbe7] bg-[#f8faff] px-3 transition focus-within:border-[#1032dc] lg:order-none lg:flex-1">
+          <Search size={18} className="shrink-0 text-[#78859b]" />
+          <input value={query} onChange={e => { if (detail) { navigate("/marketplace"); setCategory(null); setKind("all"); } setQuery(e.target.value); }} placeholder="O que você precisa contratar?" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-[#8b96a7]" />
+        </label>
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          <a href="/admin" className="hidden text-xs font-bold text-[#304563] hover:text-[#1032dc] sm:block">Área da empresa</a>
+          <button type="button" className="rounded-lg border border-[#dfe4ed] p-2 lg:hidden" onClick={() => setMenuOpen(v => !v)} aria-label="Abrir menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
-
-        <div className="border-t border-[#eef1f5] md:hidden">
-          <div className="p-3">
-            <label className="relative block">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#7a8799]" size={17} />
-              <input
-                value={query}
-                onChange={event => setQuery(event.target.value)}
-                placeholder="O que você procura?"
-                className="h-10 w-full border border-[#d7deea] bg-[#f8fafc] pl-10 pr-3 text-sm outline-none focus:border-[#1032dc]"
-              />
-            </label>
-          </div>
-          {mobileMenuOpen && (
-            <div className="grid grid-cols-2 gap-2 border-t border-[#eef1f5] p-3">
-              <button className="border border-[#dfe4ec] bg-white p-3 text-left text-sm font-bold">Minha conta</button>
-              <button className="border border-[#dfe4ec] bg-white p-3 text-left text-sm font-bold">Carrinho</button>
-            </div>
-          )}
-        </div>
-      </header>
-
-      <nav className="border-b border-[#e5e9f0] bg-white">
-        <div className="mx-auto flex max-w-[1440px] gap-1 overflow-x-auto px-4 py-2 sm:px-6 lg:px-8">
-          {[
-            ["all", "Tudo"],
-            ["product", "Produtos"],
-            ["service", "Serviços"],
-          ].map(([value, label]) => (
-            <button
-              key={value}
-              type="button"
-              onClick={() => setActiveKind(value as "all" | MarketplaceKind)}
-              className={`whitespace-nowrap px-4 py-2 text-sm font-bold transition ${activeKind === value ? "bg-[#1032dc] text-white" : "text-[#536174] hover:bg-[#f1f4f9]"}`}
-            >
-              {label}
-            </button>
-          ))}
-          <button type="button" onClick={() => document.getElementById("empresas")?.scrollIntoView({ behavior: "smooth" })} className="whitespace-nowrap px-4 py-2 text-sm font-bold text-[#536174] hover:bg-[#f1f4f9]">
-            Empresas parceiras
-          </button>
-          <button type="button" onClick={() => document.getElementById("como-funciona")?.scrollIntoView({ behavior: "smooth" })} className="whitespace-nowrap px-4 py-2 text-sm font-bold text-[#536174] hover:bg-[#f1f4f9]">
-            Como funciona
-          </button>
-        </div>
+      </div>
+      <nav className={`mx-auto max-w-[1400px] items-center gap-1 overflow-x-auto px-4 pb-3 lg:flex lg:px-6 ${menuOpen ? "flex" : "hidden lg:flex"}`}>
+        <button onClick={backHome} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Início</button>
+        <button onClick={() => { backHome(); setKind("service"); }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Serviços</button>
+        <button onClick={() => { backHome(); setKind("product"); }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Produtos</button>
+        {categories.slice(0, 6).map(item => <button key={item.id} onClick={() => { backHome(); setCategory(item.id); }} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-[#526178] hover:bg-[#eef1ff]">{item.name}</button>)}
+        <a href="/admin" className="ml-auto shrink-0 rounded-lg px-3 py-2 text-xs font-bold text-[#1032dc] sm:hidden">Área da empresa</a>
       </nav>
+    </header>
 
-      <main>
-        <section className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
-          {selectedCompany ? (
-            <div className="relative overflow-hidden bg-[#0d1b2e] p-6 text-white sm:p-8 lg:p-10">
-              <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-[#1032dc]/45 blur-3xl" />
-              <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white text-xl font-black text-[#1032dc]">{selectedCompany.initials}</div>
-                  <div>
-                    <button type="button" onClick={() => setActiveCompany(null)} className="mb-3 text-xs font-bold uppercase tracking-[0.18em] text-white/55 hover:text-white">← Voltar ao marketplace</button>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h1 className="text-2xl font-black sm:text-3xl">{selectedCompany.name}</h1>
-                      {selectedCompany.verified && <BadgeCheck size={20} className="text-[#6ea8ff]" />}
-                    </div>
-                    <p className="mt-2 max-w-xl text-sm leading-6 text-white/70">{selectedCompany.tagline}</p>
-                    <p className="mt-3 flex items-center gap-1.5 text-xs font-bold text-white/60"><MapPin size={14} /> {selectedCompany.city}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center">
-                  <div className="bg-white/8 px-4 py-3"><strong className="block text-xl">{items.filter(item => item.companyId === selectedCompany.id).length}</strong><span className="text-[11px] text-white/60">Anúncios</span></div>
-                  <div className="bg-white/8 px-4 py-3"><strong className="block text-xl">4,9</strong><span className="text-[11px] text-white/60">Avaliação</span></div>
-                  <div className="bg-white/8 px-4 py-3"><strong className="block text-xl">100%</strong><span className="text-[11px] text-white/60">Verificada</span></div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="relative overflow-hidden bg-[#0d1b2e] px-6 py-9 text-white sm:px-10 sm:py-12 lg:px-14 lg:py-16">
-              <div className="absolute -right-16 -top-20 h-80 w-80 rounded-full bg-[#1032dc]/70 blur-3xl" />
-              <div className="absolute bottom-0 right-[18%] h-44 w-44 rounded-full bg-[#5d73ef]/30 blur-3xl" />
-              <div className="relative grid gap-8 lg:grid-cols-[1.15fr_.85fr] lg:items-center">
-                <div className="max-w-2xl">
-                  <div className="mb-4 inline-flex items-center gap-2 bg-white/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-[#b9c7ff]">
-                    <Sparkles size={14} /> Union Marketplace
-                  </div>
-                  <h1 className="text-3xl font-black leading-tight sm:text-4xl lg:text-5xl">
-                    Diversas empresas.<br />Um só marketplace.
-                  </h1>
-                  <p className="mt-4 max-w-xl text-sm leading-7 text-white/70 sm:text-base">
-                    Produtos e serviços de empresas parceiras em um ambiente administrado pela Union World.
-                  </p>
-                  <div className="mt-7 flex flex-wrap gap-3">
-                    <button type="button" onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })} className="flex h-11 items-center gap-2 bg-white px-5 text-sm font-black text-[#0d1b2e] transition hover:bg-[#edf1ff]">
-                      Explorar marketplace <ArrowRight size={17} />
-                    </button>
-                    <button type="button" onClick={() => document.getElementById("empresas")?.scrollIntoView({ behavior: "smooth" })} className="flex h-11 items-center gap-2 border border-white/20 bg-white/5 px-5 text-sm font-black text-white transition hover:bg-white/10">
-                      Ver empresas
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    [ShieldCheck, "Empresas verificadas", "Parceiros aprovados pela Union"],
-                    [ShoppingBag, "Produtos e serviços", "Tudo no mesmo ambiente"],
-                    [Truck, "Entrega e atendimento", "Cada parceiro define sua operação"],
-                    [PackageCheck, "Compra acompanhada", "Pedidos centralizados na plataforma"],
-                  ].map(([Icon, title, description]) => {
-                    const CardIcon = Icon as typeof ShieldCheck;
-                    return (
-                      <div key={String(title)} className="border border-white/10 bg-white/6 p-4 backdrop-blur-sm">
-                        <CardIcon size={22} className="text-[#8ea2ff]" />
-                        <p className="mt-3 text-sm font-black">{String(title)}</p>
-                        <p className="mt-1 text-xs leading-5 text-white/55">{String(description)}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        {!selectedCompany && (
-          <section className="mx-auto max-w-[1440px] px-4 pb-4 sm:px-6 lg:px-8">
-            <div className="grid border border-[#e0e5ed] bg-white sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                [ShieldCheck, "Compra protegida", "Ambiente administrado pela Union"],
-                [BadgeCheck, "Parceiros verificados", "Empresas validadas na plataforma"],
-                [Tag, "Ofertas em um só lugar", "Compare produtos e serviços"],
-                [Store, "Catálogo por empresa", "Visite a loja de cada parceiro"],
-              ].map(([Icon, title, description], index) => {
-                const FeatureIcon = Icon as typeof ShieldCheck;
-                return (
-                  <div key={String(title)} className={`flex items-center gap-3 p-4 ${index ? "border-t border-[#e8ecf2] sm:border-l sm:border-t-0" : ""}`}>
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#eef1ff] text-[#1032dc]"><FeatureIcon size={19} /></span>
-                    <div><p className="text-sm font-black">{String(title)}</p><p className="mt-0.5 text-xs text-[#738095]">{String(description)}</p></div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-        )}
-
-        <section className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mb-4 flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1032dc]">Explore</p>
-              <h2 className="mt-1 text-xl font-black sm:text-2xl">Categorias</h2>
-            </div>
-            {(activeCategory || activeCompany || activeKind !== "all" || query) && (
-              <button type="button" onClick={clearFilters} className="inline-flex h-8 items-center gap-1.5 border border-[#1032dc]/20 bg-white px-3 text-xs font-black text-[#1032dc] transition hover:bg-[#eef1ff]"><Eraser size={13} /> Limpar filtros</button>
-            )}
+    <main className="mx-auto max-w-[1400px] space-y-8 px-4 pb-16 pt-5 lg:px-6">
+      {notice && <div role="status" className="flex items-center justify-between gap-4 rounded-lg border border-[#c8d1f5] bg-[#eef1ff] px-4 py-3 text-sm text-[#233d91]">{notice}<button onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={18} /></button></div>}
+      {loading ? <div className="py-20 text-center text-sm text-[#66758e]">Carregando catálogo...</div> :
+      error ? <div className="rounded-xl bg-white p-10 text-center text-sm text-red-700">{error}</div> :
+      detail ? <div className="space-y-6">
+        <button onClick={backHome} className="flex items-center gap-2 text-sm font-semibold text-[#53657f] hover:text-[#1032dc]"><ArrowLeft size={16} /> Voltar ao marketplace</button>
+        <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr_.8fr]">
+          <div className="overflow-hidden rounded-xl border border-[#e1e6ef] bg-white"><ListingPhoto listing={detail} large /></div>
+          <div className="rounded-xl border border-[#e1e6ef] bg-white p-6">
+            <span className="text-xs font-bold uppercase tracking-wide text-[#1032dc]">{detail.source_kind === "service" ? "Serviço" : "Produto"}</span>
+            <h1 className="mt-3 text-2xl font-black leading-tight">{detail.title}</h1>
+            <div className="my-5 h-px bg-[#e8ecf3]" />
+            <h2 className="mb-2 text-sm font-black">Descrição</h2>
+            <p className="whitespace-pre-line text-sm leading-7 text-[#596981]">{detail.description || "Entre em contato com a empresa para saber mais sobre este anúncio."}</p>
+            <div className="mt-6 flex flex-wrap gap-2">{detail.price_type === "appointment" && <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-bold text-[#1032dc]">Agendamento</span>}{detail.price_type === "quote" && <span className="rounded-full bg-[#edf1ff] px-3 py-1 text-xs font-bold text-[#1032dc]">Mediante orçamento</span>}</div>
           </div>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            {categories.map(category => {
-              const Icon = category.icon;
-              const active = activeCategory === category.label;
-              return (
-                <button
-                  key={category.label}
-                  type="button"
-                  onClick={() => setActiveCategory(active ? null : category.label)}
-                  className={`flex min-h-24 flex-col items-center justify-center border p-4 text-center transition ${active ? "border-[#1032dc] bg-[#eef1ff] text-[#1032dc]" : "border-[#e0e5ed] bg-white hover:border-[#b9c4d4]"}`}
-                >
-                  <Icon size={24} />
-                  <span className="mt-2 text-xs font-black sm:text-sm">{category.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        <section id="catalogo" className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-8">
-          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1032dc]">{selectedCompany ? "Catálogo da empresa" : "Marketplace"}</p>
-              <h2 className="mt-1 text-xl font-black sm:text-2xl">{selectedCompany ? `Anúncios de ${selectedCompany.name}` : "Produtos e serviços em destaque"}</h2>
-              <p className="mt-1 text-sm text-[#6b788b]">{visibleItems.length} {visibleItems.length === 1 ? "resultado encontrado" : "resultados encontrados"}</p>
-            </div>
-            <select
-              className="h-10 border border-[#d7deea] bg-white px-3 text-sm font-bold outline-none"
-              aria-label="Ordenar catálogo"
-              defaultValue="relevance"
-            >
-              <option value="relevance">Mais relevantes</option>
-              <option value="price-low">Menor preço</option>
-              <option value="price-high">Maior preço</option>
-              <option value="rating">Melhor avaliação</option>
-            </select>
-          </div>
-
-          {visibleItems.length ? (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {visibleItems.map(item => {
-                const company = companies.find(current => current.id === item.companyId)!;
-                const Icon = item.icon;
-                return (
-                  <article key={item.id} className="group border border-[#e0e5ed] bg-white transition hover:-translate-y-0.5 hover:border-[#cbd4e2] hover:shadow-lg hover:shadow-[#0d1b2e]/5">
-                    <div className="relative flex aspect-[4/3] items-center justify-center bg-gradient-to-br from-[#f4f6fb] to-[#e8edf6]">
-                      {item.badge && <span className="absolute left-3 top-3 bg-white px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-[#1032dc] shadow-sm">{item.badge}</span>}
-                      <button type="button" className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#68768a] shadow-sm transition hover:text-[#e11d48]" aria-label="Favoritar"><Heart size={16} /></button>
-                      <Icon size={68} strokeWidth={1.2} className="text-[#20324f] transition-transform group-hover:scale-105" />
-                    </div>
-                    <div className="p-4">
-                      <div className="mb-2 flex items-center gap-2 text-[11px] font-bold text-[#738095]">
-                        <span className={`px-2 py-1 ${item.kind === "service" ? "bg-[#effaf5] text-[#16835f]" : "bg-[#eef1ff] text-[#1032dc]"}`}>{item.kind === "service" ? "Serviço" : "Produto"}</span>
-                        <span className="truncate">{item.category}</span>
-                      </div>
-                      <h3 className="line-clamp-2 min-h-10 text-sm font-black leading-5">{item.title}</h3>
-                      <button type="button" onClick={() => setActiveCompany(company.id)} className="mt-2 flex items-center gap-1 text-xs font-bold text-[#657286] hover:text-[#1032dc]">
-                        {company.name} {company.verified && <BadgeCheck size={13} className="text-[#1032dc]" />}
-                      </button>
-                      <div className="mt-3 flex items-center gap-1 text-xs">
-                        <Star size={14} className="fill-amber-400 text-amber-400" />
-                        <strong>{item.rating.toFixed(1).replace(".", ",")}</strong>
-                        <span className="text-[#8a96a8]">({item.reviews})</span>
-                      </div>
-                      <div className="mt-4">
-                        {item.oldPrice && <p className="text-xs text-[#97a2b2] line-through">{money(item.oldPrice)}</p>}
-                        <p className="text-xl font-black">{money(item.price)}</p>
-                        <p className="mt-0.5 text-[11px] text-[#7a8799]">{item.kind === "product" ? "em até 10x sem juros" : "valor inicial"}</p>
-                      </div>
-                      <button type="button" className="mt-4 flex h-10 w-full items-center justify-center gap-2 bg-[#1032dc] px-4 text-sm font-black text-white transition hover:bg-[#0c28b8]">
-                        {item.kind === "product" ? "Ver produto" : "Ver serviço"} <ChevronRight size={16} />
-                      </button>
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="border border-dashed border-[#cfd7e4] bg-white px-6 py-16 text-center">
-              <Search size={30} className="mx-auto text-[#9aa5b5]" />
-              <h3 className="mt-4 text-base font-black">Nenhum anúncio encontrado</h3>
-              <p className="mt-1 text-sm text-[#738095]">Tente remover algum filtro ou buscar outro termo.</p>
-              <button type="button" onClick={clearFilters} className="mt-5 inline-flex items-center gap-2 bg-[#1032dc] px-5 py-2.5 text-sm font-black text-white"><Eraser size={15} /> Limpar filtros</button>
-            </div>
-          )}
-        </section>
-
-        <section id="empresas" className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
-          <div className="mb-5">
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1032dc]">Parceiros</p>
-            <h2 className="mt-1 text-xl font-black sm:text-2xl">Empresas no marketplace</h2>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            {companies.map(company => (
-              <button
-                key={company.id}
-                type="button"
-                onClick={() => {
-                  setActiveCompany(company.id);
-                  setActiveCategory(null);
-                  document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" });
-                }}
-                className="group border border-[#e0e5ed] bg-white p-5 text-left transition hover:border-[#aebbd0] hover:shadow-lg hover:shadow-[#0d1b2e]/5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0d1b2e] text-sm font-black text-white">{company.initials}</span>
-                  {company.verified && <span className="flex items-center gap-1 bg-[#eef1ff] px-2 py-1 text-[10px] font-black uppercase text-[#1032dc]"><BadgeCheck size={12} /> Verificada</span>}
-                </div>
-                <h3 className="mt-4 flex items-center gap-1.5 text-base font-black">{company.name}</h3>
-                <p className="mt-1 min-h-10 text-xs leading-5 text-[#718096]">{company.tagline}</p>
-                <p className="mt-4 flex items-center gap-1.5 text-xs font-bold text-[#718096]"><MapPin size={13} /> {company.city}</p>
-                <span className="mt-5 flex items-center gap-2 text-sm font-black text-[#1032dc]">Visitar catálogo <ArrowRight size={15} className="transition-transform group-hover:translate-x-1" /></span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section id="como-funciona" className="border-y border-[#e0e5ed] bg-white">
-          <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8">
-            <div className="mx-auto max-w-2xl text-center">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1032dc]">Ecossistema Union</p>
-              <h2 className="mt-2 text-2xl font-black">Um marketplace conectado às empresas parceiras</h2>
-              <p className="mt-3 text-sm leading-6 text-[#718096]">No modelo final, cada parceiro controla o que deseja publicar, enquanto a Union administra regras, moderação, categorias, pedidos e a operação geral do marketplace.</p>
-            </div>
-            <div className="mt-8 grid gap-3 md:grid-cols-3">
-              {[
-                ["01", "Empresa publica", "Produtos e serviços do sistema podem ser disponibilizados no marketplace sem recadastro."],
-                ["02", "Union administra", "A plataforma controla aprovação, destaque, regras comerciais, qualidade e segurança."],
-                ["03", "Cliente compra", "O cliente encontra empresas diferentes, compara ofertas e acompanha tudo em um só lugar."],
-              ].map(([number, title, description]) => (
-                <div key={number} className="border border-[#e0e5ed] p-5">
-                  <span className="text-2xl font-black text-[#1032dc]">{number}</span>
-                  <h3 className="mt-4 text-base font-black">{title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-[#718096]">{description}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-      </main>
-
-      <footer className="bg-[#0d1b2e] text-white">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-6 px-4 py-8 sm:px-6 md:flex-row md:items-center md:justify-between lg:px-8">
-          <div>
-            <img src="/assets/crm/login/logotelalogin.png" alt="Union World" className="h-8 w-auto max-w-[140px] object-contain brightness-0 invert" />
-            <p className="mt-2 text-xs text-white/50">Union Marketplace · Primeiro esboço de interface</p>
-          </div>
-          <div className="flex flex-wrap gap-5 text-xs font-bold text-white/60">
-            <span>Termos</span><span>Privacidade</span><span>Ajuda</span><span>Empresas parceiras</span>
-          </div>
+          <aside className="h-fit space-y-4 rounded-xl border border-[#e1e6ef] bg-white p-5">
+            <p className="text-xs text-[#78859b]">Valor anunciado</p>
+            <p className="text-3xl font-black">{detail.price_type === "quote" ? "Sob orçamento" : money(detail.price)}</p>
+            <button className="w-full rounded-lg bg-[#1032dc] px-4 py-3 text-sm font-black text-white hover:bg-[#0928b8]" onClick={() => setNotice("A contratação direta e o envio de solicitações serão habilitados na etapa de intermediação.")}>{detail.price_type === "quote" ? "Solicitar orçamento" : detail.price_type === "appointment" ? "Solicitar agendamento" : "Solicitar contratação"}</button>
+            <p className="text-xs leading-5 text-[#8a96a7]">Contratação online em preparação. Nenhuma cobrança é realizada nesta etapa.</p>
+            {vendor && <button onClick={() => openStore(vendor)} className="flex w-full items-center gap-3 border-t border-[#e8ecf3] pt-4 text-left"><Store size={22} className="text-[#1032dc]" /><span className="min-w-0"><strong className="block truncate text-sm">{vendor.display_name}</strong><span className="text-xs text-[#75849b]">{vendor.city} {vendor.state}</span></span><ChevronRight size={16} className="ml-auto" /></button>}
+          </aside>
         </div>
-      </footer>
-    </div>
-  );
+      </div> : <>
+        {selectedStore ? <section className="overflow-hidden rounded-xl border border-[#e1e6ef] bg-white">
+          {selectedStore.banner_url && <img src={selectedStore.banner_url} className="max-h-64 w-full object-cover" alt="" />}
+          <div className="flex flex-wrap items-center gap-4 p-6">
+            {selectedStore.logo_url ? <img src={selectedStore.logo_url} className="h-16 w-16 rounded-xl object-cover" alt={selectedStore.display_name} /> : <div className="flex h-16 w-16 items-center justify-center rounded-xl bg-[#eef1ff]"><Store size={28} className="text-[#1032dc]" /></div>}
+            <div className="min-w-0 flex-1"><p className="text-xs font-bold uppercase text-[#1032dc]">Empresa participante</p><h1 className="mt-1 text-2xl font-black">{selectedStore.display_name}</h1><p className="mt-1 text-sm text-[#63738c]">{selectedStore.description}</p><p className="mt-2 flex items-center gap-1 text-xs text-[#7c8ca3]"><MapPin size={13} /> {selectedStore.city || "Localização não informada"} {selectedStore.state}</p></div>
+            <button onClick={backHome} className="rounded-lg border border-[#dbe1eb] px-4 py-2 text-xs font-bold">Todas as lojas</button>
+          </div>
+        </section> : <section className="relative overflow-hidden rounded-2xl bg-white shadow-sm">
+          <div className={`grid min-h-[250px] gap-6 p-7 sm:p-10 lg:grid-cols-[1fr_260px] lg:items-center lg:p-14 ${activeBanner.accent}`}>
+            <div className="relative z-10 max-w-2xl space-y-4">
+              <p className="text-xs font-black uppercase tracking-[0.18em] text-[#1032dc]">{activeBanner.label}</p>
+              <h1 className="text-3xl font-black leading-tight sm:text-4xl">{activeBanner.title}</h1>
+              <p className="text-sm leading-7 text-[#51617a]">{activeBanner.text}</p>
+              <button onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })} className="flex items-center gap-2 rounded-lg bg-[#1032dc] px-5 py-3 text-sm font-black text-white">Explorar serviços <ArrowRight size={17} /></button>
+            </div>
+            <div className="hidden h-44 w-44 items-center justify-center justify-self-center rounded-[40px] bg-white/70 lg:flex"><PromoIcon size={94} strokeWidth={1} className="text-[#1032dc]" /></div>
+          </div>
+          <div className="absolute bottom-4 right-4 flex items-center gap-3">
+            <button onClick={() => setBanner(v => (v + promotions.length - 1) % promotions.length)} aria-label="Banner anterior" className="rounded-full bg-white p-2 shadow"><ChevronLeft size={16} /></button>
+            <span className="text-xs font-bold">{banner + 1} / {promotions.length}</span>
+            <button onClick={() => setBanner(v => (v + 1) % promotions.length)} aria-label="Próximo banner" className="rounded-full bg-white p-2 shadow"><ChevronRight size={16} /></button>
+          </div>
+        </section>}
+
+        {!selectedStore && <section className="grid gap-3 sm:grid-cols-3">
+          <div className="flex items-center gap-3 rounded-xl bg-white p-4"><ShieldCheck className="text-[#1032dc]" /><p className="text-sm font-bold">Empresas autorizadas pela Union</p></div>
+          <div className="flex items-center gap-3 rounded-xl bg-white p-4"><ClipboardList className="text-[#1032dc]" /><p className="text-sm font-bold">Serviços com informações detalhadas</p></div>
+          <div className="flex items-center gap-3 rounded-xl bg-white p-4"><Store className="text-[#1032dc]" /><p className="text-sm font-bold">Prestadores do ecossistema Union</p></div>
+        </section>}
+
+        {!selectedStore && <section className="space-y-4">
+          <div className="flex items-end justify-between"><div><p className="text-xs font-bold uppercase text-[#1032dc]">Explore</p><h2 className="text-xl font-black">Categorias de serviços</h2></div></div>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {categories.map(item => <button key={item.id} onClick={() => setCategory(category === item.id ? null : item.id)} className={`min-w-[160px] flex-1 shrink-0 rounded-xl border p-4 text-left text-sm font-bold transition ${category === item.id ? "border-[#1032dc] bg-[#edf1ff] text-[#1032dc]" : "border-[#e4e8f0] bg-white hover:border-[#9cadde]"}`}><div className="mb-4 flex h-9 w-9 items-center justify-center rounded-lg bg-[#eef1ff]"><SlidersHorizontal size={18} className="text-[#1032dc]" /></div>{item.name}</button>)}
+          </div>
+        </section>}
+
+        <section id="catalogo" className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><p className="text-xs font-bold uppercase text-[#1032dc]">Marketplace</p><h2 className="text-xl font-black">{selectedStore ? "Anúncios desta empresa" : "Encontre o que você precisa"}</h2><p className="text-sm text-[#7b8799]">{visible.length} {visible.length === 1 ? "anúncio disponível" : "anúncios disponíveis"}</p></div>
+            <div className="flex gap-1 rounded-lg border border-[#e0e6ef] bg-white p-1">
+              {([["all","Tudo"],["service","Serviços"],["product","Produtos"]] as const).map(([id,label]) => <button key={id} onClick={() => setKind(id)} className={`rounded-md px-3 py-2 text-xs font-bold ${kind === id ? "bg-[#1032dc] text-white" : "text-[#53627a]"}`}>{label}</button>)}
+            </div>
+          </div>
+          {visible.length === 0 ? <div className="rounded-xl border border-[#e1e7ef] bg-white px-6 py-16 text-center"><Search size={28} className="mx-auto mb-3 text-[#a3b0c2]" /><h3 className="font-black">Nenhum anúncio disponível</h3><p className="mt-2 text-sm text-[#73829a]">As empresas participantes poderão publicar serviços e produtos após aprovação.</p>{(query || category || kind !== "all") && <button onClick={() => { setQuery(""); setCategory(null); setKind("all"); }} className="mt-4 rounded-lg border border-[#dfe4ee] px-4 py-2 text-sm font-bold">Limpar filtros</button>}</div> : <>
+            {(kind !== "product" && serviceItems.length > 0) && <div className="space-y-3"><h3 className="text-lg font-black">Serviços disponíveis</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{serviceItems.map(itemCard)}</div></div>}
+            {(kind !== "service" && productItems.length > 0) && <div className="space-y-3"><h3 className="text-lg font-black">Produtos</h3><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{productItems.map(itemCard)}</div></div>}
+          </>}
+        </section>
+        {!selectedStore && stores.length > 0 && <section className="space-y-4">
+          <h2 className="text-xl font-black">Lojas participantes</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2">{stores.map(store => <button key={store.organization_id} onClick={() => openStore(store)} className={`min-w-64 max-w-80 shrink-0 rounded-xl p-5 text-left ${cardBorder}`}><div className="mb-4 flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-[#edf1ff]">{store.logo_url ? <img src={store.logo_url} alt="" className="h-full w-full object-cover" /> : <Store size={23} className="text-[#1032dc]" />}</div><p className="font-black">{store.display_name}</p><p className="mt-1 line-clamp-2 text-xs text-[#728097]">{store.description || "Empresa participante"}</p><p className="mt-4 flex items-center gap-1 text-xs font-bold text-[#1032dc]">Ver loja <ChevronRight size={15} /></p></button>)}</div>
+        </section>}
+      </>}
+    </main>
+    <footer className="border-t border-[#e5e9f0] bg-white"><div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-6 py-7 text-xs text-[#7e8ba0]"><span>Union Marketplace · Serviços e produtos de empresas participantes</span><span>Vendedores habilitados pela Union World</span></div></footer>
+  </div>;
 }

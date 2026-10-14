@@ -190,7 +190,7 @@ export default function App() {
 function PublicApplication() {
   return (
     <Routes>
-      <Route path="/marketplace" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
+      <Route path="/marketplace/*" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
       <Route path="/*" element={<PublicRoutes />} />
     </Routes>
   );
