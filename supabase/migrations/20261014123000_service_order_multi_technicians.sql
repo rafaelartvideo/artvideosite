@@ -189,8 +189,8 @@ begin
   end if;
 
   select array_agg(distinct employee_id order by employee_id) into v_ids
-  from unnest(coalesce(p_employee_ids,array[]::uuid[])) as employee_id
-  where employee_id is not null;
+  from unnest(coalesce(p_employee_ids,array[]::uuid[])) as candidate(employee_id)
+  where candidate.employee_id is not null;
   v_count:=coalesce(cardinality(v_ids),0);
   if v_count=0 or v_count>20 then
     raise exception 'Selecione de 1 a 20 técnicos responsáveis.' using errcode='22023';
@@ -238,16 +238,16 @@ begin
     item_id,service_order_id,organization_id,actor_id,from_status,to_status,from_employee_id,to_employee_id
   )
   select p_item_id,v_item.service_order_id,v_item.organization_id,(select auth.uid()),
-    coalesce(v_task.status,'pending'),coalesce(v_task.status,'pending'),null,employee_id
-  from unnest(v_ids) as employee_id
+    coalesce(v_task.status,'pending'),coalesce(v_task.status,'pending'),null,candidate.employee_id
+  from unnest(v_ids) as candidate(employee_id)
   where not exists(
     select 1 from public.service_order_item_task_assignees link
-    where link.item_id=p_item_id and link.employee_id=employee_id
+    where link.item_id=p_item_id and link.employee_id=candidate.employee_id
   );
 
   insert into public.service_order_item_task_assignees(item_id,employee_id,organization_id,assigned_by)
-  select p_item_id,employee_id,v_item.organization_id,(select auth.uid())
-  from unnest(v_ids) as employee_id
+  select p_item_id,candidate.employee_id,v_item.organization_id,(select auth.uid())
+  from unnest(v_ids) as candidate(employee_id)
   on conflict(item_id,employee_id) do nothing;
 
   -- Atualiza a linha da tarefa para disparar o Realtime de quem está com a OS aberta.
