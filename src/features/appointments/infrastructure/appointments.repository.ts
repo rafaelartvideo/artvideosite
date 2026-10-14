@@ -40,6 +40,13 @@ export async function loadAgendaData({
     myEmployeeId = data?.id ?? null;
   }
 
+  const taskScheduleQuery = supabase.from("service_order_item_tasks")
+    .select("item_id,service_order_id,status,scheduled_start_at,scheduled_end_at,assigned_employee_id,assignees:service_order_item_task_assignees(employee_id,employee:employees(id,full_name)),item:service_order_items!item_id(title_snapshot,general_service_id),order:service_orders!service_order_id(id,os_number,customer:customers(full_name),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color))")
+    .eq("organization_id", org)
+    .not("scheduled_start_at", "is", null)
+    .gt("scheduled_end_at", timestampFrom)
+    .lt("scheduled_start_at", timestampToExclusive);
+
   let ordersQuery = supabase
     .from("service_orders")
     .select("id,os_number,scheduled_at,scheduled_end_at,customer:customers(full_name),service:services(id,title),general_service:general_services(id,name),technician:employees!technician_id(id,full_name),technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)),order_status:order_statuses(id,name,color),situation:os_situations(id,name,color,hours)")
@@ -80,6 +87,7 @@ export async function loadAgendaData({
     statusesResult,
     situationsResult,
     appointmentSituationsResult,
+    taskSchedulesResult,
   ] = await Promise.all([
     ordersQuery,
     supabase
@@ -101,6 +109,7 @@ export async function loadAgendaData({
       .eq("is_active", true)
       .order("sort_order")
       .order("name"),
+    taskScheduleQuery,
   ]);
 
   const error =
@@ -111,7 +120,8 @@ export async function loadAgendaData({
     generalServicesResult.error ||
     statusesResult.error ||
     situationsResult.error ||
-    appointmentSituationsResult.error;
+    appointmentSituationsResult.error ||
+    taskSchedulesResult.error;
 
   if (error) throw error;
 
@@ -125,6 +135,10 @@ export async function loadAgendaData({
     statuses: statusesResult.data ?? [],
     situations: situationsResult.data ?? [],
     appointmentSituations: appointmentSituationsResult.data ?? [],
+    taskSchedules: canViewOtherAgendas ? (taskSchedulesResult.data ?? []) :
+      (taskSchedulesResult.data ?? []).filter(task => myEmployeeId && (
+        task.assigned_employee_id === myEmployeeId ||
+        (task.assignees || []).some(assignee => assignee.employee_id === myEmployeeId))),
   };
 }
 
