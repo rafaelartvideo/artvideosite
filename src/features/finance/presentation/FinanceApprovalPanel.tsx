@@ -16,6 +16,7 @@ function reasonLabel(reason: string | null) {
 
 export function FinanceApprovalPanel({
   detail,
+  showIcon = true,
   canApprove,
   currentUserId,
   pending,
@@ -24,6 +25,7 @@ export function FinanceApprovalPanel({
   onReject,
 }: {
   detail: FinancialEntryDetail;
+  showIcon?: boolean;
   canApprove: boolean;
   currentUserId: string | null;
   pending: boolean;
@@ -79,7 +81,7 @@ export function FinanceApprovalPanel({
     <AdminCardHeader>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2">
-          <ShieldCheck size={18} className="text-[#0057e7]" />
+          {showIcon && <ShieldCheck size={18} className="text-[#0057e7]" />}
           <div><h3 className="text-sm font-black text-[#0d1b2e]">Aprovação financeira</h3><p className="text-xs text-[#5a6a82]">Ciclo {detail.approval_cycle}</p></div>
         </div>
         <div className="rounded-full bg-[#eaf1ff] px-3 py-1.5 text-xs font-black text-[#0057e7]">{progress.count}/{progress.required} aprovações</div>
