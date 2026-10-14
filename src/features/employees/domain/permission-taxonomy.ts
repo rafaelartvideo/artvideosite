@@ -291,17 +291,32 @@ export function permissionDependencies(key: string) {
   return Array.from(dependencies);
 }
 
-export type PermissionPresentationKind = "visual" | "actions" | "columns";
+export type PermissionPresentationKind = "visual" | "actions";
 
-// Classificação somente visual. Nunca mesclar IDs nem remover permissões do
-// banco: o mesmo nome pode corresponder a verificações RLS diferentes.
+// Classificação EXCLUSIVAMENTE visual, sem unir permissões nem alterar RLS.
+// "Ações" em .table.actions é o nome da coluna da tabela, não permissão de
+// editar/excluir. TODAS as colunas pertencem a Visualização > [Módulo] > Tabela.
 export function permissionPresentationKind(permission: PermissionRecord): PermissionPresentationKind {
   const key = String(permission.key || "");
-  if ((/\.table\.(?!view$)[^.]+$/.test(key) || key.includes(".column."))) return "columns";
-  if (key.endsWith(".view") || key === "orders.view_all"
-    || key.startsWith("orders.section.") || key.startsWith("technician_panel.data.")
-    || key.endsWith(".read") || key.endsWith(".view_others")) return "visual";
+  if (key.includes(".table.") || key.includes(".column.")) return "visual";
+  if (key.endsWith(".view") || key.endsWith(".view_all") || key.endsWith(".view_others")
+    || key.endsWith(".read") || key.startsWith("orders.section.")
+    || key.startsWith("technician_panel.data.")
+    || key.startsWith("finance.reports.")
+    || key === "pdv.cash.reports"
+    || key === "documents.signatures.audit") return "visual";
   return "actions";
+}
+
+// Nome desambiguado na tela: nunca confundir a coluna "Ações" com direito
+// de realizar operações. A permissão conserva o ID original no backend.
+export function permissionLabelForEditor(permission: PermissionRecord) {
+  const key = String(permission.key || "");
+  const label = permissionLabel(permission);
+  if (key.endsWith(".table.actions") || key.endsWith(".column.actions")) return "Coluna Ações";
+  if (key.includes(".table.") && !key.endsWith(".table.view")) return "Coluna " + label;
+  if (key.includes(".column.")) return "Coluna " + label;
+  return label;
 }
 
 export function permissionLabel(permission: PermissionRecord) {
