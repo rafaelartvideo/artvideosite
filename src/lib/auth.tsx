@@ -92,15 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userId = data.session.user.id;
         const persistedLastActivityAt = readSessionActivity(userId);
 
-        if (persistedLastActivityAt !== null && isSessionInactive(persistedLastActivityAt)) {
-          removeSessionActivity(userId);
-          await supabase.auth.signOut({ scope: "local" });
-          if (cancelled) return;
-          setLoadingProgress(100);
-          setLoading(false);
-          return;
-        }
-
+        // Validar inatividade apenas após carregar a política do funcionário.
         if (persistedLastActivityAt === null) {
           writeSessionActivity(userId, Date.now());
         }
@@ -179,8 +171,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!session?.user) return;
+    // Evita expirar técnicos antes da leitura do acesso da empresa ativa.
+    if (!session?.user || loading) return;
 
+    const inactivityExempt = Boolean(
+      activeOrganization?.organization_id
+      && employee?.is_active !== false
+      && employee?.disable_inactivity_logout === true
+    );
     const userId = session.user.id;
     const activityStorageKey = sessionActivityStorageKey(userId);
     let lastActivityAt = readSessionActivity(userId) ?? Date.now();
@@ -200,7 +198,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const expireIfInactive = () => {
       refreshSharedActivity();
-      if (isSessionInactive(lastActivityAt)) {
+      if (!inactivityExempt && isSessionInactive(lastActivityAt)) {
         void signOut();
         return;
       }
@@ -212,7 +210,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const scheduleExpiration = () => {
       if (inactivityTimer !== null) window.clearTimeout(inactivityTimer);
+      inactivityTimer = null;
       refreshSharedActivity();
+      if (inactivityExempt) return;
       inactivityTimer = window.setTimeout(
         expireIfInactive,
         Math.max(1, remainingSessionTime(lastActivityAt)),
@@ -244,7 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAfterVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
       refreshSharedActivity();
-      if (isSessionInactive(lastActivityAt)) {
+      if (!inactivityExempt && isSessionInactive(lastActivityAt)) {
         void signOut();
         return;
       }
@@ -269,7 +269,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", checkAfterVisibilityChange);
       window.removeEventListener("storage", handleStorage);
     };
-  }, [session?.user.id]);
+  }, [session?.user.id, loading, activeOrganization?.organization_id, employee?.is_active, employee?.disable_inactivity_logout]);
 
   function cancelScheduledAccessLoad() {
     if (deferredAccessTimerRef.current === null) return;
