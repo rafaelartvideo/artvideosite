@@ -135,6 +135,19 @@ export async function getMyTechnicianOrderHistory(orderId: string): Promise<Tech
   return Array.isArray(data) ? data as TechnicianOrderHistoryEntry[] : [];
 }
 
+export async function updateMyTechnicianOrderNote(
+  orderId: string,
+  field: "problem" | "internal_notes",
+  value: string,
+): Promise<void> {
+  const { error } = await supabase.rpc("update_my_technician_order_note_v1", {
+    p_order_id: orderId,
+    p_field: field,
+    p_value: value,
+  });
+  if (error) throw error;
+}
+
 export type GpsCapture = {
   latitude: number;
   longitude: number;
