@@ -343,7 +343,7 @@ test("busca e filtros do painel técnico ficam separados da tabela paginada", ()
   assert.match(table, /<table/);
   assert.match(table, /<PaginationBar/);
   assert.match(table, /space-y-4/);
-  assert.match(table, /<Section title=\{<span/);
+  assert.match(table, /<AdminSearchPanel title="Minhas ordens de serviço"/);
   assert.match(table, /<AdminCard square/);
 });
 
@@ -365,11 +365,12 @@ test("loader compartilhado exibe texto sobre as bolinhas animadas", () => {
   assert.match(layout, /mobileBackOnly/);
 });
 
-test("lista técnica usa a mesma UI quadrada e sem radius extra da lista de OS", () => {
+test("lista técnica mantém tabela quadrada, com controles arredondados no buscador", () => {
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
   assert.match(table, /<AdminCard square/);
-  assert.match(table, /<Section title=/);
-  assert.doesNotMatch(table, /rounded-lg/);
+  assert.match(table, /<AdminSearchPanel/);
+  assert.match(table, /rounded-lg border px-3 py-2/);
+  assert.match(table, /<AdminCard square/);
   assert.match(table, /<PaginationBar/);
 });
 
@@ -397,4 +398,37 @@ test("painel principal não possui toolbar inferior mas a OS mantém a sua", () 
   assert.match(home, /<TechnicianOrdersTable/);
   assert.doesNotMatch(home, /<AdminStickyToolbar/);
   assert.match(panel.slice(end), /<AdminStickyToolbar/);
+});
+
+test("buscador técnico reutiliza cabeçalho azul e UI compartilhada de inputs", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  const shared = read("src/shared/ui/admin/AdminSearchPanel.tsx");
+  assert.match(shared, /admin-primary-bar/);
+  assert.match(shared, /<Search size=\{14\}/);
+  assert.match(table, /<AdminSearchPanel title="Minhas ordens de serviço"/);
+  assert.match(table, /className=\{INPUT \+ " h-\[42px\] pl-9 text-sm"\}/);
+  assert.match(table, /aria-label="Filtrar andamento"/);
+  assert.match(table, /<AdminCard square/);
+});
+
+test("ordenação OS crescente e decrescente é aplicada antes da paginação", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.match(table, /osNumberCollator\.compare/);
+  assert.match(table, /sort === "asc"/);
+  assert.match(table, /const visible = rows\.slice/);
+  assert.match(table, /DropdownMenuContent align="end"/);
+  assert.match(table, /Ordenação padrão/);
+  assert.match(table, /OS decrescente/);
+});
+
+test("calendário filtra intervalo inclusivo de agendamentos com validação", () => {
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.match(table, /<Popover open=\{dateOpen\} onOpenChange=\{onDateOpenChange\}>/);
+  assert.match(table, /<CalendarDays size=\{17\}/);
+  assert.match(table, /scheduledDateKey\(services\[0\]\.scheduled_at\)/);
+  assert.match(table, /scheduled < dateFrom/);
+  assert.match(table, /scheduled > dateTo/);
+  assert.match(table, /invalidPeriod/);
+  assert.match(table, /onClick=\{applyDates\}>Filtrar/);
+  assert.match(table, /setPage\(1\)/);
 });
