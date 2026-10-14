@@ -402,6 +402,8 @@ export function TechnicianPanel() {
             {info("Marca", orderDetails?.equipment_brand)}
             {info("Modelo", orderDetails?.equipment_model || selected.equipment_model)}
             {info("Número de série", selected.serial_number)}
+            {info("Acessórios", orderDetails?.equipment_accessories)}
+            {info("Condição do equipamento", orderDetails?.equipment_condition)}
             {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
             {info("Endereço", formattedAddress)}
             {orderDetails?.technical_values?.map(value => info(value.label, value.value))}
