@@ -14,6 +14,7 @@ import { OrderChecklistsPage } from "@/features/checklists/presentation/OrderChe
 import { OrderChecklistToolbarButton } from "@/features/checklists/presentation/OrderChecklistToolbarButton";
 import { OrderDetailsActions } from "./OrderDetailsActions";
 import { OrderDetailsContent } from "./OrderDetailsContent";
+import { OrderDetailSectionTabs } from "./OrderDetailSectionTabs";
 import { OrderHistoryPage } from "./OrderHistoryPage";
 import { OrderDocumentsPage } from "./OrderDocumentsPage";
 import { OrderSignatureRequestDialog } from "./OrderSignatureRequestDialog";
@@ -537,14 +538,7 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
-        <div className="border-b border-border">
-          <div className="flex min-w-0 gap-5 overflow-x-auto">
-            <button type="button" onClick={() => setDetailSection("details")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "details" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><FileText size={15} /> Detalhes da OS</button>
-            <button type="button" onClick={() => setDetailSection("products-services")} className={`flex shrink-0 items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors ${detailSection === "products-services" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}><Package size={15} /> Produtos e Serviços
-              {itemBadge && <span className={"inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold " + itemBadge.style}>{itemBadge.label}</span>}
-            </button>
-          </div>
-        </div>
+        <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={itemBadge} />
         {detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
