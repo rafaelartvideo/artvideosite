@@ -163,6 +163,7 @@ export function OrderInformationSection({
                     title={editingOS ? "OS #" + (editingOS.os_number || "") : "Nova ordem de serviço"}
                     dialogTitle={validSchedule ? "Reagendar OS" : "Agendar OS"}
                     technicians={employees.filter(person => person.is_active !== false).map(person => ({ id: person.id, name: String(person.full_name || "Técnico") }))}
+                    loadingTechnicians={employeesLoading}
                     initial={existingSchedule}
                     lockedTechnicianIds={editingOS ? selectedTechnicianIds : undefined}
                     onConfirm={confirmSchedule}
