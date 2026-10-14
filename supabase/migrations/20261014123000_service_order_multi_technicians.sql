@@ -248,6 +248,7 @@ begin
   insert into public.service_order_item_task_assignees(item_id,employee_id,organization_id,assigned_by)
   select p_item_id,candidate.employee_id,v_item.organization_id,(select auth.uid())
   from unnest(v_ids) as candidate(employee_id)
+  where true
   on conflict(item_id,employee_id) do nothing;
 
   -- Atualiza a linha da tarefa para disparar o Realtime de quem está com a OS aberta.
