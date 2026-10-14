@@ -248,7 +248,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       title="Conta a receber"
       description={finance.detailQuery.data?.description || "Extrato e movimentações da conta"}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
-      // Keep the dialog the same size across subsections, including short ones.
       className="h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"
       bodyClassName="overscroll-contain"
       bodyRef={receivableScrollRef}
