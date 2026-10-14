@@ -77,7 +77,7 @@ export function TechnicianOrdersTable({
   const SortIcon = sort === "asc" ? ArrowUpNarrowWide : sort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const invalidPeriod = Boolean(draftFrom && draftTo && draftFrom > draftTo);
   const hasDateFilter = Boolean(dateFrom || dateTo);
-  const dateFilterLabel = hasDateFilter ? `Agendamento: ${dateFrom || "início"} até ${dateTo || "hoje"}` : "Filtrar por data do agendamento";
+  const dateFilterLabel = hasDateFilter ? `Agendamento: ${dateFrom || "sem início"} até ${dateTo || "sem limite"}` : "Filtrar por data do agendamento";
   const onDateOpenChange = (open: boolean) => {
     if (open) { setDraftFrom(dateFrom); setDraftTo(dateTo); }
     setDateOpen(open);
