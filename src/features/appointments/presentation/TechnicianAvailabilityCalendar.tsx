@@ -21,6 +21,7 @@ type Props = {
   selectedTechnicianIds?: string[];
   onToggleTechnician?: (technicianId: string) => void;
   exceptOrderId?: string | null;
+  exceptTaskId?: string | null;
   technicianFilter?: string;
   onTechnicianFilterChange?: (technicianId: string) => void;
   onNavigateWeek?: (amount: number) => void;
@@ -50,7 +51,7 @@ const displayDay = (value: string) => {
 export function TechnicianAvailabilityCalendar({
   organizationId, technicians, loadingTechnicians = false, date, selectedStart, selectedEnd, selectedTechnicianId,
   selectedTechnicianIds, onToggleTechnician,
-  exceptOrderId, technicianFilter, onTechnicianFilterChange, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
+  exceptOrderId, exceptTaskId, technicianFilter, onTechnicianFilterChange, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
 }: Props) {
   const [weekOffset, setWeekOffset] = useState(0);
   const [highlightEmployee, setHighlightEmployee] = useState("");
@@ -65,8 +66,8 @@ export function TechnicianAvailabilityCalendar({
     .filter(item => !technicianFilter || item.id === technicianFilter);
   const idsKey = ids.map(item => item.id).sort().join(",");
   const query = useQuery({
-    queryKey: ["technicianAvailability", organizationId, first, idsKey, exceptOrderId || ""],
-    queryFn: () => loadTechnicianAvailabilityWeek(organizationId, first, ids, exceptOrderId),
+    queryKey: ["technicianAvailability", organizationId, first, idsKey, exceptOrderId || "", exceptTaskId || ""],
+    queryFn: () => loadTechnicianAvailabilityWeek(organizationId, first, ids, exceptOrderId, exceptTaskId),
     enabled: Boolean(organizationId && ids.length),
     staleTime: 30_000,
     refetchOnWindowFocus: true,
