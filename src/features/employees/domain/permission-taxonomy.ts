@@ -323,6 +323,13 @@ export function permissionDependencies(key: string) {
 
   if (module === "employees" || module === "registrations") return Array.from(dependencies);
 
+  // Direitos de ação dos submódulos financeiros não substituem a permissão
+  // específica de visualizar a área. Desmarcar .view também retira as ações
+  // dependentes; marcar uma ação restaura a leitura necessária.
+  if (module === "finance" && key.split(".").length === 3 &&
+      /\.(manage|create|edit|update|delete|approve|cancel)$/.test(key)) {
+    dependencies.add(key.replace(/\.[^.]+$/, ".view"));
+  }
   const isTableColumn = key.includes(".table.") && key !== `${module}.table.view`;
   if (key.includes(".details.") && key !== `${module}.details.view`) dependencies.add(`${module}.details.view`);
   if (!isModuleView && !isTableColumn && (key.endsWith(".create") || key.endsWith(".delete") || key.endsWith(".toggle_active") || key.endsWith(".toggle_featured") || key.endsWith(".refresh"))) {
