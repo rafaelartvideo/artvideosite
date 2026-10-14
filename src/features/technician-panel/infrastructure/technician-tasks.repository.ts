@@ -87,6 +87,54 @@ export async function updateMyTechnicianOrderDiagnosis(orderId: string, diagnosi
   if (error) throw error;
 }
 
+export type TechnicianCatalogOption = {
+  id: string;
+  name: string;
+  type: "service" | "product";
+};
+
+export type TechnicianOrderHistoryEntry = {
+  kind: "situation" | "execution";
+  description: string;
+  at: string | null;
+};
+
+export async function searchMyTechnicianOrderCatalog(
+  orderId: string,
+  itemType: "service" | "product",
+  search: string,
+): Promise<TechnicianCatalogOption[]> {
+  const { data, error } = await supabase.rpc("search_my_technician_order_catalog_v1", {
+    p_order_id: orderId, p_item_type: itemType, p_search: search.trim(),
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data as TechnicianCatalogOption[] : [];
+}
+
+export async function addMyTechnicianOrderItem(
+  orderId: string, itemType: "service" | "product", catalogId: string, quantity: number,
+): Promise<void> {
+  const { error } = await supabase.rpc("add_my_technician_order_item_v1", {
+    p_order_id: orderId, p_item_type: itemType, p_catalog_id: catalogId, p_quantity: quantity,
+  });
+  if (error) throw error;
+}
+
+export async function removeMyTechnicianOrderProduct(orderId: string, itemId: string): Promise<void> {
+  const { error } = await supabase.rpc("remove_my_technician_order_product_v1", {
+    p_order_id: orderId, p_item_id: itemId,
+  });
+  if (error) throw error;
+}
+
+export async function getMyTechnicianOrderHistory(orderId: string): Promise<TechnicianOrderHistoryEntry[]> {
+  const { data, error } = await supabase.rpc("get_my_technician_order_history_v1", {
+    p_order_id: orderId,
+  });
+  if (error) throw error;
+  return Array.isArray(data) ? data as TechnicianOrderHistoryEntry[] : [];
+}
+
 export type GpsCapture = {
   latitude: number;
   longitude: number;
