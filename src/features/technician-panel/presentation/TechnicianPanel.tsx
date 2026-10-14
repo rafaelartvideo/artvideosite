@@ -336,207 +336,187 @@ export function TechnicianPanel() {
       <p className="break-words text-sm font-semibold text-foreground">{value}</p>
     </div> : null;
 
+  const pendingServices = orderServices.filter(service => service.status === "pending").length;
+  const ongoingServices = orderServices.filter(service => service.status === "in_progress").length;
+  const completedServices = orderServices.filter(service => service.status === "completed").length;
+  const canEditProblem = hasPermission("technician_panel.actions.edit_problem") && !orderDetails?.closed && !orderDetails?.solved;
+  const canEditNotes = hasPermission("technician_panel.actions.edit_internal_notes") && !orderDetails?.closed && !orderDetails?.solved;
+
   return <div className="mx-auto max-w-6xl space-y-4">
     <PageHeader
-      eyebrow="Atendimento"
       title={routeOrderId ? (selected ? "OS " + selected.os_number : "Ordem de Serviço") : "Painel do Técnico"}
-      subtitle={routeOrderId
-        ? "Dados e serviços da OS atribuídos a você, conforme suas permissões."
-        : "Ordens de serviço com atividades atribuídas a você."}
+      subtitle={routeOrderId ? undefined : "Ordens de serviço e atividades atribuídas a você."}
       actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined}
     />
 
-    {notice && <div role="status" className={notice.kind === "error"
-      ? "border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700"
-      : "border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700"}>{notice.text}</div>}
-
     {!routeOrderId ? <>
       <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        {[
-          { name: "Pendentes", count: items.filter(item => item.status === "pending").length },
-          { name: "Em andamento", count: items.filter(item => item.status === "in_progress").length },
-          { name: "Concluídos", count: items.filter(item => item.status === "completed").length },
-        ].map(card => <AdminCard key={card.name}><AdminCardContent className="p-3 sm:p-4">
-          <p className="text-[11px] font-semibold text-muted-foreground">{card.name}</p>
-          <p className="mt-1 text-2xl font-black text-foreground">{card.count}</p>
-        </AdminCardContent></AdminCard>)}
+        {([
+          { name: "Pendentes", count: items.filter(item => item.status === "pending").length,
+            tone: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
+          { name: "Andamento", count: items.filter(item => item.status === "in_progress").length,
+            tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+          { name: "Concluídas", count: items.filter(item => item.status === "completed").length,
+            tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+        ]).map(card => <AdminCard key={card.name} className={"border " + card.tone}>
+          <AdminCardContent className="p-3 sm:p-4">
+            <p className="text-xs font-semibold">{card.name}</p>
+            <p className="mt-1 text-2xl font-black sm:text-3xl">{card.count}</p>
+          </AdminCardContent>
+        </AdminCard>)}
       </div>
-
-      <Section title="Minhas ordens de serviço" description="Abra a OS para consultar os dados e executar os serviços atribuídos." flush>
-        {loading ? <p className="p-6 text-sm text-muted-foreground">Carregando suas ordens de serviço...</p>
-          : !assignedOrders.length ? <p className="p-6 text-sm text-muted-foreground">Nenhum serviço foi atribuído a você nesta empresa.</p>
-          : <div className="divide-y divide-border">
-            {assignedOrders.map(services => {
-              const first = services[0];
-              const inProgress = services.filter(item => item.status === "in_progress").length;
-              const pending = services.filter(item => item.status === "pending").length;
-              return <button key={first.service_order_id} type="button" onClick={() => openService(first)}
-                className="flex w-full cursor-pointer flex-col gap-2 px-4 py-4 text-left transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
-                <div className="min-w-0">
-                  <p className="text-sm font-black text-foreground">OS {first.os_number}</p>
-                  <p className="mt-1 break-words text-xs font-medium text-muted-foreground">{services.map(item => item.title).join(" · ")}</p>
-                  {first.customer_name && <p className="mt-1 text-xs text-muted-foreground">{first.customer_name}</p>}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {inProgress > 0 && <span className={"border px-2 py-1 text-xs font-bold " + STATUS_CLASS.in_progress}>{inProgress} em andamento</span>}
-                  {pending > 0 && <span className={"border px-2 py-1 text-xs font-bold " + STATUS_CLASS.pending}>{pending} pendente{pending > 1 ? "s" : ""}</span>}
-                  {!inProgress && !pending && <span className="text-xs text-muted-foreground">{services.length} serviço{services.length > 1 ? "s" : ""}</span>}
-                  <span className="text-xs font-bold text-primary">Abrir OS</span>
-                </div>
-              </button>;
-            })}
-          </div>}
-      </Section>
-
+      <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
       <AdminStickyToolbar>
-        <BtnSecondary onClick={() => void refresh(true)} disabled={busy || uploading || loading} loading={loading}>Atualizar</BtnSecondary>
+        <BtnSecondary onClick={() => navigate("/admin")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : !selected ? <>
-      <Section title="Ordem de Serviço não disponível">
-        <p className="text-sm text-muted-foreground">{loading
-          ? "Verificando as suas atribuições..."
-          : "Esta OS não possui serviços atribuídos a você nesta empresa."}</p>
-      </Section>
+      <div className="rounded-lg border border-border bg-card p-5 text-sm text-muted-foreground">
+        {loading ? "Verificando serviços atribuídos..." : "Esta OS não possui serviços atribuídos a você nesta empresa."}
+      </div>
       <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
       </AdminStickyToolbar>
     </> : <>
-      <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab} itemBadge={orderDetails?.items?.length ? { label: orderDetails.items.length + " itens", style: "border-border bg-muted text-muted-foreground" } : null} />
-      {orderDetailsLoading && <p className="text-xs text-muted-foreground">Carregando detalhes autorizados da OS...</p>}
-      {detailTab === "details" ? <>
-      {orderDetails?.situation_name && <Section title="Situação da OS">
-        <p className="text-sm font-semibold text-foreground">{orderDetails.situation_name}</p>
-      </Section>}
-      <Section title="Dados da OS" description="Somente informações autorizadas para o seu perfil.">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {info("Cliente", selected.customer_name)}
-          {info("Contato", selected.customer_contact)}
-          {info("Equipamento", selected.equipment)}
-          {info("Modelo", selected.equipment_model)}
-          {info("Número de série", selected.serial_number)}
-          {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
-          {info("Endereço", formattedAddress)}
-        </div>
-      </Section>
-
-      {hasPermission("technician_panel.data.problem") && <Section title="Descrição do problema"
-        actions={hasPermission("technician_panel.actions.edit_problem") && orderDetails && !orderDetails.closed && !orderDetails.solved
-          ? <BtnSecondary onClick={() => openNoteEditor("problem", selected.problem)}>Editar</BtnSecondary>
+      {orderDetailsLoading && <p className="text-xs text-muted-foreground">Carregando dados autorizados da OS...</p>}
+      <Section title="Dados da OS"
+        actions={hasPermission("technician_panel.data.history")
+          ? <BtnSecondary disabled={busy || orderDetailsLoading}
+              onClick={() => setHistoryDialogOpen(true)}>Histórico</BtnSecondary>
           : undefined}>
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
-      </Section>}
-      {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section
-        title="Diagnóstico"
-        actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
-          ? <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>
-          : undefined}>
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
-      </Section>}
-      {hasPermission("technician_panel.data.internal_notes") && orderDetails && <Section title="Observações internas"
-        actions={hasPermission("technician_panel.actions.edit_internal_notes") && !orderDetails.closed && !orderDetails.solved
-          ? <BtnSecondary onClick={() => openNoteEditor("internal_notes", orderDetails.internal_notes)}>Editar</BtnSecondary>
-          : undefined}>
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes || "Ainda não informado."}</p>
-      </Section>}
-      </> : <>
-      {hasPermission("technician_panel.data.order_items") && orderDetails && <TechnicianOrderItemsSection
-        orderId={routeOrderId}
-        items={orderDetails.items}
-        canAddService={hasPermission("technician_panel.actions.add_service")}
-        canAddProduct={hasPermission("technician_panel.actions.add_product")}
-        canRemoveProduct={hasPermission("technician_panel.actions.remove_product")}
-        blocked={orderDetails.closed || orderDetails.solved || !online}
-        onChanged={reloadCurrentOrder}
-        onFeedback={(text, kind) => setNotice({ text, kind })}
-      />}
-      <Section title="Serviços atribuídos nesta OS" description="Cada serviço possui andamento independente da situação geral da OS.">
-        <div className="grid gap-2 sm:grid-cols-2">
-          {orderServices.map(service => <button key={service.item_id} type="button" onClick={() => openService(service)}
-            aria-pressed={service.item_id === selectedId}
-            className={"flex min-w-0 cursor-pointer flex-col gap-2 border p-3 text-left transition-colors hover:border-primary/60 " + (service.item_id === selectedId ? "border-primary bg-primary/5" : "border-border bg-card")}>
-            <span className="break-words text-sm font-bold text-foreground">{service.title}</span>
-            <span className={"self-start border px-2 py-1 text-[10px] font-bold " + STATUS_CLASS[service.status]}>{STATUS_LABEL[service.status]}</span>
-          </button>)}
-        </div>
-      </Section>
-
-      <Section title="Execução do serviço">
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-bold text-foreground">{selected.title}</p>
-            <span className={"border px-2.5 py-1 text-xs font-bold " + STATUS_CLASS[selected.status]}>{STATUS_LABEL[selected.status]}</span>
-          </div>
-          {selected.description && <div>
-            <p className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">Descrição do serviço</p>
-            <p className="whitespace-pre-wrap break-words text-sm">{selected.description}</p>
+          {orderDetails?.situation_name && <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-md border border-primary/25 bg-primary/10 px-2.5 py-1 text-xs font-bold text-primary">{orderDetails.situation_name}</span>
+            {orderDetails.can_change_situation && !orderDetails.closed &&
+              <div className="min-w-[180px] max-w-xs flex-1 sm:flex-none">
+                <AdminSelect value={orderDetails.situation_id || ""}
+                  options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
+                  onValueChange={value => { if (value) void onSituationChange(value); }}
+                  ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
+                  className="min-h-9 w-full min-w-0 text-xs" />
+              </div>}
           </div>}
-          {selected.started_at && info("Iniciado em", formatDate(selected.started_at))}
-          {selected.status === "pending" && canStart && <p className="text-xs text-muted-foreground">
-            Para iniciar, permita o GPS. O local e o horário serão registrados na OS.
-          </p>}
-          {selected.status === "in_progress" && canComplete && <FTextarea
-            id="technician-report" label="O que foi realizado? *"
-            value={report} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setReport(event.target.value)}
-            rows={5} maxLength={10000} placeholder="Descreva o serviço executado..."
-          />}
-          {selected.status === "completed" && <>
-            {info("Finalizado em", formatDate(selected.completed_at))}
-            {selected.execution_report && <div>
-              <p className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">Serviço realizado</p>
-              <p className="whitespace-pre-wrap text-sm">{selected.execution_report}</p>
-            </div>}
-          </>}
-          {selected.status === "cancelled" && <p className="text-sm text-muted-foreground">Serviço cancelado. Consulte o responsável pela OS.</p>}
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {info("Cliente", selected.customer_name)}
+            {info("Contato", selected.customer_contact)}
+            {info("Equipamento", selected.equipment)}
+            {info("Marca", orderDetails?.equipment_brand)}
+            {info("Modelo", orderDetails?.equipment_model || selected.equipment_model)}
+            {info("Número de série", selected.serial_number)}
+            {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
+            {info("Endereço", formattedAddress)}
+            {orderDetails?.technical_values?.map(value => info(value.label, value.value))}
+          </div>
+          {hasPermission("technician_panel.data.problem") && <div className="border-t border-border/70 pt-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Descrição do problema</p>
+              {canEditProblem && <BtnSecondary onClick={() => openNoteEditor("problem", selected.problem)}>Editar</BtnSecondary>}
+            </div>
+            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
+          </div>}
+          {hasPermission("technician_panel.data.diagnosis") && orderDetails && <div className="border-t border-border/70 pt-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Diagnóstico</p>
+              {orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved &&
+                <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>}
+            </div>
+            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
+          </div>}
+          {hasPermission("technician_panel.data.internal_notes") && orderDetails && <div className="border-t border-border/70 pt-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Observações internas</p>
+              {canEditNotes && <BtnSecondary onClick={() => openNoteEditor("internal_notes", orderDetails.internal_notes)}>Editar</BtnSecondary>}
+            </div>
+            <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes || "Ainda não informado."}</p>
+          </div>}
         </div>
       </Section>
 
-      {(canSendPhotos || canSeePhotos) && <Section title="Imagens do serviço"
-        description="Imagens privadas vinculadas a este serviço. JPG, PNG ou WEBP, até 5 MB por imagem.">
-        <div className="space-y-3">
-          {selected.status === "in_progress" && canSendPhotos && <div className="flex flex-wrap gap-2">
-            <BtnSecondary onClick={() => cameraInputRef.current?.click()} disabled={!online || busy || uploading} loading={uploading}>Abrir câmera</BtnSecondary>
-            <BtnSecondary onClick={() => galleryInputRef.current?.click()} disabled={!online || busy || uploading} loading={uploading}>Selecionar imagem</BtnSecondary>
+      <Section title={<span className="flex flex-wrap items-center gap-2">
+        Serviços atribuídos
+        <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-bold text-foreground">{orderServices.length}</span>
+        {pendingServices > 0 && <span className={STATUS_CLASS.pending + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{pendingServices} pendente{pendingServices > 1 ? "s" : ""}</span>}
+        {ongoingServices > 0 && <span className={STATUS_CLASS.in_progress + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{ongoingServices} em andamento</span>}
+        {!pendingServices && !ongoingServices && completedServices > 0 &&
+          <span className={STATUS_CLASS.completed + " rounded-md border px-2 py-0.5 text-[10px] font-bold"}>{completedServices} concluído{completedServices > 1 ? "s" : ""}</span>}
+      </span>}>
+        <div className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {orderServices.map(service => <button key={service.item_id} type="button"
+              onClick={() => openService(service)} aria-pressed={service.item_id === selectedId}
+              className={"flex min-w-0 cursor-pointer flex-col gap-2 rounded-lg border p-3 text-left transition-colors hover:border-primary/60 " +
+                (service.item_id === selectedId ? "border-primary bg-primary/5" : "border-border bg-card")}>
+              <span className="break-words text-sm font-bold text-foreground">{service.title}</span>
+              <span className={"self-start rounded-md border px-2 py-1 text-[10px] font-bold " + STATUS_CLASS[service.status]}>{STATUS_LABEL[service.status]}</span>
+            </button>)}
+          </div>
+          <div className="space-y-4 border-t border-border/70 pt-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="text-sm font-bold text-foreground">{selected.title}</h3>
+              <span className={"rounded-md border px-2.5 py-1 text-xs font-bold " + STATUS_CLASS[selected.status]}>{STATUS_LABEL[selected.status]}</span>
+            </div>
+            {selected.started_at && info("Iniciado em", formatDate(selected.started_at))}
+            {selected.status === "in_progress" && canComplete && <FTextarea
+              id="technician-report" label="O que foi realizado? *"
+              value={report} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setReport(event.target.value)}
+              rows={5} maxLength={10000} placeholder="Descreva o serviço executado..."
+            />}
+            {selected.status === "completed" && <>
+              {info("Finalizado em", formatDate(selected.completed_at))}
+              {selected.execution_report && <div>
+                <p className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">Serviço realizado</p>
+                <p className="whitespace-pre-wrap break-words text-sm">{selected.execution_report}</p>
+              </div>}
+            </>}
+            {selected.status === "cancelled" && <p className="text-sm text-muted-foreground">Serviço cancelado. Consulte o responsável pela OS.</p>}
+            <div className="flex flex-wrap items-center gap-2">
+              {selected.status === "pending" && canStart &&
+                <BtnPrimary disabled={busy || uploading || !online} loading={busy}
+                  onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
+              {selected.status === "in_progress" && canComplete &&
+                <BtnPrimary disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
+                  onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
+            </div>
+          </div>
+
+          {(canSendPhotos || canSeePhotos) && <div className="border-t border-border/70 pt-4">
+            <div className="mb-3 flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-foreground">Imagens do serviço</h3>
+              <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold">{photoCount}/3</span>
+            </div>
+            {selected.status === "in_progress" && canSendPhotos && <div className="mb-3 flex flex-wrap gap-2">
+              <BtnSecondary onClick={() => cameraInputRef.current?.click()}
+                disabled={!online || busy || uploading || photoCount >= 3} loading={uploading}>Abrir câmera</BtnSecondary>
+              <BtnSecondary onClick={() => galleryInputRef.current?.click()}
+                disabled={!online || busy || uploading || photoCount >= 3} loading={uploading}>Selecionar imagem</BtnSecondary>
+            </div>}
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only"
+              aria-label="Capturar foto com a câmera" disabled={!online || uploading || busy || photoCount >= 3}
+              onChange={event => void onUpload(event)} />
+            <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+              multiple className="sr-only" aria-label="Selecionar imagens do dispositivo"
+              disabled={!online || uploading || busy || photoCount >= 3} onChange={event => void onUpload(event)} />
+            {canSeePhotos && (photoLoading ? <p className="text-xs text-muted-foreground">Carregando imagens...</p>
+              : photos.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                {photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" title="Abrir foto">
+                  <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full rounded-lg border border-border object-cover" />
+                </a>)}
+              </div> : <p className="text-xs text-muted-foreground">Nenhuma foto enviada.</p>)}
           </div>}
-          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only"
-            aria-label="Capturar foto com a câmera" disabled={!online || uploading || busy} onChange={event => void onUpload(event)} />
-          <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="sr-only"
-            aria-label="Selecionar imagens do dispositivo" disabled={!online || uploading || busy} onChange={event => void onUpload(event)} />
-          {canSeePhotos && (photoLoading ? <p className="text-xs text-muted-foreground">Carregando imagens...</p>
-            : photos.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" title="Abrir foto">
-                <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full border border-border object-cover" />
-              </a>)}
-            </div> : <p className="text-xs text-muted-foreground">Nenhuma foto enviada.</p>)}
+          {hasPermission("technician_panel.data.order_items") && orderDetails &&
+            <TechnicianOrderItemsSection inline
+              orderId={routeOrderId} items={orderDetails.items}
+              canAddService={hasPermission("technician_panel.actions.add_service")}
+              canAddProduct={hasPermission("technician_panel.actions.add_product")}
+              canRemoveProduct={hasPermission("technician_panel.actions.remove_product")}
+              blocked={orderDetails.closed || orderDetails.solved || !online}
+              onChanged={reloadCurrentOrder}
+              onFeedback={(text, kind) => setNotice({ text, kind })}
+            />}
         </div>
-      </Section>}
+      </Section>
 
-      {canSeeLocation && <Section title="Localização da execução">
-        <div className="space-y-3">
-          <LocationRecord value={selected.start_location} label="Local de início" />
-          <LocationRecord value={selected.finish_location} label="Local de conclusão" />
-          {!selected.start_location?.lat && !selected.finish_location?.lat && <p className="text-xs text-muted-foreground">Nenhuma localização registrada.</p>}
-        </div>
-      </Section>}
-      </>}
-
-      <AdminStickyToolbar className="flex-wrap">
+      <AdminStickyToolbar>
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
-        <BtnSecondary onClick={() => { void refresh(true); setDetailsRevision(current => current + 1); }} disabled={busy || uploading || loading}>Atualizar</BtnSecondary>
-        {hasPermission("technician_panel.data.history") && <BtnSecondary
-          disabled={busy || orderDetailsLoading} onClick={() => setHistoryDialogOpen(true)}>Histórico</BtnSecondary>}
-        {detailTab === "details" && orderDetails?.can_change_situation && !orderDetails.closed && <div className="min-w-[180px] max-w-xs flex-1 sm:flex-none">
-          <AdminSelect value={orderDetails.situation_id || ""}
-            options={orderDetails.available_situations.map(situation => ({ value: situation.id, label: situation.name }))}
-            onValueChange={value => { if (value) void onSituationChange(value); }}
-            ariaLabel="Alterar situação da OS" disabled={busy || uploading || orderDetailsLoading}
-            className="min-h-10 w-full min-w-0 text-xs font-bold" />
-        </div>}
-        {detailTab === "products-services" && selected.status === "pending" && canStart && <BtnPrimary
-          disabled={busy || uploading || !online} loading={busy}
-          onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
-        {detailTab === "products-services" && selected.status === "in_progress" && canComplete && <BtnPrimary
-          disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
-          onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
       </AdminStickyToolbar>
       <TechnicianOrderHistoryDialog open={historyDialogOpen}
         onClose={() => setHistoryDialogOpen(false)}
