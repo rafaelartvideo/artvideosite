@@ -313,7 +313,7 @@ test("OS técnica aguarda dados e mídias antes da abertura e mostra endereço s
 
 test("busca e filtros do painel técnico ficam separados da tabela paginada", () => {
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
-  assert.match(table, /<h2[^>]*>Minhas ordens de serviço<\\/h2>/);
+  assert.ok(table.includes('>Minhas ordens de serviço</h2>'));
   assert.match(table, /<table/);
   assert.match(table, /<PaginationBar/);
   assert.match(table, /space-y-4/);
@@ -333,7 +333,7 @@ test("loader compartilhado exibe texto sobre as bolinhas animadas", () => {
   const layout = read("src/shared/ui/admin/AdminLayout.tsx");
   assert.match(feedback, /export function LoadingDots/);
   assert.match(feedback, /animate-bounce/);
-  assert.match(feedback, /<LoadingDots \/>/);
+  assert.ok(feedback.includes('<LoadingDots />'));
   assert.match(layout, /AdminStickyToolbarContext\.Provider/);
   assert.match(layout, /mobileBackOnly/);
 });
