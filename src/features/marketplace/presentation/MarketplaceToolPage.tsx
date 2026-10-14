@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { MarketplaceRequestsPanel } from "./MarketplaceRequestsPanel";
 import {
   changeMarketplaceListingStatus, changeMarketplaceStoreStatus,
   loadMarketplaceManagement, loadMarketplaceSourceCatalog,
@@ -11,7 +12,7 @@ import {
   type MarketplaceCategory, type MarketplaceListing, type MarketplaceSource, type MarketplaceStore,
 } from "../infrastructure/marketplace.repository";
 
-type Tab = "stores" | "listings" | "categories";
+type Tab = "stores" | "listings" | "categories" | "requests";
 type ListingForm = {
   source_key: string; category_id: string; title: string; description: string;
   price_type: "fixed" | "quote" | "appointment"; price: string; cover_image_url: string;
@@ -170,10 +171,11 @@ export function MarketplaceToolPage({ onBack }: { onBack: () => void }) {
     <div className="flex flex-wrap gap-2 border-b border-border pb-3">
       <button type="button" onClick={() => setTab("stores")} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === "stores" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>{platform ? "Lojas" : "Minha loja"}</button>
       <button type="button" onClick={() => setTab("listings")} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === "listings" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>Anúncios</button>
+      {(canModerate || canManageListings) && <button type="button" onClick={() => setTab("requests")} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === "requests" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>Solicitações</button>}
       {platform && <button type="button" onClick={() => setTab("categories")} className={`rounded-lg px-4 py-2 text-sm font-bold ${tab === "categories" ? "bg-primary text-white" : "bg-muted text-foreground"}`}>Categorias</button>}
     </div>
 
-    {loading ? <LoadingState /> : tab === "stores" ? <Section
+    {loading ? <LoadingState /> : tab === "requests" ? <MarketplaceRequestsPanel categories={categories} enabled={canModerate || canManageListings} /> : tab === "stores" ? <Section
       title={platform ? "Empresas participantes" : "Dados comerciais da loja"}
       description={platform ? "Somente empresas com o módulo ativado podem criar lojas." : "Sua loja depende de aprovação da Union para ficar pública."}
       actions={!platform && canManageStore ? <BtnPrimary onClick={openStore}>{ownStore ? "Editar loja" : "Criar loja"}</BtnPrimary> : undefined}

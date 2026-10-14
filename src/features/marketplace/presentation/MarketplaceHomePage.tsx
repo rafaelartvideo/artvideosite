@@ -9,6 +9,7 @@ import {
   loadPublicMarketplaceShell, loadPublicMarketplaceListing, type MarketplaceCategory, type MarketplaceListing, type MarketplaceStore,
 } from "../infrastructure/marketplace.repository";
 import { MarketplaceCatalog } from "./MarketplaceCatalog";
+import { MarketplaceBuyerPage } from "./MarketplaceBuyerPage";
 
 const money = (value: number | null) => value == null
   ? "Sob orçamento"
@@ -58,6 +59,7 @@ export function MarketplaceHomePage() {
   }, []);
 
   const path = location.pathname;
+  const buyerView = path === "/marketplace/conta" || path === "/marketplace/solicitar";
   const listingId = path.match(/^\/marketplace\/(?:servico|produto)\/([^/]+)$/)?.[1];
   const storeSlug = path.match(/^\/marketplace\/loja\/([^/]+)$/)?.[1];
   const selectedStore = stores.find(x => x.slug === storeSlug) || null;
@@ -139,12 +141,14 @@ export function MarketplaceHomePage() {
           <button type="submit" className="shrink-0 rounded-md bg-[#1032dc] px-4 py-2 text-xs font-black text-white hover:bg-[#0928b8]">Buscar</button>
         </form>
         <div className="ml-auto flex shrink-0 items-center gap-3">
+          <button type="button" onClick={() => navigate("/marketplace/conta")} className="text-xs font-bold text-[#304563] hover:text-[#1032dc]">Minha conta</button>
           <a href="/admin" className="hidden text-xs font-bold text-[#304563] hover:text-[#1032dc] sm:block">Área da empresa</a>
           <button type="button" className="rounded-lg border border-[#dfe4ed] p-2 lg:hidden" onClick={() => setMenuOpen(v => !v)} aria-label="Abrir menu">{menuOpen ? <X size={20} /> : <Menu size={20} />}</button>
         </div>
       </div>
       <nav className={`mx-auto max-w-[1400px] items-center gap-1 overflow-x-auto px-4 pb-3 lg:flex lg:px-6 ${menuOpen ? "flex" : "hidden lg:flex"}`}>
         <button onClick={backHome} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Início</button>
+        <button onClick={() => navigate("/marketplace/solicitar")} className="shrink-0 rounded-lg bg-[#1032dc] px-3 py-2 text-xs font-bold text-white hover:bg-[#0928b8]">Preciso de um serviço</button>
         <button onClick={() => applyFilters({ tipo: "service", categoria: null })} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Serviços</button>
         <button onClick={() => applyFilters({ tipo: "product", categoria: null })} className="shrink-0 rounded-lg px-3 py-2 text-xs font-bold hover:bg-[#eef1ff]">Produtos</button>
         {categories.slice(0, 6).map(item => <button key={item.id} onClick={() => applyFilters({ categoria: item.id })} className="shrink-0 rounded-lg px-3 py-2 text-xs font-medium text-[#526178] hover:bg-[#eef1ff]">{item.name}</button>)}
@@ -156,6 +160,7 @@ export function MarketplaceHomePage() {
       {notice && <div role="status" className="flex items-center justify-between gap-4 rounded-lg border border-[#c8d1f5] bg-[#eef1ff] px-4 py-3 text-sm text-[#233d91]">{notice}<button onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={18} /></button></div>}
       {loading ? <div className="py-20 text-center text-sm text-[#66758e]">Carregando catálogo...</div> :
       error ? <div className="rounded-xl bg-white p-10 text-center text-sm text-red-700">{error}</div> :
+      buyerView ? <MarketplaceBuyerPage mode={path === "/marketplace/solicitar" ? "request" : "account"} categories={categories} /> :
       listingId && (detailLoading || resolvedListingId !== listingId) ? <div className="flex min-h-[55vh] items-center justify-center text-sm text-[#66758e]" role="status">Carregando anúncio...</div> :
       listingId && (detailError || !currentDetail) ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
         <h1 className="text-lg font-black">{detailError || "Anúncio indisponível"}</h1>
@@ -182,7 +187,7 @@ export function MarketplaceHomePage() {
           <aside className="h-fit space-y-4 rounded-xl border border-[#e1e6ef] bg-white p-5">
             <p className="text-xs text-[#78859b]">Valor anunciado</p>
             <p className="text-3xl font-black">{currentDetail.price_type === "quote" ? "Sob orçamento" : money(currentDetail.price)}</p>
-            <button className="w-full rounded-lg bg-[#1032dc] px-4 py-3 text-sm font-black text-white hover:bg-[#0928b8]" onClick={() => setNotice("A contratação direta e o envio de solicitações serão habilitados na etapa de intermediação.")}>{currentDetail.price_type === "quote" ? "Solicitar orçamento" : currentDetail.price_type === "appointment" ? "Solicitar agendamento" : "Solicitar contratação"}</button>
+            <button className="w-full rounded-lg bg-[#1032dc] px-4 py-3 text-sm font-black text-white hover:bg-[#0928b8]" onClick={() => currentDetail.source_kind === "service" ? navigate("/marketplace/solicitar?anuncio=" + currentDetail.id) : setNotice("As solicitações de produtos estarão disponíveis em uma próxima etapa.")}>{currentDetail.price_type === "quote" ? "Solicitar orçamento" : currentDetail.price_type === "appointment" ? "Solicitar agendamento" : "Solicitar contratação"}</button>
             <p className="text-xs leading-5 text-[#8a96a7]">Contratação online em preparação. Nenhuma cobrança é realizada nesta etapa.</p>
             {vendor && <button onClick={() => openStore(vendor)} className="flex w-full items-center gap-3 border-t border-[#e8ecf3] pt-4 text-left"><Store size={22} className="text-[#1032dc]" /><span className="min-w-0"><strong className="block truncate text-sm">{vendor.display_name}</strong><span className="text-xs text-[#75849b]">{vendor.city} {vendor.state}</span></span><ChevronRight size={16} className="ml-auto" /></button>}
           </aside>
@@ -201,7 +206,10 @@ export function MarketplaceHomePage() {
               <p className="text-xs font-black uppercase tracking-[0.18em] text-[#1032dc]">{activeBanner.label}</p>
               <h1 className="text-3xl font-black leading-tight sm:text-4xl">{activeBanner.title}</h1>
               <p className="text-sm leading-7 text-[#51617a]">{activeBanner.text}</p>
-              <button onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })} className="flex items-center gap-2 rounded-lg bg-[#1032dc] px-5 py-3 text-sm font-black text-white">Explorar serviços <ArrowRight size={17} /></button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" })} className="flex items-center gap-2 rounded-lg bg-[#1032dc] px-5 py-3 text-sm font-black text-white">Explorar serviços <ArrowRight size={17} /></button>
+                <button onClick={() => navigate("/marketplace/solicitar")} className="flex items-center gap-2 rounded-lg border border-[#bbc5e7] bg-white px-5 py-3 text-sm font-black text-[#1032dc] hover:bg-[#f4f6ff]">Preciso de um serviço</button>
+              </div>
             </div>
             <div className="hidden h-44 w-44 items-center justify-center justify-self-center rounded-[40px] bg-white/70 lg:flex"><PromoIcon size={94} strokeWidth={1} className="text-[#1032dc]" /></div>
           </div>

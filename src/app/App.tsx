@@ -207,7 +207,7 @@ function CrmApplication() {
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
       <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
-      <Route path="/marketplace" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
+      <Route path="/marketplace/*" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
       <Route path="/admin/*" element={<AdminEntry />} />
       <Route path="*" element={<Navigate to="/admin" replace />} />
     </Routes>
@@ -225,7 +225,7 @@ function CombinedApplication() {
       <Route path="/verificar-documento/:verificationCode" element={<Suspense fallback={<StandaloneFallback text="Verificando documento..." />}><PublicDocumentVerificationPage /></Suspense>} />
       <Route path="/rastreador" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
       <Route path="/rastreador/:token" element={<Suspense fallback={<StandaloneFallback text="Abrindo rastreador..." />}><FieldTrackerDevicePage /></Suspense>} />
-      <Route path="/marketplace" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
+      <Route path="/marketplace/*" element={<Suspense fallback={<StandaloneFallback text="Carregando marketplace..." />}><MarketplaceHomePage /></Suspense>} />
       <Route path="/admin/*" element={<AdminEntry />} />
       <Route path="/*" element={<PublicRoutes />} />
     </Routes>
