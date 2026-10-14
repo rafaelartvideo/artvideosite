@@ -192,7 +192,7 @@ export function RegistrationEditor({
         <label className="mt-5 flex items-start gap-3 border-t border-[#0d1b2e]/8 pt-5">
           <Checkbox
             checked={form.disable_inactivity_logout}
-            disabled={!canModify}
+            disabled={!canModify || !canModifyAccess}
             onCheckedChange={checked => setForm(current => ({ ...current, disable_inactivity_logout: checked === true }))}
           />
           <span className="min-w-0">
