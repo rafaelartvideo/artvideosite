@@ -13,6 +13,7 @@ import {
 type Props = {
   organizationId: string;
   technicians: AvailableTechnician[];
+  loadingTechnicians?: boolean;
   date?: string;
   selectedStart?: string;
   selectedEnd?: string;
@@ -47,7 +48,7 @@ const displayDay = (value: string) => {
 };
 
 export function TechnicianAvailabilityCalendar({
-  organizationId, technicians, date, selectedStart, selectedEnd, selectedTechnicianId,
+  organizationId, technicians, loadingTechnicians = false, date, selectedStart, selectedEnd, selectedTechnicianId,
   selectedTechnicianIds, onToggleTechnician,
   exceptOrderId, technicianFilter, onTechnicianFilterChange, onNavigateWeek, onGoToToday, onChooseStart, onChooseEnd,
 }: Props) {
@@ -105,7 +106,7 @@ export function TechnicianAvailabilityCalendar({
     }
     return result;
   })();
-  const showLoading = Boolean(ids.length && (query.isPending || query.isFetching && !query.data));
+  const showLoading = Boolean(loadingTechnicians || (ids.length && (query.isPending || (query.isFetching && !query.data))));
   const selectable = Boolean(onChooseStart);
   return <AdminCard className="min-w-0 overflow-hidden">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/40 px-4 py-3">
@@ -191,8 +192,8 @@ export function TechnicianAvailabilityCalendar({
         Marque pelo menos um técnico disponível para concluir o agendamento.
       </p>}
     </div>}
-    {!ids.length ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível para consulta.</p>
-      : showLoading ? <p className="p-8 text-center text-sm text-muted-foreground">Consultando horários...</p>
+    {showLoading ? <p className="p-8 text-center text-sm text-muted-foreground">Carregando horários e técnicos...</p>
+      : !ids.length ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível para consulta.</p>
       : query.error ? <p role="alert" className="p-5 text-sm text-red-600">{systemErrorMessage(query.error, "Não foi possível consultar a disponibilidade.")}</p>
       : !query.data?.hasSchedules ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum expediente cadastrado para estes técnicos. Configure a agenda semanal no cadastro dos funcionários.</p>
       : <div className="max-h-[620px] w-full overflow-auto" role="region" aria-label="Tabela semanal de disponibilidade" tabIndex={0}>

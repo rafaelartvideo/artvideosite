@@ -47,7 +47,7 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
   const queryClient = useQueryClient();
   const [orders, setOrders] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<AppointmentWithRelations[]>([]);
-  const [view, setView] = useState<AgendaView>("availability");
+  const [view, setView] = useState<AgendaView>("month");
   const [cursor, setCursor] = useState(() => new Date());
   const [technicianFilter, setTechnicianFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");

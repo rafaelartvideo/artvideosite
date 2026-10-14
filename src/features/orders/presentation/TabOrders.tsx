@@ -43,6 +43,7 @@ import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage"
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 type SharedAccessMode = "default" | "read";
@@ -704,6 +705,7 @@ export function TabOrders({
   const formatCurrency = formatOrderCurrency;
   const detailUsedItemsTotal = usedItemsTotal(detailUsedItems);
   const editingRouteActive = routeSubpage === "edit" && Boolean(initialOrderId && initialOrderId !== "new");
+  const editingContentReady = formOpen && (!editingRouteActive || editingOS?.id === initialOrderId);
   const routedDetailLoading = Boolean(
     initialOrderId
     && initialOrderId !== "new"
@@ -728,6 +730,16 @@ export function TabOrders({
       />}
 
       {routedDetailLoading && <LoadingState text="Carregando OS..." />}
+      {!scopedReadOnly && editingRouteActive && !editingContentReady && (
+        <AdminPage open fullPage smoothMotion={false}
+          onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
+          breadcrumb="Ordens de Serviço" title="Editar OS"
+          subtitle="Carregando os dados para edição">
+          <div className="flex min-h-[50vh] items-center justify-center px-5">
+            <LoadingState text="Carregando dados da OS..." />
+          </div>
+        </AdminPage>
+      )}
 
       <OrdersListWorkspace
         visible={!detailOnly && !initialOrderId && !editingRouteActive && !detail && !formOpen && !solveOpen}
@@ -780,7 +792,7 @@ export function TabOrders({
       />
 
       {!scopedReadOnly && <OrderEditorPage
-        visible={formOpen}
+        visible={editingContentReady}
         saving={saving}
         workspace={workspace}
         formState={formState}

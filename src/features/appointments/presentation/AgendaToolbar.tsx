@@ -107,11 +107,11 @@ export function AgendaToolbar(props: Props) {
         value={props.view}
         onChange={(nextView) => props.onViewChange(nextView)}
         options={([
-          { value: "availability", label: "Disponíveis" },
-          { value: "day", label: "Dia" },
-          { value: "week", label: "Semana" },
           { value: "month", label: "Mês" },
+          { value: "week", label: "Semana" },
+          { value: "day", label: "Dia" },
           { value: "agenda", label: "Lista" },
+          { value: "availability", label: "Disponíveis" },
         ] as const)}
         className="grid-cols-5"
       />

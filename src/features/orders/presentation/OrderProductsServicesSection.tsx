@@ -235,24 +235,25 @@ function CatalogResults({
 }
 
 function TechnicianMultiPicker({
-  people, selected, onChange, disabled, label,
+  people, selected, onChange, disabled, label, loading = false,
 }: {
   people: OrderServiceTechnician[];
   selected: string[];
   onChange: (ids: string[]) => void;
   disabled?: boolean;
   label: string;
+  loading?: boolean;
 }) {
   const names = people.filter(person => selected.includes(person.id)).map(person => person.name);
   return <details className="relative w-full">
     <summary aria-label={label} className={cn(
       "flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground marker:hidden",
-      disabled && "pointer-events-none opacity-50",
+      (disabled || loading) && "pointer-events-none opacity-70",
     )}>
-      <span className="min-w-0 truncate">{names.length ? names.join(", ") : "Selecionar técnicos"}</span>
+      <span className="min-w-0 truncate" aria-live="polite">{loading ? "Carregando técnicos..." : names.length ? names.join(", ") : "Selecionar técnicos"}</span>
       <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
     </summary>
-    {!disabled && <div className="relative z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-sm">
+    {!disabled && !loading && <div className="relative z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-sm">
       {people.length ? people.map(person => <label key={person.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted">
         <input type="checkbox" checked={selected.includes(person.id)}
           onChange={event => onChange(event.target.checked ? [...selected, person.id] : selected.filter(id => id !== person.id))}
@@ -270,6 +271,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [loadingItems, setLoadingItems] = useState(true);
   const [tasks, setTasks] = useState<Record<string, OrderServiceTask>>({});
   const [technicians, setTechnicians] = useState<OrderServiceTechnician[]>([]);
+  const [techniciansLoading, setTechniciansLoading] = useState(true);
   const [workflowReady, setWorkflowReady] = useState(false);
   const [taskPhotos, setTaskPhotos] = useState<OrderTaskPhoto[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
@@ -372,7 +374,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
   const loadItems = useCallback(async (quiet = false) => {
     if (!order?.id) return;
-    if (!quiet) setLoadingItems(true);
+    if (!quiet) {
+      setLoadingItems(true);
+      setTechniciansLoading(true);
+    }
     try {
       const next = await listOrderCommercialItems(order.id);
       setItems(next);
@@ -394,7 +399,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     } catch (error) {
       setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível carregar os produtos e serviços da OS.") });
     } finally {
-      if (!quiet) setLoadingItems(false);
+      if (!quiet) {
+        setTechniciansLoading(false);
+        setLoadingItems(false);
+      }
     }
   }, [order?.id, editable, refreshTaskPhotos, onOverviewChange]);
 
@@ -488,6 +496,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setServiceTechnicianIds([]);
     setCustomTechnicianIds([]);
     setWorkflowReady(false);
+    setTechniciansLoading(true);
     void loadItems();
   }, [loadItems, order?.id]);
 
@@ -1063,15 +1072,18 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             />
           </div>
 
-          {workflowReady && <div>
+          {editable && <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
             <TechnicianMultiPicker
               label="Selecionar técnicos do serviço"
               people={technicians} selected={serviceTechnicianIds} onChange={setServiceTechnicianIds}
+              loading={techniciansLoading}
+              disabled={!workflowReady}
             />
-            {technicians.length === 0 && <p className="mt-2 text-xs text-muted-foreground">
+            {!techniciansLoading && workflowReady && technicians.length === 0 && <p className="mt-2 text-xs text-muted-foreground">
               Nenhum funcionário ativo com acesso ao sistema nesta empresa.
             </p>}
+            {!techniciansLoading && !workflowReady && <p className="mt-2 text-xs text-muted-foreground">A seleção de equipe está indisponível nesta OS.</p>}
           </div>}
           <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
             <NumberStepper
@@ -1091,7 +1103,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               disabled
             />
             <BtnPrimary
-              disabled={!selectedService || mutating || (workflowReady && !serviceTechnicianIds.length)}
+              disabled={!selectedService || mutating || techniciansLoading || (workflowReady && !serviceTechnicianIds.length)}
               loading={mutating}
               onClick={() => void addService()}
               className="h-[42px]"
@@ -1303,7 +1315,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <BtnSecondary disabled={mutating} onClick={() => setCustomOpen(false)}>Cancelar</BtnSecondary>
         <BtnPrimary
-          disabled={mutating || !customName.trim() || customPrice.trim() === "" || (workflowReady && !customTechnicianIds.length)}
+          disabled={mutating || techniciansLoading || !customName.trim() || customPrice.trim() === "" || (workflowReady && !customTechnicianIds.length)}
           loading={mutating}
           onClick={() => void addCustomService()}
         >Adicionar serviço</BtnPrimary>
@@ -1341,13 +1353,15 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             onChange={(event: any) => setCustomPrice(event.target.value)}
           />
         </div>
-        {workflowReady && <div>
+        {editable && <div>
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
           <TechnicianMultiPicker
             label="Selecionar técnicos do serviço avulso"
             people={technicians} selected={customTechnicianIds} onChange={setCustomTechnicianIds}
+            loading={techniciansLoading}
+            disabled={!workflowReady}
           />
-        </div>}
+        </div>
       </div>
     </AdminDialog>
   </div>;

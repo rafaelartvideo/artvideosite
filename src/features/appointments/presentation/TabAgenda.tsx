@@ -32,7 +32,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
 
   useEffect(() => {
     if (!canViewCalendar && canViewList && agenda.view !== "agenda") agenda.setView("agenda");
-    if (!canViewList && canViewCalendar && agenda.view === "agenda") agenda.setView("availability");
+    if (!canViewList && canViewCalendar && agenda.view === "agenda") agenda.setView("month");
   }, [canViewCalendar, canViewList, agenda.view]);
 
   useEffect(() => {
@@ -80,6 +80,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       {canViewCurrent && agenda.view === "availability" && <TechnicianAvailabilityCalendar
         organizationId={organizationId}
         technicians={visibleTechnicians}
+        loadingTechnicians={agenda.loading}
         onNavigateWeek={agenda.moveCursor}
         onGoToToday={() => agenda.setCursor(new Date())}
         date={agenda.cursor.getFullYear() + "-" + String(agenda.cursor.getMonth() + 1).padStart(2, "0") + "-" + String(agenda.cursor.getDate()).padStart(2, "0")}
