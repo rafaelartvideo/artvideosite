@@ -796,6 +796,28 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     </div>;
   };
 
+  const renderTaskPhotoPreviews = (item: OrderCommercialItem) => {
+    const photos = taskPhotos.filter(photo => photo.item_id === item.id);
+    return <div className="min-w-0">
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fotos do técnico</p>
+      {!photos.length
+        ? <span className="text-xs text-muted-foreground">Nenhuma foto enviada.</span>
+        : <div className="flex items-center gap-1.5">
+          {photos.slice(0, 2).map(photo => <button key={photo.id} type="button"
+            onClick={() => void openTaskGallery(item)} aria-label="Visualizar fotos do técnico"
+            className="h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border bg-muted hover:border-primary">
+            {photoUrls[photo.path]
+              ? <img src={photoUrls[photo.path]} alt="Foto do serviço" loading="lazy" className="h-full w-full object-cover" />
+              : <Camera size={17} className="mx-auto text-muted-foreground" />}
+          </button>)}
+          {photos.length > 2 && <button type="button"
+            className="flex h-11 min-w-11 items-center justify-center rounded-md border border-border bg-muted px-2 text-xs font-bold text-foreground hover:border-primary"
+            onClick={() => void openTaskGallery(item)}
+            aria-label={"Ver outras " + (photos.length - 2) + " fotos"}>+{photos.length - 2}</button>}
+        </div>}
+    </div>;
+  };
+
   const renderTaskDetails = (item: OrderCommercialItem) => {
     const task = tasks[item.id];
     const status = task?.status || "pending";
@@ -806,7 +828,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       ["Início", task?.start_location],
       ["Conclusão", task?.finish_location],
     ] as const).filter(([, location]) => location?.lat != null && location.lng != null);
-    return <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(170px,210px)_minmax(0,1fr)_minmax(0,260px)] lg:gap-6">
+    return <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(140px,.8fr)_minmax(190px,1.25fr)_minmax(160px,1fr)_minmax(120px,.8fr)] xl:gap-5">
       <div className="min-w-0">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Progresso</p>
         <div className="mb-2 flex items-center gap-2">
@@ -845,6 +867,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </a>)}
         </div> : <p className="text-xs text-muted-foreground">Nenhum local registrado.</p>}
       </div>
+      {renderTaskPhotoPreviews(item)}
     </div>;
   };
 
@@ -1264,6 +1287,23 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         </div>
       </div>
     </Section>
+
+    <AdminDialog open={Boolean(galleryItem)} onClose={() => setGalleryItem(null)}
+      title={"Fotos do serviço" + (galleryItem ? " — " + galleryItem.title_snapshot : "")}
+      description={galleryItem ? taskPhotos.filter(photo => photo.item_id === galleryItem.id).length + " fotos da execução técnica" : ""}
+      className="max-w-2xl">
+      <div className="grid max-h-[65vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+        {galleryItem && taskPhotos.filter(photo => photo.item_id === galleryItem.id).map((photo, index) =>
+          <a key={photo.id} href={photoUrls[photo.path] || "#"} target="_blank" rel="noreferrer"
+            onClick={event => { if (!photoUrls[photo.path]) event.preventDefault(); }}
+            className="group overflow-hidden rounded-lg border border-border bg-muted"
+            title={"Abrir foto " + (index + 1)}>
+            {photoUrls[photo.path] ? <img src={photoUrls[photo.path]} alt={"Foto " + (index + 1) + " da execução"}
+              loading="lazy" className="aspect-square w-full object-cover transition-transform group-hover:scale-105" />
+              : <div className="flex aspect-square items-center justify-center"><Camera size={24} /></div>}
+          </a>)}
+      </div>
+    </AdminDialog>
 
     <AdminDialog
       open={Boolean(editingTechnicianItem)}
