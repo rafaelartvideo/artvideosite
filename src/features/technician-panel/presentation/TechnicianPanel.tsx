@@ -1,19 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { WifiOff } from "lucide-react";
+import { ChevronRight, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
+import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
 import { TechnicianOrderHistoryDialog } from "./TechnicianOrderHistoryDialog";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   captureTechnicianLocation, changeMyTechnicianOrderSituation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
-  countMyTechnicianPhotos, listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask,
-  updateMyTechnicianOrderDiagnosis, updateMyTechnicianOrderNote, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
+  countMyTechnicianPhotos, listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask, getMyTechnicianEquipmentPhotoUrl,
+  updateMyTechnicianOrderDiagnosis, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
  } from "../infrastructure/technician-tasks.repository";
 
 type Notice = { kind: "success" | "error"; text: string };
@@ -53,12 +55,12 @@ export function TechnicianPanel() {
   const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [detailsRevision, setDetailsRevision] = useState(0);
+  const [detailTab, setDetailTab] = useState<OrderDetailTab>("details");
+  const [equipmentPhotoUrls, setEquipmentPhotoUrls] = useState<Record<string, string>>({});
 
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
   const [diagnosisDraft, setDiagnosisDraft] = useState("");
-  const [noteField, setNoteField] = useState<"problem" | "internal_notes" | null>(null);
-  const [noteDraft, setNoteDraft] = useState("");
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -179,7 +181,6 @@ export function TechnicianPanel() {
   useEffect(() => {
     setOrderDetails(null);
     setDiagnosisDialogOpen(false);
-    setNoteField(null);
   }, [activeOrganizationId, routeOrderId]);
 
   useEffect(() => {
@@ -199,7 +200,25 @@ export function TechnicianPanel() {
     return () => { cancelled = true; };
   }, [activeOrganizationId, routeOrderId, detailsRevision]);
 
-  useEffect(() => { setHistoryDialogOpen(false); }, [routeOrderId]);
+  useEffect(() => {
+    setHistoryDialogOpen(false);
+    setDetailTab("details");
+  }, [routeOrderId]);
+
+  useEffect(() => {
+    let alive = true;
+    setEquipmentPhotoUrls({});
+    const media = orderDetails?.equipment_photos || [];
+    if (!routeOrderId || !media.length) return () => { alive = false; };
+    void Promise.all(media.map(async image => ({
+      path: image.path, url: await getMyTechnicianEquipmentPhotoUrl(image.path),
+    }))).then(entries => {
+      if (alive) setEquipmentPhotoUrls(Object.fromEntries(entries.map(entry => [entry.path, entry.url])));
+    }).catch(error => {
+      if (alive) setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos do equipamento.") });
+    });
+    return () => { alive = false; };
+  }, [routeOrderId, orderDetails?.equipment_photos]);
 
   const reloadCurrentOrder = () => {
     setDetailsRevision(current => current + 1);
@@ -234,31 +253,6 @@ export function TechnicianPanel() {
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível editar o diagnóstico.") });
     } finally { setBusy(false); }
-  };
-
-  const openNoteEditor = (field: "problem" | "internal_notes", value: string | null) => {
-    setNoteField(field);
-    setNoteDraft(value || "");
-  };
-
-  const saveOrderNote = async () => {
-    if (!routeOrderId || !noteField || busy || noteDraft.length > 10000) return;
-    const requiredPermission = noteField === "problem"
-      ? "technician_panel.actions.edit_problem"
-      : "technician_panel.actions.edit_internal_notes";
-    if (!hasPermission(requiredPermission)) return;
-    setBusy(true);
-    setNotice(null);
-    try {
-      await updateMyTechnicianOrderNote(routeOrderId, noteField, noteDraft);
-      setNoteField(null);
-      reloadCurrentOrder();
-      setNotice({ kind: "success", text: "Informação atualizada na OS." });
-    } catch (error) {
-      setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível atualizar a OS.") });
-    } finally {
-      setBusy(false);
-    }
   };
 
   const runWithGps = async (action: "start" | "finish") => {
@@ -324,7 +318,7 @@ export function TechnicianPanel() {
     }
   };
 
-  const address = selected?.service_address;
+  const address = orderDetails?.customer_address || selected?.service_address;
   const formattedAddress = address ? [
     [address.street, address.number].filter(Boolean).join(", "),
     address.complement,
@@ -342,8 +336,6 @@ export function TechnicianPanel() {
   const pendingServices = orderServices.filter(service => service.status === "pending").length;
   const ongoingServices = orderServices.filter(service => service.status === "in_progress").length;
   const completedServices = orderServices.filter(service => service.status === "completed").length;
-  const canEditProblem = hasPermission("technician_panel.actions.edit_problem") && !orderDetails?.closed && !orderDetails?.solved;
-  const canEditNotes = hasPermission("technician_panel.actions.edit_internal_notes") && !orderDetails?.closed && !orderDetails?.solved;
 
   return <div className="mx-auto max-w-6xl space-y-4">
     <PageHeader
