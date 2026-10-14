@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { loadVisibleServiceTaskSchedules } from "./service-schedule-occupancy.repository";
 import {
   defaultWorkWeek, hhmm, minutes, normaliseIntervals, rangeAvailable,
   type EmployeeWeekday, type OccupiedInterval,
@@ -57,18 +58,11 @@ export async function loadTechnicianAvailabilityWeek(
       .select("id,appointment_date,period,start_time,end_time,appointment_technicians(employee_id)")
       .eq("organization_id", organizationId)
       .gte("appointment_date", weekStart).lt("appointment_date", nextDate(weekStart, 7)),
-    supabase.from("service_order_item_tasks")
-      .select("item_id,service_order_id,scheduled_start_at,scheduled_end_at,status,assigned_employee_id,assignees:service_order_item_task_assignees(employee_id)")
-      .eq("organization_id", organizationId)
-      .not("scheduled_start_at", "is", null)
-      .in("status", ["pending", "in_progress"])
-      .gt("scheduled_end_at", previous.toISOString())
-      .lt("scheduled_start_at", until.toISOString()),
+    loadVisibleServiceTaskSchedules(organizationId, previous.toISOString(), until.toISOString()),
   ]);
   if (weekResult.error) throw weekResult.error;
   if (ordersResult.error) throw ordersResult.error;
   if (appointmentsResult.error) throw appointmentsResult.error;
-  if (taskResult.error) throw taskResult.error;
 
   const schedules = new Map<string, EmployeeWeekday[]>(
     active.map(technician => [technician.id, defaultWorkWeek()]),
@@ -88,7 +82,7 @@ export async function loadTechnicianAvailabilityWeek(
     };
   }
 
-  const individualTasks = taskResult.data || [];
+  const individualTasks = taskResult.filter(task => task.status === "pending" || task.status === "in_progress");
   const individualOrderEmployeeKeys = new Set(individualTasks.flatMap(task =>
     [task.assigned_employee_id, ...(task.assignees || []).map(assignee => assignee.employee_id)]
       .filter(Boolean).map(employeeId => task.service_order_id + ":" + employeeId),
