@@ -96,10 +96,11 @@ export function AdminButton({
       variants[variant],
       sizes[size],
       mobileBackOnly && "max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0",
+      resolvedLoading && "[&_svg]:hidden",
       className,
     )}
   >
-    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? null}</> : renderedChildren}
+    {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? renderedChildren}</> : renderedChildren}
   </button>;
 }
 
