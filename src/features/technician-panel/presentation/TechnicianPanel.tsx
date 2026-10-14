@@ -11,7 +11,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   captureTechnicianLocation, changeMyTechnicianOrderSituation, finishMyTechnicianTask, getMyTechnicianOrderDetails, getTechnicianPhotoSignedUrl,
   listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask,
-  updateMyTechnicianOrderDiagnosis, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
+  updateMyTechnicianOrderDiagnosis, updateMyTechnicianOrderNote, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
   type TechnicianLocation,
 } from "../infrastructure/technician-tasks.repository";
 
@@ -69,6 +69,8 @@ export function TechnicianPanel() {
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
   const [diagnosisDraft, setDiagnosisDraft] = useState("");
+  const [noteField, setNoteField] = useState<"problem" | "internal_notes" | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -158,6 +160,7 @@ export function TechnicianPanel() {
     let cancelled = false;
     setOrderDetails(null);
     setDiagnosisDialogOpen(false);
+    setNoteField(null);
     if (!activeOrganizationId || !routeOrderId) {
       setOrderDetailsLoading(false);
       return () => { cancelled = true; };
@@ -211,6 +214,31 @@ export function TechnicianPanel() {
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível editar o diagnóstico.") });
     } finally { setBusy(false); }
+  };
+
+  const openNoteEditor = (field: "problem" | "internal_notes", value: string | null) => {
+    setNoteField(field);
+    setNoteDraft(value || "");
+  };
+
+  const saveOrderNote = async () => {
+    if (!routeOrderId || !noteField || busy || noteDraft.length > 10000) return;
+    const requiredPermission = noteField === "problem"
+      ? "technician_panel.actions.edit_problem"
+      : "technician_panel.actions.edit_internal_notes";
+    if (!hasPermission(requiredPermission)) return;
+    setBusy(true);
+    setNotice(null);
+    try {
+      await updateMyTechnicianOrderNote(routeOrderId, noteField, noteDraft);
+      setNoteField(null);
+      reloadCurrentOrder();
+      setNotice({ kind: "success", text: "Informação atualizada na OS." });
+    } catch (error) {
+      setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível atualizar a OS.") });
+    } finally {
+      setBusy(false);
+    }
   };
 
   const runWithGps = async (action: "start" | "finish") => {
@@ -368,9 +396,12 @@ export function TechnicianPanel() {
         </div>
       </Section>
 
-      {selected.problem && <Section title="Descrição do problema">
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem}</p>
-      </Section>}
+      {hasPermission("technician_panel.data.problem") && <Section title="Descrição do problema"
+        actions={hasPermission("technician_panel.actions.edit_problem") && orderDetails && !orderDetails.closed && !orderDetails.solved
+          ? <BtnSecondary onClick={() => openNoteEditor("problem", selected.problem)}>Editar</BtnSecondary>
+          : undefined}>
+        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
+      </Section>
       {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section
         title="Diagnóstico"
         actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
@@ -378,9 +409,12 @@ export function TechnicianPanel() {
           : undefined}>
         <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
       </Section>}
-      {orderDetails?.internal_notes && <Section title="Observações internas">
-        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes}</p>
-      </Section>}
+      {hasPermission("technician_panel.data.internal_notes") && orderDetails && <Section title="Observações internas"
+        actions={hasPermission("technician_panel.actions.edit_internal_notes") && !orderDetails.closed && !orderDetails.solved
+          ? <BtnSecondary onClick={() => openNoteEditor("internal_notes", orderDetails.internal_notes)}>Editar</BtnSecondary>
+          : undefined}>
+        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes || "Ainda não informado."}</p>
+      </Section>
       </> : <>
       {hasPermission("technician_panel.data.order_items") && orderDetails && <TechnicianOrderItemsSection
         orderId={routeOrderId}
@@ -484,6 +518,18 @@ export function TechnicianPanel() {
       <TechnicianOrderHistoryDialog open={historyDialogOpen}
         onClose={() => setHistoryDialogOpen(false)}
         orderId={routeOrderId} orderNumber={selected.os_number} />
+      <AdminDialog open={Boolean(noteField)} onClose={() => { if (!busy) setNoteField(null); }}
+        title={noteField === "problem" ? "Editar descrição do problema" : "Editar observações internas"}
+        description={"OS " + selected.os_number}
+        footer={<div className="flex justify-end gap-2">
+          <BtnSecondary disabled={busy} onClick={() => setNoteField(null)}>Cancelar</BtnSecondary>
+          <BtnPrimary disabled={busy || noteDraft.length > 10000} loading={busy}
+            onClick={() => void saveOrderNote()}>Salvar</BtnPrimary>
+        </div>}>
+        <FTextarea label={noteField === "problem" ? "Descrição do problema" : "Observações internas"}
+          value={noteDraft} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setNoteDraft(event.target.value)}
+          rows={7} maxLength={10000} placeholder="Descreva as informações da OS..." />
+      </AdminDialog>
       <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
         title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
           <BtnSecondary onClick={() => setDiagnosisDialogOpen(false)} disabled={busy}>Cancelar</BtnSecondary>
