@@ -76,6 +76,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [permissionListReady, setPermissionListReady] = useState(false);
   const [editing, setEditing] = useState<RoleRecord | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [nameError, setNameError] = useState("");
@@ -118,12 +119,14 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   useEffect(() => {
     let cancelled = false;
     if (!editorOpen) {
+      setPermissionListReady(false);
       setEditing(null);
       setForm(emptyForm());
       setNameError("");
       return () => { cancelled = true; };
     }
     if (routeResourceId === "new") {
+      setPermissionListReady(true);
       setEditing(null);
       setForm(emptyForm());
       setNameError("");
@@ -132,6 +135,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     const role = roles.find(item => item.id === routeResourceId);
     if (!role || !canViewDetails) return () => { cancelled = true; };
     setEditing(role);
+    setPermissionListReady(false);
     setNameError("");
     setForm({ name: role.name, description: role.description || "", is_active: role.is_active !== false, selected: [] });
     void getRolePermissionIds(role.id).then(({ data, error }) => {
@@ -141,6 +145,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
         return;
       }
       setForm(current => ({ ...current, selected: (data || []).map((item: any) => String(item.permission_id)) }));
+      setPermissionListReady(true);
     });
     return () => { cancelled = true; };
   }, [editorOpen, routeResourceId, roles, canViewDetails]);
@@ -209,7 +214,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
   const openRole = (role: RoleRecord) => canViewDetails && onRouteChange?.(role.id, "edit");
 
   const save = async () => {
-    if (!activeOrganizationId || saving) return;
+    if (!activeOrganizationId || saving || !permissionListReady) return;
     const creating = !editing;
     if (creating && !canCreate) return;
     if (!creating && !canEdit && !canManagePermissions) return;
@@ -312,7 +317,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
       </div>
       <AdminStickyToolbar className="justify-end">
         <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
-        {(creating ? canCreate : canEdit || canManagePermissions) && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+        {(creating ? canCreate : canEdit || canManagePermissions) && <BtnPrimary onClick={save} disabled={!permissionListReady} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>;
   }
