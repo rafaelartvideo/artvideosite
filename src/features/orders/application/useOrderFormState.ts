@@ -3,6 +3,21 @@ import type { ServiceOrderTechnicalValue } from "@/features/equipment/domain/equ
 
 type OrderType = "internal" | "external";
 
+// O modal compartilhado trabalha com horário local de Brasília.
+// Converter timestamps do banco evita apresentar UTC como se fosse horário da OS.
+function orderScheduleLocalDateTime(value: string | null | undefined) {
+  if (!value) return "";
+  if (!/(?:Z|[+-]\d{2}:?\d{2})$/i.test(value)) return value.slice(0, 16);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 16);
+  const formatted = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+  }).formatToParts(date);
+  const read = (key: string) => formatted.find(part => part.type === key)?.value || "";
+  return read("year") + "-" + read("month") + "-" + read("day") + "T" + read("hour") + ":" + read("minute");
+}
+
 const createEmptyOrderForm = () => ({
   service_id: "",
   general_service_id: "",
@@ -112,12 +127,12 @@ export function useOrderFormState() {
       accessories: order.accessories || "",
       equipment_condition: order.equipment_condition || "",
       priority: order.priority || "normal",
-      scheduled_at: order.scheduled_at
-        ? order.scheduled_at.slice(0, 16)
-        : "",
+      scheduled_at: orderScheduleLocalDateTime(order.scheduled_at),
       scheduled_end_at: order.scheduled_end_at
-        ? order.scheduled_end_at.slice(0, 16)
-        : order.scheduled_at ? new Date(new Date(order.scheduled_at).getTime() + 60 * 60_000).toISOString().slice(0, 16) : "",
+        ? orderScheduleLocalDateTime(order.scheduled_end_at)
+        : order.scheduled_at
+          ? orderScheduleLocalDateTime(new Date(new Date(order.scheduled_at).getTime() + 60 * 60_000).toISOString())
+          : "",
       started_at: order.started_at ? order.started_at.slice(0, 16) : "",
       completed_at: order.completed_at ? order.completed_at.slice(0, 16) : "",
       internal_notes: order.internal_notes || "",
