@@ -14,7 +14,8 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableSurface } from "./FinanceTableSurface";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceReports } from "../application/useFinanceReports";
 import type { FinancialEntryOriginType, FinancialReportFilters } from "../domain/finance.types";
@@ -85,7 +86,6 @@ export function FinanceReportsSection() {
   const reports = useFinanceReports(filters, { dashboard: false, dre: tab === "dre", cashFlow: tab === "cash-flow" });
 
   const categories = foundation.categoriesQuery.data || [];
-  const costCenters = foundation.costCentersQuery.data || [];
   const accounts = foundation.accountsQuery.data || [];
   const paymentMethods = foundation.paymentMethodsQuery.data || [];
 
@@ -120,11 +120,6 @@ export function FinanceReportsSection() {
   const errorText = activeError instanceof Error ? activeError.message : "";
 
   return <div className="space-y-4">
-    <div>
-      <h2 className="text-lg font-black text-[#0d1b2e]">Relatórios financeiros</h2>
-      <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">DRE por competência e Fluxo de Caixa previsto x realizado, sempre isolados pela empresa ativa.</p>
-    </div>
-
     <FinanceSubsectionTabs
       value={tab}
       items={[
@@ -135,11 +130,8 @@ export function FinanceReportsSection() {
       ariaLabel="Relatórios financeiros"
     />
 
-    <Section
-      title="Filtros do relatório"
-      actions={<AdminButton variant="secondary" onClick={resetFilters}><RefreshCcw size={15} /> Limpar filtros</AdminButton>}
-      contentClassName="p-4 sm:p-4"
-    >
+    <div className="space-y-3 border-b border-border pb-4">
+      <div className="flex justify-end"><AdminButton variant="secondary" onClick={resetFilters}><RefreshCcw size={15} /> Limpar filtros</AdminButton></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FInput label="De" type="date" value={filters.from} onChange={(event: any) => setFilter("from", event.target.value)} />
         <FInput label="Até" type="date" value={filters.to} onChange={(event: any) => setFilter("to", event.target.value)} />
@@ -148,12 +140,6 @@ export function FinanceReportsSection() {
           value={filters.category_id || "all"}
           onChange={(event: any) => setFilter("category_id", event.target.value === "all" ? null : event.target.value)}
           options={[{ value: "all", label: "Todas as categorias" }, ...categories.map(item => ({ value: item.id, label: item.name }))]}
-        />
-        <FSelect
-          label="Centro de custo"
-          value={filters.cost_center_id || "all"}
-          onChange={(event: any) => setFilter("cost_center_id", event.target.value === "all" ? null : event.target.value)}
-          options={[{ value: "all", label: "Todos os centros" }, ...costCenters.map(item => ({ value: item.id, label: item.name }))]}
         />
         <FSelect
           label="Origem"
@@ -175,7 +161,7 @@ export function FinanceReportsSection() {
         />}
       </div>
       {tab === "cash-flow" && (filters.account_id || filters.payment_method_id) && <p className="mt-3 text-[11px] text-[#5a6a82]">Títulos ainda em aberto não possuem conta ou forma de pagamento definida; ao filtrar por esses campos, o previsto considera os repasses já programados.</p>}
-    </Section>
+    </div>
 
     {errorText && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
 
@@ -208,29 +194,24 @@ export function FinanceReportsSection() {
           </AdminCardContent>
         </AdminCard>
 
-        <AdminCard>
-          <AdminCardHeader>
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Detalhamento da DRE</h3><p className="mt-1 text-xs text-[#5a6a82]">{dre.rows.length} linhas consolidadas por categoria, centro de custo e origem.</p></div>
-          </AdminCardHeader>
-          <AdminCardContent className="p-0">
-            {dre.rows.length === 0 ? <div className="p-8"><EmptyState icon={TrendingUp} title="Nenhum lançamento aprovado no período" /></div> : <div className="overflow-x-auto">
+        <section className="space-y-3">
+          <div><h3 className="text-sm font-bold text-foreground">Detalhamento da DRE</h3><p className="mt-1 text-xs text-[#5a6a82]">{dre.rows.length} registros de receitas e despesas agrupados.</p></div>
+            {dre.rows.length === 0 ? <div className="p-8"><EmptyState icon={TrendingUp} title="Nenhum lançamento aprovado no período" /></div> : <FinanceTableSurface>
               <table className="min-w-full text-left text-xs">
                 <thead className="border-b border-[#0d1b2e]/8 bg-slate-50 text-[#5a6a82]"><tr>
-                  <th className="px-4 py-3">Competência</th><th className="px-4 py-3">Natureza</th><th className="px-4 py-3">Grupo</th><th className="px-4 py-3">Categoria</th><th className="px-4 py-3">Centro de custo</th><th className="px-4 py-3">Origem</th><th className="px-4 py-3 text-right">Valor</th>
+                  <th className="px-4 py-3">Competência</th><th className="px-4 py-3">Natureza</th><th className="px-4 py-3">Grupo</th><th className="px-4 py-3">Categoria</th><th className="px-4 py-3">Origem</th><th className="px-4 py-3 text-right">Valor</th>
                 </tr></thead>
                 <tbody className="divide-y divide-[#0d1b2e]/6">{dre.rows.map((row, index) => <tr key={`${row.competence_month}-${row.category_id}-${row.cost_center_id || "none"}-${row.origin_type}-${index}`}>
                   <td className="px-4 py-3 font-semibold text-[#0d1b2e]">{monthLabel(row.competence_month)}</td>
                   <td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${row.nature === "revenue" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"}`}>{row.nature === "revenue" ? "Receita" : "Despesa"}</span></td>
                   <td className="px-4 py-3 text-[#5a6a82]">{row.report_group}</td>
                   <td className="px-4 py-3 text-[#0d1b2e]">{row.category_name}</td>
-                  <td className="px-4 py-3 text-[#5a6a82]">{row.cost_center_name}</td>
+                  
                   <td className="px-4 py-3 text-[#5a6a82]">{row.origin_type}</td>
                   <td className="px-4 py-3 text-right font-black text-[#0d1b2e]">{formatCurrency(row.amount)}</td>
                 </tr>)}</tbody>
-              </table>
-            </div>}
-          </AdminCardContent>
-        </AdminCard>
+              </table></FinanceTableSurface>}
+        </section>
       </>}
     </>}
 
@@ -268,12 +249,9 @@ export function FinanceReportsSection() {
           </AdminCardContent>
         </AdminCard>
 
-        <AdminCard>
-          <AdminCardHeader>
-            <div><h3 className="text-sm font-black text-[#0d1b2e]">Fluxo diário</h3><p className="mt-1 text-xs text-[#5a6a82]">Valores líquidos previstos e realizados por data.</p></div>
-          </AdminCardHeader>
-          <AdminCardContent className="p-0">
-            {cashFlow.rows.length === 0 ? <div className="p-8"><EmptyState icon={CalendarRange} title="Nenhum movimento ou previsão encontrada" /></div> : <div className="overflow-x-auto">
+        <section className="space-y-3">
+          <div><h3 className="text-sm font-bold text-foreground">Fluxo diário</h3><p className="mt-1 text-xs text-[#5a6a82]">Valores previstos e realizados por dia.</p></div>
+            {cashFlow.rows.length === 0 ? <div className="p-8"><EmptyState icon={CalendarRange} title="Nenhum movimento ou previsão encontrada" /></div> : <FinanceTableSurface>
               <table className="min-w-full text-left text-xs">
                 <thead className="border-b border-[#0d1b2e]/8 bg-slate-50 text-[#5a6a82]"><tr>
                   <th className="px-4 py-3">Data</th><th className="px-4 py-3 text-right">Entrada prevista</th><th className="px-4 py-3 text-right">Saída prevista</th><th className="px-4 py-3 text-right">Líquido previsto</th><th className="px-4 py-3 text-right">Entrada realizada</th><th className="px-4 py-3 text-right">Saída realizada</th><th className="px-4 py-3 text-right">Líquido realizado</th>
@@ -287,10 +265,8 @@ export function FinanceReportsSection() {
                   <td className="px-4 py-3 text-right text-red-700">{formatCurrency(row.realized_out)}</td>
                   <td className="px-4 py-3 text-right font-black text-[#0d1b2e]">{formatCurrency(row.realized_net)}</td>
                 </tr>)}</tbody>
-              </table>
-            </div>}
-          </AdminCardContent>
-        </AdminCard>
+              </table></FinanceTableSurface>}
+        </section>
       </>}
     </>}
   </div>;

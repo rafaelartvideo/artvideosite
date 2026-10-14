@@ -5,7 +5,8 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminDialog, AdminIconButton, BtnPrimary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableSurface } from "./FinanceTableSurface";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import { useFinanceMovements } from "../application/useFinanceMovements";
@@ -116,22 +117,15 @@ export function FinanceAccountsSection() {
 
   const loading = finance.accountsQuery.isLoading || money.balancesQuery.isLoading;
   return <div className="space-y-4">
-    <Section
-      title="Caixas e contas"
-      description="Cadastre onde o dinheiro da empresa é movimentado. O saldo é calculado exclusivamente pelas movimentações financeiras."
-      actions={canManage ? <BtnPrimary onClick={openNew}><Plus size={16} /> Nova conta</BtnPrimary> : undefined}
-      flush
-    >
-      <div className="border-b border-[#0d1b2e]/8 p-4 sm:p-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Saldo total</p><p className="mt-1 text-2xl font-black text-[#0057e7]">{formatCurrency(totalBalance)}</p></div><p className="max-w-xl text-xs leading-relaxed text-[#5a6a82]">Soma dos saldos derivados do livro financeiro. Transferências entre contas não alteram este total.</p></div>
+    <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        <p className="text-sm font-semibold text-muted-foreground">{accounts.length} {accounts.length === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
+        <p className="text-sm font-semibold text-muted-foreground">Saldo total: <strong className="text-lg font-bold text-foreground">{formatCurrency(totalBalance)}</strong></p>
       </div>
-
-      <AdminCardToolbar className="sm:justify-between">
-        <p className="text-xs font-semibold text-[#5a6a82]">{accounts.length} {accounts.length === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
-        <p className="text-xs text-[#8b98aa]">Sem exclusão: contas podem ser ativadas ou inativadas.</p>
-      </AdminCardToolbar>
+      {canManage && <AdminButton onClick={openNew}><Plus size={16} /> Nova conta</AdminButton>}
+    </div>
       {errorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
-      {loading ? <div className="p-8"><LoadingState /></div> : accounts.length === 0 ? <div className="p-8"><EmptyState icon={Landmark} title="Nenhuma conta financeira" /></div> : <div className="overflow-x-auto">
+      {loading ? <div className="p-8"><LoadingState /></div> : accounts.length === 0 ? <div className="p-8"><EmptyState icon={Landmark} title="Nenhuma conta financeira" /></div> : <FinanceTableSurface>
         <table className="min-w-[980px]">
           <thead><tr><th className="text-left">Nome</th><th className="text-left">Tipo</th><th className="text-left">Dados</th><th className="text-right">Saldo</th><th className="text-left">Saldo inicial</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
           <tbody>{accounts.map(account => <tr key={account.id}>
@@ -144,8 +138,7 @@ export function FinanceAccountsSection() {
             {canManage && <td><div className="flex justify-end gap-1">{!account.opening_balance_configured_at && <AdminIconButton ariaLabel="Configurar saldo inicial" title="Configurar saldo inicial" onClick={() => { setOpeningAccount(account); setNameError(""); }}><Banknote size={15} /></AdminIconButton>}<AdminIconButton ariaLabel="Editar conta" title="Editar conta" onClick={() => openEdit(account)}><Pencil size={15} /></AdminIconButton><AdminActiveStateButton active={account.is_active} entityLabel="conta" onClick={() => void finance.toggleAccount.mutateAsync({ id: account.id, isActive: !account.is_active })} /></div></td>}
           </tr>)}</tbody>
         </table>
-      </div>}
-    </Section>
+      </FinanceTableSurface>}
 
     {Boolean(finance.settingsQuery.data?.cash_session_enabled) && <FinanceCashSection accounts={accounts} />}
 
