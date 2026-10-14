@@ -25,7 +25,7 @@ test("a seção de incluir serviço pergunta agendamento e abre calendário de d
   assert.match(calendar, /onToggleTechnician/);
   assert.match(calendar, /onChooseStart/);
   assert.match(calendar, /onChooseEnd/);
-  assert.match(calendar, /Confirmar horário e técnicos/);
+  assert.match(calendar, /Confirmar agendamento/);
 });
 
 test("a inclusão agendada grava equipe e horário juntos em uma transação", () => {
@@ -67,4 +67,19 @@ test("erros e sucessos dos itens da OS usam balões globais do CRM, sem caixa fi
   assert.match(section, /showFeedback\(\{ type: "success", text: start \? "Agendamento do serviço confirmado\."/);
   assert.doesNotMatch(section, /\{message && <div/);
   assert.doesNotMatch(section, /setMessage\(/);
+});
+
+test("o modal de criação é compacto, abre no dia atual e preserva seleção múltipla", () => {
+  const availabilityCalendar = read("src/features/appointments/presentation/TechnicianAvailabilityCalendar.tsx");
+  assert.match(calendar, /className="w-\[calc\(100vw-1\.5rem\)\] max-w-4xl"/);
+  assert.match(calendar, /<TechnicianAvailabilityCalendar\s+compact/);
+  assert.match(calendar, /onChangeDate=\{changeDate\}/);
+  assert.match(calendar, /setSelected\(\[technicianId\]\)/);
+  assert.match(calendar, /onToggleTechnician=\{technicianId/);
+  assert.match(availabilityCalendar, /const \[hideEmpty, setHideEmpty\] = useState\(true\)/);
+  assert.match(availabilityCalendar, /if \(compact\) return <AdminCard/);
+  assert.match(availabilityCalendar, /Horários disponíveis/);
+  assert.match(availabilityCalendar, /max-h-\[min\(40dvh,340px\)\]/);
+  assert.match(availabilityCalendar, /minutes\(time\) > minutesNow/);
+  assert.doesNotMatch(availabilityCalendar, /<CalendarDays/);
 });
