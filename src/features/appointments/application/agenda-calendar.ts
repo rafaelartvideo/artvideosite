@@ -8,14 +8,28 @@ export type AppointmentWithRelations = Appointment & {
   created_by_profile?: { id: string; full_name: string } | null;
 };
 
+export type ServiceTaskSchedule = {
+  item_id: string;
+  service_order_id: string;
+  scheduled_start_at: string;
+  scheduled_end_at: string;
+  status: string;
+  assigned_employee_id: string | null;
+  assignees?: Array<{ employee_id: string; employee?: { id: string; full_name: string } | null }>;
+  item?: { title_snapshot: string; general_service_id?: string | null } | null;
+  order?: { id: string; os_number?: string | number; customer?: { full_name: string } | null; order_status?: { id: string; color?: string | null } | null; situation?: { id: string } | null } | null;
+};
+
 export type CalendarEvent =
   | { kind: "service_order"; id: string; date: string; order: any }
+  | { kind: "service_task"; id: string; date: string; task: ServiceTaskSchedule }
   | { kind: "appointment"; id: string; date: string; appointment: AppointmentWithRelations };
 
 export type AgendaView = "availability" | "month" | "week" | "day" | "agenda";
 type AgendaFilters = {
   orders: any[];
   appointments: AppointmentWithRelations[];
+  taskSchedules: ServiceTaskSchedule[];
   search: string;
   technicianFilter: string;
   statusFilter: string;
@@ -34,7 +48,7 @@ export const parseDay = (key: string) => new Date(`${key}T00:00:00`);
 export const eventDay = (order: any) => dayKey(new Date(order.scheduled_at));
 export const eventLabel = (order: any) => (order.general_service as any)?.name || (order.service as any)?.title || "Serviço";
 
-export function filterAgendaData({ orders, appointments, search, technicianFilter, statusFilter, situationFilter, serviceFilter }: AgendaFilters) {
+export function filterAgendaData({ orders, appointments, taskSchedules, search, technicianFilter, statusFilter, situationFilter, serviceFilter }: AgendaFilters) {
   const normalizedSearch = search.trim().toLocaleLowerCase("pt-BR");
   const filteredOrders = orders.filter(order => {
     const serviceIds = [(order.service as any)?.id, (order.general_service as any)?.id].filter(Boolean);
@@ -65,15 +79,34 @@ export function filterAgendaData({ orders, appointments, search, technicianFilte
       && (!statusFilter || linkedOrder?.order_status?.id === statusFilter)
       && (!serviceFilter || appointmentServiceIds.includes(serviceFilter));
   });
+  const filteredServiceTasks = taskSchedules.filter(task => {
+    const technicians = [
+      task.assigned_employee_id,
+      ...(task.assignees || []).map(link => link.employee_id),
+    ].filter(Boolean);
+    const searchText = [task.order?.os_number, task.order?.customer?.full_name,
+      task.item?.title_snapshot, ...(task.assignees || []).map(link => link.employee?.full_name || "")]
+      .filter(Boolean).join(" ").toLocaleLowerCase("pt-BR");
+    return (!normalizedSearch || searchText.includes(normalizedSearch))
+      && (!technicianFilter || technicians.includes(technicianFilter))
+      && (!statusFilter || task.order?.order_status?.id === statusFilter)
+      && (!situationFilter || task.order?.situation?.id === situationFilter)
+      && (!serviceFilter || task.item?.general_service_id === serviceFilter);
+  });
   // A OS só é ocultada quando o agendamento vinculado também passou pelos filtros.
   const referencedOrderIds = new Set(filteredAppointments.map(item => item.service_order_id)
     .filter((id): id is string => Boolean(id)));
+  const ordersWithIndividualSchedules = new Set(taskSchedules.map(task => task.service_order_id));
   const serviceOrderEvents: CalendarEvent[] = filteredOrders
-    .filter(order => !referencedOrderIds.has(order.id))
+    .filter(order => !referencedOrderIds.has(order.id) && !ordersWithIndividualSchedules.has(order.id))
     .map(order => ({ kind: "service_order", id: order.id, date: eventDay(order), order }));
   const appointmentEvents: CalendarEvent[] = filteredAppointments.map(appointment =>
     ({ kind: "appointment" as const, id: appointment.id, date: appointment.appointment_date, appointment }));
-  return { filteredOrders, calendarEvents: [...serviceOrderEvents, ...appointmentEvents] as CalendarEvent[] };
+  const serviceTaskEvents: CalendarEvent[] = filteredServiceTasks.map(task => ({
+    kind: "service_task", id: task.item_id,
+    date: dayKey(new Date(task.scheduled_start_at)), task,
+  }));
+  return { filteredOrders, calendarEvents: [...serviceOrderEvents, ...serviceTaskEvents, ...appointmentEvents] as CalendarEvent[] };
 }
 
 export function buildAgendaDays(view: AgendaView, cursor: Date, count: number) {
