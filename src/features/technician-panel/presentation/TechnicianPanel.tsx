@@ -394,9 +394,6 @@ export function TechnicianPanel() {
         </AdminCard>)}
       </div>
       <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
-      <AdminStickyToolbar>
-        <BtnSecondary onClick={() => navigate("/admin")}>Voltar</BtnSecondary>
-      </AdminStickyToolbar>
     </> : orderLoadError && !orderDetails && !orderDetailsLoading && !loading
       ? <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 text-center">
           <p className="text-sm text-destructive">{orderLoadError}</p>
