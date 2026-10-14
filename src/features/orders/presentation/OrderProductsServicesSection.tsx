@@ -1,5 +1,5 @@
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { supabase } from "@/lib/supabase";
 import {
@@ -32,8 +32,8 @@ import {
   type OrderCommercialPricing,
 } from "../infrastructure/order-commercial-items.repository";
 import {
-  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians,
-  type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician,
+  listOrderServiceTasks, listOrderServiceTechnicians, setOrderServiceTaskTechnicians, listOrderTaskPhotos, createOrderTaskPhotoUrl,
+  type OrderServiceTask, type OrderServiceTaskStatus, type OrderServiceTechnician, type OrderTaskPhoto,
 } from "../infrastructure/order-service-tasks.repository";
 
 type ItemDraft = {
@@ -48,6 +48,7 @@ type Props = {
   canEdit: boolean;
   formatCurrency: (value: number) => string;
   onPricingChange: (pricing: OrderCommercialPricing) => void;
+  onOverviewChange?: (overview: { total: number; pending: number; inProgress: number; completed: number }) => void;
 };
 
 function positiveInteger(value: unknown) {
@@ -262,13 +263,18 @@ function TechnicianMultiPicker({
   </details>;
 }
 
-export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange }: Props) {
+export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange, onOverviewChange }: Props) {
   const editable = canEdit && !order?.completed_at && !order?.cancelled_at;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
+  const itemsRef = useRef<OrderCommercialItem[]>([]);
   const [loadingItems, setLoadingItems] = useState(true);
   const [tasks, setTasks] = useState<Record<string, OrderServiceTask>>({});
   const [technicians, setTechnicians] = useState<OrderServiceTechnician[]>([]);
   const [workflowReady, setWorkflowReady] = useState(false);
+  const [taskPhotos, setTaskPhotos] = useState<OrderTaskPhoto[]>([]);
+  const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
+  const photoUrlsRef = useRef<Record<string, { url: string; expires: number }>>({});
+  const [galleryItem, setGalleryItem] = useState<OrderCommercialItem | null>(null);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<OrderCommercialPricing>(() => pricingFromOrder(order));
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -317,16 +323,66 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setDiscountValue(String(next.discount_type === "amount" ? next.discount_amount : next.discount_percentage));
   }, [onPricingChange]);
 
+  const refreshTaskPhotos = useCallback(async () => {
+    if (!order?.id) return;
+    try {
+      const incoming = await listOrderTaskPhotos(order.id);
+      setTaskPhotos(incoming);
+      const previewPaths = incoming.filter((photo, index, all) =>
+        all.filter(other => other.item_id === photo.item_id).findIndex(other => other.id === photo.id) < 2);
+      const missing = previewPaths.filter(photo => !photoUrlsRef.current[photo.path] ||
+        photoUrlsRef.current[photo.path].expires < Date.now());
+      if (missing.length) {
+        const signed = await Promise.all(missing.map(async photo => ({
+          path: photo.path, url: await createOrderTaskPhotoUrl(photo.path),
+        })));
+        for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
+      }
+      setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
+    } catch {
+      // A OS continua funcional se a migração de leitura de fotos ainda não foi aplicada.
+    }
+  }, [order?.id]);
+
+  const openTaskGallery = async (item: OrderCommercialItem) => {
+    setGalleryItem(item);
+    const missing = taskPhotos.filter(photo => photo.item_id === item.id &&
+      (!photoUrlsRef.current[photo.path] || photoUrlsRef.current[photo.path].expires < Date.now()));
+    try {
+      const signed = await Promise.all(missing.map(async photo => ({
+        path: photo.path, url: await createOrderTaskPhotoUrl(photo.path),
+      })));
+      for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
+      setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
+    } catch (error) {
+      setMessage({ type: "error", text: systemErrorMessage(error, "Não foi possível abrir as fotos da execução.") });
+    }
+  };
+
+  const publishOverview = (nextItems: OrderCommercialItem[], nextTasks: OrderServiceTask[]) => {
+    const services = nextItems.filter(item => item.item_type !== "product");
+    const byItem = new Map(nextTasks.map(task => [task.item_id, task.status]));
+    onOverviewChange?.({
+      total: nextItems.length,
+      pending: services.filter(item => !byItem.has(item.id) || byItem.get(item.id) === "pending" || byItem.get(item.id) === "cancelled").length,
+      inProgress: services.filter(item => byItem.get(item.id) === "in_progress").length,
+      completed: services.filter(item => byItem.get(item.id) === "completed").length,
+    });
+  };
+
   const loadItems = useCallback(async (quiet = false) => {
     if (!order?.id) return;
     if (!quiet) setLoadingItems(true);
     try {
       const next = await listOrderCommercialItems(order.id);
       setItems(next);
+      itemsRef.current = next;
       setDrafts(Object.fromEntries(next.map(item => [item.id, draftFromItem(item)])));
       try {
         const nextTasks = await listOrderServiceTasks(order.id);
         setTasks(Object.fromEntries(nextTasks.map(task => [task.item_id, task])));
+        publishOverview(next, nextTasks);
+        void refreshTaskPhotos();
         setTechnicians(editable ? await listOrderServiceTechnicians(order.id) : []);
         setWorkflowReady(true);
       } catch {
@@ -340,7 +396,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     } finally {
       if (!quiet) setLoadingItems(false);
     }
-  }, [order?.id, editable]);
+  }, [order?.id, editable, refreshTaskPhotos, onOverviewChange]);
 
   // Escuta somente a OS aberta. Quando o técnico inicia/finaliza em outra sessão,
   // o Postgres Changes entrega o evento sem atualizar o editor comercial da OS.
@@ -358,6 +414,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         const next = await listOrderServiceTasks(order.id);
         if (!active) return;
         setTasks(Object.fromEntries(next.map(task => [task.item_id, task])));
+        publishOverview(itemsRef.current, next);
+        void refreshTaskPhotos();
         setWorkflowReady(true);
         lastRefreshAt = Date.now();
       } catch {
@@ -399,7 +457,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       window.removeEventListener("online", refreshOnReturn);
       void supabase.removeChannel(channel);
     };
-  }, [order?.id]);
+  }, [order?.id, refreshTaskPhotos]);
 
   useEffect(() => {
     setPricing(pricingFromOrder(order));
@@ -418,6 +476,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   ]);
 
   useEffect(() => {
+    setTaskPhotos([]);
+    setPhotoUrls({});
+    photoUrlsRef.current = {};
+    setGalleryItem(null);
     setMessage(null);
     setProductSearch("");
     setSelectedProduct(null);
@@ -734,6 +796,28 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     </div>;
   };
 
+  const renderTaskPhotoPreviews = (item: OrderCommercialItem) => {
+    const photos = taskPhotos.filter(photo => photo.item_id === item.id);
+    return <div className="min-w-0">
+      <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fotos do técnico</p>
+      {!photos.length
+        ? <span className="text-xs text-muted-foreground">Nenhuma foto enviada.</span>
+        : <div className="flex items-center gap-1.5">
+          {photos.slice(0, 2).map(photo => <button key={photo.id} type="button"
+            onClick={() => void openTaskGallery(item)} aria-label="Visualizar fotos do técnico"
+            className="h-11 w-11 shrink-0 overflow-hidden rounded-md border border-border bg-muted hover:border-primary">
+            {photoUrls[photo.path]
+              ? <img src={photoUrls[photo.path]} alt="Foto do serviço" loading="lazy" className="h-full w-full object-cover" />
+              : <Camera size={17} className="mx-auto text-muted-foreground" />}
+          </button>)}
+          {photos.length > 2 && <button type="button"
+            className="flex h-11 min-w-11 items-center justify-center rounded-md border border-border bg-muted px-2 text-xs font-bold text-foreground hover:border-primary"
+            onClick={() => void openTaskGallery(item)}
+            aria-label={"Ver outras " + (photos.length - 2) + " fotos"}>+{photos.length - 2}</button>}
+        </div>}
+    </div>;
+  };
+
   const renderTaskDetails = (item: OrderCommercialItem) => {
     const task = tasks[item.id];
     const status = task?.status || "pending";
@@ -744,7 +828,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       ["Início", task?.start_location],
       ["Conclusão", task?.finish_location],
     ] as const).filter(([, location]) => location?.lat != null && location.lng != null);
-    return <div className="grid min-w-0 gap-4 lg:grid-cols-[minmax(170px,210px)_minmax(0,1fr)_minmax(0,260px)] lg:gap-6">
+    return <div className="grid min-w-0 gap-4 sm:grid-cols-2 xl:grid-cols-[minmax(140px,.8fr)_minmax(190px,1.25fr)_minmax(160px,1fr)_minmax(120px,.8fr)] xl:gap-5">
       <div className="min-w-0">
         <p className="mb-2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Progresso</p>
         <div className="mb-2 flex items-center gap-2">
@@ -783,6 +867,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </a>)}
         </div> : <p className="text-xs text-muted-foreground">Nenhum local registrado.</p>}
       </div>
+      {renderTaskPhotoPreviews(item)}
     </div>;
   };
 
@@ -1020,22 +1105,24 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       </Section>
     </div>}
 
-    <Section title="Itens da OS" flush>
+    <Section title={<span className="inline-flex items-center gap-2">Itens da OS
+      <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{items.length}</span>
+    </span>} flush>
       {loadingItems
         ? <div className="p-5 text-sm text-muted-foreground">Carregando itens...</div>
         : items.length === 0
           ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
           : <>
             <div className="hidden xl:block">
-              <table className="w-full table-fixed border-collapse text-sm">
+              <table className="w-full table-fixed border-separate border-spacing-0 text-sm">
                 <colgroup>
-                  <col style={{ width: "24%" }} />
-                  <col style={{ width: "19%" }} />
-                  <col style={{ width: "12%" }} />
-                  <col style={{ width: "14%" }} />
-                  <col style={{ width: "14%" }} />
-                  <col style={{ width: "12%" }} />
-                  <col style={{ width: "5%" }} />
+                  <col style={{ width: "20%" }} />
+                  <col style={{ width: "18%" }} />
+                  <col style={{ width: "9%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "15%" }} />
+                  <col style={{ width: "16%" }} />
+                  <col style={{ width: "7%" }} />
                 </colgroup>
                 <thead className="bg-muted/30 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                   <tr className="border-b border-border">
@@ -1048,22 +1135,22 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     <th scope="col" className="px-2 py-3 text-center">Ações</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody>
                   {items.map(item => <Fragment key={item.id}>
-                    <tr className="align-middle transition-colors hover:bg-muted/35">
-                      <td className="min-w-0 px-5 py-4">
+                    <tr className="bg-card align-middle transition-colors hover:bg-muted/20">
+                      <td className="min-w-0 border-l border-t border-border px-3 py-3">
                         {renderItemIdentity(item)}
                       </td>
-                      <td className="px-3 py-4">{renderTechnicianColumn(item)}</td>
-                      <td className="px-3 py-4">{renderQuantity(item)}</td>
-                      <td className="px-3 py-4">{renderPrice(item)}</td>
-                      <td className="px-3 py-4">{renderAdditionalCost(item)}</td>
-                      <td className="px-3 py-4 text-right">
-                        <span className="inline-flex whitespace-nowrap bg-emerald-500/10 px-2.5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">
+                      <td className="border-t border-border px-2 py-3">{renderTechnicianColumn(item)}</td>
+                      <td className="border-t border-border px-2 py-3">{renderQuantity(item)}</td>
+                      <td className="border-t border-border px-2 py-3">{renderPrice(item)}</td>
+                      <td className="border-t border-border px-2 py-3">{renderAdditionalCost(item)}</td>
+                      <td className="border-t border-border px-2 py-3 text-right">
+                        <span className="inline-flex max-w-full whitespace-nowrap rounded-lg border border-border bg-muted/40 px-2.5 py-2 text-xs font-black text-emerald-700 dark:text-emerald-300">
                           {formatCurrency(nonNegativeNumber(item.subtotal))}
                         </span>
                       </td>
-                      <td className="px-2 py-4 text-center">
+                      <td className="border-r border-t border-border px-2 py-3 text-center">
                         <AdminIconButton
                           ariaLabel="Remover item" variant="danger"
                           disabled={!editable || savingItemId === item.id}
@@ -1071,18 +1158,20 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                         ><Trash2 size={14} /></AdminIconButton>
                       </td>
                     </tr>
-                    {item.item_type !== "product" && <tr className="bg-muted/20">
-                      <td colSpan={7} className="px-5 pb-4 pt-3">
+                    {item.item_type !== "product" && <tr className="bg-card">
+                      <td colSpan={7} className="border-b border-x border-border bg-muted/10 px-3 pb-4 pt-2">
                         {renderTaskDetails(item)}
                       </td>
                     </tr>}
+                    {item.item_type === "product" && <tr aria-hidden="true"><td colSpan={7} className="h-px border-b border-x border-border" /></tr>}
+                    <tr aria-hidden="true"><td colSpan={7} className="h-3 bg-background" /></tr>
                   </Fragment>)}
                 </tbody>
               </table>
             </div>
 
-            <div className="divide-y divide-border xl:hidden">
-              {items.map(item => <div key={item.id} className="space-y-3 p-4">
+            <div className="space-y-3 p-3 xl:hidden">
+              {items.map(item => <div key={item.id} className="space-y-3 rounded-lg border border-border bg-card p-3 sm:p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">{renderItemIdentity(item)}</div>
                   <AdminIconButton
@@ -1115,7 +1204,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     {formatCurrency(nonNegativeNumber(item.subtotal))}
                   </strong>
                 </div>
-                {item.item_type !== "product" && <div className="border-t border-border bg-muted/20 p-3">
+                {item.item_type !== "product" && <div className="bg-muted/20 p-3">
                   {renderTaskDetails(item)}
                 </div>}
               </div>)}
@@ -1202,6 +1291,23 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         </div>
       </div>
     </Section>
+
+    <AdminDialog open={Boolean(galleryItem)} onClose={() => setGalleryItem(null)}
+      title={"Fotos do serviço" + (galleryItem ? " — " + galleryItem.title_snapshot : "")}
+      description={galleryItem ? taskPhotos.filter(photo => photo.item_id === galleryItem.id).length + " fotos da execução técnica" : ""}
+      className="max-w-2xl">
+      <div className="grid max-h-[65vh] grid-cols-2 gap-3 overflow-y-auto sm:grid-cols-3">
+        {galleryItem && taskPhotos.filter(photo => photo.item_id === galleryItem.id).map((photo, index) =>
+          <a key={photo.id} href={photoUrls[photo.path] || "#"} target="_blank" rel="noreferrer"
+            onClick={event => { if (!photoUrls[photo.path]) event.preventDefault(); }}
+            className="group overflow-hidden rounded-lg border border-border bg-muted"
+            title={"Abrir foto " + (index + 1)}>
+            {photoUrls[photo.path] ? <img src={photoUrls[photo.path]} alt={"Foto " + (index + 1) + " da execução"}
+              loading="lazy" className="aspect-square w-full object-cover transition-transform group-hover:scale-105" />
+              : <div className="flex aspect-square items-center justify-center"><Camera size={24} /></div>}
+          </a>)}
+      </div>
+    </AdminDialog>
 
     <AdminDialog
       open={Boolean(editingTechnicianItem)}
