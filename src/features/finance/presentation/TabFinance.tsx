@@ -25,13 +25,13 @@ export function TabFinance({
   const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null; entryId?: string | null };
   const allowedSections = useMemo<FinanceSection[]>(() => {
     const sections: FinanceSection[] = [];
-    const canViewAccounts = hasPermission("finance.accounts.view") || hasPermission("finance.accounts.manage");
+    const canViewAccounts = hasPermission("finance.accounts.view");
     if (hasPermission("finance.dashboard.view")) sections.push("overview");
     if (hasPermission("finance.receivables.view")) sections.push("receivables");
     if (hasPermission("finance.payables.view")) sections.push("payables");
     if (canViewAccounts) sections.push("movements");
     if (canViewAccounts) sections.push("accounts");
-    if (hasPermission("finance.recurring.view") || hasPermission("finance.recurring.manage")) sections.push("recurring");
+    if (hasPermission("finance.recurring.view")) sections.push("recurring");
     if (hasPermission("finance.reports.view") && (hasPermission("finance.reports.dre") || hasPermission("finance.reports.cash_flow"))) sections.push("reports");
     if (hasPermission("finance.view")) sections.push("registries");
     return sections;
