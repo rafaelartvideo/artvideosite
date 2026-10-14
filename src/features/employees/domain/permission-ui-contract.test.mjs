@@ -5,14 +5,63 @@ import { readFileSync } from "node:fs";
 const read = path => readFileSync(path, "utf8");
 const taxonomy = await import("./permission-taxonomy.ts");
 
-test("visualizações, ações e colunas são categorias distintas", () => {
+test("tabelas e suas colunas pertencem à Visualização; operações pertencem a Ações", () => {
   assert.equal(taxonomy.permissionPresentationKind({ key: "orders.details.view" }), "visual");
   assert.equal(taxonomy.permissionPresentationKind({ key: "orders.section.images" }), "visual");
   assert.equal(taxonomy.permissionPresentationKind({ key: "agenda.create" }), "actions");
-  assert.equal(taxonomy.permissionPresentationKind({ key: "orders.table.customer" }), "columns");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "orders.table.customer" }), "visual");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "orders.table.actions" }), "visual");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "equipment.technical_fields.column.actions" }), "visual");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "customers.table.actions" }), "visual");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "inventory.table.actions" }), "visual");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "roles.table.actions" }), "visual");
   assert.equal(taxonomy.permissionPresentationKind({ key: "orders.table.view" }), "visual");
   assert.equal(taxonomy.permissionPresentationKind({ key: "technician_panel.data.customer" }), "visual");
   assert.equal(taxonomy.permissionPresentationKind({ key: "technician_panel.actions.photo" }), "actions");
+});
+
+test("toda permissão de coluna aparece em Visualização, com rótulo explícito", () => {
+  for (const key of [
+    "orders.table.actions", "orders.table.status",
+    "customers.table.email", "quotes.table.customer", "documents.table.status",
+    "equipment.table.models", "equipment.technical_fields.column.actions",
+    "inventory.table.sale_price", "services.table.featured",
+    "categories.table.sort_order", "roles.table.permissions",
+  ]) {
+    assert.equal(taxonomy.permissionPresentationKind({ key }), "visual", key);
+  }
+  assert.equal(taxonomy.permissionLabelForEditor({ key: "orders.table.actions", label: "Ações" }), "Coluna Ações");
+  assert.equal(taxonomy.permissionLabelForEditor({ key: "orders.table.view", label: "Visualizar tabela de OS" }), "Visualizar tabela de OS");
+  assert.equal(taxonomy.permissionLabelForEditor({ key: "orders.table.customer", label: "Cliente" }), "Coluna Cliente");
+});
+
+test("colunas de OS aparecem exclusivamente na seção Tabela dentro de Visualização", () => {
+  const keys = [
+    "orders.view", "orders.table.view", "orders.table.actions",
+    "orders.table.customer", "orders.details.view", "orders.create", "orders.edit",
+    "inventory.table.actions", "inventory.table.view",
+  ];
+  const groups = taxonomy.buildPermissionGroups(keys.map((key, i) => ({
+    id: String(i), key, label: key,
+  })));
+  const orders = groups.find(group => group.name === "Ordens de Serviço");
+  assert.ok(orders);
+  assert.deepEqual(
+    new Set(orders.sections.find(section => section.name === "Tabela")?.permissions.map(p => p.key)),
+    new Set(["orders.table.view", "orders.table.actions", "orders.table.customer"]),
+  );
+  assert.equal(taxonomy.permissionPresentationKind({ key: "orders.create" }), "actions");
+  assert.equal(taxonomy.permissionPresentationKind({ key: "orders.edit" }), "actions");
+  const inventory = groups.find(group => group.name === "Estoque");
+  assert.ok(inventory?.sections.some(section => section.name === "Tabela"));
+});
+
+test("existe uma única entrada visual para tabela e nenhuma aba de colunas separada", () => {
+  const matrix = read("src/features/roles/presentation/PermissionMatrix.tsx");
+  assert.match(matrix, /Visualização/);
+  assert.match(matrix, /Ações/);
+  assert.doesNotMatch(matrix, /Colunas das tabelas/);
+  assert.match(matrix, /permissionLabelForEditor/);
 });
 
 test("o formulário nunca salva permissões da função antes de carregá-las", () => {
