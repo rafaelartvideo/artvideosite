@@ -14,6 +14,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   announcements: "/admin/announcements",
   quotes: "/admin/quotes",
   orders: "/admin/orders",
+  technicianPanel: "/admin/technician-panel",
   agenda: "/admin/agenda",
   fieldTracking: "/admin/field-map",
   customers: "/admin/customers",
