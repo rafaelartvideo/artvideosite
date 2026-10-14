@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { Check, History, Play, WifiOff } from "lucide-react";
+import { Check, History, Pencil, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
@@ -490,7 +490,7 @@ export function TechnicianPanel() {
         </Section>}
         {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section title="Diagnóstico"
           actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
-            ? <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}>Editar</BtnSecondary>
+            ? <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}><Pencil size={16} className="shrink-0" aria-hidden="true" /><span>Editar</span></BtnSecondary>
             : undefined}>
           <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
         </Section>}
@@ -598,14 +598,14 @@ export function TechnicianPanel() {
       <AdminStickyToolbar className="!flex-nowrap !gap-2 !px-2 sm:!gap-3 sm:!px-5">
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
         {detailTab === "products-services" && selected.status === "pending" && canStart &&
-          <BtnPrimary className="max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0"
+          <BtnPrimary className="max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0"
             disabled={busy || uploading || !online} loading={busy}
             onClick={() => void runWithGps("start")}>
             <Play size={18} className="sm:hidden" aria-hidden="true" />
             <span className="sr-only sm:not-sr-only">Iniciar serviço</span>
           </BtnPrimary>}
         {detailTab === "products-services" && selected.status === "in_progress" && canComplete &&
-          <BtnPrimary className="max-sm:!h-10 max-sm:!w-10 max-sm:!shrink-0 max-sm:!px-0"
+          <BtnPrimary className="max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0"
             disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
             onClick={() => void runWithGps("finish")}>
             <Check size={18} className="sm:hidden" aria-hidden="true" />
