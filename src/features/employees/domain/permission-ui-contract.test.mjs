@@ -160,7 +160,7 @@ test("Painel do Técnico segue orders e não exige módulo técnico inexistente"
 
 test("o formulário nunca salva permissões da função antes de carregá-las", () => {
   const editor = read("src/features/roles/presentation/TabRoles.tsx");
-  assert.match(editor, /disabled=\{!permissionListReady\}/);
+  assert.match(editor, /disabled=\{!permissionListReady \|\| !catalogReady\}/);
   assert.match(editor, /saving \|\| !permissionListReady/);
   assert.match(editor, /saveRolePermissions\(/);
   assert.doesNotMatch(editor, /await addRolePermission\(/);
@@ -217,7 +217,7 @@ test("Painel do Técnico aparece no catálogo usando o módulo orders", () => {
 
 test("cada módulo reúne visualização e ações sem abas globais de permissão", () => {
   const matrix = read("src/features/roles/presentation/PermissionMatrix.tsx");
-  assert.match(matrix, /choices\.map\(category/);
+  assert.match(matrix, /kinds\.map\(kind/);
   assert.match(matrix, /group\.sections\.map/);
   assert.doesNotMatch(matrix, /role="tablist"/);
 });
