@@ -76,13 +76,13 @@ begin
     'customer_address',case
       when private.can_access_technician_order_v1(ord.id,'technician_panel.data.address')
       then jsonb_build_object(
-        'street',coalesce(nullif(ord.service_street,''),customer_address.street),
-        'number',coalesce(nullif(ord.service_number,''),customer_address.number),
-        'complement',coalesce(nullif(ord.service_complement,''),customer_address.complement),
-        'neighborhood',coalesce(nullif(ord.service_neighborhood,''),customer_address.neighborhood),
-        'city',coalesce(nullif(ord.service_city,''),customer_address.city),
-        'state',coalesce(nullif(ord.service_state,''),customer_address.state),
-        'zip_code',coalesce(nullif(ord.service_zip_code,''),customer_address.zip_code)
+        'street',customer_address.street,
+        'number',customer_address.number,
+        'complement',customer_address.complement,
+        'neighborhood',customer_address.neighborhood,
+        'city',customer_address.city,
+        'state',customer_address.state,
+        'zip_code',customer_address.zip_code
       ) else null end,
     'equipment_photos',case
       when private.can_access_technician_order_v1(ord.id,'technician_panel.data.equipment')
@@ -94,7 +94,7 @@ begin
         from public.service_order_media link
         join public.media media on media.id=link.media_id and media.bucket_id='service-images'
         where link.service_order_id=ord.id
-          and media.organization_id=ord.organization_id
+          and (media.organization_id=ord.organization_id or media.organization_id is null)
           and link.sort_order < 1000
       ),'[]'::jsonb) else '[]'::jsonb end,
     'internal_notes',case
@@ -142,7 +142,7 @@ as $
     select 1 from public.media media
     join public.service_order_media link on link.media_id=media.id
     join public.service_orders ord on ord.id=link.service_order_id
-      and ord.organization_id=media.organization_id
+      and (ord.organization_id=media.organization_id or media.organization_id is null)
     where media.bucket_id='service-images'
       and media.storage_path=p_name
       and link.sort_order < 1000
@@ -151,6 +151,10 @@ as $
 $;
 revoke all on function private.can_view_technician_order_equipment_photo_v1(text) from public,anon;
 grant execute on function private.can_view_technician_order_equipment_photo_v1(text) to authenticated;
+
+-- Edição de problema e observações internas segue exclusiva da OS regular.
+-- Mantemos a leitura técnica permitida, mas retiramos a operação do painel.
+revoke execute on function public.update_my_technician_order_note_v1(uuid,text,text) from authenticated;
 
 drop policy if exists technician_assigned_order_equipment_photo_select_v1 on storage.objects;
 create policy technician_assigned_order_equipment_photo_select_v1
