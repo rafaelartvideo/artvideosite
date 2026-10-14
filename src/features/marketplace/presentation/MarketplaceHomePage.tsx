@@ -37,6 +37,7 @@ export function MarketplaceHomePage() {
   const [stores, setStores] = useState<MarketplaceStore[]>([]);
   const [detail, setDetail] = useState<MarketplaceListing | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [resolvedListingId, setResolvedListingId] = useState<string | null>(null);
   const [detailError, setDetailError] = useState("");
   const [categories, setCategories] = useState<MarketplaceCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,16 +72,18 @@ export function MarketplaceHomePage() {
     if (!listingId) {
       setDetail(null);
       setDetailLoading(false);
+      setResolvedListingId(null);
       setDetailError("");
       return () => { active = false; };
     }
     setDetail(null);
+    setResolvedListingId(null);
     setDetailLoading(true);
     setDetailError("");
     void loadPublicMarketplaceListing(listingId)
       .then(item => { if (active) setDetail(item); })
       .catch(() => { if (active) setDetailError("Não foi possível carregar este anúncio."); })
-      .finally(() => { if (active) setDetailLoading(false); });
+      .finally(() => { if (active) { setResolvedListingId(listingId); setDetailLoading(false); } });
     return () => { active = false; };
   }, [listingId]);
 
@@ -152,7 +155,7 @@ export function MarketplaceHomePage() {
       {notice && <div role="status" className="flex items-center justify-between gap-4 rounded-lg border border-[#c8d1f5] bg-[#eef1ff] px-4 py-3 text-sm text-[#233d91]">{notice}<button onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={18} /></button></div>}
       {loading ? <div className="py-20 text-center text-sm text-[#66758e]">Carregando catálogo...</div> :
       error ? <div className="rounded-xl bg-white p-10 text-center text-sm text-red-700">{error}</div> :
-      listingId && detailLoading ? <div className="flex min-h-[55vh] items-center justify-center text-sm text-[#66758e]" role="status">Carregando anúncio...</div> :
+      listingId && (detailLoading || resolvedListingId !== listingId) ? <div className="flex min-h-[55vh] items-center justify-center text-sm text-[#66758e]" role="status">Carregando anúncio...</div> :
       listingId && (detailError || !detail) ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
         <h1 className="text-lg font-black">{detailError || "Anúncio indisponível"}</h1>
         <p className="mt-2 text-sm text-[#768399]">Este anúncio pode ter sido pausado ou retirado da vitrine.</p>
