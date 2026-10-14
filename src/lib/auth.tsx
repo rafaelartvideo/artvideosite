@@ -175,14 +175,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const organizationId = activeOrganization?.organization_id;
     if (!session?.user?.id || !organizationId) return;
-    let lastCheck = Date.now();
+    // Conferir assim que a aba voltar a receber foco, sem polling contínuo.
+    // A checagem anterior aguardava 120s e mantinha menus já revogados visíveis.
+    let lastCheck = 0;
     let disposed = false;
     let inFlight = false;
 
     const checkPermissionsOnReturn = async () => {
       if (document.visibilityState !== "visible" || inFlight) return;
       const now = Date.now();
-      if (now - lastCheck < 120_000) return;
+      if (now - lastCheck < 10_000) return;
       lastCheck = now;
       inFlight = true;
       try {
