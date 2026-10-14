@@ -298,11 +298,11 @@ test("ações do mobile são mais largas e ocultam o ícone original durante o l
   const catalogUi = read("src/features/technician-panel/presentation/TechnicianOrderItemsSection.tsx");
   const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="!flex-nowrap'));
 
-  assert.match(layout, /mobileBackOnly && "max-sm:!h-10 max-sm:!w-\\[72px\\]/);
-  assert.match(toolbar, /max-sm:!w-\\[72px\\] max-sm:!min-w-\\[72px\\]/);
-  assert.match(layout, /resolvedLoading \\? <><ButtonLoadingSpinner \\/>\\{loadingText \\?\\? null\\}<\\/> : renderedChildren/);
-  assert.match(panel, /<Pencil size=\\{16\\} className="shrink-0" aria-hidden="true" \\/><span>Editar<\\/span>/);
-  assert.match(catalogUi, /<Plus size=\\{16\\} className="shrink-0" aria-hidden="true" \\/><span>Adicionar novo<\\/span>/);
+  assert.ok(layout.includes('mobileBackOnly && "max-sm:!h-10 max-sm:!w-[72px]'));
+  assert.ok(toolbar.includes('max-sm:!w-[72px] max-sm:!min-w-[72px]'));
+  assert.ok(layout.includes('{resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? null}</> : renderedChildren}'));
+  assert.ok(panel.includes('<Pencil size={16} className="shrink-0" aria-hidden="true" /><span>Editar</span>'));
+  assert.ok(catalogUi.includes('<Plus size={16} className="shrink-0" aria-hidden="true" /><span>Adicionar novo</span>'));
 });
 
 test("OS técnica não exibe tag nem permite alterar situação", () => {
