@@ -46,6 +46,7 @@ export type Registration = {
     profile_id: string | null;
     is_active: boolean;
     field_tracking_prompt_on_login: boolean;
+    disable_inactivity_logout?: boolean;
   } | null;
   addresses?: Array<{
     id: string;
@@ -156,7 +157,22 @@ export async function getRegistration(organizationId: string, id: string) {
     .eq("organization_id", organizationId)
     .eq("id", id)
     .maybeSingle();
-  return { ...result, data: normalizeRegistration(result.data) };
+  const registration = normalizeRegistration(result.data) as Registration | null;
+  if (result.error || !registration?.legacy_employee_id || !registration.legacy_employee) {
+    return { ...result, data: registration };
+  }
+
+  // Compatibilidade até a migração ser aplicada no banco real do CRM.
+  const setting = await supabase
+    .from("employees")
+    .select("disable_inactivity_logout")
+    .eq("organization_id", organizationId)
+    .eq("id", registration.legacy_employee_id)
+    .maybeSingle();
+  if (!setting.error && setting.data) {
+    registration.legacy_employee.disable_inactivity_logout = setting.data.disable_inactivity_logout === true;
+  }
+  return { ...result, data: registration };
 }
 
 export async function findRegistrationByDocument(
@@ -235,6 +251,19 @@ export async function setEmployeeFieldTrackingPrompt(
     p_organization_id: organizationId,
     p_employee_id: employeeId,
     p_prompt: required,
+  });
+  return result.error ? { ...result, error: normalizeError(result.error) } : result;
+}
+
+export async function setEmployeeInactivityLogoutDisabled(
+  organizationId: string,
+  employeeId: string,
+  disabled: boolean,
+) {
+  const result = await supabase.rpc("set_employee_inactivity_logout_disabled_v1", {
+    p_organization_id: organizationId,
+    p_employee_id: employeeId,
+    p_disabled: disabled,
   });
   return result.error ? { ...result, error: normalizeError(result.error) } : result;
 }
