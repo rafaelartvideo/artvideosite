@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
 import { TechnicianAvailabilityCalendar } from "@/features/appointments/presentation/TechnicianAvailabilityCalendar";
+import { dayKey } from "@/features/appointments/application/agenda-calendar";
 import type { OrderServiceTechnician } from "../infrastructure/order-service-tasks.repository";
 
 export type ServiceScheduleDraft = {
@@ -47,7 +48,7 @@ export function OrderServiceScheduleDraftDialog({
     if (!open) return;
     const from = initial ? saoPauloDate(initial.startAt) : { date: "", time: "" };
     const to = initial ? saoPauloDate(initial.endAt) : { date: "", time: "" };
-    setDate(from.date);
+    setDate(from.date || dayKey(new Date()));
     setStart(from.time);
     setEnd(to.time);
     setSelected(initial?.technicianIds || []);
@@ -56,6 +57,13 @@ export function OrderServiceScheduleDraftDialog({
   const selectedNames = useMemo(() => technicians
     .filter(technician => selected.includes(technician.id))
     .map(technician => technician.name), [selected, technicians]);
+
+  const changeDate = (nextDate: string) => {
+    setDate(nextDate);
+    setStart("");
+    setEnd("");
+    setSelected([]);
+  };
 
   const valid = Boolean(date && start && end && end > start && selected.length &&
     selected.every(id => technicians.some(person => person.id === id)) &&
@@ -68,22 +76,24 @@ export function OrderServiceScheduleDraftDialog({
     onConfirm({ startAt, endAt, technicianIds: selected });
   };
 
-  return <AdminDialog open={open} title="Agendar serviço" description={title} className="max-w-6xl"
-    onClose={onClose} footer={<div className="flex w-full flex-wrap justify-end gap-2">
+  return <AdminDialog open={open} title="Agendar serviço" description={title}
+    className="w-[calc(100vw-1.5rem)] max-w-4xl" bodyClassName="p-3 sm:p-4"
+    onClose={onClose} footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
       <BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>
-      <BtnPrimary disabled={!valid} onClick={confirm}>Confirmar horário e técnicos</BtnPrimary>
+      <BtnPrimary disabled={!valid} onClick={confirm}>Confirmar agendamento</BtnPrimary>
     </div>}>
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        Escolha um dia e horário disponível. Os técnicos marcados serão designados automaticamente ao serviço e a equipe ficará bloqueada enquanto houver agendamento.
-      </p>
-      <div className="max-w-60">
-        <FInput label="Dia do agendamento" type="date" value={date}
-          onChange={(event: ChangeEvent<HTMLInputElement>) => {
-            setDate(event.target.value); setStart(""); setEnd(""); setSelected([]);
-          }} />
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div className="w-full max-w-[230px]">
+          <FInput label="Dia do agendamento" type="date" min={dayKey(new Date())} value={date}
+            onChange={(event: ChangeEvent<HTMLInputElement>) => changeDate(event.target.value)} />
+        </div>
+        <p className="text-xs text-muted-foreground sm:pb-2">
+          Escolha o dia, o horário e quem realizará o serviço.
+        </p>
       </div>
       <TechnicianAvailabilityCalendar
+        compact
         organizationId={organizationId}
         technicians={technicians.map(person => ({ id: person.id, full_name: person.name }))}
         date={date || undefined}
@@ -91,6 +101,7 @@ export function OrderServiceScheduleDraftDialog({
         selectedEnd={end}
         selectedTechnicianIds={selected}
         exceptOrderId={orderId}
+        onChangeDate={changeDate}
         onChooseStart={(selectedDate, time, technicianId) => {
           setDate(selectedDate);
           setStart(time);
@@ -105,10 +116,9 @@ export function OrderServiceScheduleDraftDialog({
           setEnd("");
         }}
       />
-      {date && start && end && selected.length > 0 && <p className="text-sm font-semibold text-primary">
+      {date && start && end && selected.length > 0 && <p role="status" className="rounded-md border border-primary/15 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
         {date.split("-").reverse().join("/")} · {start} às {end} · {selectedNames.join(", ")}
       </p>}
-      {!technicians.length && <p className="text-sm text-muted-foreground">Nenhum técnico ativo disponível para agendamento.</p>}
     </div>
   </AdminDialog>;
 }
