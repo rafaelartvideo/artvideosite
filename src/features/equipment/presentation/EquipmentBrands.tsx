@@ -63,7 +63,12 @@ export function EquipmentBrandSelector({ draft, choices, canEdit, canCreate, onT
   for (const brand of draft.brands) allChoices.set(brandKey(brand.name), { name: brand.name });
   const visibleChoices = [...allChoices.values()]
     .filter(option => brandKey(option.name).includes(brandKey(search)))
-    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+    .sort((a, b) => {
+      const aSelected = draft.brands.some(brand => brandKey(brand.name) === brandKey(a.name) && brand.is_active);
+      const bSelected = draft.brands.some(brand => brandKey(brand.name) === brandKey(b.name) && brand.is_active);
+      return Number(bSelected) - Number(aSelected)
+        || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" });
+    });
 
   return <div className="space-y-4">
     <div className="relative">
