@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { ClipboardList, MapPin, WifiOff } from "lucide-react";
+import { MapPin, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminCard, AdminCardContent, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -345,7 +345,7 @@ export function TechnicianPanel() {
             <BtnSecondary onClick={() => cameraInputRef.current?.click()} disabled={!online || busy || uploading} loading={uploading}>Abrir câmera</BtnSecondary>
             <BtnSecondary onClick={() => galleryInputRef.current?.click()} disabled={!online || busy || uploading} loading={uploading}>Selecionar imagem</BtnSecondary>
           </div>}
-          <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only"
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only"
             aria-label="Capturar foto com a câmera" disabled={!online || uploading || busy} onChange={event => void onUpload(event)} />
           <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="sr-only"
             aria-label="Selecionar imagens do dispositivo" disabled={!online || uploading || busy} onChange={event => void onUpload(event)} />
