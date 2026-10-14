@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { Camera, CheckCircle2, ClipboardList, MapPin, RefreshCw, WifiOff } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useLocation, useMatch, useNavigate } from "react-router";
+import { ClipboardList, MapPin, WifiOff } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminCard, AdminCardContent } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   captureTechnicianLocation, finishMyTechnicianTask, getTechnicianPhotoSignedUrl,
@@ -49,8 +51,14 @@ function LocationRecord({ value, label }: { value: TechnicianLocation | null; la
 
 export function TechnicianPanel() {
   const { activeOrganizationId, hasPermission } = useAuth();
+  const navigate = useNavigate();
+  const { search } = useLocation();
+  const orderMatch = useMatch("/admin/technician-panel/os/:orderId");
+  const routeOrderId = orderMatch?.params.orderId || null;
+  const routeServiceId = new URLSearchParams(search).get("service");
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TechnicianTask[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [report, setReport] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -65,8 +73,16 @@ export function TechnicianPanel() {
   const canSendPhotos = hasPermission("technician_panel.actions.photo");
   const canSeePhotos = hasPermission("technician_panel.data.photos");
   const canSeeLocation = hasPermission("technician_panel.data.location");
-  const selected = items.find(item => item.item_id === selectedId) || null;
-  const openTasks = useMemo(() => items.filter(item => item.status === "pending" || item.status === "in_progress"), [items]);
+  const assignedOrders = useMemo(() => {
+    const grouped = new Map<string, TechnicianTask[]>();
+    for (const item of items) grouped.set(item.service_order_id, [...(grouped.get(item.service_order_id) || []), item]);
+    return Array.from(grouped.values());
+  }, [items]);
+  const orderServices = useMemo(() => routeOrderId
+    ? items.filter(item => item.service_order_id === routeOrderId) : [], [items, routeOrderId]);
+  const selected = orderServices.find(item => item.item_id === routeServiceId) || orderServices[0] || null;
+  const selectedId = selected?.item_id || null;
+  const openService = (item: TechnicianTask) => navigate("/admin/technician-panel/os/" + encodeURIComponent(item.service_order_id) + "?service=" + encodeURIComponent(item.item_id));
 
   const refresh = useCallback(async (showLoading = false) => {
     if (!activeOrganizationId) {
@@ -78,7 +94,6 @@ export function TechnicianPanel() {
     try {
       const list = await loadMyTechnicianTasks(activeOrganizationId);
       setItems(list);
-      setSelectedId(current => current && list.some(item => item.item_id === current) ? current : null);
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar seus serviços.") });
     } finally {
@@ -88,7 +103,6 @@ export function TechnicianPanel() {
 
   useEffect(() => {
     setItems([]);
-    setSelectedId(null);
     setNotice(null);
     void refresh(true);
   }, [refresh]);
@@ -180,148 +194,184 @@ export function TechnicianPanel() {
     }
   };
 
+  const address = selected?.service_address;
+  const formattedAddress = address ? [
+    [address.street, address.number].filter(Boolean).join(", "),
+    address.complement,
+    address.neighborhood,
+    [address.city, address.state].filter(Boolean).join(" / "),
+    address.zip_code ? "CEP " + address.zip_code : null,
+  ].filter(Boolean).join(" — ") : "";
+
+  const info = (label: string, value: string | number | null | undefined) =>
+    value ? <div className="min-w-0">
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="break-words text-sm font-semibold text-foreground">{value}</p>
+    </div> : null;
+
   return <div className="mx-auto max-w-6xl space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 className="text-xl font-black text-foreground sm:text-2xl">Painel do Técnico</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Seus serviços atribuídos, execução e registros técnicos.</p>
+    <PageHeader
+      eyebrow="Atendimento"
+      title={routeOrderId ? (selected ? "OS " + selected.os_number : "Ordem de Serviço") : "Painel do Técnico"}
+      subtitle={routeOrderId
+        ? "Dados e serviços da OS atribuídos a você, conforme suas permissões."
+        : "Ordens de serviço com atividades atribuídas a você."}
+      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined}
+    />
+
+    {notice && <div role="status" className={notice.kind === "error"
+      ? "border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-700"
+      : "border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-700"}>{notice.text}</div>}
+
+    {!routeOrderId ? <>
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        {[
+          { name: "Pendentes", count: items.filter(item => item.status === "pending").length },
+          { name: "Em andamento", count: items.filter(item => item.status === "in_progress").length },
+          { name: "Concluídos", count: items.filter(item => item.status === "completed").length },
+        ].map(card => <AdminCard key={card.name}><AdminCardContent className="p-3 sm:p-4">
+          <p className="text-[11px] font-semibold text-muted-foreground">{card.name}</p>
+          <p className="mt-1 text-2xl font-black text-foreground">{card.count}</p>
+        </AdminCardContent></AdminCard>)}
       </div>
-      <div className="flex items-center gap-2">
-        {!online && <span className="flex items-center gap-1 border border-amber-500/30 px-2 py-1 text-xs text-amber-700">
-          <WifiOff size={13} /> Sem internet
-        </span>}
-        <AdminButton variant="secondary" onClick={() => void refresh(true)} disabled={busy || uploading || loading}>
-          <RefreshCw size={15} /> Atualizar
-        </AdminButton>
-      </div>
-    </div>
 
-    {notice && <div role="status" className={`border px-3 py-2 text-sm ${notice.kind === "error"
-      ? "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300"
-      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"}`}>{notice.text}</div>}
+      <Section title="Minhas ordens de serviço" description="Abra a OS para consultar os dados e executar os serviços atribuídos." flush>
+        {loading ? <p className="p-6 text-sm text-muted-foreground">Carregando suas ordens de serviço...</p>
+          : !assignedOrders.length ? <p className="p-6 text-sm text-muted-foreground">Nenhum serviço foi atribuído a você nesta empresa.</p>
+          : <div className="divide-y divide-border">
+            {assignedOrders.map(services => {
+              const first = services[0];
+              const inProgress = services.filter(item => item.status === "in_progress").length;
+              const pending = services.filter(item => item.status === "pending").length;
+              return <button key={first.service_order_id} type="button" onClick={() => openService(first)}
+                className="flex w-full cursor-pointer flex-col gap-2 px-4 py-4 text-left transition-colors hover:bg-muted/50 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-foreground">OS {first.os_number}</p>
+                  <p className="mt-1 break-words text-xs font-medium text-muted-foreground">{services.map(item => item.title).join(" · ")}</p>
+                  {first.customer_name && <p className="mt-1 text-xs text-muted-foreground">{first.customer_name}</p>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {inProgress > 0 && <span className={"border px-2 py-1 text-xs font-bold " + STATUS_CLASS.in_progress}>{inProgress} em andamento</span>}
+                  {pending > 0 && <span className={"border px-2 py-1 text-xs font-bold " + STATUS_CLASS.pending}>{pending} pendente{pending > 1 ? "s" : ""}</span>}
+                  {!inProgress && !pending && <span className="text-xs text-muted-foreground">{services.length} serviço{services.length > 1 ? "s" : ""}</span>}
+                  <span className="text-xs font-bold text-primary">Abrir OS</span>
+                </div>
+              </button>;
+            })}
+          </div>}
+      </Section>
 
-    <div className="grid grid-cols-3 gap-2 sm:gap-4">
-      {[
-        { name: "Pendentes", count: items.filter(item => item.status === "pending").length },
-        { name: "Em andamento", count: items.filter(item => item.status === "in_progress").length },
-        { name: "Concluídos", count: items.filter(item => item.status === "completed").length },
-      ].map(card => <AdminCard key={card.name}><AdminCardContent className="p-3 sm:p-4">
-        <p className="text-[11px] font-semibold text-muted-foreground">{card.name}</p>
-        <p className="mt-1 text-2xl font-black text-foreground">{card.count}</p>
-      </AdminCardContent></AdminCard>)}
-    </div>
+      <AdminStickyToolbar>
+        <BtnSecondary onClick={() => void refresh(true)} disabled={busy || uploading || loading} loading={loading}>Atualizar</BtnSecondary>
+      </AdminStickyToolbar>
+    </> : !selected ? <>
+      <Section title="Ordem de Serviço não disponível">
+        <p className="text-sm text-muted-foreground">{loading
+          ? "Verificando as suas atribuições..."
+          : "Esta OS não possui serviços atribuídos a você nesta empresa."}</p>
+      </Section>
+      <AdminStickyToolbar>
+        <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
+      </AdminStickyToolbar>
+    </> : <>
+      <Section title="Dados da OS" description="Somente informações autorizadas para o seu perfil.">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {info("Cliente", selected.customer_name)}
+          {info("Contato", selected.customer_contact)}
+          {info("Equipamento", selected.equipment)}
+          {info("Modelo", selected.equipment_model)}
+          {info("Número de série", selected.serial_number)}
+          {info("Agendamento", selected.scheduled_at ? formatDate(selected.scheduled_at) : null)}
+          {info("Endereço", formattedAddress)}
+        </div>
+      </Section>
 
-    <div className="grid gap-4 lg:grid-cols-[minmax(280px,360px)_minmax(0,1fr)]">
-      <AdminCard>
-        <AdminCardContent className="p-3 sm:p-4">
-          <h2 className="mb-3 flex items-center gap-2 text-sm font-black"><ClipboardList size={17} /> Serviços atribuídos ({items.length})</h2>
-          {loading ? <p className="py-8 text-center text-sm text-muted-foreground">Carregando serviços...</p>
-            : !items.length ? <p className="py-8 text-center text-sm text-muted-foreground">Nenhum serviço atribuído a você nesta empresa.</p>
-              : <div className="max-h-[65vh] space-y-2 overflow-y-auto">
-                {[...openTasks, ...items.filter(item => item.status === "completed" || item.status === "cancelled")].map(item => (
-                  <button key={item.item_id} type="button"
-                    onClick={() => { setSelectedId(item.item_id); setNotice(null); }}
-                    className={`w-full border p-3 text-left transition-colors hover:border-primary/50 ${selectedId === item.item_id ? "border-primary bg-primary/5" : "border-border bg-card"}`}>
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="text-xs font-black text-foreground">OS {item.os_number}</span>
-                      <span className={`shrink-0 border px-1.5 py-0.5 text-[10px] font-bold ${STATUS_CLASS[item.status]}`}>{STATUS_LABEL[item.status]}</span>
-                    </div>
-                    <p className="mt-2 text-sm font-bold text-foreground">{item.title}</p>
-                    {item.customer_name && <p className="mt-1 truncate text-xs text-muted-foreground">{item.customer_name}</p>}
-                  </button>
-                ))}
-              </div>}
-        </AdminCardContent>
-      </AdminCard>
+      {selected.problem && <Section title="Descrição do problema">
+        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem}</p>
+      </Section>}
+      {selected.diagnosis && <Section title="Diagnóstico">
+        <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.diagnosis}</p>
+      </Section>}
 
-      <AdminCard>
-        <AdminCardContent className="space-y-4 p-4 sm:p-5">
-          {!selected ? <div className="flex min-h-[240px] flex-col items-center justify-center gap-3 text-center text-muted-foreground">
-            <ClipboardList size={30} />
-            <p className="text-sm">Selecione um serviço para ver os dados permitidos da OS e registrar a execução.</p>
-          </div> : <>
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4">
-              <div>
-                <p className="text-xs font-semibold text-muted-foreground">OS {selected.os_number}</p>
-                <h2 className="mt-1 text-lg font-black text-foreground">{selected.title}</h2>
-              </div>
-              <span className={`border px-2.5 py-1 text-xs font-bold ${STATUS_CLASS[selected.status]}`}>{STATUS_LABEL[selected.status]}</span>
-            </div>
+      <Section title="Serviços atribuídos nesta OS" description="Cada serviço possui andamento independente da situação geral da OS.">
+        <div className="grid gap-2 sm:grid-cols-2">
+          {orderServices.map(service => <button key={service.item_id} type="button" onClick={() => openService(service)}
+            aria-pressed={service.item_id === selectedId}
+            className={"flex min-w-0 cursor-pointer flex-col gap-2 border p-3 text-left transition-colors hover:border-primary/60 " + (service.item_id === selectedId ? "border-primary bg-primary/5" : "border-border bg-card")}>
+            <span className="break-words text-sm font-bold text-foreground">{service.title}</span>
+            <span className={"self-start border px-2 py-1 text-[10px] font-bold " + STATUS_CLASS[service.status]}>{STATUS_LABEL[service.status]}</span>
+          </button>)}
+        </div>
+      </Section>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {selected.customer_name && <div><p className="text-xs text-muted-foreground">Cliente</p><strong className="text-sm">{selected.customer_name}</strong></div>}
-              {selected.customer_contact && <div><p className="text-xs text-muted-foreground">Contato</p><strong className="text-sm">{selected.customer_contact}</strong></div>}
-              {selected.equipment && <div><p className="text-xs text-muted-foreground">Equipamento</p><strong className="text-sm">{selected.equipment}</strong></div>}
-              {selected.scheduled_at && <div><p className="text-xs text-muted-foreground">Agendamento</p><strong className="text-sm">{formatDate(selected.scheduled_at)}</strong></div>}
-            </div>
-            {selected.description && <div className="border-t border-border pt-3">
-              <p className="text-xs font-semibold text-muted-foreground">Descrição do serviço</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm">{selected.description}</p>
-            </div>}
-            {selected.diagnosis && <div className="border-t border-border pt-3">
-              <p className="text-xs font-semibold text-muted-foreground">Diagnóstico</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm">{selected.diagnosis}</p>
-            </div>}
-
-            {canSeeLocation && <div className="space-y-3 border-t border-border pt-3">
-              <LocationRecord value={selected.start_location} label="Local de início" />
-              <LocationRecord value={selected.finish_location} label="Local de conclusão" />
-            </div>}
-
-            {selected.status === "pending" && canStart && <div className="space-y-2 border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground">Para iniciar, permita a localização precisa no navegador. O ponto e o horário serão registrados na OS.</p>
-              <AdminButton disabled={busy || !online} loading={busy} onClick={() => void runWithGps("start")}>
-                <MapPin size={15} /> Iniciar serviço
-              </AdminButton>
-            </div>}
-
-            {selected.status === "in_progress" && <div className="space-y-4 border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground">Iniciado em {formatDate(selected.started_at)}</p>
-              {canComplete && <div>
-                <label htmlFor="technician-report" className="mb-1.5 block text-xs font-bold text-foreground">O que foi realizado? *</label>
-                <textarea id="technician-report" value={report} onChange={event => setReport(event.target.value)}
-                  rows={5} maxLength={10000} placeholder="Descreva detalhadamente o serviço executado..."
-                  className="w-full resize-y border border-border bg-card p-3 text-sm text-foreground outline-none focus:border-primary" />
-              </div>}
-              {canSendPhotos && <div className="space-y-2">
-                <label htmlFor="technician-photos" className={`inline-flex cursor-pointer items-center gap-2 border border-border bg-card px-3 py-2 text-xs font-bold ${uploading ? "pointer-events-none opacity-50" : ""}`}>
-                  <Camera size={15} /> {uploading ? "Enviando fotos..." : "Adicionar fotos"}
-                </label>
-                <input id="technician-photos" className="sr-only" type="file"
-                  accept="image/jpeg,image/png,image/webp" multiple disabled={uploading || !online}
-                  onChange={event => void onUpload(event)} />
-                <p className="text-[11px] text-muted-foreground">JPG, PNG ou WEBP. Até 5 MB por foto. Arquivos privados.</p>
-              </div>}
-              {canComplete && <AdminButton disabled={busy || !online || report.trim().length < 10} loading={busy}
-                onClick={() => void runWithGps("finish")}>
-                <CheckCircle2 size={15} /> Finalizar serviço
-              </AdminButton>}
-            </div>}
-
-            {selected.status === "completed" && <div className="space-y-2 border-t border-border pt-4">
-              <p className="text-xs text-muted-foreground">Finalizado em {formatDate(selected.completed_at)}</p>
-              {selected.execution_report && <><p className="text-xs font-bold text-foreground">Serviço realizado</p>
-                <p className="whitespace-pre-wrap text-sm">{selected.execution_report}</p></>}
-            </div>}
-            {selected.status === "cancelled" && <p className="border-t border-border pt-3 text-sm text-muted-foreground">
-              Este serviço foi cancelado. Consulte o responsável pela OS.
-            </p>}
-            {canSeePhotos && <div className="border-t border-border pt-4">
-              <h3 className="mb-2 text-xs font-black">Fotos da execução</h3>
-              {photoLoading ? <p className="text-xs text-muted-foreground">Carregando imagens...</p> :
-                photos.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                  {photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" title="Abrir foto">
-                    <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full border border-border object-cover" />
-                  </a>)}
-                </div> : <p className="text-xs text-muted-foreground">Nenhuma foto enviada.</p>}
+      <Section title="Execução do serviço">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-bold text-foreground">{selected.title}</p>
+            <span className={"border px-2.5 py-1 text-xs font-bold " + STATUS_CLASS[selected.status]}>{STATUS_LABEL[selected.status]}</span>
+          </div>
+          {selected.description && <div>
+            <p className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">Descrição do serviço</p>
+            <p className="whitespace-pre-wrap break-words text-sm">{selected.description}</p>
+          </div>}
+          {selected.started_at && info("Iniciado em", formatDate(selected.started_at))}
+          {selected.status === "pending" && canStart && <p className="text-xs text-muted-foreground">
+            Para iniciar, permita o GPS. O local e o horário serão registrados na OS.
+          </p>}
+          {selected.status === "in_progress" && canComplete && <FTextarea
+            id="technician-report" label="O que foi realizado? *"
+            value={report} onChange={(event: ChangeEvent<HTMLTextAreaElement>) => setReport(event.target.value)}
+            rows={5} maxLength={10000} placeholder="Descreva o serviço executado..."
+          />}
+          {selected.status === "completed" && <>
+            {info("Finalizado em", formatDate(selected.completed_at))}
+            {selected.execution_report && <div>
+              <p className="mb-1 text-[11px] font-bold uppercase text-muted-foreground">Serviço realizado</p>
+              <p className="whitespace-pre-wrap text-sm">{selected.execution_report}</p>
             </div>}
           </>}
-        </AdminCardContent>
-      </AdminCard>
-    </div>
-    <p className="text-xs text-muted-foreground">
-      O trabalho offline, com armazenamento local e sincronização automática, será habilitado na etapa seguinte.
-      No momento, é necessária conexão para registrar ações e enviar fotos.
-    </p>
+          {selected.status === "cancelled" && <p className="text-sm text-muted-foreground">Serviço cancelado. Consulte o responsável pela OS.</p>}
+        </div>
+      </Section>
+
+      {(canSendPhotos || canSeePhotos) && <Section title="Imagens do serviço"
+        description="Imagens privadas vinculadas a este serviço. JPG, PNG ou WEBP, até 5 MB por imagem.">
+        <div className="space-y-3">
+          {selected.status === "in_progress" && canSendPhotos && <div className="flex flex-wrap gap-2">
+            <BtnSecondary onClick={() => cameraInputRef.current?.click()} disabled={!online || busy || uploading} loading={uploading}>Abrir câmera</BtnSecondary>
+            <BtnSecondary onClick={() => galleryInputRef.current?.click()} disabled={!online || busy || uploading} loading={uploading}>Selecionar imagem</BtnSecondary>
+          </div>}
+          <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="sr-only"
+            aria-label="Capturar foto com a câmera" disabled={!online || uploading || busy} onChange={event => void onUpload(event)} />
+          <input ref={galleryInputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" multiple className="sr-only"
+            aria-label="Selecionar imagens do dispositivo" disabled={!online || uploading || busy} onChange={event => void onUpload(event)} />
+          {canSeePhotos && (photoLoading ? <p className="text-xs text-muted-foreground">Carregando imagens...</p>
+            : photos.length ? <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+              {photos.map(photo => <a key={photo.id} href={photo.url} target="_blank" rel="noreferrer" title="Abrir foto">
+                <img src={photo.url} alt="Foto da execução técnica" loading="lazy" className="aspect-square w-full border border-border object-cover" />
+              </a>)}
+            </div> : <p className="text-xs text-muted-foreground">Nenhuma foto enviada.</p>)}
+        </div>
+      </Section>}
+
+      {canSeeLocation && <Section title="Localização da execução">
+        <div className="space-y-3">
+          <LocationRecord value={selected.start_location} label="Local de início" />
+          <LocationRecord value={selected.finish_location} label="Local de conclusão" />
+          {!selected.start_location?.lat && !selected.finish_location?.lat && <p className="text-xs text-muted-foreground">Nenhuma localização registrada.</p>}
+        </div>
+      </Section>}
+
+      <AdminStickyToolbar className="flex-wrap">
+        <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
+        <BtnSecondary onClick={() => void refresh(true)} disabled={busy || uploading || loading}>Atualizar</BtnSecondary>
+        {selected.status === "pending" && canStart && <BtnPrimary
+          disabled={busy || uploading || !online} loading={busy}
+          onClick={() => void runWithGps("start")}>Iniciar serviço</BtnPrimary>}
+        {selected.status === "in_progress" && canComplete && <BtnPrimary
+          disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
+          onClick={() => void runWithGps("finish")}>Finalizar serviço</BtnPrimary>}
+      </AdminStickyToolbar>
+    </>}
   </div>;
 }
