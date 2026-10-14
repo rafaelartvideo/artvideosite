@@ -38,6 +38,24 @@ alter table public.service_order_item_tasks
   add column if not exists execution_report text,
   add column if not exists completed_by uuid references public.profiles(id) on delete set null;
 
+-- Nenhuma atualização de status pode inaugurar uma execução sem GPS.
+create or replace function private.require_task_start_location()
+returns trigger language plpgsql set search_path = '' as $
+begin
+  if new.status = 'in_progress'
+    and (tg_op = 'INSERT' or old.status is distinct from 'in_progress')
+    and (new.started_lat is null or new.started_lng is null
+         or new.started_accuracy_m is null or new.started_location_at is null) then
+    raise exception 'O início da execução exige captura de localização.' using errcode='22023';
+  end if;
+  return new;
+end;
+$;
+drop trigger if exists require_task_start_location on public.service_order_item_tasks;
+create trigger require_task_start_location
+before insert or update of status on public.service_order_item_tasks
+for each row execute function private.require_task_start_location();
+
 create table if not exists public.service_order_item_task_photos (
   id uuid primary key default gen_random_uuid(),
   item_id uuid not null references public.service_order_items(id) on delete cascade,
@@ -134,6 +152,37 @@ begin
   return v_result;
 end;
 $$;
+
+-- Gestão da OS: leitura de execução, sem acesso direto à tabela de tarefas.
+create or replace function public.list_order_service_tasks_v1(p_service_order_id uuid)
+returns jsonb language plpgsql stable security definer set search_path = ''
+as $
+declare v_result jsonb;
+begin
+  if (select auth.uid()) is null or not private.can_view_service_order(p_service_order_id) then
+    raise exception 'Sem permissão para consultar os serviços desta OS.' using errcode='42501';
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'item_id',task.item_id,
+    'assigned_employee_id',task.assigned_employee_id,
+    'technician_name',employee.full_name,
+    'status',task.status,
+    'started_at',task.started_at,'completed_at',task.completed_at,
+    'cancelled_at',task.cancelled_at,'updated_at',task.updated_at,
+    'execution_report',task.execution_report,
+    'start_location',jsonb_build_object('lat',task.started_lat,'lng',task.started_lng,
+      'accuracy_m',task.started_accuracy_m,'captured_at',task.started_location_at),
+    'finish_location',jsonb_build_object('lat',task.completed_lat,'lng',task.completed_lng,
+      'accuracy_m',task.completed_accuracy_m,'captured_at',task.completed_location_at)
+  ) order by task.updated_at,task.item_id),'[]'::jsonb)
+  into v_result
+  from public.service_order_item_tasks task
+  left join public.employees employee
+    on employee.id=task.assigned_employee_id and employee.organization_id=task.organization_id
+  where task.service_order_id=p_service_order_id;
+  return v_result;
+end;
+$;
 
 -- Coordenadas são obrigatórias e recentes; GPS de navegador não é prova anti-fraude.
 create or replace function private.validate_technician_gps(
