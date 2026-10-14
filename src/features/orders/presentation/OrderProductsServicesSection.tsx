@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
+import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { supabase } from "@/lib/supabase";
@@ -7,6 +7,7 @@ import {
   AdminButton,
   AdminDialog,
   AdminIconButton,
+  AdminSegmentedControl,
   BtnPrimary,
   BtnSecondary,
   Section,
@@ -20,6 +21,7 @@ import {
 } from "@/shared/ui/admin/AdminFormControls";
 import { cn } from "@/shared/domain/formatters";
 import { OrderServiceScheduleDialog } from "./OrderServiceScheduleDialog";
+import { EmployeeMultiSelect } from "./OrderFormControls";
 import { OrderServiceScheduleDraftDialog, type ServiceScheduleDraft } from "./OrderServiceScheduleDraftDialog";
 import {
   addOrderCatalogItem,
@@ -247,24 +249,17 @@ function TechnicianMultiPicker({
   label: string;
   loading?: boolean;
 }) {
-  const names = people.filter(person => selected.includes(person.id)).map(person => person.name);
-  return <details className="relative w-full">
-    <summary aria-label={label} className={cn(
-      "flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-xs font-semibold text-foreground marker:hidden",
-      (disabled || loading) && "pointer-events-none opacity-70",
-    )}>
-      <span className="min-w-0 truncate" aria-live="polite">{loading ? "Carregando técnicos..." : names.length ? names.join(", ") : "Selecionar técnicos"}</span>
-      <ChevronDown size={14} className="shrink-0 text-muted-foreground" />
-    </summary>
-    {!disabled && !loading && <div className="relative z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-card p-2 shadow-sm">
-      {people.length ? people.map(person => <label key={person.id} className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-xs hover:bg-muted">
-        <input type="checkbox" checked={selected.includes(person.id)}
-          onChange={event => onChange(event.target.checked ? [...selected, person.id] : selected.filter(id => id !== person.id))}
-          className="h-4 w-4 accent-primary" />
-        <span className="min-w-0 break-words">{person.name}</span>
-      </label>) : <p className="p-2 text-xs text-muted-foreground">Nenhum técnico ativo disponível.</p>}
-    </div>}
-  </details>;
+  // Usa o mesmo input arredondado, pesquisa e seleção múltipla da Nova OS.
+  return <EmployeeMultiSelect
+    label={label}
+    employees={people.map(person => ({ id: person.id, full_name: person.name }))}
+    selectedIds={selected}
+    onChange={onChange}
+    disabled={disabled}
+    placeholder="Selecionar técnicos"
+    clearLabel="Limpar técnicos"
+    loading={loading}
+  />;
 }
 
 export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange, onOverviewChange }: Props) {
@@ -1113,38 +1108,47 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
 
           {editable && selectedService && <div className="space-y-3">
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Necessita agendamento?</p>
-              <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Necessita agendamento?">
-                <label className={cn("flex cursor-pointer items-center gap-2 border px-4 py-2 text-sm font-semibold", !serviceNeedsSchedule ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground")}>
-                  <input type="radio" name="include-service-scheduling" checked={!serviceNeedsSchedule}
-                    onChange={() => { setServiceNeedsSchedule(false); setServiceScheduleDraft(null); }} />
-                  Não
-                </label>
-                <label className={cn("flex cursor-pointer items-center gap-2 border px-4 py-2 text-sm font-semibold", serviceNeedsSchedule ? "border-primary bg-primary/10 text-primary" : "border-border text-foreground")}>
-                  <input type="radio" name="include-service-scheduling" checked={serviceNeedsSchedule}
-                    onChange={() => { setServiceNeedsSchedule(true); setServiceScheduleOpen(true); }} />
-                  Sim
-                </label>
-              </div>
+              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Necessita agendamento
+              </label>
+              <AdminSegmentedControl
+                value={serviceNeedsSchedule ? "yes" : "no"}
+                onChange={value => {
+                  const nextNeedsSchedule = value === "yes";
+                  setServiceNeedsSchedule(nextNeedsSchedule);
+                  if (nextNeedsSchedule) setServiceScheduleOpen(true);
+                  else setServiceScheduleDraft(null);
+                }}
+                options={[{ value: "yes", label: "Sim" }, { value: "no", label: "Não" }]}
+                className="w-fit grid-cols-2"
+              />
             </div>
             <div>
-              <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
-              {serviceNeedsSchedule
-                ? <div className="flex min-h-10 flex-wrap items-center justify-between gap-2 border border-border bg-muted/40 px-3 py-2">
-                    <span className="min-w-0 flex-1 text-xs font-semibold text-foreground">
-                      {serviceScheduleDraft
+              {serviceNeedsSchedule ? <>
+                <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Técnicos responsáveis
+                </label>
+                <button type="button"
+                  aria-label={serviceScheduleDraft ? "Alterar horário e técnicos" : "Selecionar horário e técnicos"}
+                  disabled={!workflowReady || techniciansLoading}
+                  onClick={() => setServiceScheduleOpen(true)}
+                  className={cn(INPUT,
+                    "flex min-h-[42px] w-full items-center justify-between gap-3 rounded-lg text-left",
+                    (!workflowReady || techniciansLoading) && "cursor-not-allowed opacity-70",
+                  )}>
+                  <span className="min-w-0 flex-1 truncate">
+                    {techniciansLoading ? "Carregando técnicos..."
+                      : serviceScheduleDraft
                         ? technicians.filter(person => serviceScheduleDraft.technicianIds.includes(person.id)).map(person => person.name).join(", ")
-                        : "Selecione os técnicos pelo calendário"}
-                    </span>
-                    <BtnSecondary disabled={!workflowReady || techniciansLoading} onClick={() => setServiceScheduleOpen(true)}>
-                      {serviceScheduleDraft ? "Alterar horário" : "Abrir calendário"}
-                    </BtnSecondary>
-                  </div>
-                : <TechnicianMultiPicker
-                    label="Selecionar técnicos do serviço"
-                    people={technicians} selected={serviceTechnicianIds} onChange={setServiceTechnicianIds}
-                    loading={techniciansLoading} disabled={!workflowReady}
-                  />}
+                        : "Selecionar técnicos e horário"}
+                  </span>
+                  <CalendarDays size={17} className="shrink-0 text-muted-foreground" aria-hidden="true" />
+                </button>
+              </> : <TechnicianMultiPicker
+                label="Técnicos responsáveis"
+                people={technicians} selected={serviceTechnicianIds} onChange={setServiceTechnicianIds}
+                loading={techniciansLoading} disabled={!workflowReady}
+              />}
               {serviceNeedsSchedule && serviceScheduleDraft && <p className="mt-2 text-xs font-semibold text-primary">
                 {formatServiceSchedule(serviceScheduleDraft.startAt)} às {new Date(serviceScheduleDraft.endAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
                 {" · "}Equipe definida pelo agendamento
@@ -1483,9 +1487,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           />
         </div>
         {editable && <div>
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Técnicos responsáveis</label>
           <TechnicianMultiPicker
-            label="Selecionar técnicos do serviço avulso"
+            label="Técnicos responsáveis"
             people={technicians} selected={customTechnicianIds} onChange={setCustomTechnicianIds}
             loading={techniciansLoading}
             disabled={!workflowReady}
