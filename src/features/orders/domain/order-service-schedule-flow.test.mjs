@@ -117,3 +117,24 @@ test("os dois modais alternam entre Dia e Semana sem alterar os dados selecionad
   assert.match(available, /onToggleTechnician && active/);
   assert.match(available, /fixedTeam/);
 });
+
+test("Nova OS e Editar OS usam somente o modal compartilhado Dia/Semana", () => {
+  const information = read("src/features/orders/presentation/OrderInformationSection.tsx");
+  const editor = read("src/features/orders/presentation/OrderEditorPage.tsx");
+  const formState = read("src/features/orders/application/useOrderFormState.ts");
+  const modal = read("src/features/orders/presentation/OrderServiceScheduleDraftDialog.tsx");
+
+  assert.match(editor, /<OrderInformationSection/);
+  assert.match(information, /<OrderServiceScheduleDraftDialog/);
+  assert.match(information, /dialogTitle=\{validSchedule \? "Reagendar OS" : "Agendar OS"\}/);
+  assert.match(information, /lockedTechnicianIds=\{editingOS \? selectedTechnicianIds : undefined\}/);
+  assert.match(information, /onConfirm=\{confirmSchedule\}/);
+  assert.match(information, /onFieldChange\("scheduled_at", isoToLocalOrderTime\(selection\.startAt\)\)/);
+  assert.match(information, /onFieldChange\("scheduled_end_at", isoToLocalOrderTime\(selection\.endAt\)\)/);
+  assert.match(information, /if \(canAssign\) setScheduleDialogOpen\(true\)/);
+  assert.doesNotMatch(information, /OrderTechnicianAgenda|<TechnicianAvailabilityCalendar/);
+  assert.match(modal, /lockedTechnicianIds\?: string\[\]/);
+  assert.match(modal, /onToggleTechnician=\{teamLocked \? undefined/);
+  assert.match(modal, /loadingTechnicians=\{loadingTechnicians\}/);
+  assert.match(formState, /scheduled_at: orderScheduleLocalDateTime\(order\.scheduled_at\)/);
+});
