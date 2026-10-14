@@ -19,10 +19,11 @@ Objetivo: eliminar divergências entre interface, permissão da função, RLS, S
 | Concessões cujo módulo/escopo está indisponível | 392 |
 | Permissões de situações inexistentes | 3 (12 vínculos com funções) |
 | Membros ativos com funções inativas | 0 |
+| Inconsistências de pré-requisitos em 9 fluxos críticos de cargos | 0 |
 | Vínculos de empresa duplicados | 0 |
 | Erros PostgreSQL 42501 nos logs disponíveis das últimas 24h | 73 |
 
-**Interpretação:** os 392 vínculos fora de escopo incluem permissões de módulos atualmente desativados e outros acessos reservados, portanto NÃO devem ser excluídos automaticamente. A UI e o carregamento de permissões devem mostrar somente os acessos utilizáveis. Os 3 identificadores antigos de situações são incompatíveis com situações atuais, mas seus vínculos foram preservados até saneamento com avaliação do histórico.
+**Interpretação:** a verificação dos nove fluxos cobriu criar/editar OS, imagens, Agenda, gestão de funções, assinaturas, PDV e Painel Técnico; não substitui um teste HTTP usando cada sessão. Os 392 vínculos fora de escopo incluem permissões de módulos atualmente desativados e outros acessos reservados, portanto NÃO devem ser excluídos automaticamente. A UI e o carregamento de permissões devem mostrar somente os acessos utilizáveis. Os 3 identificadores antigos de situações são incompatíveis com situações atuais, mas seus vínculos foram preservados até saneamento com avaliação do histórico.
 
 ## Falhas estruturais encontradas e corrigidas
 
