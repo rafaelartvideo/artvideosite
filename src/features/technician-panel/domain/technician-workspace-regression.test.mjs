@@ -237,3 +237,22 @@ test("problema e notas são somente leitura, registros ficam no cabeçalho", () 
   assert.match(panel, />Registros<\/BtnSecondary>/);
   assert.match(panel, /ariaLabel="Alterar situação da OS"/);
 });
+
+
+test("Produtos e Serviços mantêm seções independentes e ações de execução na toolbar", () => {
+  assert.match(panel, /<Section title="Execução do serviço">/);
+  assert.match(panel, /<Section title="Imagens do serviço">/);
+  assert.match(panel, /<TechnicianOrderItemsSection\s/);
+  assert.doesNotMatch(panel, /<TechnicianOrderItemsSection inline/);
+  const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="flex-wrap">'));
+  assert.match(toolbar, />Iniciar serviço<\/BtnPrimary>/);
+  assert.match(toolbar, />Finalizar serviço<\/BtnPrimary>/);
+  assert.equal(panel.split('>Iniciar serviço</BtnPrimary>').length - 1, 1);
+  assert.equal(panel.split('>Finalizar serviço</BtnPrimary>').length - 1, 1);
+});
+
+test("carregamento de situação ocorre apenas dentro da tag, sem loader global de OS", () => {
+  assert.match(panel, /aria-label="Carregando situação da OS"/);
+  assert.match(panel, /situationUpdating/);
+  assert.doesNotMatch(panel, /aria-label="Carregando OS"/);
+});
