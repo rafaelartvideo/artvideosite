@@ -38,6 +38,8 @@ export type TechnicianTask = {
   scheduled_at: string | null;
   order_completed_at: string | null;
   order_cancelled_at: string | null;
+  // Conclusão agregada de todos os serviços da OS (sem expor serviços de outros técnicos).
+  order_services_completed?: boolean | null;
   start_location: TechnicianLocation | null;
   finish_location: TechnicianLocation | null;
 };
