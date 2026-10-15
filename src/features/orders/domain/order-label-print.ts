@@ -4,9 +4,9 @@ type ServiceOrderLabelOrder = {
   external_os_number?: string | null;
 };
 
-// Padrão conservador para rolos de três colunas. As medidas podem ser
+// Padrão inicial para rolos de três colunas. As medidas podem ser
 // calibradas na prévia de impressão e ficam salvas neste navegador.
-const DEFAULT_LAYOUT = { width: 32, height: 30, gap: 2, margin: 1, quantity: 3, qr: true };
+const DEFAULT_LAYOUT = { width: 32, height: 30, gap: 2, margin: 1, quantity: 3 };
 const L42_MAX_PRINT_WIDTH_MM = 104;
 
 function cleanText(value: unknown) {
@@ -28,29 +28,19 @@ function fontSizeForNumber(value: string, sizes: [number, number, number, number
 export function renderServiceOrderLabel(
   popup: Window,
   order: ServiceOrderLabelOrder,
-  qrCanvas: HTMLCanvasElement,
+  _qrCanvas?: HTMLCanvasElement,
 ) {
-  if (!qrCanvas.width || !qrCanvas.height) throw new Error("O QR Code da OS não foi gerado.");
-  const qrDataUrl = qrCanvas.toDataURL("image/png");
-  if (!/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(qrDataUrl)) {
-    throw new Error("Não foi possível preparar o QR Code da etiqueta.");
-  }
-
   const osNumber = cleanText(order.os_number);
   if (!osNumber) throw new Error("Esta OS não possui número para impressão.");
   const externalNumber = cleanText(order.external_os_number);
   const osFontSize = fontSizeForNumber(osNumber, [17, 14, 11, 9]);
-  const externalFontSize = fontSizeForNumber(externalNumber, [10, 9, 8, 7]);
+  const externalFontSize = fontSizeForNumber(externalNumber, [9, 8, 7, 6]);
   const caption = externalNumber
-    ? `<div class="external"><span class="external-title">OS EXTERNA</span><strong class="external-number" style="font-size: ${externalFontSize}pt">${escapeHtml(externalNumber)}</strong></div>`
+    ? `<div class="external" style="font-size: ${externalFontSize}pt">OS externa ${escapeHtml(externalNumber)}</div>`
     : "";
   const label = `<div class="label-content">
-      <div class="identification">
-        <span class="order-title">ORDEM DE SERVIÇO</span>
-        <strong class="order-number" style="font-size: ${osFontSize}pt">${escapeHtml(osNumber)}</strong>
-        ${caption}
-      </div>
-      <img class="qr-image" src="${qrDataUrl}" alt="" />
+      <strong class="order-number" style="font-size: ${osFontSize}pt">${escapeHtml(osNumber)}</strong>
+      ${caption}
     </div>`;
 
   const labels = Array.from({ length: 3 }, (_, index) =>
@@ -73,7 +63,7 @@ export function renderServiceOrderLabel(
       --gap: 2mm;
       --side-margin: 1mm;
       --sheet-w: 102mm;
-      --qr-size: 18mm;
+
     }
     html, body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #111; }
     body { background: #e9edf2; }
@@ -121,31 +111,16 @@ export function renderServiceOrderLabel(
     }
     .label-content {
       height: 100%; width: 100%; display: flex; flex-direction: column;
-      align-items: center; justify-content: space-between; overflow: hidden;
+      align-items: center; justify-content: center; gap: 1mm; overflow: hidden;
     }
-    .identification { width: 100%; text-align: center; flex: 0 0 auto; min-width: 0; }
-    .order-title { display: block; font-size: 5.4pt; line-height: 1.2; font-weight: 700; white-space: nowrap; }
     .order-number {
-      display: block; font-weight: 900; line-height: 1.05;
+      display: block; max-width: 100%; font-weight: 900; line-height: 1.08;
       white-space: nowrap; overflow: hidden; text-overflow: clip;
     }
     .external {
-      display: flex; flex-direction: column; align-items: center; width: 100%;
-      border-top: .17mm solid black; margin-top: .5mm; padding-top: .4mm;
-      white-space: nowrap; overflow: hidden;
+      max-width: 100%; font-weight: 700; line-height: 1.15;
+      white-space: nowrap; overflow: hidden; text-align: center;
     }
-    .external-title { display: block; font-weight: 700; font-size: 5.5pt; line-height: 1.1; }
-    .external-number {
-      display: block; max-width: 100%; font-weight: 900; line-height: 1.1;
-      white-space: nowrap; overflow: hidden;
-    }
-    .qr-image {
-      display: block; width: var(--qr-size); height: var(--qr-size);
-      max-width: 100%; flex: 0 0 auto; object-fit: contain;
-      image-rendering: pixelated;
-    }
-    .sheet.hide-qr .qr-image { display: none; }
-    .sheet.hide-qr .label-content { justify-content: center; }
     .label.empty .label-content { display: none; }
     @media print {
       html, body {
@@ -179,14 +154,14 @@ export function renderServiceOrderLabel(
       <label class="field">Etiquetas nesta fileira
         <select id="quantity"><option value="3">3 etiquetas</option><option value="2">2 etiquetas</option><option value="1">1 etiqueta</option></select>
       </label>
-      <label class="checkbox-field"><input id="qr" type="checkbox"> Incluir QR Code</label>
+
     </div>
     <div class="actions">
       <button id="print" type="button">Imprimir etiquetas</button>
       <span class="summary" id="summary"></span>
     </div>
     <div class="warning" id="warning" role="status"></div>
-    <p class="hint" style="margin: 8px 0 0">Na impressão selecione a Elgin L-42, escala 100%, margens nenhuma e sem cabeçalhos/rodapés. Se o driver pedir tamanho personalizado, use a largura e a altura total informadas acima.</p>
+    <p class="hint" style="margin: 8px 0 0">Na impressão selecione a BTP-L42(U), escala 100%, margens nenhuma e sem cabeçalhos/rodapés. No driver, configure um papel personalizado com a largura total e a altura de uma fileira mostradas acima. Confirme as medidas reais com uma régua.</p>
   </div>
   <p class="preview-title">Prévia da fileira (as bordas pontilhadas não são impressas)</p>
   <div class="preview-area"><main class="sheet" id="sheet">${labels}</main></div>
@@ -203,11 +178,11 @@ export function renderServiceOrderLabel(
           for (var i = 0; i < keys.length; i++) {
             if (typeof saved[keys[i]] === "number" && Number.isFinite(saved[keys[i]])) settings[keys[i]] = saved[keys[i]];
           }
-          if (typeof saved.qr === "boolean") settings.qr = saved.qr;
+
         }
       } catch (_) {}
       keys.forEach(function (key) { document.getElementById(key).value = String(settings[key]); });
-      document.getElementById("qr").checked = settings.qr;
+
 
       function number(key, minimum, maximum) {
         var value = Number(document.getElementById(key).value);
@@ -219,7 +194,7 @@ export function renderServiceOrderLabel(
         var gap = number("gap", 0, 10);
         var margin = number("margin", 0, 5);
         var quantity = number("quantity", 1, 3);
-        var qr = document.getElementById("qr").checked;
+
         var totalWidth = 3 * width + 2 * gap + 2 * margin;
         var valid = Number.isFinite(totalWidth) && Number.isFinite(height) && Number.isFinite(quantity)
           && Math.round(quantity) === quantity && totalWidth <= maxWidth && totalWidth > 0;
@@ -255,24 +230,14 @@ export function renderServiceOrderLabel(
             element.style.fontSize = size + "pt";
           }
         });
-        // Calcula o QR usando a altura efetiva do cabeçalho, inclusive OS externa.
-        var firstLabel = sheet.querySelector(".label");
-        var heading = firstLabel.querySelector(".identification");
-        var pxPerMm = firstLabel.getBoundingClientRect().width / width;
-        var availableMm = (firstLabel.clientHeight - heading.getBoundingClientRect().height) / pxPerMm - 2;
-        var qrSize = Math.max(0, Math.min(20, width - 3, availableMm));
-        root.style.setProperty("--qr-size", qrSize + "mm");
-        sheet.classList.toggle("hide-qr", !qr);
         var labels = sheet.querySelectorAll(".label");
         labels.forEach(function (label, index) { label.classList.toggle("empty", index >= quantity); });
         summary.textContent = "Papel: " + totalWidth.toFixed(1).replace(".", ",") + " × " + height.toFixed(1).replace(".", ",") + " mm";
-        warning.textContent = qr && qrSize < 16
-          ? "Atenção: com esta altura o QR Code pode ficar pequeno para leitura. Aumente a altura ou desmarque QR Code."
-          : "";
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ width: width, height: height, gap: gap, margin: margin, quantity: quantity, qr: qr })); } catch (_) {}
+        warning.textContent = "";
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ width: width, height: height, gap: gap, margin: margin, quantity: quantity })); } catch (_) {}
       }
 
-      keys.concat(["qr"]).forEach(function (key) {
+      keys.forEach(function (key) {
         document.getElementById(key).addEventListener("input", updatePreview);
         document.getElementById(key).addEventListener("change", updatePreview);
       });
