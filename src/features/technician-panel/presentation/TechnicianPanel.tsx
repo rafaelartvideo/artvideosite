@@ -9,6 +9,7 @@ import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
+import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
 import { OrderHistoryPage } from "@/features/orders/presentation/OrderHistoryPage";
 import { OrderImageLightbox, OrderImageThumb, type OrderImage } from "@/features/orders/presentation/OrderImages";
@@ -89,6 +90,8 @@ export function TechnicianPanel() {
     for (const item of items) grouped.set(item.service_order_id, [...(grouped.get(item.service_order_id) || []), item]);
     return Array.from(grouped.values());
   }, [items]);
+  const completedOrderCount = useMemo(() => assignedOrders.filter(isTechnicianOrderCompleted).length, [assignedOrders]);
+  const openOrderCount = assignedOrders.length - completedOrderCount;
   const orderServices = useMemo(() => routeOrderId
     ? items.filter(item => item.service_order_id === routeOrderId) : [], [items, routeOrderId]);
   const selected = orderServices.find(item => item.item_id === routeServiceId) || orderServices[0] || null;
@@ -383,15 +386,13 @@ export function TechnicianPanel() {
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Ordens de serviço</h2>
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
             {([
-              { name: "OS abertas", count: assignedOrders.filter(group =>
-                  !group[0].order_completed_at && !group[0].order_cancelled_at).length,
+              { name: "OS abertas", count: openOrderCount,
                 tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-              { name: "OS concluídas", count: assignedOrders.filter(group =>
-                  Boolean(group[0].order_completed_at)).length,
+              { name: "OS concluídas", count: completedOrderCount,
                 tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
             ]).map(card => <AdminCard key={card.name}>
-              <AdminCardContent className={"border p-3 sm:p-4 " + card.tone}>
-                <p className="text-xs font-semibold">{card.name}</p>
+              <AdminCardContent className={"flex h-[104px] flex-col items-center justify-center border p-2 text-center sm:h-auto sm:min-h-[104px] sm:p-4 " + card.tone}>
+                <p className="whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">{card.name}</p>
                 <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
               </AdminCardContent>
             </AdminCard>)}
@@ -403,13 +404,13 @@ export function TechnicianPanel() {
             {([
               { name: "Pendentes", count: items.filter(item => item.status === "pending").length,
                 tone: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
-              { name: "Em andamento", count: items.filter(item => item.status === "in_progress").length,
+              { name: "Andamento", count: items.filter(item => item.status === "in_progress").length,
                 tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
               { name: "Concluídos", count: items.filter(item => item.status === "completed").length,
                 tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
             ]).map(card => <AdminCard key={card.name}>
-              <AdminCardContent className={"border p-3 sm:p-4 " + card.tone}>
-                <p className="text-xs font-semibold">{card.name}</p>
+              <AdminCardContent className={"flex h-[104px] flex-col items-center justify-center border p-2 text-center sm:h-auto sm:min-h-[104px] sm:p-4 " + card.tone}>
+                <p className="whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">{card.name}</p>
                 <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
               </AdminCardContent>
             </AdminCard>)}
