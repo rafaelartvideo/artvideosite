@@ -65,6 +65,9 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
   allowCustomerRequests?: boolean;
 }) {
   const { hasPermission, activeOrganizationId } = useAuth();
+  // O módulo de Pedidos Avulsos pode operar sem liberar o módulo Cadastros.
+  // Nesse cenário, a validação de duplicidade é feita na busca local e no banco.
+  const canLookupCpf = !allowCustomerRequests || hasPermission("customers.create");
   const [form, setForm] = useState<CustomerForm>(() => ({
     ...emptyCustomerForm,
     ...initialValues,
@@ -108,7 +111,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
     setFieldErrors(validationErrors);
     if (Object.keys(validationErrors).length > 0) return;
 
-    if (form.customerType === "PF") {
+    if (form.customerType === "PF" && canLookupCpf) {
       try {
         await ensureCpfAvailable(form.document, activeOrganizationId);
       } catch (error) {
@@ -319,7 +322,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
                 <div className="min-w-0">
                   <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
                     <FCpfInput label="CPF" required error={fieldErrors.document} value={form.document} onChange={(e: any) => { clearFieldError("document"); setForm({ ...form, document: e.target.value }); }} />
-                    <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>
+                    {canLookupCpf && <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>}
                   </div>
                 </div>
                 <FInput label="Nome completo" required error={fieldErrors.full_name} value={form.full_name} onChange={(e: any) => { clearFieldError("full_name"); setForm({ ...form, full_name: e.target.value }); }} />
