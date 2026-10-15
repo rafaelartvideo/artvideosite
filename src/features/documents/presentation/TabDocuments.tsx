@@ -3,7 +3,8 @@ import React, { useEffect, useState } from "react";
 import { Edit2, FileText, Tag, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
-import { FInput } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
+import { DEFAULT_LABEL_LAYOUT, isValidOrderLabelLayout, readOrderLabelLayout, saveOrderLabelLayout, type OrderLabelLayout } from "@/features/orders/domain/order-label-print";
 import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -23,6 +24,63 @@ function DocumentsAreaHeader({ title, description, action }: { title: string; de
     </div>
     {action && <div className="shrink-0">{action}</div>}
   </div>;
+}
+
+
+function OrderLabelPrintSettings({ canEdit }: { canEdit: boolean }) {
+  const [layout, setLayout] = useState<OrderLabelLayout>(() => readOrderLabelLayout());
+  const [error, setError] = useState("");
+  const totalWidth = 3 * layout.width + 2 * layout.gap + 2 * layout.margin;
+  const valid = isValidOrderLabelLayout(layout);
+
+  const change = (key: keyof OrderLabelLayout, value: string) => {
+    setError("");
+    setLayout(current => ({ ...current, [key]: Number(value) }));
+  };
+
+  const saveSettings = () => {
+    if (!valid) { setError("Confira as medidas. A largura total não pode ultrapassar 104 mm."); return; }
+    try {
+      saveOrderLabelLayout(layout);
+      notifyAdmin("Configuração das etiquetas salva neste navegador.", "success");
+    } catch (saveError) {
+      setError(systemErrorMessage(saveError, "Não foi possível salvar as configurações das etiquetas."));
+    }
+  };
+
+  return <AdminCard className="p-4 sm:p-5">
+    <DocumentsAreaHeader title="Etiquetas de OS" description="Configure a Elgin BTP-L42(U). Os ajustes são usados automaticamente na impressão das OS neste navegador." />
+    <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-3">
+      <FInput label="Largura da etiqueta (mm)" type="number" min="15" max="34" step=".5" disabled={!canEdit} value={layout.width} onChange={(event: React.ChangeEvent<HTMLInputElement>) => change("width", event.target.value)} />
+      <FInput label="Altura da etiqueta (mm)" type="number" min="15" max="80" step=".5" disabled={!canEdit} value={layout.height} onChange={(event: React.ChangeEvent<HTMLInputElement>) => change("height", event.target.value)} />
+      <FInput label="Espaço entre etiquetas (mm)" type="number" min="0" max="10" step=".5" disabled={!canEdit} value={layout.gap} onChange={(event: React.ChangeEvent<HTMLInputElement>) => change("gap", event.target.value)} />
+      <FInput label="Margem lateral (mm)" type="number" min="0" max="5" step=".5" disabled={!canEdit} value={layout.margin} onChange={(event: React.ChangeEvent<HTMLInputElement>) => change("margin", event.target.value)} />
+      <FInput label="Posição vertical (mm)" hint="Negativo sobe; positivo desce." type="number" min="-5" max="5" step=".5" disabled={!canEdit} value={layout.verticalOffset} onChange={(event: React.ChangeEvent<HTMLInputElement>) => change("verticalOffset", event.target.value)} />
+      <div className="min-w-0">
+        <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Etiquetas por fileira</label>
+        <AdminSelect value={String(layout.quantity)} disabled={!canEdit} onValueChange={value => change("quantity", value)} options={[{ value: "3", label: "3 etiquetas" }, { value: "2", label: "2 etiquetas" }, { value: "1", label: "1 etiqueta" }]} />
+      </div>
+    </div>
+    <p className="mt-4 text-xs text-muted-foreground">
+      Papel: {Number.isFinite(totalWidth) ? totalWidth.toLocaleString("pt-BR") : "—"} × {layout.height} mm. No Brave, selecione a BTP-L42(U), escala 100%, sem margens e papel personalizado correspondente.
+    </p>
+    <div className="mt-3 overflow-x-auto rounded-lg border border-border bg-muted/30 p-3">
+      <div className="mx-auto flex shrink-0 items-start bg-white text-black" style={{ width: `${totalWidth}mm`, height: `${layout.height}mm`, gap: `${layout.gap}mm`, paddingInline: `${layout.margin}mm`, boxSizing: "border-box" }}>
+        {Array.from({ length: 3 }, (_, index) => <div key={index} className="flex shrink-0 flex-col items-center justify-center overflow-hidden border border-dashed border-slate-300" style={{ width: `${layout.width}mm`, height: `${layout.height}mm`, padding: "1mm", boxSizing: "border-box" }}>
+          {index < layout.quantity && <div className="flex w-full flex-col items-center justify-center overflow-hidden text-center" style={{ gap: "1mm", transform: `translateY(${layout.verticalOffset}mm)` }}>
+            <strong className="block max-w-full whitespace-nowrap" style={{ fontSize: "17pt", fontWeight: 900, lineHeight: 1.08 }}>OS 116</strong>
+            <span className="block max-w-full whitespace-nowrap" style={{ fontSize: "9pt", fontWeight: 700, lineHeight: 1.15 }}>OS externa 000</span>
+          </div>}
+        </div>)}
+      </div>
+    </div>
+    {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+    {canEdit && <div className="mt-4 flex justify-end gap-2">
+      <BtnSecondary onClick={() => { setLayout({ ...DEFAULT_LABEL_LAYOUT }); setError(""); }}>Restaurar padrão</BtnSecondary>
+      <BtnPrimary onClick={saveSettings} disabled={!valid}>Salvar</BtnPrimary>
+    </div>}
+    <p className="mt-2 text-[11px] text-muted-foreground">As alterações são salvas apenas ao clicar em Salvar e se aplicam neste navegador.</p>
+  </AdminCard>;
 }
 
 export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack?: () => void; routeResourceId?: string | null; routeSubpage?: string | null; onRouteChange?: (resourceId: string | null, subpage?: string | null) => void }) {
@@ -156,6 +214,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
             <PaginationBar page={safeTemplatePage} pageSize={templatePageSize} totalItems={filteredTemplates.length} onPageChange={setTemplatePage} onPageSizeChange={size => { setTemplatePageSize(size); setTemplatePage(1); }} />
           </>}
         </AdminCard>
+        <OrderLabelPrintSettings canEdit={canEdit} />
       </> : <>
         <DocumentsAreaHeader
           title="Anexos"
