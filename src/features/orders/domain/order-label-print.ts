@@ -4,12 +4,11 @@ type ServiceOrderLabelOrder = {
   external_os_number?: string | null;
 };
 
-// Padrão inicial para rolos de três colunas. As medidas podem ser
-// calibradas na prévia de impressão e ficam salvas neste navegador.
+// Layout calibrável em Operação > Documentos > Impressão.
+// Mantém a chave legada para preservar os ajustes já feitos neste navegador.
 export const ORDER_LABEL_LAYOUT_KEY = "artvideo-order-label-layout-v3";
 export const DEFAULT_LABEL_LAYOUT = { width: 32, height: 23, gap: 3, margin: 1, quantity: 3, verticalOffset: 0 };
 export type OrderLabelLayout = typeof DEFAULT_LABEL_LAYOUT;
-const DEFAULT_LAYOUT = DEFAULT_LABEL_LAYOUT;
 export const L42_MAX_PRINT_WIDTH_MM = 104;
 
 export function isValidOrderLabelLayout(value: OrderLabelLayout) {
