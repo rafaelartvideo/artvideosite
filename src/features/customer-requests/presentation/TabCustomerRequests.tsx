@@ -1,10 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { ClipboardList, Eraser, Search } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
-import { AdminButton, AdminCard, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { getCustomer } from "@/features/customers/infrastructure/customers.repository";
@@ -210,7 +211,31 @@ export function TabCustomerRequests() {
       subtitle={`${total} ${total === 1 ? "pedido registrado" : "pedidos registrados"}`}
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
 
-    <AdminSearchPanel title="Buscar pedidos">
+    <AdminSearchPanel title="Buscar pedidos" headerActions={<>
+      {hasFilters && <button type="button" onClick={resetFilters} aria-label="Limpar filtros" title="Limpar filtros"
+        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
+        <Eraser size={13} /> <span className="hidden sm:inline">Limpar filtros</span>
+      </button>}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button type="button" aria-label={`Ordenação: ${sort === "newest" ? "Mais recentes" : "Mais antigos"}`}
+            title={`Ordenar pedidos: ${sort === "newest" ? "Mais recentes" : "Mais antigos"}`}
+            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+            {sort === "newest" ? <ArrowDownWideNarrow size={15} /> : <ArrowUpNarrowWide size={15} />}
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-[185px]">
+          {([{ value: "newest", label: "Mais recentes", icon: ArrowDownWideNarrow }, { value: "oldest", label: "Mais antigos", icon: ArrowUpNarrowWide }] as const).map(option => {
+            const Icon = option.icon;
+            return <DropdownMenuItem key={option.value} onSelect={() => { setSort(option.value); setPage(1); }}
+              className={cn("cursor-pointer", sort === option.value && "bg-primary-soft font-bold text-primary")}>
+              <Icon size={15} /> <span>{option.label}</span>
+              {sort === option.value && <Check size={15} className="ml-auto text-primary" />}
+            </DropdownMenuItem>;
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>}>
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {searchableLabel("Pedido", search, value => { setSearch(value); setPage(1); }, "Descreva o produto ou serviço")}
         {searchableLabel("Cliente / CPF / CNPJ", customerFilter, value => { setCustomerFilter(value); setPage(1); }, "Nome ou documento do cliente")}
@@ -226,14 +251,6 @@ export function TabCustomerRequests() {
             options={[{ value: "all", label: "Todas as situações" }, ...statusOptions]} className="h-[42px] min-h-0 text-xs md:h-9"
             ariaLabel="Situação do pedido" />
         </div>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-        <div className="w-48 max-w-full">
-          <AdminSelect value={sort} onValueChange={value => { setSort(value as RequestSort); setPage(1); }}
-            options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]}
-            className="h-[42px] min-h-0 text-xs md:h-9" ariaLabel="Ordenar pedidos" />
-        </div>
-        {hasFilters && <AdminButton size="sm" variant="secondary" onClick={resetFilters}><Eraser size={14} /> Limpar filtros</AdminButton>}
       </div>
     </AdminSearchPanel>
 
@@ -355,8 +372,9 @@ export function TabCustomerRequests() {
         setQuickCustomerOpen(false);
       }} />}
 
-    <AdminPage open={Boolean(detail)} onClose={() => setDetail(null)} breadcrumb="Pedidos Avulsos"
-      title="Detalhes do pedido" subtitle={detail ? requestCustomerName(detail.customer) : undefined}>
+    <AdminDialog open={Boolean(detail)} onClose={() => setDetail(null)}
+      title="Detalhes do pedido" description={detail ? requestCustomerName(detail.customer) : undefined}
+      className="max-w-3xl" footer={<div className="flex justify-end"><BtnSecondary onClick={() => setDetail(null)}>Fechar</BtnSecondary></div>}>
       {detail && <div className="space-y-5">
         {detailLoading && <LoadingState text="Carregando dados do cliente..." />}
         {detailError && <p role="alert" className="text-sm text-red-600">{detailError}</p>}
@@ -392,8 +410,7 @@ export function TabCustomerRequests() {
             </div>
           </div>
         </Section>
-        <AdminStickyToolbar><BtnSecondary onClick={() => setDetail(null)}>Voltar</BtnSecondary></AdminStickyToolbar>
       </div>}
-    </AdminPage>
+    </AdminDialog>
   </div>;
 }
