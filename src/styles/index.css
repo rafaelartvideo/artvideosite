@@ -827,6 +827,30 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 }
 
 
+/* Ação azul suave compartilhada: Detalhes da OS e Meus horários da Agenda. */
+.admin-crm .admin-action-blue-outline {
+	border-color: rgba(16, 50, 220, 0.25);
+	background-color: #f0f6ff;
+	color: var(--primary);
+}
+.admin-crm .admin-action-blue-outline:hover {
+	border-color: rgba(16, 50, 220, 0.4);
+	background-color: #e2edff;
+	color: var(--primary);
+}
+.admin-crm.dark .admin-action-blue-outline,
+.dark .admin-crm .admin-action-blue-outline {
+	border-color: rgba(113, 133, 245, 0.4);
+	background-color: rgba(93, 115, 239, 0.14);
+	color: #a9b6ff;
+}
+.admin-crm.dark .admin-action-blue-outline:hover,
+.dark .admin-crm .admin-action-blue-outline:hover {
+	border-color: rgba(113, 133, 245, 0.6);
+	background-color: rgba(93, 115, 239, 0.25);
+	color: #c6d0ff;
+}
+
 /* Feedback contextual e botões semânticos: cores consistentes em ambos os temas. */
 .admin-crm .admin-semantic-success,
 .admin-crm .admin-action-success {
