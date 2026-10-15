@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 export type RequestKind = "product" | "service";
 export type RequestStatus = "pending" | "fulfilled" | "cancelled";
+export type RequestSort = "newest" | "oldest";
 
 export type RequestCustomer = {
   id: string;
@@ -30,6 +31,23 @@ export function requestCustomerName(customer: RequestCustomer | null | undefined
   return customer?.trade_name || customer?.full_name || customer?.legal_name || "Cliente";
 }
 
+// CPF/CNPJ e telefones são persistidos sem máscara. Remover a pontuação
+// antes da consulta garante que o número digitado encontre o cadastro.
+function customerSearchPattern(value: string) {
+  const term = value.trim();
+  const digits = term.replace(/\D/g, "");
+  if (/^[\d\s()./\-]+$/.test(term) && digits.length >= 2) return "%" + digits + "%";
+  const safe = term.replace(/[,().%\\]/g, " ").trim().replace(/\s+/g, "%");
+  return safe ? "%" + safe + "%" : null;
+}
+
+function customerSearchOr(pattern: string) {
+  return [
+    "full_name", "trade_name", "legal_name", "document",
+    "cnpj", "phone", "whatsapp",
+  ].map(field => field + ".ilike." + pattern).join(",");
+}
+
 export async function listCustomerRequests(input: {
   organizationId: string;
   page: number;
@@ -37,16 +55,40 @@ export async function listCustomerRequests(input: {
   kind: RequestKind | "all";
   status: RequestStatus | "all";
   search: string;
+  customerSearch: string;
+  sort: RequestSort;
 }): Promise<{ items: CustomerRequest[]; total: number }> {
-  const { organizationId, page, pageSize, kind, status, search } = input;
+  const { organizationId, page, pageSize, kind, status, search, customerSearch, sort } = input;
+
+  // Busca de nome/CPF separada da descrição e sempre limitada à empresa.
+  let customerIds: string[] | null = null;
+  if (customerSearch.trim()) {
+    const pattern = customerSearchPattern(customerSearch);
+    if (!pattern) return { items: [], total: 0 };
+    const { data, error } = await supabase.from("customers")
+      .select("id").eq("organization_id", organizationId)
+      .or(customerSearchOr(pattern)).limit(500);
+    if (error) throw error;
+    customerIds = (data || []).map(customer => customer.id);
+    if (!customerIds.length) return { items: [], total: 0 };
+  }
+
   let query = supabase.from("customer_requests")
     .select("id,organization_id,customer_id,request_kind,description,status,created_by,created_at,updated_at,customer:customers!customer_id(id,full_name,trade_name,legal_name,phone,whatsapp)", { count: "exact" })
     .eq("organization_id", organizationId);
+
+  if (customerIds) query = query.in("customer_id", customerIds);
   if (kind !== "all") query = query.eq("request_kind", kind);
   if (status !== "all") query = query.eq("status", status);
-  if (search.trim()) query = query.ilike("description", "%" + search.trim().replace(/[%_\\]/g, "") + "%");
+  if (search.trim()) {
+    const clean = search.trim().replace(/[%_\\]/g, "");
+    if (clean) query = query.ilike("description", "%" + clean + "%");
+  }
   const first = (Math.max(1, page) - 1) * pageSize;
-  const { data, error, count } = await query.order("created_at", { ascending: false }).range(first, first + pageSize - 1);
+  const { data, error, count } = await query
+    .order("created_at", { ascending: sort === "oldest" })
+    .order("id", { ascending: sort === "oldest" })
+    .range(first, first + pageSize - 1);
   if (error) throw error;
 
   const raw = (data ?? []) as unknown as Array<Omit<CustomerRequest, "creatorName"> & { customer: RequestCustomer | RequestCustomer[] | null }>;
@@ -67,13 +109,13 @@ export async function listCustomerRequests(input: {
 }
 
 export async function findRequestCustomers(organizationId: string, search: string): Promise<RequestCustomer[]> {
-  const term = search.trim().replace(/[%,().\\]/g, " ").replace(/\s+/g, " ").trim();
-  if (term.length < 2) return [];
-  const termPattern = "%" + term.split(" ").join("%") + "%";
+  const pattern = customerSearchPattern(search);
+  if (!pattern) return [];
   const { data, error } = await supabase.from("customers")
     .select("id,full_name,trade_name,legal_name,phone,whatsapp")
     .eq("organization_id", organizationId)
-    .or("full_name.ilike." + termPattern + ",trade_name.ilike." + termPattern + ",legal_name.ilike." + termPattern + ",document.ilike." + termPattern + ",cnpj.ilike." + termPattern + ",phone.ilike." + termPattern + ",whatsapp.ilike." + termPattern)
+    .or(customerSearchOr(pattern))
+    .order("full_name", { ascending: true })
     .limit(6);
   if (error) throw error;
   return (data ?? []) as RequestCustomer[];
