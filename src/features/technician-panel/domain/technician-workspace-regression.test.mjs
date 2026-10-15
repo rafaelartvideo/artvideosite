@@ -199,6 +199,30 @@ test("lista inicial possui tabela responsiva, paginação e indicadores de andam
   assert.match(table, /em andamento/);
 });
 
+test("resumo técnico usa status dos serviços e mantém layout mobile uniforme", async () => {
+  const path = "src/features/technician-panel/domain/technician-order-progress.ts";
+  const { code } = await transformWithEsbuild(read(path), path, { loader: "ts" });
+  const { isTechnicianOrderCompleted } = await import(
+    "data:text/javascript;base64," + Buffer.from(code).toString("base64")
+  );
+  const services = statuses => statuses.map(status => ({ status }));
+  assert.equal(isTechnicianOrderCompleted([]), false);
+  assert.equal(isTechnicianOrderCompleted(services(["pending"])), false);
+  assert.equal(isTechnicianOrderCompleted(services(["completed", "completed", "pending"])), false);
+  assert.equal(isTechnicianOrderCompleted(services(["completed", "in_progress", "completed"])), false);
+  assert.equal(isTechnicianOrderCompleted(services(["completed", "cancelled"])), false);
+  assert.equal(isTechnicianOrderCompleted(services(["completed", "completed", "completed"])), true);
+
+  const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  assert.match(panel, /assignedOrders\.filter\(isTechnicianOrderCompleted\)/);
+  assert.match(panel, /openOrderCount = assignedOrders\.length - completedOrderCount/);
+  assert.match(panel, /h-\[104px\] flex-col items-center justify-center/);
+  assert.match(panel, /name: "Andamento"/);
+  assert.match(table, /filter === "completed" && !isTechnicianOrderCompleted\(services\)/);
+  assert.match(table, /grid w-full grid-cols-2 gap-2/);
+  assert.match(table, /whitespace-nowrap/);
+});
+
 test("painel técnico usa Realtime e notificações em balão, sem atualizar manualmente", () => {
   assert.match(panel, /service_order_item_tasks/);
   assert.match(panel, /postgres_changes/);
