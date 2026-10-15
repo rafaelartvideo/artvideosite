@@ -212,6 +212,20 @@ test("resumo técnico usa status dos serviços e mantém layout mobile uniforme"
   assert.equal(isTechnicianOrderCompleted(services(["completed", "in_progress", "completed"])), false);
   assert.equal(isTechnicianOrderCompleted(services(["completed", "cancelled"])), false);
   assert.equal(isTechnicianOrderCompleted(services(["completed", "completed", "completed"])), true);
+  // Um técnico terminou seus serviços, mas outro serviço da OS ainda está pendente.
+  assert.equal(isTechnicianOrderCompleted(
+    services(["completed", "completed"]).map(item => ({ ...item, order_services_completed: false }))
+  ), false);
+  assert.equal(isTechnicianOrderCompleted(
+    services(["completed", "completed"]).map(item => ({ ...item, order_services_completed: true }))
+  ), true);
+
+  const migration = read("supabase/migrations/20261015090000_technician_order_completion_from_all_services.sql");
+  assert.match(migration, /'order_services_completed', not exists/);
+  assert.match(migration, /other_item\.item_type in \('service','custom_service'\)/);
+  assert.match(migration, /other_task\.status is distinct from 'completed'/);
+  assert.match(migration, /employee\.profile_id=v_user/);
+  assert.match(migration, /private\.has_effective_organization_permission/);
 
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
   assert.match(panel, /assignedOrders\.filter\(isTechnicianOrderCompleted\)/);
