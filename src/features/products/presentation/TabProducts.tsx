@@ -872,7 +872,7 @@ export function TabProducts({
         </div>
         {hasInventoryFilters && <div className="mt-3 flex justify-end">
           <AdminButton
-            variant="danger"
+            variant="secondary"
             size="sm"
             onClick={() => {
               setNameSearch("");
@@ -881,7 +881,7 @@ export function TabProducts({
               setLocationSearch("");
               setPage(1);
             }}
-            className="bg-card text-red-600 hover:bg-red-50"
+            className="bg-card"
           >
             <Eraser size={14} /> Limpar filtros
           </AdminButton>
