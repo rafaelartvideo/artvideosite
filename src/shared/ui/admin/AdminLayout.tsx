@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/primitives/dialog";
 
-export type AdminButtonVariant = "primary" | "secondary" | "danger" | "ghost" | "icon";
+export type AdminButtonVariant = "primary" | "secondary" | "success" | "warning" | "danger" | "ghost" | "icon";
 export type AdminButtonSize = "sm" | "md" | "lg";
 
 const AdminPageCloseContext = React.createContext<{ onClose: () => void; requestClose: () => void } | null>(null);
@@ -60,7 +60,9 @@ export function AdminButton({
   const variants: Record<AdminButtonVariant, string> = {
     primary: "admin-primary-gradient border border-primary/30 text-white",
     secondary: "border border-border bg-card text-card-foreground hover:bg-muted",
-    danger: "border border-red-200 bg-red-600 text-white hover:bg-red-700",
+    success: "admin-action-success border",
+    warning: "admin-action-warning border",
+    danger: "admin-action-danger border",
     ghost: "border border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-primary",
     icon: "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-primary",
   };
@@ -106,7 +108,7 @@ export function AdminButton({
 
 type AdminIconButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  variant?: "secondary" | "danger" | "ghost";
+  variant?: "secondary" | "success" | "warning" | "danger" | "ghost";
   ariaLabel?: string;
   loading?: boolean;
 };
@@ -131,7 +133,9 @@ export function AdminIconButton({
   const resolvedLoading = loading || actionLoading;
   const variants = {
     secondary: "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-primary",
-    danger: "border border-red-200 bg-red-50 text-red-600 hover:bg-red-100",
+    success: "admin-action-success border",
+    warning: "admin-action-warning border",
+    danger: "admin-semantic-error border hover:brightness-95",
     ghost: "border border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-primary",
   };
   const rawLabel = String(buttonProps["aria-label"] ?? ariaLabel ?? title ?? "").trim();
