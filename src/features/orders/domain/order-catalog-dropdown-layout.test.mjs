@@ -12,7 +12,7 @@ test("listas de catálogo ficam sobrepostas às seções e têm rolagem própria
   assert.match(section, /open=\{serviceSearchOpen && !selectedService\}\s+fourRows/);
 });
 test("busca de serviço mostra spinner padrão em vez da mensagem Buscando", () => {
-  assert.match(section, /import \{ LoadingSpinner, notifyAdmin \}/);
+  assert.match(section, /import \{ LoadingSpinner \} from/);
   assert.match(section, /aria-label="Carregando resultados"/);
   assert.doesNotMatch(section, />Buscando\.\.\.<\/div>/);
   assert.match(section, /setServiceSearching\(true\)/);
