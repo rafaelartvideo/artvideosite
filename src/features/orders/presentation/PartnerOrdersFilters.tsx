@@ -93,7 +93,7 @@ export function PartnerOrdersFilters({
         />
       </div>
       {hasFilters && <div className="mt-3 flex justify-end">
-        <AdminButton variant="danger" size="sm" onClick={onClear} className="bg-white text-red-600 hover:bg-red-50">
+        <AdminButton variant="secondary" size="sm" onClick={onClear}>
           <Eraser size={14} /> Limpar filtros
         </AdminButton>
       </div>}
