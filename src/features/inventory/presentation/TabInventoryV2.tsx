@@ -577,7 +577,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           <SearchField label="Nome" value={nameSearch} onChange={setNameSearch} placeholder="Digite o nome da peça" />
           <SearchField label="SKU" value={skuSearch} onChange={setSkuSearch} placeholder="Digite o SKU" />
           <SearchField label="Endereço" value={addressSearch} onChange={setAddressSearch} placeholder="Estante, prateleira ou compartimento" />
-          {hasFilters && <div className="flex justify-end md:col-span-3 md:mt-0"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton></div>}
+          {hasFilters && <div className="flex justify-end md:col-span-3 md:mt-0"><AdminButton variant="secondary" size="sm" onClick={clearFilters}><Eraser size={14} /> Limpar filtros</AdminButton></div>}
         </div>
       </AdminSearchPanel>}
 
