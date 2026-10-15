@@ -378,20 +378,43 @@ export function TechnicianPanel() {
       actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined} />}
 
     {!routeOrderId ? <>
-      <div className="grid grid-cols-3 gap-2 sm:gap-4">
-        {([
-          { name: "Pendentes", count: items.filter(item => item.status === "pending").length,
-            tone: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
-          { name: "Andamento", count: items.filter(item => item.status === "in_progress").length,
-            tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-          { name: "Concluídas", count: items.filter(item => item.status === "completed").length,
-            tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
-        ]).map(card => <AdminCard key={card.name}>
-          <AdminCardContent className={"border p-3 sm:p-4 " + card.tone}>
-            <p className="text-xs font-semibold">{card.name}</p>
-            <p className="mt-1 text-2xl font-black sm:text-3xl">{card.count}</p>
-          </AdminCardContent>
-        </AdminCard>)}
+      <div className="space-y-3">
+        <div className="space-y-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Ordens de serviço</h2>
+          <div className="grid grid-cols-2 gap-2 sm:gap-4">
+            {([
+              { name: "OS abertas", count: assignedOrders.filter(group =>
+                  !group[0].order_completed_at && !group[0].order_cancelled_at).length,
+                tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+              { name: "OS concluídas", count: assignedOrders.filter(group =>
+                  Boolean(group[0].order_completed_at)).length,
+                tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+            ]).map(card => <AdminCard key={card.name}>
+              <AdminCardContent className={"border p-3 sm:p-4 " + card.tone}>
+                <p className="text-xs font-semibold">{card.name}</p>
+                <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
+              </AdminCardContent>
+            </AdminCard>)}
+          </div>
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Serviços atribuídos</h2>
+          <div className="grid grid-cols-3 gap-2 sm:gap-4">
+            {([
+              { name: "Pendentes", count: items.filter(item => item.status === "pending").length,
+                tone: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
+              { name: "Em andamento", count: items.filter(item => item.status === "in_progress").length,
+                tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+              { name: "Concluídos", count: items.filter(item => item.status === "completed").length,
+                tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+            ]).map(card => <AdminCard key={card.name}>
+              <AdminCardContent className={"border p-3 sm:p-4 " + card.tone}>
+                <p className="text-xs font-semibold">{card.name}</p>
+                <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
+              </AdminCardContent>
+            </AdminCard>)}
+          </div>
+        </div>
       </div>
       <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
     </> : orderLoadError && !orderDetails && !orderDetailsLoading && !loading

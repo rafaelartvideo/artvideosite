@@ -9,8 +9,12 @@ import {
   type WorkInterval,
 } from "@/features/appointments/infrastructure/employee-agenda.repository";
 
-export function EmployeeAgendaSection({ organizationId, employeeId, canManage }: {
-  organizationId: string | null; employeeId?: string | null; canManage: boolean;
+export function EmployeeAgendaSection({ organizationId, employeeId, canManage, personal = false, onSaved }: {
+  organizationId: string | null;
+  employeeId?: string | null;
+  canManage: boolean;
+  personal?: boolean;
+  onSaved?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [days, setDays] = useState<EmployeeWeekday[]>(defaultWorkWeek);
@@ -59,7 +63,8 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage }:
     setSaving(true); setError("");
     try {
       await saveEmployeeWorkWeek(organizationId, employeeId, prepared);
-      notifyAdmin("Agenda semanal do funcionário atualizada.", "success");
+      notifyAdmin(personal ? "Seus horários foram atualizados." : "Agenda semanal do funcionário atualizada.", "success");
+      onSaved?.();
       setOpen(false);
     } catch (cause) { setError(systemErrorMessage(cause, "Não foi possível salvar a agenda.")); }
     finally { setSaving(false); }
@@ -68,16 +73,20 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage }:
   if (!canManage || !employeeId) return null;
   return <>
     <AdminButton variant="secondary" size="sm" onClick={() => { setLoading(true); setError(""); setOpen(true); }}
-      aria-label="Configurar agenda do funcionário" title="Agenda" className="h-9 px-2.5 sm:px-3">
-      <CalendarDays size={15} /><span className="hidden sm:inline">Agenda</span>
+      aria-label={personal ? "Meus horários" : "Configurar agenda do funcionário"}
+      title={personal ? "Meus horários" : "Agenda"}
+      className={personal ? "h-10 w-full rounded-lg px-3 text-xs md:h-9 md:w-auto" : "h-9 px-2.5 sm:px-3"}>
+      {personal ? "Meus horários" : <><CalendarDays size={15} /><span className="hidden sm:inline">Agenda</span></>}
     </AdminButton>
     <AdminDialog open={open} onClose={() => { if (!saving) setOpen(false); }}
-      title="Agenda semanal do técnico"
-      description="Cadastre um ou mais períodos por dia, por exemplo 08:00–10:00 e 12:00–18:00. Os intervalos ficam indisponíveis para agendamentos."
+      title={personal ? "Meus horários" : "Agenda semanal do técnico"}
+      description={personal
+        ? "Escolha os dias e períodos em que você está disponível. Fora desses horários, a Agenda não oferecerá novos agendamentos para você."
+        : "Cadastre um ou mais períodos por dia, por exemplo 08:00–10:00 e 12:00–18:00. Os intervalos ficam indisponíveis para agendamentos."}
       className="max-w-2xl" minimizable={!saving}
       footer={<div className="flex justify-end gap-2">
         <BtnSecondary disabled={saving} onClick={() => setOpen(false)}>Cancelar</BtnSecondary>
-        <BtnPrimary disabled={loading} loading={saving} loadingText="Salvando..." onClick={() => void save()}>Salvar agenda</BtnPrimary>
+        <BtnPrimary disabled={loading} loading={saving} loadingText="Salvando..." onClick={() => void save()}>{personal ? "Salvar horários" : "Salvar agenda"}</BtnPrimary>
       </div>}>
       {loading ? <div className="flex min-h-[340px] items-center justify-center text-sm text-muted-foreground">Carregando horários...</div> :
         <div className="space-y-3">

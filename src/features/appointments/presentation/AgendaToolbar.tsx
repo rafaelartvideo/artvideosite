@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Eraser, ListFilter, Plus, Search } from "lucide-react";
 import { buildAgendaDays, type AgendaView } from "../application/agenda-calendar";
 import { cn } from "@/shared/domain/formatters";
@@ -25,6 +25,7 @@ type Props = {
   generalServices: GeneralService[];
   canCreate: boolean;
   canViewOthers: boolean;
+  myHoursAction?: ReactNode;
   onViewChange: (view: AgendaView) => void;
   onSearchChange: (value: string) => void;
   onTechnicianFilterChange: (value: string) => void;
@@ -115,6 +116,7 @@ export function AgendaToolbar(props: Props) {
         ] as const)}
         className="grid-cols-5"
       />
+      {props.myHoursAction}
       {props.canCreate && <AdminButton onClick={props.onNew} className="h-10 w-full rounded-lg px-3 text-xs md:h-9 md:w-auto"><Plus size={15} /> Novo agendamento</AdminButton>}
     </div>
   </div>;

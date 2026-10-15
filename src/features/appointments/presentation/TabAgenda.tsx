@@ -12,6 +12,7 @@ import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { TechnicianAvailabilityCalendar } from "./TechnicianAvailabilityCalendar";
 import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
+import { EmployeeAgendaSection } from "@/features/registrations/presentation/EmployeeAgendaDialog";
 
 export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
@@ -27,6 +28,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
   const canViewOtherAgendas = hasPermission("agenda.view_others");
   const [selectedAppointment, setSelectedAppointment] = useState<AppointmentWithRelations | null>(null);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [scheduleRevision, setScheduleRevision] = useState(0);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const organizationId = activeOrganizationId || "";
@@ -80,7 +82,10 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
     .filter(item => !searchText || item.full_name.toLocaleLowerCase("pt-BR").includes(searchText) || relatedTechnicians.has(item.id));
   const hasActiveFilters = Boolean(agenda.search.trim() || (canViewOtherAgendas && agenda.technicianFilter)
     || agenda.statusFilter || agenda.situationFilter || agenda.serviceFilter);
-  const toolbar = <AgendaToolbar canViewOthers={canViewOtherAgendas} view={agenda.view} cursor={agenda.cursor} search={agenda.search} technicianFilter={agenda.technicianFilter} statusFilter={agenda.statusFilter} situationFilter={agenda.situationFilter} serviceFilter={agenda.serviceFilter} employees={agenda.employees} statuses={agenda.statuses as any[]} situations={agenda.situations} services={agenda.services} generalServices={agenda.generalServices} canCreate={canCreate} onViewChange={view => { if ((view === "agenda" && canViewList) || (view !== "agenda" && canViewCalendar)) agenda.setView(view); }} onSearchChange={agenda.setSearch} onTechnicianFilterChange={agenda.setTechnicianFilter} onStatusFilterChange={agenda.setStatusFilter} onSituationFilterChange={agenda.setSituationFilter} onServiceFilterChange={agenda.setServiceFilter} onPrevious={() => agenda.moveCursor(-1)} onNext={() => agenda.moveCursor(1)} onToday={() => agenda.setCursor(new Date())} onNew={() => canCreate && newAppointment.openDialog()} />;
+  const toolbar = <AgendaToolbar canViewOthers={canViewOtherAgendas} view={agenda.view} cursor={agenda.cursor} search={agenda.search} technicianFilter={agenda.technicianFilter} statusFilter={agenda.statusFilter} situationFilter={agenda.situationFilter} serviceFilter={agenda.serviceFilter} employees={agenda.employees} statuses={agenda.statuses as any[]} situations={agenda.situations} services={agenda.services} generalServices={agenda.generalServices} canCreate={canCreate} myHoursAction={agenda.myEmployeeId
+    ? <EmployeeAgendaSection organizationId={organizationId} employeeId={agenda.myEmployeeId}
+        canManage={canViewAgenda} personal onSaved={() => setScheduleRevision(value => value + 1)} />
+    : null} onViewChange={view => { if ((view === "agenda" && canViewList) || (view !== "agenda" && canViewCalendar)) agenda.setView(view); }} onSearchChange={agenda.setSearch} onTechnicianFilterChange={agenda.setTechnicianFilter} onStatusFilterChange={agenda.setStatusFilter} onSituationFilterChange={agenda.setSituationFilter} onServiceFilterChange={agenda.setServiceFilter} onPrevious={() => agenda.moveCursor(-1)} onNext={() => agenda.moveCursor(1)} onToday={() => agenda.setCursor(new Date())} onNew={() => canCreate && newAppointment.openDialog()} />;
 
   return <>
     <div className="space-y-4">
@@ -96,6 +101,7 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
         </div>
       </header>
       {canViewCurrent && agenda.view === "availability" && <TechnicianAvailabilityCalendar
+        key={scheduleRevision}
         organizationId={organizationId}
         technicians={visibleTechnicians}
         loadingTechnicians={agenda.loading}

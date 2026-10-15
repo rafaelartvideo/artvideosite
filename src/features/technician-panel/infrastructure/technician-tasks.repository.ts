@@ -36,6 +36,8 @@ export type TechnicianTask = {
   equipment_model: string | null;
   serial_number: string | null;
   scheduled_at: string | null;
+  order_completed_at: string | null;
+  order_cancelled_at: string | null;
   start_location: TechnicianLocation | null;
   finish_location: TechnicianLocation | null;
 };
