@@ -155,7 +155,7 @@ export function PartnerCustomersList({
       
       </div>
       {hasFilters && <div className="mt-3 flex justify-end md:mt-2">
-        <AdminButton variant="danger" size="sm" onClick={onClearFilters} className="bg-white text-red-600 hover:bg-red-50">
+        <AdminButton variant="secondary" size="sm" onClick={onClearFilters}>
           <Eraser size={14} /> Limpar filtros
         </AdminButton>
       </div>}
