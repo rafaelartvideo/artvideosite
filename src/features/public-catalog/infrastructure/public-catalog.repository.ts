@@ -37,7 +37,7 @@ const getMediaById = (id: string) =>
 
 export async function getServiceDetailBySlug(slug: string) {
   const { data: service, error } = await getServiceBySlug(slug);
-  if (error || !service) return { data: null, error };
+  if (error || !service || service.show_in_catalog === false) return { data: null, error };
 
   const [variants, inclusions, exclusions, priceFactors, faqs, sections, filters, category, brand, product, media] = await Promise.all([
     getServiceVariants(service.id),

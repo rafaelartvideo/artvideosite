@@ -10,7 +10,10 @@ import { createGeneralService, listGeneralServices, loadGeneralServiceEquipments
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FDecimalInput, FInput, FToggle, FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
+import { FDecimalInput, FInput, FToggle, FCurrencyInput, FTextarea, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
+import { PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
+import { loadGeneralServicePublication, saveGeneralServicePublication } from "../infrastructure/public-service-publication.repository";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import type { GeneralServiceEquipmentOption } from "../infrastructure/general-services.repository";
@@ -28,7 +31,8 @@ export function GeneralServicesPanel(props: GeneralServicesPanelProps) {
 }
 
 function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, onRouteChange }: GeneralServicesPanelProps) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganization, activeOrganizationId, user } = useAuth();
+  const canPublish = activeOrganization?.is_artvideo_tenant === true && hasPermission("services.view") && hasPermission("services.create") && hasPermission("services.update");
   const canView = hasPermission("general_services.view");
   const canViewTable = hasPermission("general_services.table.view");
   const canViewDetails = hasPermission("general_services.details.view");
@@ -52,6 +56,41 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const [equipmentReady, setEquipmentReady] = useState(false);
   const [pendingCreatedId, setPendingCreatedId] = useState<string | null>(null);
   const equipmentRequestId = useRef(0);
+  const publicationRequestId = useRef(0);
+  const [publishSite, setPublishSite] = useState(false);
+  const [siteShortDescription, setSiteShortDescription] = useState("");
+  const [siteDescription, setSiteDescription] = useState("");
+  const [siteCoverMediaId, setSiteCoverMediaId] = useState("");
+  const [siteFeatured, setSiteFeatured] = useState(false);
+  const [siteIcon, setSiteIcon] = useState("wrench");
+  const [publicationLoading, setPublicationLoading] = useState(false);
+  const [publicationError, setPublicationError] = useState<string | null>(null);
+
+  const loadPublication = (serviceId: string | null) => {
+    const requestId = ++publicationRequestId.current;
+    setPublishSite(false);
+    setSiteShortDescription("");
+    setSiteDescription("");
+    setSiteCoverMediaId("");
+    setSiteFeatured(false);
+    setSiteIcon("wrench");
+    setPublicationError(null);
+    setPublicationLoading(Boolean(canPublish && serviceId));
+    if (!canPublish || !serviceId) return;
+    void loadGeneralServicePublication(serviceId).then(item => {
+      if (publicationRequestId.current !== requestId || !item) return;
+      setPublishSite(item.show_in_catalog);
+      setSiteShortDescription(item.short_description || "");
+      setSiteDescription(item.description || "");
+      setSiteCoverMediaId(item.cover_media_id || "");
+      setSiteFeatured(item.is_featured);
+      setSiteIcon(item.public_icon || "wrench");
+    }).catch(error => {
+      if (publicationRequestId.current === requestId) setPublicationError(systemErrorMessage(error));
+    }).finally(() => {
+      if (publicationRequestId.current === requestId) setPublicationLoading(false);
+    });
+  };
   const loadEquipmentLinks = (serviceId: string | null) => {
     const requestId = ++equipmentRequestId.current;
     setEquipmentOptions([]);
@@ -80,9 +119,9 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
-  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setName(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(null); };
-  const openEdit = (item: GeneralService) => { if (!(canViewDetails && canEdit)) return; setEditItem(item); setFieldErrors({}); setName(item.name || ""); setPrice(item.price == null || Number(item.price) === 0 ? "" : String(item.price)); setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage)); setMaxDiscountAmount(item.max_discount_amount == null ? "" : String(item.max_discount_amount)); setPriceAtCompletion(Boolean(item.price_at_completion)); setNoPrice(!item.price_at_completion && (item.price == null || Number(item.price) === 0)); setActive(item.is_active !== false); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(item.id); };
-  const closeForm = () => { if (saving) return; equipmentRequestId.current += 1; setFormOpen(false); onRouteChange?.(null, null); };
+  const openNew = () => { if (!canCreate) return; loadPublication(null); setEditItem(null); setFieldErrors({}); setName(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(null); };
+  const openEdit = (item: GeneralService) => { if (!(canViewDetails && canEdit)) return; loadPublication(item.id); setEditItem(item); setFieldErrors({}); setName(item.name || ""); setPrice(item.price == null || Number(item.price) === 0 ? "" : String(item.price)); setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage)); setMaxDiscountAmount(item.max_discount_amount == null ? "" : String(item.max_discount_amount)); setPriceAtCompletion(Boolean(item.price_at_completion)); setNoPrice(!item.price_at_completion && (item.price == null || Number(item.price) === 0)); setActive(item.is_active !== false); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(item.id); };
+  const closeForm = () => { if (saving) return; publicationRequestId.current += 1; equipmentRequestId.current += 1; setFormOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: GeneralService) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
 
@@ -95,7 +134,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   }, [routeResourceId, routeSubpage, items, formOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
   const save = async () => {
-    if (!(editItem ? canEdit : canCreate) || equipmentLoading) return;
+    if (!(editItem ? canEdit : canCreate) || equipmentLoading || publicationLoading || (canPublish && publicationError && publishSite)) return;
 
     const parsedPrice = priceAtCompletion ? null : noPrice ? 0 : price === "" ? null : Number(price);
     const parsedDiscount = maxDiscountPercentage === "" ? null : Number(maxDiscountPercentage);
@@ -133,7 +172,24 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
         await saveGeneralServiceEquipments(savedServiceId, selectedEquipmentIds);
         void queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
       }
+      if (canPublish && !publicationError) {
+        await saveGeneralServicePublication(savedServiceId, {
+          title: name,
+          operationalPrice: parsedPrice,
+          priceAtCompletion,
+          operationalActive: active,
+          publish: publishSite,
+          shortDescription: siteShortDescription,
+          description: siteDescription,
+          coverMediaId: siteCoverMediaId || null,
+          featured: siteFeatured,
+          icon: siteIcon,
+        }, user?.id || null);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.catalog.services() });
+      }
       equipmentRequestId.current += 1;
+      publicationRequestId.current += 1;
       setFormOpen(false);
       onRouteChange?.(null, null);
       setToast({ msg: equipmentError
@@ -152,10 +208,67 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   return <div className="min-w-0 space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}{!routeResourceId && <><PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" />
     {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." /> : <><div className="overflow-x-auto"><table className="min-w-[700px]"><thead><tr>{showService && <th className="text-left">Serviço</th>}{showPrice && <th className="text-left">Valor</th>}{showMaxDiscount && <th className="text-left">Desconto máximo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => <tr key={item.id}>{showService && <td className="font-bold text-[#0d1b2e]">{item.name}</td>}{showPrice && <td className="text-[#0d1b2e]">{item.price_at_completion ? <span className="font-semibold text-[#0057e7]">Na conclusão da OS</span> : (item.price == null || Number(item.price) === 0) ? <span className="font-semibold text-muted-foreground">Sem preço</span> : formatCurrency(item.price, "Não informado")}</td>}{showMaxDiscount && <td className="text-[#5a6a82]"><div>{item.max_discount_percentage == null ? "Não informado" : `${formatNumber(item.max_discount_percentage, { maximumFractionDigits: 2 })}%`}</div><div className="mt-0.5 text-xs">{item.max_discount_amount == null ? "Não informado" : formatCurrency(item.max_discount_amount)}</div></td>}{showStatus && <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar serviço geral" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={item.is_active} entityLabel="serviço geral" onClick={() => void toggle(item)} />}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
     {routeResourceId && !formOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    <AdminPage open={formOpen} onClose={closeForm} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-4 sm:p-5"><Section title="Serviço geral"><div className="grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><FInput label="Nome do serviço" required disabled={saving} error={fieldErrors.name} value={name} onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setName(e.target.value); }} /></div><div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-  <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-  <FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-</div><FCurrencyInput label="Valor" disabled={saving || priceAtCompletion || noPrice} error={fieldErrors.price} value={priceAtCompletion || noPrice ? "" : price} onChange={(e: any) => { setFieldErrors(current => ({ ...current, price: undefined })); setPrice(e.target.value); }} hint={priceAtCompletion ? "O valor será informado ao concluir a OS." : noPrice ? "Serviço sem cobrança; valor não necessário." : undefined} /><FDecimalInput label="Desconto máximo (%)" disabled={saving} error={fieldErrors.maxDiscountPercentage} value={maxDiscountPercentage} decimalPlaces={2} onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountPercentage: undefined })); setMaxDiscountPercentage(e.target.value); }} /><FCurrencyInput label="Desconto máximo (R$)" error={fieldErrors.maxDiscountAmount} disabled={saving} value={maxDiscountAmount} onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountAmount: undefined })); setMaxDiscountAmount(e.target.value); }} /></div><div className="mt-4"><FToggle label="Serviço ativo" disabled={saving} checked={active} onChange={setActive} /></div></Section></div>
+    <AdminPage open={formOpen} onClose={closeForm} breadcrumb="Operação > Serviços Gerais"
+      title={editItem ? editItem.name : "Novo serviço"}
+      subtitle={canPublish ? "Um só cadastro para a OS e o site da Artvideo." : "Serviço técnico para ordens de serviço."}>
+      <div className="space-y-4 p-4 sm:p-5">
+        <Section title="Dados principais">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="sm:col-span-2">
+              <FInput label="Nome do serviço" required disabled={saving} error={fieldErrors.name} value={name}
+                onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setName(e.target.value); }} />
+            </div>
+            <div className="flex flex-wrap items-start gap-5 sm:col-span-2">
+              <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
+              <FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
+            </div>
+            {!noPrice && !priceAtCompletion && <FCurrencyInput label="Valor do serviço" disabled={saving} error={fieldErrors.price} value={price}
+              onChange={(e: any) => { setFieldErrors(current => ({ ...current, price: undefined })); setPrice(e.target.value); }} />}
+            <div className="flex items-center"><FToggle label="Serviço ativo" description="Disponível para inclusão nas OS." disabled={saving} checked={active} onChange={setActive} /></div>
+          </div>
+          <details className="mt-4 rounded-lg border border-border p-3">
+            <summary className="cursor-pointer text-sm font-semibold text-foreground">Limites de desconto (opcional)</summary>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <FDecimalInput label="Desconto máximo (%)" disabled={saving} error={fieldErrors.maxDiscountPercentage} value={maxDiscountPercentage} decimalPlaces={2}
+                onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountPercentage: undefined })); setMaxDiscountPercentage(e.target.value); }} />
+              <FCurrencyInput label="Desconto máximo (R$)" disabled={saving} error={fieldErrors.maxDiscountAmount} value={maxDiscountAmount}
+                onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountAmount: undefined })); setMaxDiscountAmount(e.target.value); }} />
+            </div>
+          </details>
+        </Section>
+        {canPublish && <Section title="Loja da Artvideo">
+          <div className="space-y-4">
+            {publicationLoading && <p role="status" className="text-xs text-muted-foreground">Carregando publicação do serviço...</p>}
+            {publicationError && <div role="alert" className="text-xs text-red-600">
+              Não foi possível carregar os dados da loja: {publicationError}
+              <button type="button" className="ml-2 font-semibold underline" onClick={() => loadPublication(editItem?.id || null)}>Tentar novamente</button>
+            </div>}
+            <FToggle label="Exibir este serviço na loja" description="Ao ativar, o serviço também terá uma página no site. A OS continua usando o mesmo cadastro."
+              disabled={saving || publicationLoading || Boolean(publicationError)} checked={publishSite} onChange={setPublishSite} />
+            {publishSite && !publicationLoading && !publicationError && <div className="space-y-4 border-t border-border pt-4">
+              <FTextarea label="Descrição curta para o site" rows={2} value={siteShortDescription} disabled={saving}
+                onChange={(e: any) => setSiteShortDescription(e.target.value)} placeholder="Explique o serviço em uma frase curta" />
+              <details className="rounded-lg border border-border p-3">
+                <summary className="cursor-pointer text-sm font-semibold">Descrição completa (opcional)</summary>
+                <div className="mt-3"><FTextarea label="Detalhes do serviço" rows={3} value={siteDescription} disabled={saving}
+                  onChange={(e: any) => setSiteDescription(e.target.value)} placeholder="Informações adicionais para a página pública" /></div>
+              </details>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <FSelect label="Ícone do serviço" value={siteIcon} disabled={saving}
+                  onChange={(e: any) => setSiteIcon(e.target.value)}
+                  options={PUBLIC_ICON_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
+                <div className="flex items-end pb-2">
+                  <FToggle label="Destacar na página inicial" checked={siteFeatured} disabled={saving} onChange={setSiteFeatured} />
+                </div>
+              </div>
+              <ImageUpload bucket="service-images" organizationId={activeOrganizationId || undefined}
+                currentMediaId={siteCoverMediaId} onUpload={setSiteCoverMediaId}
+                canUpload={!saving} label="Imagem do serviço" />
+              {siteCoverMediaId && <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => setSiteCoverMediaId("")}>Remover imagem</button>}
+            </div>}
+          </div>
+        </Section>}
+      </div>
     <div className="px-4 pb-5 sm:px-5">
       <Section title="Equipamentos vinculados">
         <p className="mb-3 text-xs text-muted-foreground">Marque os equipamentos que podem receber este serviço.</p>

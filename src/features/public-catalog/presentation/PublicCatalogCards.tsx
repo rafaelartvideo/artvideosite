@@ -28,7 +28,7 @@ export function ProductCard({ product, onSelectProduct }: { product: any; onSele
 export function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
   const { settings } = useSiteSettings();
   const appearance = homeServiceDisplay(settings.home_service_display)[service.id];
-  const Icon = publicIcon(appearance?.icon || "wrench");
+  const Icon = publicIcon(appearance?.icon || service.public_icon || "wrench");
   const { url: imageUrl } = useMediaUrl(service.cover_media_id);
   const basePrice = service.base_price == null ? null : formatCurrency(service.base_price);
   const priceLabel = service.price_mode === "HIDDEN" ? null

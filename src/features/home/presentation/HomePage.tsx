@@ -36,7 +36,7 @@ function FeaturedService({ service, display, onOpen }: {
   display?: { icon?: string; media_id?: string };
   onOpen: (slug: string) => void;
 }) {
-  const Icon = publicIcon(display?.icon || "wrench");
+  const Icon = publicIcon(display?.icon || service.public_icon || "wrench");
   const { url: photo } = useMediaUrl(display?.media_id || service.cover_media_id);
   return (
     <button type="button" onClick={() => onOpen(service.slug)} className="group relative isolate flex min-h-[202px] flex-col justify-between overflow-hidden rounded-xl border border-[#dbe5f1] bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">

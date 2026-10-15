@@ -598,7 +598,7 @@ export function TabProducts({
     if (Object.keys(errors).length > 0) {
       if (errors.name || errors.barcode) setEditorTab("general");
       else if (errors.price || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
-      else if (errors.compare_at_price) setEditorTab("catalog");
+      else if (errors.compare_at_price) setEditorTab("general");
       else setEditorTab("fiscal");
       return false;
     }
@@ -992,7 +992,7 @@ export function TabProducts({
       onClose={closeEditor}
       breadcrumb="Estoque"
       title={editItem ? "Editar item" : "Novo item"}
-      subtitle="Cadastro único para identificação, comercial, estoque, fornecedores, fiscal, fotos e catálogo."
+      subtitle="Cadastre uma vez para estoque e vendas. Na Artvideo, você também pode publicar na loja."
       maxW="max-w-6xl"
       fullPage
     >
@@ -1004,7 +1004,6 @@ export function TabProducts({
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
             <EditorTabTrigger value="fiscal" icon={FileText}>Fiscais</EditorTabTrigger>
             <EditorTabTrigger value="photos" icon={ImageIcon}>Fotos</EditorTabTrigger>
-            {isArtvideoTenant && <EditorTabTrigger value="catalog" icon={ShoppingBag}>Catálogo</EditorTabTrigger>}
           </TabsList>
         </div>
 
@@ -1132,7 +1131,7 @@ export function TabProducts({
               </div>
             </Section>
 
-            <Section title="Características e classificação">
+            <details className="rounded-xl border border-border bg-card p-4"><summary className="cursor-pointer text-sm font-semibold text-foreground">Características avançadas (opcional)</summary><div className="mt-4"><Section title="Características e classificação">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <FInput
                   label="Código GPC / classificação externa"
@@ -1179,6 +1178,7 @@ export function TabProducts({
               </div>
             </Section>
 
+            </div></details>
             <Section title="Disponibilidade">
               <FToggle
                 label="Item ativo"
@@ -1188,6 +1188,30 @@ export function TabProducts({
                 onChange={value => setForm(current => ({ ...current, is_active: value }))}
               />
             </Section>
+            {isArtvideoTenant && <Section title="Publicação na loja da Artvideo">
+              <div className="space-y-4">
+                <FToggle
+                  label="Exibir este produto na loja"
+                  description="O mesmo item será usado no estoque, nas vendas e no site. Não cria outro cadastro."
+                  checked={form.show_in_catalog}
+                  disabled={saving}
+                  onChange={value => setForm(current => ({ ...current, show_in_catalog: value, is_featured: value ? current.is_featured : false }))}
+                />
+                {form.show_in_catalog && <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <FTextarea label="Descrição curta para a loja" value={form.short_description} rows={2} disabled={saving} placeholder="Resumo que o cliente verá no site" onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))} />
+                  </div>
+                  <FCurrencyInput label="Preço anterior (opcional)" value={form.compare_at_price} disabled={saving} error={fieldErrors.compare_at_price} hint="Usado apenas para comparação; deve ser igual ou maior que o preço atual." onChange={(event: any) => setForm(current => ({ ...current, compare_at_price: event.target.value }))} />
+                  <div className="flex items-end pb-1">
+                    <FToggle label="Destacar na página inicial" description="Exibe o produto entre os destaques da home." checked={form.is_featured} disabled={saving} onChange={value => setForm(current => ({ ...current, is_featured: value }))} />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <ImageUpload bucket="product-images" organizationId={activeOrganizationId || undefined} currentMediaId={form.cover_media_id} onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))} canUpload={!saving} label="Foto principal do produto" />
+                    <button type="button" disabled={saving} className="mt-3 text-xs font-semibold text-primary hover:underline" onClick={() => setEditorTab("photos")}>Adicionar mais fotos</button>
+                  </div>
+                </div>}
+              </div>
+            </Section>}
           </TabsContent>
 
           <TabsContent value="commercial" className="mt-0 space-y-5">
@@ -1677,53 +1701,6 @@ export function TabProducts({
             </Section>
           </TabsContent>
 
-          {isArtvideoTenant && <TabsContent value="catalog" className="mt-0">
-            <Section title="Catálogo da loja">
-              <div className="space-y-5">
-                <FToggle
-                  label="Exibir no catálogo da loja"
-                  description="Única configuração exclusiva da Artvideo. Quando desligada, o produto continua disponível normalmente para vendas, PDV e estoque."
-                  checked={form.show_in_catalog}
-                  disabled={saving}
-                  onChange={value => setForm(current => ({ ...current, show_in_catalog: value }))}
-                />
-
-                {form.show_in_catalog && <div className="space-y-5 border-t border-[#0d1b2e]/8 pt-5">
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="sm:col-span-2">
-                      <FInput
-                        label="Descrição curta"
-                        value={form.short_description}
-                        disabled={saving}
-                        onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))}
-                        placeholder="Resumo exibido no catálogo"
-                      />
-                    </div>
-                    <FCurrencyInput
-                      label="Preço de comparação"
-                      value={form.compare_at_price}
-                      disabled={saving}
-                      error={fieldErrors.compare_at_price}
-                      onChange={(event: any) => {
-                        setFieldErrors(current => ({ ...current, compare_at_price: undefined }));
-                        setForm(current => ({ ...current, compare_at_price: event.target.value }));
-                      }}
-                      hint="Opcional. Deve ser igual ou maior que o preço de venda."
-                    />
-                    <div className="flex items-end pb-1">
-                      <FToggle
-                        label="Destaque"
-                        description="Exibe na Home e nos destaques da loja."
-                        checked={form.is_featured}
-                        disabled={saving}
-                        onChange={value => setForm(current => ({ ...current, is_featured: value }))}
-                      />
-                    </div>
-                  </div>
-                </div>}
-              </div>
-            </Section>
-          </TabsContent>}
         </div>
       </Tabs>
 

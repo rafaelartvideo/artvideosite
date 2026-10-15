@@ -22,7 +22,7 @@ export function useServices() {
     queryFn: () => unwrapQuery<Service[]>(publicCatalog.getServices()).then((data) => data ?? []),
   });
   return {
-    services: query.data ?? [],
+    services: (query.data ?? []).filter((service) => (service as any).show_in_catalog !== false),
     loading: query.isPending,
     error: queryError(query.error, "Erro ao buscar serviços"),
   };
