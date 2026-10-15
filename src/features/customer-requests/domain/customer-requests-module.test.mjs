@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-const read = path => readFileSync(new URL("../../../" + path, import.meta.url), "utf8");
+const read = path => readFileSync(new URL("../../../../" + path, import.meta.url), "utf8");
 const migration = read("supabase/migrations/20261015193000_customer_requests_independent_module.sql");
 
 test("Pedidos Avulsos tem modulo comercial independente", () => {
