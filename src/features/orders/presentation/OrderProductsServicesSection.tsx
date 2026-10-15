@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { supabase } from "@/lib/supabase";
 import {
   AdminButton,
@@ -193,6 +193,7 @@ function CatalogResults({
   isUnavailable,
   unavailableLabel,
   onUnavailable,
+  fourRows = false,
 }: {
   open: boolean;
   loading: boolean;
@@ -203,11 +204,15 @@ function CatalogResults({
   isUnavailable?: (option: OrderCatalogOption) => boolean;
   unavailableLabel?: (option: OrderCatalogOption) => string;
   onUnavailable?: (option: OrderCatalogOption) => void;
+  fourRows?: boolean;
 }) {
   if (!open) return null;
 
-  return <div className="mb-2 mt-2 max-h-56 overflow-y-auto border border-border bg-popover shadow-sm">
-    {loading && <div className="px-3 py-3 text-xs text-muted-foreground">Buscando...</div>}
+  return <div role="listbox" aria-busy={loading} className={cn(
+    "absolute inset-x-0 top-[calc(100%+4px)] z-50 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover shadow-lg",
+    fourRows ? "max-h-[224px]" : "max-h-56",
+  )}>
+    {loading && <div className="flex h-14 items-center justify-center" role="status" aria-label="Carregando resultados"><LoadingSpinner size="sm" /></div>}
     {!loading && options.length === 0 && <div className="px-3 py-3 text-xs text-muted-foreground">{emptyLabel}</div>}
     {!loading && options.map(option => {
       const unavailable = Boolean(isUnavailable?.(option));
@@ -218,11 +223,12 @@ function CatalogResults({
         onMouseDown={event => event.preventDefault()}
         onClick={() => unavailable ? onUnavailable?.(option) : onSelect(option)}
         className={cn(
-          "flex w-full cursor-default items-start justify-between gap-4 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0",
+          "flex w-full cursor-default justify-between gap-3 border-b border-border px-3 text-left transition-colors last:border-b-0",
+          fourRows ? "h-14 items-center py-2" : "items-start py-3",
           unavailable ? "bg-muted/35 text-muted-foreground hover:bg-muted/55" : "hover:bg-primary-soft",
         )}
       >
-        <span className="min-w-0">
+        <span className="min-w-0 flex-1 overflow-hidden">
           <span className={cn("block truncate text-sm font-semibold", unavailable ? "text-muted-foreground" : "text-foreground")}>{option.name}</span>
           {option.description && <span className="mt-0.5 block truncate text-[10px] text-muted-foreground">{option.description}</span>}
           {option.stock != null && <span className={cn("mt-0.5 block text-[10px]", option.stock <= 0 ? "font-bold text-red-600 dark:text-red-400" : "text-muted-foreground")}>Estoque: {option.stock} {option.unit}</span>}
@@ -1011,7 +1017,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     </div>}
 
     {editable && <div className="grid gap-4 lg:grid-cols-2">
-      <Section title="Incluir produto">
+      <Section title="Incluir produto" className={cn("relative !overflow-visible", productSearchOpen && !selectedProduct ? "z-30" : "z-0")}>
         <div className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Produto</label>
@@ -1029,8 +1035,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 placeholder="Busque no estoque por nome ou SKU"
                 className={cn(INPUT, "pl-9")}
               />
-            </div>
-            <CatalogResults
+              <CatalogResults
               open={productSearchOpen && !selectedProduct}
               loading={productSearching}
               options={productOptions}
@@ -1040,7 +1045,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               isUnavailable={option => option.stock != null && option.stock <= 0}
               unavailableLabel={() => "Sem estoque"}
               onUnavailable={option => showFeedback({ type: "error", text: `${option.name} está sem estoque disponível e não pode ser adicionado à OS.` })}
-            />
+              />
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
@@ -1074,7 +1080,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         </div>
       </Section>
 
-      <Section title="Incluir serviço">
+      <Section title="Incluir serviço" className={cn("relative !overflow-visible", serviceSearchOpen && !selectedService ? "z-30" : "z-0")}>
         <div className="space-y-3">
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Serviço</label>
@@ -1082,25 +1088,30 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 value={serviceSearch}
-                onFocus={() => setServiceSearchOpen(true)}
+                onFocus={() => { setServiceSearchOpen(true); if (!selectedService) setServiceSearching(true); }}
                 onBlur={() => window.setTimeout(() => setServiceSearchOpen(false), 120)}
                 onChange={event => {
                   setServiceSearch(event.target.value);
                   setSelectedService(null);
                   setServiceSearchOpen(true);
+                  setServiceSearching(true);
                 }}
                 placeholder={order?.equipment_type_id ? "Buscar serviços deste equipamento" : "Busque no catálogo de serviços"}
-                className={cn(INPUT, "pl-9")}
+                className={cn(INPUT, "pl-9 pr-10")}
+                aria-label="Buscar serviço"
+                aria-expanded={serviceSearchOpen && !selectedService}
               />
-            </div>
-            <CatalogResults
+              {serviceSearching && serviceSearchOpen && !selectedService && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2"><LoadingSpinner size="sm" /></span>}
+              <CatalogResults
               open={serviceSearchOpen && !selectedService}
+              fourRows
               loading={serviceSearching}
               options={serviceOptions}
               emptyLabel={order?.equipment_type_id ? "Nenhum serviço vinculado a este equipamento. Configure os vínculos em Equipamentos Técnicos." : "Nenhum serviço encontrado."}
               formatCurrency={formatCurrency}
               onSelect={selectService}
-            />
+              />
+            </div>
           </div>
 
           {editable && selectedService && <div className="space-y-3">
@@ -1156,7 +1167,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               {!techniciansLoading && !workflowReady && <p className="mt-2 text-xs text-muted-foreground">A seleção de equipe está indisponível nesta OS.</p>}
             </div>
           </div>}
-          <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid grid-cols-[84px_minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:gap-3">
             <NumberStepper
               label="Quantidade"
               value={serviceQuantity}
@@ -1172,11 +1183,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               value={servicePrice}
               onChange={() => undefined}
               disabled
-              hint={selectedService?.price_at_completion
-                ? "Valor a definir na conclusão da OS."
-                : selectedService?.price == null || selectedService.price === 0
-                  ? "Serviço sem preço cadastrado; a inclusão não exige valor."
-                  : "Valor fixado no cadastro do serviço."}
             />
             <BtnPrimary
               disabled={!selectedService || mutating || techniciansLoading ||
@@ -1185,9 +1191,16 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   : !serviceTechnicianIds.length))}
               loading={mutating}
               onClick={() => void addService()}
-              className="h-[42px]"
+              className="h-[42px] self-end px-2 sm:px-3"
             ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
+          {selectedService && <p className="text-[10px] leading-relaxed text-muted-foreground">
+            {selectedService.price_at_completion
+              ? "Valor a definir na conclusão da OS."
+              : selectedService.price == null || selectedService.price === 0
+                ? "Serviço sem preço cadastrado; a inclusão não exige valor."
+                : "Valor fixado no cadastro do serviço."}
+          </p>}
 
           <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
             <p className="text-[10px] leading-relaxed text-muted-foreground">Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.</p>
