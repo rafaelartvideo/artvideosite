@@ -416,12 +416,13 @@ test("loader compartilhado exibe texto sobre as bolinhas animadas", () => {
   assert.match(layout, /mobileBackOnly/);
 });
 
-test("lista técnica mantém tabela quadrada, com controles arredondados no buscador", () => {
+test("lista técnica mantém tabela quadrada e filtros arredondados em duas colunas no mobile", () => {
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
   assert.match(table, /<AdminCard square/);
   assert.match(table, /<AdminSearchPanel/);
-  assert.match(table, /rounded-lg border px-3 py-2/);
-  assert.match(table, /<AdminCard square/);
+  assert.match(table, /grid w-full grid-cols-2 gap-2 sm:flex/);
+  assert.match(table, /whitespace-nowrap rounded-lg border px-2 py-2/);
+  assert.match(table, /sm:w-auto sm:px-3/);
   assert.match(table, /<PaginationBar/);
 });
 
