@@ -18,7 +18,7 @@ const ADMIN_FEEDBACK_EVENT = "unionworld:admin-feedback";
 const LEGACY_ADMIN_FEEDBACK_EVENT = "artvideo:admin-feedback";
 const BUSY_ACTION_PATTERN = /\b(carregando|salvando|enviando|atualizando|processando|buscando|consultando|gerando|excluindo|removendo|concluindo|resolvendo|aprovando|rejeitando|convertendo|criando|cadastrando|entrando|anexando|entregando|devolvendo|registrando)\b/i;
 
-type FeedbackType = "success" | "error";
+type FeedbackType = "success" | "warning" | "error";
 type AdminFeedbackEvent =
   | { kind: "loading-start"; token: string; text: string }
   | { kind: "loading-end"; token: string }
@@ -102,10 +102,10 @@ export function StatusBadge({ status, color }: { status: string; color?: string 
   if (lifecycleTone) return <LifecycleStatusBadge status={status} />;
 
   const normalized = (status || "").toLowerCase();
-  let classes = "bg-blue-100 text-blue-800";
-  if (/conclu|pronto|finaliz|entregue|aprovad/.test(normalized)) classes = "bg-emerald-100 text-emerald-800";
-  else if (/pendent|aguard|anál|analise/.test(normalized)) classes = "bg-amber-100 text-amber-800";
-  else if (/cancel|recusad/.test(normalized)) classes = "bg-red-100 text-red-800";
+  let classes = "border border-primary/15 bg-primary-soft text-primary";
+  if (/conclu|pronto|finaliz|entregue|aprovad/.test(normalized)) classes = "admin-semantic-success";
+  else if (/pendent|aguard|anál|analise/.test(normalized)) classes = "admin-semantic-warning";
+  else if (/cancel|recusad/.test(normalized)) classes = "admin-semantic-error";
 
   const customColor = Boolean(color && isHexColor(color));
   return (
@@ -189,15 +189,15 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
 export function Toast({ message, type = "success", onClose }: { message: unknown; type?: FeedbackType; onClose: () => void }) {
   const displayMessage = type === "error" ? systemErrorMessage(message) : normalizeFeedbackMessage(message);
   useEffect(() => {
-    const timeout = setTimeout(onClose, type === "error" ? 6000 : 3000);
+    const timeout = setTimeout(onClose, type === "error" ? 6000 : type === "warning" ? 4500 : 3000);
     return () => clearTimeout(timeout);
   }, [displayMessage, type]);
 
   return <div className={cn(
     "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
-    type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-800",
+    type === "success" ? "admin-semantic-success" : type === "warning" ? "admin-semantic-warning" : "admin-semantic-error",
   )} role={type === "error" ? "alert" : "status"} aria-live={type === "error" ? "assertive" : "polite"}>
-    {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
+    {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : type === "warning" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
     <span className="min-w-0 flex-1 leading-relaxed">{displayMessage}</span>
     <button type="button" onClick={onClose} className="shrink-0 rounded-md p-0.5 opacity-70 transition hover:opacity-100" aria-label="Fechar mensagem"><X size={15} /></button>
   </div>;
