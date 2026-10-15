@@ -20,10 +20,8 @@ export async function loadGeneralServiceEquipments(serviceId: string | null): Pr
   equipment: GeneralServiceEquipmentOption[];
   selectedIds: string[];
 }> {
-  const [{ loadEquipmentCatalog }, { loadEquipmentServiceSettings }] = await Promise.all([
-    import("@/features/equipment/infrastructure/equipment.repository"),
-    import("@/features/equipment/infrastructure/equipment.repository"),
-  ]);
+  const { loadEquipmentCatalog, loadEquipmentServiceSettings } =
+    await import("@/features/equipment/infrastructure/equipment.repository");
   const [catalog, settings] = await Promise.all([
     loadEquipmentCatalog(),
     loadEquipmentServiceSettings(),
