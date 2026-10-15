@@ -12,7 +12,7 @@ export type PermissionModuleGroup = { name: string; sections: PermissionSectionG
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: "Dashboard", site: "Site", operation: "Operação", quotes: "Orçamentos", orders: "Ordens de Serviço", technician_panel: "Painel do Técnico",
-  customers: "Cadastros", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
+  customers: "Cadastros", customer_requests: "Pedidos Avulsos", registrations: "Cadastros", agenda: "Agenda", field_tracking: "Mapa de Campo", inventory: "Estoque", products: "Estoque", pdv: "PDV", finance: "Financeiro", nfse: "Notas Fiscais de Serviço", tools: "Ferramentas", queue: "Union Fila", pbx: "PABX Union", marketplace: "Marketplace Union", ai: "Union IA", sac_digital: "SAC Digital", categories: "Categorias",
   brands: "Marcas", services: "Serviços do Site", site_settings: "Configurações do Site", settings: "Dados da Empresa",
   contact: "Contato", equipment: "Equipamentos", checklists: "Checklists", general_services: "Serviços Gerais", service_types: "Tipos de Atendimento",
   situations: "Situações da OS", terms: "Termos/Garantia", employees: "Cadastros — Acesso ao sistema", roles: "Funções e Permissões", documents: "Documentos", organizations: "Empresas Parceiras",
@@ -34,6 +34,9 @@ const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete"
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
 const HIDDEN_LEGACY_PERMISSIONS = new Set([
   "tools.sac_digital.use",
+  "customers.requests.view",
+  "customers.requests.create",
+  "customers.requests.update",
   "employees.delete",
   "employees.details.view",
   "employees.table.view",
@@ -74,7 +77,7 @@ export function permissionModuleName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   if (key === "organizations.audit.view") return "Auditoria";
   if (key.startsWith("orders.monitor.")) return "Monitoramento de OS";
-  if (key.startsWith("customers.requests.")) return "Pedidos Avulsos";
+  if (key.startsWith("customer_requests.")) return "Pedidos Avulsos";
   if (key.startsWith("platform.announcements.")) return "Avisos";
   if (key.startsWith("platform.billing.")) return "Financeiro";
   if (key.startsWith("platform.catalog.")) return "Ferramentas";
@@ -89,7 +92,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   const module = key.split(".")[0];
   if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
-  if (key.startsWith("customers.requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
+  if (key.startsWith("customer_requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
   if (module === "tools") {
     if (key === "tools.uniq.use") return "UNIQ";
     if (key === "tools.sac_digital.use") return "SAC Digital";
@@ -230,9 +233,8 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
-  "customers.requests.view": ["customers.view"],
-  "customers.requests.create": ["customers.requests.view", "customers.view"],
-  "customers.requests.update": ["customers.requests.view", "customers.view"],
+  "customer_requests.create": ["customer_requests.view"],
+  "customer_requests.update": ["customer_requests.view"],
   "orders.monitor.manage": ["orders.monitor.view"],
   "field_tracking.view": ["tools.view"],
   "technician_panel.data.customer": ["technician_panel.view"],

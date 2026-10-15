@@ -26,9 +26,9 @@ const dateLabel = (value: string) => new Date(value).toLocaleString("pt-BR", { d
 
 export function TabCustomerRequests() {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canCreate = hasPermission("customers.requests.create");
-  const canUpdate = hasPermission("customers.requests.update");
-  const canCreateCustomer = hasPermission("customers.create");
+  const canCreate = hasPermission("customer_requests.create");
+  const canUpdate = hasPermission("customer_requests.update");
+  const canCreateCustomer = canCreate;
   const [status, setStatus] = useState<RequestStatus | "all">("all");
   const [kind, setKind] = useState<RequestKind | "all">("all");
   const [search, setSearch] = useState("");
@@ -247,6 +247,7 @@ export function TabCustomerRequests() {
       </form>
     </AdminDialog>
     {quickCustomerOpen && <QuickCustomerModal
+      allowCustomerRequests
       description="Cadastre o cliente para vinculá-lo ao pedido avulso."
       onClose={() => setQuickCustomerOpen(false)}
       onSaved={customer => {

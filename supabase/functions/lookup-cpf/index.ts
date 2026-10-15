@@ -75,6 +75,7 @@ Deno.serve(async (request) => {
     const canLookup = [
       "customers.create",
       "customers.edit",
+      "customer_requests.create",
       "registrations.records.create",
       "employees.create",
       "employees.edit",

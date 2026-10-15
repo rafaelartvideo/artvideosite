@@ -29,6 +29,12 @@ const PARTNER_MODULE_GROUPS = [
     moduleKeys: ["customers", "employees"],
   },
   {
+    key: "customer_requests",
+    label: "Pedidos Avulsos",
+    description: "Lista de desejos de produtos e serviços solicitados por clientes, independente de OS e Cadastros.",
+    moduleKeys: ["customer_requests"],
+  },
+  {
     key: "orders",
     label: "Ordens de Serviço",
     description: "Ativa todo o domínio da OS: equipamentos, serviços, tipos de atendimento, situações, status, documentos e checklists.",

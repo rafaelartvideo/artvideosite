@@ -57,11 +57,12 @@ function duplicateTaxIdField(error: unknown): "document" | "cnpj" | null {
   return null;
 }
 
-export function QuickCustomerModal({ onClose, onSaved, initialValues, description }: {
+export function QuickCustomerModal({ onClose, onSaved, initialValues, description, allowCustomerRequests = false }: {
   onClose: () => void;
   onSaved: (customer: any) => void;
   initialValues?: Partial<CustomerForm>;
   description?: string;
+  allowCustomerRequests?: boolean;
 }) {
   const { hasPermission, activeOrganizationId } = useAuth();
   const [form, setForm] = useState<CustomerForm>(() => ({
@@ -307,7 +308,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
     className="max-w-4xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary className="w-full sm:w-auto" onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
-      {hasPermission("customers.create") && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
+      {(hasPermission("customers.create") || (allowCustomerRequests && hasPermission("customer_requests.create"))) && <BtnPrimary className="w-full sm:w-auto" onClick={save} loading={saving} loadingText="Salvando...">Criar</BtnPrimary>}
     </div>}
   >
     <div className="space-y-4">
