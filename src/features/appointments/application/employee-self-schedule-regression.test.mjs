@@ -27,11 +27,12 @@ test("RLS de autoatendimento permite editar exclusivamente o expediente do próp
   assert.doesNotMatch(migration, /for delete to authenticated/);
 });
 
-test("painel distingue OS encerradas de atividades e usa contagem única por OS", () => {
-  assert.match(panel, /assignedOrders\.filter/);
-  assert.match(panel, /order_completed_at/);
-  assert.match(panel, /order_cancelled_at/);
+test("painel classifica OS pela conclusão dos serviços atribuídos, não pela situação geral", () => {
+  assert.match(panel, /assignedOrders\.filter\(isTechnicianOrderCompleted\)/);
+  assert.match(panel, /openOrderCount = assignedOrders\.length - completedOrderCount/);
+  assert.doesNotMatch(panel, /group\[0\]\.order_completed_at|group\[0\]\.order_cancelled_at/);
   assert.match(panel, /Serviços atribuídos/);
+  // Metadados da OS permanecem na RPC, mas não determinam os cards técnicos.
   assert.match(migration, /'order_completed_at',ord\.completed_at/);
   assert.match(migration, /'order_cancelled_at',ord\.cancelled_at/);
 });
