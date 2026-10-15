@@ -74,6 +74,7 @@ export function permissionModuleName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   if (key === "organizations.audit.view") return "Auditoria";
   if (key.startsWith("orders.monitor.")) return "Monitoramento de OS";
+  if (key.startsWith("customers.requests.")) return "Pedidos Avulsos";
   if (key.startsWith("platform.announcements.")) return "Avisos";
   if (key.startsWith("platform.billing.")) return "Financeiro";
   if (key.startsWith("platform.catalog.")) return "Ferramentas";
@@ -88,6 +89,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   const key = String(permission.key || "");
   const module = key.split(".")[0];
   if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
+  if (key.startsWith("customers.requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
   if (module === "tools") {
     if (key === "tools.uniq.use") return "UNIQ";
     if (key === "tools.sac_digital.use") return "SAC Digital";
@@ -228,6 +230,9 @@ export function buildPermissionGroups(permissions: PermissionRecord[]) {
 }
 
 const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
+  "customers.requests.view": ["customers.view"],
+  "customers.requests.create": ["customers.requests.view", "customers.view"],
+  "customers.requests.update": ["customers.requests.view", "customers.view"],
   "orders.monitor.manage": ["orders.monitor.view"],
   "field_tracking.view": ["tools.view"],
   "technician_panel.data.customer": ["technician_panel.view"],

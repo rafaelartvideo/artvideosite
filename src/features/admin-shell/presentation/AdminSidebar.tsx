@@ -81,7 +81,7 @@ export function AdminSidebar({
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
   const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
   const serviceItems = visibleMainItems.filter(item =>
-    ["quotes", "orders", "technicianPanel", "customers", "agenda"].includes(item.id),
+    ["quotes", "orders", "technicianPanel", "customers", "customerRequests", "agenda"].includes(item.id),
   );
   const commercialItems = visibleMainItems.filter(item =>
     !isPlatformOperatorOrganization && ["inventory", "pdv", "finance"].includes(item.id),

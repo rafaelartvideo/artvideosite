@@ -29,6 +29,7 @@ const TabCategories = lazy(() => import("@/features/categories/presentation/TabC
 const ChecklistAdminPanel = lazy(() => import("@/features/checklists/presentation/ChecklistAdminPanel").then(({ ChecklistAdminPanel }) => ({ default: ChecklistAdminPanel })));
 const TabContact = lazy(() => import("@/features/contact/presentation/TabContact").then(({ TabContact }) => ({ default: TabContact })));
 const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCustomers").then(({ TabCustomers }) => ({ default: TabCustomers })));
+const TabCustomerRequests = lazy(() => import("@/features/customer-requests/presentation/TabCustomerRequests").then(({ TabCustomerRequests }) => ({ default: TabCustomerRequests })));
 const AdminHomePage = lazy(() => import("@/features/admin-home/presentation/AdminHomePage").then(({ AdminHomePage }) => ({ default: AdminHomePage })));
 const PlatformAnnouncementsPage = lazy(() => import("@/features/admin-home/presentation/PlatformAnnouncementsPage").then(({ PlatformAnnouncementsPage }) => ({ default: PlatformAnnouncementsPage })));
 const TabDashboard = lazy(() => import("@/features/dashboard/presentation/TabDashboard").then(({ TabDashboard }) => ({ default: TabDashboard })));
@@ -66,7 +67,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "crm", "technicianPanel", "orders", "customers", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
+  "home", "dashboard", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -448,6 +449,7 @@ export function AdminDashboard({
             <Route path="technician-panel/*" element={<TechnicianPanel />} />
             <Route path="agenda/*" element={<TabAgenda onOpenOrder={id => navigateAdmin("orders", id)} />} />
             <Route path="field-map/*" element={<TabFieldTracking />} />
+            <Route path="customer-requests/*" element={<TabCustomerRequests />} />
             <Route path="customers/*" element={<TabCustomers onOpenOrder={(id, customerId) => navigateAdmin("orders", id, null, { menuTab: "customers", origin: { tab: "customers", resourceId: customerId || route.resourceId || null, subpage: route.subpage === "customer" ? "customer" : null } })} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("customers")} />} />
             <Route path="inventory/*" element={<TabInventory routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("inventory")} />} />
             <Route path="products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />

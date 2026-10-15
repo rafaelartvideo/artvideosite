@@ -7,6 +7,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   dashboard: () => import("@/features/dashboard/presentation/TabDashboard"),
   orders: () => import("@/features/orders/presentation/TabOrders"),
   customers: () => import("@/features/customers/presentation/TabCustomers"),
+  customerRequests: () => import("@/features/customer-requests/presentation/TabCustomerRequests"),
   agenda: () => import("@/features/appointments/presentation/TabAgenda"),
   inventory: () => import("@/features/inventory/presentation/TabInventory"),
   pdv: () => import("@/features/pdv/presentation/TabPdv"),
