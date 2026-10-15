@@ -33,13 +33,14 @@ export function renderServiceOrderLabel(
   const osNumber = cleanText(order.os_number);
   if (!osNumber) throw new Error("Esta OS não possui número para impressão.");
   const externalNumber = cleanText(order.external_os_number);
-  const osFontSize = fontSizeForNumber(osNumber, [17, 14, 11, 9]);
+  const osLabel = `OS ${osNumber}`;
+  const osFontSize = fontSizeForNumber(osLabel, [17, 14, 11, 9]);
   const externalFontSize = fontSizeForNumber(externalNumber, [9, 8, 7, 6]);
   const caption = externalNumber
     ? `<div class="external" style="font-size: ${externalFontSize}pt">OS externa ${escapeHtml(externalNumber)}</div>`
     : "";
   const label = `<div class="label-content">
-      <strong class="order-number" style="font-size: ${osFontSize}pt">${escapeHtml(osNumber)}</strong>
+      <strong class="order-number" style="font-size: ${osFontSize}pt">${escapeHtml(osLabel)}</strong>
       ${caption}
     </div>`;
 
