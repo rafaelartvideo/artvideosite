@@ -102,7 +102,7 @@ export function FinanceApprovalPanel({
       {detail.approval_status === "pending" && canApprove && <div className="border-t border-[#0d1b2e]/8 pt-4">
         {reasonLabel(approveRule.reason) && <p className="mb-3 text-xs font-semibold text-amber-700">{reasonLabel(approveRule.reason)}</p>}
         {!rejecting ? <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <AdminButton variant="secondary" onClick={() => { setRejecting(true); setRejectError(""); }} disabled={pending}><XCircle size={15} /> Rejeitar</AdminButton>
+          <AdminButton variant="warning" onClick={() => { setRejecting(true); setRejectError(""); }} disabled={pending}><XCircle size={15} /> Rejeitar</AdminButton>
           <AdminButton onClick={approve} disabled={pending || !approveRule.ok} loading={pending} loadingText="Registrando..."><CheckCircle2 size={15} /> Aprovar</AdminButton>
         </div> : <div className="space-y-3">
           <FTextarea label="Motivo da rejeição" required error={rejectError} value={rejectNote} onChange={(event: any) => { setRejectError(""); setRejectNote(event.target.value); }} placeholder="Descreva o motivo para manter o histórico auditável." />
