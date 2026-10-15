@@ -1,17 +1,19 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Wrench } from "lucide-react";
 import type { GeneralService } from "@/lib/database.types";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
-import { createGeneralService, listGeneralServices, setGeneralServiceActive, updateGeneralService } from "../infrastructure/general-services.repository";
+import { createGeneralService, listGeneralServices, loadGeneralServiceEquipments, saveGeneralServiceEquipments, setGeneralServiceActive, updateGeneralService } from "../infrastructure/general-services.repository";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FDecimalInput, FInput, FToggle, FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import type { GeneralServiceEquipmentOption } from "../infrastructure/general-services.repository";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
 
 type GeneralServicesPanelProps = {
@@ -42,13 +44,45 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const itemsQuery = useQuery({ queryKey: queryKeys.generalServices.lists(), queryFn: listGeneralServices, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit), staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = itemsQuery.data ?? []; const loading = itemsQuery.isPending;
   const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [noPrice, setNoPrice] = useState(false); const [active, setActive] = useState(true); const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({}); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5);
+  const [equipmentOptions, setEquipmentOptions] = useState<GeneralServiceEquipmentOption[]>([]);
+  const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
+  const [originalEquipmentIds, setOriginalEquipmentIds] = useState<string[]>([]);
+  const [equipmentLoading, setEquipmentLoading] = useState(false);
+  const [equipmentError, setEquipmentError] = useState<string | null>(null);
+  const [equipmentReady, setEquipmentReady] = useState(false);
+  const [pendingCreatedId, setPendingCreatedId] = useState<string | null>(null);
+  const equipmentRequestId = useRef(0);
+  const loadEquipmentLinks = (serviceId: string | null) => {
+    const requestId = ++equipmentRequestId.current;
+    setEquipmentOptions([]);
+    setSelectedEquipmentIds([]);
+    setOriginalEquipmentIds([]);
+    setEquipmentError(null);
+    setEquipmentReady(false);
+    setEquipmentLoading(true);
+    void loadGeneralServiceEquipments(serviceId).then(result => {
+      if (equipmentRequestId.current !== requestId) return;
+      setEquipmentOptions(result.equipment);
+      setSelectedEquipmentIds(result.selectedIds);
+      setOriginalEquipmentIds(result.selectedIds);
+      setEquipmentReady(true);
+    }).catch(error => {
+      if (equipmentRequestId.current === requestId) setEquipmentError(systemErrorMessage(error));
+    }).finally(() => {
+      if (equipmentRequestId.current === requestId) setEquipmentLoading(false);
+    });
+  };
+  const sortedEquipment = equipmentOptions
+    .filter(type => type.is_active || selectedEquipmentIds.includes(type.id))
+    .sort((a, b) => Number(selectedEquipmentIds.includes(b.id)) - Number(selectedEquipmentIds.includes(a.id))
+      || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   useEffect(() => { if (itemsQuery.error) setToast({ msg: `Erro ao carregar serviços gerais: ${systemErrorMessage(itemsQuery.error)}`, type: "error" }); }, [itemsQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
-  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setName(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setFormOpen(true); };
-  const openEdit = (item: GeneralService) => { if (!(canViewDetails && canEdit)) return; setEditItem(item); setFieldErrors({}); setName(item.name || ""); setPrice(item.price == null || Number(item.price) === 0 ? "" : String(item.price)); setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage)); setMaxDiscountAmount(item.max_discount_amount == null ? "" : String(item.max_discount_amount)); setPriceAtCompletion(Boolean(item.price_at_completion)); setNoPrice(!item.price_at_completion && (item.price == null || Number(item.price) === 0)); setActive(item.is_active !== false); setFormOpen(true); };
-  const closeForm = () => { if (saving) return; setFormOpen(false); onRouteChange?.(null, null); };
+  const openNew = () => { if (!canCreate) return; setEditItem(null); setFieldErrors({}); setName(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(null); };
+  const openEdit = (item: GeneralService) => { if (!(canViewDetails && canEdit)) return; setEditItem(item); setFieldErrors({}); setName(item.name || ""); setPrice(item.price == null || Number(item.price) === 0 ? "" : String(item.price)); setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage)); setMaxDiscountAmount(item.max_discount_amount == null ? "" : String(item.max_discount_amount)); setPriceAtCompletion(Boolean(item.price_at_completion)); setNoPrice(!item.price_at_completion && (item.price == null || Number(item.price) === 0)); setActive(item.is_active !== false); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(item.id); };
+  const closeForm = () => { if (saving) return; equipmentRequestId.current += 1; setFormOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: GeneralService) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
 
@@ -61,7 +95,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   }, [routeResourceId, routeSubpage, items, formOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
   const save = async () => {
-    if (!(editItem ? canEdit : canCreate)) return;
+    if (!(editItem ? canEdit : canCreate) || equipmentLoading) return;
 
     const parsedPrice = priceAtCompletion ? null : noPrice ? 0 : price === "" ? null : Number(price);
     const parsedDiscount = maxDiscountPercentage === "" ? null : Number(maxDiscountPercentage);
@@ -86,14 +120,28 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
         max_discount_amount: parsedDiscountAmount,
         is_active: active,
       };
-      if (editItem) await updateGeneralService(editItem.id, payload);
-      else await createGeneralService({ ...payload, sort_order: items.length });
+      let savedServiceId = editItem?.id || pendingCreatedId;
+      if (savedServiceId) await updateGeneralService(savedServiceId, payload);
+      else {
+        savedServiceId = await createGeneralService({ ...payload, sort_order: items.length });
+        setPendingCreatedId(savedServiceId);
+      }
+      const previous = new Set(originalEquipmentIds);
+      const linksChanged = equipmentReady && (selectedEquipmentIds.length !== previous.size
+        || selectedEquipmentIds.some(id => !previous.has(id)));
+      if (linksChanged) {
+        await saveGeneralServiceEquipments(savedServiceId, selectedEquipmentIds);
+        void queryClient.invalidateQueries({ queryKey: queryKeys.equipment.all });
+      }
+      equipmentRequestId.current += 1;
       setFormOpen(false);
       onRouteChange?.(null, null);
-      setToast({ msg: editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" });
+      setToast({ msg: equipmentError
+        ? "Serviço salvo. Os vínculos de equipamentos não foram alterados."
+        : editItem ? "Serviço geral atualizado." : "Serviço geral criado.", type: "success" });
       void refresh();
     } catch (error) {
-      setToast({ msg: `Erro ao salvar serviço geral: ${systemErrorMessage(error)}`, type: "error" });
+      setToast({ msg: `Erro ao salvar serviço geral ou seus equipamentos: ${systemErrorMessage(error)}`, type: "error" });
     } finally {
       setSaving(false);
     }
@@ -107,6 +155,30 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
     <AdminPage open={formOpen} onClose={closeForm} breadcrumb="Operação > Serviços Gerais" title={editItem ? editItem.name : "Novo serviço"} subtitle="Cadastro de serviço técnico interno"><div className="p-4 sm:p-5"><Section title="Serviço geral"><div className="grid gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><FInput label="Nome do serviço" required disabled={saving} error={fieldErrors.name} value={name} onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setName(e.target.value); }} /></div><div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
   <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
   <FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-</div><FCurrencyInput label="Valor" disabled={saving || priceAtCompletion || noPrice} error={fieldErrors.price} value={priceAtCompletion || noPrice ? "" : price} onChange={(e: any) => { setFieldErrors(current => ({ ...current, price: undefined })); setPrice(e.target.value); }} hint={priceAtCompletion ? "O valor será informado ao concluir a OS." : noPrice ? "Serviço sem cobrança; valor não necessário." : undefined} /><FDecimalInput label="Desconto máximo (%)" disabled={saving} error={fieldErrors.maxDiscountPercentage} value={maxDiscountPercentage} decimalPlaces={2} onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountPercentage: undefined })); setMaxDiscountPercentage(e.target.value); }} /><FCurrencyInput label="Desconto máximo (R$)" error={fieldErrors.maxDiscountAmount} disabled={saving} value={maxDiscountAmount} onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountAmount: undefined })); setMaxDiscountAmount(e.target.value); }} /></div><div className="mt-4"><FToggle label="Serviço ativo" disabled={saving} checked={active} onChange={setActive} /></div></Section></div><div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeForm} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminPage>
+</div><FCurrencyInput label="Valor" disabled={saving || priceAtCompletion || noPrice} error={fieldErrors.price} value={priceAtCompletion || noPrice ? "" : price} onChange={(e: any) => { setFieldErrors(current => ({ ...current, price: undefined })); setPrice(e.target.value); }} hint={priceAtCompletion ? "O valor será informado ao concluir a OS." : noPrice ? "Serviço sem cobrança; valor não necessário." : undefined} /><FDecimalInput label="Desconto máximo (%)" disabled={saving} error={fieldErrors.maxDiscountPercentage} value={maxDiscountPercentage} decimalPlaces={2} onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountPercentage: undefined })); setMaxDiscountPercentage(e.target.value); }} /><FCurrencyInput label="Desconto máximo (R$)" error={fieldErrors.maxDiscountAmount} disabled={saving} value={maxDiscountAmount} onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountAmount: undefined })); setMaxDiscountAmount(e.target.value); }} /></div><div className="mt-4"><FToggle label="Serviço ativo" disabled={saving} checked={active} onChange={setActive} /></div></Section></div>
+    <div className="px-4 pb-5 sm:px-5">
+      <Section title="Equipamentos vinculados">
+        <p className="mb-3 text-xs text-muted-foreground">Marque os equipamentos que podem receber este serviço.</p>
+        {equipmentLoading && <p role="status" className="py-4 text-xs text-muted-foreground">Carregando equipamentos...</p>}
+        {!equipmentLoading && equipmentError && <div role="alert" className="space-y-2 py-3 text-xs text-red-600">
+          <p>Não foi possível carregar os vínculos: {equipmentError}</p>
+          <button type="button" disabled={saving} onClick={() => loadEquipmentLinks(editItem?.id ?? null)} className="font-semibold underline underline-offset-2">Tentar novamente</button>
+        </div>}
+        {!equipmentLoading && equipmentReady && <div className="max-h-64 overflow-y-auto border-y border-border">
+          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+            {sortedEquipment.map(type => <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 py-3 text-xs text-foreground">
+              <Checkbox checked={selectedEquipmentIds.includes(type.id)} disabled={saving || !type.is_active}
+                onCheckedChange={checked => setSelectedEquipmentIds(current =>
+                  checked === true ? [...new Set([...current, type.id])] : current.filter(id => id !== type.id))} />
+              <span className="min-w-0 flex-1 font-semibold">{type.name}</span>
+              {!type.is_active && <span className="text-[10px] text-muted-foreground">Inativo</span>}
+            </label>)}
+          </div>
+          {sortedEquipment.length === 0 && <p className="py-4 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>}
+        </div>}
+        {equipmentReady && <p className="mt-2 text-xs text-muted-foreground">{selectedEquipmentIds.length} equipamento(s) selecionado(s)</p>}
+      </Section>
+    </div>
+    <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeForm} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={equipmentLoading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminPage>
   </div>;
 }
