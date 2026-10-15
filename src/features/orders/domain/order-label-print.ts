@@ -14,9 +14,10 @@ function cleanText(value: unknown) {
 }
 
 function escapeHtml(value: unknown) {
-  return cleanText(value).replace(/[&<>"']/g, character =>
-    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] || character,
-  );
+  const entities: Record<string, string> = {
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  };
+  return cleanText(value).replace(/[&<>"']/g, character => entities[character] || character);
 }
 
 function fontSizeForNumber(value: string, sizes: [number, number, number, number]) {
@@ -232,16 +233,35 @@ export function renderServiceOrderLabel(
           warning.textContent = "Preencha medidas válidas. A largura total deve ser no máximo " + maxWidth + " mm (limite de impressão da L-42).";
           return;
         }
-        var qrSize = Math.max(4, Math.min(20, width - 3, height - (${Boolean(externalNumber)} ? 13 : 10)));
         var root = document.documentElement;
         root.style.setProperty("--label-w", width + "mm");
         root.style.setProperty("--label-h", height + "mm");
         root.style.setProperty("--gap", gap + "mm");
         root.style.setProperty("--side-margin", margin + "mm");
         root.style.setProperty("--sheet-w", totalWidth + "mm");
-        root.style.setProperty("--qr-size", qrSize + "mm");
         document.getElementById("page-size").textContent = "@page { size: " + totalWidth + "mm " + height + "mm; margin: 0; }";
         var sheet = document.getElementById("sheet");
+        // Encaixa números longos no espaço disponível, sem os cortar.
+        sheet.querySelectorAll(".order-number, .external-number").forEach(function (element) {
+          var initial = Number(element.getAttribute("data-font-size") || 0);
+          if (!initial) {
+            initial = parseFloat(element.style.fontSize);
+            element.setAttribute("data-font-size", String(initial));
+          }
+          var size = initial;
+          element.style.fontSize = size + "pt";
+          while (element.scrollWidth > element.clientWidth + 1 && size > 5.5) {
+            size -= .5;
+            element.style.fontSize = size + "pt";
+          }
+        });
+        // Calcula o QR usando a altura efetiva do cabeçalho, inclusive OS externa.
+        var firstLabel = sheet.querySelector(".label");
+        var heading = firstLabel.querySelector(".identification");
+        var pxPerMm = firstLabel.getBoundingClientRect().width / width;
+        var availableMm = (firstLabel.clientHeight - heading.getBoundingClientRect().height) / pxPerMm - 2;
+        var qrSize = Math.max(0, Math.min(20, width - 3, availableMm));
+        root.style.setProperty("--qr-size", qrSize + "mm");
         sheet.classList.toggle("hide-qr", !qr);
         var labels = sheet.querySelectorAll(".label");
         labels.forEach(function (label, index) { label.classList.toggle("empty", index >= quantity); });
