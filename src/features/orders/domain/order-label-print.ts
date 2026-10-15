@@ -6,7 +6,7 @@ type ServiceOrderLabelOrder = {
 
 // Padrão inicial para rolos de três colunas. As medidas podem ser
 // calibradas na prévia de impressão e ficam salvas neste navegador.
-const DEFAULT_LAYOUT = { width: 32, height: 23, gap: 3, margin: 1, quantity: 3 };
+const DEFAULT_LAYOUT = { width: 32, height: 23, gap: 3, margin: 1, quantity: 3, verticalOffset: 0 };
 const L42_MAX_PRINT_WIDTH_MM = 104;
 
 function cleanText(value: unknown) {
@@ -62,7 +62,8 @@ export function renderServiceOrderLabel(
       --label-h: 23mm;
       --gap: 3mm;
       --side-margin: 1mm;
-      --sheet-w: 102mm;
+      --sheet-w: 104mm;
+      --vertical-offset: 0mm;
 
     }
     html, body { margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; color: #111; }
@@ -112,6 +113,7 @@ export function renderServiceOrderLabel(
     .label-content {
       height: 100%; width: 100%; display: flex; flex-direction: column;
       align-items: center; justify-content: center; gap: 1mm; overflow: hidden;
+      transform: translateY(var(--vertical-offset));
     }
     .order-number {
       display: block; max-width: 100%; font-weight: 900; line-height: 1.08;
@@ -151,6 +153,7 @@ export function renderServiceOrderLabel(
       <label class="field">Altura da etiqueta (mm)<input id="height" type="number" min="15" max="80" step=".5"></label>
       <label class="field">Espaço entre colunas (mm)<input id="gap" type="number" min="0" max="10" step=".5"></label>
       <label class="field">Margem lateral (mm)<input id="margin" type="number" min="0" max="5" step=".5"></label>
+      <label class="field" title="Valores negativos sobem o conteúdo; positivos descem.">Posição vertical (mm)<input id="verticalOffset" type="number" min="-5" max="5" step=".5"></label>
       <label class="field">Etiquetas nesta fileira
         <select id="quantity"><option value="3">3 etiquetas</option><option value="2">2 etiquetas</option><option value="1">1 etiqueta</option></select>
       </label>
@@ -161,6 +164,7 @@ export function renderServiceOrderLabel(
       <span class="summary" id="summary"></span>
     </div>
     <div class="warning" id="warning" role="status"></div>
+    <p class="hint" style="margin: 8px 0 0">Para centralizar na etiqueta impressa, ajuste a posição vertical: -1 ou -2 mm para subir, valores positivos para descer. O ajuste fica salvo neste navegador.</p>
     <p class="hint" style="margin: 8px 0 0">Na impressão selecione a BTP-L42(U), escala 100%, margens nenhuma e sem cabeçalhos/rodapés. No driver, configure um papel personalizado com a largura total e a altura de uma fileira mostradas acima. Confirme as medidas reais com uma régua.</p>
   </div>
   <p class="preview-title">Prévia da fileira (as bordas pontilhadas não são impressas)</p>
@@ -170,7 +174,7 @@ export function renderServiceOrderLabel(
       var STORAGE_KEY = "artvideo-order-label-layout-v3";
       var defaults = ${JSON.stringify(DEFAULT_LAYOUT)};
       var maxWidth = ${L42_MAX_PRINT_WIDTH_MM};
-      var keys = ["width", "height", "gap", "margin", "quantity"];
+      var keys = ["width", "height", "gap", "margin", "quantity", "verticalOffset"];
       var settings = Object.assign({}, defaults);
       try {
         var saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
@@ -194,10 +198,11 @@ export function renderServiceOrderLabel(
         var gap = number("gap", 0, 10);
         var margin = number("margin", 0, 5);
         var quantity = number("quantity", 1, 3);
+        var verticalOffset = number("verticalOffset", -5, 5);
 
         var totalWidth = 3 * width + 2 * gap + 2 * margin;
         var valid = Number.isFinite(totalWidth) && Number.isFinite(height) && Number.isFinite(quantity)
-          && Math.round(quantity) === quantity && totalWidth <= maxWidth && totalWidth > 0;
+          && Number.isFinite(verticalOffset) && Math.round(quantity) === quantity && totalWidth <= maxWidth && totalWidth > 0;
         var summary = document.getElementById("summary");
         var warning = document.getElementById("warning");
         var printButton = document.getElementById("print");
@@ -214,6 +219,7 @@ export function renderServiceOrderLabel(
         root.style.setProperty("--gap", gap + "mm");
         root.style.setProperty("--side-margin", margin + "mm");
         root.style.setProperty("--sheet-w", totalWidth + "mm");
+        root.style.setProperty("--vertical-offset", verticalOffset + "mm");
         document.getElementById("page-size").textContent = "@page { size: " + totalWidth + "mm " + height + "mm; margin: 0; }";
         var sheet = document.getElementById("sheet");
         // Encaixa números longos no espaço disponível, sem os cortar.
@@ -234,7 +240,7 @@ export function renderServiceOrderLabel(
         labels.forEach(function (label, index) { label.classList.toggle("empty", index >= quantity); });
         summary.textContent = "Papel: " + totalWidth.toFixed(1).replace(".", ",") + " × " + height.toFixed(1).replace(".", ",") + " mm";
         warning.textContent = "";
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ width: width, height: height, gap: gap, margin: margin, quantity: quantity })); } catch (_) {}
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ width: width, height: height, gap: gap, margin: margin, quantity: quantity, verticalOffset: verticalOffset })); } catch (_) {}
       }
 
       keys.forEach(function (key) {
