@@ -1,193 +1,165 @@
 import type { ReactNode } from "react";
-import { ArrowRight, ChevronRight, Search, ShoppingCart, Wrench } from "lucide-react";
+import { ArrowRight, ChevronRight, ClipboardList, Package, Search, ShoppingCart, ShieldCheck, Wrench } from "lucide-react";
 import { useBrands, useFeaturedProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
-import { BrandCard, ProductCard, ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
+import { BrandCard, ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { homeCategories, homeServiceDisplay, publicIcon, siteText } from "@/features/public-shell/domain/site-appearance";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
-import { PublicButton, PublicHeading, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
+import { PublicButton, PublicHeading } from "@/features/public-shell/presentation/PublicUi";
 
-const HOME_STEPS = [
-  { n: "01", title: "Solicite", desc: "Conte o que aconteceu com seu equipamento." },
-  { n: "02", title: "Avaliamos", desc: "Nossa equipe analisa o problema." },
-  { n: "03", title: "Orçamento", desc: "Você recebe as informações antes do serviço." },
-  { n: "04", title: "Reparo", desc: "Após aprovação, realizamos o serviço." },
-];
+type HomeProps = {
+  setPage: (page: PublicPage) => void;
+  onSelectService: (slug: string) => void;
+  onSelectProduct: (slug: string) => void;
+  trackingSection: ReactNode;
+};
 
-const ASSIST_CATS = ["TVs", "Computadores", "Eletrodomésticos", "Videogames", "Eletrônicos"];
+function HomePhoto({ mediaId, url, alt, className = "" }: { mediaId?: string; url?: string; alt: string; className?: string }) {
+  const { url: mediaUrl } = useMediaUrl(mediaId);
+  const source = mediaUrl || url;
+  if (!source) {
+    return <div className={`relative flex h-full min-h-64 items-center justify-center overflow-hidden bg-gradient-to-br from-[#183759] via-[#0d2849] to-[#0057e7]/45 ${className}`} aria-label="Espaço reservado para imagem da Artvideo">
+      <div className="absolute -right-12 -top-20 h-72 w-72 rounded-full bg-blue-400/15 blur-3xl" />
+      <div className="absolute -bottom-28 left-0 h-72 w-72 rounded-full bg-sky-400/20 blur-3xl" />
+      <div className="relative flex flex-col items-center gap-5 text-white/70">
+        <div className="rounded-3xl border border-white/15 bg-white/10 p-8 shadow-2xl backdrop-blur"><Wrench size={60} strokeWidth={1.3} /></div>
+        <span className="text-xs font-bold tracking-[.24em] uppercase">Eletrônica Artvideo</span>
+      </div>
+    </div>;
+  }
+  return <img className={`h-full w-full object-cover ${className}`} src={source} alt={alt} loading="lazy" />;
+}
 
-export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSection }: { setPage: (page: PublicPage) => void; onSelectService: (slug: string) => void; onSelectProduct: (slug: string) => void; trackingSection: ReactNode }) {
-  // Buscar dados reais do Supabase
-  const { products: featuredProducts, loading: productsLoading } = useFeaturedProducts();
-  const { brands, loading: brandsLoading } = useBrands();
-  const { services, loading: servicesLoading } = useServices();
-
+function FeaturedService({ service, display, onOpen }: {
+  service: any;
+  display?: { icon?: string; media_id?: string };
+  onOpen: (slug: string) => void;
+}) {
+  const Icon = publicIcon(display?.icon || "wrench");
+  const { url: photo } = useMediaUrl(display?.media_id || service.cover_media_id);
   return (
-    <>
-      {/* Hero */}
-      <section className="bg-[#0d1b2e] py-16 sm:py-20 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center">
-          <div>
-            <SectionLabel light>Eletrônica Artvideo · Aracaju, SE</SectionLabel>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white leading-tight mb-5" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-              Tecnologia, produtos e serviços em um só lugar.
-            </h1>
-            <p className="text-white/70 text-lg mb-8 max-w-lg leading-relaxed">Produtos eletrônicos, assistência técnica, instalações e manutenção para sua casa ou negócio.</p>
-            <div className="flex flex-wrap gap-3">
-              <PublicButton variant="primary" className="text-base px-6 py-3">Comprar na loja</PublicButton>
-              <PublicButton variant="outline" className="text-base px-6 py-3 border-white/40 text-white hover:bg-white/15 hover:border-white" onClick={() => setPage("orcamento")}>Solicitar orçamento</PublicButton>
-            </div>
-          </div>
-          <div className="relative">
-            <div className="absolute -inset-4 bg-[#0057e7]/20 rounded-2xl blur-2xl" />
-            <div className="relative rounded-xl overflow-hidden border border-white/10">
-              <img src="https://images.unsplash.com/photo-1761494296583-99b15e9063c5?w=800&h=520&fit=crop&auto=format" alt="Loja de eletrônicos Artvideo" className="w-full h-72 sm:h-80 lg:h-96 object-cover" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 3 Caminhos */}
-      <section className="py-16 bg-[#f5f7fa]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Atendimento completo</SectionLabel>
-          <PublicHeading className="mb-10">O que você precisa?</PublicHeading>
-          <div className="grid sm:grid-cols-3 gap-5">
-            {[
-              { label: "COMPRAR", icon: ShoppingCart, desc: "Encontre produtos eletrônicos, acessórios e equipamentos.", cta: "Ver loja", dark: false, dest: "home" as const },
-              { label: "CONSERTAR", icon: Wrench, desc: "Diagnóstico, manutenção e reparo para seus equipamentos.", cta: "Conhecer assistência", dark: true, dest: "servicos" as const },
-              { label: "ACOMPANHAR SERVIÇO", icon: Search, desc: "Consulte o andamento do seu serviço ou pedido usando o número da OS.", cta: "Acompanhar serviço", dark: false, dest: "tracking" as const },
-            ].map((c) => {
-              const Icon = c.icon;
-              return (
-                <div key={c.label} className={`${c.dark ? "bg-[#0d1b2e]" : "bg-white"} rounded-xl p-8 flex flex-col gap-4 border border-[#0d1b2e]/10 shadow-sm hover:shadow-md transition-shadow`}>
-                  <Icon size={32} className={c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} />
-                  <h3 className={`text-2xl font-black ${c.dark ? "text-white" : "text-[#0d1b2e]"}`} style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{c.label}</h3>
-                  <p className={`text-sm leading-relaxed ${c.dark ? "text-white/70" : "text-[#5a6a82]"}`}>{c.desc}</p>
-                  {c.dest === "tracking" ? (
-                    <a href="#acompanhar-servico" className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
-                      {c.cta} <ChevronRight size={16} />
-                    </a>
-                  ) : (
-                    <button onClick={() => setPage(c.dest as Page)} className={`flex items-center gap-1 text-sm font-semibold mt-auto ${c.dark ? "text-[#00b4ff]" : "text-[#0057e7]"} hover:gap-2 transition-all`}>
-                      {c.cta} <ChevronRight size={16} />
-                    </button>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* Acompanhe seu Serviço */}
-      {trackingSection}
-
-      {/* Loja */}
-      <section className="py-16 bg-[#f5f7fa]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Destaques</SectionLabel>
-          <div className="flex items-end justify-between mb-6 gap-4">
-            <PublicHeading>Destaques da loja</PublicHeading>
-            <PublicButton variant="ghost" className="flex-shrink-0">Ver todos <ArrowRight size={15} /></PublicButton>
-          </div>
-          {productsLoading ? (
-            <div className="text-center py-12 text-[#5a6a82]">Carregando produtos...</div>
-          ) : featuredProducts.length === 0 ? (
-            <div className="text-center py-12 text-[#5a6a82]">Nenhum produto em destaque no momento.</div>
-          ) : (
-            <>
-              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                {featuredProducts.slice(0, 6).map((p) => (
-                  <ProductCard key={p.id} product={p} onSelectProduct={onSelectProduct} />
-                ))}
-              </div>
-              <div className="mt-8 text-center"><button type="button" onClick={() => setPage("loja")} className="inline-flex items-center justify-center gap-2 font-semibold rounded-md px-8 py-3 text-base bg-[#0057e7] text-white hover:bg-[#0046c0] active:scale-[0.98] transition-all">Ver todos os produtos</button></div>
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Serviços home preview */}
-      <section className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Para sua casa e seus equipamentos</SectionLabel>
-          <div className="flex items-end justify-between mb-10 gap-4">
-            <PublicHeading>Serviços para sua casa e seus equipamentos</PublicHeading>
-            <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[#0057e7] hover:gap-2 transition-all flex-shrink-0">Ver todos <ArrowRight size={15} /></button>
-          </div>
-          {servicesLoading ? <div className="text-center py-10 text-[#5a6a82]">Carregando serviços...</div> : services.length > 0 && <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">{services.slice(0, 6).map((service) => <ServiceCard key={service.id} service={service} onSelectService={onSelectService} />)}</div>}
-          <div className="mt-8 text-center"><PublicButton variant="outline" className="px-8 py-3 text-base" onClick={() => setPage("servicos")}>Ver todos os serviços</PublicButton></div>
-        </div>
-      </section>
-
-      {/* Assistência */}
-      <section className="py-16 bg-[#0d1b2e] overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-12 items-center">
-          <div>
-            <SectionLabel light>Assistência técnica em Aracaju</SectionLabel>
-            <PublicHeading className="!text-white mb-5">Seu equipamento apresentou algum problema?</PublicHeading>
-            <p className="text-white/70 text-base leading-relaxed mb-8">Conte com nossa assistência técnica para diagnóstico, manutenção e reparo de equipamentos eletrônicos.</p>
-            <div className="flex flex-wrap gap-2 mb-8">{ASSIST_CATS.map((c) => <span key={c} className="bg-white/10 text-white/90 text-sm font-semibold rounded-md px-3 py-1.5 border border-white/10">{c}</span>)}</div>
-            <PublicButton variant="primary" className="px-7 py-3 text-base">Conhecer nossa assistência</PublicButton>
-          </div>
-          <div className="relative">
-            <div className="absolute -inset-4 bg-[#0057e7]/20 rounded-2xl blur-2xl" />
-            <div className="relative rounded-xl overflow-hidden border border-white/10">
-              <img src="https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=800&h=520&fit=crop&auto=format" alt="Bancada de assistência técnica" className="w-full h-72 sm:h-80 object-cover" />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Marcas */}
-      <section className="py-14 bg-white border-y border-[#0d1b2e]/10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <p className="text-center text-xs font-bold tracking-widest uppercase text-[#5a6a82] mb-8">Marcas que atendemos</p>
-          {brandsLoading ? (
-            <div className="text-center py-6 text-[#5a6a82]">Carregando marcas...</div>
-          ) : brands.length === 0 ? (
-            <div className="text-center py-6 text-[#5a6a82]">Nenhuma marca cadastrada no momento.</div>
-          ) : (
-            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-              {brands.map((b) => (
-                <BrandCard key={b.id} brand={b} />
-              ))}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Como funciona */}
-      <section className="py-16 bg-[#f5f7fa]">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6">
-          <SectionLabel>Processo simples</SectionLabel>
-          <PublicHeading className="mb-12">Precisa de assistência? É fácil.</PublicHeading>
-          <div className="relative">
-            <div className="hidden lg:block absolute top-8 left-[calc(12.5%+16px)] right-[calc(12.5%+16px)] h-px bg-[#0057e7]/30 z-0" />
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
-              {HOME_STEPS.map((s) => (
-                <div key={s.n} className="flex flex-col gap-3">
-                  <div className="w-14 h-14 bg-[#0057e7] rounded-xl flex items-center justify-center shadow-md shadow-[#0057e7]/30"><span className="text-white font-black text-sm">{s.n}</span></div>
-                  <h3 className="font-bold text-[#0d1b2e] text-lg">{s.title}</h3>
-                  <p className="text-sm text-[#5a6a82] leading-relaxed">{s.desc}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* CTA Final */}
-      <section className="py-20 bg-[#0057e7]">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa de um produto ou de um reparo?</h2>
-          <p className="text-white/80 text-lg mb-10">Encontre o que procura na nossa loja ou fale com nossa equipe.</p>
-          <div className="flex flex-wrap justify-center gap-4">
-            <button className="bg-white text-[#0057e7] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Comprar na loja</button>
-            <button className="border-2 border-white text-white font-bold rounded-md px-7 py-3 text-base hover:bg-white/10 transition-colors">Solicitar orçamento</button>
-          </div>
-        </div>
-      </section>
-    </>
+    <button type="button" onClick={() => onOpen(service.slug)} className="group relative isolate flex min-h-[202px] flex-col justify-between overflow-hidden rounded-xl border border-[#dbe5f1] bg-white p-5 text-left shadow-sm transition-all hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600">
+      {photo ? <img src={photo} alt="" loading="lazy" className="absolute inset-y-0 right-0 -z-20 h-full w-[60%] object-cover transition-transform duration-500 group-hover:scale-105" /> : <div className="absolute inset-y-0 right-0 -z-20 w-[65%] bg-gradient-to-br from-slate-100 via-blue-50 to-blue-200" />}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-white via-white/95 to-white/5" />
+      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-[var(--art-primary)]"><Icon size={25} strokeWidth={1.8} /></div>
+      <div className="relative mt-10 max-w-[73%]">
+        <h3 className="line-clamp-2 text-base font-extrabold leading-snug text-[var(--art-dark)]">{service.title}</h3>
+        {service.short_description && <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-600">{service.short_description}</p>}
+        <span className="mt-3 inline-flex items-center gap-1 text-xs font-bold text-[var(--art-primary)]">Ver detalhes <ArrowRight size={13} /></span>
+      </div>
+    </button>
   );
 }
 
+const steps = [
+  { defaultTitle: "Solicite", defaultDesc: "Conte o que aconteceu com seu equipamento.", icon: ClipboardList },
+  { defaultTitle: "Avaliamos", defaultDesc: "Nossa equipe analisa o problema.", icon: Search },
+  { defaultTitle: "Orçamento", defaultDesc: "Você recebe as informações antes do serviço.", icon: ClipboardList },
+  { defaultTitle: "Reparo", defaultDesc: "Após aprovação, realizamos o serviço.", icon: Wrench },
+];
+
+export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSection }: HomeProps) {
+  const { settings } = useSiteSettings();
+  const { products: featuredProducts, loading: productsLoading } = useFeaturedProducts();
+  const { brands, loading: brandsLoading } = useBrands();
+  const { services, loading: servicesLoading } = useServices();
+  const { url: heroMediaUrl } = useMediaUrl(typeof settings.hero_image_media_id === "string" ? settings.hero_image_media_id : undefined);
+  const imageUrl = heroMediaUrl || siteText(settings, "hero_image_url", "");
+  const display = homeServiceDisplay(settings.home_service_display);
+  const categories = homeCategories(settings.home_categories);
+  const featuredServices = (services.some(service => service.is_featured) ? services.filter(service => service.is_featured) : services).slice(0, 3);
+  const text = (key: string, fallback: string) => siteText(settings, key, fallback);
+  const heroHighlight = text("hero_highlight", "em um só lugar.");
+  const rawHeroTitle = text("hero_title", "Tecnologia, produtos e serviços");
+  const heroTitle = rawHeroTitle.endsWith(heroHighlight) ? rawHeroTitle.slice(0, -heroHighlight.length).trim() : rawHeroTitle;
+  const features = [
+    { icon: ShoppingCart, title: text("home_buy_title", "COMPRAR"), description: text("home_buy_description", "Encontre eletrônicos, acessórios e equipamentos."), label: "Ver loja", onClick: () => setPage("loja") },
+    { icon: Wrench, title: text("home_repair_title", "CONSERTAR"), description: text("home_repair_description", "Assistência técnica e manutenção para seus equipamentos."), label: "Conhecer assistência", onClick: () => setPage("assistencia") },
+    { icon: ClipboardList, title: text("home_tracking_title", "ACOMPANHAR SERVIÇO"), description: text("home_tracking_description", "Consulte o andamento do seu serviço usando o número da OS."), label: "Acompanhar serviço", onClick: () => document.getElementById("acompanhar-servico")?.scrollIntoView({ behavior: "smooth" }) },
+  ];
+
+  return <div className="bg-[#f5f7fa]">
+    <section className="relative isolate overflow-hidden bg-[var(--art-dark)] text-white">
+      {imageUrl && <img src={imageUrl} alt={text("hero_image_alt", "Interior da Eletrônica Artvideo")} className="absolute inset-0 -z-20 h-full w-full object-cover object-center" fetchPriority="high" />}
+      <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#09182e] via-[#0d1b2e]/95 to-[#0d1b2e]/45" />
+      <div className="absolute -left-32 top-0 -z-10 h-[460px] w-[500px] rounded-full bg-blue-600/20 blur-[130px]" />
+      <div className="mx-auto grid max-w-7xl items-center gap-7 px-4 py-16 sm:px-6 sm:py-20 lg:min-h-[480px] lg:grid-cols-[1.05fr_.95fr]">
+        <div className="max-w-2xl">
+          <p className="mb-5 text-xs font-extrabold uppercase tracking-[.2em] text-blue-300">{text("home_hero_eyebrow", "Eletrônica Artvideo · Aracaju, SE")}</p>
+          <h1 className="max-w-3xl text-4xl font-black leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+            {heroTitle} <span className="text-[#2588ff]">{heroHighlight}</span>
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-relaxed text-white/80 sm:text-lg">{text("hero_subtitle", "Produtos eletrônicos, assistência técnica, instalações e manutenção para sua casa ou negócio.")}</p>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <PublicButton onClick={() => setPage("loja")} className="gap-2 px-6 py-3"><ShoppingCart size={17}/> Comprar na loja</PublicButton>
+            <PublicButton onClick={() => setPage("orcamento")} variant="outline" className="border-white/50 px-6 py-3 text-white hover:border-white hover:bg-white/10">Solicitar orçamento</PublicButton>
+          </div>
+          <div className="mt-9 flex flex-wrap gap-x-5 gap-y-3 text-xs font-medium text-white/80">
+            <span className="flex items-center gap-2"><ShieldCheck size={16} /> Atendimento especializado</span>
+            <span className="flex items-center gap-2"><Package size={16} /> Produtos selecionados</span>
+            <span className="flex items-center gap-2"><Wrench size={16} /> Suporte técnico</span>
+          </div>
+        </div>
+        <div className="relative hidden h-80 overflow-hidden rounded-2xl border border-white/10 shadow-2xl lg:block">
+          <HomePhoto mediaId={typeof settings.hero_image_media_id === "string" ? settings.hero_image_media_id : undefined} url={imageUrl} alt="Artvideo" />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-[#0d1b2e]/35 to-transparent" />
+        </div>
+      </div>
+    </section>
+
+    <section className="mx-auto max-w-7xl px-4 pb-10 pt-6 sm:px-6">
+      <div className="grid gap-4 md:grid-cols-3">{features.map(({ icon: Icon, title, description, label, onClick }, i) =>
+        <button key={i} onClick={onClick} className="group flex min-h-44 items-start gap-4 rounded-xl border border-slate-200 bg-white p-6 text-left shadow-sm transition-all hover:-translate-y-1 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-blue-600">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[var(--art-primary)]"><Icon size={28} /></span>
+          <span className="flex h-full flex-col">
+            <strong className="text-lg font-black text-[var(--art-dark)]">{title}</strong>
+            <span className="mt-2 text-sm leading-relaxed text-slate-600">{description}</span>
+            <span className="mt-auto inline-flex items-center gap-1 pt-3 text-xs font-bold text-[var(--art-primary)]">{label}<ChevronRight size={14}/></span>
+          </span>
+        </button>
+      )}</div>
+    </section>
+
+    <div className="mx-auto max-w-7xl px-4 sm:px-6">{trackingSection}</div>
+
+    <section className="mx-auto max-w-7xl px-4 py-14 sm:px-6">
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <div><PublicHeading>{text("home_products_title", "Destaques da loja")}</PublicHeading><p className="mt-2 text-sm text-slate-600">{text("home_products_subtitle", "Produtos selecionados para você.")}</p></div>
+        <button onClick={() => setPage("loja")} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)]">Ver todos os produtos <ArrowRight size={16}/></button>
+      </div>
+      {productsLoading ? <p className="py-12 text-center text-slate-600">Carregando produtos...</p> : featuredProducts.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{featuredProducts.slice(0, 4).map(product => <ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct} />)}</div> : <div className="rounded-lg border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500">Os produtos destacados no CRM aparecerão aqui.</div>}
+    </section>
+
+    <section className="bg-white py-14"><div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <div className="mb-8 flex flex-wrap items-end justify-between gap-3">
+        <div><PublicHeading>{text("home_services_title", "Serviços para sua casa e seus equipamentos")}</PublicHeading><p className="mt-2 text-sm text-slate-600">{text("home_services_subtitle", "Instalações, manutenções e suporte técnico com profissionais especializados.")}</p></div>
+        <button onClick={() => setPage("servicos")} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)]">Ver todos os serviços <ArrowRight size={16}/></button>
+      </div>
+      {servicesLoading ? <p className="py-10 text-center text-slate-600">Carregando serviços...</p> : featuredServices.length ? <div className="grid gap-4 md:grid-cols-3">{featuredServices.map(service => <FeaturedService key={service.id} service={service} display={display[service.id]} onOpen={onSelectService} />)}</div> : <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-slate-500">Os serviços ativos cadastrados no CRM aparecerão aqui.</div>}
+    </div></section>
+
+    <section className="relative overflow-hidden bg-[var(--art-dark)] py-12 text-white">
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-transparent via-blue-500/5 to-[#0057e7]/25"/>
+      <div className="relative mx-auto grid max-w-7xl items-center gap-8 px-4 sm:px-6 lg:grid-cols-[.9fr_1.1fr]">
+        <div><h2 className="text-3xl font-black leading-tight sm:text-4xl" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{text("home_assistance_title", "Seu equipamento apresentou algum problema?")}</h2><p className="mt-3 max-w-xl text-sm leading-relaxed text-white/70">{text("home_assistance_subtitle", "Nossa assistência técnica atende diversos tipos de equipamentos com transparência e qualidade.")}</p></div>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">{categories.map((item, i) => { const Icon = publicIcon(item.icon); return <button key={i} onClick={() => setPage("assistencia")} className="flex min-h-[92px] flex-col items-center justify-center gap-2 rounded-lg border border-white/10 bg-white/10 p-2 text-center text-xs font-semibold transition-colors hover:bg-white/20"><Icon size={26} strokeWidth={1.5}/>{item.title}</button>; })}</div>
+          <PublicButton className="w-full py-3" onClick={() => setPage("assistencia")}>Conhecer nossa assistência <ArrowRight size={16}/></PublicButton>
+        </div>
+      </div>
+    </section>
+
+    <section className="bg-white py-12"><div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <PublicHeading>{text("home_brands_title", "Marcas que atendemos")}</PublicHeading><p className="mb-7 mt-2 text-sm text-slate-600">{text("home_brands_subtitle", "Trabalhamos com marcas de diversos segmentos do mercado.")}</p>
+      {brandsLoading ? <p className="text-sm text-slate-600">Carregando marcas...</p> : brands.length ? <div className="grid grid-cols-3 gap-2 sm:grid-cols-5 lg:grid-cols-10">{brands.slice(0, 10).map(brand => <BrandCard key={brand.id} brand={brand}/>)}</div> : <p className="text-sm text-slate-500">As marcas cadastradas aparecerão aqui.</p>}
+    </div></section>
+
+    <section className="bg-white pb-16"><div className="mx-auto max-w-7xl px-4 sm:px-6">
+      <PublicHeading>{text("home_steps_title", "Precisa de assistência? É fácil.")}</PublicHeading><p className="mt-2 text-sm text-slate-600">{text("home_steps_subtitle", "Em poucos passos seu equipamento estará em boas mãos.")}</p>
+      <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">{steps.map((step, i) => { const Icon = step.icon; return <div className="relative flex gap-3" key={i}><div className="flex shrink-0 items-start gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--art-primary)] text-xs font-bold text-white">{i + 1}</span><Icon size={27} className="mt-0.5 text-[var(--art-primary)]"/></div><div><h3 className="text-sm font-bold text-[var(--art-dark)]">{text(`home_step_${i + 1}_title`, step.defaultTitle)}</h3><p className="mt-2 text-xs leading-relaxed text-slate-600">{text(`home_step_${i + 1}_description`, step.defaultDesc)}</p></div></div>; })}</div>
+    </div></section>
+
+    <section className="relative overflow-hidden bg-[var(--art-primary)] py-7 text-white"><div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-blue-800/25 via-transparent to-cyan-400/10"/><div className="relative mx-auto flex max-w-7xl flex-col items-start justify-between gap-5 px-4 sm:px-6 md:flex-row md:items-center"><div><h2 className="text-2xl font-black" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>{text("home_cta_title", "Precisa de um produto ou de um reparo?")}</h2><p className="mt-1 text-sm text-white/80">{text("home_cta_subtitle", "Conte com a Eletrônica Artvideo para encontrar a melhor solução.")}</p></div><div className="flex w-full flex-wrap gap-3 md:w-auto"><button onClick={() => setPage("loja")} className="rounded-md bg-white px-5 py-3 text-sm font-bold text-blue-700 hover:bg-blue-50">Comprar na loja</button><button onClick={() => setPage("orcamento")} className="rounded-md border border-white/75 px-5 py-3 text-sm font-bold text-white hover:bg-white/10">Solicitar orçamento</button></div></div></section>
+  </div>;
+}

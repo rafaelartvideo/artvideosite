@@ -39,18 +39,18 @@ export function ServiceTrackingSection() {
   const currentStepIdx = order ? getTrackingStatusIndex(order.status) : 0;
 
   return (
-    <section id="acompanhar-servico" className="py-16 bg-white border-y border-[#0d1b2e]/10 scroll-mt-20">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6">
-        <div className="text-center mb-8">
+    <section id="acompanhar-servico" className="scroll-mt-24 rounded-xl border border-blue-100 bg-gradient-to-r from-[#dbeafe] via-[#eff6ff] to-[#dbeafe] px-3 py-6 sm:px-6">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-4">
           <SectionLabel>Consulta de OS</SectionLabel>
-          <H2 className="mb-3">Acompanhe seu serviço</H2>
+          <H2 className="mb-1 !text-2xl">Acompanhe seu serviço</H2>
           <p className="text-[#5a6a82] text-sm sm:text-base max-w-xl mx-auto">
             Consulte o andamento do seu serviço ou pedido usando o número da OS.
           </p>
         </div>
 
         {/* Form */}
-        <form onSubmit={handleTrack} className="max-w-xl mx-auto mb-10">
+        <form onSubmit={handleTrack} className="mb-6 max-w-3xl">
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
               <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5a6a82]" />

@@ -1,8 +1,10 @@
-import { ChevronRight, Cpu, Monitor, Package, Tv, Zap } from "lucide-react";
+import { ChevronRight, Cpu, Monitor, Package, Tv, Zap, Wrench } from "lucide-react";
 import { useBrands } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 
 const ASSIST_CARDS = [
@@ -21,6 +23,8 @@ const ASSIST_STEPS = [
 
 export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPage) => void }) {
   const { brands, loading: brandsLoading } = useBrands();
+  const { settings } = useSiteSettings();
+  const { url: assistancePhoto } = useMediaUrl(typeof settings.assistance_image_media_id === "string" ? settings.assistance_image_media_id : undefined);
 
   return (
     <>
@@ -41,7 +45,7 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
           <div className="relative">
             <div className="absolute -inset-4 bg-[#0057e7]/20 rounded-2xl blur-2xl" />
             <div className="relative rounded-xl overflow-hidden border border-white/10">
-              <img src="https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=800&h=520&fit=crop&auto=format" alt="Bancada de assistência técnica" className="w-full h-64 sm:h-80 object-cover" />
+              {assistancePhoto ? <img src={assistancePhoto} alt="Assistência técnica Artvideo" className="w-full h-64 sm:h-80 object-cover" /> : <div className="flex h-64 items-center justify-center bg-gradient-to-br from-[#0d1b2e] via-[#183d69] to-[#0057e7] text-white sm:h-80"><Wrench size={58} strokeWidth={1.3}/></div>}
             </div>
           </div>
         </div>
@@ -76,7 +80,7 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
       <section className="py-14 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <SectionLabel>Parceiros</SectionLabel>
-          <H2 className="mb-2">Marcas autorizadas</H2>
+          <H2 className="mb-2">Marcas que atendemos</H2>
           <p className="text-[#5a6a82] mb-10">Confira algumas das marcas atendidas pela nossa assistência técnica.</p>
           {brandsLoading ? (
             <div className="text-center py-12 text-[#5a6a82]">Carregando marcas...</div>

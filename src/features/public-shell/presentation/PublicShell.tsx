@@ -1,13 +1,26 @@
-import { useState, type ReactNode } from "react";
+import { useState, type CSSProperties, type ReactNode } from "react";
 import { Instagram, Menu, MessageCircle, Phone, ShoppingCart, X } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import logoIcon from "@/imports/LogoSoloSemFundo.png";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getBusinessHours, getSettingText, getWhatsAppNumber } from "../application/site-settings";
 import { PUBLIC_NAV_LINKS, PUBLIC_NAV_MAP, type PublicPage } from "../domain/navigation";
 
 const WHATSAPP_MESSAGE = "Olá! Gostaria de saber mais sobre os serviços da Artvideo.";
+
+function safeImageUrl(value: unknown): string {
+  return typeof value === "string" && (/^https:\/\//i.test(value) || /^\/(?!\/)/.test(value)) ? value : "";
+}
+function themeColor(value: unknown, fallback: string): string {
+  return typeof value === "string" && /^#[a-f0-9]{6}$/i.test(value) ? value : fallback;
+}
+function PublicLogo({ className }: { className: string }) {
+  const { settings } = useSiteSettings();
+  const { url } = useMediaUrl(typeof settings.logo_media_id === "string" ? settings.logo_media_id : undefined);
+  return <ImageWithFallback src={url || safeImageUrl(settings.logo_url) || logoIcon} alt="Eletrônica Artvideo" className={className} />;
+}
 
 export function WhatsAppAction({ className = "" }: { className?: string }) {
   const { settings } = useSiteSettings();
@@ -46,7 +59,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     <header className="sticky top-0 z-40 bg-[#0d1b2e] border-b border-white/10 shadow-lg">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
         <button onClick={() => setPage("home")} className="flex items-center gap-2 flex-shrink-0">
-          <ImageWithFallback src={logoIcon} alt="Eletrônica Artvideo" className="h-9 w-auto object-contain" />
+          <PublicLogo className="h-9 w-auto object-contain" />
           <div className="hidden sm:flex flex-col leading-none">
             <span className="text-[10px] font-bold tracking-[0.25em] uppercase text-[#00b4ff]">Eletrônica</span>
             <span className="text-xl font-black text-white tracking-tight" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
@@ -61,7 +74,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         </nav>
         <div className="hidden lg:flex items-center gap-3">
           <button className={`${primaryButton} text-sm`} onClick={() => setPage("orcamento")}>Solicitar orçamento</button>
-          <button className="text-white/75 hover:text-white p-1"><ShoppingCart size={20} /></button>
+          <button type="button" aria-label="Ver loja" onClick={() => setPage("loja")} className="text-white/75 hover:text-white p-1"><ShoppingCart size={20} /></button>
         </div>
         <button className="lg:hidden text-white p-1" onClick={() => setOpen(current => !current)}>{open ? <X size={24} /> : <Menu size={24} />}</button>
       </div>
@@ -91,7 +104,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 mb-10">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <ImageWithFallback src={logoIcon} alt="Artvideo" className="h-8 w-auto object-contain" />
+              <PublicLogo className="h-8 w-auto object-contain" />
               <div className="flex flex-col leading-none">
                 <span className="text-[9px] font-bold tracking-widest uppercase text-[#00b4ff]">Eletrônica</span>
                 <span className="text-lg font-black text-white" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>ARTVIDEO</span>
@@ -122,7 +135,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
         </div>
         <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row justify-between gap-2 text-xs text-white/30">
           <span>© {new Date().getFullYear()} Eletrônica Artvideo. Todos os direitos reservados.</span>
-          <a href="#" className="hover:text-white/60 transition-colors">Política de privacidade</a>
+          {getSettingText(settings.privacy_url).startsWith("https://") && <a href={getSettingText(settings.privacy_url)} target="_blank" rel="noopener noreferrer" className="hover:text-white/60 transition-colors">Política de privacidade</a>}
         </div>
       </div>
     </footer>
@@ -130,8 +143,10 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
 }
 
 export function PublicShell({ page, setPage, children }: { page: PublicPage; setPage: (page: PublicPage) => void; children: ReactNode }) {
+  const { settings } = useSiteSettings();
+  const themeStyle = { fontFamily: "'Inter', sans-serif", "--art-primary": themeColor(settings.primary_color, "#0057e7"), "--art-dark": themeColor(settings.secondary_color, "#0d1b2e") } as CSSProperties;
   return (
-    <div className="min-h-screen" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen" style={themeStyle}>
       <PublicHeader page={page} setPage={setPage} />
       <main>{children}</main>
       <PublicFooter setPage={setPage} />

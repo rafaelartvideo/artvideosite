@@ -1,9 +1,14 @@
-import { CheckCircle, Plug, Shield, ShoppingCart, Star, Users, Wrench } from "lucide-react";
+import { CheckCircle, Layers, Monitor, Plug, Settings, Shield, ShoppingCart, Star, Users, Wrench, Zap } from "lucide-react";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 
 export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) {
+  const { settings } = useSiteSettings();
+  const { url: aboutPhoto } = useMediaUrl(typeof settings.about_image_media_id === "string" ? settings.about_image_media_id : undefined);
+  const { url: teamPhoto } = useMediaUrl(typeof settings.team_image_media_id === "string" ? settings.team_image_media_id : undefined);
   const WHAT_WE_DO = [
     { icon: ShoppingCart, label: "Loja de produtos", desc: "Eletrônicos, eletrodomésticos e acessórios." },
     { icon: Plug, label: "Instalações", desc: "TVs, ar-condicionado e equipamentos." },
@@ -49,7 +54,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
             </p>
           </div>
           <div className="relative rounded-xl overflow-hidden border border-[#0d1b2e]/10">
-            <img src="https://images.unsplash.com/photo-1761494296583-99b15e9063c5?w=800&h=500&fit=crop&auto=format" alt="Loja Eletrônica Artvideo" className="w-full h-64 sm:h-80 object-cover" />
+            {aboutPhoto ? <img src={aboutPhoto} alt="Eletrônica Artvideo" className="w-full h-64 sm:h-80 object-cover" /> : <div className="flex h-64 items-center justify-center bg-gradient-to-br from-[#0d1b2e] via-[#183d69] to-[#0057e7] text-center text-xl font-extrabold text-white sm:h-80">Eletrônica Artvideo</div>}
           </div>
         </div>
       </section>
@@ -78,7 +83,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
       <section className="py-14 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-12 items-center">
           <div className="relative rounded-xl overflow-hidden border border-[#0d1b2e]/10">
-            <img src="https://images.unsplash.com/photo-1550041473-d296a3a8a18a?w=800&h=500&fit=crop&auto=format" alt="Técnico Artvideo" className="w-full h-64 sm:h-80 object-cover" />
+            {teamPhoto ? <img src={teamPhoto} alt="Equipe Artvideo" className="w-full h-64 sm:h-80 object-cover" /> : <div className="flex h-64 items-center justify-center bg-gradient-to-br from-[#0d1b2e] via-[#183d69] to-[#0057e7] text-white sm:h-80"><Wrench size={58} strokeWidth={1.3}/></div>}
           </div>
           <div>
             <SectionLabel>Diferenciais</SectionLabel>
@@ -108,7 +113,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
           <p className="text-white/80 text-lg mb-10">Fale com nossa equipe ou visite nossa loja.</p>
           <div className="flex flex-wrap justify-center gap-4">
             <button onClick={() => setPage("contato")} className="bg-white text-[#0057e7] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Solicitar orçamento</button>
-            <button className="border-2 border-white text-white font-bold rounded-md px-7 py-3 text-base hover:bg-white/10 transition-colors">Visitar loja</button>
+            <button onClick={() => setPage("loja")} className="border-2 border-white text-white font-bold rounded-md px-7 py-3 text-base hover:bg-white/10 transition-colors">Visitar loja</button>
           </div>
         </div>
       </section>
