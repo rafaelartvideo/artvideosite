@@ -25,6 +25,18 @@ body {
 	--accent: #5d73ef;
 	--sidebar-primary: #1032dc;
 	--sidebar-ring: #1032dc;
+	/* Semântica para estados — ações principais mantêm o azul Union. */
+	--admin-success-text: #065f46;
+	--admin-success-surface: #ecfdf5;
+	--admin-success-border: #a7f3d0;
+	--admin-warning-text: #92400e;
+	--admin-warning-surface: #fffbeb;
+	--admin-warning-border: #fcd34d;
+	--admin-error-text: #b91c1c;
+	--admin-error-surface: #fef2f2;
+	--admin-error-border: #fecaca;
+	--admin-danger-bg: #b91c1c;
+	--admin-danger-bg-hover: #991b1b;
 }
 
 html[data-admin-theme] {
@@ -182,6 +194,17 @@ html[data-admin-theme="dark"] {
 	--ring: #5870f0;
 	--accent: #7185f5;
 	--navy: #e8edf5;
+	--admin-success-text: #6ee7b7;
+	--admin-success-surface: rgba(16, 185, 129, 0.14);
+	--admin-success-border: rgba(52, 211, 153, 0.35);
+	--admin-warning-text: #fcd34d;
+	--admin-warning-surface: rgba(245, 158, 11, 0.14);
+	--admin-warning-border: rgba(251, 191, 36, 0.35);
+	--admin-error-text: #fca5a5;
+	--admin-error-surface: rgba(239, 68, 68, 0.14);
+	--admin-error-border: rgba(248, 113, 113, 0.35);
+	--admin-danger-bg: #b91c1c;
+	--admin-danger-bg-hover: #991b1b;
 	color-scheme: dark;
 }
 
@@ -801,4 +824,43 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 .field-tracking-map .leaflet-top,
 .field-tracking-map .leaflet-bottom {
   z-index: 7 !important;
+}
+
+
+/* Feedback contextual e botões semânticos: cores consistentes em ambos os temas. */
+.admin-crm .admin-semantic-success,
+.admin-crm .admin-action-success {
+	color: var(--admin-success-text);
+	background-color: var(--admin-success-surface);
+	border-color: var(--admin-success-border);
+}
+.admin-crm .admin-semantic-warning,
+.admin-crm .admin-action-warning {
+	color: var(--admin-warning-text);
+	background-color: var(--admin-warning-surface);
+	border-color: var(--admin-warning-border);
+}
+.admin-crm .admin-semantic-error {
+	color: var(--admin-error-text);
+	background-color: var(--admin-error-surface);
+	border-color: var(--admin-error-border);
+}
+.admin-crm .admin-action-success:hover,
+.admin-crm .admin-action-warning:hover {
+	filter: brightness(0.96);
+}
+.admin-crm.dark .admin-action-success:hover,
+.admin-crm.dark .admin-action-warning:hover,
+.dark .admin-crm .admin-action-success:hover,
+.dark .admin-crm .admin-action-warning:hover {
+	filter: brightness(1.14);
+}
+.admin-crm .admin-action-danger {
+	color: #fff;
+	background-color: var(--admin-danger-bg);
+	border-color: var(--admin-danger-bg);
+}
+.admin-crm .admin-action-danger:hover {
+	background-color: var(--admin-danger-bg-hover);
+	border-color: var(--admin-danger-bg-hover);
 }
