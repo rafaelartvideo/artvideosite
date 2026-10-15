@@ -8,6 +8,7 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import type { TechnicianTask } from "../infrastructure/technician-tasks.repository";
+import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
 
 type Row = TechnicianTask[];
 type Filter = "all" | "pending" | "in_progress" | "completed";
@@ -54,7 +55,7 @@ export function TechnicianOrdersTable({
         String(services[0].os_number), services[0].customer_name, services[0].equipment,
         ...services.map(service => service.title),
       ].some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(normalized))) return false;
-      if (filter === "completed" && !services.every(service => service.status === "completed")) return false;
+      if (filter === "completed" && !isTechnicianOrderCompleted(services)) return false;
       if (filter !== "all" && filter !== "completed" && !services.some(service => service.status === filter)) return false;
       if (dateFrom || dateTo) {
         // É a data do agendamento da OS, não a data de início do serviço.
@@ -164,10 +165,10 @@ export function TechnicianOrdersTable({
           </Popover>
         </div>
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrar andamento">
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center" role="group" aria-label="Filtrar andamento">
             {statuses.map(option => <button key={option.value} type="button"
               aria-pressed={filter === option.value} onClick={() => setFilter(option.value)}
-              className={"rounded-lg border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 " +
+              className={"w-full whitespace-nowrap rounded-lg border px-2 py-2 text-center text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 sm:w-auto sm:px-3 " +
                 (filter === option.value ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted")}>
               {option.label}
             </button>)}
