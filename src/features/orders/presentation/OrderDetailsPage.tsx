@@ -37,7 +37,6 @@ import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/docum
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import { renderServiceOrderLabel } from "../domain/order-label-print";
-import { QRCodeCanvas } from "qrcode.react";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
@@ -106,7 +105,6 @@ export function OrderDetailsPage(props: Props) {
   } = props;
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const [downloadingTemplateId, setDownloadingTemplateId] = useState<string | null>(null);
-  const labelQrCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [printError, setPrintError] = useState("");
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -387,14 +385,8 @@ export function OrderDetailsPage(props: Props) {
   const printLabel = () => {
     setPrintError("");
     const showError = (message: string) => { setPrintError(message); notifyAdmin(message, "error"); };
-    if (!detail?.id || !detail?.organization_id || !labelUrl) {
+    if (!detail?.os_number) {
       showError("Não foi possível montar a etiqueta desta OS.");
-      return;
-    }
-
-    const qrCanvas = labelQrCanvasRef.current;
-    if (!qrCanvas) {
-      showError("Não foi possível gerar o QR Code da etiqueta.");
       return;
     }
 
@@ -405,7 +397,7 @@ export function OrderDetailsPage(props: Props) {
     }
 
     try {
-      renderServiceOrderLabel(popup, detail, qrCanvas);
+      renderServiceOrderLabel(popup, detail);
     } catch (error) {
       popup.close();
       showError(systemErrorMessage(error, "Não foi possível preparar a etiqueta."));
@@ -456,7 +448,6 @@ export function OrderDetailsPage(props: Props) {
         onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
       />
     )}
-    {detail && labelUrl && <div aria-hidden="true" className="pointer-events-none absolute left-[-9999px] top-0 h-px w-px overflow-hidden opacity-0"><QRCodeCanvas ref={labelQrCanvasRef} value={labelUrl} size={256} level="M" marginSize={2} /></div>}
     {detail && !monitorView && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}
