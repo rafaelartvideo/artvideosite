@@ -30,7 +30,7 @@ test("an OS message assigned to someone else shows only the responsible operator
     "O cliente já está em atendimento com Maria Silva.");
 });
 
-test("shared toasts last 6 seconds for errors and 3 seconds for successes", async () => {
+test("shared toasts last 6 seconds for errors, 4.5 for warnings, and 3 for successes", async () => {
   const ui = await readFile(new URL("../ui/admin/AdminFeedback.tsx", import.meta.url), "utf8");
-  assert.match(ui, /type === "error" \? 6000 : 3000/);
+  assert.match(ui, /type === "error" \? 6000 : type === "warning" \? 4500 : 3000/);
 });
