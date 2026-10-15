@@ -87,7 +87,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [savingBrandEdit, setSavingBrandEdit] = useState(false);
   const [busyBrand, setBusyBrand] = useState<string | null>(null);
   const [serviceDraftIndex, setServiceDraftIndex] = useState<number | null>(null);
-  const [serviceForm, setServiceForm] = useState({ name: "", price: "", priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
+  const [serviceForm, setServiceForm] = useState({ name: "", price: "", noPrice: false, priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
   const [serviceFormErrors, setServiceFormErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({});
   const [savingService, setSavingService] = useState(false);
   const [editingField, setEditingField] = useState<TechnicalField | null>(null);
@@ -262,19 +262,21 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const openNewService = (draftIndex: number, name = "") => {
     if (!canCreateGeneralService || !serviceSettings?.available || !(drafts[draftIndex]?.id ? canEdit : canCreate)) return;
     setServiceDraftIndex(draftIndex);
-    setServiceForm({ name, price: "", priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
+    setServiceForm({ name, price: "", noPrice: false, priceAtCompletion: false, maxDiscountPercentage: "", maxDiscountAmount: "" });
     setServiceFormErrors({});
   };
   const closeNewService = () => { if (!savingService) setServiceDraftIndex(null); };
   const saveNewService = async () => {
     if (serviceDraftIndex === null || savingService || !canCreateGeneralService || !serviceSettings?.available) return;
     const name = serviceForm.name.trim().replace(/\s+/g, " ");
-    const parsedPrice = serviceForm.priceAtCompletion || serviceForm.price === "" ? null : Number(serviceForm.price);
+    const parsedPrice = serviceForm.priceAtCompletion ? null : serviceForm.noPrice ? 0
+      : serviceForm.price === "" ? null : Number(serviceForm.price);
     const parsedPercentage = serviceForm.maxDiscountPercentage === "" ? null : Number(serviceForm.maxDiscountPercentage);
     const parsedAmount = serviceForm.maxDiscountAmount === "" ? null : Number(serviceForm.maxDiscountAmount);
     const errors: typeof serviceFormErrors = {};
     if (!name) errors.name = "Informe o nome do serviço.";
     else if (serviceSettings.services.some(service => normalizeCatalogName(service.name) === normalizeCatalogName(name))) errors.name = "Este Serviço Geral já está cadastrado. Selecione-o na lista.";
+    if (!serviceForm.priceAtCompletion && !serviceForm.noPrice && parsedPrice === null) errors.price = "Informe um valor ou selecione Sem preço.";
     if (parsedPrice !== null && (!Number.isFinite(parsedPrice) || parsedPrice < 0)) errors.price = "Informe um valor válido e não negativo.";
     if (parsedPercentage !== null && (!Number.isFinite(parsedPercentage) || parsedPercentage < 0 || parsedPercentage > 100)) errors.maxDiscountPercentage = "O desconto deve estar entre 0% e 100%.";
     if (parsedAmount !== null && (!Number.isFinite(parsedAmount) || parsedAmount < 0)) errors.maxDiscountAmount = "Informe um valor válido e não negativo.";
@@ -583,11 +585,20 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
             error={serviceFormErrors.name}
             onChange={(event: any) => { setServiceForm(current => ({ ...current, name: event.target.value })); setServiceFormErrors(current => ({ ...current, name: undefined })); }} />
         </div>
-        <div className="sm:col-span-2">
+        <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+          <FToggle label="Sem preço" disabled={savingService} checked={serviceForm.noPrice}
+            onChange={value => { setServiceForm(current => ({
+              ...current, noPrice: value, priceAtCompletion: value ? false : current.priceAtCompletion,
+              price: value ? "" : current.price,
+            })); setServiceFormErrors(current => ({ ...current, price: undefined })); }} />
           <FToggle label="Definir valor na conclusão da OS" disabled={savingService} checked={serviceForm.priceAtCompletion}
-            onChange={value => setServiceForm(current => ({ ...current, priceAtCompletion: value, price: value ? "" : current.price }))} />
+            onChange={value => { setServiceForm(current => ({
+              ...current, priceAtCompletion: value, noPrice: value ? false : current.noPrice,
+              price: value ? "" : current.price,
+            })); setServiceFormErrors(current => ({ ...current, price: undefined })); }} />
         </div>
-        <FCurrencyInput label="Valor" disabled={savingService || serviceForm.priceAtCompletion} value={serviceForm.priceAtCompletion ? "" : serviceForm.price}
+        <FCurrencyInput label="Valor" disabled={savingService || serviceForm.priceAtCompletion || serviceForm.noPrice}
+          value={serviceForm.priceAtCompletion || serviceForm.noPrice ? "" : serviceForm.price}
           error={serviceFormErrors.price} onChange={(event: any) => { setServiceForm(current => ({ ...current, price: event.target.value })); setServiceFormErrors(current => ({ ...current, price: undefined })); }} />
         <FDecimalInput label="Desconto máximo (%)" disabled={savingService} decimalPlaces={2} value={serviceForm.maxDiscountPercentage}
           error={serviceFormErrors.maxDiscountPercentage} onChange={(event: any) => { setServiceForm(current => ({ ...current, maxDiscountPercentage: event.target.value })); setServiceFormErrors(current => ({ ...current, maxDiscountPercentage: undefined })); }} />

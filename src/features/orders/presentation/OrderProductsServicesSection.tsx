@@ -230,9 +230,11 @@ function CatalogResults({
         <span className={cn("shrink-0 text-xs font-bold", unavailable ? "text-red-600 dark:text-red-400" : "text-primary")}>
           {unavailable
             ? unavailableLabel?.(option) || "Indisponível"
-            : option.price == null
-              ? "Sem preço"
-              : formatCurrency(option.price)}
+            : option.price_at_completion
+              ? "Definir na conclusão"
+              : option.price == null || (option.price === 0 && option.unit === "serviço")
+                ? "Sem preço"
+                : formatCurrency(option.price)}
         </span>
       </button>;
     })}
@@ -566,14 +568,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   };
 
   const selectService = (option: OrderCatalogOption) => {
-    if (option.price == null) {
-      showFeedback({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` });
-      setSelectedService(null);
-      return;
-    }
+    // Valor nulo é permitido no catálogo (sem preço ou definido na conclusão).
+    // O banco registra 0 como valor inicial, sem inventar uma cobrança.
     setSelectedService(option);
     setServiceSearch(option.name);
-    setServicePrice(String(option.price));
+    setServicePrice(String(option.price ?? 0));
     setServiceQuantity("1");
     setServiceNeedsSchedule(false);
     setServiceScheduleDraft(null);
@@ -1101,9 +1100,6 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               emptyLabel={order?.equipment_type_id ? "Nenhum serviço vinculado a este equipamento. Configure os vínculos em Equipamentos Técnicos." : "Nenhum serviço encontrado."}
               formatCurrency={formatCurrency}
               onSelect={selectService}
-              isUnavailable={option => option.price == null}
-              unavailableLabel={() => "Sem preço cadastrado"}
-              onUnavailable={option => showFeedback({ type: "error", text: `${option.name} não possui preço cadastrado. Defina o preço no cadastro do serviço antes de adicioná-lo à OS.` })}
             />
           </div>
 
@@ -1176,6 +1172,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               value={servicePrice}
               onChange={() => undefined}
               disabled
+              hint={selectedService?.price_at_completion
+                ? "Valor a definir na conclusão da OS."
+                : selectedService?.price == null || selectedService.price === 0
+                  ? "Serviço sem preço cadastrado; a inclusão não exige valor."
+                  : "Valor fixado no cadastro do serviço."}
             />
             <BtnPrimary
               disabled={!selectedService || mutating || techniciansLoading ||
@@ -1189,7 +1190,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           </div>
 
           <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
-            <p className="text-[10px] leading-relaxed text-muted-foreground">O preço do serviço do catálogo é fixo nesta inclusão. Para um valor livre, use Avulso.</p>
+            <p className="text-[10px] leading-relaxed text-muted-foreground">Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.</p>
             <AdminButton variant="secondary" disabled={mutating} onClick={() => setCustomOpen(true)} className="h-10 shrink-0 px-4"><Plus size={15} /> Avulso</AdminButton>
           </div>
         </div>
