@@ -386,20 +386,21 @@ export function OrderDetailsPage(props: Props) {
 
   const printLabel = () => {
     setPrintError("");
+    const showError = (message: string) => { setPrintError(message); notifyAdmin(message, "error"); };
     if (!detail?.id || !detail?.organization_id || !labelUrl) {
-      setPrintError("Não foi possível montar a etiqueta desta OS.");
+      showError("Não foi possível montar a etiqueta desta OS.");
       return;
     }
 
     const qrCanvas = labelQrCanvasRef.current;
     if (!qrCanvas) {
-      setPrintError("Não foi possível gerar o QR Code da etiqueta.");
+      showError("Não foi possível gerar o QR Code da etiqueta.");
       return;
     }
 
     const popup = openPrintWindow();
     if (!popup) {
-      setPrintError("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
+      showError("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
       return;
     }
 
@@ -407,7 +408,7 @@ export function OrderDetailsPage(props: Props) {
       renderServiceOrderLabel(popup, detail, qrCanvas);
     } catch (error) {
       popup.close();
-      setPrintError(systemErrorMessage(error, "Não foi possível preparar a etiqueta."));
+      showError(systemErrorMessage(error, "Não foi possível preparar a etiqueta."));
     }
   };
 
