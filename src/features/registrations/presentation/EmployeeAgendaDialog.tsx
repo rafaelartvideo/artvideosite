@@ -72,7 +72,7 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage, p
 
   if (!canManage || !employeeId) return null;
   return <>
-    <AdminButton variant="secondary" size="sm" onClick={() => { setLoading(true); setError(""); setOpen(true); }}
+    <AdminButton variant={personal ? "primary" : "secondary"} size="sm" onClick={() => { setLoading(true); setError(""); setOpen(true); }}
       aria-label={personal ? "Meus horários" : "Configurar agenda do funcionário"}
       title={personal ? "Meus horários" : "Agenda"}
       className={personal ? "h-10 w-full rounded-lg px-3 text-xs md:h-9 md:w-auto" : "h-9 px-2.5 sm:px-3"}>
@@ -122,15 +122,15 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage, p
                 </label>
                 <button type="button" onClick={() => removeInterval(day.weekday, index)}
                   aria-label={`Excluir período ${index + 1} de ${WEEKDAY_LABELS[day.weekday]}`}
-                  title="Excluir período" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50">
+                  title="Excluir período" className="admin-semantic-error flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border transition-colors hover:brightness-95">
                   <Trash2 size={16} />
                 </button>
               </div>)}
-              {!validWorkIntervals(day.work_intervals) && <p className="text-xs font-medium text-red-600">Corrija os horários sobrepostos ou inválidos.</p>}
-              {day.work_intervals.length === 0 && <p className="text-xs text-amber-700">Adicione ao menos um período.</p>}
-            </div> : <p className="text-xs font-medium text-red-600">Indisponível para agendamentos.</p>}
+              {!validWorkIntervals(day.work_intervals) && <p className="text-xs font-medium text-red-700 dark:text-red-300">Corrija os horários sobrepostos ou inválidos.</p>}
+              {day.work_intervals.length === 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Adicione ao menos um período.</p>}
+            </div> : <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Indisponível para agendamentos.</p>}
           </div>)}
-          {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-700">{error}</p>}
+          {error && <p role="alert" className="admin-semantic-error rounded-lg border p-3 text-xs font-semibold">{error}</p>}
         </div>}
     </AdminDialog>
   </>;
