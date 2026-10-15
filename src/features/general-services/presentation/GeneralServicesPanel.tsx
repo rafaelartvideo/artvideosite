@@ -167,7 +167,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
         {!equipmentLoading && equipmentReady && <div className="max-h-64 overflow-y-auto border-y border-border">
           <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
             {sortedEquipment.map(type => <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 py-3 text-xs text-foreground">
-              <Checkbox checked={selectedEquipmentIds.includes(type.id)} disabled={saving || !type.is_active}
+              <Checkbox checked={selectedEquipmentIds.includes(type.id)} disabled={saving || (!type.is_active && !selectedEquipmentIds.includes(type.id))}
                 onCheckedChange={checked => setSelectedEquipmentIds(current =>
                   checked === true ? [...new Set([...current, type.id])] : current.filter(id => id !== type.id))} />
               <span className="min-w-0 flex-1 font-semibold">{type.name}</span>
