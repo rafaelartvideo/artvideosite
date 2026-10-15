@@ -35,6 +35,21 @@ export function publicIcon(name: unknown): LucideIcon {
   return typeof name === "string" && iconMap[name] ? iconMap[name] : Wrench;
 }
 
+/** Default icon when a service does not yet have an icon selected in the CRM. */
+export function inferredServiceIcon(title: unknown): string {
+  const name = String(title || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  if (/camera|cftv|rede|wi.?fi|internet|roteador/.test(name)) return "wifi";
+  if (/tv|televisor|televisao|monitor|suporte/.test(name)) return "monitor";
+  if (/notebook|computador|desktop|pc\b/.test(name)) return "laptop";
+  if (/geladeira|lavadora|lava.?seca|eletrodomestico|maquina de lavar/.test(name)) return "washing-machine";
+  if (/videogame|console|playstation|xbox/.test(name)) return "gamepad-2";
+  if (/celular|smartphone|tablet/.test(name)) return "smartphone";
+  if (/instalacao|configuracao|montagem/.test(name)) return "settings";
+  if (/placa|componente|solda|eletronico/.test(name)) return "cpu";
+  if (/manutencao|revisao|preventiva|limpeza/.test(name)) return "settings";
+  return "wrench";
+}
+
 export function siteText(settings: Record<string, unknown>, key: string, fallback: string): string {
   const raw = settings[key];
   return typeof raw === "string" && raw.trim() ? raw.trim() : fallback;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { CheckCircle, Clock, Search, X } from "lucide-react";
-import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
+import { PublicButton as Btn, PublicHeading as H2 } from "@/features/public-shell/presentation/PublicUi";
 import { findPublicServiceOrder } from "../application/find-public-service-order";
 import { formatTrackingDate, getTrackingStatusIndex, TRACKING_STATUS_STEPS } from "../domain/service-tracking";
 
@@ -39,42 +39,33 @@ export function ServiceTrackingSection() {
   const currentStepIdx = order ? getTrackingStatusIndex(order.status) : 0;
 
   return (
-    <section id="acompanhar-servico" className="scroll-mt-24 rounded-xl border border-blue-100 bg-gradient-to-r from-[#dbeafe] via-[#eff6ff] to-[#dbeafe] px-3 py-6 sm:px-6">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-4">
-          <SectionLabel>Consulta de OS</SectionLabel>
-          <H2 className="mb-1 !text-2xl">Acompanhe seu serviço</H2>
-          <p className="text-[#5a6a82] text-sm sm:text-base max-w-xl mx-auto">
-            Consulte o andamento do seu serviço ou pedido usando o número da OS.
-          </p>
-        </div>
-
-        {/* Form */}
-        <form onSubmit={handleTrack} className="mb-6 max-w-3xl">
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1">
-              <Search size={18} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#5a6a82]" />
-              <input
-                type="text"
-                value={osNumber}
-                onChange={(e) => setOsNumber(e.target.value)}
-                placeholder="Digite o número da OS (ex: OS-12345)"
-                className="w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-md pl-10 pr-4 py-3 text-sm font-semibold text-[#0d1b2e] placeholder-[#5a6a82]/70 focus:outline-none focus:ring-2 focus:ring-[#0057e7] focus:border-transparent transition-all"
-                required
-              />
-            </div>
-            <Btn variant="primary" className="py-3 px-7 text-sm whitespace-nowrap" disabled={loading}>
-              {loading ? (
-                <>
-                  <Clock size={16} className="animate-spin" /> Buscando...
-                </>
-              ) : (
-                "Acompanhar"
-              )}
-            </Btn>
+    <section id="acompanhar-servico" className="scroll-mt-24 rounded-[7px] border border-[#d7e8ff] bg-gradient-to-r from-[#e4efff] via-[#eef6ff] to-[#dcecff] px-5 py-5 shadow-[0_2px_14px_rgba(24,83,162,.04)] sm:px-7">
+      <div>
+        <div className="grid items-center gap-x-8 gap-y-4 lg:grid-cols-[.95fr_1.05fr]">
+          <div>
+            <H2 className="!text-[20px] sm:!text-[23px]">Acompanhe seu serviço</H2>
+            <p className="mt-1 text-[12px] leading-relaxed text-[#5d6e86] sm:text-[13px]">
+              Informe o número da sua OS para ver o status atualizado.
+            </p>
           </div>
-        </form>
-
+          <form onSubmit={handleTrack} className="flex flex-col gap-2 sm:flex-row sm:gap-3">
+            <label htmlFor="artvideo-os-number" className="sr-only">Número da Ordem de Serviço</label>
+            <input
+              id="artvideo-os-number"
+              type="text"
+              value={osNumber}
+              onChange={(event) => setOsNumber(event.target.value)}
+              placeholder="Ex.: 12345"
+              autoComplete="off"
+              className="min-h-11 min-w-0 flex-1 rounded-[5px] border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm transition-all focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-blue-400/20"
+              required
+            />
+            <Btn variant="primary" className="!min-h-11 shrink-0 whitespace-nowrap px-6" disabled={loading}>
+              {loading ? <><Clock size={16} className="animate-spin"/> Buscando...</> :
+                <><Search size={17}/> Acompanhar</>}
+            </Btn>
+          </form>
+        </div>
         {/* Loading state */}
         {loading && (
           <div className="bg-[#f5f7fa] border border-[#0d1b2e]/10 rounded-xl p-8 text-center">
