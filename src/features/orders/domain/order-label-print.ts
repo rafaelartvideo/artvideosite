@@ -6,7 +6,7 @@ type ServiceOrderLabelOrder = {
 
 // Padrão inicial para rolos de três colunas. As medidas podem ser
 // calibradas na prévia de impressão e ficam salvas neste navegador.
-const DEFAULT_LAYOUT = { width: 32, height: 23, gap: 2, margin: 1, quantity: 3 };
+const DEFAULT_LAYOUT = { width: 32, height: 23, gap: 3, margin: 1, quantity: 3 };
 const L42_MAX_PRINT_WIDTH_MM = 104;
 
 function cleanText(value: unknown) {
@@ -60,7 +60,7 @@ export function renderServiceOrderLabel(
     :root {
       --label-w: 32mm;
       --label-h: 23mm;
-      --gap: 2mm;
+      --gap: 3mm;
       --side-margin: 1mm;
       --sheet-w: 102mm;
 
@@ -167,7 +167,7 @@ export function renderServiceOrderLabel(
   <div class="preview-area"><main class="sheet" id="sheet">${labels}</main></div>
   <script>
     (function () {
-      var STORAGE_KEY = "artvideo-order-label-layout-v2";
+      var STORAGE_KEY = "artvideo-order-label-layout-v3";
       var defaults = ${JSON.stringify(DEFAULT_LAYOUT)};
       var maxWidth = ${L42_MAX_PRINT_WIDTH_MM};
       var keys = ["width", "height", "gap", "margin", "quantity"];
