@@ -72,11 +72,11 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage, p
 
   if (!canManage || !employeeId) return null;
   return <>
-    <AdminButton variant={personal ? "primary" : "secondary"} size="sm" onClick={() => { setLoading(true); setError(""); setOpen(true); }}
+    <AdminButton variant="secondary" size="sm" onClick={() => { setLoading(true); setError(""); setOpen(true); }}
       aria-label={personal ? "Meus horários" : "Configurar agenda do funcionário"}
       title={personal ? "Meus horários" : "Agenda"}
-      className={personal ? "h-10 w-full rounded-lg px-3 text-xs md:h-9 md:w-auto" : "h-9 px-2.5 sm:px-3"}>
-      {personal ? "Meus horários" : <><CalendarDays size={15} /><span className="hidden sm:inline">Agenda</span></>}
+      className={personal ? "admin-action-blue-outline h-10 w-full rounded-lg px-3 text-xs md:h-9 md:w-auto" : "h-9 px-2.5 sm:px-3"}>
+      {personal ? <><CalendarDays size={14} className="shrink-0" aria-hidden="true" /> Meus horários</> : <><CalendarDays size={15} /><span className="hidden sm:inline">Agenda</span></>}
     </AdminButton>
     <AdminDialog open={open} onClose={() => { if (!saving) setOpen(false); }}
       title={personal ? "Meus horários" : "Agenda semanal do técnico"}
