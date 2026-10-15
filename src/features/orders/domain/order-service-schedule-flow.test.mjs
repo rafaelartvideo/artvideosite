@@ -88,8 +88,8 @@ test("o modal de criação é compacto, abre no dia atual e preserva seleção m
   assert.match(calendar, /className="w-\[calc\(100vw-1\.5rem\)\] max-w-4xl"/);
   assert.match(calendar, /<TechnicianAvailabilityCalendar\s+compact/);
   assert.match(calendar, /onChangeDate=\{changeDate\}/);
-  assert.match(calendar, /setSelected\(\[technicianId\]\)/);
-  assert.match(calendar, /onToggleTechnician=\{technicianId/);
+  assert.match(calendar, /setSelected\(teamLocked \? lockedTechnicianIds : \[technicianId\]\)/);
+  assert.match(calendar, /onToggleTechnician=\{teamLocked \? undefined : technicianId/);
   assert.match(availabilityCalendar, /const \[hideEmpty, setHideEmpty\] = useState\(true\)/);
   assert.match(availabilityCalendar, /if \(compact\) return <AdminCard/);
   assert.match(availabilityCalendar, /Horários disponíveis/);
