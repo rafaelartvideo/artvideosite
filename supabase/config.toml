@@ -49,3 +49,12 @@ verify_jwt = false
 [functions.sac-digital-oauth]
 verify_jwt = false
 
+
+# Loja pública Artvideo. As funções não usam login do CRM: o checkout recalcula
+# preços e frete no servidor, o webhook verifica assinatura e pagamento na API.
+[functions.artvideo-store-shipping]
+verify_jwt = false
+[functions.artvideo-store-checkout]
+verify_jwt = false
+[functions.artvideo-store-webhook]
+verify_jwt = false
