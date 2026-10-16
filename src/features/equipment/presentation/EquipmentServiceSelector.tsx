@@ -1,6 +1,7 @@
 import { Plus } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 
 /** Abre o cadastro completo do serviço, sem campo redundante no cabeçalho. */
@@ -29,7 +30,7 @@ export function EquipmentServiceSelector({ selectedIds, services, loading, error
     .sort((a, b) => Number(chosen.has(b.id)) - Number(chosen.has(a.id))
       || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   return <div className="space-y-3">
-    {loading && <div className="flex min-h-40 items-center justify-center text-xs text-muted-foreground" role="status">Carregando serviços da empresa...</div>}
+    {loading && <LoadingState text="Carregando serviços da empresa..." />}
     {!loading && !error && !available && <div role="status" className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
       <span>Vínculos de serviços indisponíveis até a atualização do banco de dados. Você ainda pode editar os demais dados do equipamento.</span>
       {onRetry && <button type="button" onClick={onRetry} className="font-semibold text-primary underline underline-offset-2">Verificar novamente</button>}
