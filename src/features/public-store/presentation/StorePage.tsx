@@ -219,7 +219,7 @@ export function StorePage({ setPage, onSelectProduct }: {
           {loading ? <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-live="polite">{Array.from({length:9},(_,i)=><div key={i} className="h-80 animate-pulse rounded-lg bg-[#e5eef8]"/>)}</div>
             : error ? <div role="alert" className="mt-5 rounded-lg border border-red-100 bg-white p-8 text-center text-sm text-red-700">{error}</div>
             : items.length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {items.map(product=><ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct}/>)}
+              {items.map(product=><ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct} availableQuantity={availability ? Number(availability[product.id] ?? 0) : undefined}/>)}
             </div>
             : <div className="mt-5 flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-[#cfddec] bg-white p-8 text-center">
               <Package size={34} className="text-[#9bb5d3]"/>

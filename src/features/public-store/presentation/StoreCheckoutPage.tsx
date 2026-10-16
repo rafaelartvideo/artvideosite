@@ -336,7 +336,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
     <div className="border-t border-[#edf1f7] px-5 py-4">
       <div className="flex items-center justify-between gap-3 text-sm text-[#536780]"><span>Produtos ({cartMode ? cartItems.reduce((t,i)=>t+i.quantity,0) : quantity})</span><span className="font-semibold text-[#1c314d]">{formatCurrency(subtotal)}</span></div>
-      <div className="mt-3 flex items-center justify-between gap-3 text-sm text-[#536780]"><span>Entrega</span><span className="text-right font-semibold text-[#1c314d]">{selectedShipping ? selectedShipping.price === 0 ? "Grátis" : formatCurrency(selectedShipping.price) : "A calcular"}</span></div>
+      <div className="mt-3 flex items-center justify-between gap-3 text-sm text-[#536780]"><span>{deliveryMode==="pickup"?"Retirada":"Entrega"}</span><span className="text-right font-semibold text-[#1c314d]">{selectedShipping ? selectedShipping.price === 0 ? "Grátis" : formatCurrency(selectedShipping.price) : "A calcular"}</span></div>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#e9eef6] pt-4">
         <span className="text-[14px] font-extrabold text-[#10243d]">Total</span>
         <span className="text-[22px] font-extrabold tracking-tight text-[var(--art-primary)]">{selectedShipping ? formatCurrency(total) : formatCurrency(subtotal)}</span>

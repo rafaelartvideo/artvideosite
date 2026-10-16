@@ -14,24 +14,38 @@ export function BrandCard({ brand }: { brand: any }) {
   </div>;
 }
 
-export function ProductCard({ product, onSelectProduct }: { product: any; onSelectProduct: (slug: string) => void }) {
+export function ProductCard({ product, onSelectProduct, availableQuantity }: {
+  product: any; onSelectProduct: (slug: string) => void; availableQuantity?: number;
+}) {
   const { url: imageUrl } = useMediaUrl(product.cover_media_id);
   const [feedback,setFeedback]=useState("");
-  const addToCart=()=>{setFeedback(addStoreCartItem(product.id,1) ? "Adicionado ao carrinho" : "Limite do carrinho atingido");};
+  const oldPrice = Number(product.compare_at_price);
+  const nowPrice = Number(product.price);
+  const hasDiscount = Number.isFinite(oldPrice) && oldPrice > nowPrice && nowPrice > 0;
+  const discount = hasDiscount ? Math.round((1 - nowPrice / oldPrice) * 100) : 0;
+  const soldOut = availableQuantity === 0;
+  const addToCart=()=>{if(soldOut) return;setFeedback(addStoreCartItem(product.id,1) ? "Adicionado ao carrinho" : "Limite do carrinho atingido");};
   return <article className="group flex min-w-0 flex-col overflow-hidden rounded-[7px] border border-[#e6ecf4] bg-white p-4 shadow-[0_2px_12px_rgba(12,36,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-[#bad5fb] hover:shadow-[0_14px_30px_rgba(16,53,96,.13)]">
+    <div className="relative">
+      {hasDiscount && <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-700">{discount}% OFF</span>}
+      {soldOut && <span className="absolute right-2 top-2 z-10 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">Esgotado</span>}
     <button type="button" aria-label={`Ver produto ${product.name}`} onClick={() => onSelectProduct(product.slug)}
       className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white via-[#fbfdff] to-[#f1f6ff] p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
       {imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"/>
         : <Package size={49} strokeWidth={1.35} className="text-[#b2c8e5] transition-transform group-hover:scale-110"/>}
     </button>
+    </div>
     <h3 className="mt-3 line-clamp-2 min-h-[42px] text-[13px] font-extrabold leading-[1.43] tracking-[-.025em] text-[#0c1a32]">{product.name}</h3>
-    <p className="mt-2 mb-3 text-[20px] font-extrabold leading-6 tracking-[-.03em] text-[var(--art-primary)]">{product.price != null ? formatCurrency(product.price) : "Consulte o valor"}</p>
+    <div className="mt-2 mb-3">
+      {hasDiscount && <p className="text-[12px] text-[#8798ab] line-through">{formatCurrency(oldPrice)}</p>}
+      <p className="text-[20px] font-extrabold leading-6 tracking-[-.03em] text-[var(--art-primary)]">{product.price != null ? formatCurrency(product.price) : "Consulte o valor"}</p>
+    </div>
     <button type="button" onClick={() => onSelectProduct(product.slug)}
       className="mt-auto inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[5px] bg-[var(--art-primary)] px-3 py-2 text-[12px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg hover:shadow-blue-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] active:translate-y-0">
       <ShoppingCart size={17} strokeWidth={1.8}/> Ver produto
     </button>
-    <button type="button" onClick={addToCart}
-      className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[var(--art-primary)] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-all hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+    <button type="button" onClick={addToCart} disabled={soldOut}
+      className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[var(--art-primary)] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-all hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
       <Plus size={16}/> Adicionar ao carrinho
     </button>
     {feedback && <p role="status" className="mt-2 text-center text-[11px] font-semibold text-[#486785]">{feedback}</p>}
