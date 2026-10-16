@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight, BadgePercent, Check, ChevronDown, ChevronLeft, ChevronRight,
-  Grid3X3, Package, Search, ShieldCheck, ShoppingBag, SlidersHorizontal,
-  Tag, Truck, X,
+  ArrowRight, BadgePercent, ChevronDown, ChevronLeft, ChevronRight,
+  Grid3X3, Package, Search, ShoppingBag, SlidersHorizontal,
+  Tag, X,
 } from "lucide-react";
 import { useBrands, useProductCategories, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -178,11 +178,6 @@ export function StorePage({ setPage, onSelectProduct }: {
       </div>
     </div>
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="mb-6 grid gap-3 rounded-lg border border-[#e2ebf7] bg-white p-4 text-[12px] text-[#53708e] sm:grid-cols-3">
-        <p className="flex items-center gap-2"><ShieldCheck size={19} className="text-[var(--art-primary)]"/> Compra com pagamento seguro</p>
-        <p className="flex items-center gap-2"><Truck size={19} className="text-[var(--art-primary)]"/> Entrega local por CEP</p>
-        <p className="flex items-center gap-2"><Check size={19} className="text-[var(--art-primary)]"/> Retirada na loja quando disponível</p>
-      </div>
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
         <aside className="hidden self-start rounded-xl border border-[#e4ebf5] bg-white p-5 shadow-sm lg:sticky lg:top-24 lg:block">
           {filterPanel}
