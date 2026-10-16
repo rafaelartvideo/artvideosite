@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 
 type AdminListSectionProps = {
   title: ReactNode;
@@ -71,7 +72,7 @@ export function AdminListSection({
     </div>
 
     {loading
-      ? <div className="flex min-h-40 items-center justify-center px-4 text-center text-xs text-muted-foreground">{loadingText}</div>
+      ? <div className="min-h-40"><LoadingState text={typeof loadingText === "string" ? loadingText : "Carregando..."} /></div>
       : error
         ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
         : empty
