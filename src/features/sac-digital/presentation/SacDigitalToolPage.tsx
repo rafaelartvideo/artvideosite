@@ -1458,9 +1458,49 @@ export function SacDigitalToolPage({
   };
 
 
+  const handleOpenExistingConversation = async (protocolId: string): Promise<boolean> => {
+    if (!activeOrganizationId || !canViewMessages || !/^[A-Za-z0-9_-]{3,80}$/.test(protocolId)) {
+      notifyAdmin("Sem permissão para abrir este atendimento.", "error");
+      return false;
+    }
+    try {
+      // A identificação do protocolo vem da SAC, não da semelhança entre telefones.
+      // A atualização pode estar atrasada; não criar nem enviar outra conversa.
+      try { await refreshSacDigitalProtocol(activeOrganizationId, protocolId); } catch { /* consultar o índice local */ }
+      const fresh = await listSacDigitalProtocols(activeOrganizationId, true, user?.id || "");
+      const found = fresh.find(item => !item.is_pending && item.external_protocol_id === protocolId);
+      const linkedOperatorId = operatorBinding?.linked && operatorBinding.access_mode === "operator"
+        ? operatorBinding.operator?.id || "" : "";
+      const operationalStatus = found ? displayProtocolStatus(found, new Set(waitingProtocolIds)) : "";
+      const accessible = found && (isSacManager || operatorCanSeeProtocolInInbox(
+        operationalStatus, found.operator_id, linkedOperatorId,
+      ));
+      if (!accessible) {
+        notifyAdmin("Este atendimento não está disponível para seu perfil SAC. Se pertence a outro Operador, somente ele ou um Gestor SAC pode visualizá-lo.", "error");
+        return false;
+      }
+      setProtocols(fresh);
+      setConversationSearch("");
+      setOperatorFilter("all");
+      setStatusFilter(operationalStatus === "in_att" ? "in_att"
+        : operationalStatus === "self_service" ? "self_service"
+        : operationalStatus === "finished" ? "finished"
+        : operationalStatus === "abandoned" ? "abandoned" : "waiting");
+      setModuleSection("conversations");
+      selectProtocol(found.id);
+      return true;
+    } catch (caught) {
+      notifyAdmin(systemErrorMessage(caught, "Não foi possível abrir o atendimento existente."), "error");
+      return false;
+    }
+  };
+
   const handleNewConversationStarted = async (result: {
     protocol: string | null;
-    pending_start_id: string | null;
+    pending_start_id?: string | null;
+    in_att?: boolean;
+    operator_id?: string | null;
+    operator_name?: string | null;
   }) => {
     if (!activeOrganizationId) return;
 
@@ -1479,15 +1519,25 @@ export function SacDigitalToolPage({
     for (let attempt = 0; attempt < 4 && !foundId; attempt += 1) {
       if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 400));
       try {
-        const next = await listSacDigitalProtocols(activeOrganizationId);
-        setProtocols(next);
-        foundProtocol = next.find(item => item.external_protocol_id === protocol) || null;
+        const next = await listSacDigitalProtocols(activeOrganizationId, true, user?.id || "");
+        // O backend já confirmou /operator/att/select antes da primeira mensagem.
+        // Não permitir que uma projeção atrasada mostre novamente "Aguardando".
+        const aligned = result.in_att && result.operator_id
+          ? next.map(item => item.external_protocol_id === protocol
+            ? { ...item, status: "in_att", operator_id: result.operator_id || null,
+              operator_name: result.operator_name || item.operator_name } : item)
+          : next;
+        setProtocols(aligned);
+        foundProtocol = aligned.find(item => item.external_protocol_id === protocol) || null;
         foundId = foundProtocol?.id || null;
       } catch {
         // O realtime/webhook pode concluir a projeção logo em seguida.
       }
     }
 
+    if (result.in_att) {
+      setWaitingProtocolIds(current => current.filter(id => id !== protocol));
+    }
     if (foundId && foundProtocol) {
       const currentState = displayProtocolStatus(foundProtocol, waitingProtocolSet);
       setStatusFilter(
@@ -1898,6 +1948,7 @@ export function SacDigitalToolPage({
         setNewConversationStarter(null);
       }}
       onStarted={handleNewConversationStarted}
+      onOpenExisting={handleOpenExistingConversation}
     />
 
     <PageHeader
