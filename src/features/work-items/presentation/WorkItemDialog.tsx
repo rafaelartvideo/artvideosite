@@ -55,9 +55,9 @@ const selectClass = cn(INPUT, "h-10 w-full text-sm");
 type WorkCustomer = { id: string; full_name: string; trade_name: string | null; whatsapp: string | null };
 
 export function WorkItemDialog({
-  open, item, organizationId, employees, canEdit, onClose, onSaved,
+  open, item, initialKind = "task", organizationId, employees, canEdit, onClose, onSaved,
 }: {
-  open: boolean; item: WorkItem | null; organizationId: string; employees: WorkEmployee[];
+  open: boolean; item: WorkItem | null; initialKind?: "task" | "commitment"; organizationId: string; employees: WorkEmployee[];
   canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem) => void;
 }) {
   const queryClient = useQueryClient();
@@ -73,14 +73,14 @@ export function WorkItemDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(item ? toDraft(item) : emptyDraft());
+    setDraft(item ? toDraft(item) : { ...emptyDraft(), kind: initialKind });
     setSection("details");
     setCustomerSearch("");
     setCustomerResults([]);
     setCustomerName(item?.customer?.trade_name || item?.customer?.full_name || "");
     setOrderOptions([]);
     setChecklistTitle("");
-  }, [open, item?.id]);
+  }, [open, item?.id, initialKind]);
 
   useEffect(() => {
     if (!open || !organizationId || !customerSearch.trim() || customerSearch.trim().length < 2 || draft.customer_id) return;
