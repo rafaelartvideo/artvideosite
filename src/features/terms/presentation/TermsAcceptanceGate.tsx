@@ -16,7 +16,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
   });
 }
 
-function FormattedTermContent({ content }: { content: string }) {
+export function FormattedTermContent({ content }: { content: string }) {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
   let index = 0;
