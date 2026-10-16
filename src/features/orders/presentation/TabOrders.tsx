@@ -813,6 +813,7 @@ export function TabOrders({
         saving={saving}
         workspace={workspace}
         formState={formState}
+        customers={customerSelection}
         images={imagesController}
         resolution={resolutionController}
         completion={completionController}
