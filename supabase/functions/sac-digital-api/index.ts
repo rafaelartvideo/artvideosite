@@ -60,7 +60,7 @@ function validProtocol(value: unknown) {
 
 function normalizeSacPhone(value: unknown) {
   let digits = String(value || "").replace(/\D/g, "");
-  if ((digits.length === 10 || digits.length === 11) && !digits.startsWith("55")) {
+  if (digits.length === 10 || digits.length === 11) {
     digits = `55${digits}`;
   }
   return digits;
