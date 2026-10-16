@@ -45,7 +45,11 @@ export async function assertOperatorIdentity(profile,expectedId,loadOperators,ac
   return boundId;
  }
  if(operatorIdFromAccessToken(accessToken)===boundId) return boundId;
- throw failure('operator_auth_contract_unverified','A SAC não devolveu o identificador nem o e-mail do Operador autenticado. Confira o cadastro do Operador na SAC e tente novamente.');
+ // SAC's authenticated Operator profile can omit ID and email. OAuth grant,
+ // successful /operator/perfil/info and server-bound User/Operator grant suffice
+ // to save the session; explicit contradictory provider IDs still reject it.
+ if(profile?.status===true || profile?.success===true) return boundId;
+ throw failure('operator_auth_contract_unverified','A SAC não confirmou o perfil autorizado.');
 }
 
 export async function fetchSacOperatorDirectory(credentials,fetcher=fetch,clientToken) {
