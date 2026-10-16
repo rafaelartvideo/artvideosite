@@ -65,3 +65,14 @@ test('OAuth subject never overrides a conflicting provider profile ID or ambiguo
  await assert.rejects(assertOperatorIdentity({info:{id:'other',email:'operator@example.test'}},'op',async()=>operators,token),e=>e.code==='operator_identity_mismatch');
  await assert.rejects(assertOperatorIdentity({info:{email:'a@example.test',user:{email:'b@example.test'}}},'op',async()=>operators,token),e=>e.code==='operator_auth_contract_unverified');
 });
+
+test('accepted SAC Operator profile without ID or email can finish OAuth',async()=>{
+ let fetched=false;
+ const accepted={status:true,info:{name:'Atendente',departments:[]}};
+ assert.equal(await assertOperatorIdentity(accepted,'op',async()=>{fetched=true;throw Error('directory not needed');}),'op');
+ assert.equal(fetched,false);
+});
+test('missing profile acceptance and explicit different Operator ID still reject',async()=>{
+ await assert.rejects(assertOperatorIdentity({status:false,info:{name:'Atendente'}},'op',async()=>[]),e=>e.code==='operator_auth_contract_unverified');
+ await assert.rejects(assertOperatorIdentity({status:true,info:{id:'other'}},'op',async()=>[]),e=>e.code==='operator_identity_mismatch');
+});
