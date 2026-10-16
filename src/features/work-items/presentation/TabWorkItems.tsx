@@ -83,18 +83,20 @@ function TaskCard({ item, employees, onOpen, onComplete, canComplete, compact = 
   onComplete: (item: WorkItem) => void; canComplete: boolean; compact?: boolean;
 }) {
   const s = status(item.status);
-  return <div role="button" tabIndex={0} draggable={canComplete}
+  const isFinalized = item.status === "completed" || item.status === "cancelled";
+  return <div role="button" tabIndex={0} draggable={canComplete && !isFinalized}
     onDragStart={event => event.dataTransfer.setData("text/plain", item.id)}
     onClick={() => onOpen(item)}
     onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(item); } }}
-    className={cn("group relative min-w-0 cursor-grab rounded-xl border border-border bg-card p-3.5 shadow-sm transition-all duration-200",
-      "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md active:cursor-grabbing motion-reduce:transform-none",
+    className={cn("group relative min-w-0 rounded-xl border border-border bg-card p-3.5 shadow-sm transition-all duration-200",
+      "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md motion-reduce:transform-none",
+      canComplete && !isFinalized ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       compact ? "space-y-3" : "space-y-3.5")}>
     <div className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", s.dot)} />
     <div className="flex items-start gap-2">
-      <button type="button" disabled={!canComplete}
-        aria-label={!canComplete ? "Atividade somente leitura" : item.status === "completed" ? "Atividade concluída" : "Concluir atividade"}
-        title={!canComplete ? "Sem permissão para concluir" : item.status === "completed" ? "Concluída" : "Concluir"}
+      <button type="button" disabled={!canComplete || isFinalized}
+        aria-label={isFinalized ? "Atividade finalizada (somente leitura)" : !canComplete ? "Atividade somente leitura" : "Concluir atividade"}
+        title={isFinalized ? "Finalizada — somente consulta" : !canComplete ? "Sem permissão para concluir" : "Concluir"}
         onClick={event => { event.stopPropagation(); onComplete(item); }}
         className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-emerald-500 disabled:cursor-not-allowed disabled:opacity-40">
         {item.status === "completed" ? <CheckCheck size={20} className="text-emerald-500" /> : <Circle size={20} />}
@@ -285,7 +287,7 @@ export function TabWorkItems() {
   const newTask = (nextKind: WorkKind = "task") => { setNewKind(nextKind); setSelected(null); setDialogOpen(true); };
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["work-items", organizationId] });
   const moveTo = async (item: WorkItem, next: WorkStatus) => {
-    if (!canEdit || moving || item.status === next) return;
+    if (!canEdit || moving || item.status === next || item.status === "completed" || item.status === "cancelled") return;
     if (next === "completed" && item.kind === "commitment") { openTask(item); notifyAdmin("Informe o resultado do compromisso para concluí-lo.", "warning"); return; }
     setMoving(item.id);
     try {
