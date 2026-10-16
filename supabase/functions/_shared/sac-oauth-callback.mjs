@@ -1,5 +1,5 @@
 import { exchangeToken, resultUrl, stateHash, SAC_OAUTH_CALLBACK } from './sac-oauth.mjs';
-import { assertOperatorIdentity, fetchSacOperatorDirectory } from './sac-operator-identity.mjs';
+import { assertOperatorIdentity } from './sac-operator-identity.mjs';
 export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,profileAccepted,operatorTokenError}) {
  const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','Content-Type':'text/plain; charset=utf-8'};
  if(request.method!=='GET') return new Response('Método não permitido.',{status:405,headers});
@@ -34,7 +34,7 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,profil
   const body=await profile.json();
   if(!profileAccepted(body,profile.status)) throw Object.assign(Error('Perfil não autorizado.'),{code:'operator_profile_incompatible'});
   stage='profile_identity';
-  await assertOperatorIdentity(body,context.operator_id,()=>fetchSacOperatorDirectory(credentials,fetcher),tokens.access_token);
+  await assertOperatorIdentity(body,context.operator_id);
   stage='session_save';
   const saved=await admin.rpc('sac_digital_operator_session_set',{
    p_organization_id:context.organization_id,p_user_id:context.user_id,p_operator_id:context.operator_id,
