@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { getMyTechnicianOrderHistory, type TechnicianOrderHistoryEntry } from "../infrastructure/technician-tasks.repository";
 
 function dateText(value: string | null) {
@@ -39,7 +39,7 @@ export function TechnicianOrderHistoryDialog({
     title="Histórico da OS" description={"OS " + orderNumber}
     className="max-w-2xl"
     footer={<div className="flex justify-end"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>}>
-    {loading ? <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Carregando histórico...</div>
+    {loading ? <LoadingState text="Carregando histórico..." />
       : !entries.length ? <div className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Nenhum registro técnico disponível para esta OS.</div>
       : <div className="min-h-40 divide-y divide-border">
         {entries.map((entry, index) => <div key={entry.kind + entry.at + index} className="space-y-1 py-3 first:pt-0 last:pb-0">
