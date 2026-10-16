@@ -256,6 +256,7 @@ export function TabWorkItems() {
   };
 
   const all = itemQuery.data || [];
+  const currentSelected = selected ? all.find(entry => entry.id === selected.id) || selected : null;
   const employees = employeeQuery.data || [];
   const myEmployeeIds = employees.filter(person => person.profile_id === user?.id).map(person => person.id);
   if (employee?.id && !myEmployeeIds.includes(employee.id)) myEmployeeIds.push(employee.id);
@@ -528,8 +529,8 @@ export function TabWorkItems() {
       </div></AdminCard>}
     </>}
 
-    <WorkItemDialog key={selected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}
-      item={selected} initialKind={newKind} organizationId={organizationId} employees={employees}
+    <WorkItemDialog key={currentSelected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}
+      item={currentSelected} initialKind={newKind} organizationId={organizationId} employees={employees}
       canEdit={selected ? canEdit : canCreate}
       onClose={closeDialog}
       onSaved={saved => {
