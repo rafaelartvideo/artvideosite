@@ -165,7 +165,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [mobileFilter, setMobileFilter] = useState<MobileRegistrationFilter>("name");
-  const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
+  const [sortOrder, setSortOrder] = useState<RegistrationSort>("name_asc");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const debouncedNameSearch = useDebouncedValue(nameSearch);
@@ -371,7 +371,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setDocumentSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
-    setSortOrder("");
+    setSortOrder("name_asc");
     setPage(1);
   };
 
