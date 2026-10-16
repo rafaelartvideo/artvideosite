@@ -1,4 +1,3 @@
-import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,7 +9,7 @@ import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { createGeneralService, listGeneralServices, loadGeneralServiceEquipments, saveGeneralServiceEquipments, setGeneralServiceActive, updateGeneralService } from "../infrastructure/general-services.repository";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, InlineLoading, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FDecimalInput, FInput, FToggle, FCurrencyInput, FTextarea, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
