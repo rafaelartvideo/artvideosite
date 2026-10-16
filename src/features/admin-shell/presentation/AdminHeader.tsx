@@ -283,7 +283,10 @@ export function AdminHeader({
     if (!activeOrganizationId || !userId) { setAccountTerms([]); return; }
     setTermsLoading(true);
     try {
-      setAccountTerms(await listMyAcceptedOrganizationTerms(activeOrganizationId, userId));
+      const membership = organizations.find(item => item.organization_id === activeOrganizationId);
+      const isPartnerOwner = membership?.is_owner === true && membership.organization_type === "partner";
+      const acceptedTerms = await listMyAcceptedOrganizationTerms(activeOrganizationId, userId);
+      setAccountTerms(acceptedTerms.filter(item => item.term_type === "responsibility" || isPartnerOwner));
     } catch (error) {
       setTermsError(systemErrorMessage(error, "Não foi possível carregar seus termos."));
     } finally {
