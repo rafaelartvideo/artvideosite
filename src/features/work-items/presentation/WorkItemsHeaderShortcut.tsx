@@ -31,6 +31,8 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
   const canView = Boolean(organizationId && userId && hasPermission("work_items.view")
     && (activeOrganization?.is_platform_operator || (hasPermission("operation.view") && hasModule("work_items"))));
   const canEdit = hasPermission("work_items.edit");
+  const canManage = hasPermission("work_items.manage");
+  const canExecuteTeam = canManage && hasPermission("work_items.execute_team");
   const queryClient = useQueryClient();
   const [panelOpen, setPanelOpen] = useState(false);
   const [selected, setSelected] = useState<WorkItem | null>(null);
@@ -98,7 +100,7 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
   const liveSelected = selected ? (query.data || []).find(item => item.id === selected.id) || selected : null;
 
   return {
-    canView, canEdit, mine, count: mine.length,
+    canView, canEdit, canManage, canExecuteTeam, personalEmployeeIds, userId, mine, count: mine.length,
     loading: query.isPending, error: query.isError,
     panelOpen, setPanelOpen, selected: liveSelected, employees, organizationId: organizationId || "",
     openDetails, closeDetails, onSaved,
@@ -159,7 +161,9 @@ export function WorkItemsHeaderDialog({ controller }: { controller: WorkItemsHea
       key={controller.selected.id} open item={controller.selected}
       organizationId={controller.organizationId}
       employees={controller.employees}
-      canEdit={controller.canEdit}
+      canEdit={controller.canEdit && (controller.canManage || controller.selected.created_by === controller.userId
+        || controller.selected.assigned_employee_ids?.some(id => controller.personalEmployeeIds.includes(id)))}
+      canPerform={controller.canExecuteTeam || Boolean(controller.selected.assigned_employee_ids?.some(id => controller.personalEmployeeIds.includes(id)))}
       onClose={controller.closeDetails}
       onSaved={controller.onSaved} />}
   </>;
