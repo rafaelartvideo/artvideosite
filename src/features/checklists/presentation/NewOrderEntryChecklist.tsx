@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Camera, ClipboardCheck, ImagePlus, X } from "lucide-react";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
   getNewOrderEntryChecklistDraft,
   loadNewOrderEntryChecklist,
@@ -77,7 +78,7 @@ export function NewOrderEntryChecklist({ equipmentTypeId }: { equipmentTypeId?: 
         </div>
       </div>
 
-      {pending && <div className="flex min-h-40 items-center justify-center rounded-xl border border-[#0057e7]/15 bg-primary-soft p-4 text-sm font-semibold text-[#0057e7]">Carregando checklist de entrada...</div>}
+      {pending && <div className="min-h-40 rounded-xl border border-primary/15 bg-primary-soft"><LoadingState text="Carregando checklist de entrada..." /></div>}
       {!pending && error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm font-semibold text-red-700">{error}</div>}
 
       {!pending && draft && (
