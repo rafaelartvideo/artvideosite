@@ -1,160 +1,246 @@
 import { useEffect, useState } from "react";
-import { MapPin, Clock3, Info, Store, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { fetchAddressByZipCode, formatZipCode } from "@/lib/address";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
-import { Toast } from "@/shared/ui/admin/AdminFeedback";
+import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 type PickupSettings = {
   enabled: boolean;
   location_name: string;
-  street: string; number: string; complement: string; district: string;
-  city: string; state: string; postal_code: string;
-  opening_hours: string; instructions: string;
+  street: string;
+  number: string;
+  complement: string;
+  district: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  opening_hours: string;
+  instructions: string;
 };
+
+const PICKUP_FIELDS = "enabled,location_name,street,number,complement,district,city,state,postal_code,opening_hours,instructions";
 const initial: PickupSettings = {
-  enabled: false, location_name: "Retirada na Artvideo",
-  street: "", number: "", complement: "", district: "", city: "",
-  state: "", postal_code: "", opening_hours: "", instructions: "",
+  enabled: false,
+  location_name: "Retirada na Artvideo",
+  street: "",
+  number: "",
+  complement: "",
+  district: "",
+  city: "",
+  state: "",
+  postal_code: "",
+  opening_hours: "",
+  instructions: "",
 };
-const fieldClass = "h-10 w-full rounded-md border border-border bg-background px-3 text-sm outline-none focus:border-primary";
-const labelClass = "block min-w-0 space-y-1.5 text-xs font-bold text-foreground";
+const cleanPickup = (form: PickupSettings): PickupSettings => ({
+  ...form,
+  location_name: form.location_name.trim(),
+  street: form.street.trim(),
+  number: form.number.trim(),
+  complement: form.complement.trim(),
+  district: form.district.trim(),
+  city: form.city.trim(),
+  state: form.state.trim().toUpperCase(),
+  postal_code: form.postal_code.replace(/\D/g, "").slice(0, 8),
+  opening_hours: form.opening_hours.trim(),
+  instructions: form.instructions.trim(),
+});
+const validPickup = (form: PickupSettings) =>
+  form.location_name.length >= 3 &&
+  form.street.length >= 3 &&
+  form.number.length >= 1 &&
+  form.district.length >= 2 &&
+  form.city.length >= 2 &&
+  /^[A-Z]{2}$/.test(form.state) &&
+  /^\d{8}$/.test(form.postal_code) &&
+  form.opening_hours.length >= 3;
 
 export function SitePickupSettings({ canUpdate, onBack }: { canUpdate: boolean; onBack: () => void }) {
   const { activeOrganization } = useAuth();
-  const [form, setForm] = useState<PickupSettings>(initial);
-  const [original, setOriginal] = useState<PickupSettings>(initial);
+  const organizationId = activeOrganization?.organization_id;
+  const [form, setForm] = useState<PickupSettings>({ ...initial });
+  const [original, setOriginal] = useState<PickupSettings>({ ...initial });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [feedback, setFeedback] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [lookupZip, setLookupZip] = useState("");
+  const [lookupLoading, setLookupLoading] = useState(false);
+
   useEffect(() => {
-    let open = true;
+    if (!organizationId) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
     (async () => {
       const { data, error } = await supabase.from("artvideo_store_pickup_settings")
-        .select("enabled,location_name,street,number,complement,district,city,state,postal_code,opening_hours,instructions")
+        .select(PICKUP_FIELDS)
+        .eq("organization_id", organizationId)
         .maybeSingle();
-      if (!open) return;
-      if (error) setFeedback({ msg: systemErrorMessage(error), type: "error" });
-      else if (data) {
-        const value = data as PickupSettings;
-        setForm(value); setOriginal(value);
+      if (cancelled) return;
+      if (error) {
+        notifyAdmin(systemErrorMessage(error, "Não foi possível carregar a retirada na loja."), "error");
+      } else {
+        const loaded = data ? (data as PickupSettings) : { ...initial };
+        setForm(loaded);
+        setOriginal(loaded);
       }
       setLoading(false);
-    })();
-    return () => { open = false; };
-  }, []);
+    })().catch(error => {
+      if (!cancelled) {
+        notifyAdmin(systemErrorMessage(error, "Não foi possível carregar a retirada na loja."), "error");
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [organizationId]);
+
+  useEffect(() => {
+    if (!/^\d{8}$/.test(lookupZip)) return;
+    let cancelled = false;
+    const timer = window.setTimeout(() => {
+      setLookupLoading(true);
+      void fetchAddressByZipCode(lookupZip).then(address => {
+        if (cancelled) return;
+        if (!address) {
+          notifyAdmin("CEP não encontrado. Confira o número ou informe o endereço manualmente.", "warning");
+          return;
+        }
+        setForm(current => current.postal_code !== lookupZip ? current : {
+          ...current,
+          street: address.street ?? "",
+          district: address.neighborhood ?? "",
+          city: address.city ?? "",
+          state: (address.state ?? "").toUpperCase(),
+        });
+      }).catch(error => {
+        if (!cancelled) notifyAdmin(systemErrorMessage(error, "Não foi possível consultar o CEP. Preencha o endereço manualmente."), "warning");
+      }).finally(() => {
+        if (!cancelled) setLookupLoading(false);
+      });
+    }, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [lookupZip]);
+
   const dirty = JSON.stringify(form) !== JSON.stringify(original);
   const patch = (key: keyof PickupSettings, value: string | boolean) => {
-    if (!canUpdate) return;
+    if (!canUpdate || saving) return;
     setForm(current => ({ ...current, [key]: value }));
   };
-  const save = async () => {
-    if (!canUpdate || !activeOrganization?.id || saving) return;
-    const postal = form.postal_code.replace(/\D/g, "");
-    const clean = { ...form, postal_code: postal, state: form.state.toUpperCase().trim(),
-      location_name: form.location_name.trim(), street: form.street.trim(),
-      number: form.number.trim(), district: form.district.trim(), city: form.city.trim(),
-      opening_hours: form.opening_hours.trim(), complement: form.complement.trim(), instructions: form.instructions.trim() };
-    if (clean.enabled && (!/^\d{8}$/.test(postal) || !/^[A-Z]{2}$/.test(clean.state)
-      || [clean.location_name,clean.street,clean.number,clean.district,clean.city,clean.opening_hours].some(v => v.length < 2))) {
-      setFeedback({ type:"error", msg:"Para ativar a retirada, informe endereço completo, CEP e horários de atendimento." }); return;
+  const changeZip = (value: string) => {
+    if (!canUpdate || saving) return;
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+    patch("postal_code", digits);
+    setLookupZip(digits);
+    if (digits.length !== 8) setLookupLoading(false);
+  };
+
+  const persist = async (candidate: PickupSettings, mode: "form" | "toggle" = "form") => {
+    if (!canUpdate || !organizationId || saving || loading) {
+      if (!organizationId) notifyAdmin("Não foi possível identificar a empresa para salvar a retirada.", "error");
+      return;
+    }
+    const clean = cleanPickup(candidate);
+    if (clean.enabled && !validPickup(clean)) {
+      notifyAdmin("Para ativar, informe nome do local, rua, número, bairro, cidade, UF, CEP e horários válidos.", "error");
+      return;
+    }
+    if (clean.location_name.length < 3 || clean.location_name.length > 100) {
+      notifyAdmin("Informe um nome válido para o local de retirada.", "error");
+      return;
     }
     setSaving(true);
-    const { error } = await supabase.from("artvideo_store_pickup_settings")
-      .upsert({ ...clean, organization_id: activeOrganization.id, updated_at: new Date().toISOString() },
-        { onConflict: "organization_id" });
-    setSaving(false);
-    if (error) setFeedback({ type:"error", msg:systemErrorMessage(error) });
-    else { setForm(clean); setOriginal(clean); setFeedback({type:"success",msg:"Configurações de retirada salvas."}); }
+    try {
+      const { data, error } = await supabase.from("artvideo_store_pickup_settings")
+        .upsert({
+          ...clean,
+          organization_id: organizationId,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: "organization_id" })
+        .select(PICKUP_FIELDS)
+        .single();
+      if (error) throw error;
+      if (!data) throw new Error("O banco não confirmou a gravação das configurações."); // Always require persisted data.
+      const confirmed = data as PickupSettings;
+      setForm(confirmed);
+      setOriginal(confirmed);
+      notifyAdmin(mode === "toggle"
+        ? confirmed.enabled ? "Retirada na loja ativada." : "Retirada na loja desativada."
+        : "Configurações de retirada salvas.", "success");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível salvar as configurações de retirada."), "error");
+    } finally {
+      setSaving(false);
+    }
   };
+
   const back = () => {
     if (dirty && !window.confirm("Existem alterações não salvas. Deseja sair?")) return;
     onBack();
   };
-  return <div className="space-y-5">
-    {feedback && <Toast message={feedback.msg} type={feedback.type} onClose={()=>setFeedback(null)}/>}
-    {loading ? <p className="px-4 py-10 text-sm text-muted-foreground">Carregando configurações...</p> : <>
-      <Section title="Retirada na loja" description="Disponibilize a retirada gratuita como alternativa ao frete regional.">
-        <div className="space-y-5">
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
-            <input type="checkbox" checked={form.enabled} disabled={!canUpdate||saving}
-              onChange={e=>patch("enabled",e.target.checked)} className="mt-1 h-4 w-4 accent-blue-600"/>
-            <span className="text-sm"><strong className="block">Permitir retirar na loja</strong>
-              <span className="mt-1 block text-xs leading-5 text-muted-foreground">
-                Clientes poderão escolher a retirada gratuita durante a compra. A liberação acontece após o pagamento e a separação do pedido.
-              </span>
-            </span>
-          </label>
-          <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-foreground">
-            <Info size={17} className="shrink-0 text-primary"/>
-            Nenhuma retirada será anunciada enquanto esta opção estiver desativada. Não há reserva de horário: o cliente deverá aguardar a confirmação de pedido pronto.
-          </div>
-        </div>
-      </Section>
 
-      <Section title="Local de retirada" description="Os dados cadastrados aparecerão para o cliente no checkout.">
+  const fieldDisabled = !canUpdate || saving;
+  return <div className="space-y-5">
+    {loading ? <LoadingState text="Carregando retirada na loja..." /> : <>
+      <Section title="Local de retirada" description="Endereço e horário exibidos ao cliente no checkout."
+        actions={canUpdate ? <AdminActiveStateButton
+          active={form.enabled}
+          entityLabel="retirada na loja"
+          disabled={saving || lookupLoading}
+          loading={saving}
+          onClick={() => void persist({ ...form, enabled: !form.enabled }, "toggle")}
+        /> : undefined}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className={labelClass+" sm:col-span-2"}>Nome exibido ao cliente *
-            <input className={fieldClass} maxLength={100} disabled={!canUpdate} value={form.location_name}
-              onChange={e=>patch("location_name",e.target.value)} placeholder="Eletrônica Artvideo"/>
-          </label>
-          <label className={labelClass+" sm:col-span-2"}>Rua / avenida *
-            <input className={fieldClass} maxLength={180} disabled={!canUpdate} value={form.street}
-              onChange={e=>patch("street",e.target.value)}/>
-          </label>
-          <label className={labelClass}>Número *
-            <input className={fieldClass} maxLength={20} disabled={!canUpdate} value={form.number}
-              onChange={e=>patch("number",e.target.value)}/>
-          </label>
-          <label className={labelClass}>Complemento
-            <input className={fieldClass} maxLength={160} disabled={!canUpdate} value={form.complement}
-              onChange={e=>patch("complement",e.target.value)}/>
-          </label>
-          <label className={labelClass}>Bairro *
-            <input className={fieldClass} maxLength={100} disabled={!canUpdate} value={form.district}
-              onChange={e=>patch("district",e.target.value)}/>
-          </label>
-          <label className={labelClass}>Cidade *
-            <input className={fieldClass} maxLength={100} disabled={!canUpdate} value={form.city}
-              onChange={e=>patch("city",e.target.value)}/>
-          </label>
-          <label className={labelClass}>UF *
-            <input className={fieldClass} maxLength={2} disabled={!canUpdate} value={form.state}
-              onChange={e=>patch("state",e.target.value.replace(/[^a-z]/ig,"").toUpperCase())} placeholder="SE"/>
-          </label>
-          <label className={labelClass}>CEP *
-            <input className={fieldClass} inputMode="numeric" maxLength={8} disabled={!canUpdate}
-              value={form.postal_code} onChange={e=>patch("postal_code",e.target.value.replace(/\D/g,"").slice(0,8))}
-              placeholder="00000000"/>
-          </label>
+          <div className="sm:col-span-2">
+            <FInput label="Nome exibido ao cliente" required value={form.location_name}
+              maxLength={100} disabled={fieldDisabled} placeholder="Eletrônica Artvideo"
+              onChange={(event: any) => patch("location_name", event.target.value)} />
+          </div>
+          <FInput label="CEP" required inputMode="numeric" placeholder="00000-000"
+            maxLength={9} disabled={fieldDisabled} value={formatZipCode(form.postal_code)}
+            hint={lookupLoading ? "Buscando endereço pelo CEP..." : "Rua, bairro, cidade e UF são preenchidos automaticamente."}
+            onChange={(event: any) => changeZip(event.target.value)} />
+          <FInput label="UF" required value={form.state} maxLength={2} disabled={fieldDisabled}
+            onChange={(event: any) => patch("state", event.target.value.replace(/[^a-z]/ig, "").toUpperCase())}
+            placeholder="SE" />
+          <div className="sm:col-span-2">
+            <FInput label="Rua / avenida" required maxLength={180} disabled={fieldDisabled}
+              value={form.street} onChange={(event: any) => patch("street", event.target.value)} />
+          </div>
+          <FInput label="Número" required maxLength={20} disabled={fieldDisabled}
+            value={form.number} onChange={(event: any) => patch("number", event.target.value)} />
+          <FInput label="Complemento" maxLength={160} disabled={fieldDisabled}
+            value={form.complement} onChange={(event: any) => patch("complement", event.target.value)} />
+          <FInput label="Bairro" required maxLength={100} disabled={fieldDisabled}
+            value={form.district} onChange={(event: any) => patch("district", event.target.value)} />
+          <FInput label="Cidade" required maxLength={100} disabled={fieldDisabled}
+            value={form.city} onChange={(event: any) => patch("city", event.target.value)} />
         </div>
       </Section>
 
       <Section title="Horários e orientações">
         <div className="space-y-4">
-          <label className={labelClass}><span className="inline-flex items-center gap-2"><Clock3 size={15}/> Horário de funcionamento *</span>
-            <textarea rows={3} maxLength={500} disabled={!canUpdate} value={form.opening_hours}
-              onChange={e=>patch("opening_hours",e.target.value)}
-              placeholder="Segunda a sexta, 8h às 18h. Sábado, 8h às 12h."
-              className={fieldClass+" h-auto min-h-24 resize-y py-2.5"}/>
-          </label>
-          <label className={labelClass}>Orientações de retirada (opcional)
-            <textarea rows={3} maxLength={1000} disabled={!canUpdate} value={form.instructions}
-              onChange={e=>patch("instructions",e.target.value)}
-              placeholder="Apresente o código do pedido e um documento no balcão."
-              className={fieldClass+" h-auto min-h-24 resize-y py-2.5"}/>
-          </label>
-          {form.enabled && <p className="flex items-center gap-2 text-xs text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 size={15}/> A retirada será oferecida no site após salvar.
-          </p>}
+          <FTextarea label="Horário de funcionamento" required rows={3} maxLength={500}
+            disabled={fieldDisabled} value={form.opening_hours}
+            onChange={(event: any) => patch("opening_hours", event.target.value)}
+            placeholder="Segunda a sexta, 8h às 18h. Sábado, 8h às 12h." />
+          <FTextarea label="Orientações de retirada (opcional)" rows={3} maxLength={1000}
+            disabled={fieldDisabled} value={form.instructions}
+            onChange={(event: any) => patch("instructions", event.target.value)}
+            placeholder="Apresente o código do pedido e um documento no balcão." />
         </div>
       </Section>
     </>}
-    <AdminStickyToolbar>
+    <AdminStickyToolbar className="justify-between">
       <BtnSecondary onClick={back} disabled={saving}>Voltar</BtnSecondary>
-      {dirty && <span className="text-xs text-amber-600">Alterações não salvas</span>}
-      {canUpdate && <BtnPrimary onClick={()=>void save()} disabled={saving||loading||!dirty}
+      {canUpdate && <BtnPrimary onClick={() => void persist(form)} disabled={saving || loading}
         loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </AdminStickyToolbar>
   </div>;
