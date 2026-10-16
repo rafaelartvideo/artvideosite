@@ -55,9 +55,9 @@ export const saveOrderCustomerAddress = (
 
 export const searchOrderCustomers = (organizationId: string, query: string) => {
   const term = query.trim();
-  const digits = term.replace(/\\D/g, "");
-  const numericOnly = /^[\\d\\s./()+-]+$/.test(term);
-  const text = term.replace(/[%(),]/g, " ").trim().replace(/\\s+/g, "%");
+  const digits = term.replace(/\D/g, "");
+  const numericOnly = /^[\d\s./()+-]+$/.test(term);
+  const text = term.replace(/[%(),]/g, " ").trim().replace(/\s+/g, "%");
   const conditions: string[] = [];
 
   // Nomes continuam sendo pesquisados como texto. CPF, CNPJ e telefones
