@@ -27,6 +27,7 @@ const moduleVisuals: Record<string, { label: string; icon: ElementType }> = {
   customers: { label: "Cadastros", icon: Users },
   quotes: { label: "Orçamentos", icon: FileText },
   agenda: { label: "Agenda", icon: CalendarDays },
+  workItems: { label: "Compromissos e Tarefas", icon: ClipboardCheck },
   inventory: { label: "Estoque", icon: Package },
   pdv: { label: "PDV", icon: ShoppingCart },
   finance: { label: "Financeiro", icon: Landmark },
