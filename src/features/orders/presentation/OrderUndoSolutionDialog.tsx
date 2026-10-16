@@ -53,7 +53,7 @@ export function OrderUndoSolutionDialog({
         Diagnóstico, solução e fotos deixarão a solução ativa, mas continuarão disponíveis em <strong>Registros da solução</strong>.
       </div>
       <label className="block">
-        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Motivo *</span>
+        <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-[#5a6a82]">Motivo <span className="font-bold text-red-600 dark:text-red-400">*</span></span>
         <textarea
           value={reason}
           onChange={event => setReason(event.target.value)}
