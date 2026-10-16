@@ -785,6 +785,7 @@ export function TabProducts({
     return matchesName && matchesGtin && matchesCategory && matchesLocation;
   });
 
+  filtered.sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }));
   const hasInventoryFilters = Boolean(nameSearch.trim() || gtinSearch.trim() || categoryFilter || locationSearch.trim());
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
