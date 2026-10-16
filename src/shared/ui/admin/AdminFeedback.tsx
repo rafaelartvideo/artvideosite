@@ -138,7 +138,7 @@ export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
 }
 
 export function InlineLoading({ text = "Carregando...", className = "", size = "sm" }: {
-  text?: string;
+  text?: React.ReactNode;
   className?: string;
   size?: "sm" | "md" | "lg";
 }) {
@@ -164,7 +164,7 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
   </div>;
 }
 
-export function LoadingState({ text = "Carregando..." }: { text?: string }) {
+export function LoadingState({ text = "Carregando..." }: { text?: React.ReactNode }) {
   return <div
     className="flex min-h-[180px] w-full flex-col items-center justify-center gap-3 px-4 py-10 text-center"
     role="status"
