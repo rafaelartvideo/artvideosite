@@ -270,7 +270,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
             </tr></thead>
             <tbody>{rows.map(item => <tr key={item.id} role="button" tabIndex={0}
               aria-label={"Abrir área de entrega " + item.title}
-              className="cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+              className="!cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
               onClick={event => onRowClick(event, item)}
               onKeyDown={event => onRowKeyDown(event, item)}>
               <td className="font-bold text-foreground">{item.title}</td>
@@ -302,7 +302,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
 
     {deleteItem && <ConfirmDialog
       message={"Excluir a área de entrega " + deleteItem.title + " (" + zoneCepLabel(deleteItem) + ")? Esta ação não pode ser desfeita."}
-      onConfirm={() => void remove()} onCancel={() => { if (!saving) setDeleteItem(null); }}
+      onConfirm={remove} onCancel={() => { if (!saving) setDeleteItem(null); }}
     />}
 
     <AdminDialog open={Boolean(draft)} onClose={close}
