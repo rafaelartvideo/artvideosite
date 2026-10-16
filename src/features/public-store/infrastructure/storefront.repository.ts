@@ -136,6 +136,8 @@ export type StoreTracking = {
   deliveryName: string; shippingPrice: number; subtotal: number; total: number;
   items: { title: string; quantity: number; unitPrice: number }[];
   timeline: { status: string; createdAt: string }[];
+  supportCases: StoreSupportCase[];
+
   pickupLocation?: { street: string; number: string; district: string; city: string;
     state: string; postalCode: string; hours: string; instructions: string };
 };
@@ -148,4 +150,22 @@ export async function getStoreTracking(token: string): Promise<StoreTracking> {
   if(data?.error) throw new Error(String(data.error));
   if(!data?.order || !Array.isArray(data.order.items)) throw new Error("Pedido indisponível.");
   return data.order as StoreTracking;
+}
+
+export type StoreSupportCase = {
+  id: string; type: "cancellation"|"exchange"|"return";
+  status: "open"|"in_review"|"approved"|"rejected"|"closed";
+  reason: string; createdAt: string; updatedAt: string;
+  timeline: { status:string; note:string|null; createdAt:string }[];
+};
+
+export async function requestStoreAfterSales(payload: {
+  token:string; type:StoreSupportCase["type"]; reason:string;
+}):Promise<void> {
+  const {data,error}=await supabase.functions.invoke("artvideo-store-support",{
+    body:payload,
+  });
+  if(data?.error) throw new Error(String(data.error));
+  if(error) throw new Error("Não foi possível registrar a solicitação. Tente novamente.");
+  if(!data?.case?.id) throw new Error("Não foi possível confirmar sua solicitação.");
 }

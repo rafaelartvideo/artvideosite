@@ -31,6 +31,9 @@ Deno.serve(async(req:Request)=>{
  const reply=(data:unknown,status=200)=>respond(data,status,responseHeaders);
  if(req.method==="OPTIONS") return new Response(null,{headers:responseHeaders});
  if(req.method!=="POST") return reply({error:"Método inválido."},405);
+ // Automação voluntariamente adiada: ativar apenas quando o envio for configurado e autorizado.
+ if(Deno.env.get("ARTVIDEO_STORE_NOTIFICATIONS_ENABLED")!=="true")
+   return reply({error:"Notificações automáticas desativadas."},503);
  const url=Deno.env.get("SUPABASE_URL");
  const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
  const anonKey=Deno.env.get("SUPABASE_ANON_KEY");

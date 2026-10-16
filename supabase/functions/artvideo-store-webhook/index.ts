@@ -60,17 +60,7 @@ Deno.serve(async req => {
       p_order_id:orderId,p_payment_id:id,p_payment_status:status,p_amount:amount,
     });
     if (error) return new Response("order reconciliation pending",{status:503});
-    // E-mails são best-effort, e a fila permite reenviar em caso de falha.
-    if (status==="approved") {
-      try {
-        await fetch(Deno.env.get("SUPABASE_URL")+"/functions/v1/artvideo-store-notify",{
-          method:"POST",headers:{
-            "Authorization":"Bearer "+Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"),
-            "Content-Type":"application/json",
-          },body:JSON.stringify({order_id:orderId}),signal:AbortSignal.timeout(7000),
-        });
-      } catch { /* Nunca desfaz um pagamento confirmado por falha de e-mail. */ }
-    }
+    // Avisos automáticos estão pausados. A confirmação do pagamento fica intacta.
     return new Response("ok",{status:200});
   } catch {
     return new Response("temporary error",{status:503});

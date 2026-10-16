@@ -7,6 +7,7 @@ import {
 import { Link, useSearchParams } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { getStoreTracking, type StoreTracking } from "../infrastructure/storefront.repository";
+import { StoreAfterSalesCustomer } from "./StoreAfterSalesCustomer";
 
 const statuses:Record<string,string> = {
   pending:"Aguardando separação",preparing:"Separando produtos",
@@ -195,6 +196,8 @@ export function StoreOrderTrackingPage() {
               </p>}
             </div>
           </section>}
+          <StoreAfterSalesCustomer token={token} paymentStatus={order.paymentStatus}
+            cases={order.supportCases || []} onSubmitted={()=>fetchOrder(token,true)}/>
           {order.timeline.length>0&&<section className={card+" p-5 sm:p-6"}>
             <h3 className="flex items-center gap-2 text-[16px] font-extrabold"><ClipboardList size={19} className="text-[var(--art-primary)]"/> Histórico de atualizações</h3>
             <ol className="mt-5 space-y-4">{[...order.timeline].reverse().map((event,i)=>

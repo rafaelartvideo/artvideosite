@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck,
-  Clock3, Mail, PackageCheck, RefreshCw, Search, ShoppingBag, Truck,
+  Clock3, PackageCheck, RefreshCw, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -11,6 +11,7 @@ import {
   AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
+import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
 type StoreOrder = {
   id: string; created_at: string; status: string; quantity: number;
@@ -22,7 +23,7 @@ type StoreOrder = {
 type StoreOrderLine = {
   id: string; order_id: string; product_name: string; quantity: number; unit_price: number;
 };
-type NotificationJob = { id:string;order_id:string;event_type:string;status:string;attempts:number;last_error:string|null;created_at:string;sent_at:string|null; };
+type SupportCaseSummary = {order_id:string;status:string};
 type FulfillmentStatus =
   "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "delivery_issue" | "picked_up";
 type Fulfillment = {
@@ -83,8 +84,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const [lines, setLines] = useState<StoreOrderLine[]>([]);
   const [fulfillments, setFulfillments] = useState<Fulfillment[]>([]);
   const [events, setEvents] = useState<FulfillmentEvent[]>([]);
-  const [notifications,setNotifications] = useState<NotificationJob[]>([]);
-  const [notifying,setNotifying]=useState(false);
+  const [supportCases,setSupportCases]=useState<SupportCaseSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -92,6 +92,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const [search, setSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [deliveryFilter, setDeliveryFilter] = useState("all");
+  const [supportFilter,setSupportFilter]=useState("all");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [note, setNote] = useState("");
@@ -115,7 +116,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError("");
-    const [orderResult, lineResult, fulfillmentResult, noticeResult] = await Promise.all([
+    const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
         .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
@@ -124,17 +125,16 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
         .order("created_at", { ascending: true }).limit(2000),
       supabase.from("artvideo_store_fulfillments")
         .select("order_id,status,updated_at,recipient_name,delivered_at"),
-      supabase.from("artvideo_store_notification_jobs")
-        .select("id,order_id,event_type,status,attempts,last_error,created_at,sent_at")
-        .order("created_at",{ascending:false}).limit(1500),
+      supabase.from("artvideo_store_support_cases")
+        .select("order_id,status").order("created_at",{ascending:false}).limit(2000),
     ]);
-    const issue = orderResult.error || lineResult.error || fulfillmentResult.error || noticeResult.error;
+    const issue = orderResult.error || lineResult.error || fulfillmentResult.error || supportResult.error;
     if (issue) setError(systemErrorMessage(issue));
     else {
       setOrders((orderResult.data || []) as StoreOrder[]);
       setLines((lineResult.data || []) as StoreOrderLine[]);
       setFulfillments((fulfillmentResult.data || []) as Fulfillment[]);
-      setNotifications((noticeResult.data || []) as NotificationJob[]);
+      setSupportCases((supportResult.data || []) as SupportCaseSummary[]);
     }
     setLoading(false);
   }, []);
@@ -174,6 +174,8 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
 
   const filtered = useMemo(() => orders.filter(order => {
     if (paymentFilter !== "all" && order.status !== paymentFilter) return false;
+    if (supportFilter==="active" && !supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))) return false;
+    if (supportFilter==="none" && supportCases.some(c=>c.order_id===order.id)) return false;
     if (deliveryFilter === "unpaid" && order.status === "paid") return false;
     if (deliveryFilter !== "all" && deliveryFilter !== "unpaid"
       && (order.status !== "paid" || deliveryOf(order) !== deliveryFilter)) return false;
@@ -183,22 +185,10 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
       order.product_name, ...lines.filter(line => line.order_id === order.id)
         .map(line => line.product_name),
     ].some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(q));
-  }), [orders, lines, paymentFilter, deliveryFilter, search, fulfillmentByOrder]);
+  }), [orders, lines, paymentFilter, deliveryFilter, supportFilter, supportCases, search, fulfillmentByOrder]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
   const rows = filtered.slice((Math.min(page, totalPages) - 1) * 10, Math.min(page, totalPages) * 10);
 
-  const sendNotifications=async(orderId:string,showFeedback=true)=>{
-    if(!canManage||notifying)return;
-    setNotifying(true);
-    const {data,error:sendError}=await supabase.functions.invoke("artvideo-store-notify",{body:{order_id:orderId}});
-    if(sendError || data?.error){
-      if(showFeedback) setToast({type:"error",msg:String(data?.error||"O aviso foi registrado, mas o e-mail ainda não foi enviado. Confira a configuração do serviço.")});
-    }else if(showFeedback){
-      setToast({type:"success",msg:data?.sent>0 ? "Atualização enviada ao e-mail do cliente." : "Nenhuma notificação pendente para envio agora."});
-    }
-    await refresh(true);
-    setNotifying(false);
-  };
   const changeStage = async () => {
     if (!canManage || saving || !selected || !selectedIsPaid || !nextStatus) return;
     if (recipientRequired && recipient.trim().length < 3) {
@@ -218,9 +208,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
       setToast({ msg: "Etapa da entrega atualizada.", type: "success" });
       setNote(""); setRecipient(""); setActionMode("advance");
       await Promise.all([refresh(true), loadHistory(selected.id)]);
-      if(["ready","out_for_delivery","delivery_issue","delivered","picked_up"].includes(nextStatus)){
-        void sendNotifications(selected.id,false);
-      }
+
     }
     setSaving(false);
   };
@@ -231,17 +219,19 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const preparing = orders.filter(order => order.status === "paid" && ["preparing", "ready"].includes(deliveryOf(order))).length;
   const delivering = orders.filter(order => order.status === "paid" && ["out_for_delivery", "delivery_issue"].includes(deliveryOf(order))).length;
   const completed = orders.filter(order => order.status === "paid" && ["delivered","picked_up"].includes(deliveryOf(order))).length;
+  const postSaleCount = supportCases.filter(c=>["open","in_review","approved"].includes(c.status)).length;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Pedidos da Loja"
       subtitle="Acompanhe pagamentos, separação de produtos e entregas da Artvideo."/>
-    <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+    <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
       {[
         { label: "Aguardando separação", value: waiting, Icon: ShoppingBag },
         { label: "Em preparação", value: preparing, Icon: PackageCheck },
         { label: "Em entrega", value: delivering, Icon: Truck },
         { label: "Concluídos", value: completed, Icon: CheckCheck },
+        { label: "Pós-venda", value: postSaleCount, Icon: RotateCcw },
       ].map(card => <div key={card.label} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-4">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><card.Icon size={20}/></span>
         <div className="min-w-0"><p className="text-[11px] leading-4 text-muted-foreground">{card.label}</p><strong className="block text-2xl">{card.value}</strong></div>
@@ -250,7 +240,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
 
     <Section title="Vendas do site" description="Clique em um pedido para consultar detalhes, acompanhar a entrega e registrar movimentações.">
       <div className="space-y-4">
-        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_180px_190px]">
+        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_165px_170px_160px]">
           <label className="relative min-w-0">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
             <input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
@@ -270,6 +260,13 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
             <option value="unpaid">Sem pagamento confirmado</option>
             {Object.entries(deliveryLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
           </select>
+          <select aria-label="Filtrar pós-venda" value={supportFilter}
+            onChange={e=>{setSupportFilter(e.target.value);setPage(1);}}
+            className="h-10 rounded-md border border-border bg-background px-3 text-sm">
+            <option value="all">Todo pós-venda</option>
+            <option value="active">Com solicitação ativa</option>
+            <option value="none">Sem solicitações</option>
+          </select>
         </div>
 
         {error && <div role="alert" className="rounded-md border border-red-500/20 p-4 text-sm text-red-600">
@@ -286,7 +283,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
             <thead className="bg-muted/40 text-xs font-bold text-muted-foreground">
               <tr><th className="p-3">Pedido</th><th className="p-3">Cliente</th>
                 <th className="p-3">Itens</th><th className="p-3">Total</th>
-                <th className="p-3">Pagamento</th><th className="p-3">Entrega</th></tr>
+                <th className="p-3">Pagamento</th><th className="p-3">Entrega</th><th className="p-3">Pós-venda</th></tr>
             </thead>
             <tbody>{rows.map(order => <tr key={order.id}
               onClick={() => setSelectedId(order.id)} tabIndex={0} role="button"
@@ -302,6 +299,9 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
               <td className="p-3">{order.status === "paid"
                 ? <><span className="mr-1 text-[11px] text-muted-foreground">{order.shipping_service_id === "pickup" ? "Retirada" : "Entrega"}</span><DeliveryBadge status={deliveryOf(order)}/></>
                 : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>
+              <td className="p-3">{supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))
+                ? <span className="rounded-full bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">Em análise</span>
+                : supportCases.some(c=>c.order_id===order.id) ? <span className="text-xs text-muted-foreground">Registrado</span> : "—"}</td>
             </tr>)}</tbody>
           </table>
         </div>}
@@ -353,27 +353,8 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
-        <div className="rounded-lg border border-border p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="flex items-center gap-2 font-bold"><Mail size={17} className="text-primary"/> Notificações ao cliente</h3>
-            {canManage && notifications.some(n=>n.order_id===selected.id && n.status!=="sent") && <BtnSecondary
-              onClick={()=>void sendNotifications(selected.id)} disabled={notifying}>
-              <Mail size={15}/> {notifying?"Enviando...":"Enviar atualizações pendentes"}
-            </BtnSecondary>}
-          </div>
-          {notifications.filter(n=>n.order_id===selected.id).length ? <div className="mt-3 space-y-2">
-            {notifications.filter(n=>n.order_id===selected.id).map(n=><div key={n.id}
-              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs">
-              <span>{({paid:"Pagamento confirmado",ready:isPickup?"Pronto para retirada":"Pedido pronto",
-                out_for_delivery:"Saiu para entrega",delivery_issue:"Ocorrência registrada",
-                delivered:"Entregue",picked_up:"Retirado"} as Record<string,string>)[n.event_type]||n.event_type}</span>
-              <span className={n.status==="sent"?"font-bold text-emerald-700 dark:text-emerald-300":"text-amber-700 dark:text-amber-300"}>
-                {n.status==="sent"?"E-mail enviado":n.status==="failed"?"Falha no envio":n.status==="sending"?"Enviando":"Pendente"}
-              </span>
-              {n.last_error && <p className="w-full text-[11px] text-muted-foreground">{n.last_error}</p>}
-            </div>)}
-          </div> : <p className="mt-3 text-xs text-muted-foreground">Ainda não há e-mails programados. Os avisos serão gerados após a confirmação do pagamento e nas movimentações importantes do pedido.</p>}
-        </div>
+        <StoreAfterSalesStaff key={selected.id} orderId={selected.id} paymentStatus={selected.status}
+          canManage={canManage} onChange={()=>void refresh(true)}/>
         <div className="rounded-lg border border-border p-4">
           <h3 className="mb-2 font-bold">Produtos e valores</h3>
           {orderLines(selected).map(line => <div key={line.id} className="flex justify-between gap-4 border-b border-border py-2">

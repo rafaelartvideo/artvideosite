@@ -24,7 +24,7 @@ Deno.serve(async (req: Request) => {
    if (accessError) return reply({error:"Não foi possível consultar o pedido."},503);
    if (!access) return reply({error:"Link de acompanhamento inválido ou indisponível."},404);
    const orderId=access.order_id;
-   const [orderQuery,itemsQuery,deliveryQuery,eventsQuery]=await Promise.all([
+   const [orderQuery,itemsQuery,deliveryQuery,eventsQuery,casesQuery]=await Promise.all([
      admin.from("artvideo_store_orders")
        .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,paid_at,buyer")
        .eq("id",orderId).maybeSingle(),
@@ -34,9 +34,25 @@ Deno.serve(async (req: Request) => {
        .select("status,updated_at,delivered_at").eq("order_id",orderId).maybeSingle(),
      admin.from("artvideo_store_fulfillment_events")
        .select("to_status,created_at").eq("order_id",orderId).order("created_at",{ascending:true}),
+     admin.from("artvideo_store_support_cases")
+       .select("id,request_type,status,reason,created_at,updated_at")
+       .eq("order_id",orderId).order("created_at",{ascending:false}).limit(5),
    ]);
-   if(orderQuery.error||itemsQuery.error||deliveryQuery.error||eventsQuery.error||!orderQuery.data)
+   if(orderQuery.error||itemsQuery.error||deliveryQuery.error||eventsQuery.error||casesQuery.error||!orderQuery.data)
      return reply({error:"Não foi possível consultar o pedido agora."},503);
+   const caseIds=(casesQuery.data||[]).map(c=>c.id);
+   const supportEvents=caseIds.length ? await admin.from("artvideo_store_support_case_events")
+     .select("case_id,to_status,created_at,public_note")
+     .in("case_id",caseIds).not("public_note","is",null).order("created_at",{ascending:true})
+     .limit(100) : {data:[],error:null};
+   if(supportEvents.error) return reply({error:"Não foi possível consultar as solicitações."},503);
+   const supportCases=(casesQuery.data||[]).map(c=>({
+     id:c.id,type:c.request_type,status:c.status,reason:c.reason,
+     createdAt:c.created_at,updatedAt:c.updated_at,
+     timeline:(supportEvents.data||[]).filter(e=>e.case_id===c.id).map(e=>({
+       status:e.to_status,note:e.public_note,createdAt:e.created_at,
+     })),
+   }));
    const o=orderQuery.data;
    const lines=itemsQuery.data?.length ? itemsQuery.data : [{
      product_name:o.product_name,quantity:o.quantity,unit_price:o.unit_price,
@@ -59,6 +75,7 @@ Deno.serve(async (req: Request) => {
        items,subtotal,shippingPrice:Number(o.shipping_price),
        total:subtotal+Number(o.shipping_price),
        timeline:(eventsQuery.data||[]).map(e=>({status:e.to_status,createdAt:e.created_at})),
+       supportCases,
        ...(pickup ? {
          pickupLocation:{
            street:String(buyer.street||""),number:String(buyer.number||""),
