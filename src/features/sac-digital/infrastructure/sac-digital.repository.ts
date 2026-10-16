@@ -685,7 +685,8 @@ export async function startSacDigitalNewConversation(
   });
   return data as {
     success: true;
-    mode: "protocol";
+    mode: "protocol" | "existing";
+    existing?: boolean;
     protocol: string;
     in_att?: boolean;
     operator_id?: string | null;
