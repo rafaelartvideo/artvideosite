@@ -888,3 +888,18 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 	background-color: var(--admin-danger-bg-hover);
 	border-color: var(--admin-danger-bg-hover);
 }
+
+
+/* Work-item reminders vibrate gently without flashing or opacity pulsing.
+   Honor reduced-motion preferences for accessibility. */
+@keyframes crm-reminder-vibrate {
+  0%, 12%, 28%, 100% { transform: translateX(0); }
+  14%, 22% { transform: translateX(-2px); }
+  18%, 26% { transform: translateX(2px); }
+}
+.crm-reminder-vibrate {
+  animation: crm-reminder-vibrate 2.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .crm-reminder-vibrate { animation: none; }
+}
