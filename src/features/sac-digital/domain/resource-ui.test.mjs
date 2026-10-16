@@ -44,6 +44,8 @@ test('aviso de exclusão do cliente exige confirmação do provedor e preserva t
 test('número novo só aparece para telefone válido e não duplica nono dígito', async () => {
  const { isSacNumberCandidate, sameSacPhone } = await import('./resource-ui.mjs');
  assert.equal(isSacNumberCandidate('(79) 99999-1234'), true);
+ assert.equal(isSacNumberCandidate('(55) 99999-1234'), true);
+ assert.equal(sameSacPhone('5555999991234', '(55) 99999-1234'), true);
  assert.equal(isSacNumberCandidate('5579999991234'), true);
  assert.equal(isSacNumberCandidate('abc'), false);
  assert.equal(isSacNumberCandidate('799'), false);
