@@ -59,12 +59,13 @@ export function createRefreshQueue(run, delay = 500) {
 // user/operator access have settled. Unread badges are independent and load
 // after the screen becomes usable; other SAC sections mount only on selection.
 export async function initializeSacScreen({loadStatus, loadProtocols, loadOperatorBinding, loadUnreadCounts, onReady}) {
-  const [statusResult] = await Promise.allSettled([loadStatus(), loadProtocols()]);
-  const integration = statusResult.status === 'fulfilled' ? statusResult.value : null;
-  if (loadOperatorBinding) {
-    try { await loadOperatorBinding(integration?.enabled === true); }
-    catch { /* A transient binding lookup must not leave the screen blocked. */ }
-  }
+  // Fetch conversations in parallel with integration status. As soon as
+  // status is known, resolve the bound SAC Operator (and its waiting queue)
+  // without holding it behind the potentially larger protocol list.
+  const integration = Promise.resolve().then(loadStatus).catch(() => null);
+  const conversations = Promise.resolve().then(loadProtocols).catch(() => {});
+  const access = integration.then(status => loadOperatorBinding?.(status?.enabled === true)).catch(() => {});
+  await Promise.all([conversations, access]);
   if (onReady() === false) return;
   void Promise.resolve().then(loadUnreadCounts).catch(() => {});
 }
