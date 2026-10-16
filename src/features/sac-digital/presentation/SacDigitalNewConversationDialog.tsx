@@ -51,6 +51,7 @@ export function SacDigitalNewConversationDialog({
   onClose,
   onStarted,
   onOpenExisting,
+  onNotificationSent,
 }: {
   open: boolean;
   organizationId: string;
@@ -58,6 +59,7 @@ export function SacDigitalNewConversationDialog({
   onClose: () => void;
   onStarted: (result: Awaited<ReturnType<typeof startSacDigitalNewConversation>>) => Promise<void> | void;
   onOpenExisting: (protocol: string) => Promise<boolean>;
+  onNotificationSent: (pendingStartId: string | null) => Promise<void> | void;
 }) {
   const [query, setQuery] = useState("");
   const [searchedTerm, setSearchedTerm] = useState("");
@@ -263,6 +265,41 @@ export function SacDigitalNewConversationDialog({
     }
   };
 
+  const sendDirectNotification = async () => {
+    // Este envio é explicitamente solicitado pelo atendente. Não é abertura
+    // de protocolo: /notification/direct valida/importa dentro da SAC.
+    const message = draft.trim();
+    if (!prepared?.direct_send_available || !isSacNumberCandidate(query) || !channel
+      || cloud || !message || sending || confirmationPending || sendInFlightRef.current) return;
+    sendInFlightRef.current = true;
+    setSending(true);
+    try {
+      const result = await operateSacDigitalResource(organizationId, 40, {
+        number: normalizePhone(query),
+        name: manualName.trim() || `Contato ${normalizePhone(query).slice(-4)}`,
+        channel,
+        type: "text",
+        text: message,
+      });
+      if (!result.success) {
+        reportError(result.error || "A SAC Digital recusou a notificação direta.");
+        return;
+      }
+      // Aceite da SAC não significa entrega ou atendimento aberto.
+      const pendingId = result.pending_start_id ? String(result.pending_start_id) : null;
+      reset();
+      onClose();
+      notifyAdmin("Envio direto aceito pela SAC Digital. Consulte a aba Notificações; o atendimento só aparecerá quando houver protocolo confirmado.", "success");
+      try { await onNotificationSent(pendingId); }
+      catch { /* O webhook e o próximo refresh recuperam o registro pendente. */ }
+    } catch (caught) {
+      reportError(systemErrorMessage(caught, "A SAC Digital não confirmou o envio direto."));
+    } finally {
+      sendInFlightRef.current = false;
+      setSending(false);
+    }
+  };
+
   const numberCandidate = searchedTerm === query.trim()
     && isSacNumberCandidate(query)
     && !results.some(candidate => sameSacPhone(candidate.phone, query));
@@ -418,7 +455,7 @@ export function SacDigitalNewConversationDialog({
                     label="Nome do contato"
                     aria-label="Nome do novo contato"
                     value={manualName}
-                    onChange={(event: any) => setManualName(event.target.value)}
+                    onChange={(event: any) => { setManualName(event.target.value); setPrepared(null); setDraft(""); setConfirmationPending(false); }}
                     placeholder="Opcional"
                     maxLength={120}
                   />
@@ -426,7 +463,7 @@ export function SacDigitalNewConversationDialog({
                     label="Canal de atendimento"
                     value={channel}
                     disabled={channelLoading || Boolean(preparingKey)}
-                    onChange={(event: any) => setChannel(event.target.value)}
+                    onChange={(event: any) => { setChannel(event.target.value); setPrepared(null); setDraft(""); setConfirmationPending(false); }}
                     options={[{value:"",label:channelLoading?"Carregando canais…":"Selecione o canal"}, ...channels.map(item=>({
                       value:String(item.id),
                       label:(item.name||item.title||"Canal")+(item.number?" · "+formatPhone(String(item.number)):"")+(cloudChannel(item)?" · WhatsApp Cloud":""),
@@ -443,11 +480,41 @@ export function SacDigitalNewConversationDialog({
                   <AdminButton
                     onClick={() => void prepare()}
                     loading={preparingKey === "number"}
-                    disabled={!channel || cloud || channelLoading || Boolean(preparingKey) || searching}
+                    disabled={!channel || cloud || channelLoading || Boolean(preparingKey) || searching || sending}
                   >
                     Validar número na SAC
                   </AdminButton>
                 </div>
+                {prepared?.direct_send_available && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      A SAC não confirmou a importação pelo canal selecionado.
+                      Você pode tentar o envio direto documentado pela SAC, sem importar separadamente.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Isso gera uma notificação, não um atendimento aberto. O resultado ficará na aba
+                      Notificações até que a SAC confirme eventual protocolo.
+                    </p>
+                    <FTextarea
+                      label="Mensagem inicial"
+                      rows={3}
+                      maxLength={5000}
+                      value={draft}
+                      onChange={(event: any) => setDraft(event.target.value)}
+                      placeholder="Digite a mensagem que deseja enviar"
+                      disabled={sending || confirmationPending}
+                    />
+                    <div className="flex justify-end">
+                      <AdminButton
+                        onClick={() => void sendDirectNotification()}
+                        loading={sending}
+                        disabled={!draft.trim() || !channel || cloud || confirmationPending}
+                      >
+                        Enviar diretamente pela SAC
+                      </AdminButton>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>
