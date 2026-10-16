@@ -133,6 +133,7 @@ export function useOrderFilters({
     queryKey: listKey,
     enabled: enabled && Boolean(organizationId) && !invalidPeriod,
     placeholderData: keepPreviousData,
+    retry: false,
     queryFn: () => listServiceOrdersPageWithCustomerName({
       organizationId: organizationId!,
       page,
@@ -209,6 +210,7 @@ export function useOrderFilters({
     loading: enabled && Boolean(organizationId) && (ordersQuery.isPending || ordersQuery.isPlaceholderData),
     isFetching: ordersQuery.isFetching,
     error: ordersQuery.error,
+    retryLoadOrders: () => void ordersQuery.refetch(),
     osNumberSearch,
     setOsNumberSearch,
     externalOsSearch,
