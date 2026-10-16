@@ -257,7 +257,7 @@ export function WorkItemDialog({
               </PopoverContent>
             </Popover>
             {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
-            {customerSearch.trim().length >= 2 && customerSearchResolved === customerSearch && !searchingCustomer && !customerResults.length && <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>
+            {customerSearch.trim().length >= 2 && customerSearchResolved === customerSearch && !searchingCustomer && !customerResults.length && <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>}
           </div>}
           {draft.customer_id && <div className="pt-1">
             <label className={fieldLabel}>OS vinculada (opcional)</label>
