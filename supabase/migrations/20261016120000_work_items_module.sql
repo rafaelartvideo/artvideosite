@@ -175,9 +175,30 @@ begin
       end if;
     end loop;
   end if;
+
+  -- Notifica os envolvidos quando o andamento muda, sem duplicar o alerta para quem alterou.
+  if tg_op='UPDATE' and new.status is distinct from old.status then
+    for v_profile in
+      select distinct participants.user_id
+      from (
+        select new.created_by as user_id
+        union all
+        select e.profile_id from public.employees e
+        where e.organization_id=new.organization_id
+          and e.id=any(new.assigned_employee_ids)
+      ) participants
+      where participants.user_id is not null and participants.user_id is distinct from auth.uid()
+    loop
+      insert into public.organization_notifications
+        (organization_id,recipient_user_id,actor_user_id,module_key,event_type,entity_type,entity_id,
+         title,message,route,visibility_permissions)
+      values (new.organization_id,v_profile,auth.uid(),'workItems','updated','work_item',new.id::text,
+        'Andamento atualizado',new.title,'/admin/work-items?item='||new.id::text,array['work_items.view']);
+    end loop;
+  end if;
   return new;
 end;
-$$;
+$;
 revoke all on function private.work_item_after_write() from public,anon,authenticated;
 create trigger work_item_after_write after insert or update on public.work_items
 for each row execute function private.work_item_after_write();
