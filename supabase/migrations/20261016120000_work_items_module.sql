@@ -209,7 +209,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 revoke all on function private.work_item_after_write() from public,anon,authenticated;
 create trigger work_item_after_write after insert or update on public.work_items
 for each row execute function private.work_item_after_write();
@@ -227,13 +227,13 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 revoke all on function private.work_item_checklist_guard() from public,anon,authenticated;
 create trigger work_item_checklist_guard before insert or update on public.work_item_checklist
 for each row execute function private.work_item_checklist_guard();
 
 create or replace function private.work_item_checklist_audit()
-returns trigger language plpgsql security definer set search_path='' as $
+returns trigger language plpgsql security definer set search_path='' as $$
 declare v_row record;
 begin
   if tg_op='DELETE' then
@@ -251,7 +251,7 @@ begin
   end if;
   return new;
 end;
-$;
+$$;
 revoke all on function private.work_item_checklist_audit() from public,anon,authenticated;
 create trigger work_item_checklist_audit after insert or update or delete on public.work_item_checklist
 for each row execute function private.work_item_checklist_audit();
@@ -263,13 +263,13 @@ alter table public.work_item_reminders enable row level security;
 
 -- Funcionarios veem atividades criadas ou atribuídas a eles; gestores veem a equipe.
 create or replace function private.is_work_item_assignee(p_organization_id uuid,p_employee_ids uuid[])
-returns boolean language sql stable security definer set search_path='' as $
+returns boolean language sql stable security definer set search_path='' as $$
   select (select auth.uid()) is not null and exists (
     select 1 from public.employees e
     where e.organization_id=p_organization_id
       and e.profile_id=(select auth.uid()) and e.id=any(p_employee_ids)
   );
-$;
+$$;
 revoke all on function private.is_work_item_assignee(uuid,uuid[]) from public,anon,authenticated;
 grant execute on function private.is_work_item_assignee(uuid,uuid[]) to authenticated;
 
@@ -333,26 +333,26 @@ using (exists (select 1 from public.work_items w
 -- Consultas restritas evitam conceder acesso amplo a dados de funcionarios e OS.
 create or replace function public.list_work_item_employees_v1(p_organization_id uuid)
 returns table(id uuid,full_name text,profile_id uuid)
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
   select e.id,e.full_name::text,e.profile_id
   from public.employees e
   where e.organization_id=p_organization_id and e.is_active
     and (select auth.uid()) is not null
     and private.has_tenant_module_permission(p_organization_id,'work_items','work_items.view')
   order by e.full_name;
-$;
+$$;
 revoke all on function public.list_work_item_employees_v1(uuid) from public,anon;
 grant execute on function public.list_work_item_employees_v1(uuid) to authenticated;
 
 create or replace function public.list_work_item_customer_orders_v1(p_organization_id uuid,p_customer_id uuid)
 returns table(id uuid,os_number text)
-language sql stable security definer set search_path='' as $
+language sql stable security definer set search_path='' as $$
   select s.id,s.os_number::text from public.service_orders s
   where s.organization_id=p_organization_id and s.customer_id=p_customer_id
     and (select auth.uid()) is not null
     and private.has_tenant_module_permission(p_organization_id,'work_items','work_items.view')
   order by s.created_at desc limit 15;
-$;
+$$;
 revoke all on function public.list_work_item_customer_orders_v1(uuid,uuid) from public,anon;
 grant execute on function public.list_work_item_customer_orders_v1(uuid,uuid) to authenticated;
 
