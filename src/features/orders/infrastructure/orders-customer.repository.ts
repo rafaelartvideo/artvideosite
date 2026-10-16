@@ -53,13 +53,40 @@ export const saveOrderCustomerAddress = (
     ? supabase.from("customer_addresses").update(payload).eq("organization_id", organizationId).eq("id", addressId)
     : supabase.from("customer_addresses").insert({ ...payload, organization_id: organizationId });
 
-export const searchOrderCustomers = (organizationId: string, query: string) =>
-  supabase
+export const searchOrderCustomers = (organizationId: string, query: string) => {
+  const term = query.trim();
+  const digits = term.replace(/\\D/g, "");
+  const numericOnly = /^[\\d\\s./()+-]+$/.test(term);
+  const text = term.replace(/[%(),]/g, " ").trim().replace(/\\s+/g, "%");
+  const conditions: string[] = [];
+
+  // Nomes continuam sendo pesquisados como texto. CPF, CNPJ e telefones
+  // são comparados apenas pelos dígitos, com ou sem máscara no cadastro.
+  if (text && !numericOnly) {
+    conditions.push(
+      `full_name.ilike.%${text}%`,
+      `trade_name.ilike.%${text}%`,
+      `legal_name.ilike.%${text}%`,
+    );
+  }
+  if (digits) {
+    const pattern = `%${digits.split("").join("%")}%`;
+    conditions.push(
+      `document.ilike.${pattern}`,
+      `cnpj.ilike.${pattern}`,
+      `whatsapp.ilike.${pattern}`,
+      `phone.ilike.${pattern}`,
+    );
+  }
+  if (!conditions.length) return Promise.resolve({ data: [], error: null });
+
+  return supabase
     .from("customers")
     .select("id,customer_type,full_name,document,email,whatsapp,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,birth_date,addresses:customer_addresses(*)")
     .eq("organization_id", organizationId)
-    .or(`full_name.ilike.%${query}%,trade_name.ilike.%${query}%,document.ilike.%${query}%,cnpj.ilike.%${query}%,whatsapp.ilike.%${query}%,phone.ilike.%${query}%`)
+    .or(conditions.join(","))
     .limit(8);
+};
 
 
 export const getOrderCustomerById = (organizationId: string, customerId: string) =>
