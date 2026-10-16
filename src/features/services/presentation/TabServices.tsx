@@ -57,7 +57,8 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
   const toggleActive = async (service: any) => { if (!canToggleActive) return; const nextActive = !service.is_active; try { await setServiceActive(service.id, nextActive); queryClient.setQueryData(queryKeys.catalog.services(), (current: any) => current ? { ...current, services: (current.services ?? []).map((item: any) => item.id === service.id ? { ...item, is_active: nextActive } : item) } : current); setToast({ msg: "Status atualizado com sucesso.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar: ${systemErrorMessage(error)}`, type: "error" }); } };
 
-  const filtered = services.filter(service => !search || service.title?.toLowerCase().includes(search.toLowerCase()));
+  const filtered = services.filter(service => !search || service.title?.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "pt-BR", { sensitivity: "base" }));
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedServices = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
