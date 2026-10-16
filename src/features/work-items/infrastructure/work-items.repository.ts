@@ -79,6 +79,22 @@ export async function findCustomerWorkOrders(organizationId: string, customerId:
   return data || [];
 }
 
+export type WorkOrderOption = { id: string; os_number: number | string; customer_id: string | null };
+
+// Search a service order directly, without requiring a previous customer lookup.
+// RLS on service_orders limits the results to orders this employee can access.
+export async function findWorkOrders(organizationId: string, input: string): Promise<WorkOrderOption[]> {
+  const number = input.replace(/\D/g, "").slice(0, 12);
+  if (!number) return [];
+  const { data, error } = await supabase.from("service_orders")
+    .select("id,os_number,customer_id")
+    .eq("organization_id", organizationId)
+    .eq("os_number", Number(number))
+    .limit(8);
+  if (error) throw error;
+  return (data || []) as WorkOrderOption[];
+}
+
 export type WorkItemDraft = Pick<WorkItem, "kind" | "title" | "description" | "status" | "outcome" |
   "priority" | "category" | "starts_at" | "due_at" | "reminder_minutes" | "assigned_employee_ids" |
   "customer_id" | "service_order_id">;
