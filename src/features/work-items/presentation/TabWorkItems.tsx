@@ -262,8 +262,10 @@ export function TabWorkItems() {
   if (employee?.id && !myEmployeeIds.includes(employee.id)) myEmployeeIds.push(employee.id);
   const overview = {
     total: all.filter(item => item.status !== "cancelled").length,
-    pending: all.filter(item => item.status === "pending").length,
-    inProgress: all.filter(item => item.status === "in_progress").length,
+    // Exclusive card buckets: a past-due item is Atrasada, never also
+    // Em aberto or Em andamento. Waiting remains an open activity.
+    pending: all.filter(item => (item.status === "pending" || item.status === "waiting") && !pastDue(item)).length,
+    inProgress: all.filter(item => item.status === "in_progress" && !pastDue(item)).length,
     overdue: all.filter(item => pastDue(item)).length,
     completed: all.filter(item => item.status === "completed").length,
     today: all.filter(item => dayKey(item.due_at) === todayISO() && item.status !== "completed").length,
@@ -354,7 +356,7 @@ export function TabWorkItems() {
 
     <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
       {[
-        { label: "Em aberto", count: overview.pending + overview.inProgress + all.filter(item => item.status === "waiting").length, icon: ClipboardCheck, tint: "text-primary", bg: "bg-primary/10" },
+        { label: "Em aberto", count: overview.pending, icon: ClipboardCheck, tint: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10" },
         { label: "Em andamento", count: overview.inProgress, icon: TrendingUp, tint: "text-blue-600 dark:text-blue-300", bg: "bg-blue-500/10" },
         { label: "Atrasadas", count: overview.overdue, icon: Clock3, tint: "text-red-600 dark:text-red-300", bg: "bg-red-500/10" },
         { label: "Concluídas", count: overview.completed, icon: CheckCheck, tint: "text-emerald-600 dark:text-emerald-300", bg: "bg-emerald-500/10" },
