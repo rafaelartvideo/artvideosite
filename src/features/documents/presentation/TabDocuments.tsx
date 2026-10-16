@@ -14,7 +14,7 @@ import { useDocuments } from "../application/useDocuments";
 import type { AttachmentTypeRecord } from "../infrastructure/documents.repository";
 import { PrintTemplateEditor } from "./PrintTemplateEditor";
 
-type DocumentsSection = "printing" | "attachments";
+type DocumentsSection = "printing" | "attachments" | "labels";
 
 function DocumentsAreaHeader({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
   return <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -101,7 +101,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const showActions = hasPermission("documents.table.actions");
   const documents = useDocuments();
   const { templates, attachmentTypes, filteredTemplates, loading, attachmentTypesLoading, error, attachmentError, editorOpen, editorValue, editingTemplateId, openingEditor, saving, savingAttachmentType, openNew, openEditor, closeEditor, save, toggleActive, saveAttachmentType, toggleAttachmentType, removeAttachmentType } = documents;
-  const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : "printing");
+  const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : routeResourceId === "labels" ? "labels" : "printing");
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
   const [typeName, setTypeName] = useState("");
@@ -112,18 +112,20 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const [attachmentPageSize, setAttachmentPageSize] = useState(5);
   const errorMessage = error ? systemErrorMessage(error) : "";
   const attachmentErrorMessage = attachmentError ? systemErrorMessage(attachmentError) : "";
-  const templateTotalPages = Math.max(1, Math.ceil(filteredTemplates.length / templatePageSize));
+  const sortedTemplates = [...filteredTemplates].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  const sortedAttachmentTypes = [...attachmentTypes].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  const templateTotalPages = Math.max(1, Math.ceil(sortedTemplates.length / templatePageSize));
   const safeTemplatePage = Math.min(templatePage, templateTotalPages);
-  const pagedTemplates = filteredTemplates.slice((safeTemplatePage - 1) * templatePageSize, safeTemplatePage * templatePageSize);
-  const attachmentTotalPages = Math.max(1, Math.ceil(attachmentTypes.length / attachmentPageSize));
+  const pagedTemplates = sortedTemplates.slice((safeTemplatePage - 1) * templatePageSize, safeTemplatePage * templatePageSize);
+  const attachmentTotalPages = Math.max(1, Math.ceil(sortedAttachmentTypes.length / attachmentPageSize));
   const safeAttachmentPage = Math.min(attachmentPage, attachmentTotalPages);
-  const pagedAttachmentTypes = attachmentTypes.slice((safeAttachmentPage - 1) * attachmentPageSize, safeAttachmentPage * attachmentPageSize);
-  const editorRouteActive = Boolean(routeResourceId && routeResourceId !== "attachments");
+  const pagedAttachmentTypes = sortedAttachmentTypes.slice((safeAttachmentPage - 1) * attachmentPageSize, safeAttachmentPage * attachmentPageSize);
+  const editorRouteActive = Boolean(routeResourceId && !["attachments", "labels"].includes(routeResourceId));
 
   useEffect(() => { if (templatePage > templateTotalPages) setTemplatePage(templateTotalPages); }, [templatePage, templateTotalPages]);
   useEffect(() => { if (attachmentPage > attachmentTotalPages) setAttachmentPage(attachmentTotalPages); }, [attachmentPage, attachmentTotalPages]);
   useEffect(() => {
-    if (routeResourceId === "attachments") { setSection("attachments"); if (editorOpen) closeEditor(); return; }
+    if (routeResourceId === "attachments" || routeResourceId === "labels") { setSection(routeResourceId); if (editorOpen) closeEditor(); return; }
     setSection("printing");
     if (!routeResourceId) { if (editorOpen) closeEditor(); return; }
     if (routeResourceId === "new") { if (canCreate && !editorOpen) openNew(); return; }
@@ -136,7 +138,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const selectSection = (next: DocumentsSection) => {
     setSection(next);
     closeEditor();
-    onRouteChange?.(next === "attachments" ? "attachments" : null, null);
+    onRouteChange?.(next === "printing" ? null : next, null);
   };
   const openNewDocument = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openTemplateEditor = (template: (typeof templates)[number]) => {
@@ -194,12 +196,18 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     {!editorRouteActive && <>
       <PageHeader
         title="Documentos"
-        subtitle="Configure modelos de impressão e tipos de anexos das ordens de serviço."
+        subtitle="Configure anexos, etiquetas e modelos de impressão das ordens de serviço."
       />
 
       <div className="flex gap-1 border-b border-[#0d1b2e]/10">
-        <button type="button" onClick={() => selectSection("printing")} className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", section === "printing" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Impressão</button>
-        <button type="button" onClick={() => selectSection("attachments")} className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", section === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>Anexos</button>
+        {([
+          ["attachments", "Anexos"],
+          ["labels", "Etiquetas"],
+          ["printing", "Impressão"],
+        ] as const).map(([value, title]) => <button key={value} type="button"
+          onClick={() => selectSection(value)}
+          className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", section === value
+            ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>{title}</button>)}
       </div>
 
       {canViewTable && (section === "printing" ? <>
@@ -214,8 +222,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
             <PaginationBar page={safeTemplatePage} pageSize={templatePageSize} totalItems={filteredTemplates.length} onPageChange={setTemplatePage} onPageSizeChange={size => { setTemplatePageSize(size); setTemplatePage(1); }} />
           </>}
         </AdminCard>
-        <OrderLabelPrintSettings canEdit={canEdit} />
-      </> : <>
+      </> : section === "labels" ? <OrderLabelPrintSettings canEdit={canEdit} /> : <>
         <DocumentsAreaHeader
           title="Anexos"
           description="Cadastre os tipos exibidos ao adicionar arquivos aos documentos de uma OS."
@@ -230,9 +237,8 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       </>)}
       <AdminStickyToolbar>
         {onBack && <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
-        {section === "printing"
-          ? canCreate && <BtnPrimary onClick={openNewDocument}>Novo</BtnPrimary>
-          : canCreateAttachment && <BtnPrimary onClick={() => openTypeModal()}>Novo</BtnPrimary>}
+        {section === "printing" ? canCreate && <BtnPrimary onClick={openNewDocument}>Novo</BtnPrimary>
+          : section === "attachments" ? canCreateAttachment && <BtnPrimary onClick={() => openTypeModal()}>Novo</BtnPrimary> : null}
       </AdminStickyToolbar>
     </>}
 
