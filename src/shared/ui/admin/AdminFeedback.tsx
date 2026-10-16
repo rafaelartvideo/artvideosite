@@ -118,23 +118,34 @@ export function StatusBadge({ status, color }: { status: string; color?: string 
   );
 }
 
-export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  return <span
-    aria-hidden="true"
-    className={cn(
-      "inline-block animate-spin rounded-full border-solid border-[#0057e7]/20 border-t-[#0057e7]",
-      size === "sm" && "h-4 w-4 border-2",
-      size === "md" && "h-7 w-7 border-[3px]",
-      size === "lg" && "h-9 w-9 border-[3px]",
-    )}
-  />;
+/** Animação de carregamento padrão do CRM, adaptável a espaços pequenos. */
+export function LoadingDots({ className = "", size = "md" }: {
+  className?: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  const dotSize = size === "sm" ? "h-1.5 w-1.5" : size === "lg" ? "h-3 w-3" : "h-2.5 w-2.5";
+  const gap = size === "sm" ? "gap-1" : "gap-2";
+  return <span aria-hidden="true" className={cn("inline-flex shrink-0 items-center justify-center text-primary", gap, className)}>
+    {[0, 1, 2].map(index => <span key={index}
+      className={cn(dotSize, "rounded-full bg-current animate-bounce motion-reduce:animate-none")}
+      style={{ animationDelay: `${index * 150}ms` }} />)}
+  </span>;
 }
 
-export function LoadingDots({ className = "" }: { className?: string }) {
-  return <span aria-hidden="true" className={cn("flex items-center justify-center gap-2 text-primary", className)}>
-    {[0, 1, 2].map(index => <span key={index}
-      className="h-2.5 w-2.5 rounded-full bg-current animate-bounce motion-reduce:animate-none"
-      style={{ animationDelay: `${index * 150}ms` }} />)}
+/** Mantém compatibilidade com os componentes existentes, usando a mesma animação nova. */
+export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
+  return <LoadingDots size={size} />;
+}
+
+export function InlineLoading({ text = "Carregando...", className = "", size = "sm" }: {
+  text?: string;
+  className?: string;
+  size?: "sm" | "md" | "lg";
+}) {
+  return <span role="status" aria-live="polite" aria-busy="true"
+    className={cn("inline-flex min-w-0 items-center justify-center gap-2.5 text-xs font-medium text-muted-foreground", className)}>
+    <LoadingDots size={size} />
+    <span>{text}</span>
   </span>;
 }
 
