@@ -54,6 +54,18 @@ const emptyDraft = (): Draft => ({
   active: true,
 });
 const onlyDigits = (value: string) => value.replace(/\D/g, "").slice(0, 8);
+
+// A colagem pode trazer um CEP formatado (49000-001) ou uma faixa inteira
+// (49000-001 a 49099-999). Não aplicar maxLength de 8 ao input: o browser
+// corta o hífen e o último dígito ANTES da normalização pelo onChange.
+const updateCepDraft = (current: Draft | null, field: "start" | "end", raw: string): Draft | null => {
+  if (!current) return null;
+  const pastedCeps = (raw.match(/(?<!\d)\d{5}[-.\s]?\d{3}(?!\d)/g) || []).map(onlyDigits);
+  if (pastedCeps.length === 2) {
+    return { ...current, mode: "range", start: pastedCeps[0], end: pastedCeps[1] };
+  }
+  return { ...current, [field]: onlyDigits(raw) };
+};
 const displayCep = (value: string) => /^\d{8}$/.test(value)
   ? value.replace(/^(\d{5})(\d{3})$/, "$1-$2")
   : value;
@@ -131,8 +143,12 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
     const end = draft.mode === "single" ? start : onlyDigits(draft.end);
     const amount = Number(draft.price.replace(",", "."));
     const days = draft.days.trim() ? Number(draft.days) : null;
-    if (!/^\d{8}$/.test(start) || !/^\d{8}$/.test(end) || start > end) {
-      notifyAdmin("Confira os CEPs. O CEP final deve ser igual ou maior que o inicial.", "error");
+    if (!/^\d{8}$/.test(start) || !/^\d{8}$/.test(end)) {
+      notifyAdmin("Informe CEP inicial e final completos, com 8 dígitos (ex.: 49000-001 a 49099-999).", "error");
+      return;
+    }
+    if (start > end) {
+      notifyAdmin("O CEP final deve ser maior ou igual ao CEP inicial.", "error");
       return;
     }
     if (draft.title.trim().length < 2 || draft.title.trim().length > 100 ||
@@ -320,12 +336,13 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
           onChange={(event: any) => setDraft(current => current ? { ...current, title: event.target.value } : current)} />
         <div className="grid gap-3 sm:grid-cols-2">
           <FInput label={draft.mode === "single" ? "CEP" : "CEP inicial"} required
-            value={draft.start} inputMode="numeric" placeholder="00000000" maxLength={8}
-            onChange={(event: any) => setDraft(current => current ? { ...current, start: onlyDigits(event.target.value) } : current)} />
+            value={draft.start} inputMode="numeric" placeholder="00000-000"
+            onChange={(event: any) => setDraft(current => updateCepDraft(current, "start", event.target.value))} />
           {draft.mode === "range" && <FInput label="CEP final" required inputMode="numeric"
-            value={draft.end} placeholder="00000000" maxLength={8}
-            onChange={(event: any) => setDraft(current => current ? { ...current, end: onlyDigits(event.target.value) } : current)} />}
+            value={draft.end} placeholder="00000-000"
+            onChange={(event: any) => setDraft(current => updateCepDraft(current, "end", event.target.value))} />}
         </div>
+        <p className="text-xs text-muted-foreground">Aceita CEP com ou sem hífen. Você também pode colar a faixa completa no CEP inicial, por exemplo: 49000-001 a 49099-999.</p>
         <div className="grid gap-3 sm:grid-cols-2">
           <FInput label="Valor do frete (R$)" type="number" min={0} max={99999} step="0.01"
             required value={draft.price} onChange={(event: any) => setDraft(current => current ? { ...current, price: event.target.value } : current)} />
