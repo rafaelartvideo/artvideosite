@@ -78,29 +78,22 @@ function DueTag({ item }: { item: WorkItem }) {
     <Clock3 size={12} />{dueLabel(item.due_at)}
   </span>;
 }
-function TaskCard({ item, employees, onOpen, onComplete, canComplete, compact = false }: {
+function TaskCard({ item, employees, onOpen, canPerform, compact = false }: {
   item: WorkItem; employees: WorkEmployee[]; onOpen: (item: WorkItem) => void;
-  onComplete: (item: WorkItem) => void; canComplete: boolean; compact?: boolean;
+  canPerform: boolean; compact?: boolean;
 }) {
   const s = status(item.status);
   const isFinalized = item.status === "completed" || item.status === "cancelled";
-  return <div role="button" tabIndex={0} draggable={canComplete && !isFinalized}
+  return <div role="button" tabIndex={0} draggable={canPerform && !isFinalized}
     onDragStart={event => event.dataTransfer.setData("text/plain", item.id)}
     onClick={() => onOpen(item)}
     onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(item); } }}
     className={cn("group relative min-w-0 rounded-xl border border-border bg-card p-3.5 shadow-sm transition-all duration-200",
       "hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md motion-reduce:transform-none",
-      canComplete && !isFinalized ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
+      canPerform && !isFinalized ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       compact ? "space-y-3" : "space-y-3.5")}>
     <div className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", s.dot)} />
     <div className="flex items-start gap-2">
-      <button type="button" disabled={!canComplete || isFinalized}
-        aria-label={isFinalized ? "Atividade finalizada (somente leitura)" : !canComplete ? "Atividade somente leitura" : "Concluir atividade"}
-        title={isFinalized ? "Finalizada — somente consulta" : !canComplete ? "Sem permissão para concluir" : "Concluir"}
-        onClick={event => { event.stopPropagation(); onComplete(item); }}
-        className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-emerald-500 disabled:cursor-not-allowed disabled:opacity-40">
-        {item.status === "completed" ? <CheckCheck size={20} className="text-emerald-500" /> : <Circle size={20} />}
-      </button>
       <div className="min-w-0 flex-1">
         <p className={cn("line-clamp-2 text-sm font-bold leading-snug text-foreground",
           item.status === "completed" && "text-muted-foreground line-through")}>{item.title}</p>
@@ -197,6 +190,7 @@ export function TabWorkItems() {
   const canCreate = hasPermission("work_items.create");
   const canEdit = hasPermission("work_items.edit");
   const canManage = hasPermission("work_items.manage");
+  const canExecuteTeam = canManage && hasPermission("work_items.execute_team");
   const [searchParams, setSearchParams] = useSearchParams();
   const linkedItemId = searchParams.get("item");
   const [view, setView] = useState<View>("overview");
@@ -260,6 +254,10 @@ export function TabWorkItems() {
   const employees = employeeQuery.data || [];
   const myEmployeeIds = employees.filter(person => person.profile_id === user?.id).map(person => person.id);
   if (employee?.id && !myEmployeeIds.includes(employee.id)) myEmployeeIds.push(employee.id);
+  const canPerformItem = (entry: WorkItem) =>
+    canExecuteTeam || Boolean(entry.assigned_employee_ids?.some(id => myEmployeeIds.includes(id)));
+  const canEditItem = (entry: WorkItem) =>
+    canEdit && Boolean(canManage || entry.created_by === user?.id || entry.assigned_employee_ids?.some(id => myEmployeeIds.includes(id)));
   const overview = {
     total: all.filter(item => item.status !== "cancelled").length,
     // Exclusive card buckets: a past-due item is Atrasada, never also
@@ -290,7 +288,7 @@ export function TabWorkItems() {
   const newTask = (nextKind: WorkKind = "task") => { setNewKind(nextKind); setSelected(null); setDialogOpen(true); };
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["work-items", organizationId] });
   const moveTo = async (item: WorkItem, next: WorkStatus) => {
-    if (!canEdit || moving || item.status === next || item.status === "completed" || item.status === "cancelled") return;
+    if (!canPerformItem(item) || moving || item.status === next || item.status === "completed" || item.status === "cancelled") return;
     if (next === "completed" && item.kind === "commitment") { openTask(item); notifyAdmin("Informe o resultado do compromisso para concluí-lo.", "warning"); return; }
     setMoving(item.id);
     try {
@@ -412,8 +410,8 @@ export function TabWorkItems() {
             <button type="button" onClick={() => setView("list")} className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">Ver todas <ArrowRight size={13} /></button>
           </div>
           <div className="space-y-2.5 p-3 sm:p-4">
-            {upcoming.length ? upcoming.map(item => <TaskCard key={item.id} compact item={item} employees={employees} canComplete={canEdit}
-              onOpen={openTask} onComplete={entry => void moveTo(entry, entry.status === "completed" ? "pending" : "completed")} />) :
+            {upcoming.length ? upcoming.map(item => <TaskCard key={item.id} compact item={item} employees={employees} canPerform={canPerformItem(item)}
+              onOpen={openTask} />) :
               <EmptyState icon={Check} title="Tudo em dia" message="Não há atividades pendentes nesta seleção." />}
           </div>
         </AdminCard>
@@ -458,8 +456,7 @@ export function TabWorkItems() {
           </div>
           <div className="divide-y divide-border md:hidden">
             {listPage.map(item => <div key={item.id} className="p-3">
-              <TaskCard compact item={item} employees={employees} canComplete={canEdit} onOpen={openTask}
-                onComplete={entry => void moveTo(entry, entry.status === "completed" ? "pending" : "completed")} />
+              <TaskCard compact item={item} employees={employees} canPerform={canPerformItem(item)} onOpen={openTask} />
             </div>)}
           </div>
           <div className="hidden overflow-x-auto md:block">
@@ -469,12 +466,6 @@ export function TabWorkItems() {
                 onKeyDown={event => { if (event.key === "Enter") openTask(item); }}>
                 <td className="max-w-[330px]">
                   <div className="flex items-center gap-2">
-                    <button type="button" disabled={!canEdit || item.status === "completed" || item.status === "cancelled"}
-                      aria-label={item.status === "completed" || item.status === "cancelled" ? "Atividade finalizada — somente consulta" : !canEdit ? "Atividade somente leitura" : "Concluir atividade"}
-                      onClick={event => { event.stopPropagation(); void moveTo(item, item.status === "completed" ? "pending" : "completed"); }}
-                      className="shrink-0 text-primary disabled:cursor-not-allowed disabled:opacity-40">
-                      {item.status === "completed" ? <CheckCheck size={19} className="text-emerald-500" /> : <Circle size={19} />}
-                    </button>
                     <div className="min-w-0"><p className={cn("truncate text-sm font-bold", item.status === "completed" && "line-through text-muted-foreground")}>{item.title}</p>
                       <p className="truncate text-[11px] text-muted-foreground">{item.kind === "commitment" ? "Compromisso" : "Tarefa"}{item.customer?.full_name ? " · " + item.customer.full_name : ""}</p>
                     </div>
@@ -517,8 +508,7 @@ export function TabWorkItems() {
                   className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-card hover:text-primary"><Plus size={17} /></button>}
               </div>
               <div className="min-h-40 space-y-2.5">
-                {entries.map(item => <TaskCard key={item.id} item={item} employees={employees} canComplete={canEdit} onOpen={openTask}
-                  onComplete={entry => void moveTo(entry, entry.status === "completed" ? "pending" : "completed")} />)}
+                {entries.map(item => <TaskCard key={item.id} item={item} employees={employees} canPerform={canPerformItem(item)} onOpen={openTask} />)}
                 {!entries.length && <div className="rounded-xl border border-dashed border-border/70 bg-card/30 p-5 text-center text-xs text-muted-foreground">Arraste uma tarefa para cá</div>}
               </div>
             </div>;
@@ -533,7 +523,8 @@ export function TabWorkItems() {
 
     <WorkItemDialog key={currentSelected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}
       item={currentSelected} initialKind={newKind} organizationId={organizationId} employees={employees}
-      canEdit={selected ? canEdit : canCreate}
+      canEdit={selected ? canEditItem(currentSelected!) : canCreate}
+      canPerform={Boolean(currentSelected && canPerformItem(currentSelected))}
       onClose={closeDialog}
       onSaved={saved => {
         setRecentlySavedId(saved.id);
