@@ -102,12 +102,16 @@ function sacImportPhoneVariants(value: unknown) {
   return importPhoneCandidates(normalized);
 }
 
-function sacContactImportError(message: unknown, fallback: string) {
+function sacContactImportError(message: unknown, fallback: string, type?: unknown) {
   const detail = String(message || "").trim();
-  if (/validar se este n[uú]mero possui whatsapp/i.test(detail)) {
-    return "A SAC Digital não conseguiu confirmar se este número possui WhatsApp neste momento. Isso não significa que o número não tenha WhatsApp. Verifique o status do canal da SAC Digital e tente novamente.";
+  const code = String(type || "").trim().toLowerCase();
+  if (code === "error_valid_wpp" || sacWhatsAppValidationInconclusive(detail, code)) {
+    return "A SAC Digital não conseguiu confirmar o WhatsApp deste número pelo canal selecionado. Isso não comprova que o número não tenha WhatsApp. Verifique o canal ou utilize o envio direto da SAC, que não abre atendimento automaticamente.";
   }
-  return detail ? `SAC Digital: ${detail}` : fallback;
+  if (code === "invalid_wpp") return "A SAC Digital recusou este número como WhatsApp válido no canal selecionado. Confira o DDI, DDD e o canal.";
+  if (code === "invalid_channel") return "A SAC Digital recusou o canal escolhido para importar este contato. Selecione outro canal ativo e tente novamente.";
+  if (code === "exist_contact") return "A SAC Digital informou que este contato já existe, mas ainda não o retornou na pesquisa. Aguarde a sincronização e busque novamente, sem importar em duplicidade.";
+  return detail ? `SAC Digital: ${detail}` : `${fallback} (código SAC: ${code || "resposta sem motivo"}).`;
 }
 
 function safeSearchText(value: unknown) {
@@ -274,22 +278,24 @@ Deno.serve(async request => {
     const channelId = String(primaryChannel?.id || "").trim();
 
     if (!channelId) throw new Error("Selecione um canal ativo antes de importar o contato.");
-    for (const candidatePhone of sacImportPhoneVariants(phone)) {
+    // Preservar sempre a resposta real da SAC, inclusive quando TODAS as
+    // variantes com/sem 9º dígito falharem. Antes ela era descartada no fim
+    // do loop, ocultando error_valid_wpp e exibindo um erro genérico.
+    const candidates = sacImportPhoneVariants(phone);
+    let lastFailure: Awaited<ReturnType<typeof apiRequest>> | null = null;
+    for (let index = 0; index < candidates.length; index += 1) {
+      const candidatePhone = candidates[index];
       const attempt = await apiRequest(organizationId, credentials, "/contact/import", {
         method: "POST", body: JSON.stringify({number:candidatePhone,name,channel:channelId}),
       });
       if(attempt.response.ok && attempt.body.status !== false && attempt.body.success !== false)
         return {result:attempt,phone:normalizeSacPhone(candidatePhone),channelId,failure:null};
-      if(mayTryImportVariant(attempt.body,attempt.response.status)) continue;
+      lastFailure = attempt;
+      if(mayTryImportVariant(attempt.body,attempt.response.status) && index < candidates.length - 1) continue;
       return {result:null,phone:normalizeSacPhone(candidatePhone),channelId,failure:attempt};
     }
 
-    return {
-      result: null,
-      phone,
-      channelId: null,
-      failure: null,
-    };
+    return {result:null,phone,channelId,failure:lastFailure};
   };
 
   const paginatedSacList = async (organizationId:string,credentials:any,path:string) => {
@@ -2142,8 +2148,13 @@ Deno.serve(async request => {
               prepared: false,
               whatsapp_available: false,
               error: sacContactImportError(
-                importAttempt.failure.body.message,
+                importAttempt.failure.body.message || importAttempt.failure.body.error,
                 "A SAC Digital não conseguiu preparar este número para uma nova conversa.",
+                importAttempt.failure.body.type,
+              ),
+              import_error_type: String(importAttempt.failure.body.type || "provider_rejected"),
+              direct_send_available: ["error_valid_wpp", "error_import", "contact_validation_failed"].includes(
+                String(importAttempt.failure.body.type || "").toLowerCase(),
               ),
             });
           }
