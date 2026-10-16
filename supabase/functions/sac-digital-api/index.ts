@@ -2120,7 +2120,22 @@ Deno.serve(async request => {
         );
         const importResult = importAttempt.result;
 
-        if (!importResult) {
+        // A SAC pode informar "exist_contact" antes de indexar o telefone
+        // na primeira busca. Nesse caso reconciliamos por leitura, sem
+        // repetir o POST /contact/import nem criar um cadastro duplicado.
+        if (!importResult && String(importAttempt.failure?.body?.type || "") === "exist_contact") {
+          for (const candidatePhone of sacPhoneVariants(phone)) {
+            const lookup = await apiRequest(organizationId, credentials,
+              `/contact/search?p=1&filter=1&search=${encodeURIComponent(candidatePhone)}`,
+              { method: "GET" });
+            const rows = Array.isArray(lookup.body.list) ? lookup.body.list : [];
+            contact = rows.find(item => item && typeof item === "object"
+              && sacPhoneKey(item.number) === sacPhoneKey(candidatePhone)) || null;
+            if (contact) break;
+          }
+        }
+
+        if (!importResult && !contact) {
           if (importAttempt.failure) {
             return json({
               success: true,
@@ -2140,6 +2155,7 @@ Deno.serve(async request => {
           });
         }
 
+        if (importResult) {
         imported = true;
         importedPhone = importAttempt.phone;
         importedChannelId = importAttempt.channelId;
@@ -2194,6 +2210,7 @@ Deno.serve(async request => {
           }
         }
 
+        }
         if (!contact) {
           // A SAC pode confirmar a importação antes de indexar o contato na busca.
           // Reconciliar somente por leitura e não repetir importação/mensagem.
