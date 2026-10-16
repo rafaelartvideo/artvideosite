@@ -514,7 +514,7 @@ export function AdminHeader({
             </div>}
 
             <div className="relative">
-              <HeaderAction label="Configurações" active={openMenu === "settings" onClick={() => toggleMenu("settings")}>
+              <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
                 <Settings size={17} strokeWidth={2} />
               </HeaderAction>
               {openMenu === "settings" && <HeaderDropdown title="Configurações" width="w-[245px]">
