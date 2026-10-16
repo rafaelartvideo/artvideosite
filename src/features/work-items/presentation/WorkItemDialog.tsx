@@ -4,7 +4,7 @@ import { Bell, CalendarClock, CheckCircle2, Circle, ClipboardList, History, Plus
 import { cn } from "@/shared/domain/formatters";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   addWorkChecklistItem, findCustomerWorkOrders, findWorkCustomers, loadWorkDetails,
   removeWorkChecklistItem, saveWorkItem, updateWorkChecklistItem,
@@ -314,7 +314,7 @@ export function WorkItemDialog({
           <div className="h-full rounded-full bg-emerald-500 transition-all duration-300"
             style={{ width: (counts.length ? (done / counts.length) * 100 : 0) + "%" }} />
         </div>
-        {details.isPending && <p className="text-sm text-muted-foreground">Carregando etapas...</p>}
+        {details.isPending && <InlineLoading text="Carregando etapas..." />}
         {counts.map(check => <div key={check.id} className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5">
           <button type="button" disabled={!canEdit || detailBusy} aria-label={check.done ? "Reabrir etapa" : "Concluir etapa"}
             onClick={() => void mutateChecklist(() => updateWorkChecklistItem(organizationId, check.id, !check.done))}
@@ -335,7 +335,7 @@ export function WorkItemDialog({
 
       {section === "history" && <div className="space-y-3">
         <p className="text-sm font-bold">Linha do tempo</p>
-        {details.isPending && <p className="text-sm text-muted-foreground">Carregando histórico...</p>}
+        {details.isPending && <InlineLoading text="Carregando histórico..." />}
         {details.data?.activity.map(activity => <div className="flex gap-3" key={activity.id}>
           <div className="flex flex-col items-center">
             <span className="mt-1 h-2.5 w-2.5 rounded-full bg-primary" />
