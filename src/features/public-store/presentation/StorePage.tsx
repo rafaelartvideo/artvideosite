@@ -34,7 +34,7 @@ export function StorePage({ setPage, onSelectProduct }: {
   const [onlyOffers, setOnlyOffers] = useState(false);
   const [onlyAvailable, setOnlyAvailable] = useState(false);
   const [filterDrawer, setFilterDrawer] = useState(false);
-  const [page, setPage] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const productIds = useMemo(() => products.map(p => p.id).sort(), [products]);
   const availabilityQuery = useQuery({
     queryKey: ["artvideo-catalog-availability", productIds],
@@ -82,8 +82,8 @@ export function StorePage({ setPage, onSelectProduct }: {
   },[products,category,brandIds,onlyOffers,onlyAvailable,availability,min,max,search,sortBy,availableBrands,categoryNames]);
 
   const totalPages=Math.max(1,Math.ceil(filtered.length/PER_PAGE));
-  const items=filtered.slice((Math.min(page,totalPages)-1)*PER_PAGE,Math.min(page,totalPages)*PER_PAGE);
-  const resetPage=()=>setPage(1);
+  const items=filtered.slice((Math.min(currentPage,totalPages)-1)*PER_PAGE,Math.min(currentPage,totalPages)*PER_PAGE);
+  const resetPage=()=>setCurrentPage(1);
   const setCategoryFilter=(id:string)=>{setCategory(id);resetPage();};
   const toggleBrand=(id:string)=>{setBrandIds(v=>v.includes(id)?v.filter(x=>x!==id):[...v,id]);resetPage();};
   const clearFilters=()=>{setSearch("");setCategory("all");setBrandIds([]);setMinPrice("");setMaxPrice("");setOnlyOffers(false);setOnlyAvailable(false);setSortBy("newest");resetPage();};
@@ -228,11 +228,11 @@ export function StorePage({ setPage, onSelectProduct }: {
               <button onClick={clearFilters} className="mt-4 rounded-md bg-[var(--art-primary)] px-4 py-2.5 text-[12px] font-bold text-white hover:brightness-110">Limpar filtros</button>
             </div>}
           {filtered.length>PER_PAGE&&<nav aria-label="Paginação de produtos" className="mt-8 flex items-center justify-center gap-3">
-            <button type="button" aria-label="Página anterior" disabled={page<=1}
-              onClick={()=>setPage(v=>Math.max(1,v-1))} className="rounded-md border border-[#dfe7f2] bg-white p-2 disabled:opacity-40"><ChevronLeft size={19}/></button>
-            <span className="text-[12px] font-bold text-[#536881]">{page} de {totalPages}</span>
-            <button type="button" aria-label="Próxima página" disabled={page>=totalPages}
-              onClick={()=>setPage(v=>Math.min(totalPages,v+1))} className="rounded-md border border-[#dfe7f2] bg-white p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
+            <button type="button" aria-label="Página anterior" disabled={currentPage<=1}
+              onClick={()=>setCurrentPage(v=>Math.max(1,v-1))} className="rounded-md border border-[#dfe7f2] bg-white p-2 disabled:opacity-40"><ChevronLeft size={19}/></button>
+            <span className="text-[12px] font-bold text-[#536881]">{currentPage} de {totalPages}</span>
+            <button type="button" aria-label="Próxima página" disabled={currentPage>=totalPages}
+              onClick={()=>setCurrentPage(v=>Math.min(totalPages,v+1))} className="rounded-md border border-[#dfe7f2] bg-white p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
           </nav>}
         </main>
       </div>
