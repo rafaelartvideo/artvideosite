@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CalendarDays, ChevronDown, Clock3, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 
 const TIMES = Array.from({ length: 96 }, (_, index) => {
   const hour = String(Math.floor(index / 4)).padStart(2, "0");
@@ -37,25 +38,9 @@ export function WorkItemDateTimeField({
   const parts = localParts(value);
   const [timeText, setTimeText] = useState(parts.time);
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { setTimeText(parts.time); }, [value]);
-  useEffect(() => {
-    if (!open) return;
-    const closeOutside = (event: MouseEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    const closeEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", closeOutside);
-    document.addEventListener("keydown", closeEscape);
-    return () => {
-      document.removeEventListener("mousedown", closeOutside);
-      document.removeEventListener("keydown", closeEscape);
-    };
-  }, [open]);
   useEffect(() => {
     if (!open || !listRef.current) return;
     const current = listRef.current.querySelector<HTMLElement>('[aria-selected="true"]');
@@ -67,7 +52,7 @@ export function WorkItemDateTimeField({
     if (validTime(time)) onChange(buildDate(parts.date || todayDate(), time));
   };
   const chooseTime = (time: string) => { changeTime(time); setOpen(false); };
-  return <div ref={rootRef} className="relative min-w-0 space-y-1.5">
+  return <div className="relative min-w-0 space-y-1.5">
     <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
       <CalendarDays size={13} aria-hidden="true" />{label}
     </label>
@@ -81,7 +66,8 @@ export function WorkItemDateTimeField({
           setTimeText(time);
           onChange(buildDate(nextDate, time));
         }} />
-      <div className="relative min-w-0">
+      <Popover open={open && !disabled} onOpenChange={setOpen}>
+        <PopoverAnchor asChild><div className="relative min-w-0">
         <Clock3 size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input value={timeText} disabled={disabled} inputMode="numeric" autoComplete="off"
           aria-label={`Hora de ${label.toLocaleLowerCase("pt-BR")}`}
@@ -100,15 +86,20 @@ export function WorkItemDateTimeField({
           className="absolute right-0 top-0 flex h-full w-7 items-center justify-center text-muted-foreground transition-colors hover:text-primary disabled:opacity-40">
           <ChevronDown size={14} />
         </button>
-        {open && !disabled && <div ref={listRef} role="listbox" aria-label="Horários em intervalos de 15 minutos"
-          className="absolute right-0 top-[calc(100%+5px)] z-[150] max-h-40 w-[124px] overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover p-0.5 text-popover-foreground shadow-xl">
+        </div></PopoverAnchor>
+        {!disabled && <PopoverContent align="end" side="bottom" sideOffset={5} collisionPadding={12}
+          onOpenAutoFocus={event => event.preventDefault()}
+          className="z-[220] w-[124px] border-border bg-popover p-0.5 text-popover-foreground shadow-xl">
+          <div ref={listRef} role="listbox" aria-label="Horários em intervalos de 15 minutos"
+            className="max-h-[160px] overflow-y-auto overscroll-contain">
           {TIMES.map(time => <button key={time} type="button" role="option"
             aria-selected={timeText === time} onMouseDown={event => event.preventDefault()}
             onClick={() => chooseTime(time)}
             className={cn("flex h-10 w-full items-center justify-center rounded-md text-xs font-semibold tabular-nums transition-colors hover:bg-primary/10 hover:text-primary",
               timeText === time && "bg-primary/10 text-primary")}>{time}</button>)}
-        </div>}
-      </div>
+          </div>
+        </PopoverContent>}
+      </Popover>
     </div>
     <div className="flex min-h-4 items-center justify-between gap-2">
       {hint && <p className="text-[10px] leading-4 text-muted-foreground">{hint}</p>}
