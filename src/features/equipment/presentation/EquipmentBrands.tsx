@@ -3,7 +3,7 @@ import { Edit2, Plus, Search, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { AdminCard, AdminIconButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -41,20 +41,8 @@ export function EquipmentBrandCreate({ onCreate, disabled }: {
   onCreate: (name: string) => void;
   disabled: boolean;
 }) {
-  const [name, setName] = useState("");
-  const add = () => {
-    const normalized = name.trim().replace(/\s+/g, " ");
-    if (!normalized || disabled) return;
-    onCreate(normalized);
-    setName("");
-  };
-  return <div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-    <input className={INPUT + " min-w-[135px] max-w-[220px]"} aria-label="Nova marca"
-      placeholder="Nova marca" value={name} disabled={disabled}
-      onChange={event => setName(event.target.value)}
-      onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); add(); } }} />
-    <BtnSecondary onClick={add} disabled={disabled || !name.trim()}><Plus size={14} /> Adicionar</BtnSecondary>
-  </div>;
+  return <AdminButton variant="tertiary" size="sm" disabled={disabled}
+    onClick={() => onCreate("")}><Plus size={14} /> Adicionar</AdminButton>;
 }
 
 export function EquipmentBrandSelector({ draft, choices, canEdit, canCreate, onToggleBrand }: BrandSelectorProps) {
@@ -128,7 +116,7 @@ export function EquipmentModelCreate({ brands, onCreate, disabled }: {
       placeholder="Novo modelo" value={modelName} disabled={disabled || !selection}
       onChange={event => { setModelName(event.target.value.toLocaleUpperCase("pt-BR")); setError(""); }}
       onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); add(); } }} />
-    <BtnSecondary onClick={add} disabled={disabled || !selection || !modelName.trim()}><Plus size={14} /> Adicionar</BtnSecondary>
+    <AdminButton variant="tertiary" size="sm" onClick={add} disabled={disabled || !selection || !modelName.trim()}><Plus size={14} /> Adicionar</AdminButton>
     {error && <span role="alert" className="w-full text-right text-xs text-red-600">{error}</span>}
   </div>;
 }
@@ -179,28 +167,18 @@ export function EquipmentBrandsDirectory({ choices, brands, types, onEditBrand, 
   onToggleBrand?: (name: string, nextActive: boolean) => void;
   busyBrand?: string | null;
 }) {
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const equipmentById = new Map(types.map(type => [type.id,type.name]));
+  const equipmentById = new Map(types.map(type => [type.id, type.name]));
   const equipmentNames = (brandName: string) => [...new Set(
     brands.filter(brand => brandKey(brand.name) === brandKey(brandName))
       .map(brand => equipmentById.get(brand.equipment_type_id))
       .filter((value): value is string => Boolean(value))
-  )].sort((a,b) => a.localeCompare(b,"pt-BR"));
-  const text = brandKey(search);
-  const filtered = choices.filter(item =>
-    brandKey(item.name).includes(text) || equipmentNames(item.name).some(name => brandKey(name).includes(text))
-  );
+  )].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
+  const filtered = [...choices].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const safePage = Math.min(page,Math.max(1,Math.ceil(filtered.length/pageSize)));
   const visible = filtered.slice((safePage-1)*pageSize,safePage*pageSize);
   return <div className="min-w-0 space-y-4">
-    <div className="relative w-full min-w-0 sm:max-w-md">
-      <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input className={INPUT + " h-10 pl-9"} value={search}
-        onChange={event => { setSearch(event.target.value); setPage(1); }}
-        placeholder="Buscar marca ou equipamento..." aria-label="Buscar marcas ou equipamentos" />
-    </div>
     <AdminCard>
       {visible.length ? <div className="overflow-x-auto">
         <table className="min-w-[780px]">
