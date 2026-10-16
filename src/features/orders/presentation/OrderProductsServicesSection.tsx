@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { supabase } from "@/lib/supabase";
 import {
   AdminButton,
@@ -1215,7 +1215,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{items.length}</span>
     </span>} flush>
       {loadingItems
-        ? <div className="p-5 text-sm text-muted-foreground">Carregando itens...</div>
+        ? <LoadingState text="Carregando itens da OS..." />
         : items.length === 0
           ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
           : <div className="grid min-w-0 gap-3 p-3 sm:gap-4 sm:p-4">
