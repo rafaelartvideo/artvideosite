@@ -73,3 +73,18 @@ test('the SAC queue contains A and E; only A is waiting, and a selected Operator
 test('queue rows without a confirmed waiting status are not guessed from ownership or names',()=>{
  assert.deepEqual(runtime.waitingOperatorProtocolIds([{protocol:'P',status:'E'},{protocol:'X'},{protocol:'P-A',status:'A'},{protocol:'P-A',status:'A'}]),['P-A']);
 });
+
+test('Operators only see their own abandoned conversations, identified by SAC Operator ID',()=>{
+ const can=runtime.operatorCanSeeProtocolInInbox;
+ assert.equal(can('abandoned','op-a','op-a'),true);
+ assert.equal(can('abandoned','op-b','op-a'),false);
+ assert.equal(can('abandoned',null,'op-a'),false);
+ assert.equal(can('inbox',null,'op-a'),false);
+ assert.equal(can('inbox','op-b','op-a'),false);
+ assert.equal(can('inbox','op-a','op-a'),true);
+ assert.equal(can('in_att','op-b','op-a'),false);
+ assert.equal(can('finished','op-b','op-a'),false);
+ assert.equal(can('waiting',null,'op-a'),true);
+ assert.equal(can('pending',null,'op-a'),true);
+ assert.equal(can('waiting',null,''),false);
+});
