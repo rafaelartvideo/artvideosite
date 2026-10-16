@@ -397,11 +397,11 @@ export function TabProducts({
 
   const catOptions = [
     { value: "", label: "Sem categoria" },
-    ...categories.map((item: any) => ({ value: item.id, label: item.name })),
+    ...([...categories].sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))).map((item: any) => ({ value: item.id, label: item.name })),
   ];
   const brandOptions = [
     { value: "", label: "Sem marca" },
-    ...brands.map((item: any) => ({ value: item.id, label: item.name })),
+    ...([...brands].sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))).map((item: any) => ({ value: item.id, label: item.name })),
   ];
 
   const openNew = () => {
