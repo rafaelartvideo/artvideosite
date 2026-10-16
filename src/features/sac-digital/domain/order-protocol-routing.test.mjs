@@ -191,3 +191,34 @@ test('OS conversation route retries cancelled initialization and uses exact prot
   assert.match(sacPage,/Localizando conversa da OS/);
   assert.match(sacPage,/onClick=\{\(\) => setOrderRouteRetry\(value => value \+ 1\)\}/);
 });
+
+test('SAC allows message-authorized operators to open protocols without management permission', () => {
+  assert.match(backend, /messageInitiatedOpening = endpointId === 11 && options\.messageInitiatedOpening === true/);
+  assert.match(backend, /messageInitiatedOpening && key === 'sac_digital\.protocols\.manage'/);
+  assert.match(backend, /await requirePermission\('sac_digital\.messages\.send'\)/);
+  assert.match(backend, /authorize: authorizeSacOperation/);
+  const startConversation=action('start_new_conversation','assume_protocol');
+  assert.match(startConversation,/requirePermission\("sac_digital\.messages\.send"\)/);
+  assert.match(startConversation,/messageInitiatedOpening: true/);
+  assert.doesNotMatch(startConversation,/Seu usuário precisa da permissão de gerenciar atendimentos para abrir/);
+  const fromOrder=backend.slice(backend.indexOf('const resolveOrderConversationProtocol = async'), backend.indexOf('if (action === "send_media")'));
+  assert.match(fromOrder,/messageInitiatedOpening: true/);
+  assert.doesNotMatch(fromOrder,/Sua função não pode abrir protocolos SAC/);
+});
+
+test('SAC management actions and direct forwarding remain restricted', () => {
+  assert.match(backend,/endpointId === 11 && options\.messageInitiatedOpening === true/);
+  assert.match(backend,/const permission=operationPermission\(requested\)/);
+  for (const branch of [
+    ['assume_protocol','routing_options'],
+    ['routing_options','forward_protocol'],
+    ['forward_protocol','return_to_inbox'],
+    ['return_to_inbox','finish_protocol'],
+    ['finish_protocol','send_media'],
+  ]) {
+    const code=action(branch[0],branch[1]);
+    assert.match(code,/requirePermission\("sac_digital\.protocols\.manage"\)/);
+  }
+  assert.match(backend,/\[36,37,38\]\.includes\(endpointId\)/);
+  assert.match(backend,/endpointId === 36 \? 'sac_digital\.messages\.send' : 'sac_digital\.protocols\.manage'/);
+});
