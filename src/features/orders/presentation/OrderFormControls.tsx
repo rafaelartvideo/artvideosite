@@ -37,7 +37,8 @@ export function EmployeeMultiSelect({ label, employees, selectedIds, onChange, d
     document.addEventListener("mousedown", close); document.addEventListener("keydown", escape);
     return () => { document.removeEventListener("mousedown", close); document.removeEventListener("keydown", escape); };
   }, []);
-  const filtered = employees.filter(employee => employee.full_name.toLowerCase().includes(search.toLowerCase()));
+  const filtered = employees.filter(employee => employee.full_name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name, "pt-BR", { sensitivity: "base" }));
   const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter(selectedId => selectedId !== id) : [...selectedIds, id]);
   return <div ref={containerRef} className="relative">
     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>
