@@ -168,9 +168,9 @@ begin
         select e.profile_id into v_profile from public.employees e where e.id=v_employee and e.organization_id=new.organization_id;
         if v_profile is not null and v_profile is distinct from auth.uid() then
           insert into public.organization_notifications
-            (organization_id,recipient_user_id,actor_user_id,module_key,event_type,entity_type,entity_id,title,message,route)
+            (organization_id,recipient_user_id,actor_user_id,module_key,event_type,entity_type,entity_id,title,message,route,visibility_permissions)
           values(new.organization_id,v_profile,auth.uid(),'workItems','created','work_item',new.id::text,
-            'Nova atividade atribuida',new.title,'/admin/work-items?item='||new.id::text);
+            'Nova atividade atribuida',new.title,'/admin/work-items?item='||new.id::text,array['work_items.view']);
         end if;
       end if;
     end loop;
@@ -195,36 +195,136 @@ begin
   end if;
   return new;
 end;
-$$;
+$;
 revoke all on function private.work_item_checklist_guard() from public,anon,authenticated;
 create trigger work_item_checklist_guard before insert or update on public.work_item_checklist
 for each row execute function private.work_item_checklist_guard();
+
+create or replace function private.work_item_checklist_audit()
+returns trigger language plpgsql security definer set search_path='' as $
+declare v_row record;
+begin
+  if tg_op='DELETE' then
+    insert into public.work_item_activity(organization_id,work_item_id,actor_user_id,action,note)
+    values(old.organization_id,old.work_item_id,auth.uid(),'checklist_removed',old.label);
+    return old;
+  end if;
+  if tg_op='INSERT' then
+    insert into public.work_item_activity(organization_id,work_item_id,actor_user_id,action,note)
+    values(new.organization_id,new.work_item_id,auth.uid(),'checklist_added',new.label);
+  elsif new.done is distinct from old.done then
+    insert into public.work_item_activity(organization_id,work_item_id,actor_user_id,action,note)
+    values(new.organization_id,new.work_item_id,auth.uid(),
+      case when new.done then 'checklist_done' else 'checklist_reopened' end,new.label);
+  end if;
+  return new;
+end;
+$;
+revoke all on function private.work_item_checklist_audit() from public,anon,authenticated;
+create trigger work_item_checklist_audit after insert or update or delete on public.work_item_checklist
+for each row execute function private.work_item_checklist_audit();
 
 alter table public.work_items enable row level security;
 alter table public.work_item_checklist enable row level security;
 alter table public.work_item_activity enable row level security;
 alter table public.work_item_reminders enable row level security;
 
+-- Funcionarios veem atividades criadas ou atribuídas a eles; gestores veem a equipe.
 create policy work_items_select on public.work_items for select to authenticated
-using (private.has_tenant_module_permission(organization_id,'work_items','work_items.view'));
+using (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.view')
+  and (
+    private.has_tenant_module_permission(organization_id,'work_items','work_items.manage')
+    or created_by=(select auth.uid())
+    or exists (
+      select 1 from public.employees e
+      where e.organization_id=work_items.organization_id
+        and e.profile_id=(select auth.uid())
+        and e.id=any(work_items.assigned_employee_ids)
+    )
+  )
+);
 create policy work_items_insert on public.work_items for insert to authenticated
 with check (created_by=auth.uid() and private.has_tenant_module_permission(organization_id,'work_items','work_items.create'));
 create policy work_items_update on public.work_items for update to authenticated
-using (private.has_tenant_module_permission(organization_id,'work_items','work_items.edit'))
-with check (private.has_tenant_module_permission(organization_id,'work_items','work_items.edit'));
+using (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.edit')
+  and (
+    private.has_tenant_module_permission(organization_id,'work_items','work_items.manage')
+    or created_by=(select auth.uid())
+    or exists (
+      select 1 from public.employees e
+      where e.organization_id=work_items.organization_id and e.profile_id=(select auth.uid())
+        and e.id=any(work_items.assigned_employee_ids)
+    )
+  )
+)
+with check (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.edit')
+  and (
+    private.has_tenant_module_permission(organization_id,'work_items','work_items.manage')
+    or created_by=(select auth.uid())
+    or exists (
+      select 1 from public.employees e
+      where e.organization_id=work_items.organization_id and e.profile_id=(select auth.uid())
+        and e.id=any(work_items.assigned_employee_ids)
+    )
+  )
+);
 
 create policy work_item_checklist_select on public.work_item_checklist for select to authenticated
-using (private.has_tenant_module_permission(organization_id,'work_items','work_items.view'));
+using (exists (select 1 from public.work_items w
+  where w.id=work_item_id and w.organization_id=work_item_checklist.organization_id));
 create policy work_item_checklist_insert on public.work_item_checklist for insert to authenticated
-with check (private.has_tenant_module_permission(organization_id,'work_items','work_items.edit'));
+with check (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.edit')
+  and exists (select 1 from public.work_items w
+    where w.id=work_item_id and w.organization_id=work_item_checklist.organization_id)
+);
 create policy work_item_checklist_update on public.work_item_checklist for update to authenticated
-using (private.has_tenant_module_permission(organization_id,'work_items','work_items.edit'))
-with check (private.has_tenant_module_permission(organization_id,'work_items','work_items.edit'));
+using (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.edit')
+  and exists (select 1 from public.work_items w where w.id=work_item_id and w.organization_id=work_item_checklist.organization_id)
+)
+with check (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.edit')
+  and exists (select 1 from public.work_items w where w.id=work_item_id and w.organization_id=work_item_checklist.organization_id)
+);
 create policy work_item_checklist_delete on public.work_item_checklist for delete to authenticated
-using (private.has_tenant_module_permission(organization_id,'work_items','work_items.edit'));
+using (
+  private.has_tenant_module_permission(organization_id,'work_items','work_items.edit')
+  and exists (select 1 from public.work_items w where w.id=work_item_id and w.organization_id=work_item_checklist.organization_id)
+);
 create policy work_item_activity_select on public.work_item_activity for select to authenticated
-using (private.has_tenant_module_permission(organization_id,'work_items','work_items.view'));
+using (exists (select 1 from public.work_items w
+  where w.id=work_item_id and w.organization_id=work_item_activity.organization_id));
 -- Historico apenas por triggers: nao se permite reescrever eventos.
+
+-- Consultas restritas evitam conceder acesso amplo a dados de funcionarios e OS.
+create or replace function public.list_work_item_employees_v1(p_organization_id uuid)
+returns table(id uuid,full_name text,profile_id uuid)
+language sql stable security definer set search_path='' as $
+  select e.id,e.full_name::text,e.profile_id
+  from public.employees e
+  where e.organization_id=p_organization_id and e.is_active
+    and (select auth.uid()) is not null
+    and private.has_tenant_module_permission(p_organization_id,'work_items','work_items.view')
+  order by e.full_name;
+$;
+revoke all on function public.list_work_item_employees_v1(uuid) from public,anon;
+grant execute on function public.list_work_item_employees_v1(uuid) to authenticated;
+
+create or replace function public.list_work_item_customer_orders_v1(p_organization_id uuid,p_customer_id uuid)
+returns table(id uuid,os_number text)
+language sql stable security definer set search_path='' as $
+  select s.id,s.os_number::text from public.service_orders s
+  where s.organization_id=p_organization_id and s.customer_id=p_customer_id
+    and (select auth.uid()) is not null
+    and private.has_tenant_module_permission(p_organization_id,'work_items','work_items.view')
+  order by s.created_at desc limit 15;
+$;
+revoke all on function public.list_work_item_customer_orders_v1(uuid,uuid) from public,anon;
+grant execute on function public.list_work_item_customer_orders_v1(uuid,uuid) to authenticated;
 
 -- A busca do cliente no modal nao exige habilitacao de Cadastros.
 create policy customers_work_items_read on public.customers for select to authenticated
@@ -259,9 +359,9 @@ begin
         where x.profile_id is not null
       loop
         insert into public.organization_notifications
-          (organization_id,recipient_user_id,module_key,event_type,entity_type,entity_id,title,message,route)
+          (organization_id,recipient_user_id,module_key,event_type,entity_type,entity_id,title,message,route,visibility_permissions)
         values(reminder.organization_id,recipient,'workItems','created','work_item',reminder.work_item_id::text,
-          'Lembrete de atividade',reminder.title,'/admin/work-items?item='||reminder.work_item_id::text);
+          'Lembrete de atividade',reminder.title,'/admin/work-items?item='||reminder.work_item_id::text,array['work_items.view']);
       end loop;
       count_sent:=count_sent+1;
     end if;
