@@ -135,7 +135,7 @@ export function RegistrationEditor({
       <Section title="Dados Pessoais">
         {form.person_type === "PF" ? <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF<span className="text-red-400">*</span></label>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CPF<span className="text-red-600 dark:text-red-400">*</span></label>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1"><FCpfInput required error={lookups.cpfError || fieldErrors.document} value={form.document} onChange={(event: any) => { onClearFieldError("document"); setForm(current => ({ ...current, document: event.target.value })); lookups.setCpfError(""); }} /></div>
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCpfName()} disabled={lookups.cpfLoading}>Consultar</BtnSecondary>
@@ -148,7 +148,7 @@ export function RegistrationEditor({
           <FEmailInput label="E-mail de contato" error={fieldErrors.email} value={form.email} onChange={(event: any) => { onClearFieldError("email"); setForm(current => ({ ...current, email: event.target.value })); }} />
         </div> : <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ<span className="text-red-400">*</span></label>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">CNPJ<span className="text-red-600 dark:text-red-400">*</span></label>
             <div className="flex items-start gap-2">
               <div className="min-w-0 flex-1"><FCnpjInput required error={lookups.cnpjError || fieldErrors.document} value={form.document} onChange={(event: any) => { onClearFieldError("document"); setForm(current => ({ ...current, document: event.target.value })); lookups.setCnpjError(""); }} /></div>
               <BtnSecondary className="h-[42px] shrink-0 px-4" onClick={() => void lookups.lookupCnpj()} disabled={lookups.cnpjLoading}>Consultar</BtnSecondary>
