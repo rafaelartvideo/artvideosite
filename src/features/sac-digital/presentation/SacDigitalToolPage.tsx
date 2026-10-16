@@ -317,6 +317,7 @@ export function SacDigitalToolPage({
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const location = useLocation();
+  const sacRouteActive = location.pathname.startsWith("/admin/tools/sac-digital");
   const navigate = useNavigate();
   const routeCustomerId = new URLSearchParams(location.search).get("customer") || "";
   const routeOrderConversationId = new URLSearchParams(location.search).get("order") || "";
@@ -882,12 +883,12 @@ export function SacDigitalToolPage({
   },[activeOrganizationId,location.pathname,location.search,navigate,setMessage,loadOperatorQueue]);
 
   useEffect(() => {
-    if (loading || !activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) return;
+    if (loading || !sacRouteActive || !activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) return;
     if (queueAuthRequired) return;
     // The waiting queue was fetched during initial screen loading.
     const timer = window.setInterval(() => void loadOperatorQueue(), 30_000);
     return () => window.clearInterval(timer);
-  }, [loading, activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, queueAuthRequired, status?.enabled]);
+  }, [loading, sacRouteActive, activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, queueAuthRequired, status?.enabled]);
 
   useEffect(() => {
     let alive = true;
@@ -1246,7 +1247,7 @@ export function SacDigitalToolPage({
   ]);
 
   useEffect(() => {
-    if (loading || !activeOrganizationId || !canViewMessages) return;
+    if (loading || !sacRouteActive || !activeOrganizationId || !canViewMessages) return;
     let updating = false;
     let cancelled = false;
 
@@ -1279,7 +1280,7 @@ export function SacDigitalToolPage({
       window.removeEventListener("focus", refreshWhenActive);
       document.removeEventListener("visibilitychange", refreshWhenActive);
     };
-  }, [loading, activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts,
+  }, [loading, sacRouteActive, activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts,
     selectedProtocol?.external_protocol_id, selectedProtocol?.id, selectedProtocol?.is_pending, status?.enabled]);
 
   useEffect(() => {
@@ -1307,7 +1308,7 @@ export function SacDigitalToolPage({
   }, [visibleMessages.length, messagesLoading, moduleSection, selectedProtocolId]);
 
   useEffect(() => {
-    if (loading || !activeOrganizationId || !canViewMessages) return;
+    if (loading || !sacRouteActive || !activeOrganizationId || !canViewMessages) return;
 
     let selectedMessagesChanged = false;
     let unreadCountsChanged = false;
@@ -1327,7 +1328,7 @@ export function SacDigitalToolPage({
         }) : Promise.resolve(),
         refreshUnread ? loadUnreadCounts() : Promise.resolve(),
       ]);
-    }, 250);
+    }, 1250);
     const realtime = supabase
       .channel(`sac-digital-inbox:${activeOrganizationId}`)
       .on(
@@ -1392,7 +1393,7 @@ export function SacDigitalToolPage({
       void supabase.removeChannel(realtime);
       void supabase.removeChannel(pendingRealtime);
     };
-  }, [loading, activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
+  }, [loading, sacRouteActive, activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
 
   const sendMessage = async () => {
     if (!activeOrganizationId || !user?.id || !selectedProtocol || !canSendMessages
