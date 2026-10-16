@@ -616,6 +616,8 @@ export type SacDigitalPreparedContact = {
   imported: boolean;
   whatsapp_available: boolean;
   error?: string;
+  import_error_type?: string;
+  direct_send_available?: boolean;
   active_protocol?: {
     protocol: string;
     is_att: boolean;
