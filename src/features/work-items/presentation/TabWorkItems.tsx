@@ -78,12 +78,12 @@ function DueTag({ item }: { item: WorkItem }) {
     <Clock3 size={12} />{dueLabel(item.due_at)}
   </span>;
 }
-function TaskCard({ item, employees, onOpen, onComplete, compact = false }: {
+function TaskCard({ item, employees, onOpen, onComplete, canComplete, compact = false }: {
   item: WorkItem; employees: WorkEmployee[]; onOpen: (item: WorkItem) => void;
-  onComplete: (item: WorkItem) => void; compact?: boolean;
+  onComplete: (item: WorkItem) => void; canComplete: boolean; compact?: boolean;
 }) {
   const s = status(item.status);
-  return <div role="button" tabIndex={0} draggable
+  return <div role="button" tabIndex={0} draggable={canComplete}
     onDragStart={event => event.dataTransfer.setData("text/plain", item.id)}
     onClick={() => onOpen(item)}
     onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onOpen(item); } }}
@@ -92,10 +92,11 @@ function TaskCard({ item, employees, onOpen, onComplete, compact = false }: {
       compact ? "space-y-3" : "space-y-3.5")}>
     <div className={cn("absolute inset-y-3 left-0 w-[3px] rounded-r-full", s.dot)} />
     <div className="flex items-start gap-2">
-      <button type="button" aria-label={item.status === "completed" ? "Atividade concluída" : "Concluir atividade"}
-        title={item.status === "completed" ? "Concluída" : "Concluir"}
+      <button type="button" disabled={!canComplete}
+        aria-label={!canComplete ? "Atividade somente leitura" : item.status === "completed" ? "Atividade concluída" : "Concluir atividade"}
+        title={!canComplete ? "Sem permissão para concluir" : item.status === "completed" ? "Concluída" : "Concluir"}
         onClick={event => { event.stopPropagation(); onComplete(item); }}
-        className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-emerald-500">
+        className="mt-0.5 shrink-0 text-muted-foreground transition-colors hover:text-emerald-500 disabled:cursor-not-allowed disabled:opacity-40">
         {item.status === "completed" ? <CheckCheck size={20} className="text-emerald-500" /> : <Circle size={20} />}
       </button>
       <div className="min-w-0 flex-1">
@@ -396,7 +397,7 @@ export function TabWorkItems() {
             <button type="button" onClick={() => setView("list")} className="flex items-center gap-1 text-xs font-bold text-primary hover:underline">Ver todas <ArrowRight size={13} /></button>
           </div>
           <div className="space-y-2.5 p-3 sm:p-4">
-            {upcoming.length ? upcoming.map(item => <TaskCard key={item.id} compact item={item} employees={employees}
+            {upcoming.length ? upcoming.map(item => <TaskCard key={item.id} compact item={item} employees={employees} canComplete={canEdit}
               onOpen={openTask} onComplete={entry => void moveTo(entry, entry.status === "completed" ? "pending" : "completed")} />) :
               <EmptyState icon={Check} title="Tudo em dia" message="Não há atividades pendentes nesta seleção." />}
           </div>
@@ -442,7 +443,7 @@ export function TabWorkItems() {
           </div>
           <div className="divide-y divide-border md:hidden">
             {listPage.map(item => <div key={item.id} className="p-3">
-              <TaskCard compact item={item} employees={employees} onOpen={openTask}
+              <TaskCard compact item={item} employees={employees} canComplete={canEdit} onOpen={openTask}
                 onComplete={entry => void moveTo(entry, entry.status === "completed" ? "pending" : "completed")} />
             </div>)}
           </div>
@@ -453,7 +454,9 @@ export function TabWorkItems() {
                 onKeyDown={event => { if (event.key === "Enter") openTask(item); }}>
                 <td className="max-w-[330px]">
                   <div className="flex items-center gap-2">
-                    <button type="button" onClick={event => { event.stopPropagation(); void moveTo(item, item.status === "completed" ? "pending" : "completed"); }} className="shrink-0 text-primary">
+                    <button type="button" disabled={!canEdit} aria-label={!canEdit ? "Atividade somente leitura" : "Alternar conclusão"}
+                      onClick={event => { event.stopPropagation(); void moveTo(item, item.status === "completed" ? "pending" : "completed"); }}
+                      className="shrink-0 text-primary disabled:cursor-not-allowed disabled:opacity-40">
                       {item.status === "completed" ? <CheckCheck size={19} className="text-emerald-500" /> : <Circle size={19} />}
                     </button>
                     <div className="min-w-0"><p className={cn("truncate text-sm font-bold", item.status === "completed" && "line-through text-muted-foreground")}>{item.title}</p>
@@ -498,7 +501,7 @@ export function TabWorkItems() {
                   className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-card hover:text-primary"><Plus size={17} /></button>}
               </div>
               <div className="min-h-40 space-y-2.5">
-                {entries.map(item => <TaskCard key={item.id} item={item} employees={employees} onOpen={openTask}
+                {entries.map(item => <TaskCard key={item.id} item={item} employees={employees} canComplete={canEdit} onOpen={openTask}
                   onComplete={entry => void moveTo(entry, entry.status === "completed" ? "pending" : "completed")} />)}
                 {!entries.length && <div className="rounded-xl border border-dashed border-border/70 bg-card/30 p-5 text-center text-xs text-muted-foreground">Arraste uma tarefa para cá</div>}
               </div>
