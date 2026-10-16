@@ -157,6 +157,8 @@ export type StoreSupportCase = {
   status: "open"|"in_review"|"approved"|"rejected"|"closed";
   reason: string; createdAt: string; updatedAt: string;
   timeline: { status:string; note:string|null; createdAt:string }[];
+  receivedItems?: { title:string;quantity:number;inspected:boolean;receivedAt:string }[];
+  refundedTotal?: number;lastRefundAt?:string|null;
 };
 
 export async function requestStoreAfterSales(payload: {

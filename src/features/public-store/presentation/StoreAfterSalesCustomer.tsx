@@ -95,6 +95,16 @@ export function StoreAfterSalesCustomer({token,paymentStatus,cases,onSubmitted}:
           </span>
         </div>
         <p className="mt-2 whitespace-pre-wrap text-[12px] text-[#546c87]">{item.reason}</p>
+        {item.receivedItems?.length ? <div className="mt-3 rounded-md border border-blue-100 bg-blue-50/60 p-3">
+          <p className="text-[12px] font-bold text-[#234d7b]">Produtos recebidos pela Artvideo</p>
+          {item.receivedItems.map((product,i)=><p key={i} className="mt-1 text-[12px] text-[#506d8e]">
+            {product.quantity} × {product.title} — {product.inspected ? "Avaliação concluída" : "Aguardando avaliação"}
+          </p>)}
+        </div> : null}
+        {Number(item.refundedTotal||0)>0&&<p className="mt-3 rounded-md border border-emerald-100 bg-emerald-50 p-3 text-[12px] text-emerald-800">
+          Reembolso registrado: <strong>{new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(Number(item.refundedTotal))}</strong>
+          {item.lastRefundAt ? " · "+new Date(item.lastRefundAt).toLocaleDateString("pt-BR") : ""}
+        </p>}
         <p className="mt-2 text-[11px] text-[#8b9aae]">Aberta em {new Date(item.createdAt).toLocaleString("pt-BR")}</p>
         {item.timeline?.length>0&&<ol className="mt-4 space-y-3 border-t border-[#edf2f8] pt-3">
           {item.timeline.map((event,i)=><li key={i} className="border-l-2 border-blue-200 pl-3">

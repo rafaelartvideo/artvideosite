@@ -354,7 +354,12 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
         </div>
 
         <StoreAfterSalesStaff key={selected.id} orderId={selected.id} paymentStatus={selected.status}
-          canManage={canManage} onChange={()=>void refresh(true)}/>
+          canManage={canManage} orderTotal={total(selected)}
+          items={orderLines(selected).map(line=>({
+            lineKey:line.id===selected.id?"legacy":line.id,
+            title:line.product_name,quantity:line.quantity,
+          }))}
+          onChange={()=>void refresh(true)}/>
         <div className="rounded-lg border border-border p-4">
           <h3 className="mb-2 font-bold">Produtos e valores</h3>
           {orderLines(selected).map(line => <div key={line.id} className="flex justify-between gap-4 border-b border-border py-2">

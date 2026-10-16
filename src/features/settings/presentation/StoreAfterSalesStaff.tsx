@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ClipboardList, MessageSquareText, Plus, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { StoreReturnOperations, type StoreSoldLine } from "./StoreReturnOperations";
 
 type CaseStatus="open"|"in_review"|"approved"|"rejected"|"closed";
 type CaseType="cancellation"|"exchange"|"return";
@@ -25,8 +26,9 @@ const actionNext:Partial<Record<CaseStatus,{status:CaseStatus;label:string}[]>>=
 };
 const input="min-h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
 
-export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,onChange}:{
-  orderId:string;paymentStatus:string;canManage:boolean;onChange?:()=>void;
+export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orderTotal,onChange}:{
+  orderId:string;paymentStatus:string;canManage:boolean;
+  items:StoreSoldLine[];orderTotal:number;onChange?:()=>void;
 }){
   const [cases,setCases]=useState<AfterSale[]>([]);
   const [events,setEvents]=useState<CaseEvent[]>([]);
@@ -154,6 +156,10 @@ export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,onChange}:
             </p>}
           </div>)}
         </div>
+        {["approved","closed"].includes(item.status)&&<StoreReturnOperations
+          caseId={item.id} caseType={item.request_type} caseStatus={item.status}
+          items={items} orderTotal={orderTotal} canManage={canManage}
+          onChange={()=>{void refresh();onChange?.();}}/>}
         {canManage&&actionNext[item.status]&&<div className="mt-4 border-t border-border pt-3">
           {selectedCase!==item.id?<button type="button" onClick={()=>{setSelectedCase(item.id);setNext(actionNext[item.status]![0].status);setPublicNote("");setPrivateNote("");}}
             className="inline-flex items-center gap-2 rounded-md border border-primary/30 px-3 py-2 text-xs font-bold text-primary hover:bg-primary/10">
@@ -173,7 +179,10 @@ export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,onChange}:
                 onChange={e=>setPrivateNote(e.target.value)} placeholder="Informações reservadas à equipe."/>
             </label>
             {next==="approved"&&<p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
-              Aprovar a solicitação não executa estorno, cancelamento financeiro ou movimentação de estoque.
+              Aprovar esta solicitação não realiza estorno nem movimentação de estoque. O recebimento e a inspeção deverão ser registrados separadamente.
+            </p>}
+            {next==="closed"&&item.request_type!=="cancellation"&&<p className="rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-300">
+              Antes de concluir, registre o recebimento e a avaliação dos produtos devolvidos. A validação também é feita no banco.
             </p>}
             <div className="flex gap-2">
               <button type="button" disabled={busy||(["approved","rejected","closed"].includes(next)&&publicNote.trim().length<10)}

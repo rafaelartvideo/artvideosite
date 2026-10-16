@@ -46,12 +46,26 @@ Deno.serve(async (req: Request) => {
      .in("case_id",caseIds).not("public_note","is",null).order("created_at",{ascending:true})
      .limit(100) : {data:[],error:null};
    if(supportEvents.error) return reply({error:"Não foi possível consultar as solicitações."},503);
+   const [receiptsQuery,refundQuery]=caseIds.length ? await Promise.all([
+     admin.from("artvideo_store_return_receipts").select("case_id,product_name,quantity,inspection_status,received_at")
+       .in("case_id",caseIds).order("received_at",{ascending:true}),
+     admin.from("artvideo_store_refund_records").select("case_id,amount,refunded_at")
+       .in("case_id",caseIds).order("refunded_at",{ascending:true}),
+   ]) : [{data:[],error:null},{data:[],error:null}];
+   if(receiptsQuery.error||refundQuery.error) return reply({error:"Não foi possível consultar as atualizações do pós-venda."},503);
    const supportCases=(casesQuery.data||[]).map(c=>({
      id:c.id,type:c.request_type,status:c.status,reason:c.reason,
      createdAt:c.created_at,updatedAt:c.updated_at,
      timeline:(supportEvents.data||[]).filter(e=>e.case_id===c.id).map(e=>({
        status:e.to_status,note:e.public_note,createdAt:e.created_at,
      })),
+     receivedItems:(receiptsQuery.data||[]).filter(r=>r.case_id===c.id).map(r=>({
+       title:r.product_name,quantity:r.quantity,inspected:r.inspection_status==="inspected",
+       receivedAt:r.received_at,
+     })),
+     refundedTotal:(refundQuery.data||[]).filter(r=>r.case_id===c.id)
+       .reduce((total,r)=>total+Number(r.amount||0),0),
+     lastRefundAt:(refundQuery.data||[]).filter(r=>r.case_id===c.id).at(-1)?.refunded_at||null,
    }));
    const o=orderQuery.data;
    const lines=itemsQuery.data?.length ? itemsQuery.data : [{
