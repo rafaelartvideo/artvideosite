@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { CalendarDays, Plus, Trash2 } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   defaultWorkWeek, loadEmployeeWorkWeek, normaliseIntervals, saveEmployeeWorkWeek,
   validWorkIntervals, WEEKDAY_LABELS, type EmployeeWeekday,
@@ -88,7 +88,7 @@ export function EmployeeAgendaSection({ organizationId, employeeId, canManage, p
         <BtnSecondary disabled={saving} onClick={() => setOpen(false)}>Cancelar</BtnSecondary>
         <BtnPrimary disabled={loading} loading={saving} loadingText="Salvando..." onClick={() => void save()}>{personal ? "Salvar horários" : "Salvar agenda"}</BtnPrimary>
       </div>}>
-      {loading ? <div className="flex min-h-[340px] items-center justify-center text-sm text-muted-foreground">Carregando horários...</div> :
+      {loading ? <div className="flex min-h-[340px] items-center justify-center"><LoadingState text="Carregando horários..." /></div> :
         <div className="space-y-3">
           {days.map(day => <div key={day.weekday} className="space-y-3 rounded-xl border border-border p-3">
             <div className="flex items-center justify-between gap-2">
