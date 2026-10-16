@@ -4,6 +4,7 @@ import { FileCheck2, FileClock, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import {
   getFiscalCompanySettings, listFiscalServiceMappings, listNfseDrafts,
@@ -191,7 +192,7 @@ export function NfsePage() {
       <section className="space-y-4 rounded-xl border border-border bg-card p-4">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold">Rascunhos de NFS-e</h2><p className="text-xs text-muted-foreground">Total: {draftCount.toLocaleString("pt-BR")} · Nenhuma emissão autorizada nesta etapa</p></div><div className="flex items-center gap-2"><FileClock size={17} className="text-muted-foreground"/><span className="text-xs text-muted-foreground">Somente rascunhos</span></div></div>
         <input className={inputClass} aria-label="Buscar OS ou cliente" placeholder="Buscar pelo número da OS ou nome do cliente" value={search} onChange={event => { setSearch(event.target.value); setPage(0); }} />
-        {loading && <p className="text-sm text-muted-foreground">Carregando rascunhos...</p>}
+        {loading && <LoadingState text="Carregando rascunhos..." />}
         {!loading && drafts.length===0 && <div className="rounded-lg border border-dashed border-border py-10 text-center"><FileCheck2 size={26} className="mx-auto mb-2 text-muted-foreground"/><p className="font-semibold">Nenhum rascunho encontrado</p><p className="mt-1 text-xs text-muted-foreground">Abra uma OS com serviços para preparar sua primeira prévia fiscal.</p></div>}
         {!loading && drafts.length>0 && <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-left text-sm"><thead><tr className="border-b border-border text-xs text-muted-foreground"><th className="py-3">Origem</th><th>Cliente</th><th>Serviços</th><th>Situação</th><th>Data</th></tr></thead><tbody>{drafts.map(draft => <tr key={draft.id} className="border-b border-border/60"><td className="py-3 font-semibold">{draft.source_order_id ? <button type="button" className="text-primary hover:underline" onClick={() => navigate(adminPath("orders",draft.source_order_id))}>OS {draft.source_order_number_snapshot || "—"}</button> : "Manual"}</td><td>{draft.customer_name_snapshot || "—"}</td><td className="font-semibold">{formatMoney(draft.services_net_total)}</td><td><span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-xs">Rascunho</span></td><td>{new Date(draft.created_at).toLocaleDateString("pt-BR")}</td></tr>)}</tbody></table></div>}
         <div className="flex items-center justify-between gap-2 text-sm"><span className="text-muted-foreground">Página {page+1} de {Math.max(1,Math.ceil(draftCount/10))}</span><div className="flex gap-2"><AdminButton variant="secondary" disabled={page===0 || loading} onClick={() => setPage(v=>v-1)}>Anterior</AdminButton><AdminButton variant="secondary" disabled={(page+1)*10>=draftCount || loading} onClick={() => setPage(v=>v+1)}>Próxima</AdminButton></div></div>
@@ -213,12 +214,12 @@ export function NfsePage() {
         <div className="rounded-lg bg-muted p-3 text-sm"><strong>Emissão automática:</strong> desativada. <strong>Emissão manual:</strong> desativada. A configuração não permite habilitar essas opções nesta etapa.</div>
         {canManageSettings && <div className="flex justify-end"><AdminButton disabled={disabled} onClick={saveSettings}>{busy?"Salvando...":"Salvar configuração fiscal"}</AdminButton></div>}
       </>}
-      {!settings && <p className="text-sm text-muted-foreground">{loading ? "Carregando..." : "Configuração indisponível."}</p>}
+      {!settings && (loading ? <LoadingState text="Carregando configurações..." /> : <p className="text-sm text-muted-foreground">Configuração indisponível.</p>)}
     </section>}
 
     {view === "services" && <section className="space-y-4 rounded-xl border border-border bg-card p-4">
       <div><h2 className="font-bold">Códigos fiscais dos serviços</h2><p className="mt-1 text-xs text-muted-foreground">Vinculação separada por empresa. O código e a alíquota sugerida não substituem a validação tributária do contador.</p></div>
-      {loading && <p className="text-sm text-muted-foreground">Carregando serviços...</p>}
+      {loading && <LoadingState text="Carregando serviços..." />}
       {!loading && services.length===0 && <p className="rounded-lg border border-dashed border-border p-5 text-center text-sm text-muted-foreground">Nenhum serviço cadastrado nesta empresa.</p>}
       {services.map(service => {
         const edit = serviceEdits[service.id];
