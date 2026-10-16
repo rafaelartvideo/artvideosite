@@ -48,7 +48,8 @@ export function EquipmentChecklistSection({ draft, catalog, onChange, errorFor, 
 }) {
   const selectedStages = catalog.checklistStages.filter(stage => stage.profile_id === draft.checklist_profile_id);
   const stageOptions = selectedStages.map(stage => ({ value: stage.code, label: stage.name }));
-  const selectableProfiles = catalog.checklistProfiles.filter(profile => profile.is_active || profile.id === draft.checklist_profile_id);
+  const selectableProfiles = catalog.checklistProfiles.filter(profile => profile.is_active || profile.id === draft.checklist_profile_id)
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const profileOptions = [
     { value: "", label: "Sem perfil de checklist" },
     ...selectableProfiles.map(profile => ({ value: profile.id, label: `${profile.name} • v${profile.version}${profile.is_active ? "" : " • Inativo"}` })),
