@@ -95,10 +95,12 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
     closeDetails();
   };
 
+  const liveSelected = selected ? (query.data || []).find(item => item.id === selected.id) || selected : null;
+
   return {
     canView, canEdit, mine, count: mine.length,
     loading: query.isPending, error: query.isError,
-    panelOpen, setPanelOpen, selected, employees, organizationId: organizationId || "",
+    panelOpen, setPanelOpen, selected: liveSelected, employees, organizationId: organizationId || "",
     openDetails, closeDetails, onSaved,
   };
 }
