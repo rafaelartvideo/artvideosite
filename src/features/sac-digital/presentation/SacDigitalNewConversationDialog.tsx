@@ -1,4 +1,4 @@
-import { resultItems, usableChannels, cloudChannel, approvedTemplates } from '../domain/resource-ui.mjs';
+import { resultItems, usableChannels, cloudChannel, approvedTemplates, isSacNumberCandidate, sameSacPhone } from '../domain/resource-ui.mjs';
 import { FInput, FSelect, FTextarea } from '@/shared/ui/admin/AdminFormControls';
 import { StructuredEditor } from './SacDigitalResources';
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -38,23 +38,6 @@ function formatPhone(value: string) {
   if (local.length === 11) return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`;
   if (local.length === 10) return `(${local.slice(0, 2)}) ${local.slice(2, 6)}-${local.slice(6)}`;
   return value;
-}
-
-// Um número novo só pode ser proposto após a pesquisa retornar.
-// Digitar um nome não deve iniciar importação nem enviar mensagens.
-function isUsablePhone(value: string) {
-  const digits = normalizePhone(value);
-  return /^[1-9]\d{9,14}$/.test(digits);
-}
-
-function samePhone(left: string, right: string) {
-  const canonical = (value: string) => {
-    const digits = phoneKey(value);
-    return digits.length === 11 && digits[2] === "9"
-      ? digits.slice(0, 2) + digits.slice(3)
-      : digits;
-  };
-  return Boolean(canonical(left)) && canonical(left) === canonical(right);
 }
 
 function candidateKey(candidate: SacDigitalNewConversationCandidate) {
@@ -178,7 +161,7 @@ export function SacDigitalNewConversationDialog({
       setContacts(data.contacts);
       setCustomers(data.customers);
       setSearchedTerm(value);
-      if (data.contacts.length === 0 && data.customers.length === 0 && !isUsablePhone(value)) {
+      if (data.contacts.length === 0 && data.customers.length === 0 && !isSacNumberCandidate(value)) {
         notifyAdmin("Nenhum contato encontrado na SAC Digital ou no CRM.", "warning");
       }
     } catch (caught) {
@@ -192,7 +175,7 @@ export function SacDigitalNewConversationDialog({
 
   const prepare = async (candidate?: SacDigitalNewConversationCandidate) => {
     const manual = !candidate;
-    if (manual && (!isUsablePhone(query) || searchedTerm !== query.trim() || !channel)) return;
+    if (manual && (!isSacNumberCandidate(query) || searchedTerm !== query.trim() || !channel || cloud)) return;
     const key = candidate ? candidateKey(candidate) : "number";
     if (preparingKey) return;
 
@@ -221,7 +204,8 @@ export function SacDigitalNewConversationDialog({
 
       setPrepared(result);
       if (result.imported) notifyAdmin("Contato importado na SAC Digital. Nenhuma mensagem foi enviada ainda.", "success");
-      const firstName = result.contact.name.trim().split(/\s+/).filter(Boolean)[0] || "";
+      const firstName = manual && !manualName.trim()
+        ? "" : result.contact.name.trim().split(/\s+/).filter(Boolean)[0] || "";
       setDraft(firstName ? `Olá, ${firstName}!` : "Olá!");
     } catch (caught) {
       if (requestId === prepareRequestRef.current) {
@@ -280,8 +264,8 @@ export function SacDigitalNewConversationDialog({
   };
 
   const numberCandidate = searchedTerm === query.trim()
-    && isUsablePhone(query)
-    && !results.some(candidate => samePhone(candidate.phone, query));
+    && isSacNumberCandidate(query)
+    && !results.some(candidate => sameSacPhone(candidate.phone, query));
   const selectedContact = prepared?.contact || null;
   // Um contato recém-importado pode ainda não ter canal confirmado na consulta.
   // Deixar a SAC decidir no envio, sem bloquear apenas por ausência no índice.
@@ -451,15 +435,15 @@ export function SacDigitalNewConversationDialog({
                 </div>
                 {cloud && (
                   <p className="text-xs text-amber-700 dark:text-amber-300">
-                    Este canal exige template aprovado. A importação pode ser validada, mas o envio de uma notificação
-                    não confirma automaticamente a abertura de um atendimento.
+                    Este canal exige template aprovado. O envio de uma notificação é um fluxo separado
+                    e não confirma automaticamente um atendimento. Selecione um canal compatível para continuar.
                   </p>
                 )}
                 <div className="flex justify-end">
                   <AdminButton
                     onClick={() => void prepare()}
                     loading={preparingKey === "number"}
-                    disabled={!channel || channelLoading || Boolean(preparingKey) || searching}
+                    disabled={!channel || cloud || channelLoading || Boolean(preparingKey) || searching}
                   >
                     Validar número na SAC
                   </AdminButton>
