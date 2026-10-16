@@ -72,7 +72,7 @@ export function AdminListSection({
     </div>
 
     {loading
-      ? <div className="min-h-40"><LoadingState text={typeof loadingText === "string" ? loadingText : "Carregando..."} /></div>
+      ? <div className="min-h-40"><LoadingState text={loadingText} /></div>
       : error
         ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
         : empty
