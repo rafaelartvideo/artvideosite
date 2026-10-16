@@ -135,7 +135,10 @@ export function WorkItemDialog({
     setDetailBusy(true);
     try {
       await action();
-      await queryClient.invalidateQueries({ queryKey: ["work-item-details", organizationId, item.id] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["work-item-details", organizationId, item.id] }),
+        queryClient.invalidateQueries({ queryKey: ["work-items", organizationId] }),
+      ]);
     } catch (error) {
       notifyAdmin(error instanceof Error ? error.message : "Falha ao atualizar checklist.", "error");
     } finally { setDetailBusy(false); }
