@@ -10,6 +10,7 @@ import {
   EyeOff,
   KeyRound,
   LogOut,
+  ListTodo,
   Menu,
   Moon,
   Settings,
@@ -26,6 +27,7 @@ import { cn } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { listMyAcceptedOrganizationTerms, type AcceptedOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
 import { FormattedTermContent } from "@/features/terms/presentation/TermsAcceptanceGate";
+import { WorkItemsHeaderBadge, WorkItemsHeaderDialog, useWorkItemsHeader } from "@/features/work-items/presentation/WorkItemsHeaderShortcut";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import type { AdminPageState } from "../domain/admin.types";
 import { useAdminTheme } from "./AdminLayout";
@@ -244,6 +246,7 @@ export function AdminHeader({
   const { theme, setTheme } = useAdminTheme();
   const navigate = useNavigate();
   const notifications = useAdminNotifications(activeOrganizationId, userId);
+  const workItemsHeader = useWorkItemsHeader(activeOrganizationId, userId);
   const [openMenu, setOpenMenu] = useState<HeaderMenu>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [termsMenuOpen, setTermsMenuOpen] = useState(false);
@@ -502,8 +505,16 @@ export function AdminHeader({
               </div>}
             </div>
 
+            {workItemsHeader.canView && <div className="relative">
+              <HeaderAction label="Compromissos e Tarefas" active={workItemsHeader.panelOpen}
+                onClick={() => { setOpenMenu(null); workItemsHeader.setPanelOpen(true); }}>
+                <ListTodo size={17} strokeWidth={2} />
+                <WorkItemsHeaderBadge count={workItemsHeader.count} />
+              </HeaderAction>
+            </div>}
+
             <div className="relative">
-              <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
+              <HeaderAction label="Configurações" active={openMenu === "settings" onClick={() => toggleMenu("settings")}>
                 <Settings size={17} strokeWidth={2} />
               </HeaderAction>
               {openMenu === "settings" && <HeaderDropdown title="Configurações" width="w-[245px]">
@@ -562,6 +573,11 @@ export function AdminHeader({
               <Bell size={16} />
               <NotificationBadge count={notifications.unreadCount} />
             </HeaderAction>
+            {workItemsHeader.canView && <HeaderAction label="Compromissos e Tarefas" active={workItemsHeader.panelOpen}
+              onClick={() => { setOpenMenu(null); workItemsHeader.setPanelOpen(true); }}>
+              <ListTodo size={16} />
+              <WorkItemsHeaderBadge count={workItemsHeader.count} />
+            </HeaderAction>}
             <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}><Settings size={16} /></HeaderAction>
             <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
             <ThemeToggle theme={theme} onChange={setTheme} compact />
@@ -600,6 +616,8 @@ export function AdminHeader({
           </div>
         </header>
       )}
+
+      <WorkItemsHeaderDialog controller={workItemsHeader} />
 
       <AdminDialog open={Boolean(viewingTerm)} onClose={() => setViewingTerm(null)}
         title={viewingTerm?.title || "Termos"}
