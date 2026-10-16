@@ -491,7 +491,7 @@ export function SacDigitalNewConversationDialog({
               <div>
                 <div className="mb-4 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <FSelect label="Canal de atendimento" value={channel} disabled={channelLoading || sending}
+                    <FSelect label="Canal de atendimento" value={channel} disabled={channelLoading || sending || prepared.imported === true}
                       onChange={(e: any) => setChannel(e.target.value)}
                       options={[{value:"",label:channelLoading?"Carregando canais…":"Selecione um canal ativo"}, ...channels.map(item=>({value:String(item.id),label:(item.name||item.title||"Canal")+(item.number?" · "+formatPhone(String(item.number)):"")+(item.primary===true?" · Principal":item.primary===false?" · Secundário":"")+(cloudChannel(item)?" · WhatsApp Cloud":"")}))]} />
                     <FSelect label="Tipo de mensagem" value={messageType} disabled={cloud || sending}
