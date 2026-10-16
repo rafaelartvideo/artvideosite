@@ -199,7 +199,7 @@ function CatalogCombobox({
 
   return <div className="min-w-0">
     <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
-      {label}{required && <span className="text-red-400">*</span>}
+      {label}{required && <span className="text-red-600 dark:text-red-400">*</span>}
     </label>
     <Popover open={open && !disabled} onOpenChange={(nextOpen) => { if (!disabled) setOpen(nextOpen); }}>
       <PopoverAnchor asChild>
