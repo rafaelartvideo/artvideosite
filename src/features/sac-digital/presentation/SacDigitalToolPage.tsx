@@ -783,21 +783,42 @@ export function SacDigitalToolPage({
     }
   }, [activeOrganizationId, canViewMessages, user?.id]);
 
-  // Wait for this binding exactly once per session instead of showing an empty
-  // operator inbox and then replacing it when the SAC profile arrives.
+  // Bootstrap only Conversations: integration, bound SAC Operator and queue.
+  // Contacts and WhatsApp groups are requested solely when their tab opens.
   const loadOperatorBinding = useCallback(async (integrationEnabled: boolean) => {
     if (!activeOrganizationId || !canViewMessages || !integrationEnabled) {
       setOperatorBinding(null);
+      setWaitingProtocolIds([]);
       return;
     }
     const identity = JSON.stringify([activeOrganizationId, user?.id]);
     try {
       const binding = await getMySacDigitalOperatorBinding(activeOrganizationId);
-      if (currentIdentityRef.current === identity) setOperatorBinding(binding);
+      if (currentIdentityRef.current !== identity) return;
+      setOperatorBinding(binding);
+      if (binding.linked && binding.access_mode === "operator" && binding.operator?.id && canManageProtocols) {
+        try {
+          const queue = await listSacDigitalOperatorQueue(activeOrganizationId, false, `${user?.id || ""}:${binding.operator.id}`);
+          if (currentIdentityRef.current !== identity) return;
+          setWaitingProtocolIds(queue.map(item => item.protocol));
+          setQueueError("");
+          setQueueAuthRequired(false);
+        } catch (error) {
+          if (currentIdentityRef.current !== identity) return;
+          setWaitingProtocolIds([]);
+          setQueueError(systemErrorMessage(error, "Não foi possível confirmar a fila operacional da SAC Digital."));
+          setQueueAuthRequired(isOperatorAuthError(error));
+        }
+      } else {
+        setWaitingProtocolIds([]);
+      }
     } catch {
-      if (currentIdentityRef.current === identity) setOperatorBinding(null);
+      if (currentIdentityRef.current === identity) {
+        setOperatorBinding(null);
+        setWaitingProtocolIds([]);
+      }
     }
-  }, [activeOrganizationId, canViewMessages, user?.id]);
+  }, [activeOrganizationId, canViewMessages, canManageProtocols, user?.id]);
 
   const [presenceLoading, setPresenceLoading] = useState(false);
   const [confirmedPresence, setConfirmedPresence] = useState<boolean | null>(null);
@@ -839,7 +860,7 @@ export function SacDigitalToolPage({
     }
   };
 
-  useEffect(() => { queueRequestIdRef.current++; setQueueError(""); setQueueAuthRequired(false); setWaitingProtocolIds([]); return()=>{queueRequestIdRef.current++;}; }, [activeOrganizationId,user?.id, operatorBinding?.access_mode, operatorBinding?.operator?.id]);
+  useEffect(() => { queueRequestIdRef.current++; setQueueError(""); setQueueAuthRequired(false); setWaitingProtocolIds([]); return()=>{queueRequestIdRef.current++;}; }, [activeOrganizationId, user?.id]);
   useEffect(()=>{protocolsRequestIdRef.current++;return()=>{protocolsRequestIdRef.current++;};},[activeOrganizationId,user?.id]);
 
   const loadOperatorQueue = useCallback(async (fresh = false) => {
@@ -888,15 +909,12 @@ export function SacDigitalToolPage({
   },[activeOrganizationId,location.pathname,location.search,navigate,setMessage,loadOperatorQueue]);
 
   useEffect(() => {
-    if (!activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) {
-      setWaitingProtocolIds([]);
-      return;
-    }
+    if (loading || !activeOrganizationId || !canManageProtocols || operatorBinding?.access_mode !== "operator" || !operatorBinding.operator?.id || !status?.enabled) return;
     if (queueAuthRequired) return;
-    void loadOperatorQueue();
+    // The waiting queue was fetched during initial screen loading.
     const timer = window.setInterval(() => void loadOperatorQueue(), 30_000);
     return () => window.clearInterval(timer);
-  }, [activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, queueAuthRequired, status?.enabled]);
+  }, [loading, activeOrganizationId, canManageProtocols, loadOperatorQueue, operatorBinding?.access_mode, operatorBinding?.operator?.id, queueAuthRequired, status?.enabled]);
 
   useEffect(() => {
     let alive = true;
@@ -1231,7 +1249,7 @@ export function SacDigitalToolPage({
   ]);
 
   useEffect(() => {
-    if (!activeOrganizationId || !canViewMessages) return;
+    if (loading || !activeOrganizationId || !canViewMessages) return;
     let updating = false;
     let cancelled = false;
 
@@ -1264,7 +1282,7 @@ export function SacDigitalToolPage({
       window.removeEventListener("focus", refreshWhenActive);
       document.removeEventListener("visibilitychange", refreshWhenActive);
     };
-  }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts,
+  }, [loading, activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts,
     selectedProtocol?.external_protocol_id, selectedProtocol?.id, selectedProtocol?.is_pending, status?.enabled]);
 
   useEffect(() => {
@@ -1292,7 +1310,7 @@ export function SacDigitalToolPage({
   }, [visibleMessages.length, messagesLoading, moduleSection, selectedProtocolId]);
 
   useEffect(() => {
-    if (!activeOrganizationId || !canViewMessages) return;
+    if (loading || !activeOrganizationId || !canViewMessages) return;
 
     let selectedMessagesChanged = false;
     let unreadCountsChanged = false;
@@ -1377,7 +1395,7 @@ export function SacDigitalToolPage({
       void supabase.removeChannel(realtime);
       void supabase.removeChannel(pendingRealtime);
     };
-  }, [activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
+  }, [loading, activeOrganizationId, canViewMessages, loadMessages, loadProtocols, loadUnreadCounts, selectedProtocolId]);
 
   const sendMessage = async () => {
     if (!activeOrganizationId || !user?.id || !selectedProtocol || !canSendMessages
