@@ -2262,10 +2262,46 @@ Deno.serve(async request => {
         });
       }
 
+      // Consultar o protocolo aberto antes de oferecer uma nova mensagem.
+      // Leitura somente: não assumir, encaminhar nem criar protocolo nesta etapa.
+      let activeProtocol: { protocol: string; is_att: boolean; operator_id: string | null; operator_name: string | null } | null = null;
+      if (await hasOrganizationPermission("sac_digital.messages.view")) {
+        try {
+          const activeList = await apiRequest(
+            organizationId, credentials,
+            `/contact/info/protocols?p=1&id=${encodeURIComponent(externalContactId)}`,
+            { method: "GET" },
+          );
+          if (activeList.response.ok && activeList.body.status !== false && Array.isArray(activeList.body.list)) {
+            for (const row of activeList.body.list) {
+              if (!row || typeof row !== "object" || row.is_open !== true || row.closed_at) continue;
+              const protocolId = String(row.protocol || "").trim();
+              if (!validProtocol(protocolId)) continue;
+              const check = await apiRequest(organizationId, credentials,
+                `/protocol/info?protocol=${encodeURIComponent(protocolId)}`, { method: "GET" });
+              const info = check.body.info;
+              if (!check.response.ok || check.body.status === false || !info || typeof info !== "object"
+                || info.is_open !== true || info.closed_at) continue;
+              const operator = info.operator && typeof info.operator === "object" ? info.operator : {};
+              activeProtocol = {
+                protocol: protocolId,
+                is_att: info.is_att === true,
+                operator_id: String(operator.id || info.operator_id || "").trim() || null,
+                operator_name: String(operator.name || info.operator_name || "").trim() || null,
+              };
+              break;
+            }
+          }
+        } catch {
+          // Uma falha da leitura não deve impedir o uso do contato existente.
+        }
+      }
+
       return json({
         success: true,
         prepared: true,
         imported,
+        active_protocol: activeProtocol,
         whatsapp_available: whatsappAvailable,
         contact: {
           external_contact_id: externalContactId,
@@ -2451,6 +2487,43 @@ Deno.serve(async request => {
       }
       if (accessBinding.accessMode === 'operator' && openProtocol.operatorId
         && openProtocol.operatorId !== accessBinding.id) return conflictResponse(openProtocol);
+
+      // Encaminhar um contato pode criar o protocolo na fila ANTES de ele estar
+      // selecionado pelo Operador. Confirmar a seleção antes de enviar a
+      // primeira mensagem evita mostrar "Aguardando / Pegar atendimento"
+      // depois de uma conversa já iniciada pela Union.
+      if (accessBinding.accessMode === "operator" && !openProtocol.isAtt) {
+        if (!(await hasOrganizationPermission("sac_digital.protocols.manage"))) {
+          return json({
+            success: false, type: "operator_selection_required",
+            protocol: openProtocol.protocol,
+            error: "O protocolo foi aberto, mas seu perfil não pode selecionar atendimentos. Nenhuma mensagem foi enviada.",
+          }, 403);
+        }
+        const selected = await runResourceOperation(73, { protocol: openProtocol.protocol });
+        if (!selected.success) {
+          return json({
+            success: false,
+            type: selected.type || "operator_selection_pending",
+            protocol: openProtocol.protocol,
+            outcome: selected.outcome,
+            error: selected.outcome === "unknown"
+              ? "A seleção do atendimento ainda não foi confirmada. Nenhuma mensagem foi enviada; confira o protocolo antes de tentar novamente."
+              : selected.error || "A SAC não confirmou a seleção do atendimento. Nenhuma mensagem foi enviada.",
+          }, selected.outcome === "unknown" ? 502 : 409);
+        }
+        await recordConfirmedOperation(openProtocol.protocol, {
+          status: "in_att",
+          operator_id: accessBinding.id,
+          operator_name: accessBinding.name,
+        });
+        openProtocol = {
+          ...openProtocol,
+          isAtt: true,
+          operatorId: accessBinding.id,
+          operatorName: accessBinding.name,
+        };
+      }
       const conversationRoute = newConversationRoute(accessBinding.accessMode,openProtocol);
       if (conversationRoute !== 'operator' && conversationRoute !== 'client') {
         return json({success:false,type:'operator_required_to_send',protocol:openProtocol.protocol,error:'O protocolo está sob atendimento operacional. Vincule um Operador SAC autorizado para enviar a primeira mensagem; nenhuma notificação foi enviada.'},409);
