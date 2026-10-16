@@ -228,6 +228,15 @@ export function SacDigitalNewConversationDialog({
         message,
         channel,
       );
+      if (result.mode === "existing") {
+        // Corrida entre a preparação e o envio: nunca enviar novamente
+        // quando a SAC já possui um protocolo para o contato.
+        if (await onOpenExisting(result.protocol)) {
+          reset();
+          onClose();
+        }
+        return;
+      }
       // O envio já foi confirmado pela SAC. Uma falha no refresh da tela
       // nunca pode ser tratada como falha de envio, evitando duplicação.
       reset();
