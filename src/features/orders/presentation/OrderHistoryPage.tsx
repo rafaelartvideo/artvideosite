@@ -75,15 +75,23 @@ export function OrderHistoryPage({
     canManage || selected.created_by === user?.id ||
     selected.assigned_employee_ids.some(id => myEmployeeIds.includes(id))
   ));
-  const linkedOrder = canCreateWorkItem
+  const linkedOrder = sameOrganization && order?.customer_id
     ? { id: orderId, os_number: order.os_number, customer_id: order.customer_id as string }
     : undefined;
+  const authorOptions = useMemo(() => {
+    const authors = new Map(history.authorOptions.map(person => [person.id, person.name]));
+    for (const item of linkedItems) {
+      if (item.created_by && !authors.has(item.created_by)) authors.set(item.created_by, "Equipe");
+    }
+    return Array.from(authors, ([id, name]) => ({ id, name }))
+      .sort((left, right) => left.name.localeCompare(right.name, "pt-BR"));
+  }, [history.authorOptions, linkedItems]);
   const entries = useMemo(() => {
     const activityEntries = linkedItems.map(item => ({
       id: "work-" + item.id,
       type: "work" as const,
       authorId: item.created_by,
-      author: history.authorOptions.find(person => person.id === item.created_by)?.name || "Equipe",
+      author: authorOptions.find(person => person.id === item.created_by)?.name || "Equipe",
       title: item.kind === "commitment" ? "Compromisso" : "Tarefa",
       content: [item.title, item.description].filter(Boolean).join("\n"),
       createdAt: item.created_at,
@@ -95,7 +103,7 @@ export function OrderHistoryPage({
     )].sort((left, right) =>
       (new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()) * (history.sort === "asc" ? 1 : -1)
     );
-  }, [history.entries, history.authorOptions, history.userFilter, history.dateFilter, history.sort, linkedItems]);
+  }, [history.entries, authorOptions, history.userFilter, history.dateFilter, history.sort, linkedItems]);
   const createActivity = (kind: WorkKind) => {
     setSelectedWorkItem(null);
     setNewKind(kind);
@@ -126,7 +134,7 @@ export function OrderHistoryPage({
                 className="w-full min-w-0 text-xs font-medium normal-case"
                 options={[
                   { value: "", label: "Todos os usuários" },
-                  ...history.authorOptions.map(author => ({ value: author.id, label: author.name })),
+                  ...authorOptions.map(author => ({ value: author.id, label: author.name })),
                   { value: "system", label: "Sistema" },
                 ]}
               />
