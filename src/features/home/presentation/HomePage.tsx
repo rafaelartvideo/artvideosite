@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import {
   ArrowRight, ClipboardList, FileText, Search, Settings2,
-  ShieldCheck, ShoppingCart, Star, Store, Wrench,
+  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote,
 } from "lucide-react";
 import { useBrands, useFeaturedProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard, ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -142,7 +142,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
         {productsLoading ? <div aria-live="polite" className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Array.from({length: 4}, (_, i) => <div key={i} className="h-72 animate-pulse rounded-lg border border-slate-200 bg-slate-100"/>)}</div>
         : featuredProducts.length > 0 ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {featuredProducts.slice(0, 4).map(product => <ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct}/>)}
-        </div> : <div className="rounded-lg border border-dashed border-[#d7e3f4] bg-[#f8fbff] p-8 text-center text-sm text-[#64748b]">Os produtos destacados no CRM aparecerão aqui.</div>}
+        </div> : <div className="rounded-lg border border-dashed border-[#d7e3f4] bg-[#f8fbff] p-8 text-center text-sm text-[#64748b]">Novidades e produtos em destaque chegarão em breve. Confira nossa loja.</div>}
       </div>
     </section>
 
@@ -159,7 +159,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
         {servicesLoading ? <div aria-live="polite" className="grid gap-4 md:grid-cols-3">{Array.from({length: 3}, (_, i) => <div key={i} className="h-52 animate-pulse rounded-lg bg-slate-200"/>)}</div>
         : featuredServices.length > 0 ? <div className="grid gap-4 md:grid-cols-3">
           {featuredServices.map(service => <FeaturedService key={service.id} service={service} appearance={display[service.id]} onOpen={onSelectService}/>)}
-        </div> : <div className="rounded-lg border border-dashed border-[#d7e3f4] bg-white p-8 text-center text-sm text-[#64748b]">Os serviços publicados no CRM aparecerão aqui.</div>}
+        </div> : <div className="rounded-lg border border-dashed border-[#d7e3f4] bg-white p-8 text-center text-sm text-[#64748b]">Conheça nossos serviços e fale com a equipe para encontrar a melhor solução.</div>}
       </div>
     </section>
 
@@ -195,7 +195,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
         {brandsLoading ? <div aria-live="polite" className="mt-4 h-16 animate-pulse rounded-lg bg-slate-100"/> :
           brands.length > 0 ? <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-5 lg:grid-cols-10">
             {brands.slice(0, 10).map(brand => <BrandCard key={brand.id} brand={brand}/>)}
-          </div> : <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-[#64748b]">As marcas cadastradas no CRM aparecerão aqui.</p>}
+          </div> : <p className="mt-4 rounded-lg bg-slate-50 p-4 text-sm text-[#64748b]">Conheça as marcas e equipamentos que atendemos.</p>}
       </div>
     </section>
 
@@ -212,6 +212,29 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
             {i < steps.length - 1 && <ArrowRight aria-hidden="true" size={17} className="absolute -right-3 top-3 hidden text-[#a6b7d2] lg:block"/>}
           </div>)}
         </div>
+      </div>
+    </section>
+
+    {/* Exemplos temporários e identificados, sem fingir avaliações reais. */}
+    <section className="border-t border-[#e8eef7] bg-[#f8fbff] py-10 sm:py-12">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div className="mb-6">
+          <PublicHeading>{t("home_testimonials_title", "Uma experiência de atendimento que faz diferença")}</PublicHeading>
+          <p className="mt-1 text-[13px] text-[#617088]">{t("home_testimonials_subtitle", "Cuidado, transparência e atenção em cada atendimento.")}</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {[
+            "Atendimento atencioso e explicações claras em cada etapa.",
+            "Facilidade para tirar dúvidas e acompanhar o serviço.",
+            "Produtos e soluções pensados para o que você realmente precisa.",
+          ].map((message, index) => <div key={index}
+            className="rounded-[8px] border border-[#e3eaf4] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
+            <Quote size={24} className="text-[var(--art-primary)]" strokeWidth={1.7}/>
+            <p className="mt-3 text-[13px] leading-[1.7] text-[#42546e]">“{message}”</p>
+            <p className="mt-4 border-t border-[#edf1f7] pt-3 text-[11px] font-medium text-[#7b8aa0]">Texto ilustrativo</p>
+          </div>)}
+        </div>
+        <p className="mt-3 text-[11px] text-[#8693a6]">Estes textos são exemplos visuais e não representam depoimentos de clientes. Serão substituídos por avaliações reais.</p>
       </div>
     </section>
 

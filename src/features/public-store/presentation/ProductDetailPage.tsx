@@ -101,11 +101,10 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     setShippingError(""); setShipping(null); setSelectedShippingId("");
     const digits = postalCode.replace(/\D/g, "");
     if (!/^\d{8}$/.test(digits)) { setShippingError("Informe um CEP válido com 8 dígitos."); return; }
-    if (!extras?.shippable) { setShippingError("Este produto ainda não possui peso e dimensões cadastrados para calcular o frete."); return; }
     setShippingLoading(true);
     try {
       const result = await quoteStoreShipping(productId, selectedQty, digits);
-      if (!result.length) throw new Error("Nenhuma transportadora atende este CEP no momento.");
+      if (!result.length) throw new Error("Ainda não fazemos entregas para este CEP. Tente outro endereço.");
       setShipping({ key: shipKey, options: result });
       setSelectedShippingId(result[0].id);
     } catch (e) { setShippingError(e instanceof Error ? e.message : "Não foi possível calcular o frete."); }
@@ -212,21 +211,21 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
           <div className="mt-6 space-y-3 border-t border-[#e0e8f2] pt-5">
             <div className="flex items-center gap-3 text-[12px] text-[#53637a]"><ShieldCheck size={19} className="text-[var(--art-primary)]"/> Compra processada pelo provedor de pagamento.</div>
             <div className="flex items-center gap-3 text-[12px] text-[#53637a]"><Truck size={19} className="text-[var(--art-primary)]"/> Entrega calculada para o seu CEP.</div>
-            <div className="flex items-center gap-3 text-[12px] text-[#53637a]"><BadgeCheck size={19} className="text-[var(--art-primary)]"/> Estoque vinculado ao cadastro do CRM.</div>
+            <div className="flex items-center gap-3 text-[12px] text-[#53637a]"><BadgeCheck size={19} className="text-[var(--art-primary)]"/> Atendimento e suporte da Eletrônica Artvideo.</div>
           </div>
           {askUrl && <a href={askUrl} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 text-[13px] font-bold text-[var(--art-primary)] hover:underline"><MessageCircle size={18}/> Perguntar sobre este produto</a>}
         </div>
 
         {/* Caixa de compra */}
         <aside className="rounded-[9px] border border-[#e0e8f2] bg-white p-5 shadow-sm lg:sticky lg:top-[95px]">
-          <div className="mb-5 flex items-start gap-2 text-[13px] text-[#45617e]"><Truck size={21} className="shrink-0 text-[var(--art-primary)]"/><span><strong className="block text-[#0b1d37]">Entrega para seu endereço</strong> Calcule o frete e escolha uma transportadora.</span></div>
+          <div className="mb-5 flex items-start gap-2 text-[13px] text-[#45617e]"><Truck size={21} className="shrink-0 text-[var(--art-primary)]"/><span><strong className="block text-[#0b1d37]">Entrega para seu endereço</strong> Digite seu CEP para consultar se entregamos no seu endereço.</span></div>
           <label className="text-[12px] font-bold text-[#2f445f]" htmlFor="product-cep">CEP de entrega</label>
           <form onSubmit={e => { e.preventDefault(); void quoteShipping(); }} className="mt-2 flex gap-2">
             <input id="product-cep" inputMode="numeric" value={postalCode} maxLength={9} onChange={e => { setPostalCode(e.target.value.replace(/[^\d-]/g,"").slice(0,9)); setSelectedShippingId(""); }} placeholder="00000-000" className={inputClass}/>
             <button type="submit" disabled={shippingLoading || !canBuy} className="shrink-0 rounded-md bg-[#e8f1fe] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-200 disabled:opacity-50">{shippingLoading ? "..." : "Calcular"}</button>
           </form>
           {shippingError && <p role="alert" className="mt-2 text-[12px] leading-5 text-red-600">{shippingError}</p>}
-          {options.length > 0 && <fieldset className="mt-4 space-y-2"><legend className="mb-2 text-[12px] font-bold">Opções de frete</legend>
+          {options.length > 0 && <fieldset className="mt-4 space-y-2"><legend className="mb-2 text-[12px] font-bold">Entrega disponível</legend>
             {options.map(option => <label key={option.id} className={`flex cursor-pointer items-start gap-2 rounded-md border p-3 transition-colors hover:bg-blue-50 ${selectedShippingId === option.id ? "border-[var(--art-primary)] bg-[#f4f8ff]" : "border-[#dce7f3]"}`}>
               <input type="radio" name="shipping" checked={selectedShippingId === option.id} onChange={() => setSelectedShippingId(option.id)} className="mt-1 accent-blue-600"/>
               <span className="min-w-0 flex-1 text-[11px] leading-5 text-[#53637a]"><strong className="block text-[12px] text-[#0b1d37]">{option.company} · {option.name}</strong>{option.deliveryDays !== null ? `Até ${option.deliveryDays} dias úteis (estimativa)` : "Prazo sob consulta"}</span>
@@ -278,7 +277,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         {extras?.reviewCount ? <div className="mt-5 flex items-center gap-3 rounded-lg border border-[#e5ecf5] bg-white p-5">
           <strong className="text-[35px] text-[#0b1d37]">{extras.rating.toFixed(1)}</strong>
           <div><div className="flex gap-0.5">{reviewStars(extras.rating)}</div><p className="mt-1 text-[12px] text-[#60738c]">{extras.reviewCount} avaliações publicadas</p></div>
-        </div> : <div className="mt-5 rounded-lg border border-[#e5ecf5] bg-white p-6 text-[13px] text-[#63748b]">Este produto ainda não tem avaliações publicadas. As avaliações serão exibidas após compras verificadas e moderação.</div>}
+        </div> : <div className="mt-5 rounded-lg border border-[#e5ecf5] bg-white p-6 text-[13px] text-[#63748b]">Este produto ainda não recebeu avaliações. Seja o primeiro cliente a compartilhar sua experiência após a compra.</div>}
         {Boolean(extras?.reviews.length) && <div className="mt-4 grid gap-3 md:grid-cols-2">
           {(showAllReviews ? extras!.reviews : extras!.reviews.slice(0,4)).map(review => <article key={review.id} className="rounded-lg border border-[#e5ecf5] bg-white p-5">
             <div className="flex flex-wrap items-center gap-2"><strong className="text-[13px]">{review.author}</strong>{review.verified_purchase && <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-1 text-[10px] font-bold text-green-700"><BadgeCheck size={13}/> Compra verificada</span>}</div>
@@ -290,7 +289,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         {Boolean(extras?.reviews.length && extras.reviews.length > 4) && <button type="button" onClick={() => setShowAllReviews(v => !v)} className="mt-4 text-[13px] font-bold text-[var(--art-primary)] hover:underline">{showAllReviews ? "Mostrar menos" : "Ver mais avaliações"}</button>}
         <form onSubmit={sendReview} className="mt-7 rounded-lg border border-[#e5ecf5] bg-white p-5">
           <h3 className="text-[16px] font-extrabold text-[#0b1d37]">Avaliar minha compra</h3>
-          <p className="mt-1 text-[12px] leading-5 text-[#64748b]">Para garantir avaliações autênticas, informe o código de um pedido pago e o e-mail usado nele. Sua avaliação passa por moderação.</p>
+          <p className="mt-1 text-[12px] leading-5 text-[#64748b]">Comprou este produto? Use o código do pedido e seu e-mail para compartilhar sua experiência.</p>
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <label className="text-[12px] font-bold">Código do pedido *
               <input required minLength={36} maxLength={36} className={`${inputClass} mt-1`} value={reviewOrderId} onChange={e => setReviewOrderId(e.target.value)} placeholder="Código UUID do pedido"/>

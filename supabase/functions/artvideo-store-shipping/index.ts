@@ -12,7 +12,9 @@ Deno.serve(async req => {
     const quantity = validQuantity(body.quantity);
     const zip = cleanPostalCode(body.postal_code);
     const product = await loadProduct(admin, String(body.product_id || ""));
-    const quotes = await shippingQuotes(product, quantity, zip);
+    // Produto e quantidade são validados, mas não entram no preço regional.
+    void product; void quantity;
+    const quotes = await shippingQuotes(admin, zip);
     return json({ options: quotes });
   } catch (err) {
     return json({ error: err instanceof Error ? err.message : "Não foi possível calcular o frete." }, 400);

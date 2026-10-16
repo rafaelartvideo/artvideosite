@@ -8,7 +8,7 @@ Deno.serve(async req => {
   if (req.method !== "POST") return json({ error: "Método inválido." }, 405);
   const token = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN");
   const collector = Deno.env.get("MERCADO_PAGO_COLLECTOR_ID");
-  if (!token || !collector || !Deno.env.get("MELHOR_ENVIO_TOKEN")) {
+  if (!token || !collector) {
     return json({ error: "A loja ainda está configurando o pagamento e a entrega online. Nenhum valor foi cobrado." }, 503);
   }
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
@@ -35,7 +35,7 @@ Deno.serve(async req => {
       return json({ error: "Confira os dados do comprador e endereço de entrega." }, 400);
     }
     const product = await loadProduct(admin, productId);
-    const options = await shippingQuotes(product, quantity, zip);
+    const options = await shippingQuotes(admin, zip);
     const selected = options.find(q => q.id === String(input.shipping_service_id));
     if (!selected) return json({ error: "O frete selecionado mudou. Calcule novamente antes de pagar." }, 409);
 

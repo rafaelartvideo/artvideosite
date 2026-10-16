@@ -16,7 +16,6 @@ export type StoreProductExtras = {
   rating: number;
   reviewCount: number;
   reviews: StoreProductReview[];
-  shippable: boolean;
 };
 type ServerProductExtras = {
   stock?: number | null;
@@ -24,10 +23,6 @@ type ServerProductExtras = {
   rating?: number;
   review_count?: number;
   reviews?: StoreProductReview[];
-  weight_grams?: number | null;
-  height_mm?: number | null;
-  width_mm?: number | null;
-  length_mm?: number | null;
 };
 
 export async function getStoreProductExtras(productId: string, cover: PublicMedia | null): Promise<StoreProductExtras> {
@@ -51,8 +46,6 @@ export async function getStoreProductExtras(productId: string, cover: PublicMedi
     rating: Number(extra.rating || 0),
     reviewCount: Number(extra.review_count || 0),
     reviews: Array.isArray(extra.reviews) ? extra.reviews : [],
-    shippable: [extra.weight_grams, extra.height_mm, extra.width_mm, extra.length_mm]
-      .every(value => typeof value === "number" && value > 0),
   };
 }
 
@@ -72,7 +65,7 @@ export async function quoteStoreShipping(productId: string, quantity: number, po
   if (!Array.isArray(data?.options)) throw new Error("Nenhuma opção de frete foi encontrada.");
   return data.options.filter((v: any) => typeof v.id === "string" && Number.isFinite(Number(v.price)))
     .map((v: any) => ({ id: v.id, name: String(v.name), company: String(v.company),
-      price: Number(v.price), deliveryDays: Number.isFinite(Number(v.delivery_days)) ? Number(v.delivery_days) : null }));
+      price: Number(v.price), deliveryDays: v.delivery_days == null ? null : Number.isFinite(Number(v.delivery_days)) ? Number(v.delivery_days) : null }));
 }
 
 export async function startStoreCheckout(payload: {

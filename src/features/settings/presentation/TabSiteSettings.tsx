@@ -8,6 +8,7 @@ import { BtnPrimary, InternalBackButton, PageHeader, Section } from "@/shared/ui
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { SiteShippingZones } from "./SiteShippingZones";
 
 type Field = { key: string; label: string; placeholder?: string; type?: "text" | "color" | "textarea" };
 
@@ -38,6 +39,10 @@ const groups: { title: string; subtitle?: string; fields: Field[] }[] = [
     { key: "home_products_subtitle", label: "Descrição dos produtos", placeholder: "Produtos selecionados para você." },
     { key: "home_services_title", label: "Título dos serviços", placeholder: "Serviços para sua casa e seus equipamentos" },
     { key: "home_services_subtitle", label: "Descrição dos serviços", placeholder: "Instalações, manutenções e suporte técnico..." },
+  ] },
+  { title: "Depoimentos temporários", subtitle: "Até cadastrar avaliações reais, a home mostra três textos ilustrativos, devidamente identificados.", fields: [
+    { key: "home_testimonials_title", label: "Título da seção", placeholder: "Uma experiência de atendimento que faz diferença" },
+    { key: "home_testimonials_subtitle", label: "Descrição", placeholder: "Cuidado, transparência e atenção em cada atendimento." },
   ] },
   { title: "Assistência e marcas", fields: [
     { key: "home_assistance_title", label: "Título da assistência", placeholder: "Seu equipamento apresentou algum problema?" },
@@ -123,6 +128,8 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
           {group.title === "Identidade visual" && <ImageSetting label="Enviar logo da Artvideo (opcional)" mediaId={String(settings.logo_media_id || "")} onChange={id => updateSetting("logo_media_id", id)} disabled={disabled} />}
         </div>
       </Section>)}
+
+      <SiteShippingZones canUpdate={canUpdate} />
 
       <Section title="Imagens institucionais">
         <p className="mb-4 text-sm text-muted-foreground">Troque as imagens das páginas Sobre nós e Assistência técnica. Enquanto não houver imagem, um degradê aparecerá no lugar.</p>

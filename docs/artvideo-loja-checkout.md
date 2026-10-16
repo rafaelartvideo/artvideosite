@@ -4,10 +4,11 @@ Implementação exclusiva do site público da Eletrônica Artvideo. **Não é ma
 
 ## Publicação com segurança
 
-1. No projeto Supabase do CRM (não o da Fila), execute **na ordem** no SQL Editor:
+1. No projeto Supabase do CRM (não o da Fila), execute **na ordem** no SQL Editor (migrações abaixo já aplicadas no ambiente atual):
    - `supabase/migrations/20261016151500_artvideo_public_product_storefront.sql`
    - `supabase/migrations/20261016152500_artvideo_store_checkout_orders.sql`
-2. Publique as três Edge Functions no mesmo projeto:
+   - `supabase/migrations/20261016172000_artvideo_shipping_postal_zones.sql`
+2. Publique as três Edge Functions no mesmo projeto (implantadas no projeto atual, mas dependem de configuração privada):
    - `artvideo-store-shipping`
    - `artvideo-store-checkout`
    - `artvideo-store-webhook`
@@ -16,8 +17,6 @@ Implementação exclusiva do site público da Eletrônica Artvideo. **Não é ma
    - `MERCADO_PAGO_ACCESS_TOKEN`: token privado do vendedor Artvideo.
    - `MERCADO_PAGO_COLLECTOR_ID`: identificação da conta recebedora para verificar webhooks.
    - `MERCADO_PAGO_WEBHOOK_SECRET`: segredo da assinatura configurado no painel Mercado Pago.
-   - `MELHOR_ENVIO_TOKEN`: token da conta que fará a cotação de transportadoras.
-   - `ARTVIDEO_SHIPPING_ORIGIN_CEP`: CEP de origem do estoque com 8 dígitos.
    - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`: fornecidos pelo ambiente Supabase; nunca expor publicamente.
 4. No painel Mercado Pago, habilite o webhook do evento **payment**:
    `https://<PROJECT_REF>.supabase.co/functions/v1/artvideo-store-webhook`.
@@ -28,15 +27,21 @@ Implementação exclusiva do site público da Eletrônica Artvideo. **Não é ma
    - webhook duplicado/reentregue e recibos;
    - divergência de pagamento e reconciliação manual;
    - movimento de estoque e relatórios de caixa/finanças;
-   - cotação do Melhor Envio com itens volumosos e prazos.
+   - cotação pela tabela própria: CEP único, faixa, sobreposição e CEP não atendido.
 
 ## Regras de integração
 
-- Preços, quantidade disponível e cotações são recalculados no servidor.
+- Preços, quantidade disponível e frete por CEP são recalculados no servidor.
+- Regras de frete são cadastradas em **Configurações do Site → Entrega local · CEPs e valores**.
+- Regras podem abranger um CEP único ou intervalo numérico inclusivo. O menor intervalo que contém o CEP prevalece.
+- Valor zero corresponde a frete grátis. O preço é por pedido, não por peso/dimensão.
+- CEPs sem regra ativa não são atendidos; nenhum CEP é liberado automaticamente.
+- Não é usado Melhor Envio nem peso e dimensões para tarifação regional.
+- ViaCEP é utilizado apenas como preenchimento opcional de endereço do comprador, sem calcular entrega.
 - Pedido reserva saldo disponível por até 20 min. O estoque físico só é baixado com pagamento confirmado no Mercado Pago.
 - A baixa e o registro de movimento de estoque ocorrem na mesma transação SQL.
 - Se um pagamento for confirmado quando não há estoque, ou o valor não conferir, ele ficará em `manual_review`; a equipe deverá analisar e **reembolsar quando necessário**. Não deve ser tratado como venda finalizada.
-- Não existe integração automática com emissão de nota fiscal, escolha de etiqueta ou contratação da postagem: essas etapas exigem implementação e testes específicos.
+- A Artvideo realiza a própria entrega local. Logística, impressão de etiquetas, emissão de NF e comprovantes de entrega ainda exigem implementação e testes específicos.
 - Avaliações exigem pedido pago, e-mail correspondente e aprovação. Não é correto preencher notas iniciais artificialmente.
 - O segredo do gateway deve pertencer à **conta de vendas da Artvideo**, não à conta intermediadora do marketplace.
 

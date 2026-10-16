@@ -35,49 +35,23 @@ export async function loadProduct(admin: any, productId: string): Promise<Produc
   if (error || !product || Number(product.price) <= 0) throw new Error("Produto indisponível para compra.");
   return product as ProductData;
 }
-export type ShippingQuote = { id: string; name: string; company: string; price: number; delivery_days: number | null };
-export async function shippingQuotes(product: ProductData, quantity: number, zip: string): Promise<ShippingQuote[]> {
-  const token = Deno.env.get("MELHOR_ENVIO_TOKEN");
-  const from = Deno.env.get("ARTVIDEO_SHIPPING_ORIGIN_CEP");
-  if (!token || !from || !/^\d{8}$/.test(from)) {
-    throw new Error("A cotação de frete ainda não foi configurada pela Artvideo.");
+export type ShippingQuote = {
+  id: string; name: string; company: string; price: number; delivery_days: number | null;
+};
+
+/** Frete regional calculado exclusivamente pelas faixas/CEPs da Artvideo. */
+export async function shippingQuotes(admin: any, zip: string): Promise<ShippingQuote[]> {
+  const { data, error } = await admin.rpc("artvideo_shipping_quote_v1", { p_cep: zip });
+  if (error) throw new Error("Não foi possível consultar a entrega para este CEP.");
+  if (!data) return [];
+  if (!Number.isFinite(Number(data.price)) || Number(data.price) < 0) {
+    throw new Error("A tarifa de entrega está indisponível.");
   }
-  const measures = [product.gross_weight_grams, product.height_mm, product.width_mm, product.length_mm];
-  if (measures.some(value => !Number.isFinite(Number(value)) || Number(value) <= 0)) {
-    throw new Error("Este produto precisa de peso e medidas cadastrados antes da venda online.");
-  }
-  const payload = {
-    from: { postal_code: from },
-    to: { postal_code: zip },
-    products: [{
-      id: product.id,
-      width: Math.max(2, Math.ceil(Number(product.width_mm) / 10)),
-      height: Math.max(2, Math.ceil(Number(product.height_mm) / 10)),
-      length: Math.max(2, Math.ceil(Number(product.length_mm) / 10)),
-      weight: Math.max(0.3, Number((Number(product.gross_weight_grams) / 1000).toFixed(3))),
-      insurance_value: Number(product.price),
-      quantity,
-    }],
-  };
-  const response = await fetch("https://www.melhorenvio.com.br/api/v2/me/shipment/calculate", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${token}`, "Content-Type": "application/json",
-      "Accept": "application/json", "User-Agent": "EletronicaArtvideo/1.0 (suporte@eletronicaartvideo.com.br)",
-    },
-    body: JSON.stringify(payload),
-    signal: AbortSignal.timeout(16000),
-  });
-  if (!response.ok) throw new Error("Não foi possível consultar as transportadoras.");
-  const data = await response.json();
-  if (!Array.isArray(data)) throw new Error("Resposta de frete inválida.");
-  return data.filter((row: any) => !row.error && Number.isFinite(Number(row.custom_price ?? row.price))
-      && Number(row.custom_price ?? row.price) >= 0)
-    .map((row: any) => ({
-      id: String(row.id), name: String(row.name ?? "Entrega"),
-      company: String(row.company?.name ?? "Transportadora"),
-      price: Math.round(Number(row.custom_price ?? row.price)*100)/100,
-      delivery_days: Number.isFinite(Number(row.custom_delivery_time ?? row.delivery_time))
-        ? Number(row.custom_delivery_time ?? row.delivery_time) : null,
-    })).slice(0, 10);
+  return [{
+    id: String(data.id),
+    name: String(data.name || "Entrega regional"),
+    company: "Artvideo",
+    price: Number(data.price),
+    delivery_days: data.delivery_days == null ? null : Number(data.delivery_days),
+  }];
 }
