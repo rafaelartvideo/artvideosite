@@ -2506,41 +2506,55 @@ Deno.serve(async request => {
       if (accessBinding.accessMode === 'operator' && openProtocol.operatorId
         && openProtocol.operatorId !== accessBinding.id) return conflictResponse(openProtocol);
 
-      // Encaminhar um contato pode criar o protocolo na fila ANTES de ele estar
-      // selecionado pelo Operador. Confirmar a seleção antes de enviar a
-      // primeira mensagem evita mostrar "Aguardando / Pegar atendimento"
-      // depois de uma conversa já iniciada pela Union.
-      if (accessBinding.accessMode === "operator" && !openProtocol.isAtt) {
-        if (!(await hasOrganizationPermission("sac_digital.protocols.manage"))) {
-          return json({
-            success: false, type: "operator_selection_required",
-            protocol: openProtocol.protocol,
-            error: "O protocolo foi aberto, mas seu perfil não pode selecionar atendimentos. Nenhuma mensagem foi enviada.",
-          }, 403);
+      // O encaminhamento pode criar primeiro uma posição na fila. Só
+      // enviar depois de confirmar uma sessão operacional do Operador atual.
+      if (accessBinding.accessMode === "operator") {
+        for (let attempt = 0; attempt < 3 && !openProtocol.isAtt; attempt += 1) {
+          await new Promise(resolve => setTimeout(resolve, 350 * (attempt + 1)));
+          try {
+            const refreshed = await findOpenProtocol();
+            if (refreshed?.protocol === openProtocol.protocol) openProtocol = refreshed;
+          } catch { /* Não presumir que houve seleção. */ }
         }
-        const selected = await runResourceOperation(73, { protocol: openProtocol.protocol });
-        if (!selected.success) {
+        if (!openProtocol.isAtt) {
           return json({
-            success: false,
-            type: selected.type || "operator_selection_pending",
-            protocol: openProtocol.protocol,
-            outcome: selected.outcome,
-            error: selected.outcome === "unknown"
-              ? "A seleção do atendimento ainda não foi confirmada. Nenhuma mensagem foi enviada; confira o protocolo antes de tentar novamente."
-              : selected.error || "A SAC não confirmou a seleção do atendimento. Nenhuma mensagem foi enviada.",
-          }, selected.outcome === "unknown" ? 502 : 409);
+            success: false, type: "protocol_selection_pending", protocol: openProtocol.protocol,
+            error: "A SAC abriu o protocolo, mas ainda não confirmou o atendimento operacional. Nenhuma mensagem foi enviada. Abra o protocolo e confira a situação.",
+          }, 409);
         }
+        if (!openProtocol.operatorId) {
+          if (!(await hasOrganizationPermission("sac_digital.protocols.manage"))) {
+            return json({
+              success: false, type: "operator_selection_required", protocol: openProtocol.protocol,
+              error: "O protocolo foi aberto, mas seu perfil não pode selecionar atendimentos. Nenhuma mensagem foi enviada.",
+            }, 403);
+          }
+          const selected = await runResourceOperation(73, { protocol: openProtocol.protocol });
+          if (!selected.success) {
+            return json({
+              success: false,
+              type: selected.type || "operator_selection_pending",
+              protocol: openProtocol.protocol,
+              outcome: selected.outcome,
+              error: selected.outcome === "unknown"
+                ? "A seleção do atendimento ainda não foi confirmada. Nenhuma mensagem foi enviada; confira o protocolo antes de tentar novamente."
+                : selected.error || "A SAC não confirmou a seleção do atendimento. Nenhuma mensagem foi enviada.",
+            }, selected.outcome === "unknown" ? 502 : 409);
+          }
+          openProtocol = {
+            ...openProtocol,
+            isAtt: true,
+            operatorId: accessBinding.id,
+            operatorName: accessBinding.name,
+          };
+        }
+        // Estado de atendimento confirmado pela SAC. Uma projeção antiga
+        // não deve fazer a conversa reaparecer na fila.
         await recordConfirmedOperation(openProtocol.protocol, {
           status: "in_att",
-          operator_id: accessBinding.id,
-          operator_name: accessBinding.name,
+          operator_id: openProtocol.operatorId,
+          operator_name: openProtocol.operatorName,
         });
-        openProtocol = {
-          ...openProtocol,
-          isAtt: true,
-          operatorId: accessBinding.id,
-          operatorName: accessBinding.name,
-        };
       }
       const conversationRoute = newConversationRoute(accessBinding.accessMode,openProtocol);
       if (conversationRoute !== 'operator' && conversationRoute !== 'client') {
