@@ -33,6 +33,7 @@ export function useAdminNotifications(
     enabled,
     queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50),
     staleTime: 5 * 60_000,
+    retry: false,
   });
 
   useEffect(() => {
