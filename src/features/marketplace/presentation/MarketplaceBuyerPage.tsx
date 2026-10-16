@@ -10,6 +10,7 @@ import {
   type MarketplaceBuyer, type MarketplaceServiceRequest, type MarketplaceBuyerProposal,
 } from "../infrastructure/marketplace-requests.repository";
 import { loadPublicMarketplaceListing, type MarketplaceCategory, type MarketplaceListing } from "../infrastructure/marketplace.repository";
+import { InlineLoading, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 
 type Props = { mode: "account" | "request"; categories: MarketplaceCategory[] };
 const input = "mt-1.5 h-11 w-full min-w-0 rounded-lg border border-[#dce2ec] bg-white px-3 text-sm text-[#16243c] outline-none focus:border-[#1032dc]";
@@ -284,7 +285,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
       </div>}
       {error && <div role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      {initializing || profileLoading ? <div className="flex min-h-52 items-center justify-center text-sm text-[#738097]">Carregando sua conta...</div>
+      {initializing || profileLoading ? <LoadingState text="Carregando sua conta..." />
         : !user ? <div className="max-w-md space-y-5">
           <div className="flex gap-2 border-b border-[#e4e8f0] pb-3">
             <button type="button" onClick={() => { setRegister(false); setError(""); }} className={register ? secondary : primary}>Entrar</button>
@@ -320,7 +321,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
             {profile && <button type="button" className={secondary} onClick={() => { setEditingProfile(false); setError(""); }}>Cancelar</button>}
           </div>
         </form> : mode === "request" ? <form onSubmit={submitRequest} className="space-y-5">
-          {sourceLoading && <p className="text-sm text-[#738097]">Carregando serviço de referência...</p>}
+          {sourceLoading && <InlineLoading text="Carregando serviço de referência..." />}
           {sourceListing && <div className="flex items-center justify-between gap-3 rounded-lg bg-[#eff2ff] px-4 py-3 text-sm text-[#253fb8]">
             <span><strong>Serviço selecionado:</strong> {sourceListing.title}</span>
             <button type="button" onClick={() => { setSourceListing(null); navigate("/marketplace/solicitar", { replace: true }); }} aria-label="Remover serviço de referência"><X size={16} /></button>
@@ -368,7 +369,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
             <h2 className="flex items-center gap-2 text-lg font-black"><ClipboardList size={20} /> Minhas solicitações</h2>
             <button className={primary} type="button" onClick={() => navigate("/marketplace/solicitar")}><Plus size={16} /> Nova solicitação</button>
           </div>
-          {requestsLoading ? <div className="py-12 text-center text-sm text-[#738097]">Carregando solicitações...</div>
+          {requestsLoading ? <LoadingState text="Carregando solicitações..." />
             : requests.length === 0 ? <div className="rounded-lg bg-[#f6f8fc] px-4 py-10 text-center text-sm text-[#738097]">Você ainda não publicou solicitações.</div>
             : <div className="divide-y divide-[#e6eaf2]">
               {requests.map(item => <div key={item.id} className="space-y-2 py-4 first:pt-0">
