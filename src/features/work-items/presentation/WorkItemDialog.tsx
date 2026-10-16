@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, CalendarClock, CheckCircle2, Circle, ClipboardList, History, Plus, Search, Trash2, Users } from "lucide-react";
-import { cn } from "@/shared/domain/formatters";
+import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
+import { useAuth } from "@/lib/auth";
+import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
+import { WorkItemDateTimeField } from "./WorkItemDateTimeField";
+import { WorkItemReadonlyDetails } from "./WorkItemReadonlyDetails";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -52,7 +56,7 @@ const toDraft = (item: WorkItem) => ({
 });
 const fieldLabel = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground";
 const selectClass = cn(INPUT, "h-10 w-full text-sm");
-type WorkCustomer = { id: string; full_name: string; trade_name: string | null; whatsapp: string | null };
+type WorkCustomer = { id: string; full_name: string; trade_name: string | null; document: string | null; cnpj: string | null; phone: string | null; whatsapp: string | null };
 
 export function WorkItemDialog({
   open, item, initialKind = "task", organizationId, employees, canEdit, onClose, onSaved,
@@ -61,12 +65,17 @@ export function WorkItemDialog({
   canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem) => void;
 }) {
   const queryClient = useQueryClient();
+  const { hasPermission } = useAuth();
+  const canCreateCustomer = hasPermission("customers.create");
+  const isFinalized = item?.status === "completed" || item?.status === "cancelled";
   const [draft, setDraft] = useState<WorkItemDraft>(emptyDraft);
   const [section, setSection] = useState<"details" | "checklist" | "history">("details");
   const [saving, setSaving] = useState(false);
   const [customerSearch, setCustomerSearch] = useState("");
   const [customerResults, setCustomerResults] = useState<WorkCustomer[]>([]);
-  const [customerName, setCustomerName] = useState("");
+  const [customerInfo, setCustomerInfo] = useState<WorkCustomer | null>(null);
+  const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
+  const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [orderOptions, setOrderOptions] = useState<{ id: string; os_number: number | string }[]>([]);
   const [checklistTitle, setChecklistTitle] = useState("");
   const [detailBusy, setDetailBusy] = useState(false);
@@ -77,21 +86,28 @@ export function WorkItemDialog({
     setSection("details");
     setCustomerSearch("");
     setCustomerResults([]);
-    setCustomerName(item?.customer?.trade_name || item?.customer?.full_name || "");
+    setCustomerInfo(item?.customer || null);
+    setQuickCustomerOpen(false);
+    setSearchingCustomer(false);
     setOrderOptions([]);
     setChecklistTitle("");
   }, [open, item?.id, initialKind]);
 
   useEffect(() => {
-    if (!open || !organizationId || !customerSearch.trim() || customerSearch.trim().length < 2 || draft.customer_id) return;
+    if (!open || isFinalized || !organizationId || !customerSearch.trim() || customerSearch.trim().length < 2 || draft.customer_id) {
+      setSearchingCustomer(false);
+      return;
+    }
     let alive = true;
+    setSearchingCustomer(true);
     const timer = window.setTimeout(() => {
       void findWorkCustomers(organizationId, customerSearch)
-        .then(results => { if (alive) setCustomerResults(results as WorkCustomer[]); })
-        .catch(error => { if (alive) notifyAdmin(error.message || "Não foi possível buscar clientes.", "error"); });
+.then(results => { if (alive) setCustomerResults(results as WorkCustomer[]); })
+        .catch(error => { if (alive) notifyAdmin(error.message || "Não foi possível buscar clientes.", "error"); })
+        .finally(() => { if (alive) setSearchingCustomer(false); });
     }, 300);
     return () => { alive = false; window.clearTimeout(timer); };
-  }, [open, organizationId, customerSearch, draft.customer_id]);
+  }, [open, organizationId, customerSearch, draft.customer_id, isFinalized]);
 
   useEffect(() => {
     if (!open || !draft.customer_id) { setOrderOptions([]); return; }
@@ -112,7 +128,7 @@ export function WorkItemDialog({
     setDraft(current => ({ ...current, [key]: value }));
   };
   const save = async () => {
-    if (!canEdit || saving || !organizationId) return;
+    if (!canEdit || isFinalized || saving || !organizationId) return;
     if (draft.title.trim().length < 3) { notifyAdmin("Informe um título com pelo menos 3 caracteres.", "error"); return; }
     if (draft.starts_at && draft.due_at && draft.starts_at > draft.due_at) {
       notifyAdmin("O prazo não pode ser anterior ao início.", "error"); return;
@@ -131,7 +147,7 @@ export function WorkItemDialog({
   };
 
   const mutateChecklist = async (action: () => Promise<void>) => {
-    if (!item || !canEdit || detailBusy) return;
+    if (!item || !canEdit || isFinalized || detailBusy) return;
     setDetailBusy(true);
     try {
       await action();
@@ -152,11 +168,11 @@ export function WorkItemDialog({
   };
   const counts = details.data?.checklist || [];
   const done = counts.filter(check => check.done).length;
-  const isEditable = canEdit;
+  const isEditable = canEdit && !isFinalized;
 
   return <AdminDialog
     open={open} onClose={() => { if (!saving) onClose(); }}
-    title={item ? "Detalhes da atividade" : "Nova atividade"}
+    title={item ? (isFinalized ? "Detalhes da atividade" : "Editar atividade") : "Nova atividade"}
     description={item ? (item.kind === "commitment" ? "Compromisso registrado" : "Tarefa da equipe") : "Registre tarefas e compromissos em um só lugar"}
     minimizedDescription={draft.title || "Compromissos e Tarefas"}
     className="max-w-3xl"
@@ -179,7 +195,7 @@ export function WorkItemDialog({
         })}
       </div>}
 
-      {section === "details" && <div className="space-y-4">
+      {section === "details" && (isFinalized ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
         {!item && <div className="space-y-2">
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Começar com um modelo</p>
           <div className="flex flex-wrap gap-2">
@@ -306,7 +322,7 @@ export function WorkItemDialog({
             </select>
           </div>}
         </div>
-      </div>}
+      </div>)}
 
       {section === "checklist" && <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
@@ -319,15 +335,15 @@ export function WorkItemDialog({
         </div>
         {details.isPending && <InlineLoading text="Carregando etapas..." />}
         {counts.map(check => <div key={check.id} className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5">
-          <button type="button" disabled={!canEdit || detailBusy} aria-label={check.done ? "Reabrir etapa" : "Concluir etapa"}
+          <button type="button" disabled={!isEditable || detailBusy} aria-label={check.done ? "Reabrir etapa" : "Concluir etapa"}
             onClick={() => void mutateChecklist(() => updateWorkChecklistItem(organizationId, check.id, !check.done))}
             className="text-primary">{check.done ? <CheckCircle2 size={20} className="text-emerald-500" /> : <Circle size={20} />}</button>
           <span className={cn("min-w-0 flex-1 text-sm", check.done && "text-muted-foreground line-through")}>{check.label}</span>
-          {canEdit && <button type="button" disabled={detailBusy} aria-label="Excluir etapa" title="Excluir etapa"
+          {isEditable && <button type="button" disabled={detailBusy} aria-label="Excluir etapa" title="Excluir etapa"
             className="text-muted-foreground hover:text-destructive"
             onClick={() => void mutateChecklist(() => removeWorkChecklistItem(organizationId, check.id))}><Trash2 size={15} /></button>}
         </div>)}
-        {canEdit && <div className="flex gap-2">
+        {isEditable && <div className="flex gap-2">
           <input value={checklistTitle} className={INPUT} placeholder="Adicionar etapa ao checklist"
             onChange={event => setChecklistTitle(event.target.value)}
             onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addChecklist(); } }} />
