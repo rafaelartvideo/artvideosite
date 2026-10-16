@@ -12,7 +12,7 @@ import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/p
 import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   addWorkChecklistItem, addWorkChecklistItems, findCustomerWorkOrders, findWorkCustomers, findWorkOrders, loadWorkDetails,
-  removeWorkChecklistItem, saveWorkItem, updateWorkChecklistItem,
+  removeWorkChecklistItem, saveWorkItem, updateWorkChecklistItem, updateWorkStatus,
   type WorkEmployee, type WorkItem, type WorkItemDraft, type WorkOrderOption, type WorkOutcome, type WorkPriority,
   type WorkStatus,
 } from "../infrastructure/work-items.repository";
@@ -63,10 +63,10 @@ function CustomerSummary({ customer }: { customer: WorkCustomer }) {
 }
 
 export function WorkItemDialog({
-  open, item, initialKind = "task", organizationId, employees, canEdit, onClose, onSaved,
+  open, item, initialKind = "task", organizationId, employees, canEdit, canPerform, onClose, onSaved,
 }: {
   open: boolean; item: WorkItem | null; initialKind?: "task" | "commitment"; organizationId: string; employees: WorkEmployee[];
-  canEdit: boolean; onClose: () => void; onSaved: (item: WorkItem) => void;
+  canEdit: boolean; canPerform: boolean; onClose: () => void; onSaved: (item: WorkItem) => void;
 }) {
   const queryClient = useQueryClient();
   const { hasPermission } = useAuth();
@@ -162,7 +162,7 @@ export function WorkItemDialog({
     setDraft(current => ({ ...current, [key]: value }));
   };
   const save = async () => {
-    if (!canEdit || isFinalized || saving || !organizationId) return;
+    if ((!canEdit && !canPerform) || isFinalized || saving || !organizationId) return;
     if (draft.title.trim().length < 3) { notifyAdmin("Informe um título com pelo menos 3 caracteres.", "error"); return; }
     if (draft.starts_at && draft.due_at && draft.starts_at > draft.due_at) {
       notifyAdmin("O prazo não pode ser anterior ao início.", "error"); return;
@@ -172,7 +172,9 @@ export function WorkItemDialog({
     }
     setSaving(true);
     try {
-      const saved = await saveWorkItem(organizationId, draft, item?.id);
+      const saved = item && !canEdit && canPerform
+        ? await updateWorkStatus(organizationId, item, draft.status, draft.outcome)
+        : await saveWorkItem(organizationId, draft, item?.id);
       if (!item && stagedChecklist.length) {
         try {
           await addWorkChecklistItems(organizationId, saved.id, stagedChecklist);
@@ -190,7 +192,7 @@ export function WorkItemDialog({
   };
 
   const mutateChecklist = async (action: () => Promise<void>) => {
-    if (!item || !canEdit || isFinalized || detailBusy) return;
+    if (!item || (!canEdit && !canPerform) || isFinalized || detailBusy) return;
     setDetailBusy(true);
     try {
       await action();
@@ -225,6 +227,7 @@ export function WorkItemDialog({
   };
   const done = counts.filter(check => check.done).length;
   const isEditable = canEdit && !isFinalized;
+  const isPerformable = canPerform && !isFinalized;
   const customerDocumentDigits = customerSearch.replace(/\D/g, "");
 
   return <><AdminDialog
@@ -235,7 +238,7 @@ export function WorkItemDialog({
     className="max-w-3xl h-[min(780px,calc(100dvh-1.5rem))]"
     footer={<div className="flex justify-end gap-2">
       <BtnSecondary disabled={saving} onClick={onClose}>Fechar</BtnSecondary>
-      {isEditable && <BtnPrimary onClick={() => { void save(); }} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+      {(isEditable || (item && isPerformable)) && <BtnPrimary onClick={() => { void save(); }} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </div>}
   >
     <div className="space-y-4 text-foreground">
@@ -281,7 +284,7 @@ export function WorkItemDialog({
         ))}
       </div>
 
-      {section === "details" && (isFinalized ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
+      {section === "details" && (isFinalized || (!isEditable && !isPerformable) ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
         <div className="space-y-2">
           <label className={fieldLabel}>Cliente / OS vinculada <span className="font-normal normal-case text-muted-foreground">(opcional)</span></label>
           <div className="grid grid-cols-2 gap-2">
@@ -422,7 +425,7 @@ export function WorkItemDialog({
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div><label className={fieldLabel}>Andamento</label>
-            <select className={selectClass} value={draft.status} disabled={!isEditable}
+            <select className={selectClass} value={draft.status} disabled={!isPerformable}
               onChange={event => set("status", event.target.value as WorkStatus)}>
               {STATUS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
@@ -435,7 +438,7 @@ export function WorkItemDialog({
           </div>
           {draft.kind === "commitment" && draft.status === "completed" && <div className="sm:col-span-2">
             <label className={fieldLabel}>Resultado do compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
-            <select className={selectClass} value={draft.outcome || ""} disabled={!isEditable}
+            <select className={selectClass} value={draft.outcome || ""} disabled={!isPerformable}
               onChange={event => set("outcome", (event.target.value || null) as WorkOutcome | null)}>
               <option value="">Selecione o resultado</option>
               {OUTCOME.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
@@ -538,7 +541,7 @@ export function WorkItemDialog({
         </div>
         {details.isPending && <InlineLoading text="Carregando etapas..." />}
         {counts.map(check => <div key={check.id} className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5">
-          <button type="button" disabled={!isEditable || detailBusy} aria-label={check.done ? "Reabrir etapa" : "Concluir etapa"}
+          <button type="button" disabled={!isPerformable || detailBusy} aria-label={check.done ? "Reabrir etapa" : "Concluir etapa"}
             onClick={() => void mutateChecklist(() => updateWorkChecklistItem(organizationId, check.id, !check.done))}
             className="text-primary">{check.done ? <CheckCircle2 size={20} className="text-emerald-500" /> : <Circle size={20} />}</button>
           <span className={cn("min-w-0 flex-1 text-sm", check.done && "text-muted-foreground line-through")}>{check.label}</span>
