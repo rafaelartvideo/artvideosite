@@ -476,7 +476,20 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos"
       title="Cadastro de equipamentos" subtitle="Configure os dados e os vínculos do equipamento">
       <div className="space-y-5 p-4 sm:p-5">
+        <div role="tablist" aria-label="Seções do cadastro de equipamento" className="flex flex-wrap gap-1 border-b border-border">
+          {([
+            ["general", "Geral"],
+            ["checklist", "Checklist"],
+            ["brands", "Marcas e modelos"],
+          ] as const).map(([key, label]) => <button key={key} type="button" role="tab"
+            aria-selected={editorSection === key} onClick={() => setEditorSection(key)}
+            className={"border-b-2 px-4 py-2.5 text-xs font-bold transition-colors " + (editorSection === key
+              ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            {label}
+          </button>)}
+        </div>
         {drafts.map((type, ti) => <div key={`${type.id || "new"}-${ti}`} className="space-y-5">
+          {editorSection === "general" && <>
           <Section title="Equipamento">
             <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
               <FInput label="Nome do equipamento" required error={hierarchyErrors[`type-${ti}`]}
@@ -495,7 +508,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </Section>
 
           <Section title="Serviços vinculados"
-            className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header>div:last-child]:!max-w-full"
+            className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header]:gap-3 [&_.admin-card-header>div:last-child]:!max-w-full"
             actions={canCreateGeneralService && (type.id ? canEdit : canCreate)
               ? <EquipmentServiceCreate onCreate={name => openNewService(ti, name)}
                   disabled={saving || equipmentServicesQuery.isPending || !serviceSettings?.available} /> : undefined}>
@@ -538,7 +551,9 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
             </div>
           </Section>}
 
-          {catalog && <Section title="Checklist">
+          </>}
+
+          {editorSection === "checklist" && catalog && <Section title="Checklist">
             <EquipmentChecklistSection draft={type} catalog={catalog}
               onChange={patch => updateDraft(ti, patch)}
               errorFor={(field, ci) => field === "profile"
@@ -557,16 +572,17 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               }} />
           </Section>}
 
-          <Section title="Marcas" className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header>div:last-child]:!max-w-full"
+          {editorSection === "brands" && <>
+          <Section title="Marcas" className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header]:gap-3 [&_.admin-card-header>div:last-child]:!max-w-full"
             actions={canCreate ? <EquipmentBrandCreate disabled={saving}
-              onCreate={name => toggleDraftBrand(ti, name, true)} /> : undefined}>
+              onCreate={() => { setQuickBrandIndex(ti); setQuickBrandName(""); setQuickBrandError(""); }} /> : undefined}>
             <EquipmentBrandSelector
               draft={type} choices={brandChoices} canEdit={canEdit} canCreate={canCreate}
               onToggleBrand={(name, checked) => toggleDraftBrand(ti, name, checked)}
             />
           </Section>
 
-          <Section title="Modelos" className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header>div:last-child]:!max-w-full"
+          <Section title="Modelos" className="[&_.admin-card-header]:flex-wrap [&_.admin-card-header]:gap-3 [&_.admin-card-header>div:last-child]:!max-w-full"
             actions={canCreate ? <EquipmentModelCreate disabled={saving} brands={type.brands}
               onCreate={(bi, name) => addModel(ti, bi, name)} /> : undefined}>
             <EquipmentModelsSelector
@@ -580,6 +596,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               }}
             />
           </Section>
+          </>}
         </div>)}
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-border bg-background px-4 py-4 sm:px-5">
@@ -640,13 +657,31 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         <FInput label="Nome da marca" required value={editedBrandName} maxLength={120}
           disabled={savingBrandEdit} error={editBrandError}
           onChange={(event: any) => { setEditedBrandName(event.target.value); setEditBrandError(""); }} />
-        <div className="text-xs text-muted-foreground">
-          Equipamentos: {editingBrandName ? [...new Set(brands
-            .filter(brand => brandKey(brand.name) === brandKey(editingBrandName))
-            .map(brand => types.find(type => type.id === brand.equipment_type_id)?.name)
-            .filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "pt-BR")).join(", ") : "—"}
+        <div>
+          <p className="mb-2 text-xs font-bold text-foreground">Equipamentos</p>
+          <div className="grid max-h-64 grid-cols-1 gap-x-4 overflow-y-auto sm:grid-cols-2">
+            {types.filter(type => type.is_active || editBrandEquipmentIds.includes(type.id))
+              .sort((a, b) => Number(editBrandEquipmentIds.includes(b.id)) - Number(editBrandEquipmentIds.includes(a.id))
+                || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
+              .map(type => <label key={type.id} className="flex cursor-pointer items-center gap-3 py-3 text-xs text-foreground">
+                <Checkbox checked={editBrandEquipmentIds.includes(type.id)} disabled={savingBrandEdit || !type.is_active}
+                  onCheckedChange={checked => { setEditBrandEquipmentIds(current => checked === true
+                    ? [...new Set([...current, type.id])] : current.filter(id => id !== type.id)); setEditBrandError(""); }} />
+                <span className="min-w-0 flex-1 font-semibold">{type.name}</span>
+              </label>)}
+          </div>
         </div>
       </div>
+    </AdminDialog>
+    <AdminDialog open={quickBrandIndex !== null && formOpen && canCreate}
+      onClose={() => setQuickBrandIndex(null)} title="Adicionar marca" className="max-w-md"
+      footer={<div className="flex justify-end gap-2">
+        <BtnSecondary onClick={() => setQuickBrandIndex(null)}>Cancelar</BtnSecondary>
+        <BtnPrimary onClick={addQuickBrand}>Adicionar</BtnPrimary>
+      </div>}>
+      <FInput label="Nome da marca" required value={quickBrandName} maxLength={120}
+        error={quickBrandError} placeholder="Nome da marca"
+        onChange={(event: any) => { setQuickBrandName(event.target.value); setQuickBrandError(""); }} />
     </AdminDialog>
     <AdminDialog
       open={brandFormOpen && canCreate}
@@ -665,12 +700,12 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           placeholder="Nome da marca" />
         <div>
           <p className="mb-2 text-xs font-bold text-foreground">Equipamentos</p>
-          <div className="grid max-h-64 grid-cols-1 gap-x-4 overflow-y-auto border-y border-border sm:grid-cols-2">
+          <div className="grid max-h-64 grid-cols-1 gap-x-4 overflow-y-auto sm:grid-cols-2">
             {types.filter(type => type.is_active).sort((a, b) =>
               Number(brandEquipmentIds.includes(b.id)) - Number(brandEquipmentIds.includes(a.id))
               || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })
             ).map(type => (
-              <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border py-3 text-xs text-foreground">
+              <label key={type.id} className="flex cursor-pointer items-center gap-3 py-3 text-xs text-foreground">
                 <Checkbox checked={brandEquipmentIds.includes(type.id)} disabled={savingBrand}
                   onCheckedChange={checked => {
                     setBrandEquipmentIds(current => checked === true
