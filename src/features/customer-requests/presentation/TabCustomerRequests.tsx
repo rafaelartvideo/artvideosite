@@ -390,7 +390,7 @@ export function TabCustomerRequests() {
             <DetailValue title="E-mail">{detailCustomer?.email || "—"}</DetailValue>
           </div>
           <div className="mt-5 border-t border-border pt-4">
-            <DetailValue title="Endereço">{detailLoading ? "Carregando..." : primaryAddressLabel(detailCustomer)}</DetailValue>
+            <DetailValue title="Endereço">{detailLoading ? <InlineLoading text="Carregando endereço..." /> : primaryAddressLabel(detailCustomer)}</DetailValue>
           </div>
         </Section>
         <Section title="Pedido" description="Solicitação registrada pelo atendente.">
