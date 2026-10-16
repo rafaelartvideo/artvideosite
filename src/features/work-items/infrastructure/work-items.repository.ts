@@ -24,7 +24,7 @@ export type WorkItem = {
   completed_at: string | null;
   created_at: string;
   updated_at: string;
-  customer?: { id: string; full_name: string; trade_name: string | null; whatsapp: string | null } | null;
+  customer?: { id: string; full_name: string; trade_name: string | null; document: string | null; cnpj: string | null; phone: string | null; whatsapp: string | null } | null;
   service_order?: { id: string; os_number: number | string } | null;
   checklist?: Array<{ done: boolean }>;
 };
@@ -32,7 +32,7 @@ export type WorkEmployee = { id: string; full_name: string; profile_id: string |
 export type WorkChecklist = { id: string; work_item_id: string; label: string; done: boolean; sort_order: number };
 export type WorkActivity = { id: number; work_item_id: string; actor_user_id: string | null; action: string; note: string | null; created_at: string };
 
-const itemFields = "*,customer:customers(id,full_name,trade_name,whatsapp),service_order:service_orders(id,os_number),checklist:work_item_checklist(done)";
+const itemFields = "*,customer:customers(id,full_name,trade_name,document,cnpj,phone,whatsapp),service_order:service_orders(id,os_number),checklist:work_item_checklist(done)";
 
 export async function loadWorkItems(organizationId: string): Promise<WorkItem[]> {
   const { data, error } = await supabase.from("work_items")
@@ -63,7 +63,7 @@ export async function findWorkCustomers(organizationId: string, term: string) {
   }
   if (!clauses.length) return [];
   const { data, error } = await supabase.from("customers")
-    .select("id,full_name,trade_name,whatsapp")
+    .select("id,full_name,trade_name,document,cnpj,phone,whatsapp")
     .eq("organization_id", organizationId).or(clauses.join(","))
     .limit(6);
   if (error) throw error;
