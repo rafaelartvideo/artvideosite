@@ -8,6 +8,7 @@ import { WorkItemDateTimeField } from "./WorkItemDateTimeField";
 import { WorkItemReadonlyDetails } from "./WorkItemReadonlyDetails";
 import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   addWorkChecklistItem, findCustomerWorkOrders, findWorkCustomers, loadWorkDetails,
@@ -79,6 +80,7 @@ export function WorkItemDialog({
   const [customerInfo, setCustomerInfo] = useState<WorkCustomer | null>(null);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
   const [searchingCustomer, setSearchingCustomer] = useState(false);
+  const [customerSearchResolved, setCustomerSearchResolved] = useState("");
   const [orderOptions, setOrderOptions] = useState<{ id: string; os_number: number | string }[]>([]);
   const [checklistTitle, setChecklistTitle] = useState("");
   const [detailBusy, setDetailBusy] = useState(false);
@@ -92,6 +94,7 @@ export function WorkItemDialog({
     setCustomerInfo(item?.customer || null);
     setQuickCustomerOpen(false);
     setSearchingCustomer(false);
+    setCustomerSearchResolved("");
     setOrderOptions([]);
     setChecklistTitle("");
   }, [open, item?.id, initialKind]);
@@ -105,7 +108,7 @@ export function WorkItemDialog({
     setSearchingCustomer(true);
     const timer = window.setTimeout(() => {
       void findWorkCustomers(organizationId, customerSearch)
-        .then(results => { if (alive) setCustomerResults(results as WorkCustomer[]); })
+        .then(results => { if (alive) { setCustomerResults(results as WorkCustomer[]); setCustomerSearchResolved(customerSearch); } })
         .catch(error => { if (alive) notifyAdmin(error.message || "Não foi possível buscar clientes.", "error"); })
         .finally(() => { if (alive) setSearchingCustomer(false); });
     }, 300);
@@ -229,26 +232,32 @@ export function WorkItemDialog({
               setCustomerInfo(null); setCustomerSearch(""); setCustomerResults([]);
             }}>Trocar</BtnSecondary>}
           </div> : <div className="space-y-2">
-            <div className="flex min-w-0 items-center gap-2">
+            <Popover open={customerResults.length > 0 && !draft.customer_id} onOpenChange={value => { if (!value) setCustomerResults([]); }}>
+              <PopoverAnchor asChild><div className="flex min-w-0 items-center gap-2">
               <div className="relative min-w-0 flex-1">
                 <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input className={cn(INPUT, "w-full pl-9")} disabled={!isEditable} value={customerSearch}
-                  onChange={event => { setCustomerSearch(event.target.value); setCustomerResults([]); }}
+                  onChange={event => { setCustomerSearch(event.target.value); setCustomerSearchResolved(""); setCustomerResults([]); }}
                   placeholder="Nome, CPF ou CNPJ" />
               </div>
               {canCreateCustomer && isEditable && <AdminButton variant="tertiary" size="sm" className="min-h-10 shrink-0" onClick={() => setQuickCustomerOpen(true)}>
                 <Plus size={14} /> Cadastrar
               </AdminButton>}
-            </div>
-            {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
-            {customerResults.length > 0 && <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1">
+              </div></PopoverAnchor>
+              <PopoverContent align="start" side="bottom" sideOffset={4} collisionPadding={12}
+                onOpenAutoFocus={event => event.preventDefault()}
+                className="z-[220] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] border-border bg-popover p-1 text-popover-foreground shadow-xl">
+              <div className="max-h-48 space-y-0.5 overflow-y-auto">
               {customerResults.map(customer => <button key={customer.id} type="button"
                 onClick={() => { set("customer_id", customer.id); setCustomerInfo(customer); setCustomerResults([]); setCustomerSearch(""); }}
                 className="block w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted">
                 <CustomerSummary customer={customer} />
               </button>)}
-            </div>}
-            {customerSearch.trim().length >= 2 && !searchingCustomer && !customerResults.length && <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>}
+              </div>
+              </PopoverContent>
+            </Popover>
+            {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
+            {customerSearch.trim().length >= 2 && customerSearchResolved === customerSearch && !searchingCustomer && !customerResults.length && <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>
           </div>}
           {draft.customer_id && <div className="pt-1">
             <label className={fieldLabel}>OS vinculada (opcional)</label>
