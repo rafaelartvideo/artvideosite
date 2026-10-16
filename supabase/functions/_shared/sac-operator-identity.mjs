@@ -17,39 +17,21 @@ export function operatorIdFromAccessToken(token) {
  } catch {return '';}
 }
 
-// /operator/perfil/info does not promise an id. When the provider gives
-// no id, use one unique authenticated email in this company's directory.
-// A matching OAuth subject is a fallback only for a successful Operator profile.
-export async function assertOperatorIdentity(profile,expectedId,loadOperators,accessToken) {
- const info=profile?.info;
- if(!info || typeof info!=='object' || Array.isArray(info)) throw failure('operator_auth_contract_unverified','A SAC não confirmou os dados do perfil autorizado.');
+// The SAC may authorize an Operator without returning ID or email.
+// The OAuth state already binds consent to this Union user and Operator link.
+// The callback validates the SAC Operator profile before invoking this helper.
+// Only an explicit, conflicting provider ID prevents saving a valid grant.
+export async function assertOperatorIdentity(profile,expectedId) {
  const boundId=idKey(expectedId);
  if(!boundId) throw failure('operator_auth_contract_unverified','O vínculo do Operador está incompleto na Union.');
- const ids=[info.id,info.operator_id,info.operator?.id].map(idKey).filter(Boolean);
- if(new Set(ids).size>1) throw failure('operator_auth_contract_unverified','A SAC retornou identificadores conflitantes para o Operador.');
- if(ids.length) {
-  if(ids[0]!==boundId) throw failure('operator_identity_mismatch','A conta autorizada não corresponde ao Operador vinculado. Entre na SAC com o Operador correto.');
-  return boundId;
+ if(!profile || typeof profile!=='object' || Array.isArray(profile) || profile.status===false || profile.success===false) {
+  throw failure('operator_profile_incompatible','A SAC não aceitou o perfil de Operador.');
  }
- const emails=[info.email,info.operator?.email,info.user?.email].map(emailKey).filter(Boolean);
- if(new Set(emails).size>1) throw failure('operator_auth_contract_unverified','A SAC retornou e-mails conflitantes para o perfil autorizado.');
- if(emails.length) {
-  const email=emails[0];
-  if(!email.includes('@')) throw failure('operator_auth_contract_unverified','A SAC não confirmou um e-mail válido do Operador.');
-  let operators;
-  try {operators=await loadOperators();} catch {throw failure('operator_session_unavailable','Não foi possível conferir o cadastro de Operadores da SAC. Tente novamente.');}
-  if(!Array.isArray(operators)) throw failure('operator_session_unavailable','A SAC não retornou o cadastro de Operadores.');
-  const matches=operators.filter(row=>row && emailKey(row.email)===email);
-  if(matches.length!==1 || !idKey(matches[0].id)) throw failure('operator_auth_contract_unverified','O perfil autorizado não possui uma identificação única no cadastro de Operadores da SAC.');
-  if(idKey(matches[0].id)!==boundId) throw failure('operator_identity_mismatch','A conta autorizada não corresponde ao Operador vinculado. Entre na SAC com o Operador correto.');
-  return boundId;
- }
- if(operatorIdFromAccessToken(accessToken)===boundId) return boundId;
- // SAC's authenticated Operator profile can omit ID and email. OAuth grant,
- // successful /operator/perfil/info and server-bound User/Operator grant suffice
- // to save the session; explicit contradictory provider IDs still reject it.
- if(profile?.status===true || profile?.success===true) return boundId;
- throw failure('operator_auth_contract_unverified','A SAC não confirmou o perfil autorizado.');
+ const info=profile.info && typeof profile.info==='object' && !Array.isArray(profile.info)?profile.info:null;
+ const ids=info?[info.id,info.operator_id,info.operator?.id].map(idKey).filter(Boolean):[];
+ if(new Set(ids).size>1) throw failure('operator_auth_contract_unverified','A SAC retornou IDs conflitantes para o Operador.');
+ if(ids.length && ids[0]!==boundId) throw failure('operator_identity_mismatch','A conta autorizada não corresponde ao Operador vinculado. Entre na SAC com o Operador correto.');
+ return boundId;
 }
 
 export async function fetchSacOperatorDirectory(credentials,fetcher=fetch,clientToken) {
