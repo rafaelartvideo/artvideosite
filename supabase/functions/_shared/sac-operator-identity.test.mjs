@@ -11,24 +11,20 @@ test('a durable Client token reads the directory without creating a new login',a
  },'cached');
  assert.deepEqual(list,operators);assert.equal(paths.length,1);assert.ok(paths.every(path=>!path.includes('auth2/login')));
 });
-test('profile without id matches the unique authenticated email against the company Operator directory',async()=>{
- assert.equal(await assertOperatorIdentity(profile,'op',async()=>operators),'op');
+test('valid SAC Operator profile accepts missing or unverifiable email without a directory lookup',async()=>{
+ assert.equal(await assertOperatorIdentity({status:true,info:{name:'Atendente'}},'op'),'op');
+ assert.equal(await assertOperatorIdentity({status:true,info:{email:'different@example.test'}},'op'),'op');
+ assert.equal(await assertOperatorIdentity({status:true},'op'),'op');
 });
-test('explicit provider id remains authoritative and cannot be replaced by matching email',async()=>{
- let called=false;
- await assert.rejects(assertOperatorIdentity({info:{id:'other',email:profile.info.email}},'op',async()=>{called=true;return operators;}),e=>e.code==='operator_identity_mismatch');
- assert.equal(called,false);
-});
-test('another Operator email rejects the session even if the display name is identical',async()=>{
- await assert.rejects(assertOperatorIdentity(profile,'op',async()=>[{id:'other',name:'Atendente',email:profile.info.email}]),e=>e.code==='operator_identity_mismatch');
-});
-test('missing, unmatched and ambiguous emails never authorize an Operator',async()=>{
- for(const [p,rows] of [[{info:{name:'Atendente'}},operators],[profile,[]],[profile,[...operators,{...operators[0],id:'other'}]]]) {
-  await assert.rejects(assertOperatorIdentity(p,'op',async()=>rows),e=>e.code==='operator_auth_contract_unverified');
+test('explicit different or contradictory provider IDs cannot authorize the binding',async()=>{
+ for(const info of [{id:'other'},{operator_id:'other'},{operator:{id:777}}]) {
+  await assert.rejects(assertOperatorIdentity({status:true,info},'op'),e=>e.code==='operator_identity_mismatch');
  }
+ await assert.rejects(assertOperatorIdentity({status:true,info:{id:'one',operator_id:'two'}},'one'),e=>e.code==='operator_auth_contract_unverified');
 });
-test('directory unavailable is an authentication failure before any attendance action',async()=>{
- await assert.rejects(assertOperatorIdentity(profile,'op',async()=>{throw Error('private provider details');}),e=>e.code==='operator_session_unavailable'&&!e.message.includes('private'));
+test('provider profile rejection and empty Union Operator binding still stop authorization',async()=>{
+ await assert.rejects(assertOperatorIdentity({status:false,info:{}},'op'),e=>e.code==='operator_profile_incompatible');
+ await assert.rejects(assertOperatorIdentity({status:true,info:{name:'Atendente'}},''),e=>e.code==='operator_auth_contract_unverified');
 });
 test('directory uses application credentials only to read Operators, preserving all pages',async()=>{
  const seen=[];
@@ -49,30 +45,13 @@ test('directory failures and missing list stop the lookup instead of authorizing
  }
 });
 
-test('accepts numeric Operator IDs and trusted provider alternate fields',async()=>{
- assert.equal(await assertOperatorIdentity({info:{id:123}},'123',async()=>{throw Error('directory not needed');}),'123');
- assert.equal(await assertOperatorIdentity({info:{operator_id:'op'}},'op',async()=>{throw Error('directory not needed');}),'op');
- assert.equal(await assertOperatorIdentity({info:{user:{email:'OPERATOR@example.test'}}},'op',async()=>operators),'op');
- assert.equal(await assertOperatorIdentity({info:{email:'Operator@Example.Test'}},'123',async()=>[{id:123,email:'operator@example.test'}]),'123');
+test('numeric and nested provider IDs still match valid binding',async()=>{
+ assert.equal(await assertOperatorIdentity({status:true,info:{id:123}},'123'),'123');
+ assert.equal(await assertOperatorIdentity({status:true,info:{operator_id:'op'}},'op'),'op');
+ assert.equal(await assertOperatorIdentity({status:true,info:{operator:{id:'op'}}},'op'),'op');
 });
-test('a verified Operator profile can match an OAuth subject when SAC omits profile id and email',async()=>{
- const token='h.'+Buffer.from(JSON.stringify({sub:'op'})).toString('base64url')+'.s';
- assert.equal(await assertOperatorIdentity({info:{name:'Atendente'}},'op',async()=>{throw Error('directory not needed');},token),'op');
- await assert.rejects(assertOperatorIdentity({info:{name:'Atendente'}},'op',async()=>[], 'h.'+Buffer.from(JSON.stringify({sub:'other'})).toString('base64url')+'.s'),e=>e.code==='operator_auth_contract_unverified');
-});
-test('OAuth subject never overrides a conflicting provider profile ID or ambiguous operator emails',async()=>{
- const token='h.'+Buffer.from(JSON.stringify({sub:'op'})).toString('base64url')+'.s';
- await assert.rejects(assertOperatorIdentity({info:{id:'other',email:'operator@example.test'}},'op',async()=>operators,token),e=>e.code==='operator_identity_mismatch');
- await assert.rejects(assertOperatorIdentity({info:{email:'a@example.test',user:{email:'b@example.test'}}},'op',async()=>operators,token),e=>e.code==='operator_auth_contract_unverified');
-});
-
-test('accepted SAC Operator profile without ID or email can finish OAuth',async()=>{
- let fetched=false;
- const accepted={status:true,info:{name:'Atendente',departments:[]}};
- assert.equal(await assertOperatorIdentity(accepted,'op',async()=>{fetched=true;throw Error('directory not needed');}),'op');
- assert.equal(fetched,false);
-});
-test('missing profile acceptance and explicit different Operator ID still reject',async()=>{
- await assert.rejects(assertOperatorIdentity({status:false,info:{name:'Atendente'}},'op',async()=>[]),e=>e.code==='operator_auth_contract_unverified');
- await assert.rejects(assertOperatorIdentity({status:true,info:{id:'other'}},'op',async()=>[]),e=>e.code==='operator_identity_mismatch');
+test('a successful OAuth profile no longer needs the directory or JWT subject',async()=>{
+ const noDirectory=()=>{throw Error('Unexpected directory lookup');};
+ assert.equal(await assertOperatorIdentity({status:true,info:{email:'nonmatching@example.test'}},'op',noDirectory,'irrelevant-token'),'op');
+ assert.equal(await assertOperatorIdentity({status:true,info:{email:'a@example.test',user:{email:'b@example.test'}}},'op'),'op');
 });
