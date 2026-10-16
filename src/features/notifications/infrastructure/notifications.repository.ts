@@ -35,7 +35,7 @@ export async function loadAdminNotifications(
   const { data, error } = await supabase.rpc("load_admin_notifications_v1", {
     p_organization_id: organizationId,
     p_limit: limit,
-  });
+  }).abortSignal(AbortSignal.timeout(20_000));
   if (error) throw error;
 
   const bootstrap = (data || {}) as Record<string, unknown>;
