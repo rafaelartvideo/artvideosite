@@ -14,7 +14,7 @@ import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
-  loadWorkEmployees, loadWorkItems, subscribeWorkItems, updateWorkStatus,
+  loadWorkEmployees, loadWorkItems, updateWorkStatus,
   type WorkEmployee, type WorkItem, type WorkKind, type WorkPriority, type WorkStatus,
 } from "../infrastructure/work-items.repository";
 import { WorkItemDialog } from "./WorkItemDialog";
@@ -211,11 +211,13 @@ export function TabWorkItems() {
   const [month, setMonth] = useState(new Date());
   const [moving, setMoving] = useState("");
   const [dragOverColumn, setDragOverColumn] = useState<WorkStatus | null>(null);
+  const [recentlySavedId, setRecentlySavedId] = useState<string | null>(null);
   const queryClient = useQueryClient();
   useEffect(() => {
     setSelected(null);
     setDialogOpen(false);
     setPage(1);
+    setRecentlySavedId(null);
   }, [organizationId]);
 
   const itemQuery = useQuery({
@@ -230,13 +232,6 @@ export function TabWorkItems() {
     queryFn: () => loadWorkEmployees(organizationId),
     staleTime: 5 * 60_000,
   });
-  useEffect(() => {
-    if (!organizationId) return;
-    return subscribeWorkItems(organizationId, () => {
-      void queryClient.invalidateQueries({ queryKey: ["work-items", organizationId] });
-      if (selected?.id) void queryClient.invalidateQueries({ queryKey: ["work-item-details", organizationId, selected.id] });
-    });
-  }, [organizationId, queryClient, selected?.id]);
   useEffect(() => {
     if (itemQuery.error) notifyAdmin(itemQuery.error instanceof Error ? itemQuery.error.message : "Erro ao carregar atividades.", "error");
   }, [itemQuery.error]);
@@ -303,8 +298,23 @@ export function TabWorkItems() {
   };
   const reset = () => { setQueryText(""); setScope("all"); setKind("all"); setFilterStatus("all"); setSort("due"); setPage(1); };
   const hasFilters = Boolean(queryText || scope !== "all" || kind !== "all" || filterStatus !== "all" || sort !== "due");
-  const upcoming = filtered.filter(item => item.status !== "completed" && item.status !== "cancelled")
-    .slice(0, 6);
+  // As prioridades não dependem da ordenação/filtros da tabela.
+  // Uma atividade recém-criada aparece imediatamente, mesmo sem prazo.
+  const upcoming = all.filter(item => item.status !== "completed" && item.status !== "cancelled")
+    .sort((a, b) => {
+      if (a.id === recentlySavedId) return -1;
+      if (b.id === recentlySavedId) return 1;
+      const score = (item: WorkItem) => {
+        if (pastDue(item)) return 5;
+        if (item.priority === "urgent") return 4;
+        if (item.priority === "high") return 3;
+        if (item.due_at && new Date(item.due_at).getTime() <= Date.now() + 86400000) return 2;
+        return 1;
+      };
+      const diff = score(b) - score(a);
+      if (diff) return diff;
+      return b.created_at.localeCompare(a.created_at);
+    }).slice(0, 6);
   const completionRatio = overview.total ? Math.round(overview.completed / overview.total * 100) : 0;
 
   return <div className="min-w-0 space-y-5">
@@ -520,6 +530,7 @@ export function TabWorkItems() {
       canEdit={selected ? canEdit : canCreate}
       onClose={closeDialog}
       onSaved={saved => {
+        setRecentlySavedId(saved.id);
         queryClient.setQueryData<WorkItem[]>(["work-items", organizationId], old => {
           const records = old || [];
           return [saved, ...records.filter(entry => entry.id !== saved.id)];
