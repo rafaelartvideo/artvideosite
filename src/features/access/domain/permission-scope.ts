@@ -10,6 +10,7 @@ const PLATFORM_SHARED_PREFIXES = [
   "employees.",
   "roles.",
   "users.",
+  "work_items.",
   "technician_panel.",
   "settings.",
   "field_tracking.",
@@ -26,6 +27,7 @@ const OPERATION_MODULES = [
   "customers",
   "orders",
   "agenda",
+  "work_items",
   "inventory",
   "products",
   "equipment",
@@ -78,6 +80,7 @@ function requiredModuleKeys(key: string): readonly string[] | null {
   if (key.startsWith("customers.") || key.startsWith("registrations.")) return ["customers"];
   if (key.startsWith("employees.") || key.startsWith("roles.") || key.startsWith("users.")) return ["employees"];
   if (key.startsWith("agenda.")) return ["agenda"];
+  if (key.startsWith("work_items.")) return ["work_items"];
   // O painel técnico é uma área de OS, não um módulo de assinatura separado.
   if (key.startsWith("technician_panel.")) return ["orders"];
   if (key.startsWith("field_tracking.")) return ["field_tracking"];
