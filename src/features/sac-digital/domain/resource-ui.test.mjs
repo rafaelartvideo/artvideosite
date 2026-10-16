@@ -30,3 +30,13 @@ test('history delivery updates refresh the open conversation without reloading b
  assert.deepEqual(liveMessageChanges({eventType:'UPDATE',new:history},'other'),{selected:false,unread:false,inbox:false});
  assert.deepEqual(liveMessageChanges({eventType:'INSERT',new:{protocol_id:'current',direction:'incoming'}},'current'),{selected:true,unread:true,inbox:true});
 });
+
+test('aviso de exclusão do cliente exige confirmação do provedor e preserva texto', async () => {
+ const { messageDeletedByCustomer } = await import('./resource-ui.mjs');
+ const original = {direction:'incoming',body_text:'Mensagem original',raw_metadata:{sac_history:{by:'contact',deleted_at:'2026-10-16T13:40:00Z'}}};
+ assert.equal(messageDeletedByCustomer(original),true);
+ assert.equal(original.body_text,'Mensagem original');
+ assert.equal(messageDeletedByCustomer({direction:'incoming',body_text:'Texto',raw_metadata:{sac_history:{status:{readed_at:'2026-10-16T13:40:00Z'}}}}),false);
+ assert.equal(messageDeletedByCustomer({direction:'outgoing',raw_metadata:{sac_history:{deleted_at:'2026-10-16T13:40:00Z'}}}),false);
+ assert.equal(messageDeletedByCustomer({direction:'incoming',raw_metadata:{sac_history:{deleted_at:'2026-10-16T13:40:00Z',deleted_by:'operator'}}}),false);
+});
