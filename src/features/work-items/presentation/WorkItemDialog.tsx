@@ -291,7 +291,7 @@ export function WorkItemDialog({
             <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
               <span className="text-sm font-semibold text-foreground">OS {orderResults.find(os => os.id === draft.service_order_id)?.os_number
                 ?? orderOptions.find(os => os.id === draft.service_order_id)?.os_number
-                ?? item?.service_order?.os_number ?? "vinculada"}</span>
+                ?? (orderSearch.trim() || item?.service_order?.os_number) ?? "vinculada"}</span>
               {isEditable && <BtnSecondary size="sm" onClick={() => {
                 setDraft(current => ({ ...current, customer_id: null, service_order_id: null }));
                 setOrderSearch(""); setOrderResults([]);
@@ -316,7 +316,7 @@ export function WorkItemDialog({
                     {orderResults.map(order => <button key={order.id} type="button"
                       onClick={() => {
                         setDraft(current => ({ ...current, service_order_id: order.id, customer_id: order.customer_id }));
-                        setOrderSearch(""); setOrderResults([]);
+                        setOrderSearch(String(order.os_number)); setOrderResults([]);
                       }}
                       className="block w-full rounded-md px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted">
                       OS {order.os_number}
