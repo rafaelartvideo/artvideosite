@@ -34,13 +34,6 @@ const REMINDERS = [
   { value: 60, label: "1 hora antes" }, { value: 1440, label: "1 dia antes" },
   { value: 10080, label: "7 dias antes" },
 ];
-const toLocal = (iso: string | null) => {
-  if (!iso) return "";
-  const date = new Date(iso);
-  const offset = date.getTimezoneOffset() * 60000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-};
-const toISO = (local: string) => local ? new Date(local).toISOString() : null;
 const emptyDraft = (): WorkItemDraft => ({
   kind: "task", title: "", description: "", status: "pending", outcome: null,
   priority: "normal", category: "", starts_at: null, due_at: null,
@@ -299,13 +292,18 @@ export function WorkItemDialog({
               {OUTCOME.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
             </select>
           </div>}
-          <div><label className={fieldLabel}>Data de início</label>
-            <input type="datetime-local" className={selectClass} value={toLocal(draft.starts_at)} disabled={!isEditable}
-              onChange={event => set("starts_at", toISO(event.target.value))} />
-          </div>
-          <div><label className={fieldLabel}>Prazo / término</label>
-            <input type="datetime-local" className={selectClass} value={toLocal(draft.due_at)} disabled={!isEditable}
-              onChange={event => set("due_at", toISO(event.target.value))} />
+          <div className="space-y-3 rounded-xl border border-primary/15 bg-primary/[.035] p-3.5 sm:col-span-2">
+            <div className="flex items-center gap-2">
+              <CalendarClock size={17} className="text-primary" />
+              <span className="text-sm font-bold text-foreground">Datas e horários</span>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <WorkItemDateTimeField label="Início" value={draft.starts_at} disabled={!isEditable}
+                onChange={value => set("starts_at", value)} hint="Quando a atividade começa" />
+              <WorkItemDateTimeField label="Prazo / término" value={draft.due_at} disabled={!isEditable}
+                onChange={value => set("due_at", value)} hint="Quando deve estar concluída" />
+            </div>
+            <p className="text-[11px] text-muted-foreground">Digite o horário (HH:mm) ou selecione pela seta. A lista mostra quatro horários por vez, em intervalos de 15 minutos.</p>
           </div>
           <div className="sm:col-span-2"><label className={fieldLabel}>Categoria (opcional)</label>
             <input className={INPUT} value={draft.category} maxLength={80} disabled={!isEditable}
@@ -317,10 +315,13 @@ export function WorkItemDialog({
           <div className="flex items-center gap-2"><Users size={16} className="text-primary" /><span className="text-sm font-bold">Responsáveis</span>
             <span className="ml-auto text-xs text-muted-foreground">{draft.assigned_employee_ids.length} selecionado(s)</span>
           </div>
-          <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto sm:grid-cols-2">
-            {employees.map(employee => <label key={employee.id}
-              className={cn("flex cursor-default items-center gap-2 rounded-lg border px-2.5 py-2 text-xs transition-colors",
-                draft.assigned_employee_ids.includes(employee.id) ? "border-primary/35 bg-primary/5 text-primary" : "border-border hover:bg-muted/50")}>
+          <div className="grid max-h-48 grid-cols-1 gap-1 overflow-y-auto overscroll-contain sm:grid-cols-2">
+            {[...employees].sort((a, b) =>
+              Number(draft.assigned_employee_ids.includes(b.id)) - Number(draft.assigned_employee_ids.includes(a.id))
+              || a.full_name.localeCompare(b.full_name, "pt-BR", { sensitivity: "base" })
+            ).map(employee => <label key={employee.id}
+              className={cn("flex cursor-default items-center gap-2 rounded-md px-2.5 py-2 text-xs transition-colors",
+                draft.assigned_employee_ids.includes(employee.id) ? "bg-primary/10 text-primary" : "hover:bg-muted/50")}>
               <input type="checkbox" className="accent-primary" checked={draft.assigned_employee_ids.includes(employee.id)}
                 disabled={!isEditable} onChange={event => set("assigned_employee_ids",
                   event.target.checked
