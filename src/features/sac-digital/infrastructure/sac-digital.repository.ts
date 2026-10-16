@@ -138,7 +138,8 @@ export async function getSacDigitalFinishedProtocolCount(organizationId: string)
       .from("sac_digital_protocols")
       .select("id", { count: "exact", head: true })
       .eq("organization_id", organizationId)
-      .eq("status", "finished");
+      .eq("status", "finished")
+      .abortSignal(AbortSignal.timeout(20_000));
 
     if (error) throw error;
     return Number(count || 0);
@@ -183,7 +184,8 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
         .neq("status", "finished")
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .order("updated_at", { ascending: false })
-        .limit(1000),
+        .limit(1000)
+        .abortSignal(AbortSignal.timeout(20_000)),
       supabase
         .from("sac_digital_protocols")
         .select(selection)
@@ -191,7 +193,8 @@ export async function listSacDigitalProtocols(organizationId: string,fresh=false
         .eq("status", "finished")
         .order("last_message_at", { ascending: false, nullsFirst: false })
         .order("updated_at", { ascending: false })
-        .limit(400),
+        .limit(400)
+        .abortSignal(AbortSignal.timeout(20_000)),
     ]);
 
     if (activeResult.error) throw activeResult.error;
@@ -309,7 +312,7 @@ export async function getSacDigitalUnreadCounts(organizationId: string) {
   return singleFlight(`${organizationId}:unread`, async () => {
     const { data, error } = await supabase.rpc("get_sac_digital_unread_counts", {
       p_organization_id: organizationId,
-  });
+    }).abortSignal(AbortSignal.timeout(20_000));
   if (error) throw error;
 
   const counts: Record<string, number> = {};
