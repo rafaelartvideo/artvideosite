@@ -78,7 +78,7 @@ export function hydrateMedia(rows,urls){return rows.map(row=>row.raw_metadata?.t
 // Normalização brasileira é usada para consulta; jamais sobrescreve cadastro.
 function normalizedSacNumber(value) {
  let digits=String(value||'').replace(/\D/g,'');
- if((digits.length===10||digits.length===11)&&!digits.startsWith('55')) digits='55'+digits;
+ if(digits.length===10||digits.length===11) digits='55'+digits;
  return digits;
 }
 export function isSacNumberCandidate(value) {
