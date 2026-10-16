@@ -1,6 +1,5 @@
 import { protocolOperationalStatus, operatorCanSeeProtocolInInbox } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
-import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
 import { lazy, Suspense } from 'react';
 const SacDigitalResources = lazy(() => import('./SacDigitalResources').then(m => ({default: m.SacDigitalResources})));
 const SacDigitalContactsPage = lazy(() => import('./SacDigitalContactsPage').then(m => ({default: m.SacDigitalContactsPage})));
@@ -336,31 +335,8 @@ export function SacDigitalToolPage({
   const canViewOrders = hasPermission("orders.view");
   const canCreateOrders = hasPermission("orders.create");
 
-  useEffect(() => {
-    if (!activeOrganizationId || !canViewMessages) return;
-    let cancelled = false;
-    let running = false;
-    const reconcile = async () => {
-      if (cancelled || running || document.visibilityState === "hidden") return;
-      running = true;
-      try {
-        await syncSacDigitalResources(activeOrganizationId);
-      } catch {
-        // Webhook/worker e dados locais continuam disponíveis durante falhas.
-      } finally {
-        running = false;
-      }
-    };
-
-    // Uma reconciliação atrasada ao abrir a tela é suficiente. O worker e o
-    // webhook mantêm a integração atualizada; não repetir bootstrap completo
-    // a cada dois minutos no navegador.
-    const initialTimer = window.setTimeout(() => void reconcile(), 20_000);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(initialTimer);
-    };
-  }, [activeOrganizationId, canViewMessages]);
+  // Full SAC synchronization belongs to the existing webhook/worker.
+  // Opening Conversations must not also bootstrap unrelated resources.
   const [moduleSection, setModuleSection] = useState('conversations');
   // The initial gate is keyed to the active user and organization so a
   // previous inbox never flashes while the next session is being loaded.
