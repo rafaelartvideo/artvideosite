@@ -396,7 +396,7 @@ export function WorkItemDialog({
           )}
         </div>
         <div>
-          <label className={fieldLabel}>Título *</label>
+          <label className={fieldLabel}>Título <span className="text-red-600 dark:text-red-400">*</span></label>
           <input className={INPUT} maxLength={180} value={draft.title} disabled={!isEditable}
             placeholder={draft.kind === "commitment" ? "O que foi combinado com o cliente?" : "O que precisa ser feito?"}
             onChange={event => set("title", event.target.value)} />
@@ -420,7 +420,7 @@ export function WorkItemDialog({
             </select>
           </div>
           {draft.kind === "commitment" && draft.status === "completed" && <div className="sm:col-span-2">
-            <label className={fieldLabel}>Resultado do compromisso *</label>
+            <label className={fieldLabel}>Resultado do compromisso <span className="text-red-600 dark:text-red-400">*</span></label>
             <select className={selectClass} value={draft.outcome || ""} disabled={!isEditable}
               onChange={event => set("outcome", (event.target.value || null) as WorkOutcome | null)}>
               <option value="">Selecione o resultado</option>
@@ -434,11 +434,10 @@ export function WorkItemDialog({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <WorkItemDateTimeField label="Início" value={draft.starts_at} disabled={!isEditable}
-                onChange={value => set("starts_at", value)} hint="Quando a atividade começa" />
+                onChange={value => set("starts_at", value)} />
               <WorkItemDateTimeField label="Prazo / término" value={draft.due_at} disabled={!isEditable}
-                onChange={value => set("due_at", value)} hint="Quando deve estar concluída" />
+                onChange={value => set("due_at", value)} />
             </div>
-            <p className="text-[11px] text-muted-foreground">Digite o horário (HH:mm) ou selecione pela seta. A lista mostra quatro horários por vez, em intervalos de 15 minutos.</p>
           </div>
           <div className="sm:col-span-2"><label className={fieldLabel}>Categoria (opcional)</label>
             <input className={INPUT} value={draft.category} maxLength={80} disabled={!isEditable}
@@ -484,7 +483,37 @@ export function WorkItemDialog({
 
       </div>)}
 
-      {section === "checklist" && <div className="space-y-3">
+      {section === "checklist" && (!item ? (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-bold">Checklist da atividade</span>
+            <span className="text-xs text-muted-foreground">{stagedChecklist.length} etapa(s)</span>
+          </div>
+          {stagedChecklist.map((label, index) => (
+            <div key={index} className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5">
+              <Circle size={18} className="shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1 break-words text-sm text-foreground">{label}</span>
+              <button type="button" aria-label={`Remover etapa ${index + 1}`}
+                title="Remover etapa" disabled={!isEditable}
+                onClick={() => setStagedChecklist(current => current.filter((_, position) => position !== index))}
+                className="text-muted-foreground transition-colors hover:text-destructive disabled:opacity-40">
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
+          {isEditable && <div className="flex items-center gap-2">
+            <input value={checklistTitle} className={INPUT} maxLength={250}
+              placeholder="Adicionar etapa ao checklist"
+              onChange={event => setChecklistTitle(event.target.value)}
+              onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addStagedChecklist(); } }} />
+            <BtnPrimary disabled={!checklistTitle.trim() || stagedChecklist.length >= 50}
+              onClick={addStagedChecklist} aria-label="Adicionar etapa"><Plus size={17} /></BtnPrimary>
+          </div>}
+          {!stagedChecklist.length && <p className="py-3 text-center text-xs text-muted-foreground">
+            Adicione etapas agora; elas serão salvas junto com a atividade.
+          </p>}
+        </div>
+      ) : <div className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-bold">Etapas da atividade</span>
           <span className="text-xs text-muted-foreground">{done} de {counts.length} concluídas</span>
@@ -510,8 +539,7 @@ export function WorkItemDialog({
           <BtnPrimary disabled={detailBusy || !checklistTitle.trim()} onClick={addChecklist} aria-label="Adicionar etapa"><Plus size={17} /></BtnPrimary>
         </div>}
         {!counts.length && !details.isPending && <p className="py-4 text-center text-sm text-muted-foreground">Divida o trabalho em pequenas etapas acompanháveis.</p>}
-      </div>}
-
+      </div>)}
       {section === "history" && <div className="space-y-3">
         <p className="text-sm font-bold">Linha do tempo</p>
         {details.isPending && <InlineLoading text="Carregando histórico..." />}
