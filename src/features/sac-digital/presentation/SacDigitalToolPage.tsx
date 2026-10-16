@@ -1,4 +1,4 @@
-import { protocolOperationalStatus } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
+import { protocolOperationalStatus, operatorCanSeeProtocolInInbox } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
 import { syncSacDigitalResources } from '../infrastructure/sac-digital.repository';
 import { lazy, Suspense } from 'react';
@@ -584,13 +584,22 @@ export function SacDigitalToolPage({
     const linkedOperatorId = operatorBinding?.linked && operatorBinding.access_mode === "operator"
       ? operatorBinding.operator?.id || ""
       : "";
-    const normal = isSacManager ? protocols : !linkedOperatorId ? [] : protocols.filter(protocol => {
-      const operationalStatus = displayProtocolStatus(protocol, waitingProtocolSet);
-      if (operationalStatus === "waiting" || operationalStatus === "pending" || operationalStatus === "inbox" || operationalStatus === "abandoned") return true;
-      return protocol.operator_id === linkedOperatorId;
-    });
-    // A consulta autorizada pela OS inclui apenas o protocolo solicitado.
-    if (orderConversationPreview && !normal.some(item => item.id === orderConversationPreview.id)) {
+    const normal = isSacManager ? protocols : !linkedOperatorId ? [] : protocols.filter(protocol =>
+      operatorCanSeeProtocolInInbox(
+        displayProtocolStatus(protocol, waitingProtocolSet),
+        protocol.operator_id,
+        linkedOperatorId,
+      ),
+    );
+    // OS previews must not reintroduce an abandoned conversation assigned to
+    // another SAC Operator. Managers retain enterprise-wide access.
+    if (orderConversationPreview
+      && !normal.some(item => item.id === orderConversationPreview.id)
+      && (isSacManager || operatorCanSeeProtocolInInbox(
+        displayProtocolStatus(orderConversationPreview, waitingProtocolSet),
+        orderConversationPreview.operator_id,
+        linkedOperatorId,
+      ))) {
       return [orderConversationPreview, ...normal];
     }
     return normal;
