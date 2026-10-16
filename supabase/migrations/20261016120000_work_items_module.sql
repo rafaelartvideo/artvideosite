@@ -170,7 +170,7 @@ begin
           insert into public.organization_notifications
             (organization_id,recipient_user_id,actor_user_id,module_key,event_type,entity_type,entity_id,title,message,route)
           values(new.organization_id,v_profile,auth.uid(),'workItems','created','work_item',new.id::text,
-            'Nova atividade atribuida',new.title,'/admin/work-items');
+            'Nova atividade atribuida',new.title,'/admin/work-items?item='||new.id::text);
         end if;
       end if;
     end loop;
@@ -261,7 +261,7 @@ begin
         insert into public.organization_notifications
           (organization_id,recipient_user_id,module_key,event_type,entity_type,entity_id,title,message,route)
         values(reminder.organization_id,recipient,'workItems','created','work_item',reminder.work_item_id::text,
-          'Lembrete de atividade',reminder.title,'/admin/work-items');
+          'Lembrete de atividade',reminder.title,'/admin/work-items?item='||reminder.work_item_id::text);
       end loop;
       count_sent:=count_sent+1;
     end if;
