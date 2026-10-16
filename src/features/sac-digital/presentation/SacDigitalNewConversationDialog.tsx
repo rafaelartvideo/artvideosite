@@ -4,6 +4,7 @@ import { StructuredEditor } from './SacDigitalResources';
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, MessageCircle, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import {
   operateSacDigitalResource,
@@ -74,18 +75,20 @@ export function SacDigitalNewConversationDialog({
   const [templates,setTemplates] = useState<any[]>([]);
   const [channelLoading,setChannelLoading] = useState(false);
   const [templateLoading,setTemplateLoading] = useState(false);
-  const [channelError,setChannelError] = useState('');
-  const [templateError,setTemplateError] = useState('');
   const currentChannel = channels.find(item => String(item.id)===channel);
   const cloud = cloudChannel(currentChannel);
   const currentTemplate = templates.find(item => String(item.id??item.name)===template);
-  useEffect(()=>{if(!open)return;let cancelled=false;setChannelLoading(true);setChannelError('');operateSacDigitalResource(organizationId,14,{}).then(response=>{if(cancelled)return;const usable=usableChannels(resultItems(response.data));setChannels(usable);if(!usable.length)setChannelError('Nenhum canal ativo disponível para iniciar uma conversa. Confira a conexão e as permissões na SAC.');}).catch(caught=>{if(!cancelled)setChannelError(caught instanceof Error?caught.message:'Não foi possível carregar os canais.');}).finally(()=>{if(!cancelled)setChannelLoading(false);});return()=>{cancelled=true;};},[open,organizationId]);
-  useEffect(()=>{setTemplate('');setTemplates([]);setVariables({});if(!open||!channel)return;let cancelled=false;setTemplateLoading(true);setTemplateError('');if(cloud)setMessageType('template');else setMessageType('text');operateSacDigitalResource(organizationId,15,{id:channel}).then(response=>{if(cancelled)return;const approved=approvedTemplates(resultItems(response.data));setTemplates(approved);if(!approved.length)setTemplateError('Nenhum template aprovado disponível neste canal.');}).catch(caught=>{if(!cancelled)setTemplateError(caught instanceof Error?caught.message:'Não foi possível carregar templates aprovados.');}).finally(()=>{if(!cancelled)setTemplateLoading(false);});return()=>{cancelled=true;};},[open,channel,organizationId,cloud]);
+  useEffect(()=>{if(!open)return;let cancelled=false;setChannelLoading(true);operateSacDigitalResource(organizationId,14,{}).then(response=>{if(cancelled)return;const usable=usableChannels(resultItems(response.data));setChannels(usable);if(!usable.length)notifyAdmin('Nenhum canal ativo disponível para iniciar uma conversa. Confira a conexão e as permissões na SAC.','error');}).catch(caught=>{if(!cancelled)notifyAdmin(systemErrorMessage(caught,'Não foi possível carregar os canais.'),'error');}).finally(()=>{if(!cancelled)setChannelLoading(false);});return()=>{cancelled=true;};},[open,organizationId]);
+  useEffect(()=>{setTemplate('');setTemplates([]);setVariables({});if(!open||!channel)return;let cancelled=false;setTemplateLoading(true);if(cloud)setMessageType('template');else setMessageType('text');operateSacDigitalResource(organizationId,15,{id:channel}).then(response=>{if(cancelled)return;const approved=approvedTemplates(resultItems(response.data));setTemplates(approved);if(!approved.length&&cloud)notifyAdmin('Nenhum template aprovado disponível neste canal.','warning');}).catch(caught=>{if(!cancelled&&cloud)notifyAdmin(systemErrorMessage(caught,'Não foi possível carregar templates aprovados.'),'error');}).finally(()=>{if(!cancelled)setTemplateLoading(false);});return()=>{cancelled=true;};},[open,channel,organizationId,cloud]);
   const [messageType, setMessageType] = useState("text");
   const [template, setTemplate] = useState("");
   const [variables, setVariables] = useState<Record<string, string[]>>({});
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState("");
+  const [confirmationPending, setConfirmationPending] = useState(false);
+  const reportError = (message: string) => {
+    setConfirmationPending(message.includes("Confirmação pendente"));
+    notifyAdmin(message, "error");
+  };
   const searchRequestRef = useRef(0);
   const prepareRequestRef = useRef(0);
   const sendInFlightRef = useRef(false);
@@ -103,7 +106,7 @@ export function SacDigitalNewConversationDialog({
     setPrepared(null);
     setSearching(false);
     setPreparingKey(null);
-    setError("");
+    setConfirmationPending(false);
   }, [open, initialContact?.phone, initialContact?.name]);
 
   const results = useMemo(() => {
@@ -131,7 +134,7 @@ export function SacDigitalNewConversationDialog({
     setCustomers([]);
     setPrepared(null);
     setDraft("");
-    setError("");
+    setConfirmationPending(false);
     setSearching(false);
     setPreparingKey(null);
     setSending(false);
@@ -150,18 +153,18 @@ export function SacDigitalNewConversationDialog({
     const requestId = ++searchRequestRef.current;
     setSearching(true);
     setPrepared(null);
-    setError("");
+    setConfirmationPending(false);
     try {
       const data = await searchSacDigitalNewConversation(organizationId, value);
       if (requestId !== searchRequestRef.current) return;
       setContacts(data.contacts);
       setCustomers(data.customers);
       if (data.contacts.length === 0 && data.customers.length === 0 && !isUsablePhone(value)) {
-        setError("Nenhum contato encontrado. Para um número novo, informe o telefone com DDD.");
+        reportError("Nenhum contato encontrado. Para um número novo, informe o telefone com DDD.");
       }
     } catch (caught) {
       if (requestId === searchRequestRef.current) {
-        setError(systemErrorMessage(caught, "Não foi possível pesquisar os contatos."));
+        reportError(systemErrorMessage(caught, "Não foi possível pesquisar os contatos."));
       }
     } finally {
       if (requestId === searchRequestRef.current) setSearching(false);
@@ -175,7 +178,7 @@ export function SacDigitalNewConversationDialog({
     const requestId = ++prepareRequestRef.current;
     setPreparingKey(key);
     setPrepared(null);
-    setError("");
+    setConfirmationPending(false);
     try {
       const result = await prepareSacDigitalNewConversationContact(
         organizationId,
@@ -194,7 +197,7 @@ export function SacDigitalNewConversationDialog({
       if (requestId !== prepareRequestRef.current) return;
 
       if (!result.prepared || !result.contact) {
-        setError(result.error || "A SAC Digital não conseguiu validar este contato.");
+        reportError(result.error || "A SAC Digital não conseguiu validar este contato.");
         setPrepared(result);
         return;
       }
@@ -204,7 +207,7 @@ export function SacDigitalNewConversationDialog({
       setDraft(firstName ? `Olá, ${firstName}!` : "Olá!");
     } catch (caught) {
       if (requestId === prepareRequestRef.current) {
-        setError(systemErrorMessage(caught, "Não foi possível validar o número na SAC Digital."));
+        reportError(systemErrorMessage(caught, "Não foi possível validar o número na SAC Digital."));
       }
     } finally {
       if (requestId === prepareRequestRef.current) setPreparingKey(null);
@@ -214,16 +217,16 @@ export function SacDigitalNewConversationDialog({
   const startConversation = async () => {
     const contact = prepared?.contact;
     const message = draft.trim();
-    if (error.includes("Confirmação pendente") || !contact?.external_contact_id || (!message && messageType !== 'template') || (!currentChannel || (messageType === 'template' && !currentTemplate) || (cloud && messageType !== 'template')) || sending || sendInFlightRef.current) return;
+    if (confirmationPending || !contact?.external_contact_id || (!message && messageType !== 'template') || (!currentChannel || (messageType === 'template' && !currentTemplate) || (cloud && messageType !== 'template')) || sending || sendInFlightRef.current) return;
 
     sendInFlightRef.current = true;
     setSending(true);
-    setError("");
+    setConfirmationPending(false);
     try {
       // Nova conversa não deve ser disparada por /notification/contact,
       // nem por template: ambos podem enviar sem abrir protocolo.
       if (messageType !== "text" || cloud) {
-        setError("Este canal exige template de notificação, mas a SAC Digital não oferece abertura de protocolo por template nesta integração. Escolha um canal compatível; nenhuma mensagem foi enviada.");
+        reportError("Este canal exige template de notificação, mas a SAC Digital não oferece abertura de protocolo por template nesta integração. Escolha um canal compatível; nenhuma mensagem foi enviada.");
         return;
       }
       const result = await startSacDigitalNewConversation(
@@ -242,7 +245,7 @@ export function SacDigitalNewConversationDialog({
         // O realtime/webhook fará a conciliação após a entrega confirmada.
       }
     } catch (caught) {
-      setError(systemErrorMessage(caught, "Não foi possível iniciar a conversa."));
+      reportError(systemErrorMessage(caught, "Não foi possível iniciar a conversa."));
     } finally {
       sendInFlightRef.current = false;
       setSending(false);
@@ -270,7 +273,7 @@ export function SacDigitalNewConversationDialog({
               onClick={() => {
                 setPrepared(null);
                 setDraft("");
-                setError("");
+                setConfirmationPending(false);
               }}
               disabled={sending}
             >
@@ -280,7 +283,7 @@ export function SacDigitalNewConversationDialog({
               onClick={() => void startConversation()}
               loading={sending}
               loadingText="Iniciando..."
-              disabled={error.includes("Confirmação pendente") || !currentChannel || channelLoading || cloud || messageType !== "text" || !draft.trim()}
+              disabled={confirmationPending || !currentChannel || channelLoading || cloud || messageType !== "text" || !draft.trim()}
             >
               Iniciar conversa
             </AdminButton>
@@ -307,7 +310,7 @@ export function SacDigitalNewConversationDialog({
                   onChange={(event: any) => {
                     searchRequestRef.current += 1; prepareRequestRef.current += 1;
                     setQuery(event.target.value); setManualName(""); setPrepared(null); setContacts([]); setCustomers([]);
-                    setSearching(false); setPreparingKey(null); setError("");
+                    setSearching(false); setPreparingKey(null); setConfirmationPending(false);
                   }} />
               </div>
               <AdminButton
@@ -423,13 +426,11 @@ export function SacDigitalNewConversationDialog({
                       onChange={(e: any) => setMessageType(e.target.value)}
                       options={[{value:"text",label:"Texto"}]} />
                   </div>
-                  {channelError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{channelError}</p>}
                   {cloud && <p role="alert" className="text-xs text-amber-700 dark:text-amber-300">Este canal exige template, mas o envio de template da SAC não abre um protocolo. Nova conversa por este canal está indisponível para evitar notificação avulsa.</p>}
                   {messageType === "template" && <>
                     <FSelect label="Template aprovado" value={template} disabled={templateLoading || !channel || sending}
                       onChange={(e: any) => setTemplate(e.target.value)}
                       options={[{value:"",label:templateLoading?"Carregando templates…":"Selecione um template aprovado"}, ...templates.map(item=>({value:String(item.id??item.name),label:(item.name||item.title||"Template aprovado")+(item.language?" · "+(typeof item.language==="object"?item.language.code:item.language):"")}))]} />
-                    {templateError && <p role="alert" className="text-xs text-red-700 dark:text-red-300">{templateError}</p>}
                     {currentTemplate && <div className="space-y-2 border-l-2 border-primary bg-muted/30 p-3 text-sm">
                       <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Prévia do template</p>
                       {Array.isArray(currentTemplate.components)?currentTemplate.components.map((component:any,index:number)=><p key={index}><strong>{({HEADER:"Cabeçalho",BODY:"Corpo",FOOTER:"Rodapé",BUTTONS:"Botões"} as Record<string,string>)[component.type]||"Conteúdo"}: </strong>{component.text||component.buttons?.map((button:any)=>button.text).filter(Boolean).join(" · ")||"Conteúdo de mídia"}</p>):<p>{currentTemplate.text||currentTemplate.body||currentTemplate.content||"A prévia textual não foi fornecida pela SAC para este template."}</p>}
@@ -453,11 +454,6 @@ export function SacDigitalNewConversationDialog({
           </>
         ) : null}
 
-        {error && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700 dark:border-red-900/40 dark:bg-red-950/30 dark:text-red-300">
-            {error}
-          </div>
-        )}
       </div>
     </AdminDialog>
   );
