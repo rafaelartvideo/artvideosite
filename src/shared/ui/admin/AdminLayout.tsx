@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/shared/ui/primitives/dialog";
 
-export type AdminButtonVariant = "primary" | "secondary" | "success" | "warning" | "danger" | "ghost" | "icon";
+export type AdminButtonVariant = "primary" | "secondary" | "tertiary" | "success" | "warning" | "danger" | "ghost" | "icon";
 export type AdminButtonSize = "sm" | "md" | "lg";
 
 const AdminPageCloseContext = React.createContext<{ onClose: () => void; requestClose: () => void } | null>(null);
@@ -60,6 +60,7 @@ export function AdminButton({
   const variants: Record<AdminButtonVariant, string> = {
     primary: "admin-primary-gradient border border-primary/30 text-white",
     secondary: "border border-border bg-card text-card-foreground hover:bg-muted",
+    tertiary: "admin-action-blue-outline border",
     success: "admin-action-success border",
     warning: "admin-action-warning border",
     danger: "admin-action-danger border",
