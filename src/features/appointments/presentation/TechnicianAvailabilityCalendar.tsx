@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, Users } from "lucide-react";
 import { AdminButton, AdminCard, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { dayKey } from "../application/agenda-calendar";
 import { hhmm, minutes, rangeAvailable } from "../infrastructure/employee-agenda.repository";
 import {
@@ -187,7 +188,7 @@ export function TechnicianAvailabilityCalendar({
       </select>
       {endingTimes.length === 0 && <p role="status" className="w-full text-xs text-amber-700 dark:text-amber-300">Nenhum término livre para toda a equipe. Selecione outro horário ou técnico.</p>}
     </div>}
-    {showLoading ? <p className="px-4 py-12 text-center text-sm text-muted-foreground">Consultando horários disponíveis...</p>
+    {showLoading ? <LoadingState text="Consultando horários disponíveis..." />
       : !ids.length ? <p className="px-4 py-12 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível.</p>
       : query.error ? <p role="alert" className="px-4 py-8 text-sm text-red-600">{systemErrorMessage(query.error, "Não foi possível consultar a disponibilidade.")}</p>
       : !query.data?.hasSchedules ? <p className="px-4 py-10 text-center text-sm text-muted-foreground">Não há expediente cadastrado. Configure os horários dos técnicos para poder agendar.</p>
@@ -374,7 +375,7 @@ export function TechnicianAvailabilityCalendar({
         Marque pelo menos um técnico disponível para concluir o agendamento.
       </p>}
     </div>}
-    {showLoading ? <p className="p-8 text-center text-sm text-muted-foreground">Carregando horários e técnicos...</p>
+    {showLoading ? <LoadingState text="Carregando horários e técnicos..." />
       : !ids.length ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum técnico ativo disponível para consulta.</p>
       : query.error ? <p role="alert" className="p-5 text-sm text-red-600">{systemErrorMessage(query.error, "Não foi possível consultar a disponibilidade.")}</p>
       : !query.data?.hasSchedules ? <p className="p-8 text-center text-sm text-muted-foreground">Nenhum expediente cadastrado para estes técnicos. Configure a agenda semanal no cadastro dos funcionários.</p>
