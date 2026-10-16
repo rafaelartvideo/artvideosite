@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Camera, CheckCircle2, ClipboardCheck, Plus, Save } from "lucide-react";
-import { InlineLoading, LoadingDots } from "@/shared/ui/admin/AdminFeedback";
+import { InlineLoading, LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
 import {
   getDeviceEntryChecklist,
   sendDeviceChecklistAnswer,
@@ -183,7 +183,7 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
               </div>
 
               {photoEnabled && <div className="flex flex-col items-end justify-center gap-2">
-                <label className={`flex h-10 w-10 items-center justify-center rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] text-[#0057e7] ${uploading ? "pointer-events-none opacity-50" : "cursor-pointer"}`} title="Tirar foto">{uploading ? <LoadingDots className="text-current" size="sm" /> : <Camera size={17} />}<input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto(item, file); }} /></label>
+                <label className={`flex h-10 w-10 items-center justify-center rounded-xl border border-[#0057e7]/25 bg-[#eef5ff] text-[#0057e7] ${uploading ? "pointer-events-none opacity-50" : "cursor-pointer"}`} title="Tirar foto">{uploading ? <LoadingSpinner size="sm" /> : <Camera size={17} />}<input type="file" accept="image/*" capture="environment" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto(item, file); }} /></label>
                 <label className={`flex h-10 items-center gap-1 rounded-xl border border-[#0057e7]/25 bg-white px-2.5 text-[11px] font-black text-[#0057e7] ${uploading ? "pointer-events-none opacity-50" : "cursor-pointer"}`}><Plus size={14} /> Foto<input type="file" accept="image/*" className="hidden" disabled={uploading} onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void uploadPhoto(item, file); }} /></label>
               </div>}
             </div>
@@ -192,7 +192,7 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
 
             {showObservation && <textarea value={item.observation} onChange={event => updateItem(item.key, { observation: event.target.value })} rows={2} placeholder={failure ? "Descreva a não conformidade" : "Observação"} className="mt-3 w-full resize-y rounded-xl border border-[#0d1b2e]/15 bg-white px-3 py-2.5 text-sm text-[#0d1b2e] outline-none focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/10" />}
 
-            {(item.responseType === "text" || item.responseType === "number" || showObservation) && <div className="mt-3 flex items-center justify-between gap-2">{validation ? <span className="text-[11px] font-bold text-amber-700">{validation}</span> : <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={13} /> Preenchido</span>}<button type="button" disabled={busy} onClick={() => void sendAnswer(item)} className="flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0d1b2e] px-3 text-xs font-black text-white disabled:opacity-50">{busy ? <LoadingDots className="text-current" size="sm" /> : <Save size={14} />} Salvar</button></div>}
+            {(item.responseType === "text" || item.responseType === "number" || showObservation) && <div className="mt-3 flex items-center justify-between gap-2">{validation ? <span className="text-[11px] font-bold text-amber-700">{validation}</span> : <span className="flex items-center gap-1 text-[11px] font-bold text-emerald-700"><CheckCircle2 size={13} /> Preenchido</span>}<button type="button" disabled={busy} onClick={() => void sendAnswer(item)} className="flex min-h-9 items-center gap-1.5 rounded-lg bg-[#0d1b2e] px-3 text-xs font-black text-white disabled:opacity-50">{busy ? <LoadingSpinner size="sm" /> : <Save size={14} />} Salvar</button></div>}
           </div>;
         })}
       </div>
