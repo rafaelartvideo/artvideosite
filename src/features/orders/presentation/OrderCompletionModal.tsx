@@ -1,3 +1,4 @@
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
 import { MapPin, MessageCircle, Package, Phone, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
@@ -313,7 +314,7 @@ export function OrderCompletionModal({
         <div className="min-w-0 space-y-4">
           {completion.commercialItemsLoading && (
             <div className="rounded-xl border border-border bg-muted/45 px-4 py-3 text-sm text-muted-foreground">
-              Carregando a composição da OS...
+              <InlineLoading text="Carregando a composição da OS..." />
             </div>
           )}
 
