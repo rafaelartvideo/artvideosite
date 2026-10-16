@@ -2012,6 +2012,7 @@ Deno.serve(async request => {
       }
 
       const requestedExternalId = String(body.external_contact_id || "").trim();
+      const requestedChannelId = String(body.channel || "").trim();
       const customerId = String(body.customer_id || "").trim();
       let name = safeSearchText(body.name);
       let phone = normalizeSacPhone(body.phone);
@@ -2055,7 +2056,14 @@ Deno.serve(async request => {
 
       const channels = await loadChannels();
       const activeChannels = channels.filter(channel => channel.actived !== false && String(channel.id || "").trim());
-      const primaryChannel = chooseImportChannel(activeChannels);
+      // No fluxo de número novo, o canal é escolhido ANTES da importação,
+      // sem trocar silenciosamente para outro canal em caso de erro.
+      const selectedChannel = requestedChannelId
+        ? activeChannels.find(channel => String(channel.id) === requestedChannelId) || null
+        : chooseImportChannel(activeChannels);
+      if (requestedChannelId && !selectedChannel) {
+        return json({success:false,error:"O canal selecionado está indisponível na SAC Digital. Selecione um canal ativo."},409);
+      }
       const activeChannelIds = new Set(activeChannels.map(channel => String(channel.id || "").trim()));
 
       let contact: Record<string, unknown> | null = null;
@@ -2108,7 +2116,7 @@ Deno.serve(async request => {
           credentials,
           phone,
           fallbackName,
-          primaryChannel,
+          selectedChannel,
         );
         const importResult = importAttempt.result;
 
@@ -2179,7 +2187,7 @@ Deno.serve(async request => {
               number: importedPhone,
               name: fallbackName,
               channel: importedChannelId
-                ? { id: importedChannelId, number: String(primaryChannel?.number || "") }
+                ? { id: importedChannelId, number: String(selectedChannel?.number || "") }
                 : null,
               imported: true,
             };
@@ -2214,7 +2222,7 @@ Deno.serve(async request => {
       const channel = contact?.channel && typeof contact.channel === "object" && !Array.isArray(contact.channel)
         ? contact.channel as Record<string, unknown>
         : null;
-      const channelId = String(channel?.id || primaryChannel?.id || "").trim();
+      const channelId = String(channel?.id || selectedChannel?.id || "").trim();
       const whatsappAvailable = Boolean(externalContactId && channelId && activeChannelIds.has(channelId));
 
       if (!externalContactId) {
