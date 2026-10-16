@@ -252,6 +252,7 @@ export function AdminHomePage({
     enabled: Boolean(activeOrganizationId && user?.id),
     queryFn: () => loadAdminNotifications(activeOrganizationId!, 50),
     staleTime: 5 * 60_000,
+    retry: false,
   });
 
   const canViewWorkItems = canAccessTab("workItems");
