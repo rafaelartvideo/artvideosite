@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { WorkItemDateTimeField } from "./WorkItemDateTimeField";
 import { WorkItemReadonlyDetails } from "./WorkItemReadonlyDetails";
-import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
@@ -236,9 +236,9 @@ export function WorkItemDialog({
                   onChange={event => { setCustomerSearch(event.target.value); setCustomerResults([]); }}
                   placeholder="Nome, CPF ou CNPJ" />
               </div>
-              {canCreateCustomer && isEditable && <BtnSecondary size="sm" className="min-h-10 shrink-0" onClick={() => setQuickCustomerOpen(true)}>
+              {canCreateCustomer && isEditable && <AdminButton variant="tertiary" size="sm" className="min-h-10 shrink-0" onClick={() => setQuickCustomerOpen(true)}>
                 <Plus size={14} /> Cadastrar
-              </BtnSecondary>}
+              </AdminButton>}
             </div>
             {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
             {customerResults.length > 0 && <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1">
