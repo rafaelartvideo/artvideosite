@@ -1258,11 +1258,21 @@ Deno.serve(async request => {
       if(error) console.warn('[SAC DIGITAL API] confirmed operation projection deferred',{code:error.code});
       EdgeRuntime.waitUntil(enrichProtocol(organizationId,protocol).catch(()=>{}));
     };
-    const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string, options: {protocolInfo?:Record<string,unknown>;returnToCurrentDepartment?:boolean;routingOptions?:boolean} = {}) => {
+    const runResourceOperation = async (endpointId: number, values: Record<string, unknown>, intentKey?: string, options: {protocolInfo?:Record<string,unknown>;returnToCurrentDepartment?:boolean;routingOptions?:boolean;messageInitiatedOpening?:boolean} = {}) => {
       const requested=SAC_ENDPOINTS.find(item=>item.id===endpointId);
       if(!requested) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'invalid_contract',error:'Operação desconhecida.'};
+      // This scoped exception applies ONLY to /contact/forward (endpoint 11)
+      // when opening a real protocol as part of a permitted message send.
+      // Standalone forwarding, assuming, returning and finishing still require
+      // protocols.manage, even when the user can send messages.
+      const messageInitiatedOpening = endpointId === 11 && options.messageInitiatedOpening === true
+        && await requirePermission('sac_digital.messages.send');
+      const authorizeSacOperation = async (key:string) =>
+        await requirePermission(key)
+        || (messageInitiatedOpening && key === 'sac_digital.protocols.manage')
+        || (key === 'sac_digital.messages.view' && await requirePermission('sac_digital.view'));
       const permission=operationPermission(requested);
-      if(!(await requirePermission(permission)) && !(permission==='sac_digital.messages.view' && await requirePermission('sac_digital.view'))) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'permission_denied',error:'Sem permissão para esta operação.'};
+      if(!(await authorizeSacOperation(permission))) return {success:false,data:null,has_more:false,next_page:null,outcome:'rejected',type:'permission_denied',error:'Sem permissão para esta operação.'};
       if([1,61].includes(endpointId)) return {success:false,data:null,outcome:'rejected',has_more:false,next_page:null,type:'private_authentication',error:'A autenticação é privada e resolvida pelo servidor.'};
       let operation: any;
       let protocolInfo: Record<string, unknown> | null = options.protocolInfo || null;
@@ -1311,7 +1321,7 @@ Deno.serve(async request => {
         operatorToken=session.token;
       };
       const result: Awaited<ReturnType<typeof executeSacOperation>> & { pending_start_id?: string; mode?: string } = await executeSacOperation({...operation, protocol: values.protocol}, {
-        authorize: async (permission:string) => await requirePermission(permission) || (permission === 'sac_digital.messages.view' && await requirePermission('sac_digital.view')),
+        authorize: authorizeSacOperation,
         operator: binding ? async () => {
           await refreshOperatorSession();
         } : null,
@@ -2404,9 +2414,8 @@ Deno.serve(async request => {
             error: 'Para iniciar um novo protocolo e enviar a primeira mensagem, vincule um Operador SAC. Gestor e Operador possuem sessões diferentes.',
           }, 409);
         }
-        if (!(await requirePermission('sac_digital.protocols.manage'))) {
-          return json({ success:false, type:'permission_denied', error:'Seu usuário precisa da permissão de gerenciar atendimentos para abrir um protocolo SAC.' }, 403);
-        }
+        // A new conversation is a message-send action. Management permissions
+        // are still checked for later protocol operations (assume/forward/etc.).
         const channels = await apiRequest(organizationId,credentials,'/channel/all',{method:'GET'});
         const available = Array.isArray(channels.body.list) ? channels.body.list : [];
         const channel = available.find((item:any)=>String(item?.id || '')===selectedChannelId);
@@ -2419,6 +2428,7 @@ Deno.serve(async request => {
           11,
           {id:externalContactId,operator:accessBinding.id},
           typeof body.intent_key === 'string' ? `${userData.user.id}:new-conversation:${body.intent_key.slice(0,120)}` : undefined,
+          { messageInitiatedOpening: true },
         );
         // "contact_in_att" também pode significar protocolo aberto em outra
         // sessão. Nunca encaminhar nem enviar novamente sem reconciliar.
@@ -3195,9 +3205,8 @@ Deno.serve(async request => {
           error:"Para iniciar um protocolo a partir da OS, vincule e autorize um Operador SAC. O perfil Gestor pode consultar atendimentos, mas não iniciar atendimento operacional sem um Operador. Nenhuma mensagem foi enviada.",
         };
       }
-      if(!(await requirePermission("sac_digital.protocols.manage"))) {
-        return {protocol:null,type:"permission_denied",error:"Sua função não pode abrir protocolos SAC. Nenhuma mensagem foi enviada."};
-      }
+      // The enclosing send_order_message/send_media action already requires
+      // messages.send. Do not require protocols.manage to open its protocol.
       const channelResult=await apiRequest(organizationId,credentials,"/channel/all",{method:"GET"});
       const channels=Array.isArray(channelResult.body.list)?channelResult.body.list:[];
       const usable=channels.find((candidate:any)=>
@@ -3215,6 +3224,7 @@ Deno.serve(async request => {
         typeof body.intent_key==="string"
           ? `${userData.user.id}:order-protocol:${orderId}:${body.intent_key.slice(0,120)}`
           : undefined,
+        { messageInitiatedOpening: true },
       );
       let confirmed:OpenState|null=null;
       for(let attempt=0;attempt<5&&!confirmed;attempt++) {
