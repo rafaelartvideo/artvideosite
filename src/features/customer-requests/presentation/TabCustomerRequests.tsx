@@ -312,7 +312,7 @@ export function TabCustomerRequests() {
       </div>}>
       <form id="customer-request-form" onSubmit={event => void save(event)} className="space-y-5">
         <div>
-          <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="customer-request-customer">Cliente *</label>
+          <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="customer-request-customer">Cliente <span className="font-bold text-red-600 dark:text-red-400">*</span></label>
           {selectedCustomer
             ? <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-muted/50 p-3">
                 <span className="min-w-0 truncate text-sm font-semibold">{requestCustomerName(selectedCustomer)}</span>
@@ -339,7 +339,7 @@ export function TabCustomerRequests() {
               </div>}
         </div>
         <div>
-          <span className="mb-1.5 block text-xs font-bold text-foreground">Tipo do pedido *</span>
+          <span className="mb-1.5 block text-xs font-bold text-foreground">Tipo do pedido <span className="font-bold text-red-600 dark:text-red-400">*</span></span>
           <div className="grid grid-cols-2 gap-2">
             {(["product", "service"] as RequestKind[]).map(value => <button key={value} type="button" aria-pressed={kindDraft === value}
               onClick={() => setKindDraft(value)}
@@ -350,7 +350,7 @@ export function TabCustomerRequests() {
           </div>
         </div>
         <div>
-          <label htmlFor="customer-request-description" className="mb-1.5 block text-xs font-bold text-foreground">Descreva o pedido *</label>
+          <label htmlFor="customer-request-description" className="mb-1.5 block text-xs font-bold text-foreground">Descreva o pedido <span className="font-bold text-red-600 dark:text-red-400">*</span></label>
           <textarea id="customer-request-description" maxLength={1000} rows={4} required value={description}
             onChange={event => setDescription(event.target.value)}
             placeholder={kindDraft === "product" ? "Ex.: controle remoto para TV modelo..." : "Ex.: instalação de suporte para TV de 55 polegadas..."}
