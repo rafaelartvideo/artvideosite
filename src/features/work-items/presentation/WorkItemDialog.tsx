@@ -126,13 +126,13 @@ export function WorkItemDialog({
   }, [open, organizationId, customerSearch, draft.customer_id, isFinalized]);
 
   useEffect(() => {
-    if (!open || !draft.customer_id) { setOrderOptions([]); return; }
+    if (!open || !draft.customer_id || linkMode !== "customer") { setOrderOptions([]); return; }
     let alive = true;
     void findCustomerWorkOrders(organizationId, draft.customer_id)
       .then(results => { if (alive) setOrderOptions(results); })
       .catch(() => { if (alive) setOrderOptions([]); });
     return () => { alive = false; };
-  }, [organizationId, draft.customer_id, open]);
+  }, [organizationId, draft.customer_id, open, linkMode]);
 
   useEffect(() => {
     if (!open || isFinalized || linkMode !== "order" || draft.service_order_id || !orderSearch.replace(/\D/g, "")) {
@@ -273,52 +273,127 @@ export function WorkItemDialog({
       </div>}
 
       {section === "details" && (isFinalized ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
-        <div className="space-y-2 rounded-xl border border-border bg-card p-3.5">
-          <label className={fieldLabel}>Cliente vinculado (opcional)</label>
-          {draft.customer_id ? <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-primary/5 px-3 py-3">
-            <div className="min-w-0 text-sm"><CustomerSummary customer={customerInfo || item?.customer || { id: draft.customer_id, full_name: "Cliente selecionado", trade_name: null, document: null, cnpj: null, phone: null, whatsapp: null }} /></div>
-            {isEditable && <BtnSecondary size="sm" onClick={() => {
-              set("customer_id", null); set("service_order_id", null);
-              setCustomerInfo(null); setCustomerSearch(""); setCustomerResults([]);
-            }}>Trocar</BtnSecondary>}
-          </div> : <div className="space-y-2">
-            <Popover open={customerResults.length > 0 && !draft.customer_id} onOpenChange={value => { if (!value) setCustomerResults([]); }}>
-              <PopoverAnchor asChild><div className="flex min-w-0 items-center gap-2">
-              <div className="relative min-w-0 flex-1">
-                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input className={cn(INPUT, "w-full pl-9")} disabled={!isEditable} value={customerSearch}
-                  onChange={event => { setCustomerSearch(event.target.value); setCustomerSearchResolved(""); setCustomerResults([]); }}
-                  placeholder="Nome, CPF ou CNPJ" />
-              </div>
-              {canCreateCustomer && isEditable && <AdminButton variant="tertiary" size="sm" className="min-h-10 shrink-0" onClick={() => setQuickCustomerOpen(true)}>
-                <Plus size={14} /> Cadastrar
-              </AdminButton>}
-              </div></PopoverAnchor>
-              <PopoverContent align="start" side="bottom" sideOffset={4} collisionPadding={12}
-                onOpenAutoFocus={event => event.preventDefault()}
-                className="z-[220] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] border-border bg-popover p-1 text-popover-foreground shadow-xl">
-              <div className="max-h-48 space-y-0.5 overflow-y-auto">
-              {customerResults.map(customer => <button key={customer.id} type="button"
-                onClick={() => { set("customer_id", customer.id); setCustomerInfo(customer); setCustomerResults([]); setCustomerSearch(""); }}
-                className="block w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted">
-                <CustomerSummary customer={customer} />
-              </button>)}
-              </div>
-              </PopoverContent>
-            </Popover>
-            {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
-            {customerSearch.trim().length >= 2 && customerSearchResolved === customerSearch && !searchingCustomer && !customerResults.length && <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>}
-          </div>}
-          {draft.customer_id && <div className="pt-1">
-            <label className={fieldLabel}>OS vinculada (opcional)</label>
-            <select className={selectClass} disabled={!isEditable} value={draft.service_order_id || ""}
-              onChange={event => set("service_order_id", event.target.value || null)}>
-              <option value="">Nenhuma OS</option>
-              {draft.service_order_id && !orderOptions.some(order => order.id === draft.service_order_id) &&
-                <option value={draft.service_order_id}>OS vinculada</option>}
-              {orderOptions.map(order => <option key={order.id} value={order.id}>OS {order.os_number}</option>)}
-            </select>
-          </div>}
+        <div className="space-y-2">
+          <label className={fieldLabel}>Cliente / OS vinculada <span className="font-normal normal-case text-muted-foreground">(opcional)</span></label>
+          <div className="grid grid-cols-2 gap-2">
+            {([{ mode: "customer", label: "Cliente" }, { mode: "order", label: "OS" }] as const).map(option => (
+              <button key={option.mode} type="button" disabled={!isEditable}
+                onClick={() => chooseLinkMode(option.mode)}
+                className={cn("h-10 rounded-lg border px-3 text-xs font-bold transition-colors",
+                  linkMode === option.mode
+                    ? "border-primary/40 bg-primary/10 text-primary"
+                    : "border-border bg-card text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {linkMode === "order" ? (draft.service_order_id ? (
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
+              <span className="text-sm font-semibold text-foreground">OS {orderResults.find(os => os.id === draft.service_order_id)?.os_number
+                ?? orderOptions.find(os => os.id === draft.service_order_id)?.os_number
+                ?? item?.service_order?.os_number ?? "vinculada"}</span>
+              {isEditable && <BtnSecondary size="sm" onClick={() => {
+                setDraft(current => ({ ...current, customer_id: null, service_order_id: null }));
+                setOrderSearch(""); setOrderResults([]);
+              }}>Trocar</BtnSecondary>}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Popover open={orderResults.length > 0 && !draft.service_order_id}
+                onOpenChange={value => { if (!value) setOrderResults([]); }}>
+                <PopoverAnchor asChild>
+                  <div className="relative">
+                    <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                    <input className={cn(INPUT, "pl-9")} value={orderSearch} disabled={!isEditable}
+                      inputMode="numeric" placeholder="Buscar pelo número da OS"
+                      onChange={event => { setOrderSearch(event.target.value); setOrderResults([]); }} />
+                  </div>
+                </PopoverAnchor>
+                <PopoverContent align="start" side="bottom" sideOffset={4} collisionPadding={12}
+                  onOpenAutoFocus={event => event.preventDefault()}
+                  className="z-[220] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] border-border bg-popover p-1 text-popover-foreground shadow-xl">
+                  <div className="max-h-48 overflow-y-auto">
+                    {orderResults.map(order => <button key={order.id} type="button"
+                      onClick={() => {
+                        setDraft(current => ({ ...current, service_order_id: order.id, customer_id: order.customer_id }));
+                        setOrderSearch(""); setOrderResults([]);
+                      }}
+                      className="block w-full rounded-md px-3 py-2.5 text-left text-sm font-semibold hover:bg-muted">
+                      OS {order.os_number}
+                    </button>)}
+                  </div>
+                </PopoverContent>
+              </Popover>
+              {searchingOrders && <InlineLoading text="Buscando OS..." />}
+              {orderSearch.trim() && !searchingOrders && !orderResults.length &&
+                <p className="text-[11px] text-muted-foreground">Nenhuma OS encontrada para este número.</p>}
+            </div>
+          )) : (
+            <>
+              {draft.customer_id ? (
+                <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-primary/5 px-3 py-3">
+                  <div className="min-w-0 text-sm">
+                    <CustomerSummary customer={customerInfo || item?.customer || {
+                      id: draft.customer_id, full_name: "Cliente selecionado", trade_name: null,
+                      document: null, cnpj: null, phone: null, whatsapp: null
+                    }} />
+                  </div>
+                  {isEditable && <BtnSecondary size="sm" onClick={() => {
+                    setDraft(current => ({ ...current, customer_id: null, service_order_id: null }));
+                    setCustomerInfo(null); setCustomerSearch(""); setCustomerResults([]);
+                  }}>Trocar</BtnSecondary>}
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <Popover open={customerResults.length > 0 && !draft.customer_id}
+                    onOpenChange={value => { if (!value) setCustomerResults([]); }}>
+                    <PopoverAnchor asChild>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <div className="relative min-w-0 flex-1">
+                          <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                          <input className={cn(INPUT, "pl-9")} disabled={!isEditable} value={customerSearch}
+                            onChange={event => { setCustomerSearch(event.target.value); setCustomerSearchResolved(""); setCustomerResults([]); }}
+                            placeholder="Nome, CPF ou CNPJ" />
+                        </div>
+                        {canCreateCustomer && isEditable && <AdminButton variant="tertiary" size="sm"
+                          className="min-h-10 shrink-0" onClick={() => setQuickCustomerOpen(true)}>
+                          <Plus size={14} /> Cadastrar cliente
+                        </AdminButton>}
+                      </div>
+                    </PopoverAnchor>
+                    <PopoverContent align="start" side="bottom" sideOffset={4} collisionPadding={12}
+                      onOpenAutoFocus={event => event.preventDefault()}
+                      className="z-[220] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] border-border bg-popover p-1 text-popover-foreground shadow-xl">
+                      <div className="max-h-48 space-y-0.5 overflow-y-auto">
+                        {customerResults.map(customer => <button key={customer.id} type="button"
+                          onClick={() => {
+                            setDraft(current => ({ ...current, customer_id: customer.id, service_order_id: null }));
+                            setCustomerInfo(customer); setCustomerResults([]); setCustomerSearch("");
+                          }}
+                          className="block w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted">
+                          <CustomerSummary customer={customer} />
+                        </button>)}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                  {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
+                  {customerSearch.trim().length >= 2 && customerSearchResolved === customerSearch
+                    && !searchingCustomer && !customerResults.length &&
+                    <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>}
+                </div>
+              )}
+              {draft.customer_id && <div className="pt-1">
+                <label className={fieldLabel}>OS vinculada (opcional)</label>
+                <select className={selectClass} disabled={!isEditable} value={draft.service_order_id || ""}
+                  onChange={event => set("service_order_id", event.target.value || null)}>
+                  <option value="">Nenhuma OS</option>
+                  {draft.service_order_id && !orderOptions.some(order => order.id === draft.service_order_id) &&
+                    <option value={draft.service_order_id}>OS vinculada</option>}
+                  {orderOptions.map(order => <option key={order.id} value={order.id}>OS {order.os_number}</option>)}
+                </select>
+              </div>}
+            </>
+          )}
         </div>
         <div>
           <label className={fieldLabel}>Título *</label>
