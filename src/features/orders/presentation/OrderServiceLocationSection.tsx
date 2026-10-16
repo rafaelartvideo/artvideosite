@@ -4,6 +4,7 @@ import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 import { OrderAddressSelect } from "./OrderFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 
 type OrderType = "internal" | "external";
 
@@ -72,7 +73,7 @@ export function OrderServiceLocationSection({
                   </div> : <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <FInput label="CEP" required value={form.service_zip_code} onChange={(e: any) => setForm(current => ({ ...current, service_zip_code: formatZipCode(e.target.value) }))} />
-                      {ibgeCitiesLoading && <p className="mt-1 text-[10px] text-[#5a6a82]">Consultando endereço...</p>}
+                      {ibgeCitiesLoading && <InlineLoading className="mt-1 text-[10px]" text="Consultando endereço..." />}
                       {serviceAddressMessage && <p className="mt-1 text-xs text-red-600">{serviceAddressMessage}</p>}
                       {!form.service_zip_code.trim() && <p className="mt-1 text-xs text-red-600">Informe o CEP.</p>}
                     </div>
