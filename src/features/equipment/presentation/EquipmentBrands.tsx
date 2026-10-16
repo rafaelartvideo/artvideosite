@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Edit2, Plus, Search, Trash2 } from "lucide-react";
+import { Edit2, Plus, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
@@ -46,11 +46,9 @@ export function EquipmentBrandCreate({ onCreate, disabled }: {
 }
 
 export function EquipmentBrandSelector({ draft, choices, canEdit, canCreate, onToggleBrand }: BrandSelectorProps) {
-  const [search, setSearch] = useState("");
   const allChoices = new Map(choices.map(option => [brandKey(option.name), option]));
   for (const brand of draft.brands) allChoices.set(brandKey(brand.name), { name: brand.name });
   const visibleChoices = [...allChoices.values()]
-    .filter(option => brandKey(option.name).includes(brandKey(search)))
     .sort((a, b) => {
       const aSelected = draft.brands.some(brand => brandKey(brand.name) === brandKey(a.name) && brand.is_active);
       const bSelected = draft.brands.some(brand => brandKey(brand.name) === brandKey(b.name) && brand.is_active);
@@ -59,11 +57,6 @@ export function EquipmentBrandSelector({ draft, choices, canEdit, canCreate, onT
     });
 
   return <div className="space-y-4">
-    <div className="relative">
-      <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input className={INPUT + " pl-9"} value={search} onChange={event => setSearch(event.target.value)}
-        placeholder="Buscar marca..." aria-label="Buscar marca" />
-    </div>
     <div className="grid grid-cols-1 gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
       {visibleChoices.map(option => {
         const linked = draft.brands.find(item => brandKey(item.name) === brandKey(option.name));
@@ -77,7 +70,7 @@ export function EquipmentBrandSelector({ draft, choices, canEdit, canCreate, onT
         </label>;
       })}
     </div>
-    {visibleChoices.length === 0 && <p className="py-3 text-xs text-muted-foreground">Nenhuma marca encontrada. Adicione uma no cabeçalho desta seção.</p>}
+    {visibleChoices.length === 0 && <p className="py-3 text-xs text-muted-foreground">Nenhuma marca disponível. Adicione uma no cabeçalho desta seção.</p>}
   </div>;
 }
 
