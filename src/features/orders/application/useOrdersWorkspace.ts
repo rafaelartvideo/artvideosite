@@ -82,6 +82,7 @@ export function useOrdersWorkspace({
     enabled: Boolean(organizationId),
     staleTime: REFERENCE_DATA_CACHE_TIME,
     gcTime: REFERENCE_DATA_CACHE_TIME,
+    retry: false,
     queryFn: () => fetchOrdersWorkspace(organizationId!),
   });
   const workspace = workspaceQuery.data ?? EMPTY_WORKSPACE;
@@ -132,6 +133,8 @@ export function useOrdersWorkspace({
     setEquipmentBrands,
     setEquipmentModels,
     loading: Boolean(organizationId) && workspaceQuery.isPending,
+    error: workspaceQuery.error,
+    retryLoadWorkspace: () => void workspaceQuery.refetch(),
     reloadWorkspace,
   };
 }
