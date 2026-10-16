@@ -1,3 +1,4 @@
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import type { ElementType } from "react";
 import {
   Bell,
@@ -208,7 +209,7 @@ export function AdminNotificationPanel({
 
     <div className="min-h-0 overflow-y-auto overscroll-contain">
       {loading ? (
-        <div className="px-4 py-8 text-center text-xs text-[#7b899d]">Carregando notificações...</div>
+        <div className="flex min-h-32 items-center justify-center px-3 py-5"><InlineLoading text="Carregando notificações..." /></div>
       ) : notifications.length === 0 ? (
         <div className="flex flex-col items-center px-5 py-9 text-center">
           <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#f3f6fa] text-[#8b99aa]">
