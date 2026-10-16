@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useFinanceCash } from "../application/useFinanceCash";
 import type { FinancialAccount, FinancialCashSession } from "../domain/finance.types";
 
@@ -111,7 +111,7 @@ export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] 
       </div>
     </AdminCardHeader>
     <AdminCardContent className="space-y-3">
-      {cash.sessionsQuery.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando caixas...</p> : eligibleAccounts.map(account => {
+      {cash.sessionsQuery.isLoading ? <InlineLoading text="Carregando caixas..." /> : eligibleAccounts.map(account => {
         const session = openByAccount.get(account.id) || null;
         return <div key={account.id} className="rounded-xl border border-[#0d1b2e]/8 p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
