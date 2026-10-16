@@ -166,7 +166,7 @@ export async function saveEquipmentBrandGroup(
   if (!existing.length) throw new Error("Marca não encontrada nesta empresa.");
   const desired = new Set(equipmentTypeIds);
   if (!desired.size) throw new Error("Selecione ao menos um equipamento.");
-  if ([...desired].some(id => !catalog.types.some(type => type.id === id && type.is_active)))
+  if ([...desired].some(id => !catalog.types.some(type => type.id === id && (type.is_active || existing.some(brand => brand.equipment_type_id === id)))))
     throw new Error("Selecione equipamentos ativos desta empresa.");
   const removed = existing.filter(brand => !desired.has(brand.equipment_type_id));
   if (removed.some(brand => catalog.models.some(model => model.equipment_brand_id === brand.id)))
