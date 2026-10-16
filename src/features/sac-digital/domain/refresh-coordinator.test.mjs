@@ -11,11 +11,44 @@ test('a burst of realtime events produces one refresh',async()=>{
  for(let i=0;i<100;i++)queue.request();
  await new Promise(r=>setTimeout(r,20));queue.dispose();assert.equal(calls,1);
 });
-test('the screen becomes usable while unread counters are still pending',async()=>{
- let ready=false,protocolsRequested=false;
- await module.initializeSacScreen({loadStatus:async()=>{},loadProtocols:async()=>{protocolsRequested=true},
-   loadUnreadCounts:()=>new Promise(()=>{}),onReady:()=>{ready=true}});
- assert.equal(ready,true);assert.equal(protocolsRequested,true);
+test('initial loading waits for conversations and SAC profile, but not unread counters',async()=>{
+ let ready=false,unreadStarted=false,releaseProtocols,releaseBinding;
+ const protocols=new Promise(resolve=>{releaseProtocols=resolve;});
+ const binding=new Promise(resolve=>{releaseBinding=resolve;});
+ const initial=module.initializeSacScreen({
+   loadStatus:async()=>({enabled:true}),
+   loadProtocols:()=>protocols,
+   loadOperatorBinding:enabled=>{assert.equal(enabled,true);return binding;},
+   loadUnreadCounts:async()=>{unreadStarted=true;},
+   onReady:()=>{ready=true;},
+ });
+ await Promise.resolve();assert.equal(ready,false);
+ releaseProtocols();await new Promise(resolve=>setTimeout(resolve,0));
+ assert.equal(ready,false);
+ releaseBinding();await initial;assert.equal(ready,true);
+ await Promise.resolve();assert.equal(unreadStarted,true);
+});
+test('disabled integration does not require an Operator lookup, and bootstrap resolves on failed reads',async()=>{
+ let bindingEnabled=null,readUnread=false,ready=false;
+ await module.initializeSacScreen({
+   loadStatus:async()=>({enabled:false}),
+   loadProtocols:async()=>{throw Error('temporary unavailable');},
+   loadOperatorBinding:async enabled=>{bindingEnabled=enabled;},
+   loadUnreadCounts:async()=>{readUnread=true;},
+   onReady:()=>{ready=true;},
+ });
+ assert.equal(bindingEnabled,false);assert.equal(ready,true);
+ await Promise.resolve();assert.equal(readUnread,true);
+});
+test('unmounted SAC screens do not launch deferred unread requests',async()=>{
+ let unread=false;
+ await module.initializeSacScreen({
+   loadStatus:async()=>({enabled:true}),
+   loadProtocols:async()=>{},
+   loadUnreadCounts:async()=>{unread=true;},
+   onReady:()=>false,
+ });
+ assert.equal(unread,false);
 });
 
 test('notifications received during a request schedule only one trailing refresh',async()=>{
