@@ -70,7 +70,7 @@ function ServiceTypesAdminPanelContent({ onBack, routeResourceId, routeSubpage, 
   useEffect(() => { if (configurationQuery.error) setToast({ msg: `Erro ao carregar tipos: ${systemErrorMessage(configurationQuery.error)}`, type: "error" }); }, [configurationQuery.error]);
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedItems = useMemo(() => items.slice((safePage - 1) * pageSize, safePage * pageSize), [items, safePage, pageSize]);
+  const pagedItems = useMemo(() => [...items].sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "pt-BR", { sensitivity: "base" })).slice((safePage - 1) * pageSize, safePage * pageSize), [items, safePage, pageSize]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.serviceTypes.all });
 
