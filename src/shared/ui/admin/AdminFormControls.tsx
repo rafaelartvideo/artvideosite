@@ -17,6 +17,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 export const INPUT = "admin-input w-full min-w-0 rounded-lg border border-border bg-muted/55 px-3 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 hover:border-border focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/25";
 const EMPTY_SELECT_VALUE = "__admin_select_empty__";
 
+// Shared required-field indicator for light and dark themes. Accepts both
+// required={true} and legacy labels ending in "*" without doubling the mark.
+export function RequiredFieldLabel({ label, required = false }: { label: string; required?: boolean }) {
+  const hasAsterisk = /\s*\*$/.test(label);
+  return <>{hasAsterisk ? label.replace(/\s*\*$/, "") : label}
+    {(required || hasAsterisk) && <span className="ml-0.5 font-bold text-red-600 dark:text-red-400" aria-hidden="true">*</span>}
+  </>;
+}
+
+
 export function AdminSelect({ value, defaultValue, onValueChange, options, disabled, required, name, className, ariaLabel }: { value?: string | number; defaultValue?: string | number; onValueChange: (value: string) => void; options: { value: string | number; label: string }[]; disabled?: boolean; required?: boolean; name?: string; className?: string; ariaLabel?: string }) {
   const toSelectValue = (optionValue: unknown) => optionValue === "" || optionValue == null ? EMPTY_SELECT_VALUE : String(optionValue);
   return <Select value={value !== undefined ? toSelectValue(value) : undefined} defaultValue={defaultValue !== undefined ? toSelectValue(defaultValue) : undefined} onValueChange={nextValue => onValueChange(nextValue === EMPTY_SELECT_VALUE ? "" : nextValue)} disabled={disabled} required={required} name={name}>
@@ -33,7 +43,7 @@ export function FInput({ label, required, hint, error, disabled = false, ...prop
   const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(colorText.trim()) ? colorText.trim() : "#1032DC";
 
   return <div className="min-w-0">
-    {label && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}{required && <span className="text-red-400">*</span>}</label>}
+    {label && <label className="mb-1.5 flex min-w-0 items-baseline gap-1 break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><RequiredFieldLabel label={label} required={required} /></label>}
     {isColorInput ? <div className="flex min-w-0 items-stretch gap-2">
       <input
         aria-invalid={Boolean(error) || undefined}
@@ -182,9 +192,9 @@ export function CustomerTypeToggle({ value, onChange, disabled = false }: { valu
   return <div className="min-w-0 sm:col-span-2"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de cliente</label><div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card">{[{ value: "PF" as const, label: "PESSOA FÍSICA" }, { value: "PJ" as const, label: "PESSOA JURÍDICA" }].map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)} className={`cursor-default border px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "border-primary bg-primary-soft text-primary" : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"} ${disabled ? "opacity-70" : ""}`} aria-pressed={value === option.value}>{option.label}</button>)}</div></div>;
 }
 
-export function FTextarea({ label, rows = 3, error, ...props }: { label?: string; rows?: number; error?: string; [key: string]: any }) { return <div className="min-w-0">{label && <label className="mb-1.5 block break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</label>}<textarea aria-invalid={Boolean(error) || undefined} rows={rows} className={cn(INPUT, "resize-none", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40")} {...props} />{error && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p>}</div>; }
+export function FTextarea({ label, rows = 3, error, ...props }: { label?: string; rows?: number; error?: string; [key: string]: any }) { return <div className="min-w-0">{label && <label className="mb-1.5 block break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><RequiredFieldLabel label={label} required={Boolean(props.required)} /></label>}<textarea aria-invalid={Boolean(error) || undefined} rows={rows} className={cn(INPUT, "resize-none", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40")} {...props} />{error && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p>}</div>; }
 
-export function FSelect({ label, options, error, ...props }: { label?: string; options: { value: string; label: string }[]; error?: string; [key: string]: any }) { const { value, defaultValue, onChange, disabled, required, name, className } = props; return <div className="min-w-0">{label && <label className="mb-1.5 block break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}{required && <span className="text-red-400">*</span>}</label>}<AdminSelect value={value} defaultValue={defaultValue} onValueChange={nextValue => onChange?.({ target: { value: nextValue } })} options={options} disabled={disabled} required={required} name={name} className={cn(error && "border-red-500 focus:ring-red-500/40", className)} ariaLabel={label} />{error && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p>}</div>; }
+export function FSelect({ label, options, error, ...props }: { label?: string; options: { value: string; label: string }[]; error?: string; [key: string]: any }) { const { value, defaultValue, onChange, disabled, required, name, className } = props; return <div className="min-w-0">{label && <label className="mb-1.5 block break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground"><RequiredFieldLabel label={label} required={required} /></label>}<AdminSelect value={value} defaultValue={defaultValue} onValueChange={nextValue => onChange?.({ target: { value: nextValue } })} options={options} disabled={disabled} required={required} name={name} className={cn(error && "border-red-500 focus:ring-red-500/40", className)} ariaLabel={label} />{error && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p>}</div>; }
 
 export function FToggle({ label, description, checked, onChange, disabled = false }: { label: string; description?: string; checked: boolean; onChange: (value: boolean) => void; disabled?: boolean }) {
   return <label className={cn("flex min-w-0 items-center gap-3 text-left", disabled ? "cursor-default opacity-65" : "cursor-default")}><Switch disabled={disabled} checked={checked} onCheckedChange={onChange} className="h-6 w-11 shrink-0 data-[state=checked]:bg-primary data-[state=unchecked]:bg-[#0d1b2e]/20" /><div className="min-w-0"><span className="break-words text-sm font-semibold text-foreground">{label}</span>{description && <p className="mt-0.5 break-words text-xs leading-relaxed text-muted-foreground">{description}</p>}</div></label>;
