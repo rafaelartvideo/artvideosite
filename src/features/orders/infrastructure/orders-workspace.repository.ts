@@ -22,7 +22,7 @@ export async function loadOrdersReferenceData(
 ): Promise<OrdersReferenceData> {
   const { data, error } = await supabase.rpc("load_orders_reference_data_v1", {
     p_organization_id: organizationId,
-  });
+  }).abortSignal(AbortSignal.timeout(20_000));
   if (error) throw error;
 
   const reference = (data || {}) as Record<string, unknown>;
