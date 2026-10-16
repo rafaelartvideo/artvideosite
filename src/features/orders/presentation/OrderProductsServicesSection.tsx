@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { InlineLoading, LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { supabase } from "@/lib/supabase";
 import {
   AdminButton,
@@ -1146,7 +1146,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                     (!workflowReady || techniciansLoading) && "cursor-not-allowed opacity-70",
                   )}>
                   <span className="min-w-0 flex-1 truncate">
-                    {techniciansLoading ? "Carregando técnicos..."
+                    {techniciansLoading ? <InlineLoading text="Carregando técnicos..." />
                       : serviceScheduleDraft
                         ? technicians.filter(person => serviceScheduleDraft.technicianIds.includes(person.id)).map(person => person.name).join(", ")
                         : "Selecionar técnicos e horário"}
