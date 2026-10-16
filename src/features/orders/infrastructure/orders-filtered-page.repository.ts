@@ -82,7 +82,7 @@ async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPag
     p_date_to: dateTo || null,
     p_sort: sort,
     p_match_order_number_or_external: matchOrderNumberOrExternal,
-  });
+  }).abortSignal(AbortSignal.timeout(20_000));
 
   if (error) throw error;
   return (data ?? []) as OrderPageIndexRow[];
