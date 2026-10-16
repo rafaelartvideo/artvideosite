@@ -34,7 +34,7 @@ export async function handleSacOAuthCallback(request,admin,{fetcher=fetch,profil
   const body=await profile.json();
   if(!profileAccepted(body,profile.status)) throw Object.assign(Error('Perfil não autorizado.'),{code:'operator_profile_incompatible'});
   stage='profile_identity';
-  await assertOperatorIdentity(body,context.operator_id,()=>fetchSacOperatorDirectory(credentials,fetcher));
+  await assertOperatorIdentity(body,context.operator_id,()=>fetchSacOperatorDirectory(credentials,fetcher),tokens.access_token);
   stage='session_save';
   const saved=await admin.rpc('sac_digital_operator_session_set',{
    p_organization_id:context.organization_id,p_user_id:context.user_id,p_operator_id:context.operator_id,
