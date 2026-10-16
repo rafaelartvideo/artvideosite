@@ -26,12 +26,13 @@ export type WorkItem = {
   updated_at: string;
   customer?: { id: string; full_name: string; trade_name: string | null; whatsapp: string | null } | null;
   service_order?: { id: string; os_number: number | string } | null;
+  checklist?: Array<{ done: boolean }>;
 };
 export type WorkEmployee = { id: string; full_name: string; profile_id: string | null };
 export type WorkChecklist = { id: string; work_item_id: string; label: string; done: boolean; sort_order: number };
 export type WorkActivity = { id: number; work_item_id: string; actor_user_id: string | null; action: string; created_at: string };
 
-const itemFields = "*,customer:customers(id,full_name,trade_name,whatsapp),service_order:service_orders(id,os_number)";
+const itemFields = "*,customer:customers(id,full_name,trade_name,whatsapp),service_order:service_orders(id,os_number),checklist:work_item_checklist(done)";
 
 export async function loadWorkItems(organizationId: string): Promise<WorkItem[]> {
   const { data, error } = await supabase.from("work_items")
