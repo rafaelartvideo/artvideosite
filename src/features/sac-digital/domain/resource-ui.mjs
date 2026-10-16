@@ -82,7 +82,13 @@ function normalizedSacNumber(value) {
  return digits;
 }
 export function isSacNumberCandidate(value) {
- return /^[1-9]\d{9,14}$/.test(normalizedSacNumber(value));
+ const digits=normalizedSacNumber(value);
+ if(digits.startsWith('55')){
+  if(digits.length!==12&&digits.length!==13)return false;
+  const local=digits.slice(2);
+  return /^[1-9]\d[2-9]\d{7,8}$/.test(local);
+ }
+ return /^[1-9]\d{9,14}$/.test(digits);
 }
 export function sameSacPhone(left,right) {
  const key=value=>{
