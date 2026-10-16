@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, ClipboardList, MapPin } from "lucide-react";
 import { Section, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadMarketplaceOpportunities, loadUnionMarketplaceBuyerContacts, loadUnionMarketplaceProposals,
   loadUnionMarketplaceRequests, loadCompanyMarketplaceProposals,
@@ -185,7 +186,7 @@ export function MarketplaceRequestsPanel({ categories, stores, enabled, platform
       </div>
       {success && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">{success}</p>}
       {error && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-      {loading ? <div className="min-h-40 py-12 text-center text-sm text-muted-foreground">Carregando...</div>
+      {loading ? <LoadingState />
       : tab === "requests" ? <div className="divide-y divide-border">
           {requests.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Nenhuma solicitação encontrada.</p>}
           {requests.map(item => {
