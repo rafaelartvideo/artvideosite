@@ -42,7 +42,8 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   useEffect(() => { if (categoriesQuery.error) setToast({ msg: `Erro ao carregar categorias: ${systemErrorMessage(categoriesQuery.error)}`, type: "error" }); }, [categoriesQuery.error]);
   const totalPages = Math.max(1, Math.ceil(cats.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedCats = cats.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagedCats = [...cats].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.categories() })]);
   const openNew = () => { if (!canCreate) return; setFieldErrors({}); setForm({ name: "", is_active: true, sort_order: "0" }); setEditItem(null); setDrawerOpen(true); };
