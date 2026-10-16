@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminCardToolbar, Section } from '@/shared/ui/admin/AdminLayout';
 import { FInput, FSelect, FTextarea, FToggle } from '@/shared/ui/admin/AdminFormControls';
+import { LoadingState } from '@/shared/ui/admin/AdminFeedback';
 import { configureSacDigitalMenu, getSacDigitalMenuSettings, getSacDigitalResourceHealth, sacDigitalMenuUrl, type SacDigitalMenuSettings } from '../infrastructure/sac-digital.repository';
 
 const HEALTH_LABELS: Record<string, string> = {
@@ -31,7 +32,7 @@ export function SacDigitalMenuConfiguration({ organizationId, token }: { organiz
           <FTextarea label="Mensagem de abertura" aria-label="Mensagem de abertura" rows={4} disabled={loading || busy} value={settings.text} onChange={(e: any) => setSettings({ ...settings, text: e.target.value })} />
           <FSelect label="Origem das opções" value={settings.source} disabled={loading || busy} options={[{ value: 'static', label: 'Opções configuradas' }, { value: 'service_order_status', label: 'Situação da ordem de serviço' }]} onChange={(e: any) => setSettings({ ...settings, source: e.target.value as SacDigitalMenuSettings['source'] })} />
         </div>
-        {loading ? <AdminCard square><AdminCardToolbar><div className="text-xs font-bold text-muted-foreground">Opções do menu</div></AdminCardToolbar><AdminCardContent className="flex min-h-40 items-center justify-center text-sm text-muted-foreground">Carregando configurações do menu...</AdminCardContent></AdminCard>
+        {loading ? <AdminCard square><AdminCardToolbar><div className="text-xs font-bold text-muted-foreground">Opções do menu</div></AdminCardToolbar><AdminCardContent><LoadingState text="Carregando configurações do menu..." /></AdminCardContent></AdminCard>
         : settings.source === 'static' ? <AdminCard square>
           <AdminCardToolbar><div className="flex-1"><p className="text-xs font-bold">Opções do menu</p><p className="mt-1 text-[11px] text-muted-foreground">Cada opção deve ter um identificador único e um texto para o cliente.</p></div><AdminButton variant="secondary" size="sm" disabled={loading || busy} onClick={() => setSettings({ ...settings, choices: [...settings.choices, { tag: '', text: '' }] })}>Adicionar opção</AdminButton></AdminCardToolbar>
           <AdminCardContent className="min-h-40 space-y-4">{!settings.choices.length ? <p className="py-3 text-center text-sm text-muted-foreground">Nenhuma opção configurada.</p> : settings.choices.map((choice, index) => <div key={index} className="grid min-w-0 gap-3 border-b border-border pb-4 last:border-b-0 last:pb-0 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] sm:items-end">
