@@ -88,7 +88,7 @@ function SegmentPicker({
     <h3 className="text-base font-extrabold text-[#132039]">Qual é o principal segmento da sua empresa?</h3>
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {data.segments.map(segment => {
+      {[...data.segments].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(segment => {
         const selected = primary === segment.code;
         return <button
           key={segment.code}
@@ -114,7 +114,9 @@ function SegmentPicker({
         <span className="text-xs font-medium text-[#66758a]">(Opcional)</span>
       </h4>
       <div className="grid grid-cols-1 gap-x-6 border-y border-[#0d1b2e]/8 sm:grid-cols-2 lg:grid-cols-3">
-        {data.segments.filter(item => item.code !== primary).map(segment => <label
+        {data.segments.filter(item => item.code !== primary)
+          .sort((a, b) => Number(additional.includes(b.code)) - Number(additional.includes(a.code)) || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
+          .map(segment => <label
           key={segment.code}
           className="flex min-w-0 cursor-pointer items-center gap-3 border-b border-[#0d1b2e]/8 py-3 text-sm font-medium text-[#20314b]"
         >
