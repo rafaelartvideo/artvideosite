@@ -1,3 +1,4 @@
+import { LoadingDots } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import pdfWorkerUrl from "pdfjs-dist/legacy/build/pdf.worker.min.mjs?url";
@@ -209,7 +210,7 @@ export function PdfInlineViewer({ source, className = "", title = "Documento PDF
         <div className="relative min-h-[280px] min-w-[240px] bg-white shadow-md">
           <canvas ref={canvasRef} aria-label={title} className={`block bg-white ${rendered && !loadError ? "" : "invisible"}`} />
           {(loading || rendering || (!loadError && !rendered)) && source && <div className="absolute inset-0 flex min-h-[280px] flex-col items-center justify-center gap-3 bg-white/90">
-            <span aria-hidden="true" className="h-7 w-7 animate-spin rounded-full border-[3px] border-[#0057e7]/20 border-t-[#0057e7]" />
+            <LoadingDots size="lg" />
             <p className="text-xs font-semibold text-muted-foreground">{loading ? "Carregando PDF..." : "Preparando pré-visualização..."}</p>
           </div>}
           {loadError && !fallbackUrl && <div className="flex min-h-[280px] min-w-[240px] items-center justify-center p-6 text-center text-sm text-muted-foreground">Pré-visualização indisponível.</div>}
