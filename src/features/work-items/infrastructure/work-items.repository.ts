@@ -135,6 +135,17 @@ export async function addWorkChecklistItem(organizationId: string, itemId: strin
     .insert({ organization_id: organizationId, work_item_id: itemId, label: label.trim(), sort_order: order });
   if (error) throw error;
 }
+export async function addWorkChecklistItems(organizationId: string, itemId: string, labels: string[]) {
+  const items = labels.map((label, index) => ({
+    organization_id: organizationId, work_item_id: itemId,
+    label: label.trim(), sort_order: index + 1,
+  })).filter(row => row.label);
+  if (!items.length) return;
+  // One batch insert avoids saving a partially populated checklist.
+  const { error } = await supabase.from("work_item_checklist").insert(items);
+  if (error) throw error;
+}
+
 export async function updateWorkChecklistItem(organizationId: string, id: string, done: boolean) {
   const { error } = await supabase.from("work_item_checklist").update({ done })
     .eq("organization_id", organizationId).eq("id", id);
