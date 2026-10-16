@@ -2160,7 +2160,10 @@ Deno.serve(async request => {
                 importAttempt.failure.body.type,
               ),
               import_error_type: String(importAttempt.failure.body.type || "provider_rejected"),
-              direct_send_available: ["error_valid_wpp", "error_import", "contact_validation_failed"].includes(
+              direct_send_available: sacWhatsAppValidationInconclusive(
+                importAttempt.failure.body.message || importAttempt.failure.body.error,
+                importAttempt.failure.body.type,
+              ) || ["error_import", "contact_validation_failed"].includes(
                 String(importAttempt.failure.body.type || "").toLowerCase(),
               ),
             });
