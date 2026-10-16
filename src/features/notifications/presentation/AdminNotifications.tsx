@@ -1,4 +1,5 @@
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
+import { useEffect } from "react";
 import type { ElementType } from "react";
 import {
   Bell,
@@ -234,6 +235,75 @@ export function AdminNotificationPanel({
   </div>;
 }
 
+function isWorkReminder(notification: AdminNotification | null): boolean {
+  return Boolean(notification && notification.module_key === "workItems"
+    && notification.entity_type === "work_item" && notification.title === "Lembrete de atividade");
+}
+
+/** Browser audio needs permission from a user interaction. Keep the alert
+ * visible regardless, and start/resume the chime when interaction permits. */
+function useWorkReminderAlarm(notification: AdminNotification | null) {
+  const reminderId = isWorkReminder(notification) ? notification!.id : null;
+  useEffect(() => {
+    if (!reminderId) return;
+    let stopped = false;
+    let context: AudioContext | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    let deadline: ReturnType<typeof setTimeout> | null = null;
+    let started = false;
+
+    const chime = () => {
+      if (!context || context.state !== "running" || stopped) return;
+      const at = context.currentTime;
+      for (const [offset, hz] of [[0, 784], [0.18, 1046]] as const) {
+        const oscillator = context.createOscillator();
+        const gain = context.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.value = hz;
+        gain.gain.setValueAtTime(0.0001, at + offset);
+        gain.gain.exponentialRampToValueAtTime(0.075, at + offset + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + offset + 0.36);
+        oscillator.connect(gain).connect(context.destination);
+        oscillator.start(at + offset);
+        oscillator.stop(at + offset + 0.38);
+      }
+    };
+
+    const activate = async () => {
+      if (stopped || started) return;
+      try {
+        if (!context) context = new window.AudioContext();
+        await context.resume();
+        if (stopped || context.state !== "running" || started) return;
+        started = true;
+        chime();
+        interval = setInterval(chime, 4500);
+        // Play for at least 60 seconds when browser playback is allowed.
+        deadline = setTimeout(() => {
+          if (interval) clearInterval(interval);
+          interval = null;
+        }, 65000);
+        window.removeEventListener("pointerdown", activate);
+        window.removeEventListener("keydown", activate);
+      } catch {
+        // Browser autoplay restrictions: the visible reminder still persists.
+      }
+    };
+
+    void activate();
+    window.addEventListener("pointerdown", activate);
+    window.addEventListener("keydown", activate);
+    return () => {
+      stopped = true;
+      window.removeEventListener("pointerdown", activate);
+      window.removeEventListener("keydown", activate);
+      if (interval) clearInterval(interval);
+      if (deadline) clearTimeout(deadline);
+      if (context) void context.close().catch(() => {});
+    };
+  }, [reminderId]);
+}
+
 export function LiveNotificationToast({
   notification,
   onOpen,
@@ -243,18 +313,27 @@ export function LiveNotificationToast({
   onOpen: (notification: AdminNotification) => void;
   onDismiss: () => void;
 }) {
+  useWorkReminderAlarm(notification);
   if (!notification) return null;
+  const reminder = isWorkReminder(notification);
 
   const visual = notificationVisual(notification);
   const ModuleIcon = visual.icon;
   const EventIcon = eventIcon(notification);
 
   return <div
-    className="fixed right-4 top-20 z-[300] w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-200"
-    role="status"
-    aria-live="polite"
+    className={cn(
+      "fixed right-4 top-20 z-[300] w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-xl border bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300",
+      reminder ? "border-amber-400/70 ring-2 ring-amber-500/20 motion-safe:animate-pulse" : "border-[#0d1b2e]/10",
+    )}
+    role={reminder ? "alert" : "status"}
+    aria-live={reminder ? "assertive" : "polite"}
   >
-    <div className="h-1 w-full bg-primary" />
+    <div className={cn("h-1 w-full", reminder ? "bg-amber-500" : "bg-primary")} />
+    {reminder && <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-800">
+      <Bell size={15} className="motion-safe:animate-bounce" />
+      Lembrete de atividade · permanece até fechar
+    </div>}
     <div className="flex gap-3 p-4">
       <button
         type="button"
