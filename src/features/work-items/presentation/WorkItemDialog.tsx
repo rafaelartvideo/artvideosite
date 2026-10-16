@@ -299,7 +299,7 @@ export function WorkItemDialog({
           {linkMode === "order" ? (draft.service_order_id ? (
             <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5">
               <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="shrink-0 text-sm font-bold text-primary">OS {selectedOrder?.os_number ?? item?.service_order?.os_number ?? orderSearch.trim() || "vinculada"}</span>
+                <span className="shrink-0 text-sm font-bold text-primary">OS {selectedOrder?.os_number ?? item?.service_order?.os_number ?? (orderSearch.trim() || "vinculada")}</span>
                 {(selectedOrder?.customer || item?.customer) && <CustomerSummary customer={(selectedOrder?.customer || item?.customer)!} />}
               </div>
               {isEditable && <BtnSecondary size="sm" onClick={() => {
