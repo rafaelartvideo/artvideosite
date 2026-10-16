@@ -1,5 +1,5 @@
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ElementType } from "react";
 import {
   Bell,
@@ -245,7 +245,10 @@ function isWorkReminder(notification: AdminNotification | null): boolean {
  * retry from the next real user gesture if automatic playback is blocked. */
 function useWorkReminderAlarm(notification: AdminNotification | null) {
   const reminderId = isWorkReminder(notification) ? notification!.id : null;
+  const [audioBlocked, setAudioBlocked] = useState(false);
+  const startRef = useRef<() => void>(() => {});
   useEffect(() => {
+    setAudioBlocked(false);
     if (!reminderId) return;
     const audio = new Audio("/assets/crm/sons/alarmelembrete.mp3");
     audio.loop = true;
@@ -264,6 +267,7 @@ function useWorkReminderAlarm(notification: AdminNotification | null) {
         }
         if (playing) return;
         playing = true;
+        setAudioBlocked(false);
         // The sound repeats until the reminder is closed, or at least 65s
         // of successful playback has elapsed. The notice itself stays visible.
         stopAfterMinute = setTimeout(() => {
@@ -273,11 +277,13 @@ function useWorkReminderAlarm(notification: AdminNotification | null) {
         window.removeEventListener("pointerdown", startPlayback);
         window.removeEventListener("keydown", startPlayback);
       }).catch(() => {
-        // Some browsers require an interaction before any audio can play.
-        // Keep the reminder visible and retry on the next user gesture.
+        // Make the action explicit if the browser blocks autoplay, allowing
+        // a click to start the actual MP3 immediately.
+        if (!disposed) setAudioBlocked(true);
       });
     };
 
+    startRef.current = startPlayback;
     startPlayback();
     window.addEventListener("pointerdown", startPlayback);
     window.addEventListener("keydown", startPlayback);
@@ -291,6 +297,7 @@ function useWorkReminderAlarm(notification: AdminNotification | null) {
       audio.load();
     };
   }, [reminderId]);
+  return { audioBlocked, startSound: () => startRef.current() };
 }
 
 export function LiveNotificationToast({
@@ -302,7 +309,7 @@ export function LiveNotificationToast({
   onOpen: (notification: AdminNotification) => void;
   onDismiss: () => void;
 }) {
-  useWorkReminderAlarm(notification);
+  const alarm = useWorkReminderAlarm(notification);
   if (!notification) return null;
   const reminder = isWorkReminder(notification);
 
@@ -321,7 +328,12 @@ export function LiveNotificationToast({
     <div className={cn("h-1 w-full", reminder ? "bg-amber-500" : "bg-primary")} />
     {reminder && <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-800">
       <Bell size={15} />
-      Lembrete de atividade · permanece até fechar
+      <span className="min-w-0 flex-1">Lembrete de atividade · permanece até fechar</span>
+      {alarm.audioBlocked && <button
+        type="button"
+        onClick={alarm.startSound}
+        className="shrink-0 rounded-md border border-amber-500/40 bg-white px-2.5 py-1 text-[11px] font-bold text-amber-900 transition-colors hover:bg-amber-100"
+      >Ativar som</button>}
     </div>}
     <div className="flex gap-3 p-4">
       <button
