@@ -13,6 +13,22 @@ export function deliveryState(metadata) {
  if (states.includes('sent') || evidence.some(value=>timestamp(value.sended_at)||timestamp(value.sent_at))) return 'sent';
  return states.find(state=>['unknown','accepted','pending','queued','preparing','prepared'].includes(state)) || '';
 }
+// Só informar exclusão quando o histórico ou evento da SAC fornecer evidência
+// explícita de remoção pelo cliente. A mensagem original permanece arquivada.
+export function messageDeletedByCustomer(message) {
+ if (message?.direction !== 'incoming') return false;
+ const metadata = message.raw_metadata || {};
+ const historic = metadata.sac_history || {};
+ const status = historic.status && typeof historic.status === 'object' ? historic.status : {};
+ const by = String(historic.deleted_by || metadata.deleted_by || '').toLowerCase();
+ if (by && !['contact','customer','client'].includes(by)) return false;
+ const deleted = historic.deleted === true || historic.is_deleted === true
+  || metadata.customer_deleted === true || metadata.message_deleted === true
+  || Boolean(historic.deleted_at || historic.revoked_at || status.deleted_at || status.revoked_at)
+  || ['message_deleted','protocol_message_deleted'].includes(String(metadata.event || historic.event || '').toLowerCase());
+ return deleted;
+}
+
 export function deliveryLabel(metadata) {
  return ({read:'Lida',delivered:'Entregue',sent:'Enviada',failed:'Falhou',deleted:'Excluída',unknown:'Confirmação pendente',accepted:'Aceita pela SAC',pending:'Pendente',queued:'Na fila da SAC',preparing:'Preparando',prepared:'Preparando',rejected:'Recusada'})[deliveryState(metadata)] || 'Aguardando confirmação';
 }
