@@ -40,11 +40,6 @@ function formatPhone(value: string) {
   return value;
 }
 
-function isUsablePhone(value: string) {
-  const digits = normalizePhone(value);
-  return digits.length >= 10 && digits.length <= 15;
-}
-
 function candidateKey(candidate: SacDigitalNewConversationCandidate) {
   return candidate.external_contact_id || `${candidate.source}:${candidate.customer_id || phoneKey(candidate.phone)}`;
 }
@@ -55,15 +50,16 @@ export function SacDigitalNewConversationDialog({
   initialContact,
   onClose,
   onStarted,
+  onOpenExisting,
 }: {
   open: boolean;
   organizationId: string;
   initialContact?: { phone: string; name: string } | null;
   onClose: () => void;
   onStarted: (result: Awaited<ReturnType<typeof startSacDigitalNewConversation>>) => Promise<void> | void;
+  onOpenExisting: (protocol: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
-  const [manualName, setManualName] = useState("");
   const [searching, setSearching] = useState(false);
   const [preparingKey, setPreparingKey] = useState<string | null>(null);
   const [contacts, setContacts] = useState<SacDigitalNewConversationCandidate[]>([]);
@@ -100,7 +96,6 @@ export function SacDigitalNewConversationDialog({
     searchRequestRef.current += 1;
     prepareRequestRef.current += 1;
     setQuery(initialContact.phone);
-    setManualName(initialContact.name || "");
     setContacts([]);
     setCustomers([]);
     setPrepared(null);
@@ -129,7 +124,6 @@ export function SacDigitalNewConversationDialog({
     setTemplate("");
     setVariables({});
     setQuery("");
-    setManualName("");
     setContacts([]);
     setCustomers([]);
     setPrepared(null);
@@ -159,8 +153,8 @@ export function SacDigitalNewConversationDialog({
       if (requestId !== searchRequestRef.current) return;
       setContacts(data.contacts);
       setCustomers(data.customers);
-      if (data.contacts.length === 0 && data.customers.length === 0 && !isUsablePhone(value)) {
-        reportError("Nenhum contato encontrado. Para um número novo, informe o telefone com DDD.");
+      if (data.contacts.length === 0 && data.customers.length === 0) {
+        notifyAdmin("Nenhum contato encontrado. Por enquanto, selecione apenas contatos já cadastrados.", "warning");
       }
     } catch (caught) {
       if (requestId === searchRequestRef.current) {
@@ -190,7 +184,6 @@ export function SacDigitalNewConversationDialog({
               phone: candidate.phone,
             }
           : {
-              name: manualName.trim() || undefined,
               phone: query.trim(),
             },
       );
@@ -252,11 +245,27 @@ export function SacDigitalNewConversationDialog({
     }
   };
 
-  const manualPhoneReady = isUsablePhone(query);
   const selectedContact = prepared?.contact || null;
   // Um contato recém-importado pode ainda não ter canal confirmado na consulta.
   // Deixar a SAC decidir no envio, sem bloquear apenas por ausência no índice.
   const canCompose = Boolean(prepared?.prepared && selectedContact?.external_contact_id && !selectedContact.blocked);
+
+  const openExistingConversation = async () => {
+    const protocol = prepared?.active_protocol?.protocol;
+    if (!protocol || sending) return;
+    setSending(true);
+    try {
+      const opened = await onOpenExisting(protocol);
+      if (opened) {
+        reset();
+        onClose();
+      }
+    } catch (caught) {
+      reportError(systemErrorMessage(caught, "Não foi possível abrir o atendimento existente."));
+    } finally {
+      setSending(false);
+    }
+  };
 
   return (
     <AdminDialog
@@ -267,7 +276,14 @@ export function SacDigitalNewConversationDialog({
       className="max-w-2xl"
       minimizable
       footer={
-        canCompose ? (
+        prepared?.active_protocol ? (
+          <div className="flex w-full items-center justify-between gap-2">
+            <BtnSecondary onClick={() => { setPrepared(null); setDraft(""); }} disabled={sending}>Voltar</BtnSecondary>
+            <AdminButton onClick={() => void openExistingConversation()} loading={sending}>
+              Abrir conversa
+            </AdminButton>
+          </div>
+        ) : canCompose ? (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-between">
             <BtnSecondary
               onClick={() => {
@@ -309,7 +325,7 @@ export function SacDigitalNewConversationDialog({
                 <FInput label="Buscar contato" aria-label="Buscar contato" value={query} placeholder="Nome ou número com DDD"
                   onChange={(event: any) => {
                     searchRequestRef.current += 1; prepareRequestRef.current += 1;
-                    setQuery(event.target.value); setManualName(""); setPrepared(null); setContacts([]); setCustomers([]);
+                    setQuery(event.target.value); setPrepared(null); setContacts([]); setCustomers([]);
                     setSearching(false); setPreparingKey(null); setConfirmationPending(false);
                   }} />
               </div>
@@ -367,27 +383,6 @@ export function SacDigitalNewConversationDialog({
               </div>
             )}
 
-            {manualPhoneReady && !results.some(item => phoneKey(item.phone) === phoneKey(query)) && (
-              <div className="rounded-lg border border-border bg-muted/25 p-3">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-black text-foreground">Número novo — iniciar conversa</p>
-                    <p className="mt-0.5 text-xs text-muted-foreground">{formatPhone(query)}</p>
-                    <div className="mt-3"><FInput label="Nome do contato" aria-label="Nome do contato" value={manualName} onChange={(event: any) => setManualName(event.target.value)} placeholder="Opcional" /></div>
-                  </div>
-                  <AdminButton
-                    onClick={() => void prepare()}
-                    loading={preparingKey === "manual"}
-                    disabled={Boolean(preparingKey && preparingKey !== "manual")}
-                  >
-                    Continuar
-                  </AdminButton>
-                </div>
-                <p className="mt-2 text-[10px] leading-4 text-muted-foreground">
-                  O número não precisa estar cadastrado na SAC nem no CRM. O envio direto valida o número na SAC; selecione o canal e, se necessário, um template aprovado.
-                </p>
-              </div>
-            )}
           </>
         ) : selectedContact ? (
           <>
@@ -415,7 +410,17 @@ export function SacDigitalNewConversationDialog({
               </div>
             </div>
 
-            {canCompose ? (
+            {prepared.active_protocol ? (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4">
+                <p className="text-sm font-bold text-foreground">Este contato já possui um atendimento aberto.</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {prepared.active_protocol.operator_name
+                    ? `Atendente: ${prepared.active_protocol.operator_name}.`
+                    : "Atendimento ainda sem atendente confirmado."}
+                  {" "}Abra a conversa existente, sem criar outro protocolo ou reenviar a primeira mensagem.
+                </p>
+              </div>
+            ) : canCompose ? (
               <div>
                 <div className="mb-4 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
