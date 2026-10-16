@@ -13,6 +13,7 @@ import {
   Menu,
   Moon,
   Settings,
+  ScrollText,
   Sun,
   X,
 } from "lucide-react";
@@ -22,6 +23,9 @@ import { useCompanySettingsQuery } from "@/features/settings/presentation/useCom
 import { changeAdminPassword } from "@/features/auth/infrastructure/auth.repository";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { cn } from "@/shared/domain/formatters";
+import { systemErrorMessage } from "@/shared/domain/error-message";
+import { listMyAcceptedOrganizationTerms, type AcceptedOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
+import { FormattedTermContent } from "@/features/terms/presentation/TermsAcceptanceGate";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import type { AdminPageState } from "../domain/admin.types";
 import { useAdminTheme } from "./AdminLayout";
@@ -242,6 +246,11 @@ export function AdminHeader({
   const notifications = useAdminNotifications(activeOrganizationId, userId);
   const [openMenu, setOpenMenu] = useState<HeaderMenu>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
+  const [termsMenuOpen, setTermsMenuOpen] = useState(false);
+  const [accountTerms, setAccountTerms] = useState<AcceptedOrganizationTerm[]>([]);
+  const [termsLoading, setTermsLoading] = useState(false);
+  const [termsError, setTermsError] = useState("");
+  const [viewingTerm, setViewingTerm] = useState<AcceptedOrganizationTerm | null>(null);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -265,6 +274,21 @@ export function AdminHeader({
 
   const toggleMenu = (menu: Exclude<HeaderMenu, null>) => {
     setOpenMenu(current => current === menu ? null : menu);
+  };
+
+  const toggleAccountTerms = async () => {
+    if (termsMenuOpen) { setTermsMenuOpen(false); return; }
+    setTermsMenuOpen(true);
+    setTermsError("");
+    if (!activeOrganizationId || !userId) { setAccountTerms([]); return; }
+    setTermsLoading(true);
+    try {
+      setAccountTerms(await listMyAcceptedOrganizationTerms(activeOrganizationId, userId));
+    } catch (error) {
+      setTermsError(systemErrorMessage(error, "Não foi possível carregar seus termos."));
+    } finally {
+      setTermsLoading(false);
+    }
   };
 
   const openNotification = async (notification: AdminNotification) => {
@@ -344,6 +368,9 @@ export function AdminHeader({
     try {
       await onOrganizationChange(organizationId);
       setOpenMenu(null);
+      setTermsMenuOpen(false);
+      setAccountTerms([]);
+      setViewingTerm(null);
     } finally {
       setSwitchingOrganization(false);
     }
@@ -401,6 +428,22 @@ export function AdminHeader({
       </div>
     </div>}
     <div className="p-2">
+      <button type="button" onClick={() => void toggleAccountTerms()}
+        aria-expanded={termsMenuOpen}
+        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-[#24354b] transition-colors hover:bg-[#f5f7fa]">
+        <ScrollText size={15} className="text-[#718096]" /> Termos
+        <ChevronDown size={14} className={cn("ml-auto transition-transform", termsMenuOpen && "rotate-180")} />
+      </button>
+      {termsMenuOpen && <div className="mb-2 ml-4 space-y-1 border-l border-border pl-3">
+        {termsLoading && <p className="px-2 py-2 text-xs text-muted-foreground">Carregando termos...</p>}
+        {termsError && <p role="alert" className="px-2 py-2 text-xs text-red-600">{termsError}</p>}
+        {!termsLoading && !termsError && !accountTerms.length && <p className="px-2 py-2 text-xs text-muted-foreground">Nenhum termo aceito encontrado.</p>}
+        {!termsLoading && accountTerms.map(term => <button key={term.id} type="button"
+          onClick={() => { setViewingTerm(term); setOpenMenu(null); setTermsMenuOpen(false); }}
+          className="w-full rounded-md px-2.5 py-2 text-left text-xs font-semibold text-[#24354b] hover:bg-[#f5f7fa]">
+          {term.term_type === "usage" ? "Termos de uso" : "Termos de responsabilidade"}
+        </button>)}
+      </div>}
       <button
         type="button"
         onClick={() => { setOpenMenu(null); void onSignOut(); }}
@@ -554,6 +597,22 @@ export function AdminHeader({
           </div>
         </header>
       )}
+
+      <AdminDialog open={Boolean(viewingTerm)} onClose={() => setViewingTerm(null)}
+        title={viewingTerm?.title || "Termos"}
+        description={viewingTerm ? `Aceito em ${new Date(viewingTerm.accepted_at).toLocaleString("pt-BR")} · versão ${viewingTerm.accepted_version}` : ""}
+        className="max-w-3xl" footer={<div className="flex justify-end">
+          <BtnSecondary onClick={() => setViewingTerm(null)}>Fechar</BtnSecondary>
+        </div>}>
+        {viewingTerm && <div className="max-h-[65vh] space-y-3 overflow-y-auto">
+          {viewingTerm.version !== viewingTerm.accepted_version &&
+            <p className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+              O termo foi alterado após seu aceite. O texto abaixo é o conteúdo atual (versão {viewingTerm.version}),
+              não uma cópia arquivada da versão {viewingTerm.accepted_version}.
+            </p>}
+          <FormattedTermContent content={viewingTerm.content} />
+        </div>}
+      </AdminDialog>
 
       <AdminDialog
         open={passwordOpen}
