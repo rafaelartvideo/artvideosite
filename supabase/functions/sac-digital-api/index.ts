@@ -2440,6 +2440,24 @@ Deno.serve(async request => {
       }, 409);
 
       let openProtocol = await findOpenProtocol();
+      if (openProtocol) {
+        // Um protocolo já existente não pode receber automaticamente a
+        // "primeira mensagem" de outra conversa. Devolver o destino para
+        // navegação (somente quando o usuário possui direito de consulta).
+        if (accessBinding.accessMode === "operator" && openProtocol.operatorId
+          && openProtocol.operatorId !== accessBinding.id) return conflictResponse(openProtocol);
+        if (!(await hasOrganizationPermission("sac_digital.messages.view"))) {
+          return json({success:false,type:"existing_protocol_not_viewable",
+            error:"O contato já possui atendimento aberto. Seu perfil não possui permissão para consultá-lo; nenhuma mensagem foi enviada."},403);
+        }
+        return json({
+          success: true,
+          mode: "existing",
+          protocol: openProtocol.protocol,
+          external_contact_id: externalContactId,
+          existing: true,
+        });
+      }
       if (!openProtocol) {
         // Nova conversa não usa /notification/contact: o fornecedor precisa
         // confirmar um protocolo real antes do envio da primeira mensagem.
