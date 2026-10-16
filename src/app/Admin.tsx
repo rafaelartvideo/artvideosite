@@ -353,7 +353,6 @@ export function AdminDashboard({
     : route.resourceId === "sac-digital"
       ? canAccessSacDigitalTool
         ? <SacDigitalToolPage
-          onOpenSettings={hasPermission("sac_digital.settings.manage") ? () => navigateAdmin("integrations") : undefined}
           onBack={() => navigateAdmin("tools")}
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers", customerId, "customer"))
