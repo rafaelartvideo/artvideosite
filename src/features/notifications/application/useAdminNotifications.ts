@@ -22,7 +22,11 @@ export function useAdminNotifications(
   userId: string | null | undefined,
 ) {
   const queryClient = useQueryClient();
-  const [liveNotification, setLiveNotification] = useState<AdminNotification | null>(null);
+  const [liveQueue, setLiveQueue] = useState<AdminNotification[]>([]);
+  const liveNotification = liveQueue[0] || null;
+  const isWorkReminder = (notification: AdminNotification) =>
+    notification.module_key === "workItems" && notification.entity_type === "work_item"
+      && notification.title === "Lembrete de atividade";
   const normalizedOrganizationId = organizationId || null;
   const normalizedUserId = userId || null;
   const enabled = Boolean(normalizedOrganizationId && normalizedUserId);
@@ -37,7 +41,7 @@ export function useAdminNotifications(
   });
 
   useEffect(() => {
-    setLiveNotification(null);
+    setLiveQueue([]);
     if (!normalizedOrganizationId || !normalizedUserId) return;
 
     return subscribeToAdminNotifications(normalizedOrganizationId, normalizedUserId, {
@@ -53,7 +57,9 @@ export function useAdminNotifications(
           }),
         );
         void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
-        setLiveNotification(notification);
+        setLiveQueue(current =>
+          current.some(item => item.id === notification.id) ? current : [...current, notification].slice(0, 15)
+        );
       },
       onStateChange: () => {
         void queryClient.invalidateQueries({ queryKey });
@@ -63,10 +69,11 @@ export function useAdminNotifications(
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);
 
   useEffect(() => {
-    if (!liveNotification) return;
-    const timeout = window.setTimeout(() => setLiveNotification(null), 7000);
+    if (!liveNotification || isWorkReminder(liveNotification)) return;
+    const timeout = window.setTimeout(() =>
+      setLiveQueue(current => current.filter(item => item.id !== liveNotification.id)), 7000);
     return () => window.clearTimeout(timeout);
-  }, [liveNotification]);
+  }, [liveNotification?.id]);
 
   const markRead = async (notification: AdminNotification) => {
     if (!normalizedOrganizationId || !normalizedUserId || notification.read_at) return;
@@ -125,7 +132,7 @@ export function useAdminNotifications(
         };
       },
     );
-    setLiveNotification(current => current?.id === notification.id ? null : current);
+    setLiveQueue(current => current.filter(item => item.id !== notification.id));
 
     try {
       await dismissAdminNotification(notification.id, normalizedOrganizationId);
@@ -142,7 +149,7 @@ export function useAdminNotifications(
       queryKey,
       { items: [], unreadCount: 0 },
     );
-    setLiveNotification(null);
+    setLiveQueue([]);
 
     try {
       await dismissAllAdminNotifications(normalizedOrganizationId);
@@ -157,7 +164,7 @@ export function useAdminNotifications(
     unreadCount: notificationsQuery.data?.unreadCount || 0,
     isLoading: notificationsQuery.isPending,
     liveNotification,
-    dismissLiveNotification: () => setLiveNotification(null),
+    dismissLiveNotification: () => setLiveQueue(current => current.slice(1)),
     markRead,
     markAllRead,
     dismiss,
