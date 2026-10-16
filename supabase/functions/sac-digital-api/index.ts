@@ -292,6 +292,13 @@ Deno.serve(async request => {
         return {result:attempt,phone:normalizeSacPhone(candidatePhone),channelId,failure:null};
       lastFailure = attempt;
       if(mayTryImportVariant(attempt.body,attempt.response.status) && index < candidates.length - 1) continue;
+      // Diagnóstico técnico sem registrar telefone, nome ou credenciais.
+      console.warn("[SAC DIGITAL API] contact import rejected", {
+        provider_type: String(attempt.body.type || "unclassified").slice(0,80),
+        http_status: attempt.response.status,
+        channel_type: String(primaryChannel?.type || "unknown").slice(0,40),
+        variants_checked: index + 1,
+      });
       return {result:null,phone:normalizeSacPhone(candidatePhone),channelId,failure:attempt};
     }
 
