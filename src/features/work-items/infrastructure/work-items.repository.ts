@@ -135,6 +135,7 @@ export async function removeWorkChecklistItem(organizationId: string, id: string
 type WorkItemRealtimeSubscription = {
   channel: ReturnType<typeof supabase.channel>;
   listeners: Set<() => void>;
+  teardownTimer: number | null;
 };
 const workItemRealtimeSubscriptions = new Map<string, WorkItemRealtimeSubscription>();
 
@@ -154,21 +155,31 @@ export function subscribeWorkItems(organizationId: string, onChange: () => void)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_items", filter }, notify)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_item_checklist", filter }, notify)
       .on("postgres_changes", { event: "*", schema: "public", table: "work_item_activity", filter }, notify);
-    subscription = { channel, listeners };
+    subscription = { channel, listeners, teardownTimer: null };
     workItemRealtimeSubscriptions.set(organizationId, subscription);
     channel.subscribe();
   }
 
   const current = subscription;
+  // React StrictMode and retained views can unsubscribe/resubscribe in the
+  // same frame. Reuse the channel rather than racing removeChannel().
+  if (current.teardownTimer !== null) {
+    window.clearTimeout(current.teardownTimer);
+    current.teardownTimer = null;
+  }
   current.listeners.add(onChange);
   let disposed = false;
   return () => {
     if (disposed) return;
     disposed = true;
     current.listeners.delete(onChange);
-    if (current.listeners.size === 0 && workItemRealtimeSubscriptions.get(organizationId) === current) {
-      workItemRealtimeSubscriptions.delete(organizationId);
-      void supabase.removeChannel(current.channel);
+    if (current.listeners.size === 0 && workItemRealtimeSubscriptions.get(organizationId) === current && current.teardownTimer === null) {
+      current.teardownTimer = window.setTimeout(() => {
+        current.teardownTimer = null;
+        if (current.listeners.size > 0 || workItemRealtimeSubscriptions.get(organizationId) !== current) return;
+        workItemRealtimeSubscriptions.delete(organizationId);
+        void supabase.removeChannel(current.channel);
+      }, 1000);
     }
   };
 }
