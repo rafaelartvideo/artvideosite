@@ -3,7 +3,7 @@ import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 
-/** Preenche o nome no cabeçalho e abre os demais dados do serviço no modal. */
+/** Abre o cadastro completo do serviço, sem campo redundante no cabeçalho. */
 export function EquipmentServiceCreate({ onCreate, disabled }: {
   onCreate: (name: string) => void;
   disabled?: boolean;
