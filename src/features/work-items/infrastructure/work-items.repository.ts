@@ -43,9 +43,9 @@ export async function loadWorkItems(organizationId: string): Promise<WorkItem[]>
 }
 
 export async function loadWorkEmployees(organizationId: string): Promise<WorkEmployee[]> {
-  const { data, error } = await supabase.from("employees")
-    .select("id,full_name,profile_id").eq("organization_id", organizationId)
-    .eq("is_active", true).order("full_name");
+  const { data, error } = await supabase.rpc("list_work_item_employees_v1", {
+    p_organization_id: organizationId,
+  });
   if (error) throw error;
   return (data || []) as WorkEmployee[];
 }
@@ -71,10 +71,10 @@ export async function findWorkCustomers(organizationId: string, term: string) {
 }
 
 export async function findCustomerWorkOrders(organizationId: string, customerId: string) {
-  const { data, error } = await supabase.from("service_orders")
-    .select("id,os_number")
-    .eq("organization_id", organizationId).eq("customer_id", customerId)
-    .order("created_at", { ascending: false }).limit(15);
+  const { data, error } = await supabase.rpc("list_work_item_customer_orders_v1", {
+    p_organization_id: organizationId,
+    p_customer_id: customerId,
+  });
   if (error) throw error;
   return data || [];
 }
