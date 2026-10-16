@@ -133,6 +133,29 @@ test('SAC profile without info.id is confirmed against its unique Operator email
  assert.equal(f.inspect().saved.p_operator_id,'op');
 });
 
+test('OAuth saves accepted SAC profile with unmatched email and no directory calls',async()=>{
+ const f=callbackFixture();
+ let directoryCalls=0;
+ f.deps.fetcher=async url=>{
+  if(url.endsWith('/oauth/token')) return Response.json({access_token:'private-access',refresh_token:'private-refresh',expires_in:604800});
+  if(url.includes('/client/')) {directoryCalls++;throw Error('Unexpected directory');}
+  return Response.json({status:true,info:{name:'Atendente',email:'unmatched@example.test'}});
+ };
+ const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
+ assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
+ assert.equal(f.inspect().saved.p_operator_id,'op');
+ assert.equal(directoryCalls,0);
+});
+test('OAuth saves accepted SAC profile without info',async()=>{
+ const f=callbackFixture();
+ f.deps.fetcher=async url=>url.endsWith('/oauth/token')
+  ? Response.json({access_token:'private-access',refresh_token:'private-refresh',expires_in:604800})
+  : Response.json({status:true});
+ const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
+ assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
+ assert.equal(f.inspect().saved.p_operator_id,'op');
+});
+
 test('valid Operator authorization is saved when the optional notification WebSocket closes or is unavailable',async()=>{
  const f=callbackFixture();
  f.deps.openSocket=async()=>{throw Object.assign(Error('notification socket closed'),{code:'operator_session_unavailable'});};
