@@ -212,13 +212,20 @@ test('SAC management actions and direct forwarding remain restricted', () => {
   for (const branch of [
     ['assume_protocol','routing_options'],
     ['routing_options','forward_protocol'],
-    ['forward_protocol','return_to_inbox'],
-    ['return_to_inbox','finish_protocol'],
     ['finish_protocol','send_media'],
   ]) {
-    const code=action(branch[0],branch[1]);
-    assert.match(code,/requirePermission\("sac_digital\.protocols\.manage"\)/);
+    assert.match(action(branch[0],branch[1]),/requirePermission\("sac_digital\.protocols\.manage"\)/);
   }
+  const transfer=backend.slice(
+    backend.indexOf('if (action === "forward_protocol")'),
+    backend.indexOf('if (action === "return_to_inbox" ||'),
+  );
+  const returnToQueue=backend.slice(
+    backend.indexOf('if (action === "return_to_inbox" ||'),
+    backend.indexOf('if (action === "finish_protocol")'),
+  );
+  assert.match(transfer,/requirePermission\("sac_digital\.protocols\.manage"\)/);
+  assert.match(returnToQueue,/requirePermission\("sac_digital\.protocols\.manage"\)/);
   assert.match(backend,/\[36,37,38\]\.includes\(endpointId\)/);
   assert.match(backend,/endpointId === 36 \? 'sac_digital\.messages\.send' : 'sac_digital\.protocols\.manage'/);
 });
