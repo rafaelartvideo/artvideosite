@@ -44,8 +44,11 @@ const dueLabel = (value: string | null) => value
   ? new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
   : "Sem prazo";
 const initials = (name: string) => name.split(" ").filter(Boolean).slice(0, 2).map(word => word[0].toUpperCase()).join("");
-const progress = (item: WorkItem) => item.status === "completed" ? 100
-  : item.status === "in_progress" ? 56 : item.status === "waiting" ? 33 : 8;
+const progress = (item: WorkItem): number | null => {
+  const checks = item.checklist || [];
+  return checks.length ? Math.round(100 * checks.filter(check => check.done).length / checks.length)
+    : item.status === "completed" ? 100 : null;
+};
 const viewOptions: { value: View; label: string; icon: typeof List }[] = [
   { value: "overview", label: "Painel", icon: LayoutDashboard },
   { value: "list", label: "Lista", icon: List },
@@ -110,9 +113,12 @@ function TaskCard({ item, employees, onOpen, onComplete, compact = false }: {
       <DueTag item={item} />
       <AvatarStack ids={item.assigned_employee_ids || []} employees={employees} />
     </div>
-    {!compact && <div className="h-1 overflow-hidden rounded-full bg-muted">
-      <div className={cn("h-full rounded-full transition-all duration-500", item.status === "completed" ? "bg-emerald-500" : "bg-primary")}
-        style={{ width: progress(item) + "%" }} />
+    {!compact && progress(item) !== null && <div className="space-y-1">
+      <div className="flex justify-between text-[10px] font-medium text-muted-foreground"><span>Checklist</span><span>{progress(item)}%</span></div>
+      <div className="h-1 overflow-hidden rounded-full bg-muted">
+        <div className={cn("h-full rounded-full bg-primary transition-all duration-500", item.status === "completed" && "bg-emerald-500")}
+          style={{ width: progress(item) + "%" }} />
+      </div>
     </div>}
   </div>;
 }
