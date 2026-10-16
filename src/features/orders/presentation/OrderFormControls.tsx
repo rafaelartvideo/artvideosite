@@ -11,6 +11,7 @@ import {
   SelectValue,
 } from "@/shared/ui/primitives/select";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 
 export type EmployeeOption = { id: string; full_name: string };
 export type MultiSelectOption = { value: string; label: string };
@@ -40,7 +41,7 @@ export function EmployeeMultiSelect({ label, employees, selectedIds, onChange, d
   const toggle = (id: string) => onChange(selectedIds.includes(id) ? selectedIds.filter(selectedId => selectedId !== id) : [...selectedIds, id]);
   return <div ref={containerRef} className="relative">
     <label className="block text-[11px] font-bold text-[#5a6a82] uppercase tracking-wider mb-1.5">{label}</label>
-    <button type="button" disabled={disabled || loading} onClick={() => setOpen(value => !value)} className={cn(INPUT, "min-h-[42px] text-left", disabled || loading ? "cursor-not-allowed opacity-70" : "cursor-pointer")} aria-busy={loading}>{loading ? "Carregando funcionários..." : selectedIds.length ? `${selectedIds.length} selecionado(s)` : placeholder}</button>
+    <button type="button" disabled={disabled || loading} onClick={() => setOpen(value => !value)} className={cn(INPUT, "min-h-[42px] text-left", disabled || loading ? "cursor-not-allowed opacity-70" : "cursor-pointer")} aria-busy={loading}>{loading ? <InlineLoading text="Carregando funcionários..." /> : selectedIds.length ? `${selectedIds.length} selecionado(s)` : placeholder}</button>
     {!loading && selectedIds.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{selectedIds.map(id => <span key={id} className="inline-flex items-center gap-1 rounded-full bg-[#e8eef8] px-2 py-1 text-[11px] font-bold text-[#0057e7]">{employees.find(employee => employee.id === id)?.full_name || "Funcionário"}<button type="button" disabled={disabled} onClick={() => toggle(id)} aria-label={`Remover ${employees.find(employee => employee.id === id)?.full_name || "funcionário"}`}><X size={12} /></button></span>)}<button type="button" disabled={disabled} onClick={() => onChange([])} className="text-[11px] font-bold text-red-600 hover:text-red-700">{clearLabel}</button></div>}
     {open && !disabled && !loading && <div className={cn(
       "rounded-lg border border-border bg-popover p-2 text-popover-foreground shadow-sm",
