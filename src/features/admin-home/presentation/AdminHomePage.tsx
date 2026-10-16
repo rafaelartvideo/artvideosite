@@ -43,7 +43,6 @@ import {
   loadWorkItems,
   subscribeWorkItems,
   type WorkItem,
-  type WorkKind,
 } from "@/features/work-items/infrastructure/work-items.repository";
 
 type QuickShortcut = {
@@ -82,17 +81,24 @@ const PRIORITY_UI: Record<HomeAnnouncementPriority, {
 
 type WorkSummary = { open: number; progress: number; overdue: number; completed: number };
 
-function summarizeWorkItems(items: WorkItem[], kind: WorkKind, now: number): WorkSummary {
-  const own = items.filter(item => item.kind === kind);
-  return {
-    // Use the same "Em aberto" definition as the Compromissos e Tarefas page.
-    open: own.filter(item => ["pending", "waiting", "in_progress"].includes(item.status)).length,
-    progress: own.filter(item => item.status === "in_progress").length,
-    overdue: own.filter(item => item.due_at
-      && new Date(item.due_at).getTime() < now
-      && item.status !== "completed" && item.status !== "cancelled").length,
-    completed: own.filter(item => item.status === "completed").length,
-  };
+function summarizeWorkItems(items: WorkItem[], now: number): WorkSummary {
+  const summary: WorkSummary = { open: 0, progress: 0, overdue: 0, completed: 0 };
+  // Both tasks and commitments share the same four exclusive classifications.
+  // A deadline already passed takes precedence over pending/in-progress; a
+  // completed item is always completed, and a cancelled one is not counted.
+  for (const item of items) {
+    if (item.status === "cancelled") continue;
+    if (item.status === "completed") {
+      summary.completed++;
+    } else if (item.due_at && new Date(item.due_at).getTime() < now) {
+      summary.overdue++;
+    } else if (item.status === "in_progress") {
+      summary.progress++;
+    } else if (item.status === "pending" || item.status === "waiting") {
+      summary.open++;
+    }
+  }
+  return summary;
 }
 
 const WORK_STATUS_CARDS = [
@@ -268,10 +274,10 @@ export function AdminHomePage({
       void queryClient.invalidateQueries({ queryKey: ["work-items", activeOrganizationId] });
     });
   }, [activeOrganizationId, canViewWorkItems, queryClient]);
-  const workSummaries = useMemo(() => ({
-    tasks: summarizeWorkItems(workItemsQuery.data || [], "task", summaryNow),
-    commitments: summarizeWorkItems(workItemsQuery.data || [], "commitment", summaryNow),
-  }), [workItemsQuery.data, summaryNow]);
+  const workSummary = useMemo(
+    () => summarizeWorkItems(workItemsQuery.data || [], summaryNow),
+    [workItemsQuery.data, summaryNow],
+  );
 
   useEffect(() => {
     if (!activeOrganizationId) return;
@@ -323,28 +329,19 @@ export function AdminHomePage({
         </div>
         <div className={cn(
           "grid min-w-0 gap-4",
-          canViewWorkItems && "xl:grid-cols-[minmax(120px,150px)_minmax(0,1fr)_minmax(0,1fr)]",
+          canViewWorkItems && "xl:grid-cols-[minmax(120px,150px)_minmax(0,1fr)]",
         )}>
           <div className="flex min-h-[82px] flex-col items-center justify-center rounded-xl border border-border bg-muted/50 px-4 py-3 text-center">
             <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Avisos pendentes</p>
             <strong className="mt-1 block text-2xl font-black tabular-nums text-foreground">{pendingAcknowledgments}</strong>
           </div>
-          {canViewWorkItems && <>
-            <WorkHomeCounters
-              title="Tarefas"
-              summary={workSummaries.tasks}
-              pending={workItemsQuery.isPending}
-              error={workItemsQuery.isError}
-              onOpen={() => onNavigate("workItems")}
-            />
-            <WorkHomeCounters
-              title="Compromissos"
-              summary={workSummaries.commitments}
-              pending={workItemsQuery.isPending}
-              error={workItemsQuery.isError}
-              onOpen={() => onNavigate("workItems")}
-            />
-          </>}
+          {canViewWorkItems && <WorkHomeCounters
+            title="Tarefas/Compromissos"
+            summary={workSummary}
+            pending={workItemsQuery.isPending}
+            error={workItemsQuery.isError}
+            onOpen={() => onNavigate("workItems")}
+          />}
         </div>
       </div>
     </section>
