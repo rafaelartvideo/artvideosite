@@ -116,7 +116,8 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
     .sort((a, b) => Number(selectedEquipmentIds.includes(b.id)) - Number(selectedEquipmentIds.includes(a.id))
       || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   useEffect(() => { if (itemsQuery.error) setToast({ msg: `Erro ao carregar serviços gerais: ${systemErrorMessage(itemsQuery.error)}`, type: "error" }); }, [itemsQuery.error]);
-  const totalPages = Math.max(1, Math.ceil(items.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = items.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const sortedItems = [...items].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = sortedItems.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
   const openNew = () => { if (!canCreate) return; loadPublication(null); setEditItem(null); setFieldErrors({}); setName(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(null); };
