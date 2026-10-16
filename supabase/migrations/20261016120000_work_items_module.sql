@@ -230,18 +230,23 @@ alter table public.work_item_activity enable row level security;
 alter table public.work_item_reminders enable row level security;
 
 -- Funcionarios veem atividades criadas ou atribuídas a eles; gestores veem a equipe.
+create or replace function private.is_work_item_assignee(p_organization_id uuid,p_employee_ids uuid[])
+returns boolean language sql stable security definer set search_path='' as $
+  select (select auth.uid()) is not null and exists (
+    select 1 from public.employees e
+    where e.organization_id=p_organization_id
+      and e.profile_id=(select auth.uid()) and e.id=any(p_employee_ids)
+  );
+$;
+revoke all on function private.is_work_item_assignee(uuid,uuid[]) from public,anon,authenticated;
+
 create policy work_items_select on public.work_items for select to authenticated
 using (
   private.has_tenant_module_permission(organization_id,'work_items','work_items.view')
   and (
     private.has_tenant_module_permission(organization_id,'work_items','work_items.manage')
     or created_by=(select auth.uid())
-    or exists (
-      select 1 from public.employees e
-      where e.organization_id=work_items.organization_id
-        and e.profile_id=(select auth.uid())
-        and e.id=any(work_items.assigned_employee_ids)
-    )
+    or private.is_work_item_assignee(work_items.organization_id,work_items.assigned_employee_ids)
   )
 );
 create policy work_items_insert on public.work_items for insert to authenticated
@@ -252,11 +257,7 @@ using (
   and (
     private.has_tenant_module_permission(organization_id,'work_items','work_items.manage')
     or created_by=(select auth.uid())
-    or exists (
-      select 1 from public.employees e
-      where e.organization_id=work_items.organization_id and e.profile_id=(select auth.uid())
-        and e.id=any(work_items.assigned_employee_ids)
-    )
+    or private.is_work_item_assignee(work_items.organization_id,work_items.assigned_employee_ids)
   )
 )
 with check (
@@ -264,11 +265,7 @@ with check (
   and (
     private.has_tenant_module_permission(organization_id,'work_items','work_items.manage')
     or created_by=(select auth.uid())
-    or exists (
-      select 1 from public.employees e
-      where e.organization_id=work_items.organization_id and e.profile_id=(select auth.uid())
-        and e.id=any(work_items.assigned_employee_ids)
-    )
+    or private.is_work_item_assignee(work_items.organization_id,work_items.assigned_employee_ids)
   )
 );
 
