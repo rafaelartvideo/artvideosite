@@ -1497,6 +1497,26 @@ export function SacDigitalToolPage({
     }
   };
 
+  const handleDirectNotificationSent = async (pendingStartId: string | null) => {
+    if (!activeOrganizationId || !canViewMessages) return;
+    setModuleSection("conversations");
+    setConversationSearch("");
+    setOperatorFilter("all");
+    setStatusFilter("pending");
+    try {
+      const list = await listSacDigitalProtocols(activeOrganizationId, true, user?.id || "");
+      setProtocols(list);
+      if (pendingStartId) {
+        const found = list.find(item => item.id === `pending:${pendingStartId}`);
+        if (found) selectProtocol(found.id);
+      }
+    } catch {
+      // O envio já foi aceito pela SAC. Falha de refresh não justifica
+      // retransmitir: a notificação aparecerá na próxima sincronização.
+      notifyAdmin("A notificação foi aceita pela SAC. Atualize a aba Notificações para acompanhar a confirmação.", "warning");
+    }
+  };
+
   const handleNewConversationStarted = async (result: {
     protocol: string | null;
     pending_start_id?: string | null;
@@ -1951,6 +1971,7 @@ export function SacDigitalToolPage({
       }}
       onStarted={handleNewConversationStarted}
       onOpenExisting={handleOpenExistingConversation}
+      onNotificationSent={handleDirectNotificationSent}
     />
 
     <PageHeader
