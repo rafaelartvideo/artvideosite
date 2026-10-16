@@ -28,7 +28,11 @@ type AdminButtonProps = Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "typ
 };
 
 function ButtonLoadingSpinner() {
-  return <span aria-hidden="true" className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-current border-r-transparent" />;
+  return <span aria-hidden="true" className="inline-flex shrink-0 items-center gap-1">
+    {[0, 1, 2].map(index => <span key={index}
+      className="h-1.5 w-1.5 animate-bounce rounded-full bg-current motion-reduce:animate-none"
+      style={{ animationDelay: `${index * 150}ms` }} />)}
+  </span>;
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
