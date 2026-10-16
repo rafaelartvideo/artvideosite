@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import type { EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow, TechnicalField } from "../domain/equipment";
-import { createEquipmentBrandForTypes, loadEquipmentBrandDirectory, loadEquipmentCatalog, loadEquipmentServiceSettings, renameEquipmentBrandGroup, saveEquipmentHierarchy, saveTechnicalField, setEquipmentBrandGroupActive, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
+import { createEquipmentBrandForTypes, loadEquipmentBrandDirectory, loadEquipmentCatalog, loadEquipmentServiceSettings, saveEquipmentBrandGroup, saveEquipmentHierarchy, saveTechnicalField, setEquipmentBrandGroupActive, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 import { createGeneralService } from "@/features/general-services/infrastructure/general-services.repository";
 import { EquipmentServiceCreate, EquipmentServiceSelector } from "./EquipmentServiceSelector";
@@ -79,6 +79,11 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [brandFormOpen, setBrandFormOpen] = useState(false);
   const [brandName, setBrandName] = useState("");
   const [brandEquipmentIds, setBrandEquipmentIds] = useState<string[]>([]);
+  const [editBrandEquipmentIds, setEditBrandEquipmentIds] = useState<string[]>([]);
+  const [quickBrandIndex, setQuickBrandIndex] = useState<number | null>(null);
+  const [quickBrandName, setQuickBrandName] = useState("");
+  const [quickBrandError, setQuickBrandError] = useState("");
+  const [editorSection, setEditorSection] = useState<"general" | "checklist" | "brands">("general");
   const [brandError, setBrandError] = useState("");
   const [savingBrand, setSavingBrand] = useState(false);
   const [editingBrandName, setEditingBrandName] = useState<string | null>(null);
@@ -105,9 +110,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
 
   useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar equipamentos: ${systemErrorMessage(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
   useEffect(() => { if (activeArea === "fields" && !canViewFields) setActiveArea("registered"); }, [activeArea, canViewFields]);
-  const typeTotalPages = Math.max(1, Math.ceil(types.length / typePageSize));
+  const sortedTypes = [...types].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  const typeTotalPages = Math.max(1, Math.ceil(sortedTypes.length / typePageSize));
   const safeTypePage = Math.min(typePage, typeTotalPages);
-  const pagedTypes = types.slice((safeTypePage - 1) * typePageSize, safeTypePage * typePageSize);
+  const pagedTypes = sortedTypes.slice((safeTypePage - 1) * typePageSize, safeTypePage * typePageSize);
   const fieldTotalPages = Math.max(1, Math.ceil(technicalFields.length / fieldPageSize));
   const safeFieldPage = Math.min(fieldPage, fieldTotalPages);
   const sortedTechnicalFields = [...technicalFields].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
@@ -135,8 +141,8 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     brands: brands.filter(brand => brand.equipment_type_id === type?.id).map(brand => ({ id: brand.id, name: brand.name, is_active: brand.is_active, models: models.filter(model => model.equipment_brand_id === brand.id).map(model => ({ id: model.id, name: model.name, is_active: model.is_active })) })),
   });
 
-  const openNew = () => { if (!canCreate) return; setServiceDraftIndex(null); setDrafts([makeDraft()]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
-  const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return; setServiceDraftIndex(null); setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setFormOpen(true); };
+  const openNew = () => { if (!canCreate) return; setServiceDraftIndex(null); setDrafts([makeDraft()]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setEditorSection("general"); setFormOpen(true); };
+  const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return; setServiceDraftIndex(null); setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setEditorSection("general"); setFormOpen(true); };
   const updateDraft = (index: number, value: Partial<EquipmentDraft>) => setDrafts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item));
   const toggleDraftBrand = (ti: number, name: string, checked: boolean) => {
     setDrafts(current => current.map((type, index) => {
@@ -210,6 +216,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     if (!canEdit || !brands.some(brand => brandKey(brand.name) === brandKey(name))) return;
     setEditingBrandName(name);
     setEditedBrandName(name);
+    setEditBrandEquipmentIds(brands.filter(brand => brandKey(brand.name) === brandKey(name)).map(brand => brand.equipment_type_id));
     setEditBrandError("");
   };
   const closeEditBrand = () => { if (!savingBrandEdit) setEditingBrandName(null); };
@@ -225,15 +232,18 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       setEditBrandError("Já existe uma marca com esse nome nesta empresa.");
       return;
     }
-    if (brands.filter(brand => brandKey(brand.name) === brandKey(editingBrandName))
-      .every(brand => brand.name === name)) {
+    const original = brands.filter(brand => brandKey(brand.name) === brandKey(editingBrandName));
+    const currentLinks = original.map(brand => brand.equipment_type_id);
+    if (original.every(brand => brand.name === name)
+      && currentLinks.length === editBrandEquipmentIds.length
+      && currentLinks.every(id => editBrandEquipmentIds.includes(id))) {
       setEditingBrandName(null);
       return;
     }
     setSavingBrandEdit(true);
     setEditBrandError("");
     try {
-      await renameEquipmentBrandGroup(editingBrandName, name, catalog);
+      await saveEquipmentBrandGroup(editingBrandName, name, editBrandEquipmentIds, catalog);
       setEditingBrandName(null);
       setToast({ msg: "Marca atualizada com sucesso.", type: "success" });
       refresh();
@@ -242,6 +252,15 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     } finally {
       setSavingBrandEdit(false);
     }
+  };
+  const addQuickBrand = () => {
+    if (quickBrandIndex === null) return;
+    const name = quickBrandName.trim().replace(/\s+/g, " ");
+    if (!name || name.length > 120) { setQuickBrandError("Informe o nome da marca com até 120 caracteres."); return; }
+    toggleDraftBrand(quickBrandIndex, name, true);
+    setQuickBrandIndex(null);
+    setQuickBrandName("");
+    setQuickBrandError("");
   };
   const toggleBrandActive = async (name: string, nextActive: boolean) => {
     if (!canEdit || !canToggleActive || busyBrand) return;
