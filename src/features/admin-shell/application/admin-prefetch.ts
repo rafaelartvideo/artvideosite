@@ -19,6 +19,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   documents: () => import("@/features/documents/presentation/TabDocuments"),
   services: () => import("@/features/services/presentation/TabServices"),
   siteDelivery: () => import("@/features/settings/presentation/SiteDeliveryPage"),
+  siteStoreOrders: () => import("@/features/settings/presentation/SiteStoreOrdersPage"),
   products: () => import("@/features/inventory/presentation/TabInventory"),
   brands: () => import("@/features/brands/presentation/TabBrands"),
   categories: () => import("@/features/categories/presentation/TabCategories"),

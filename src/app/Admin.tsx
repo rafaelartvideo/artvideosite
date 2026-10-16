@@ -53,6 +53,7 @@ const ServiceTypesAdminPanel = lazy(() => import("@/features/service-types/prese
 const TabSettings = lazy(() => import("@/features/settings/presentation/TabSettings").then(({ TabSettings }) => ({ default: TabSettings })));
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
 const SiteDeliveryPage = lazy(() => import("@/features/settings/presentation/SiteDeliveryPage").then(({ SiteDeliveryPage }) => ({ default: SiteDeliveryPage })));
+const SiteStoreOrdersPage = lazy(() => import("@/features/settings/presentation/SiteStoreOrdersPage").then(({ SiteStoreOrdersPage }) => ({ default: SiteStoreOrdersPage })));
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
@@ -146,7 +147,7 @@ export function AdminDashboard({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "nfse") return false;
-    if (tab === "siteDelivery" && !isArtVideoOrganization) return false;
+    if ((tab === "siteDelivery" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
@@ -422,6 +423,7 @@ export function AdminDashboard({
             <Route path="site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("brands")} />} />
             <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
             <Route path="site/entrega/*" element={<SiteDeliveryPage onBack={() => backToParent("siteDelivery")} />} />
+            <Route path="site/pedidos-da-loja/*" element={<SiteStoreOrdersPage onBack={() => backToParent("siteStoreOrders")} />} />
             <Route path="operation" element={operationHub} />
             <Route path="tools/*" element={toolsContent} />
             <Route path="operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />

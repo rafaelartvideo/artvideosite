@@ -1,5 +1,5 @@
 export type AdminTab =
-  | "home" | "dashboard" | "services" | "categories" | "products" | "brands" | "siteSettings" | "siteDelivery"
+  | "home" | "dashboard" | "services" | "categories" | "products" | "brands" | "siteSettings" | "siteDelivery" | "siteStoreOrders"
   | "equipment" | "checklists" | "generalServices" | "serviceTypes" | "inventory" | "pdv" | "finance" | "nfse" | "situations" | "orderStatuses"
   | "crm" | "announcements" | "quotes" | "orders" | "customerRequests" | "technicianPanel" | "agenda" | "workItems" | "fieldTracking" | "customers" | "documents" | "site" | "operation" | "tools" | "roles" | "partnerCompanies" | "audit" | "settings" | "integrations" | "terms" | "contact" | "planUsage";
 

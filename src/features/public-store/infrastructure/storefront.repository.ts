@@ -71,6 +71,7 @@ export async function quoteStoreShipping(productId: string, quantity: number, po
 export async function startStoreCheckout(payload: {
   product_id: string;
   quantity: number;
+  items?: { product_id: string; quantity: number }[];
   postal_code: string;
   shipping_service_id: string;
   buyer_name: string;

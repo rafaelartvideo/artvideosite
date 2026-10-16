@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
+import { addStoreCartItem } from "../application/store-cart";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, Clock3,
@@ -46,6 +47,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState("");
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [cartFeedback,setCartFeedback]=useState("");
   const [reviewOrderId, setReviewOrderId] = useState(() => typeof sessionStorage !== "undefined" ? sessionStorage.getItem("artvideo-last-order") || "" : "");
   const [reviewEmail, setReviewEmail] = useState(() => typeof sessionStorage !== "undefined" ? sessionStorage.getItem("artvideo-last-email") || "" : "");
   const [reviewRating, setReviewRating] = useState(5);
@@ -207,6 +209,11 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--art-primary)] px-4 text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
             <ShoppingCart size={19}/> Comprar agora
           </button>
+          <button type="button" disabled={!canBuy} onClick={() => setCartFeedback(addStoreCartItem(product.id,selectedQty) ? "Produto adicionado ao carrinho." : "Limite de itens do carrinho atingido.")}
+            className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[var(--art-primary)] px-4 text-[13px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-50">
+            <Plus size={17}/> Adicionar ao carrinho
+          </button>
+          {cartFeedback && <p role="status" className="mt-2 text-center text-[12px] font-semibold text-[#486785]">{cartFeedback}</p>}
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-[#7b8ba1]"><LockKeyhole size={13}/> O pagamento só ocorre no checkout seguro.</p>
           {!canBuy && <p className="mt-2 text-center text-[12px] text-[#9a4851]">Compra online indisponível até confirmar preço e estoque.</p>}
           {canBuy && !selectedOption && <p className="mt-2 text-center text-[12px] text-[#687b95]">Você poderá consultar o frete durante a finalização da compra.</p>}

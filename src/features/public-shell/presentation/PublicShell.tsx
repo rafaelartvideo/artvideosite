@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, X, Youtube } from "lucide-react";
+import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, ShoppingCart, X, Youtube } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -7,6 +7,7 @@ import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import logoIcon from "@/imports/LogoSoloSemFundo.png";
 import { getBusinessHours, getSettingText, getWhatsAppNumber } from "../application/site-settings";
 import { PUBLIC_NAV_LINKS, PUBLIC_NAV_MAP, type PublicPage } from "../domain/navigation";
+import { useStoreCart } from "@/features/public-store/application/store-cart";
 
 const WHATSAPP_MESSAGE = "Olá! Gostaria de saber mais sobre os serviços da Artvideo.";
 
@@ -59,6 +60,7 @@ function WhatsAppFloat() {
 
 function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: PublicPage) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { count: cartCount } = useStoreCart();
   const navigate = (destination: PublicPage) => {
     setPage(destination);
     setMenuOpen(false);
@@ -77,10 +79,22 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
             className={`relative flex h-full items-center whitespace-nowrap border-b-2 pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-white text-white" : "border-transparent text-white/75 hover:border-white/50 hover:text-white"}`}>{label}</button>;
         })}
       </nav>
-      <button type="button" onClick={() => navigate("orcamento")}
-        className="hidden min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-4 text-[12px] font-bold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-blue-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 lg:inline-flex">
-        <FileText size={16} /> Solicitar orçamento
-      </button>
+      <div className="hidden shrink-0 items-center gap-3 lg:flex">
+        <a href="/carrinho" aria-label={`Meu carrinho, ${cartCount} produtos`}
+          className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
+          <ShoppingCart size={21}/>
+          {cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[var(--art-primary)] px-1 text-[10px] font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>}
+        </a>
+        <button type="button" onClick={() => navigate("orcamento")}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-4 text-[12px] font-bold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-blue-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400">
+          <FileText size={16} /> Solicitar orçamento
+        </button>
+      </div>
+      <a href="/carrinho" aria-label={`Meu carrinho, ${cartCount} produtos`}
+        className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 lg:hidden">
+        <ShoppingCart size={22}/>
+        {cartCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--art-primary)] px-1.5 text-[10px] font-bold">{cartCount > 99 ? "99+" : cartCount}</span>}
+      </a>
       <button type="button" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen}
         onClick={() => setMenuOpen(x => !x)} className="rounded-md p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400 lg:hidden">
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}

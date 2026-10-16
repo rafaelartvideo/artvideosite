@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   AlertCircle, ArrowLeft, ArrowRight, BadgeCheck, Check, CheckCircle2,
   ChevronRight, CreditCard, Headphones, LoaderCircle,
   LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Truck, UserRound,
 } from "lucide-react";
-import { useProductDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
+import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
+import { useStoreCart } from "../application/store-cart";
 import { getStoreProductExtras, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 
@@ -51,12 +52,25 @@ function validPhone(phone: string) {
 export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { detail, loading: productLoading, error: productError } = useProductDetailBySlug(slug);
-  const productId: string = detail?.product?.id || "";
+  const cartMode = slug === "carrinho";
+  const { items: cartItems } = useStoreCart();
+  const { products: catalog, loading: catalogLoading, error: catalogError } = useProducts();
+  const productMap = new Map(catalog.map(p => [p.id, p]));
+  const cartLines = cartMode ? cartItems.flatMap(item => {
+    const found = productMap.get(item.productId);
+    return found ? [{ product: found, quantity: item.quantity }] : [];
+  }) : [];
+  const { detail, loading: productLoading, error: productError } = useProductDetailBySlug(cartMode ? null : slug);
+  const productId: string = cartMode ? cartItems[0]?.productId || "" : detail?.product?.id || "";
+  const cartExtras = useQueries({ queries: (cartMode ? cartItems : []).map(item => ({
+    queryKey: ["artvideo-storefront-extra", item.productId],
+    queryFn: () => getStoreProductExtras(item.productId, null),
+    staleTime: 10_000,
+  })) });
   const extrasQuery = useQuery({
     queryKey: ["artvideo-storefront-extra", productId],
     queryFn: () => getStoreProductExtras(productId, detail?.media ?? null),
-    enabled: Boolean(productId),
+    enabled: Boolean(productId) && !cartMode,
     staleTime: 10_000,
   });
 
@@ -77,18 +91,25 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const mainRef = useRef<HTMLDivElement>(null);
   const inFlight = useRef(false);
 
-  const product = detail?.product;
-  const stock = extrasQuery.data?.stock ?? null;
+  const product = cartMode ? cartLines[0]?.product : detail?.product;
+  const stock = cartMode ? null : extrasQuery.data?.stock ?? null;
   const unitPrice = Number(product?.price ?? 0);
-  const purchasable = !extrasQuery.isError && Number.isFinite(unitPrice)
-    && unitPrice > 0 && stock !== null && stock >= quantity && quantity > 0 && quantity <= 10;
+  const cartAvailable = cartMode && cartItems.length > 0 && cartItems.length <= 15
+    && cartItems.length === cartLines.length && cartLines.every((line, i) =>
+       Number(line.product.price) > 0 && Number.isInteger(line.quantity)
+       && line.quantity >= 1 && line.quantity <= 10
+       && !cartExtras[i]?.isPending && !cartExtras[i]?.isError
+       && cartExtras[i]?.data?.stock != null && cartExtras[i].data!.stock! >= line.quantity);
+  const purchasable = cartMode ? Boolean(cartAvailable)
+    : !extrasQuery.isError && Number.isFinite(unitPrice)
+      && unitPrice > 0 && stock !== null && stock >= quantity && quantity > 0 && quantity <= 10;
   const zipDigits = postalCode.replace(/\D/g, "");
-  const key = productId + ":" + quantity + ":" + zipDigits;
+  const key = (cartMode ? JSON.stringify(cartItems) : productId + ":" + quantity) + ":" + zipDigits;
   const quotedOptions = quoteKey === key ? options : [];
   const selectedShipping = quotedOptions.find(item => item.id === shippingId) || null;
-  const subtotal = unitPrice * quantity;
+  const subtotal = cartMode ? cartLines.reduce((total, line) => total + Number(line.product.price) * line.quantity, 0) : unitPrice * quantity;
   const total = subtotal + (selectedShipping?.price ?? 0);
-  const backToProduct = slug ? "/loja/" + encodeURIComponent(slug) : "/loja";
+  const backToProduct = cartMode ? "/carrinho" : slug ? "/loja/" + encodeURIComponent(slug) : "/loja";
 
   useEffect(() => {
     setStep(1);
@@ -182,7 +203,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     setQuoteKey("");
     setShippingId("");
     try {
-      const result = await quoteStoreShipping(productId, quantity, zipDigits);
+      const result = await quoteStoreShipping(productId, cartMode ? 1 : quantity, zipDigits);
       if (result.length === 0) {
         setError("Ainda não entregamos nesse CEP. Informe outro endereço para continuar.");
         return;
@@ -208,13 +229,22 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     setPaying(true);
     setError("");
     try {
-      const latest = await extrasQuery.refetch();
-      if (latest.error || latest.data?.stock == null || latest.data.stock < quantity) {
-        setError("A quantidade disponível mudou. Volte ao produto e confira o estoque.");
-        return;
+      if (cartMode) {
+        const latest = await Promise.all(cartExtras.map(q => q.refetch()));
+        if (latest.length !== cartItems.length || latest.some((result,i) =>
+          result.error || result.data?.stock == null || result.data.stock < cartItems[i].quantity)) {
+          setError("A disponibilidade de algum item mudou. Atualize seu carrinho.");
+          return;
+        }
+      } else {
+        const latest = await extrasQuery.refetch();
+        if (latest.error || latest.data?.stock == null || latest.data.stock < quantity) {
+          setError("A quantidade disponível mudou. Volte ao produto e confira o estoque.");
+          return;
+        }
       }
       // Frete é reconsultado para evitar revisar valores desatualizados.
-      const liveQuotes = await quoteStoreShipping(productId, quantity, zipDigits);
+      const liveQuotes = await quoteStoreShipping(productId, cartMode ? 1 : quantity, zipDigits);
       const current = liveQuotes.find(item => item.id === selectedShipping.id);
       if (!current) {
         setOptions(liveQuotes);
@@ -232,7 +262,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         return;
       }
       const checkout = await startStoreCheckout({
-        product_id: productId, quantity, postal_code: zipDigits,
+        product_id: productId, quantity,
+        ...(cartMode ? { items: cartItems.map(i => ({ product_id: i.productId, quantity: i.quantity })) } : {}),
+        postal_code: zipDigits,
         shipping_service_id: selectedShipping.id,
         ...buyer,
         buyer_name: buyer.buyer_name.trim(),
@@ -256,21 +288,30 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
   };
 
-  if (productLoading) return <div className="flex min-h-[65vh] items-center justify-center gap-3 bg-[#f8fbff] text-sm text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={21}/> Preparando sua compra...</div>;
-  if (productError || !detail || !product) return <section className="min-h-[65vh] bg-[#f8fbff] px-4 py-24 text-center">
+  if (productLoading || (cartMode && catalogLoading)) return <div className="flex min-h-[65vh] items-center justify-center gap-3 bg-[#f8fbff] text-sm text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={21}/> Preparando sua compra...</div>;
+  if (productError || (cartMode && catalogError) || (!cartMode && !detail) || !product) return <section className="min-h-[65vh] bg-[#f8fbff] px-4 py-24 text-center">
     <AlertCircle className="mx-auto text-[#dc5a5a]" size={37}/>
     <h1 className="mt-4 text-2xl font-extrabold">Não foi possível abrir o checkout</h1>
     <p className="mt-2 text-sm text-[#63738b]">{productError || "O produto não está mais disponível."}</p>
     <Link to="/loja" className={buttonStyle + " mt-6"}>Voltar à loja</Link>
   </section>;
 
-  const firstImage = extrasQuery.data?.images[0]?.url;
+  const firstImage = cartMode ? null : extrasQuery.data?.images[0]?.url;
   const cardStyle = "rounded-xl border border-[#e0e8f3] bg-white shadow-[0_5px_22px_rgba(13,39,77,.045)]";
   const summary = <div className={cardStyle + " overflow-hidden"}>
     <div className="border-b border-[#e9eef6] px-5 py-4">
       <h2 className="flex items-center gap-2 text-[15px] font-extrabold text-[#10243d]"><ShoppingBag size={18} className="text-[var(--art-primary)]"/> Resumo do pedido</h2>
     </div>
-    <div className="flex gap-3 px-5 py-5">
+    {cartMode ? <div className="divide-y divide-[#edf1f7]">
+      {cartLines.map(line => <div key={line.product.id} className="px-5 py-4">
+        <p className="line-clamp-2 text-[13px] font-bold leading-5 text-[#172c47]">{line.product.name}</p>
+        <div className="mt-1 flex justify-between gap-3 text-[12px] text-[#71839a]">
+          <span>{line.quantity} × {formatCurrency(line.product.price)}</span>
+          <strong className="text-[#112a4a]">{formatCurrency(Number(line.product.price)*line.quantity)}</strong>
+        </div>
+      </div>)}
+      <button type="button" onClick={() => navigate("/carrinho")} className="w-full px-5 py-3 text-left text-[12px] font-bold text-[var(--art-primary)] hover:underline">Editar carrinho</button>
+    </div> :     <div className="flex gap-3 px-5 py-5">
       <div className="flex h-[82px] w-[82px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#edf1f7] bg-[#f7faff] p-2">
         {firstImage ? <img src={firstImage} alt={product.name} className="h-full w-full object-contain"/> :
           <Package className="text-[#97aecb]" size={35}/>}
@@ -283,8 +324,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           className="mt-1 text-[11px] font-bold text-[var(--art-primary)] hover:underline">Ver produto</button>
       </div>
     </div>
+    }
     <div className="border-t border-[#edf1f7] px-5 py-4">
-      <div className="flex items-center justify-between gap-3 text-sm text-[#536780]"><span>Produtos ({quantity})</span><span className="font-semibold text-[#1c314d]">{formatCurrency(subtotal)}</span></div>
+      <div className="flex items-center justify-between gap-3 text-sm text-[#536780]"><span>Produtos ({cartMode ? cartItems.reduce((t,i)=>t+i.quantity,0) : quantity})</span><span className="font-semibold text-[#1c314d]">{formatCurrency(subtotal)}</span></div>
       <div className="mt-3 flex items-center justify-between gap-3 text-sm text-[#536780]"><span>Entrega</span><span className="text-right font-semibold text-[#1c314d]">{selectedShipping ? selectedShipping.price === 0 ? "Grátis" : formatCurrency(selectedShipping.price) : "A calcular"}</span></div>
       <div className="mt-4 flex items-center justify-between gap-3 border-t border-[#e9eef6] pt-4">
         <span className="text-[14px] font-extrabold text-[#10243d]">Total</span>
@@ -351,8 +393,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:gap-8">
         <div className="min-w-0">
-          {extrasQuery.isPending && <div className={cardStyle + " flex items-center gap-2 p-5 text-sm text-[#5f748c]"}><LoaderCircle className="animate-spin" size={18}/> Confirmando disponibilidade...</div>}
-          {(!purchasable && !extrasQuery.isPending) && <div role="alert" className="mb-5 flex items-start gap-3 rounded-lg border border-[#f1d1d1] bg-[#fff5f5] p-4 text-[13px] text-[#a83e43]">
+          {(cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending) && <div className={cardStyle + " flex items-center gap-2 p-5 text-sm text-[#5f748c]"}><LoaderCircle className="animate-spin" size={18}/> Confirmando disponibilidade...</div>}
+          {(!purchasable && !(cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending)) && <div role="alert" className="mb-5 flex items-start gap-3 rounded-lg border border-[#f1d1d1] bg-[#fff5f5] p-4 text-[13px] text-[#a83e43]">
             <AlertCircle size={19} className="shrink-0"/> A quantidade solicitada não está disponível no momento. Ajuste a quantidade ou volte ao produto.
           </div>}
 
@@ -388,7 +430,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   Seus dados serão utilizados para identificar a compra, organizar a entrega e entrar em contato quando necessário.
                 </p>
               </div>
-              <div className="rounded-lg border border-[#e7edf5] bg-white px-4 py-3">
+              {!cartMode && <div className="rounded-lg border border-[#e7edf5] bg-white px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <p className="text-[13px] font-bold">Quantidade de produtos</p>
                   <div className="flex items-center overflow-hidden rounded-lg border border-[#dce6f2]">
@@ -399,7 +441,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                       onClick={() => updateQuantity(quantity + 1)} className="flex h-10 w-10 items-center justify-center hover:bg-blue-50 disabled:opacity-35"><Plus size={16}/></button>
                   </div>
                 </div>
-              </div>
+              </div>}
             </div>
           </section>}
 

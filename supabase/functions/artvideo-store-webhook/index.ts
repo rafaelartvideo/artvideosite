@@ -53,7 +53,10 @@ Deno.serve(async req => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth:{persistSession:false},
     });
-    const { error } = await admin.rpc("artvideo_store_settle_v1", {
+    const { data: lines, error: linesError } = await admin.from("artvideo_store_order_items")
+      .select("id").eq("order_id", orderId).limit(1);
+    if (linesError) return new Response("order lookup failed", { status: 503 });
+    const { error } = await admin.rpc(lines?.length ? "artvideo_store_settle_multi_v1" : "artvideo_store_settle_v1", {
       p_order_id:orderId,p_payment_id:id,p_payment_status:status,p_amount:amount,
     });
     if (error) return new Response("order reconciliation pending",{status:503});

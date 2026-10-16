@@ -17,8 +17,17 @@ Deno.serve(async req => {
   let orderId = "";
   try {
     const input = await req.json();
-    const productId = String(input.product_id || "");
-    const quantity = validQuantity(input.quantity);
+    const cart = Array.isArray(input.items) ? input.items : [
+      { product_id: input.product_id, quantity: input.quantity },
+    ];
+    if (cart.length < 1 || cart.length > 15) throw new Error("Carrinho inválido.");
+    const validated = cart.map((item: any) => ({
+      product_id: String(item.product_id || ""),
+      quantity: validQuantity(item.quantity),
+    }));
+    if (new Set(validated.map(item => item.product_id)).size !== validated.length) {
+      throw new Error("O carrinho possui produtos duplicados.");
+    }
     const zip = cleanPostalCode(input.postal_code);
     const email = safeText(input.buyer_email, 200);
     const name = safeText(input.buyer_name, 150);
@@ -34,14 +43,14 @@ Deno.serve(async req => {
       || !/^[A-Z]{2}$/.test(address.state)) {
       return json({ error: "Confira os dados do comprador e endereço de entrega." }, 400);
     }
-    const product = await loadProduct(admin, productId);
+    const products = await Promise.all(validated.map(item => loadProduct(admin, item.product_id)));
     const options = await shippingQuotes(admin, zip);
     const selected = options.find(q => q.id === String(input.shipping_service_id));
     if (!selected) return json({ error: "O frete selecionado mudou. Calcule novamente antes de pagar." }, 409);
 
     const buyer = { buyer_name: name, buyer_email: email, buyer_phone: phone, postal_code: zip, ...address };
-    const { data: order, error: orderError } = await admin.rpc("artvideo_store_begin_order_v1", {
-      p_product_id: product.id, p_quantity: quantity,
+    const { data: order, error: orderError } = await admin.rpc("artvideo_store_begin_multi_v1", {
+      p_items: validated,
       p_shipping_price: selected.price, p_shipping_service_id: selected.id,
       p_shipping_name: `${selected.company} — ${selected.name}`, p_postal_code: zip, p_buyer: buyer,
     });
@@ -49,11 +58,15 @@ Deno.serve(async req => {
     orderId = order.id;
 
     const deadline = new Date(Date.now() + 20*60*1000).toISOString();
-    const detailUrl = `https://eletronicaartvideo.com.br/loja/${encodeURIComponent(product.slug)}`;
+    const detailUrl = validated.length === 1
+      ? `https://eletronicaartvideo.com.br/loja/${encodeURIComponent(products[0].slug)}`
+      : "https://eletronicaartvideo.com.br/carrinho";
     const mpRequest = {
       items: [
-        { id: product.id, title: product.name.slice(0, 200), quantity,
-          currency_id: "BRL", unit_price: Number(order.unit_price) },
+        ...((order.items || []) as Array<{product_id: string; title: string; quantity: number; unit_price: number}>).map(item => ({
+          id: item.product_id, title: item.title.slice(0, 200),
+          quantity: item.quantity, currency_id: "BRL", unit_price: Number(item.unit_price),
+        })),
         { id: `shipping-${selected.id}`, title: `Frete: ${selected.company} — ${selected.name}`.slice(0,200),
           quantity: 1, currency_id: "BRL", unit_price: Number(selected.price) },
       ].filter(item => item.unit_price > 0),

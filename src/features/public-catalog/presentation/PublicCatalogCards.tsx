@@ -1,4 +1,6 @@
-import { ArrowRight, Package, ShoppingCart } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, Package, ShoppingCart, Plus } from "lucide-react";
+import { addStoreCartItem } from "@/features/public-store/application/store-cart";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -14,6 +16,8 @@ export function BrandCard({ brand }: { brand: any }) {
 
 export function ProductCard({ product, onSelectProduct }: { product: any; onSelectProduct: (slug: string) => void }) {
   const { url: imageUrl } = useMediaUrl(product.cover_media_id);
+  const [feedback,setFeedback]=useState("");
+  const addToCart=()=>{setFeedback(addStoreCartItem(product.id,1) ? "Adicionado ao carrinho" : "Limite do carrinho atingido");};
   return <article className="group flex min-w-0 flex-col overflow-hidden rounded-[7px] border border-[#e6ecf4] bg-white p-4 shadow-[0_2px_12px_rgba(12,36,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-[#bad5fb] hover:shadow-[0_14px_30px_rgba(16,53,96,.13)]">
     <button type="button" aria-label={`Ver produto ${product.name}`} onClick={() => onSelectProduct(product.slug)}
       className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white via-[#fbfdff] to-[#f1f6ff] p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
@@ -26,6 +30,11 @@ export function ProductCard({ product, onSelectProduct }: { product: any; onSele
       className="mt-auto inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-[5px] bg-[var(--art-primary)] px-3 py-2 text-[12px] font-bold text-white transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg hover:shadow-blue-500/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] active:translate-y-0">
       <ShoppingCart size={17} strokeWidth={1.8}/> Ver produto
     </button>
+    <button type="button" onClick={addToCart}
+      className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[var(--art-primary)] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-all hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+      <Plus size={16}/> Adicionar ao carrinho
+    </button>
+    {feedback && <p role="status" className="mt-2 text-center text-[11px] font-semibold text-[#486785]">{feedback}</p>}
   </article>;
 }
 
