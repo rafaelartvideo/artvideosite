@@ -196,6 +196,7 @@ export function TabWorkItems() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<WorkItem | null>(null);
+  const [newKind, setNewKind] = useState<WorkKind>("task");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [month, setMonth] = useState(new Date());
   const [moving, setMoving] = useState("");
@@ -253,11 +254,11 @@ export function TabWorkItems() {
   }, [all, queryText, kind, filterStatus, scope, sort, user?.id, myEmployeeIds.join(",")]);
   const listPage = filtered.slice((page - 1) * pageSize, page * pageSize);
   const openTask = (item: WorkItem) => { setSelected(item); setDialogOpen(true); };
-  const newTask = () => { setSelected(null); setDialogOpen(true); };
+  const newTask = (nextKind: WorkKind = "task") => { setNewKind(nextKind); setSelected(null); setDialogOpen(true); };
   const refresh = () => void queryClient.invalidateQueries({ queryKey: ["work-items", organizationId] });
   const moveTo = async (item: WorkItem, next: WorkStatus) => {
     if (!canEdit || moving || item.status === next) return;
-    if (next === "completed" && item.kind === "commitment") { openTask(item); notifyAdmin("Informe o resultado do compromisso para concluí-lo.", "info"); return; }
+    if (next === "completed" && item.kind === "commitment") { openTask(item); notifyAdmin("Informe o resultado do compromisso para concluí-lo.", "warning"); return; }
     setMoving(item.id);
     try {
       const saved = await updateWorkStatus(organizationId, item, next, null);
@@ -275,7 +276,7 @@ export function TabWorkItems() {
 
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Compromissos e Tarefas" subtitle="Organize o trabalho, acompanhe promessas e cumpra prazos."
-      actions={canCreate ? <BtnPrimary onClick={newTask}>Novo</BtnPrimary> : undefined} />
+      actions={canCreate ? <BtnPrimary onClick={() => newTask()}>Novo</BtnPrimary> : undefined} />
 
     <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-card p-5 shadow-sm sm:p-6">
       <div aria-hidden className="pointer-events-none absolute inset-0 opacity-60 dark:opacity-20"
@@ -388,8 +389,8 @@ export function TabWorkItems() {
             <div className="flex items-center gap-2 text-sm font-black text-primary"><Sparkles size={17} /> Criar rapidamente</div>
             <p className="mt-2 text-xs leading-relaxed text-muted-foreground">Registre uma promessa ao cliente ou distribua a próxima tarefa em poucos segundos.</p>
             {canCreate && <div className="mt-3 flex gap-2">
-              <AdminButton variant="secondary" size="sm" onClick={newTask}>Nova tarefa</AdminButton>
-              <AdminButton size="sm" onClick={newTask}>Novo compromisso</AdminButton>
+              <AdminButton variant="secondary" size="sm" onClick={() => newTask("task")}>Nova tarefa</AdminButton>
+              <AdminButton size="sm" onClick={() => newTask("commitment")}>Novo compromisso</AdminButton>
             </div>}
           </div>
         </div>
@@ -458,7 +459,7 @@ export function TabWorkItems() {
                   <h3 className="text-xs font-black">{stage.label}</h3>
                   <span className="rounded-md bg-card px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">{entries.length}</span>
                 </div>
-                {canCreate && <button type="button" title="Criar atividade" aria-label="Criar atividade" onClick={newTask}
+                {canCreate && <button type="button" title="Criar atividade" aria-label="Criar atividade" onClick={() => newTask()}
                   className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-card hover:text-primary"><Plus size={17} /></button>}
               </div>
               <div className="min-h-40 space-y-2.5">
@@ -477,7 +478,7 @@ export function TabWorkItems() {
     </>}
 
     <WorkItemDialog key={selected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}
-      item={selected} organizationId={organizationId} employees={employees}
+      item={selected} initialKind={newKind} organizationId={organizationId} employees={employees}
       canEdit={selected ? canEdit : canCreate}
       onClose={() => setDialogOpen(false)}
       onSaved={saved => {
