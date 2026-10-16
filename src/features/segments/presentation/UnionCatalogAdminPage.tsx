@@ -318,7 +318,7 @@ export function UnionCatalogAdminPage({ onBack }: { onBack: () => void }) {
         {notice && <p role="status" className="text-sm text-muted-foreground">{notice}</p>}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className={labelClass + " sm:col-span-2"}>
-            <span>Nome *</span>
+            <span>Nome <span className="font-bold text-red-600 dark:text-red-400">*</span></span>
             <input className={inputClass} maxLength={120} value={form.name} disabled={!canManage || saving}
               onChange={event => setForm(old => ({ ...old, name: event.target.value }))} />
           </label>
