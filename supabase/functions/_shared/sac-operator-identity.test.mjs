@@ -48,3 +48,20 @@ test('directory failures and missing list stop the lookup instead of authorizing
   await assert.rejects(fetchSacOperatorDirectory({clientId:'c',clientSecret:'s'},async url=>Response.json(url.endsWith('/auth2/login')?{token:'catalog'}:body)));
  }
 });
+
+test('accepts numeric Operator IDs and trusted provider alternate fields',async()=>{
+ assert.equal(await assertOperatorIdentity({info:{id:123}},'123',async()=>{throw Error('directory not needed');}),'123');
+ assert.equal(await assertOperatorIdentity({info:{operator_id:'op'}},'op',async()=>{throw Error('directory not needed');}),'op');
+ assert.equal(await assertOperatorIdentity({info:{user:{email:'OPERATOR@example.test'}}},'op',async()=>operators),'op');
+ assert.equal(await assertOperatorIdentity({info:{email:'Operator@Example.Test'}},'123',async()=>[{id:123,email:'operator@example.test'}]),'123');
+});
+test('a verified Operator profile can match an OAuth subject when SAC omits profile id and email',async()=>{
+ const token='h.'+Buffer.from(JSON.stringify({sub:'op'})).toString('base64url')+'.s';
+ assert.equal(await assertOperatorIdentity({info:{name:'Atendente'}},'op',async()=>{throw Error('directory not needed');},token),'op');
+ await assert.rejects(assertOperatorIdentity({info:{name:'Atendente'}},'op',async()=>[], 'h.'+Buffer.from(JSON.stringify({sub:'other'})).toString('base64url')+'.s'),e=>e.code==='operator_auth_contract_unverified');
+});
+test('OAuth subject never overrides a conflicting provider profile ID or ambiguous operator emails',async()=>{
+ const token='h.'+Buffer.from(JSON.stringify({sub:'op'})).toString('base64url')+'.s';
+ await assert.rejects(assertOperatorIdentity({info:{id:'other',email:'operator@example.test'}},'op',async()=>operators,token),e=>e.code==='operator_identity_mismatch');
+ await assert.rejects(assertOperatorIdentity({info:{email:'a@example.test',user:{email:'b@example.test'}}},'op',async()=>operators,token),e=>e.code==='operator_auth_contract_unverified');
+});
