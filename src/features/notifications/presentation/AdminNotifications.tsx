@@ -240,66 +240,55 @@ function isWorkReminder(notification: AdminNotification | null): boolean {
     && notification.entity_type === "work_item" && notification.title === "Lembrete de atividade");
 }
 
-/** Browser audio needs permission from a user interaction. Keep the alert
- * visible regardless, and start/resume the chime when interaction permits. */
+/** Play the uploaded reminder MP3 for at least a minute (65 seconds)
+ * while the sticky reminder is visible. Respect browser autoplay policies:
+ * retry from the next real user gesture if automatic playback is blocked. */
 function useWorkReminderAlarm(notification: AdminNotification | null) {
   const reminderId = isWorkReminder(notification) ? notification!.id : null;
   useEffect(() => {
     if (!reminderId) return;
-    let stopped = false;
-    let context: AudioContext | null = null;
-    let interval: ReturnType<typeof setInterval> | null = null;
-    let deadline: ReturnType<typeof setTimeout> | null = null;
-    let started = false;
+    const audio = new Audio("/assets/crm/sons/alarmelembrete.mp3");
+    audio.loop = true;
+    audio.preload = "auto";
+    audio.volume = 0.85;
+    let disposed = false;
+    let playing = false;
+    let stopAfterMinute: ReturnType<typeof setTimeout> | null = null;
 
-    const chime = () => {
-      if (!context || context.state !== "running" || stopped) return;
-      const at = context.currentTime;
-      for (const [offset, hz] of [[0, 784], [0.18, 1046]] as const) {
-        const oscillator = context.createOscillator();
-        const gain = context.createGain();
-        oscillator.type = "sine";
-        oscillator.frequency.value = hz;
-        gain.gain.setValueAtTime(0.0001, at + offset);
-        gain.gain.exponentialRampToValueAtTime(0.075, at + offset + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + offset + 0.36);
-        oscillator.connect(gain).connect(context.destination);
-        oscillator.start(at + offset);
-        oscillator.stop(at + offset + 0.38);
-      }
+    const startPlayback = () => {
+      if (disposed || playing) return;
+      void audio.play().then(() => {
+        if (disposed) {
+          audio.pause();
+          return;
+        }
+        if (playing) return;
+        playing = true;
+        // The sound repeats until the reminder is closed, or at least 65s
+        // of successful playback has elapsed. The notice itself stays visible.
+        stopAfterMinute = setTimeout(() => {
+          audio.pause();
+          audio.currentTime = 0;
+        }, 65_000);
+        window.removeEventListener("pointerdown", startPlayback);
+        window.removeEventListener("keydown", startPlayback);
+      }).catch(() => {
+        // Some browsers require an interaction before any audio can play.
+        // Keep the reminder visible and retry on the next user gesture.
+      });
     };
 
-    const activate = async () => {
-      if (stopped || started) return;
-      try {
-        if (!context) context = new window.AudioContext();
-        await context.resume();
-        if (stopped || context.state !== "running" || started) return;
-        started = true;
-        chime();
-        interval = setInterval(chime, 4500);
-        // Play for at least 60 seconds when browser playback is allowed.
-        deadline = setTimeout(() => {
-          if (interval) clearInterval(interval);
-          interval = null;
-        }, 65000);
-        window.removeEventListener("pointerdown", activate);
-        window.removeEventListener("keydown", activate);
-      } catch {
-        // Browser autoplay restrictions: the visible reminder still persists.
-      }
-    };
-
-    void activate();
-    window.addEventListener("pointerdown", activate);
-    window.addEventListener("keydown", activate);
+    startPlayback();
+    window.addEventListener("pointerdown", startPlayback);
+    window.addEventListener("keydown", startPlayback);
     return () => {
-      stopped = true;
-      window.removeEventListener("pointerdown", activate);
-      window.removeEventListener("keydown", activate);
-      if (interval) clearInterval(interval);
-      if (deadline) clearTimeout(deadline);
-      if (context) void context.close().catch(() => {});
+      disposed = true;
+      window.removeEventListener("pointerdown", startPlayback);
+      window.removeEventListener("keydown", startPlayback);
+      if (stopAfterMinute) clearTimeout(stopAfterMinute);
+      audio.pause();
+      audio.removeAttribute("src");
+      audio.load();
     };
   }, [reminderId]);
 }
@@ -324,14 +313,14 @@ export function LiveNotificationToast({
   return <div
     className={cn(
       "fixed right-4 top-20 z-[300] w-[min(390px,calc(100vw-32px))] overflow-hidden rounded-xl border bg-white shadow-2xl animate-in fade-in slide-in-from-top-2 duration-300",
-      reminder ? "border-amber-400/70 ring-2 ring-amber-500/20 motion-safe:animate-pulse" : "border-[#0d1b2e]/10",
+      reminder ? "crm-reminder-vibrate border-amber-400/70 ring-2 ring-amber-500/20" : "border-[#0d1b2e]/10",
     )}
     role={reminder ? "alert" : "status"}
     aria-live={reminder ? "assertive" : "polite"}
   >
     <div className={cn("h-1 w-full", reminder ? "bg-amber-500" : "bg-primary")} />
     {reminder && <div className="flex items-center gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2 text-[11px] font-bold text-amber-800">
-      <Bell size={15} className="motion-safe:animate-bounce" />
+      <Bell size={15} />
       Lembrete de atividade · permanece até fechar
     </div>}
     <div className="flex gap-3 p-4">
