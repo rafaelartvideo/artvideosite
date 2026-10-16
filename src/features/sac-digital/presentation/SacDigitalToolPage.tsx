@@ -843,7 +843,7 @@ export function SacDigitalToolPage({
       operator_scope_missing:'A SAC não concedeu as permissões de atendimento solicitadas.',
       operator_session_unavailable:'A Central SAC está indisponível. Inicie uma nova autorização.',
       operator_session_busy:'A sessão do Operador está em uso. Aguarde um momento e clique em Autorizar Operador novamente.',
-      operator_auth_contract_unverified:'A SAC não confirmou a identificação do perfil. A autorização não foi salva.',
+      operator_auth_contract_unverified:'A SAC não forneceu ID nem e-mail para identificar o Operador com segurança. Confira se o e-mail está preenchido no cadastro do Operador na SAC e autorize novamente.',
       operator_authorization_required:'A SAC não identificou um Operador nessa autorização. Entre com sua conta de Operador.',
     };
     setMessage({text:result==='success'?'Operador autorizado na SAC Digital.':errors[result] || 'A autorização não foi concluída. Clique em Autorizar Operador para tentar novamente.',error:result!=='success'});
