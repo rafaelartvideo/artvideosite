@@ -11,7 +11,7 @@ import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
-  addWorkChecklistItem, findCustomerWorkOrders, findWorkCustomers, loadWorkDetails,
+  addWorkChecklistItem, addWorkChecklistItems, findCustomerWorkOrders, findWorkCustomers, findWorkOrders, loadWorkDetails,
   removeWorkChecklistItem, saveWorkItem, updateWorkChecklistItem,
   type WorkEmployee, type WorkItem, type WorkItemDraft, type WorkOutcome, type WorkPriority,
   type WorkStatus,
@@ -82,6 +82,11 @@ export function WorkItemDialog({
   const [searchingCustomer, setSearchingCustomer] = useState(false);
   const [customerSearchResolved, setCustomerSearchResolved] = useState("");
   const [orderOptions, setOrderOptions] = useState<{ id: string; os_number: number | string }[]>([]);
+  const [linkMode, setLinkMode] = useState<"customer" | "order">("customer");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [orderResults, setOrderResults] = useState<Array<{ id: string; os_number: number | string; customer_id: string | null }>>([]);
+  const [searchingOrders, setSearchingOrders] = useState(false);
+  const [stagedChecklist, setStagedChecklist] = useState<string[]>([]);
   const [checklistTitle, setChecklistTitle] = useState("");
   const [detailBusy, setDetailBusy] = useState(false);
 
@@ -96,6 +101,11 @@ export function WorkItemDialog({
     setSearchingCustomer(false);
     setCustomerSearchResolved("");
     setOrderOptions([]);
+    setLinkMode(item?.service_order_id ? "order" : "customer");
+    setOrderSearch("");
+    setOrderResults([]);
+    setSearchingOrders(false);
+    setStagedChecklist([]);
     setChecklistTitle("");
   }, [open, item?.id, initialKind]);
 
@@ -124,6 +134,22 @@ export function WorkItemDialog({
     return () => { alive = false; };
   }, [organizationId, draft.customer_id, open]);
 
+  useEffect(() => {
+    if (!open || isFinalized || linkMode !== "order" || draft.service_order_id || !orderSearch.replace(/\D/g, "")) {
+      setSearchingOrders(false);
+      return;
+    }
+    let active = true;
+    setSearchingOrders(true);
+    const timer = window.setTimeout(() => {
+      void findWorkOrders(organizationId, orderSearch)
+        .then(rows => { if (active) setOrderResults(rows); })
+        .catch(error => { if (active) notifyAdmin(error.message || "Não foi possível buscar OS.", "error"); })
+        .finally(() => { if (active) setSearchingOrders(false); });
+    }, 250);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [open, organizationId, orderSearch, draft.service_order_id, isFinalized, linkMode]);
+
   const details = useQuery({
     queryKey: ["work-item-details", organizationId, item?.id],
     enabled: open && Boolean(item?.id),
@@ -145,6 +171,15 @@ export function WorkItemDialog({
     setSaving(true);
     try {
       const saved = await saveWorkItem(organizationId, draft, item?.id);
+      if (!item && stagedChecklist.length) {
+        try {
+          await addWorkChecklistItems(organizationId, saved.id, stagedChecklist);
+        } catch (checklistError) {
+          notifyAdmin("Atividade salva, mas não foi possível adicionar todas as etapas. Abra o checklist para tentar novamente.", "error");
+          onSaved(saved);
+          return;
+        }
+      }
       notifyAdmin(item ? "Atividade atualizada." : "Atividade registrada.", "success");
       onSaved(saved);
     } catch (error) {
@@ -173,6 +208,19 @@ export function WorkItemDialog({
     });
   };
   const counts = details.data?.checklist || [];
+  const addStagedChecklist = () => {
+    const label = checklistTitle.trim();
+    if (!label || stagedChecklist.length >= 50) return;
+    setStagedChecklist(current => [...current, label]);
+    setChecklistTitle("");
+  };
+  const chooseLinkMode = (mode: "customer" | "order") => {
+    if (mode === linkMode) return;
+    setLinkMode(mode);
+    setDraft(current => ({ ...current, customer_id: null, service_order_id: null }));
+    setCustomerSearch(""); setCustomerInfo(null); setCustomerResults([]);
+    setOrderSearch(""); setOrderResults([]); setOrderOptions([]);
+  };
   const done = counts.filter(check => check.done).length;
   const isEditable = canEdit && !isFinalized;
   const customerDocumentDigits = customerSearch.replace(/\D/g, "");
