@@ -105,8 +105,18 @@ begin
     select 1 from public.customers c where c.id=new.customer_id and c.organization_id=new.organization_id
   ) then raise exception 'Cliente pertence a outra empresa.' using errcode='23514'; end if;
   if new.service_order_id is not null and not exists (
-    select 1 from public.service_orders so where so.id=new.service_order_id and so.organization_id=new.organization_id
-  ) then raise exception 'OS pertence a outra empresa.' using errcode='23514'; end if;
+    select 1 from public.service_orders so where so.id=new.service_order_id
+      and so.organization_id=new.organization_id and so.customer_id=new.customer_id
+  ) then raise exception 'A OS deve pertencer ao cliente vinculado e a empresa ativa.' using errcode='23514'; end if;
+  if tg_op='UPDATE' and old.created_by is distinct from auth.uid()
+    and not private.has_tenant_module_permission(new.organization_id,'work_items','work_items.manage')
+    and (
+      new.assigned_employee_ids is distinct from old.assigned_employee_ids
+      or new.customer_id is distinct from old.customer_id
+      or new.service_order_id is distinct from old.service_order_id
+    ) then
+    raise exception 'Somente o criador ou gestor pode redistribuir responsaveis e vinculos.' using errcode='42501';
+  end if;
   if exists (
     select 1 from unnest(new.assigned_employee_ids) as assigned(employee_id)
     where not exists(select 1 from public.employees e where e.id=assigned.employee_id and e.organization_id=new.organization_id and e.is_active)
@@ -141,13 +151,14 @@ declare
   v_profile uuid;
   v_minutes int;
 begin
-  insert into public.work_item_activity(organization_id,work_item_id,actor_user_id,action)
+  insert into public.work_item_activity(organization_id,work_item_id,actor_user_id,action,note)
   values(new.organization_id,new.id,auth.uid(),
     case when tg_op='INSERT' then 'created'
     when new.status is distinct from old.status then 'status:'||new.status
     when new.due_at is distinct from old.due_at then 'rescheduled'
     when new.assigned_employee_ids is distinct from old.assigned_employee_ids then 'assigned'
-    else 'updated' end);
+    else 'updated' end,
+    case when new.kind='commitment' and new.status='completed' then new.outcome else null end);
 
   if new.due_at is null or new.status in ('completed','cancelled') then
     delete from public.work_item_reminders where work_item_id=new.id and sent_at is null;

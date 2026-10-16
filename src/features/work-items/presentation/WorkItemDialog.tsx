@@ -177,6 +177,18 @@ export function WorkItemDialog({
       </div>}
 
       {section === "details" && <div className="space-y-4">
+        {!item && <div className="space-y-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Começar com um modelo</p>
+          <div className="flex flex-wrap gap-2">
+            {[
+              { label: "Retorno do cliente", kind: "commitment" as const, title: "Cliente retornará à loja", category: "Atendimento" },
+              { label: "Ligar para cliente", kind: "task" as const, title: "Entrar em contato com o cliente", category: "Atendimento" },
+              { label: "Verificar peça", kind: "task" as const, title: "Verificar disponibilidade da peça", category: "Estoque" },
+            ].map(template => <button key={template.label} type="button" onClick={() => setDraft(current => ({
+              ...current, kind: template.kind, title: template.title, category: template.category,
+            }))} className="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary/10 motion-reduce:transform-none">{template.label}</button>)}
+          </div>
+        </div>}
         <div className="flex gap-2 rounded-xl bg-muted/60 p-1">
           {([{ value: "task", label: "Tarefa" }, { value: "commitment", label: "Compromisso" }] as const).map(option =>
             <button key={option.value} type="button" disabled={!isEditable}
@@ -333,8 +345,13 @@ export function WorkItemDialog({
             <p className="text-sm font-medium">{activity.action === "created" ? "Atividade criada"
               : activity.action === "rescheduled" ? "Prazo alterado"
               : activity.action === "assigned" ? "Responsáveis alterados"
+              : activity.action === "checklist_added" ? "Etapa adicionada"
+              : activity.action === "checklist_removed" ? "Etapa removida"
+              : activity.action === "checklist_done" ? "Etapa concluída"
+              : activity.action === "checklist_reopened" ? "Etapa reaberta"
               : activity.action.startsWith("status:") ? "Andamento: " + (STATUS.find(s => s.value === activity.action.slice(7))?.label || activity.action.slice(7))
               : "Atividade atualizada"}</p>
+            {activity.note && <p className="mt-0.5 text-xs text-muted-foreground">{OUTCOME.find(outcome => outcome.value === activity.note)?.label || activity.note}</p>}
             <p className="text-xs text-muted-foreground">{new Date(activity.created_at).toLocaleString("pt-BR")}</p>
           </div>
         </div>)}

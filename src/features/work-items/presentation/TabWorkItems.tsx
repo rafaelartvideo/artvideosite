@@ -209,7 +209,13 @@ export function TabWorkItems() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [month, setMonth] = useState(new Date());
   const [moving, setMoving] = useState("");
+  const [dragOverColumn, setDragOverColumn] = useState<WorkStatus | null>(null);
   const queryClient = useQueryClient();
+  useEffect(() => {
+    setSelected(null);
+    setDialogOpen(false);
+    setPage(1);
+  }, [organizationId]);
 
   const itemQuery = useQuery({
     queryKey: ["work-items", organizationId],
@@ -471,10 +477,13 @@ export function TabWorkItems() {
         <div className="flex min-w-max items-start gap-3">
           {STATUSES.map(stage => {
             const entries = filtered.filter(item => item.status === stage.value);
-            return <div key={stage.value} className={cn("w-[270px] shrink-0 rounded-xl border border-border p-2.5 sm:w-[300px]", stage.tint)}
-              onDragOver={event => event.preventDefault()}
+            return <div key={stage.value} className={cn("w-[270px] shrink-0 rounded-xl border border-border p-2.5 transition-all duration-200 sm:w-[300px]",
+                stage.tint, dragOverColumn === stage.value && "border-primary/60 bg-primary/[.08] ring-2 ring-primary/20")}
+              onDragOver={event => { event.preventDefault(); if (canEdit) setDragOverColumn(stage.value); }}
+              onDragLeave={() => setDragOverColumn(null)}
               onDrop={event => {
                 event.preventDefault();
+                setDragOverColumn(null);
                 const id = event.dataTransfer.getData("text/plain");
                 const item = all.find(entry => entry.id === id);
                 if (item) void moveTo(item, stage.value);
