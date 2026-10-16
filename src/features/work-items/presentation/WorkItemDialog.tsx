@@ -58,6 +58,16 @@ const fieldLabel = "mb-1.5 block text-[11px] font-bold uppercase tracking-wide t
 const selectClass = cn(INPUT, "h-10 w-full text-sm");
 type WorkCustomer = { id: string; full_name: string; trade_name: string | null; document: string | null; cnpj: string | null; phone: string | null; whatsapp: string | null };
 
+function CustomerSummary({ customer }: { customer: WorkCustomer }) {
+  const document = customer.cnpj ? `CNPJ ${formatCnpj(customer.cnpj)}` : customer.document ? `CPF ${formatCpf(customer.document)}` : "";
+  const phone = customer.whatsapp || customer.phone;
+  return <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+    <span className="min-w-0 font-semibold text-foreground">{customer.trade_name || customer.full_name}</span>
+    {document && <span className="text-xs text-muted-foreground">{document}</span>}
+    {phone && <span className="text-xs text-muted-foreground">{formatPhone(phone)}</span>}
+  </span>;
+}
+
 export function WorkItemDialog({
   open, item, initialKind = "task", organizationId, employees, canEdit, onClose, onSaved,
 }: {
@@ -216,6 +226,47 @@ export function WorkItemDialog({
                 draft.kind === option.value ? "bg-card text-primary shadow-sm ring-1 ring-primary/15" : "text-muted-foreground hover:text-foreground")}>{option.label}</button>,
           )}
         </div>
+        <div className="space-y-2 rounded-xl border border-border bg-card p-3.5">
+          <label className={fieldLabel}>Cliente vinculado (opcional)</label>
+          {draft.customer_id ? <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-primary/5 px-3 py-3">
+            <div className="min-w-0 text-sm"><CustomerSummary customer={customerInfo || item?.customer || { id: draft.customer_id, full_name: "Cliente selecionado", trade_name: null, document: null, cnpj: null, phone: null, whatsapp: null }} /></div>
+            {isEditable && <BtnSecondary size="sm" onClick={() => {
+              set("customer_id", null); set("service_order_id", null);
+              setCustomerInfo(null); setCustomerSearch(""); setCustomerResults([]);
+            }}>Trocar</BtnSecondary>}
+          </div> : <div className="space-y-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="relative min-w-0 flex-1">
+                <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input className={cn(INPUT, "w-full pl-9")} disabled={!isEditable} value={customerSearch}
+                  onChange={event => { setCustomerSearch(event.target.value); setCustomerResults([]); }}
+                  placeholder="Nome, CPF ou CNPJ" />
+              </div>
+              {canCreateCustomer && isEditable && <BtnSecondary size="sm" className="min-h-10 shrink-0" onClick={() => setQuickCustomerOpen(true)}>
+                <Plus size={14} /> Cadastrar
+              </BtnSecondary>}
+            </div>
+            {searchingCustomer && <InlineLoading text="Buscando clientes..." />}
+            {customerResults.length > 0 && <div className="max-h-48 space-y-0.5 overflow-y-auto rounded-lg border border-border bg-popover p-1">
+              {customerResults.map(customer => <button key={customer.id} type="button"
+                onClick={() => { set("customer_id", customer.id); setCustomerInfo(customer); setCustomerResults([]); setCustomerSearch(""); }}
+                className="block w-full rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted">
+                <CustomerSummary customer={customer} />
+              </button>)}
+            </div>}
+            {customerSearch.trim().length >= 2 && !searchingCustomer && !customerResults.length && <p className="text-[11px] text-muted-foreground">Nenhum cliente encontrado nesta busca.</p>}
+          </div>}
+          {draft.customer_id && <div className="pt-1">
+            <label className={fieldLabel}>OS vinculada (opcional)</label>
+            <select className={selectClass} disabled={!isEditable} value={draft.service_order_id || ""}
+              onChange={event => set("service_order_id", event.target.value || null)}>
+              <option value="">Nenhuma OS</option>
+              {draft.service_order_id && !orderOptions.some(order => order.id === draft.service_order_id) &&
+                <option value={draft.service_order_id}>OS vinculada</option>}
+              {orderOptions.map(order => <option key={order.id} value={order.id}>OS {order.os_number}</option>)}
+            </select>
+          </div>}
+        </div>
         <div>
           <label className={fieldLabel}>Título *</label>
           <input className={INPUT} maxLength={180} value={draft.title} disabled={!isEditable}
@@ -295,33 +346,6 @@ export function WorkItemDialog({
           <p className="text-[11px] text-muted-foreground">Os alertas são enviados no CRM para os responsáveis e para quem criou a atividade.</p>
         </div>
 
-        <div className="rounded-xl border border-border p-3">
-          <label className={fieldLabel}>Cliente vinculado (opcional)</label>
-          {draft.customer_id ? <div className="flex items-center justify-between gap-2 rounded-lg bg-muted/60 px-3 py-2 text-sm">
-            <span className="truncate font-medium">{customerName || item?.customer?.full_name || "Cliente selecionado"}</span>
-            {isEditable && <BtnSecondary size="sm" onClick={() => { set("customer_id", null); set("service_order_id", null); setCustomerName(""); setCustomerResults([]); }}>Trocar</BtnSecondary>}
-          </div> : <div className="relative">
-            <Search size={16} className="pointer-events-none absolute left-3 top-3 text-muted-foreground" />
-            <input className={cn(INPUT, "pl-9")} disabled={!isEditable} value={customerSearch}
-              onChange={event => { setCustomerSearch(event.target.value); setCustomerResults([]); }}
-              placeholder="Buscar por nome, CPF ou CNPJ" />
-            {customerResults.length > 0 && <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border border-border bg-card">
-              {customerResults.map(customer => <button key={customer.id} type="button"
-                onClick={() => { set("customer_id", customer.id); setCustomerName(customer.trade_name || customer.full_name); setCustomerResults([]); setCustomerSearch(""); }}
-                className="block w-full px-3 py-2 text-left text-sm hover:bg-muted">{customer.trade_name || customer.full_name}</button>)}
-            </div>}
-          </div>}
-          {draft.customer_id && <div className="mt-3">
-            <label className={fieldLabel}>OS vinculada (opcional)</label>
-            <select className={selectClass} disabled={!isEditable} value={draft.service_order_id || ""}
-              onChange={event => set("service_order_id", event.target.value || null)}>
-              <option value="">Nenhuma OS</option>
-              {draft.service_order_id && !orderOptions.some(order => order.id === draft.service_order_id) &&
-                <option value={draft.service_order_id}>OS vinculada</option>}
-              {orderOptions.map(order => <option key={order.id} value={order.id}>OS {order.os_number}</option>)}
-            </select>
-          </div>}
-        </div>
       </div>)}
 
       {section === "checklist" && <div className="space-y-3">
