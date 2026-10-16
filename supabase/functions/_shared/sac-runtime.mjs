@@ -59,6 +59,15 @@ export function protocolOperationalStatus(protocol, waitingProtocolIds=new Set()
  return 'in_att';
 }
 
+// Non-managers see the shared waiting queue, but never another Operator's
+// abandoned/inbox history. Resolve ownership using the provider ID, not a name.
+export function operatorCanSeeProtocolInInbox(operationalStatus, assignedOperatorId, boundOperatorId) {
+ const bound=String(boundOperatorId || '').trim();
+ if(!bound)return false;
+ if(operationalStatus==='waiting' || operationalStatus==='pending')return true;
+ return String(assignedOperatorId || '').trim()===bound;
+}
+
 export function waitingOperatorProtocolIds(rows) {
  const ids=new Set();
  for(const row of rows) {
