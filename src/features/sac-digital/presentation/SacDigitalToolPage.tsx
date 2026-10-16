@@ -1032,10 +1032,30 @@ export function SacDigitalToolPage({
     setOrderRouteError("");
     const openFromOrder = async () => {
       try {
-        const result = await getSacDigitalOrderConversation(
-          activeOrganizationId, routeOrderConversationId, routeExternalProtocol,
-        );
+        // Opening immediately after an OS send can precede the SAC webhook
+        // and local protocol projection. Resolve and verify the exact protocol
+        // while showing one uninterrupted "Localizando protocolo..." state.
+        let result: Awaited<ReturnType<typeof getSacDigitalOrderConversation>> | null = null;
+        let lastFailure: unknown = null;
+        for (let attempt = 0; attempt < 7 && !cancelled; attempt++) {
+          try {
+            if (routeExternalProtocol && (attempt === 0 || attempt === 3)) {
+              await refreshSacDigitalProtocol(activeOrganizationId, routeExternalProtocol);
+            }
+            result = await getSacDigitalOrderConversation(
+              activeOrganizationId, routeOrderConversationId, routeExternalProtocol,
+            );
+            if (result.protocol?.id && result.protocol.external_protocol_id) break;
+            result = null;
+          } catch (error) {
+            lastFailure = error;
+          }
+          if (attempt < 6) await new Promise(resolve => setTimeout(resolve, 450 + attempt * 250));
+        }
         if (cancelled) return;
+        if (!result?.protocol?.id || !result.protocol.external_protocol_id) {
+          throw lastFailure || new Error("Não foi possível localizar o protocolo desta OS na SAC Digital.");
+        }
         const protocol = result.protocol;
         if (!protocol?.id || !protocol.external_protocol_id) {
           throw new Error("Nenhuma conversa encontrada para esta OS.");
@@ -1170,6 +1190,10 @@ export function SacDigitalToolPage({
         || !selectedProtocolId
         || !selectedProtocol?.external_protocol_id
       ) return;
+
+      // A finished protocol is historic/read-only: opening it must never
+      // refresh provider state or implicitly re-enter the service workflow.
+      if (selectedProtocol.status === "finished" || Boolean(selectedProtocol.closed_at)) return;
 
       // Não alterar estado de leitura ou selecionar a sessão do outro Operador.
       if (orderConversationContextRef.current?.protocolId === selectedProtocolId
@@ -1891,7 +1915,7 @@ export function SacDigitalToolPage({
     />
 
     <AdminSubnav value={moduleSection} items={SAC_MODULE_SECTIONS} onSelect={setModuleSection} ariaLabel="Seções do SAC Digital" />
-    {routeExternalProtocol && !selectedProtocol && !loading && (
+    {routeExternalProtocol && !routeOrderConversationId && !selectedProtocol && !loading && (
       <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
         <span>{protocolRouteLoading ? "Abrindo a conversa vinculada à OS..." : "A conversa vinculada à OS ainda não foi selecionada."}</span>
         <BtnSecondary disabled={protocolRouteLoading} onClick={() => setProtocolRouteRetry(v=>v+1)}>
@@ -1969,9 +1993,9 @@ export function SacDigitalToolPage({
         <div className="flex h-full items-center justify-center p-6 text-sm text-muted-foreground">
           Sua função não possui permissão para visualizar conversas do SAC Digital.
         </div>
-      ) : routeOrderConversationId && !selectedProtocol && orderRouteState === "loading" ? (
+      ) : routeOrderConversationId && !selectedProtocol && orderRouteState !== "error" ? (
         <div className="flex h-full items-center justify-center p-6">
-          <LoadingState text="Localizando conversa da OS..." />
+          <LoadingState text="Localizando protocolo..." />
         </div>
       ) : routeOrderConversationId && !selectedProtocol && orderRouteState === "error" ? (
         <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
