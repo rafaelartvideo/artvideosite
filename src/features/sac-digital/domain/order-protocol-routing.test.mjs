@@ -188,7 +188,7 @@ test('OS conversation route retries cancelled initialization and uses exact prot
     code.indexOf('const protocol = result.protocol;'));
   assert.doesNotMatch(code,/routeOrderConversationId \|\| routeExternalProtocol \|\|/);
   assert.match(sacPage,/routeOrderConversationId \|\| !canViewMessages\) return;/);
-  assert.match(sacPage,/Localizando conversa da OS/);
+  assert.match(sacPage,/Localizando protocolo/);
   assert.match(sacPage,/onClick=\{\(\) => setOrderRouteRetry\(value => value \+ 1\)\}/);
 });
 
@@ -228,4 +228,30 @@ test('SAC management actions and direct forwarding remain restricted', () => {
   assert.match(returnToQueue,/requirePermission\("sac_digital\.protocols\.manage"\)/);
   assert.match(backend,/\[36,37,38\]\.includes\(endpointId\)/);
   assert.match(backend,/endpointId === 36 \? 'sac_digital\.messages\.send' : 'sac_digital\.protocols\.manage'/);
+});
+
+test('OS conversation link stays in one locating state during provider projection retries',()=>{
+  const effectStart=sacPage.indexOf('// Atalho da OS: localizar o protocolo vinculado');
+  const effectEnd=sacPage.indexOf('  useEffect(() => {',sacPage.indexOf('  useEffect(() => {',effectStart)+1);
+  const route=sacPage.slice(effectStart,effectEnd);
+  assert.match(route,/for \(let attempt = 0; attempt < 7 && !cancelled; attempt\+\+\)/);
+  assert.match(route,/refreshSacDigitalProtocol\(activeOrganizationId, routeExternalProtocol\)/);
+  assert.match(route,/getSacDigitalOrderConversation\(/);
+  assert.match(route,/if \(!result\?\.protocol\?\.id/);
+  assert.ok(route.indexOf('setOrderRouteState("opened")')>route.indexOf('selectProtocol(protocol.id)'));
+  assert.match(sacPage,/routeExternalProtocol && !routeOrderConversationId && !selectedProtocol/);
+  assert.match(sacPage,/routeOrderConversationId && !selectedProtocol && orderRouteState !== "error"/);
+});
+test('opening finished protocols only reads saved history and never refreshes an operational session',()=>{
+  assert.match(sacPage,/selectedProtocol\.status === "finished" \|\| Boolean\(selectedProtocol\.closed_at\)/);
+  const index=sacPage.indexOf('selectedProtocol.status === "finished"');
+  const refresh=sacPage.indexOf('await refreshSacDigitalProtocol(',index);
+  assert.ok(index>0 && refresh>index);
+});
+test('OS message delivery uses SAC provider history as canonical and skips second local copy',()=>{
+  const section=action('send_order_message','send_message');
+  assert.match(section,/await syncProtocolHistory\(organizationId, openedProtocol\)/);
+  assert.doesNotMatch(section,/sent_from_service_order: orderId/);
+  assert.doesNotMatch(section,/\.from\("sac_digital_messages"\)\.insert\(payload\)/);
+  assert.match(section,/sac_digital\.order\.send_message/);
 });
