@@ -129,11 +129,46 @@ export async function removeWorkChecklistItem(organizationId: string, id: string
     .eq("organization_id", organizationId).eq("id", id);
   if (error) throw error;
 }
+// Home and the persistent header may observe the same organization at once.
+// Attach postgres_changes handlers exactly once, before subscribe(). Register
+// additional consumers as callbacks instead of adding handlers to a live channel.
+type WorkItemRealtimeSubscription = {
+  channel: ReturnType<typeof supabase.channel>;
+  listeners: Set<() => void>;
+};
+const workItemRealtimeSubscriptions = new Map<string, WorkItemRealtimeSubscription>();
+
 export function subscribeWorkItems(organizationId: string, onChange: () => void) {
-  const channel = supabase.channel("work-items:" + organizationId)
-    .on("postgres_changes", { event: "*", schema: "public", table: "work_items", filter: "organization_id=eq." + organizationId }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "work_item_checklist", filter: "organization_id=eq." + organizationId }, onChange)
-    .on("postgres_changes", { event: "*", schema: "public", table: "work_item_activity", filter: "organization_id=eq." + organizationId }, onChange)
-    .subscribe();
-  return () => { void supabase.removeChannel(channel); };
+  let subscription = workItemRealtimeSubscriptions.get(organizationId);
+  if (!subscription) {
+    const listeners = new Set<() => void>();
+    const notify = () => {
+      // A failure in one screen must not prevent the others from refreshing.
+      for (const listener of Array.from(listeners)) {
+        try { listener(); } catch (error) { console.error("[work-items] realtime listener", error); }
+      }
+    };
+    const filter = "organization_id=eq." + organizationId;
+    const channel = supabase.channel("work-items:" + organizationId);
+    channel
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_items", filter }, notify)
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_item_checklist", filter }, notify)
+      .on("postgres_changes", { event: "*", schema: "public", table: "work_item_activity", filter }, notify);
+    subscription = { channel, listeners };
+    workItemRealtimeSubscriptions.set(organizationId, subscription);
+    channel.subscribe();
+  }
+
+  const current = subscription;
+  current.listeners.add(onChange);
+  let disposed = false;
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    current.listeners.delete(onChange);
+    if (current.listeners.size === 0 && workItemRealtimeSubscriptions.get(organizationId) === current) {
+      workItemRealtimeSubscriptions.delete(organizationId);
+      void supabase.removeChannel(current.channel);
+    }
+  };
 }
