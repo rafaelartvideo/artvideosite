@@ -1,3 +1,4 @@
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -327,7 +328,7 @@ export function TabCustomerRequests() {
                 </div>
                 {customerSearch.trim().length >= 2 && (searchingCustomer || (searchedCustomerTerm === customerSearch.trim() && matches.length > 0)) &&
                   <div className="absolute left-0 right-0 top-full z-[60] mt-1 max-h-52 overflow-y-auto rounded-lg border border-border bg-card shadow-xl">
-                    {searchingCustomer ? <p className="p-3 text-sm text-muted-foreground">Buscando clientes...</p>
+                    {searchingCustomer ? <InlineLoading className="p-3" text="Buscando clientes..." />
                       : matches.map(customer => <button key={customer.id} type="button"
                           className="block w-full border-b border-border px-3 py-3 text-left text-sm hover:bg-muted last:border-0"
                           onClick={() => { setSelectedCustomer(customer); setCustomerSearch(""); setMatches([]); setSearchedCustomerTerm(""); }}>
