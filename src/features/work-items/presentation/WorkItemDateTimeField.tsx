@@ -57,7 +57,7 @@ export function WorkItemDateTimeField({
         disabled={disabled}
         title={`Selecionar data e hora de ${label.toLowerCase()}`}
         aria-label={`Selecionar data e hora de ${label.toLowerCase()}`}
-        className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
+        className="admin-action-blue-outline flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <CalendarDays size={18} aria-hidden="true" />
       </button>
