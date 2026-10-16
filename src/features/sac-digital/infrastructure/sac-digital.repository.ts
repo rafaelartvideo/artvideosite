@@ -616,6 +616,12 @@ export type SacDigitalPreparedContact = {
   imported: boolean;
   whatsapp_available: boolean;
   error?: string;
+  active_protocol?: {
+    protocol: string;
+    is_att: boolean;
+    operator_id: string | null;
+    operator_name: string | null;
+  } | null;
   contact?: {
     external_contact_id: string;
     customer_id: string | null;
