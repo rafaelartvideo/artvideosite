@@ -55,10 +55,17 @@ export function createRefreshQueue(run, delay = 500) {
   };
 }
 
-export async function initializeSacScreen({loadStatus, loadProtocols, loadUnreadCounts, onReady}) {
-  await loadStatus();
+// One initial gate: render only after the integration, conversation list and
+// user/operator access have settled. Unread badges are independent and load
+// after the screen becomes usable; other SAC sections mount only on selection.
+export async function initializeSacScreen({loadStatus, loadProtocols, loadOperatorBinding, loadUnreadCounts, onReady}) {
+  const [statusResult] = await Promise.allSettled([loadStatus(), loadProtocols()]);
+  const integration = statusResult.status === 'fulfilled' ? statusResult.value : null;
+  if (loadOperatorBinding) {
+    try { await loadOperatorBinding(integration?.enabled === true); }
+    catch { /* A transient binding lookup must not leave the screen blocked. */ }
+  }
   if (onReady() === false) return;
-  void loadProtocols();
-  void loadUnreadCounts();
+  void Promise.resolve().then(loadUnreadCounts).catch(() => {});
 }
 
