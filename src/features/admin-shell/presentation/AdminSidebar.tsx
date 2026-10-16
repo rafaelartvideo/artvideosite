@@ -79,6 +79,18 @@ export function AdminSidebar({
     );
   const canAccessPlatformSettings = isPlatformOperatorOrganization && canAccessTab("settings");
   const visibleMainItems = mainItems.filter(item => canAccessTab(item.id as AdminTab));
+  // Sort only the Union World sidebar, within each existing section. The
+  // labels users actually see (Usuários, Monitoramento de OS) define the order.
+  const unionMenuLabel = (item: { id: string; label: string }) =>
+    item.id === "customers" ? "Usuários"
+      : item.id === "orders" ? "Monitoramento de OS"
+        : item.label;
+  function sortUnionSection<T extends { id: string; label: string }>(items: T[]): T[] {
+    if (!isPlatformOperatorOrganization) return items;
+    return [...items].sort((a, b) =>
+      unionMenuLabel(a).localeCompare(unionMenuLabel(b), "pt-BR", { sensitivity: "base" }),
+    );
+  }
   const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
   const serviceItems = visibleMainItems.filter(item =>
     ["quotes", "orders", "technicianPanel", "customers", "customerRequests", "agenda", "workItems"].includes(item.id),
@@ -94,6 +106,16 @@ export function AdminSidebar({
   const communicationItems = visibleMainItems.filter(item =>
     isPlatformOperatorOrganization && item.id === "announcements",
   );
+  const principalSectionItems = sortUnionSection([
+    ...dashboardItems,
+    ...(isPlatformOperatorOrganization ? [{ id: "crm", label: "CRM", icon: LayoutGrid }] : []),
+  ]);
+  const administrationSectionItems = sortUnionSection([
+    ...administrationItems,
+    ...(canAccessOperation ? [{ id: "operation", label: "Operação", icon: Settings }] : []),
+    ...(canAccessSite ? [{ id: "site", label: "Site", icon: Globe }] : []),
+    ...(canAccessTools ? [{ id: "tools", label: "Ferramentas", icon: Wrench }] : []),
+  ]);
 
   const renderMainItem = (item: (typeof mainItems)[number]) => (
     <SidebarItem
@@ -172,70 +194,35 @@ export function AdminSidebar({
                   Principal
                 </div>
               )}
-              {dashboardItems.map(renderMainItem)}
-              {isPlatformOperatorOrganization && (
-                <SidebarItem
-                  item={{ id: "crm", label: "CRM", icon: LayoutGrid }}
-                  active={selectedTab === "crm"}
-                  collapsed={collapsed}
-                  onClick={() => onNavigate("crm")}
-                />
-              )}
+              {principalSectionItems.map(renderMainItem)}
             </div>
           )}
 
           {serviceItems.length > 0 && (
             <div className="space-y-1">
               {sectionHeader("Atendimento")}
-              {serviceItems.map(renderMainItem)}
+              {sortUnionSection(serviceItems).map(renderMainItem)}
             </div>
           )}
 
           {communicationItems.length > 0 && (
             <div className="space-y-1">
               {sectionHeader("Comunicação")}
-              {communicationItems.map(renderMainItem)}
+              {sortUnionSection(communicationItems).map(renderMainItem)}
             </div>
           )}
 
           {commercialItems.length > 0 && (
             <div className="space-y-1">
               {sectionHeader("Comercial")}
-              {commercialItems.map(renderMainItem)}
+              {sortUnionSection(commercialItems).map(renderMainItem)}
             </div>
           )}
 
           {(administrationItems.length > 0 || canAccessSite || canAccessOperation || canAccessTools) && (
             <div className="space-y-1">
               {sectionHeader("Administração")}
-              {administrationItems.map(renderMainItem)}
-
-              {canAccessOperation && (
-                <SidebarItem
-                  item={{ id: "operation", label: "Operação", icon: Settings }}
-                  active={selectedTab === "operation"}
-                  collapsed={collapsed}
-                  onClick={() => onNavigate("operation")}
-                />
-              )}
-
-              {canAccessSite && (
-                <SidebarItem
-                  item={{ id: "site", label: "Site", icon: Globe }}
-                  active={selectedTab === "site"}
-                  collapsed={collapsed}
-                  onClick={() => onNavigate("site")}
-                />
-              )}
-
-              {canAccessTools && (
-                <SidebarItem
-                  item={{ id: "tools", label: "Ferramentas", icon: Wrench }}
-                  active={selectedTab === "tools"}
-                  collapsed={collapsed}
-                  onClick={() => onNavigate("tools")}
-                />
-              )}
+              {administrationSectionItems.map(renderMainItem)}
             </div>
           )}
 
