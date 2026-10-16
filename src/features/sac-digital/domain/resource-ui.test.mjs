@@ -40,3 +40,16 @@ test('aviso de exclusão do cliente exige confirmação do provedor e preserva t
  assert.equal(messageDeletedByCustomer({direction:'outgoing',raw_metadata:{sac_history:{deleted_at:'2026-10-16T13:40:00Z'}}}),false);
  assert.equal(messageDeletedByCustomer({direction:'incoming',raw_metadata:{sac_history:{deleted_at:'2026-10-16T13:40:00Z',deleted_by:'operator'}}}),false);
 });
+
+test('número novo só aparece para telefone válido e não duplica nono dígito', async () => {
+ const { isSacNumberCandidate, sameSacPhone } = await import('./resource-ui.mjs');
+ assert.equal(isSacNumberCandidate('(79) 99999-1234'), true);
+ assert.equal(isSacNumberCandidate('5579999991234'), true);
+ assert.equal(isSacNumberCandidate('abc'), false);
+ assert.equal(isSacNumberCandidate('799'), false);
+ assert.equal(isSacNumberCandidate('0000000000'), false);
+ assert.equal(sameSacPhone('5579999991234', '557999991234'), true);
+ assert.equal(sameSacPhone('5579999991234', '(79) 99999-1234'), true);
+ assert.equal(sameSacPhone('5579999991234', '(79) 98888-1234'), false);
+ assert.equal(sameSacPhone('12345678901', '12345678902'), false);
+});
