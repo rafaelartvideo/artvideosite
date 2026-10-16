@@ -2672,6 +2672,9 @@ Deno.serve(async request => {
           success: true,
           mode: "protocol",
           protocol,
+          in_att: openProtocol.isAtt === true,
+          operator_id: openProtocol.operatorId || null,
+          operator_name: openProtocol.operatorName || null,
           external_contact_id: externalContactId,
         });
       }
