@@ -487,13 +487,19 @@ export function SacDigitalNewConversationDialog({
                 </div>
                 {prepared?.direct_send_available && (
                   <div className="space-y-2 border-t border-border pt-3">
-                    <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                      A SAC não confirmou a importação pelo canal selecionado.
-                      Você pode tentar o envio direto documentado pela SAC, sem importar separadamente.
+                    <p role="alert" className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                      {prepared.import_error_type === "error_valid_wpp"
+                        ? "A SAC Digital não conseguiu validar o WhatsApp deste número, mesmo após testar as variantes com e sem nono dígito."
+                        : "A SAC Digital recusou a importação deste número pelo canal selecionado."}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      Isso gera uma notificação, não um atendimento aberto. O resultado ficará na aba
-                      Notificações até que a SAC confirme eventual protocolo.
+                      Confirme na SAC Digital se o canal escolhido está ativo e consegue iniciar
+                      conversas com contatos novos. Você pode tentar o envio direto abaixo;
+                      ele também poderá ser recusado pela validação do WhatsApp.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Se a SAC aceitar o envio, ele aparecerá em Notificações. Uma notificação aceita
+                      não significa mensagem entregue nem atendimento aberto.
                     </p>
                     <FTextarea
                       label="Mensagem inicial"
