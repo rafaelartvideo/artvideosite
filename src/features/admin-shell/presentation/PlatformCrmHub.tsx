@@ -38,13 +38,15 @@ export function PlatformCrmHub({
         ...item,
         description: mainDescriptions[item.id] || `Acesse o módulo ${item.label}.`,
       })),
-    ...operationItems.map((item) => ({
+    // SAC integration settings remain in company administration, not on the
+    // Union CRM's main modules menu alongside day-to-day work.
+    ...operationItems.filter((item) => item.id !== "integrations").map((item) => ({
       id: item.id,
       label: item.label,
       icon: item.icon,
       description: item.description,
     })),
-  ];
+  ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
   return (
     <AdminHubPage
