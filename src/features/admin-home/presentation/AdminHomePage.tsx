@@ -1,10 +1,13 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import {
   Bell,
   Building2,
   CalendarDays,
+  CheckCheck,
+  Clock3,
+  ClipboardCheck,
   ClipboardList,
   FileText,
   Landmark,
@@ -14,6 +17,7 @@ import {
   Package,
   Pin,
   ShoppingCart,
+  TrendingUp,
   Users,
   Wrench,
   type LucideIcon,
@@ -35,6 +39,12 @@ import { adminNotificationsKey } from "@/features/notifications/application/useA
 import { prefetchAdminModule } from "@/features/admin-shell/application/admin-prefetch";
 import { notificationTime } from "@/features/notifications/presentation/AdminNotifications";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import {
+  loadWorkItems,
+  subscribeWorkItems,
+  type WorkItem,
+  type WorkKind,
+} from "@/features/work-items/infrastructure/work-items.repository";
 
 type QuickShortcut = {
   key: string;
@@ -69,6 +79,64 @@ const PRIORITY_UI: Record<HomeAnnouncementPriority, {
   important: { label: "Importante", className: "border-orange-200 bg-orange-50/70 dark:border-orange-900/60 dark:bg-orange-950/20", dot: "bg-orange-500" },
   critical: { label: "Crítico", className: "border-red-200 bg-red-50/70 dark:border-red-900/60 dark:bg-red-950/20", dot: "bg-red-500" },
 };
+
+type WorkSummary = { open: number; progress: number; overdue: number; completed: number };
+
+function summarizeWorkItems(items: WorkItem[], kind: WorkKind, now: number): WorkSummary {
+  const own = items.filter(item => item.kind === kind);
+  return {
+    // Use the same "Em aberto" definition as the Compromissos e Tarefas page.
+    open: own.filter(item => ["pending", "waiting", "in_progress"].includes(item.status)).length,
+    progress: own.filter(item => item.status === "in_progress").length,
+    overdue: own.filter(item => item.due_at
+      && new Date(item.due_at).getTime() < now
+      && item.status !== "completed" && item.status !== "cancelled").length,
+    completed: own.filter(item => item.status === "completed").length,
+  };
+}
+
+const WORK_STATUS_CARDS = [
+  { key: "open", label: "Em aberto", icon: ClipboardCheck, tone: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
+  { key: "progress", label: "Em andamento", icon: TrendingUp, tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
+  { key: "overdue", label: "Atrasadas", icon: Clock3, tone: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300" },
+  { key: "completed", label: "Concluídas", icon: CheckCheck, tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
+] as const;
+
+function WorkHomeCounters({
+  title, summary, pending, error, onOpen,
+}: {
+  title: string;
+  summary: WorkSummary;
+  pending: boolean;
+  error: boolean;
+  onOpen: () => void;
+}) {
+  return <div className="min-w-0 space-y-2">
+    <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">{title}</h2>
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      {WORK_STATUS_CARDS.map(card => {
+        const Icon = card.icon;
+        return <button
+          key={card.key}
+          type="button"
+          onClick={onOpen}
+          title={`${title}: ${card.label}. Abrir Compromissos e Tarefas`}
+          aria-label={`${title}, ${card.label}: ${error || pending ? "carregando" : summary[card.key]}. Abrir módulo`}
+          className={cn(
+            "flex h-[82px] min-w-0 flex-col items-center justify-center gap-1 rounded-xl border px-1.5 py-2 text-center transition-all hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+            card.tone,
+          )}
+        >
+          <span className="flex min-w-0 items-center justify-center gap-1 text-[10px] font-bold leading-tight">
+            <Icon size={13} className="shrink-0" aria-hidden />
+            {card.label}
+          </span>
+          <strong className="text-2xl font-black tabular-nums leading-none">{pending || error ? "—" : summary[card.key]}</strong>
+        </button>;
+      })}
+    </div>
+  </div>;
+}
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -180,6 +248,31 @@ export function AdminHomePage({
     staleTime: 5 * 60_000,
   });
 
+  const canViewWorkItems = canAccessTab("workItems");
+  const workItemsQuery = useQuery({
+    // Share the module's cache so task/commitment edits update Home immediately.
+    queryKey: ["work-items", activeOrganizationId || ""],
+    enabled: Boolean(activeOrganizationId && canViewWorkItems),
+    queryFn: () => loadWorkItems(activeOrganizationId!),
+    staleTime: 60_000,
+  });
+  const [summaryNow, setSummaryNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!activeOrganizationId || !canViewWorkItems) return;
+    const interval = window.setInterval(() => setSummaryNow(Date.now()), 60_000);
+    return () => window.clearInterval(interval);
+  }, [activeOrganizationId, canViewWorkItems]);
+  useEffect(() => {
+    if (!activeOrganizationId || !canViewWorkItems) return;
+    return subscribeWorkItems(activeOrganizationId, () => {
+      void queryClient.invalidateQueries({ queryKey: ["work-items", activeOrganizationId] });
+    });
+  }, [activeOrganizationId, canViewWorkItems, queryClient]);
+  const workSummaries = useMemo(() => ({
+    tasks: summarizeWorkItems(workItemsQuery.data || [], "task", summaryNow),
+    commitments: summarizeWorkItems(workItemsQuery.data || [], "commitment", summaryNow),
+  }), [workItemsQuery.data, summaryNow]);
+
   useEffect(() => {
     if (!activeOrganizationId) return;
     return subscribeToAdminHomeRefresh(kind => {
@@ -222,21 +315,36 @@ export function AdminHomePage({
 
   return <div className="min-w-0 space-y-5 pb-3">
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
-      <div className="flex min-w-0 flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+      <div className="space-y-4 p-5 sm:p-6">
         <div className="min-w-0">
           <p className="text-xs font-black uppercase tracking-[0.12em] text-primary">Home</p>
           <h1 className="mt-1 truncate text-2xl font-black text-foreground">{greeting()}, {userName}</h1>
           <p className="mt-1 text-sm text-muted-foreground">{activeOrganization?.organization_name || "Empresa ativa"} · <span className="capitalize">{formatHomeDate()}</span></p>
         </div>
-        <div className="grid shrink-0 grid-cols-2 gap-2">
-          <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-center">
-            <p className="text-[9px] font-black uppercase tracking-[0.11em] text-muted-foreground">Avisos pendentes</p>
-            <strong className="mt-1 block text-xl font-black text-foreground">{pendingAcknowledgments}</strong>
+        <div className={cn(
+          "grid min-w-0 gap-4",
+          canViewWorkItems && "xl:grid-cols-[minmax(120px,150px)_minmax(0,1fr)_minmax(0,1fr)]",
+        )}>
+          <div className="flex min-h-[82px] flex-col items-center justify-center rounded-xl border border-border bg-muted/50 px-4 py-3 text-center">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Avisos pendentes</p>
+            <strong className="mt-1 block text-2xl font-black tabular-nums text-foreground">{pendingAcknowledgments}</strong>
           </div>
-          <div className="rounded-xl border border-border bg-muted/50 px-4 py-3 text-center">
-            <p className="text-[9px] font-black uppercase tracking-[0.11em] text-muted-foreground">Não lidas</p>
-            <strong className="mt-1 block text-xl font-black text-foreground">{unreadCount}</strong>
-          </div>
+          {canViewWorkItems && <>
+            <WorkHomeCounters
+              title="Tarefas"
+              summary={workSummaries.tasks}
+              pending={workItemsQuery.isPending}
+              error={workItemsQuery.isError}
+              onOpen={() => onNavigate("workItems")}
+            />
+            <WorkHomeCounters
+              title="Compromissos"
+              summary={workSummaries.commitments}
+              pending={workItemsQuery.isPending}
+              error={workItemsQuery.isError}
+              onOpen={() => onNavigate("workItems")}
+            />
+          </>}
         </div>
       </div>
     </section>
