@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminDialog, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 
@@ -18,7 +18,7 @@ const onlyDigits = (value: string) => value.replace(/\D/g, "").slice(0, 8);
 const displayCep = (value: string) => /^\d{8}$/.test(value) ? value.replace(/^(\d{5})(\d{3})$/, "$1-$2") : value;
 const brl = (value: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
-export function SiteShippingZones({ canUpdate }: { canUpdate: boolean }) {
+export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; onBack: () => void }) {
   const [items, setItems] = useState<ShippingZone[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -105,7 +105,7 @@ export function SiteShippingZones({ canUpdate }: { canUpdate: boolean }) {
 
   return <>
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)}/>}
-    <Section title="Entrega local · CEPs e valores">
+    <Section title="Áreas de entrega" description="Defina CEPs atendidos, valores e prazos.">
       <div className="space-y-4">
         <p className="text-sm text-muted-foreground">Defina onde a Artvideo entrega e quanto cobra, por CEP ou faixa. CEPs fora das regras ativas não poderão finalizar a compra. Quando houver faixas sobrepostas, vale a mais específica; um CEP individual sempre prevalece.</p>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -115,7 +115,6 @@ export function SiteShippingZones({ canUpdate }: { canUpdate: boolean }) {
               placeholder="Buscar por CEP ou região" aria-label="Buscar regras de entrega"
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm outline-none focus:border-primary"/>
           </div>
-          {canUpdate && <BtnPrimary onClick={() => setDraft({...emptyDraft})}><Plus size={16}/> Adicionar CEP ou faixa</BtnPrimary>}
         </div>
         {error && <div className="rounded-md border border-red-200 p-3 text-sm text-red-700">
           Falha ao carregar regras: {error} <button type="button" className="ml-2 font-bold underline" onClick={() => void refresh()}>Tentar novamente</button>
@@ -152,6 +151,10 @@ export function SiteShippingZones({ canUpdate }: { canUpdate: boolean }) {
         </div>}
       </div>
     </Section>
+    <AdminStickyToolbar className="mt-5">
+      <BtnSecondary onClick={onBack} disabled={saving}>Voltar</BtnSecondary>
+      {canUpdate && <BtnPrimary onClick={() => setDraft({...emptyDraft})} disabled={saving}><Plus size={16} /> Novo</BtnPrimary>}
+    </AdminStickyToolbar>
     <AdminDialog open={Boolean(draft)} onClose={() => { if (!saving) setDraft(null); }}
       title={draft?.id ? "Editar área de entrega" : "Nova área de entrega"}
       description="Controle quais CEPs poderão receber os produtos e o preço do frete."

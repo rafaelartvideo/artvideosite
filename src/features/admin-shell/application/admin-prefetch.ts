@@ -18,6 +18,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   checklists: () => import("@/features/checklists/presentation/ChecklistAdminPanel"),
   documents: () => import("@/features/documents/presentation/TabDocuments"),
   services: () => import("@/features/services/presentation/TabServices"),
+  siteDelivery: () => import("@/features/settings/presentation/SiteDeliveryPage"),
   products: () => import("@/features/inventory/presentation/TabInventory"),
   brands: () => import("@/features/brands/presentation/TabBrands"),
   categories: () => import("@/features/categories/presentation/TabCategories"),

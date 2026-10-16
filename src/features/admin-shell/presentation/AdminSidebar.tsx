@@ -38,6 +38,7 @@ export function AdminSidebar({
 
   const canAccessTab = (tab: AdminTab) => {
     if (tab === "home") return true;
+    if (tab === "siteDelivery" && !isArtVideoOrganization) return false;
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
@@ -61,7 +62,7 @@ export function AdminSidebar({
     ? "settings"
     : activeTab === "fieldTracking" ? "tools" : (parentAdminTab(activeTab) || activeTab);
   const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
-    hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
+    canAccessTab(item.id as AdminTab),
   );
   const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),

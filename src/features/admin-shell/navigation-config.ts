@@ -16,6 +16,7 @@ import {
   Package,
   Phone,
   Settings,
+  Truck,
   ShieldCheck,
   ScrollText,
   ShoppingCart,
@@ -54,6 +55,7 @@ export const siteItems: PermissionAwareHubItem[] = [
   { id: "brands", label: "Marcas", icon: Tag, description: "Gerencie as marcas utilizadas no catálogo da loja.", permissionKey: "brands.view" },
   { id: "services", label: "Serviços do Site", icon: Wrench, description: "Cadastre e gerencie os serviços apresentados no site público.", permissionKey: "services.view" },
   { id: "siteSettings", label: "Configurações do Site", icon: Settings, description: "Gerencie identidade visual e conteúdo do site público.", permissionKey: "site_settings.view" },
+  { id: "siteDelivery", label: "Entrega", icon: Truck, description: "Gerencie as áreas de entrega, os CEPs atendidos e os valores do frete.", permissionKey: "site_settings.view" },
   { id: "contact", label: "Contato", icon: Phone, description: "Configure telefones, WhatsApp, e-mail, endereço, redes sociais e horário exibidos no site.", permissionKey: "contact.view" },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
@@ -108,6 +110,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   planUsage: "settings.details.view",
   terms: "terms.view",
   siteSettings: "site_settings.view",
+  siteDelivery: "site_settings.view",
   contact: "contact.view",
   site: "site.view",
   operation: "operation.view",
@@ -151,6 +154,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   brands: "site_brands",
   services: "site_services",
   siteSettings: "site_settings",
+  siteDelivery: "site_settings",
   site: null,
   operation: null,
   tools: null,
