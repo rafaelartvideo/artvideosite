@@ -657,6 +657,7 @@ export async function prepareSacDigitalNewConversationContact(
     customerId?: string;
     name?: string;
     phone?: string;
+    channel?: string;
   },
 ) {
   const data = await invokeSacDigitalApi({
@@ -664,6 +665,7 @@ export async function prepareSacDigitalNewConversationContact(
     organization_id: organizationId,
     external_contact_id: input.externalContactId || "",
     customer_id: input.customerId || "",
+    channel: input.channel || "",
     name: input.name || "",
     phone: input.phone || "",
   });
