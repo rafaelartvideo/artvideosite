@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSearchParams } from "react-router";
 import {
   ArrowDownWideNarrow, ArrowRight, BellRing, CalendarDays, Check, CheckCheck, ChevronLeft,
   ChevronRight, Circle, ClipboardCheck, Clock3, Eraser, Flag, LayoutDashboard,
@@ -187,6 +188,8 @@ export function TabWorkItems() {
   const canCreate = hasPermission("work_items.create");
   const canEdit = hasPermission("work_items.edit");
   const canManage = hasPermission("work_items.manage");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const linkedItemId = searchParams.get("item");
   const [view, setView] = useState<View>("overview");
   const [scope, setScope] = useState<Scope>("all");
   const [kind, setKind] = useState<WorkKind | "all">("all");
@@ -224,6 +227,23 @@ export function TabWorkItems() {
   useEffect(() => {
     if (itemQuery.error) notifyAdmin(itemQuery.error instanceof Error ? itemQuery.error.message : "Erro ao carregar atividades.", "error");
   }, [itemQuery.error]);
+
+  useEffect(() => {
+    if (!linkedItemId || !itemQuery.data) return;
+    const item = itemQuery.data.find(entry => entry.id === linkedItemId);
+    if (item) { setSelected(item); setDialogOpen(true); }
+  }, [linkedItemId, itemQuery.data]);
+
+  const closeDialog = () => {
+    setDialogOpen(false);
+    if (linkedItemId) {
+      setSearchParams(current => {
+        const next = new URLSearchParams(current);
+        next.delete("item");
+        return next;
+      }, { replace: true });
+    }
+  };
 
   const all = itemQuery.data || [];
   const employees = employeeQuery.data || [];
@@ -480,13 +500,13 @@ export function TabWorkItems() {
     <WorkItemDialog key={selected?.id || (dialogOpen ? "new" : "closed")} open={dialogOpen}
       item={selected} initialKind={newKind} organizationId={organizationId} employees={employees}
       canEdit={selected ? canEdit : canCreate}
-      onClose={() => setDialogOpen(false)}
+      onClose={closeDialog}
       onSaved={saved => {
         queryClient.setQueryData<WorkItem[]>(["work-items", organizationId], old => {
           const records = old || [];
           return [saved, ...records.filter(entry => entry.id !== saved.id)];
         });
-        setDialogOpen(false); refresh();
+        closeDialog(); refresh();
       }} />
   </div>;
 }
