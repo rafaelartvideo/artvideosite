@@ -4,11 +4,11 @@ import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   AlertCircle, ArrowLeft, ArrowRight, BadgeCheck, Check, CheckCircle2,
   ChevronRight, CreditCard, Headphones, LoaderCircle,
-  LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Truck, UserRound,
+  LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, UserRound,
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 
 type Step = 1 | 2 | 3;
@@ -81,6 +81,12 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const [step, setStep] = useState<Step>(1);
   const [buyer, setBuyer] = useState<Buyer>(initialBuyer);
   const [postalCode, setPostalCode] = useState(displayCep(params.get("cep") || ""));
+  const [deliveryMode, setDeliveryMode] = useState<"delivery"|"pickup">("delivery");
+  const pickupQuery = useQuery({
+    queryKey: ["artvideo-store-pickup"],
+    queryFn: loadStorePickupOption,
+    staleTime: 30_000,
+  });
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [quoteKey, setQuoteKey] = useState("");
   const [shippingId, setShippingId] = useState("");
@@ -106,7 +112,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const zipDigits = postalCode.replace(/\D/g, "");
   const key = (cartMode ? JSON.stringify(cartItems) : productId + ":" + quantity) + ":" + zipDigits;
   const quotedOptions = quoteKey === key ? options : [];
-  const selectedShipping = quotedOptions.find(item => item.id === shippingId) || null;
+  const selectedShipping = deliveryMode==="pickup" ? pickupQuery.data ?? null :
+    quotedOptions.find(item => item.id === shippingId) || null;
   const subtotal = cartMode ? cartLines.reduce((total, line) => total + Number(line.product.price) * line.quantity, 0) : unitPrice * quantity;
   const total = subtotal + (selectedShipping?.price ?? 0);
   const backToProduct = cartMode ? "/carrinho" : slug ? "/loja/" + encodeURIComponent(slug) : "/loja";
@@ -156,6 +163,10 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     setError(""); return true;
   };
   const checkDelivery = () => {
+    if (deliveryMode === "pickup") {
+      if (!pickupQuery.data) { setError("A retirada na loja não está disponível no momento."); return false; }
+      setError(""); return true;
+    }
     if (!/^\d{8}$/.test(zipDigits) || !selectedShipping) {
       setError("Consulte seu CEP e escolha uma modalidade de entrega disponível."); return false;
     }
@@ -243,28 +254,26 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           return;
         }
       }
-      // Frete é reconsultado para evitar revisar valores desatualizados.
-      const liveQuotes = await quoteStoreShipping(productId, cartMode ? 1 : quantity, zipDigits);
+      // Confirma a modalidade e os valores com a tabela atual antes do pagamento.
+      const liveQuotes = deliveryMode === "pickup"
+        ? [await loadStorePickupOption()].filter((option): option is NonNullable<typeof option> => Boolean(option))
+        : await quoteStoreShipping(productId, cartMode ? 1 : quantity, zipDigits);
       const current = liveQuotes.find(item => item.id === selectedShipping.id);
       if (!current) {
-        setOptions(liveQuotes);
-        setQuoteKey(key);
-        setShippingId("");
+        if (deliveryMode === "delivery") { setOptions(liveQuotes); setQuoteKey(key); setShippingId(""); }
         setError("Essa modalidade de entrega mudou. Selecione o frete novamente.");
         setStep(2);
         return;
       }
       if (Math.abs(current.price - selectedShipping.price) > 0.009) {
-        setOptions(liveQuotes);
-        setQuoteKey(key);
-        setShippingId(current.id);
+        if (deliveryMode === "delivery") { setOptions(liveQuotes); setQuoteKey(key); setShippingId(current.id); }
         setError("O valor da entrega foi atualizado. Confira o novo total antes de pagar.");
         return;
       }
       const checkout = await startStoreCheckout({
         product_id: productId, quantity,
         ...(cartMode ? { items: cartItems.map(i => ({ product_id: i.productId, quantity: i.quantity })) } : {}),
-        postal_code: zipDigits,
+        postal_code: deliveryMode === "pickup" ? pickupQuery.data!.postal_code : zipDigits,
         shipping_service_id: selectedShipping.id,
         ...buyer,
         buyer_name: buyer.buyer_name.trim(),
@@ -448,10 +457,38 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           {step === 2 && <section aria-labelledby="checkout-entrega" className={cardStyle + " overflow-hidden"}>
             <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
               <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 2 de 3</span>
-              <h2 id="checkout-entrega" className="mt-1 text-[22px] font-extrabold tracking-tight">Onde devemos entregar?</h2>
-              <p className="mt-1 text-[13px] text-[#647791]">Verifique a cobertura de entrega da Artvideo e complete seu endereço.</p>
+              <h2 id="checkout-entrega" className="mt-1 text-[22px] font-extrabold tracking-tight">Como você quer receber?</h2>
+              <p className="mt-1 text-[13px] text-[#647791]">Escolha a entrega regional ou retire seu pedido na loja.</p>
             </div>
             <div className="space-y-6 p-5 sm:p-7">
+              <fieldset>
+                <legend className="mb-3 text-[13px] font-bold">Forma de recebimento</legend>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className={"flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors "+
+                    (deliveryMode==="delivery"?"border-[var(--art-primary)] bg-[#eff6ff]":"border-[#e1e9f4] hover:bg-blue-50")}>
+                    <input type="radio" name="delivery-method" checked={deliveryMode==="delivery"}
+                      onChange={()=>{setDeliveryMode("delivery");setError("");}} className="accent-blue-600"/>
+                    <Truck size={22} className="text-[var(--art-primary)]"/>
+                    <span><strong className="block text-[13px]">Receber no endereço</strong><span className="text-[11px] text-[#6c7e94]">Frete por CEP</span></span>
+                  </label>
+                  {pickupQuery.data&&<label className={"flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors "+
+                    (deliveryMode==="pickup"?"border-[var(--art-primary)] bg-[#eff6ff]":"border-[#e1e9f4] hover:bg-blue-50")}>
+                    <input type="radio" name="delivery-method" checked={deliveryMode==="pickup"}
+                      onChange={()=>{setDeliveryMode("pickup");setError("");}} className="accent-blue-600"/>
+                    <Store size={22} className="text-[var(--art-primary)]"/>
+                    <span><strong className="block text-[13px]">Retirar na loja</strong><span className="text-[11px] text-emerald-600">Grátis · após confirmação</span></span>
+                  </label>}
+                </div>
+              </fieldset>
+              {deliveryMode==="pickup" && pickupQuery.data && <div className="rounded-lg border border-[#dbe6f4] bg-[#f5faff] p-5">
+                <h3 className="flex items-center gap-2 text-[15px] font-extrabold"><MapPin size={18} className="text-[var(--art-primary)]"/>{pickupQuery.data.name}</h3>
+                <p className="mt-3 text-[13px] text-[#536780]">{pickupQuery.data.street}, {pickupQuery.data.number}{pickupQuery.data.complement ? " · "+pickupQuery.data.complement : ""}</p>
+                <p className="text-[13px] text-[#536780]">{pickupQuery.data.district}, {pickupQuery.data.city}/{pickupQuery.data.state} · CEP {displayCep(pickupQuery.data.postal_code)}</p>
+                <p className="mt-3 whitespace-pre-line text-[12px] leading-5 text-[#536780]"><strong>Horários:</strong> {pickupQuery.data.opening_hours}</p>
+                {pickupQuery.data.instructions&&<p className="mt-2 whitespace-pre-line text-[12px] leading-5 text-[#536780]">{pickupQuery.data.instructions}</p>}
+                <p className="mt-3 text-[12px] font-semibold text-[var(--art-primary)]">Aguarde a confirmação de pedido pronto antes de ir à loja.</p>
+              </div>}
+              {deliveryMode==="delivery" && <>
               <div>
                 <Field label="CEP de entrega" required hint="Atendemos apenas os CEPs cadastrados para nossa região.">
                   <div className="flex min-w-0 gap-2">
@@ -520,6 +557,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   </Field>
                 </div>
               </div>
+              </>}
             </div>
           </section>}
 
@@ -541,13 +579,19 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
               </div>
               <div className="rounded-lg border border-[#e3ebf5] bg-white p-4 sm:p-5">
                 <div className="flex items-center justify-between gap-3">
-                  <h3 className="flex items-center gap-2 text-[14px] font-extrabold"><MapPin size={18} className="text-[var(--art-primary)]"/> Endereço de entrega</h3>
+                  <h3 className="flex items-center gap-2 text-[14px] font-extrabold"><MapPin size={18} className="text-[var(--art-primary)]"/> {deliveryMode==="pickup" ? "Retirada na loja" : "Endereço de entrega"}</h3>
                   <button type="button" onClick={() => move(2)} className="text-[12px] font-bold text-[var(--art-primary)] hover:underline">Alterar</button>
                 </div>
-                <p className="mt-3 text-[13px] font-bold">{buyer.street}, {buyer.number}{buyer.complement ? " · " + buyer.complement : ""}</p>
-                <p className="mt-1 text-[12px] text-[#63758c]">{buyer.district} · {buyer.city}/{buyer.state} · CEP {displayCep(zipDigits)}</p>
+                {deliveryMode==="pickup" && pickupQuery.data ? <>
+                  <p className="mt-3 text-[13px] font-bold">{pickupQuery.data.name}</p>
+                  <p className="mt-1 text-[12px] text-[#63758c]">{pickupQuery.data.street}, {pickupQuery.data.number} · {pickupQuery.data.district} · {pickupQuery.data.city}/{pickupQuery.data.state}</p>
+                  <p className="mt-2 text-[12px] font-semibold text-[var(--art-primary)]">Grátis · aguarde a confirmação de pedido pronto</p>
+                </> : <>
+                  <p className="mt-3 text-[13px] font-bold">{buyer.street}, {buyer.number}{buyer.complement ? " · " + buyer.complement : ""}</p>
+                  <p className="mt-1 text-[12px] text-[#63758c]">{buyer.district} · {buyer.city}/{buyer.state} · CEP {displayCep(zipDigits)}</p>
+                </>}
                 <div className="mt-3 flex flex-wrap items-center gap-2 rounded-lg bg-[#f2f8ff] px-3 py-2.5 text-[12px] text-[#3d5d82]">
-                  <Truck size={18} className="text-[var(--art-primary)]"/>
+                  {deliveryMode==="pickup" ? <Store size={18} className="text-[var(--art-primary)]"/> : <Truck size={18} className="text-[var(--art-primary)]"/>}
                   <span className="flex-1">{selectedShipping?.name} {selectedShipping?.deliveryDays != null ? " · até " + selectedShipping.deliveryDays + " dias úteis" : ""}</span>
                   <strong>{selectedShipping?.price === 0 ? "Grátis" : formatCurrency(selectedShipping?.price || 0)}</strong>
                 </div>

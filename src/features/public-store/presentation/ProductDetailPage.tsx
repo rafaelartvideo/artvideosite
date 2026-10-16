@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
 import { publicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
-import { getStoreProductExtras, quoteStoreShipping, submitStoreReview, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, quoteStoreShipping, submitStoreReview, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { PublicHeading, PublicButton } from "@/features/public-shell/presentation/PublicUi";
@@ -32,6 +32,9 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const { detail, loading, error } = useProductDetailBySlug(slug);
   const navigate = useNavigate();
   const { settings } = useSiteSettings();
+  const pickupQuery = useQuery({
+    queryKey: ["artvideo-store-pickup"], queryFn: loadStorePickupOption, staleTime: 30_000,
+  });
   const productId: string = detail?.product?.id ?? "";
   const extraQuery = useQuery({
     queryKey: ["artvideo-storefront-extra", productId],
@@ -176,6 +179,10 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         {/* Caixa de compra */}
         <aside className="rounded-[9px] border border-[#e0e8f2] bg-white p-5 shadow-sm lg:sticky lg:top-[95px]">
           <div className="mb-5 flex items-start gap-2 text-[13px] text-[#45617e]"><Truck size={21} className="shrink-0 text-[var(--art-primary)]"/><span><strong className="block text-[#0b1d37]">Entrega para seu endereço</strong> Digite seu CEP para consultar se entregamos no seu endereço.</span></div>
+          {pickupQuery.data && <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-[12px] text-[#3d5c7e]">
+            <strong className="block text-[var(--art-primary)]">Retirada gratuita na loja</strong>
+            <span className="mt-1 block">Também é possível retirar o pedido em {pickupQuery.data.city}/{pickupQuery.data.state}, após a confirmação de que está pronto.</span>
+          </div>}
           <label className="text-[12px] font-bold text-[#2f445f]" htmlFor="product-cep">CEP de entrega</label>
           <form onSubmit={e => { e.preventDefault(); void quoteShipping(); }} className="mt-2 flex gap-2">
             <input id="product-cep" inputMode="numeric" value={postalCode} maxLength={9} onChange={e => { setPostalCode(e.target.value.replace(/[^\d-]/g,"").slice(0,9)); setSelectedShippingId(""); }} placeholder="00000-000" className={inputClass}/>

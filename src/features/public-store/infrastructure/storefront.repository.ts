@@ -100,3 +100,27 @@ export async function submitStoreReview(payload: { orderId: string; email: strin
   });
   if (error) throw new Error(error.message || "Não foi possível enviar sua avaliação.");
 }
+
+
+export type StorePickupOption = ShippingOption & {
+  street: string; number: string; complement: string; district: string;
+  city: string; state: string; postal_code: string;
+  opening_hours: string; instructions: string;
+};
+export async function loadStorePickupOption(): Promise<StorePickupOption | null> {
+  const { data, error } = await supabase.rpc("artvideo_store_pickup_option_v1");
+  if (error) throw error;
+  return data ? { ...data, deliveryDays: null } as StorePickupOption : null;
+}
+export async function loadCatalogAvailability(productIds: string[]): Promise<Record<string, number>> {
+  if (!productIds.length) return {};
+  const batches: string[][] = [];
+  for (let i=0;i<productIds.length;i+=100) batches.push(productIds.slice(i,i+100));
+  const result: Record<string, number> = {};
+  for (const batch of batches) {
+    const { data, error } = await supabase.rpc("artvideo_store_catalog_availability_v1", { p_product_ids: batch });
+    if (error) throw error;
+    Object.assign(result, data || {});
+  }
+  return result;
+}

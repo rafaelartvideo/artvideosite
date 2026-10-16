@@ -111,3 +111,7 @@ export async function getProductDetailBySlug(slug: string) {
 
 export const getBrands = () =>
   supabase.from("brands").select("*").eq("is_active", true).order("sort_order", { ascending: true });
+
+export const getProductCategories = () =>
+  supabase.from("product_categories").select("id,name,slug,description,sort_order,is_active")
+    .eq("is_active", true).order("sort_order", { ascending: true });

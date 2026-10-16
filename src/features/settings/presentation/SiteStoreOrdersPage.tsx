@@ -15,7 +15,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 type StoreOrder = {
   id: string; created_at: string; status: string; quantity: number;
   product_name: string; unit_price: number; shipping_price: number;
-  shipping_service_name: string; postal_code: string;
+  shipping_service_name: string; shipping_service_id: string; postal_code: string;
   buyer: Record<string, string>; preference_id: string | null;
   payment_id: string | null; paid_at: string | null; expires_at: string;
 };
@@ -23,7 +23,7 @@ type StoreOrderLine = {
   id: string; order_id: string; product_name: string; quantity: number; unit_price: number;
 };
 type FulfillmentStatus =
-  "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "delivery_issue";
+  "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "delivery_issue" | "picked_up";
 type Fulfillment = {
   order_id: string; status: FulfillmentStatus; updated_at: string;
   recipient_name: string | null; delivered_at: string | null;
@@ -42,7 +42,7 @@ const paymentLabels: Record<string,string> = {
 const deliveryLabels: Record<FulfillmentStatus,string> = {
   pending: "Aguardando separação", preparing: "Em separação",
   ready: "Pronto para entrega", out_for_delivery: "Saiu para entrega",
-  delivered: "Entregue", delivery_issue: "Ocorrência na entrega",
+  delivered: "Entregue", delivery_issue: "Ocorrência na entrega", picked_up: "Retirado na loja",
 };
 const deliverySequence: FulfillmentStatus[] = [
   "pending", "preparing", "ready", "out_for_delivery", "delivered",
@@ -63,7 +63,7 @@ function paymentColor(status: string) {
   return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }
 function fulfillmentColor(status: FulfillmentStatus) {
-  if (status === "delivered") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
+  if (status === "delivered" || status === "picked_up") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
   if (status === "delivery_issue") return "border-red-500/30 bg-red-500/10 text-red-600";
   if (status === "out_for_delivery") return "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300";
   if (status === "pending") return "border-border bg-muted text-muted-foreground";
@@ -101,11 +101,12 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   );
   const selected = orders.find(order => order.id === selectedId) ?? null;
   const currentStatus = selected ? fulfillmentByOrder.get(selected.id)?.status || "pending" : "pending";
-  const next = nextActions[currentStatus];
+  const isPickup = selected?.shipping_service_id === "pickup";
+  const next = isPickup && currentStatus==="ready" ? {status:"picked_up" as FulfillmentStatus,label:"Confirmar retirada"} : nextActions[currentStatus];
   const selectedIsPaid = selected?.status === "paid" && Boolean(selected.paid_at);
   const nextStatus = actionMode === "issue" ? "delivery_issue" : next?.status;
   const actionLabel = actionMode === "issue" ? "Registrar ocorrência" : next?.label || "";
-  const recipientRequired = nextStatus === "delivered";
+  const recipientRequired = nextStatus === "delivered" || nextStatus === "picked_up";
   const issueRequired = nextStatus === "delivery_issue";
 
   const refresh = useCallback(async (silent = false) => {
@@ -113,7 +114,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
     setError("");
     const [orderResult, lineResult, fulfillmentResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
-        .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_name,postal_code,buyer,preference_id,payment_id,paid_at,expires_at")
+        .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
       supabase.from("artvideo_store_order_items")
         .select("id,order_id,product_name,quantity,unit_price")
@@ -207,7 +208,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const waiting = orders.filter(order => order.status === "paid" && deliveryOf(order) === "pending").length;
   const preparing = orders.filter(order => order.status === "paid" && ["preparing", "ready"].includes(deliveryOf(order))).length;
   const delivering = orders.filter(order => order.status === "paid" && ["out_for_delivery", "delivery_issue"].includes(deliveryOf(order))).length;
-  const completed = orders.filter(order => order.status === "paid" && deliveryOf(order) === "delivered").length;
+  const completed = orders.filter(order => order.status === "paid" && ["delivered","picked_up"].includes(deliveryOf(order))).length;
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -218,7 +219,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
         { label: "Aguardando separação", value: waiting, Icon: ShoppingBag },
         { label: "Em preparação", value: preparing, Icon: PackageCheck },
         { label: "Em entrega", value: delivering, Icon: Truck },
-        { label: "Entregues", value: completed, Icon: CheckCheck },
+        { label: "Concluídos", value: completed, Icon: CheckCheck },
       ].map(card => <div key={card.label} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-4">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><card.Icon size={20}/></span>
         <div className="min-w-0"><p className="text-[11px] leading-4 text-muted-foreground">{card.label}</p><strong className="block text-2xl">{card.value}</strong></div>
@@ -277,7 +278,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
               <td className="p-3 font-bold">{formatCurrency(total(order))}</td>
               <td className="p-3"><span className={"inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold " + paymentColor(order.status)}>{paymentLabels[order.status] || order.status}</span></td>
               <td className="p-3">{order.status === "paid"
-                ? <DeliveryBadge status={deliveryOf(order)}/>
+                ? <><span className="mr-1 text-[11px] text-muted-foreground">{order.shipping_service_id === "pickup" ? "Retirada" : "Entrega"}</span><DeliveryBadge status={deliveryOf(order)}/></>
                 : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>
             </tr>)}</tbody>
           </table>
@@ -313,13 +314,16 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
           {selected.paid_at && <span className="text-xs text-muted-foreground">Pagamento: {timeText(selected.paid_at)}</span>}
         </div>
 
+        {isPickup && <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-xs font-semibold text-primary">
+          Retirada na loja · o cliente poderá buscar o pedido após ser marcado como pronto.
+        </div>}
         <div className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
           <div><h3 className="mb-2 font-bold">Cliente</h3>
             <p>{selected.buyer?.buyer_name}</p>
             <p className="break-all text-muted-foreground">{selected.buyer?.buyer_email}</p>
             <p>{selected.buyer?.buyer_phone}</p>
           </div>
-          <div><h3 className="mb-2 font-bold">Endereço de entrega</h3>
+          <div><h3 className="mb-2 font-bold">{isPickup ? "Ponto de retirada" : "Endereço de entrega"}</h3>
             <p>{selected.buyer?.street}, {selected.buyer?.number}{selected.buyer?.complement ? " · " + selected.buyer.complement : ""}</p>
             <p>{selected.buyer?.district}, {selected.buyer?.city}/{selected.buyer?.state}</p>
             <p>CEP {selected.postal_code}</p>
@@ -341,15 +345,16 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
         </div>
 
         {selectedIsPaid ? <div className="rounded-lg border border-border p-4">
-          <h3 className="mb-3 flex items-center gap-2 font-bold"><Truck size={18} className="text-primary"/> Acompanhamento da entrega</h3>
-          <div className="grid grid-cols-5 gap-1.5" aria-label={"Etapa atual: " + deliveryLabels[currentStatus]}>
-            {deliverySequence.map((state,index) => {
-              const position = deliverySequence.indexOf(currentStatus === "delivery_issue" ? "out_for_delivery" : currentStatus);
+          <h3 className="mb-3 flex items-center gap-2 font-bold"><Truck size={18} className="text-primary"/> {isPickup ? "Acompanhamento da retirada" : "Acompanhamento da entrega"}</h3>
+          <div className={"grid gap-1.5 " + (isPickup ? "grid-cols-4" : "grid-cols-5")} aria-label={"Etapa atual: " + deliveryLabels[currentStatus]}>
+            {(isPickup ? (["pending","preparing","ready","picked_up"] as FulfillmentStatus[]) : deliverySequence).map((state,index) => {
+              const sequence = isPickup ? (["pending","preparing","ready","picked_up"] as FulfillmentStatus[]) : deliverySequence;
+              const position = sequence.indexOf(currentStatus === "delivery_issue" ? "out_for_delivery" : currentStatus);
               const finished = index <= position;
               return <div key={state} className="min-w-0">
                 <div className={"h-2 rounded-full " + (finished ? "bg-primary" : "bg-muted")}/>
                 <p className={"mt-1.5 break-words text-[10px] leading-tight " + (finished ? "font-bold text-foreground" : "text-muted-foreground")}>
-                  {["Pendente","Separação","Pronto","Em rota","Entregue"][index]}
+                  {isPickup ? ["Pendente","Separação","Pronto","Retirado"][index] : ["Pendente","Separação","Pronto","Em rota","Entregue"][index]}
                 </p>
               </div>;
             })}
@@ -357,10 +362,10 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
           {currentStatus === "delivery_issue" && <p className="mt-3 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-xs text-red-600">
             <AlertTriangle size={17}/> Há uma ocorrência registrada. Verifique o histórico antes de retomar a entrega.
           </p>}
-          {currentStatus === "delivered" && <p className="mt-4 text-xs text-emerald-700 dark:text-emerald-300">
-            <CheckCheck size={16} className="mr-2 inline"/>Entrega registrada para {fulfillmentByOrder.get(selected.id)?.recipient_name || "destinatário"} em {fulfillmentByOrder.get(selected.id)?.delivered_at ? timeText(fulfillmentByOrder.get(selected.id)!.delivered_at!) : "data não informada"}.
+          {(currentStatus === "delivered" || currentStatus === "picked_up") && <p className="mt-4 text-xs text-emerald-700 dark:text-emerald-300">
+            <CheckCheck size={16} className="mr-2 inline"/>{isPickup ? "Retirada registrada para" : "Entrega registrada para"} {fulfillmentByOrder.get(selected.id)?.recipient_name || "destinatário"} em {fulfillmentByOrder.get(selected.id)?.delivered_at ? timeText(fulfillmentByOrder.get(selected.id)!.delivered_at!) : "data não informada"}.
           </p>}
-          {canManage && currentStatus !== "delivered" && <div className="mt-4 space-y-3 border-t border-border pt-4">
+          {canManage && currentStatus !== "delivered" && currentStatus !== "picked_up" && <div className="mt-4 space-y-3 border-t border-border pt-4">
             {currentStatus === "out_for_delivery" && <div className="flex flex-wrap gap-2">
               <button type="button" aria-pressed={actionMode === "advance"} onClick={() => { setActionMode("advance"); setNote(""); }}
                 className={"rounded-md border px-3 py-2 text-xs font-bold " + (actionMode === "advance" ? "border-primary bg-primary/10 text-primary" : "border-border hover:bg-muted")}>
@@ -381,7 +386,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
                 className="mt-1.5 w-full resize-y rounded-md border border-border bg-background p-3 text-sm"/>
             </label>
             {recipientRequired && <p className="text-[11px] text-muted-foreground">
-              A confirmação é registrada manualmente pela equipe, com o nome do recebedor. Não equivale à assinatura digital do cliente.
+              A confirmação é registrada manualmente pela equipe, com o nome de quem recebeu. Não equivale a uma assinatura digital.
             </p>}
           </div>}
         </div> : <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs leading-5 text-amber-700 dark:text-amber-300">

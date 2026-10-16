@@ -114,3 +114,12 @@ export function useBrands() {
     error: queryError(query.error, "Erro ao buscar marcas"),
   };
 }
+
+export function useProductCategories() {
+  const query = useQuery({
+    queryKey: ["public-site","product-categories"],
+    queryFn: () => unwrapQuery<any[]>(publicCatalog.getProductCategories()).then(data => data ?? []),
+  });
+  return { categories: query.data ?? [], loading: query.isPending,
+    error: queryError(query.error, "Erro ao buscar categorias") };
+}

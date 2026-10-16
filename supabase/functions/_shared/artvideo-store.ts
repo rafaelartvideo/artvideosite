@@ -1,4 +1,4 @@
-export const ARTVIDEO_ORGANIZATION_ID = "00000000-0000-4000-8000-000000000001";
+
 export const CORS = {
   "Access-Control-Allow-Origin": "https://eletronicaartvideo.com.br",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -28,9 +28,11 @@ export type ProductData = {
 };
 export async function loadProduct(admin: any, productId: string): Promise<ProductData> {
   if (!/^[0-9a-f-]{36}$/i.test(productId)) throw new Error("Produto inválido.");
+  const { data: orgId, error: orgError } = await admin.rpc("artvideo_organization_id");
+  if (orgError || !orgId) throw new Error("Loja indisponível.");
   const { data: product, error } = await admin.from("products")
     .select("id,name,slug,price,commercial_unit,gross_weight_grams,height_mm,width_mm,length_mm")
-    .eq("id", productId).eq("organization_id", ARTVIDEO_ORGANIZATION_ID)
+    .eq("id", productId).eq("organization_id", orgId)
     .eq("is_active", true).eq("show_in_catalog", true).maybeSingle();
   if (error || !product || Number(product.price) <= 0) throw new Error("Produto indisponível para compra.");
   return product as ProductData;
@@ -54,4 +56,13 @@ export async function shippingQuotes(admin: any, zip: string): Promise<ShippingQ
     price: Number(data.price),
     delivery_days: data.delivery_days == null ? null : Number(data.delivery_days),
   }];
+}
+
+
+/** A escolha de retirada é recalculada no servidor, nunca pelo valor enviado pelo navegador. */
+export async function pickupOption(admin: any): Promise<ShippingQuote & Record<string, string> | null> {
+  const { data, error } = await admin.rpc("artvideo_store_pickup_option_v1");
+  if (error) throw new Error("Não foi possível consultar a retirada na loja.");
+  if (!data) return null;
+  return { ...data, id: "pickup", price: 0, company: "Artvideo" };
 }

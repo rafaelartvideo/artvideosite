@@ -1,6 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import {
-  CORS, cleanPostalCode, json, loadProduct, safeText, shippingQuotes, validQuantity,
+  CORS, cleanPostalCode, json, loadProduct, pickupOption, safeText, shippingQuotes, validQuantity,
 } from "../_shared/artvideo-store.ts";
 
 Deno.serve(async req => {
@@ -28,7 +28,8 @@ Deno.serve(async req => {
     if (new Set(validated.map(item => item.product_id)).size !== validated.length) {
       throw new Error("O carrinho possui produtos duplicados.");
     }
-    const zip = cleanPostalCode(input.postal_code);
+    const wantsPickup = String(input.shipping_service_id) === "pickup";
+    const zip = wantsPickup ? "" : cleanPostalCode(input.postal_code);
     const email = safeText(input.buyer_email, 200);
     const name = safeText(input.buyer_name, 150);
     const phone = safeText(input.buyer_phone, 24).replace(/[^\d+]/g, "");
@@ -38,21 +39,29 @@ Deno.serve(async req => {
       city: safeText(input.city, 120), state: safeText(input.state, 2).toUpperCase(),
     };
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) || name.length < 3
-      || phone.replace(/\D/g, "").length < 10 || !Object.values(address)
-        .filter((_, i) => i !== 2).every(v => v.length > 0)
-      || !/^[A-Z]{2}$/.test(address.state)) {
+      || phone.replace(/\D/g, "").length < 10
+      || (!wantsPickup && (!Object.values(address).filter((_, i) => i !== 2).every(v => v.length > 0)
+        || !/^[A-Z]{2}$/.test(address.state)))) {
       return json({ error: "Confira os dados do comprador e endereço de entrega." }, 400);
     }
     const products = await Promise.all(validated.map(item => loadProduct(admin, item.product_id)));
-    const options = await shippingQuotes(admin, zip);
+    const pickup = wantsPickup ? await pickupOption(admin) : null;
+    const options = wantsPickup ? (pickup ? [pickup] : []) : await shippingQuotes(admin, zip);
     const selected = options.find(q => q.id === String(input.shipping_service_id));
     if (!selected) return json({ error: "O frete selecionado mudou. Calcule novamente antes de pagar." }, 409);
 
-    const buyer = { buyer_name: name, buyer_email: email, buyer_phone: phone, postal_code: zip, ...address };
+    const pickupAddress = wantsPickup && pickup ? {
+      street: pickup.street, number: pickup.number, complement: pickup.complement,
+      district: pickup.district, city: pickup.city, state: pickup.state,
+    } : address;
+    const finalZip = wantsPickup && pickup ? pickup.postal_code : zip;
+    const buyer = { buyer_name: name, buyer_email: email, buyer_phone: phone,
+      postal_code: finalZip, ...pickupAddress, delivery_method: wantsPickup ? "pickup" : "delivery",
+      ...(wantsPickup ? { pickup_hours: pickup?.opening_hours, pickup_instructions: pickup?.instructions } : {}) };
     const { data: order, error: orderError } = await admin.rpc("artvideo_store_begin_multi_v1", {
       p_items: validated,
       p_shipping_price: selected.price, p_shipping_service_id: selected.id,
-      p_shipping_name: `${selected.company} — ${selected.name}`, p_postal_code: zip, p_buyer: buyer,
+      p_shipping_name: `${selected.company} — ${selected.name}`, p_postal_code: finalZip, p_buyer: buyer,
     });
     if (orderError || !order?.id) throw new Error(orderError?.message || "Não foi possível reservar o estoque.");
     orderId = order.id;
@@ -67,7 +76,7 @@ Deno.serve(async req => {
           id: item.product_id, title: item.title.slice(0, 200),
           quantity: item.quantity, currency_id: "BRL", unit_price: Number(item.unit_price),
         })),
-        { id: `shipping-${selected.id}`, title: `Frete: ${selected.company} — ${selected.name}`.slice(0,200),
+        { id: `shipping-${selected.id}`, title: `${wantsPickup ? "Retirada" : "Frete"}: ${selected.company} — ${selected.name}`.slice(0,200),
           quantity: 1, currency_id: "BRL", unit_price: Number(selected.price) },
       ].filter(item => item.unit_price > 0),
       payer: { name, email, phone: { area_code: phone.replace(/\D/g, "").slice(0,2), number: phone.replace(/\D/g, "").slice(2) } },
