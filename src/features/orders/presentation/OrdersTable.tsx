@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, ClipboardList, Clock3, Edit2, MoreVertical, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { EmptyState, LoadingSpinner, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -191,10 +191,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
       description="Alterações registradas para a situação desta ordem de serviço."
       className="max-w-xl"
     >
-      {historyLoading ? <div className="flex min-h-40 flex-col items-center justify-center gap-3">
-        <LoadingSpinner />
-        <p className="text-sm font-semibold text-muted-foreground">Carregando alterações...</p>
-      </div> : historyError ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{historyError}</div> : historyEntries.length === 0 ? <div className="rounded-xl border border-border bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
+      {historyLoading ? <LoadingState text="Carregando alterações..." /> : historyError ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{historyError}</div> : historyEntries.length === 0 ? <div className="rounded-xl border border-border bg-muted px-4 py-6 text-center text-sm text-muted-foreground">
         Nenhuma alteração de situação foi registrada para esta OS.
       </div> : <div className="space-y-0">
         {historyEntries.map((entry, index) => <div key={entry.audit_log_id} className="relative flex gap-3 pb-5 last:pb-0">
@@ -224,9 +221,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
-        <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 px-4 py-12 text-center" role="status" aria-live="polite" aria-busy="true">
-          <LoadingSpinner size="lg" />
-          <p className="text-sm font-semibold text-muted-foreground">Carregando ordens...</p>
+        <div className="min-h-[300px] flex items-center justify-center">
+          <LoadingState text="Carregando ordens..." />
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
