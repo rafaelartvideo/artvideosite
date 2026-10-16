@@ -149,6 +149,57 @@ export async function renameEquipmentBrandGroup(
   if ((data ?? []).length !== current.length) throw new Error("Não foi possível atualizar todos os vínculos da marca.");
 }
 
+/**
+ * Atualiza os equipamentos associados a uma marca existente.
+ * Os vínculos com modelos não podem ser removidos silenciosamente.
+ */
+export async function saveEquipmentBrandGroup(
+  previousName: string,
+  nextName: string,
+  equipmentTypeIds: string[],
+  catalog: EquipmentCatalog,
+): Promise<void> {
+  const organizationId = await getActiveOrganizationId();
+  const existing = catalog.brands.filter(brand =>
+    brand.name.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR")
+      === previousName.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR"));
+  if (!existing.length) throw new Error("Marca não encontrada nesta empresa.");
+  const desired = new Set(equipmentTypeIds);
+  if (!desired.size) throw new Error("Selecione ao menos um equipamento.");
+  if ([...desired].some(id => !catalog.types.some(type => type.id === id && type.is_active)))
+    throw new Error("Selecione equipamentos ativos desta empresa.");
+  const removed = existing.filter(brand => !desired.has(brand.equipment_type_id));
+  if (removed.some(brand => catalog.models.some(model => model.equipment_brand_id === brand.id)))
+    throw new Error("Remova os modelos vinculados antes de desvincular esta marca de um equipamento.");
+  const previousIds = new Set(existing.map(brand => brand.equipment_type_id));
+  const added = [...desired].filter(id => !previousIds.has(id));
+  // Só renomeia após todas as validações, preservando vínculos e IDs atuais.
+  await renameEquipmentBrandGroup(previousName, nextName, catalog);
+  if (added.length) {
+    const occupied = new Set(catalog.brands
+      .filter(brand => added.includes(brand.equipment_type_id))
+      .map(brand => (brand as typeof brand & { slug?: string }).slug)
+      .filter((slug): slug is string => Boolean(slug)));
+    const base = slugify(nextName.trim()) || "marca";
+    const payload = added.map(equipment_type_id => {
+      let slug = base;
+      let suffix = 2;
+      while (occupied.has(slug)) slug = base + "-" + suffix++;
+      occupied.add(slug);
+      return { organization_id: organizationId, equipment_type_id, name: nextName.trim(),
+        slug, is_active: true, sort_order: 0 };
+    });
+    const { error } = await supabase.from("equipment_brands").insert(payload);
+    if (error) throw toCatalogError(error, "Não foi possível vincular a marca aos equipamentos.");
+  }
+  if (removed.length) {
+    const { data, error } = await supabase.from("equipment_brands").delete()
+      .eq("organization_id", organizationId).in("id", removed.map(brand => brand.id)).select("id");
+    if (error) throw toCatalogError(error, "Não foi possível desvincular os equipamentos da marca.");
+    if ((data ?? []).length !== removed.length) throw new Error("Não foi possível remover todos os vínculos.");
+  }
+}
+
 /** Activates/deactivates every local equipment link of the chosen brand in one request. */
 export async function setEquipmentBrandGroupActive(brandIds: string[], isActive: boolean): Promise<void> {
   const ids = [...new Set(brandIds)];
