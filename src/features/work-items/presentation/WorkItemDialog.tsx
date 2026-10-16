@@ -63,9 +63,11 @@ function CustomerSummary({ customer }: { customer: WorkCustomer }) {
 }
 
 export function WorkItemDialog({
-  open, item, initialKind = "task", organizationId, employees, canEdit, canPerform, onClose, onSaved,
+  open, item, initialKind = "task", linkedOrder, organizationId, employees, canEdit, canPerform, onClose, onSaved,
 }: {
-  open: boolean; item: WorkItem | null; initialKind?: "task" | "commitment"; organizationId: string; employees: WorkEmployee[];
+  open: boolean; item: WorkItem | null; initialKind?: "task" | "commitment";
+  linkedOrder?: Pick<WorkOrderOption, "id" | "os_number" | "customer_id">;
+  organizationId: string; employees: WorkEmployee[];
   canEdit: boolean; canPerform: boolean; onClose: () => void; onSaved: (item: WorkItem) => void;
 }) {
   const queryClient = useQueryClient();
@@ -93,7 +95,11 @@ export function WorkItemDialog({
 
   useEffect(() => {
     if (!open) return;
-    setDraft(item ? toDraft(item) : { ...emptyDraft(), kind: initialKind });
+    setDraft(item ? toDraft(item) : {
+      ...emptyDraft(), kind: initialKind,
+      customer_id: linkedOrder?.customer_id || null,
+      service_order_id: linkedOrder?.id || null,
+    });
     setSection("details");
     setCustomerSearch("");
     setCustomerResults([]);
@@ -102,14 +108,14 @@ export function WorkItemDialog({
     setSearchingCustomer(false);
     setCustomerSearchResolved("");
     setOrderOptions([]);
-    setLinkMode(item?.service_order_id ? "order" : "customer");
+    setLinkMode(linkedOrder || item?.service_order_id ? "order" : "customer");
     setOrderSearch("");
     setOrderResults([]);
     setSelectedOrder(null);
     setSearchingOrders(false);
     setStagedChecklist([]);
     setChecklistTitle("");
-  }, [open, item?.id, initialKind]);
+  }, [open, item?.id, initialKind, linkedOrder?.id, linkedOrder?.customer_id]);
 
   useEffect(() => {
     if (!open || isFinalized || !organizationId || !customerSearch.trim() || customerSearch.trim().length < 2 || draft.customer_id) {
@@ -163,6 +169,10 @@ export function WorkItemDialog({
   };
   const save = async () => {
     if ((!canEdit && !canPerform) || isFinalized || saving || !organizationId) return;
+    if (linkedOrder && !linkedOrder.customer_id) {
+      notifyAdmin("Não foi possível identificar o cliente vinculado à OS.", "error");
+      return;
+    }
     if (draft.title.trim().length < 3) { notifyAdmin("Informe um título com pelo menos 3 caracteres.", "error"); return; }
     if (draft.starts_at && draft.due_at && draft.starts_at > draft.due_at) {
       notifyAdmin("O prazo não pode ser anterior ao início.", "error"); return;
@@ -174,7 +184,9 @@ export function WorkItemDialog({
     try {
       const saved = item && !canEdit && canPerform
         ? await updateWorkStatus(organizationId, item, draft.status, draft.outcome)
-        : await saveWorkItem(organizationId, draft, item?.id);
+        : await saveWorkItem(organizationId, linkedOrder ? {
+          ...draft, customer_id: linkedOrder.customer_id, service_order_id: linkedOrder.id,
+        } : draft, item?.id);
       if (!item && stagedChecklist.length) {
         try {
           await addWorkChecklistItems(organizationId, saved.id, stagedChecklist);
@@ -285,7 +297,7 @@ export function WorkItemDialog({
       </div>
 
       {section === "details" && (isFinalized || (!isEditable && !isPerformable) ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
-        <div className="space-y-2">
+        {!linkedOrder && <div className="space-y-2">
           <label className={fieldLabel}>Cliente / OS vinculada <span className="font-normal normal-case text-muted-foreground">(opcional)</span></label>
           <div className="grid grid-cols-2 gap-2">
             {([{ mode: "customer", label: "Cliente" }, { mode: "order", label: "OS" }] as const).map(option => (
@@ -411,7 +423,7 @@ export function WorkItemDialog({
               </div>}
             </>
           )}
-        </div>
+        </div>}
         <div>
           <label className={fieldLabel}>Título <span className="text-red-600 dark:text-red-400">*</span></label>
           <input className={INPUT} maxLength={180} value={draft.title} disabled={!isEditable}

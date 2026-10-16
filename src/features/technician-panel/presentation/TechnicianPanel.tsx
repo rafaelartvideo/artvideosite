@@ -650,7 +650,7 @@ export function TechnicianPanel() {
     </AdminPage>}
     <OrderHistoryPage
       open={historyDialogOpen && Boolean(routeOrderId && selected)}
-      order={{ os_number: selected?.os_number }}
+      order={{ id: routeOrderId, organization_id: activeOrganizationId, os_number: selected?.os_number }}
       history={writtenHistory}
       canCreate={hasPermission("technician_panel.actions.history.create")}
       formatDate={formatDate}

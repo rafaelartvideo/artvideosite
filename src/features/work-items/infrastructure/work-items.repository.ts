@@ -42,6 +42,17 @@ export async function loadWorkItems(organizationId: string): Promise<WorkItem[]>
   return (data || []) as unknown as WorkItem[];
 }
 
+export async function loadWorkItemsForOrder(organizationId: string, orderId: string): Promise<WorkItem[]> {
+  const { data, error } = await supabase.from("work_items")
+    .select(itemFields)
+    .eq("organization_id", organizationId)
+    .eq("service_order_id", orderId)
+    .order("created_at", { ascending: false })
+    .limit(300);
+  if (error) throw error;
+  return (data || []) as unknown as WorkItem[];
+}
+
 export async function loadWorkEmployees(organizationId: string): Promise<WorkEmployee[]> {
   const { data, error } = await supabase.rpc("list_work_item_employees_v1", {
     p_organization_id: organizationId,
