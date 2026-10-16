@@ -7,7 +7,7 @@ const PublicShell = lazy(() => import("@/features/public-shell/presentation/Publ
 import { QueryRealtimeSync } from "@/infrastructure/query/QueryRealtimeSync";
 import { AdminPanelLoader } from "@/shared/ui/admin/AdminPanelLoader";
 import { AdminDialogManagerProvider } from "@/shared/ui/admin/AdminDialogManager";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
 declare const __APP_TARGET__: "site" | "crm" | "combined";
@@ -53,11 +53,11 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
 };
 
 function PublicPageFallback() {
-  return <div className="min-h-[55vh] bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">Carregando página...</div>;
+  return <div className="flex min-h-[55vh] items-center justify-center bg-[#f5f7fa]"><LoadingState text="Carregando página..." /></div>;
 }
 
 function StandaloneFallback({ text }: { text: string }) {
-  return <div className="min-h-dvh bg-[#f5f7fa] flex items-center justify-center text-[#5a6a82] font-semibold text-sm">{text}</div>;
+  return <div className="flex min-h-dvh items-center justify-center bg-[#f5f7fa]"><LoadingState text={text} /></div>;
 }
 
 function CaptureFallback() {
