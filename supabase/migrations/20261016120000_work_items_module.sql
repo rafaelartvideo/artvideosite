@@ -239,6 +239,7 @@ returns boolean language sql stable security definer set search_path='' as $
   );
 $;
 revoke all on function private.is_work_item_assignee(uuid,uuid[]) from public,anon,authenticated;
+grant execute on function private.is_work_item_assignee(uuid,uuid[]) to authenticated;
 
 create policy work_items_select on public.work_items for select to authenticated
 using (
