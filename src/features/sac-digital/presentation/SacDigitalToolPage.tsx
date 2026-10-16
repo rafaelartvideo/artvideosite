@@ -6,7 +6,7 @@ const SacDigitalContactsPage = lazy(() => import('./SacDigitalContactsPage').the
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
-import { mediaMaximum, deliveryLabel, isOperatorAuthError, liveMessageChanges } from '../domain/resource-ui.mjs';
+import { mediaMaximum, deliveryLabel, isOperatorAuthError, liveMessageChanges, messageDeletedByCustomer } from '../domain/resource-ui.mjs';
 import { SacMessageOutbox } from '../domain/message-outbox.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -2600,6 +2600,11 @@ export function SacDigitalToolPage({
                             {outgoing && operatorName && (
                               <p className="mb-1 text-[10px] font-black leading-4 opacity-80">
                                 {operatorName}
+                              </p>
+                            )}
+                            {messageDeletedByCustomer(item) && (
+                              <p className="mb-2 border-b border-border/70 pb-1 text-[10px] font-semibold italic text-amber-700 dark:text-amber-300">
+                                Mensagem apagada pelo cliente
                               </p>
                             )}
                             {(() => {
