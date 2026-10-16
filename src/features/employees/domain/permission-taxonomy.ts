@@ -311,6 +311,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "work_items.create": ["work_items.view"],
   "work_items.edit": ["work_items.view"],
   "work_items.manage": ["work_items.view"],
+  "work_items.execute_team": ["work_items.view", "work_items.manage"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
   "site_settings.update": ["site_settings.view"],
