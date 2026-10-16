@@ -76,6 +76,7 @@ export function FieldTrackingReporter() {
   const [gateError, setGateError] = useState("");
   const [secondsLeft, setSecondsLeft] = useState(60);
   const lastSentAtRef = useRef(0);
+  const locationRequestInFlightRef = useRef(false);
   const signingOutRef = useRef(false);
 
   const locationRequired = hasModule("field_tracking")
@@ -235,9 +236,12 @@ export function FieldTrackingReporter() {
     const watchId = navigator.geolocation.watchPosition(
       position => {
         const now = Date.now();
-        if (now - lastSentAtRef.current < 12_000) return;
+        if (locationRequestInFlightRef.current || now - lastSentAtRef.current < 12_000) return;
         lastSentAtRef.current = now;
-        void updateMyFieldLocation(activeOrganizationId, positionPayload(position)).catch(() => undefined);
+        locationRequestInFlightRef.current = true;
+        void updateMyFieldLocation(activeOrganizationId, positionPayload(position))
+          .catch(() => undefined)
+          .finally(() => { locationRequestInFlightRef.current = false; });
       },
       error => {
         if (locationRequired) {
