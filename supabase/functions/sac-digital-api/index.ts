@@ -4078,60 +4078,18 @@ Deno.serve(async request => {
             error: sent.error || "A SAC Digital não conseguiu enviar a mensagem pelo Operador.",
           }, sent.outcome === "unknown" ? 502 : 409);
         }
-        const outgoingBody = sent.data && typeof sent.data === "object" && !Array.isArray(sent.data)
-          ? sent.data as Record<string, unknown> : {};
-
+        // Provider history/webhooks own the canonical outgoing message and
+        // its external ID. A second local record here created duplicates when
+        // the send response omitted message_id. Wait for the existing sync.
         const { data: protocolRow } = await admin
-          .from("sac_digital_protocols")
-          .select("id")
+          .from("sac_digital_protocols").select("id")
           .eq("organization_id", organizationId)
-          .eq("external_protocol_id", openedProtocol)
-          .maybeSingle();
-
+          .eq("external_protocol_id", openedProtocol).maybeSingle();
         if (protocolRow?.id) {
-          const sentAt = new Date().toISOString();
-          const externalCandidate = outgoingBody.id ?? outgoingBody.message_id;
-          const externalMessageId = typeof externalCandidate === "string" || typeof externalCandidate === "number"
-            ? `sac:${String(externalCandidate)}`
-            : null;
-          const { data: profile } = await admin
-            .from("profiles")
-            .select("full_name")
-            .eq("id", userData.user.id)
-            .maybeSingle();
-
-          const payload = {
-            organization_id: organizationId,
-            protocol_id: protocolRow.id,
-            external_message_id: externalMessageId,
-            direction: "outgoing",
-            message_type: "text",
-            body_text: text,
-            sender_id: userData.user.id,
-            sender_name: profile?.full_name || null,
-            sent_at: sentAt,
-            raw_metadata: {
-              sent_via_union: true,
-              sent_from_service_order: orderId,
-              api_response: outgoingBody,
-            },
-          };
-          const { error: insertedError } = await admin.from("sac_digital_messages").insert(payload);
-          if (insertedError?.code === "23505") {
-            await admin.from("sac_digital_messages").insert({
-              ...payload,
-              external_message_id: null,
-              raw_metadata: {
-                ...payload.raw_metadata,
-                external_id_conflict: true,
-              },
-            });
-          }
-
-          await admin
-            .from("sac_digital_protocols")
-            .update({ last_message_at: sentAt, updated_at: sentAt })
-            .eq("id", protocolRow.id);
+          const now = new Date().toISOString();
+          await admin.from("sac_digital_protocols")
+            .update({ last_message_at: now, updated_at: now })
+            .eq("organization_id", organizationId).eq("id", protocolRow.id);
         }
 
         await writeSacAudit({
