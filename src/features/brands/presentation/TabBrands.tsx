@@ -83,7 +83,8 @@ export function TabBrands({ onBack, routeResourceId, routeSubpage, onRouteChange
 
   const totalPages = Math.max(1, Math.ceil(brands.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedBrands = brands.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagedBrands = [...brands].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { setPage(1); }, [brands.length]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
