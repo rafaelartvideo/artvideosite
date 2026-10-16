@@ -279,7 +279,8 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
 
   const totalPages = Math.max(1, Math.ceil(roles.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedRoles = roles.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const pagedRoles = [...roles].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
+    .slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   if (!canView) return null;
