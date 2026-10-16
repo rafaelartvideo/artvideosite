@@ -9,6 +9,7 @@ const loaders: Record<string, () => Promise<unknown>> = {
   customers: () => import("@/features/customers/presentation/TabCustomers"),
   customerRequests: () => import("@/features/customer-requests/presentation/TabCustomerRequests"),
   agenda: () => import("@/features/appointments/presentation/TabAgenda"),
+  workItems: () => import("@/features/work-items/presentation/TabWorkItems"),
   inventory: () => import("@/features/inventory/presentation/TabInventory"),
   pdv: () => import("@/features/pdv/presentation/TabPdv"),
   finance: () => import("@/features/finance/presentation/TabFinance"),
