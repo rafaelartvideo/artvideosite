@@ -29,6 +29,7 @@ const StorePage = lazy(() => import("@/features/public-store/presentation/StoreP
 const ProductDetailPage = lazy(() => import("@/features/public-store/presentation/ProductDetailPage").then(module => ({ default: module.ProductDetailPage })));
 const StoreCheckoutPage = lazy(() => import("@/features/public-store/presentation/StoreCheckoutPage").then(module => ({ default: module.StoreCheckoutPage })));
 const StoreCartPage = lazy(() => import("@/features/public-store/presentation/StoreCartPage").then(module => ({ default: module.StoreCartPage })));
+const StoreOrderTrackingPage = lazy(() => import("@/features/public-store/presentation/StoreOrderTrackingPage").then(module => ({ default: module.StoreOrderTrackingPage })));
 const AboutPage = lazy(() => import("@/features/institutional/presentation/AboutPage").then(module => ({ default: module.AboutPage })));
 const ContactPage = lazy(() => import("@/features/contact-public/presentation/ContactPage").then(module => ({ default: module.ContactPage })));
 const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistance/presentation/TechnicalAssistancePage").then(module => ({ default: module.TechnicalAssistancePage })));
@@ -371,6 +372,7 @@ function PublicRoutes() {
           <Route path="/loja/:slug" element={<ProductDetailRoute setPage={setPage} />} />
           <Route path="/carrinho" element={<StoreCartPage />} />
           <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
+          <Route path="/acompanhar-pedido" element={<StoreOrderTrackingPage />} />
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
@@ -401,7 +403,7 @@ function ServiceDetailRoute({ setPage }: { setPage: (page: Page) => void }) {
 }
 
 function pageFromPath(pathname: string): Page {
-  if (pathname === "/carrinho") return "loja";
+  if (pathname === "/carrinho" || pathname === "/acompanhar-pedido") return "loja";
   if (/^\/checkout\/[^/]+$/.test(pathname)) return "loja";
   if (/^\/loja\/[^/]+$/.test(pathname)) return "produto";
   if (/^\/servicos\/[^/]+$/.test(pathname)) return "servico";

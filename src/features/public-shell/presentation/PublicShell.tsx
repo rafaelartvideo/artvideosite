@@ -150,6 +150,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
         <div className="flex flex-col items-start gap-2">
           {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => setPage(PUBLIC_NAV_MAP[label])}
             className="text-[13px] text-white/75 transition-all hover:translate-x-1 hover:text-white">{label}</button>)}
+          <a href="/acompanhar-pedido" className="text-[13px] text-white/75 transition-all hover:translate-x-1 hover:text-white">Acompanhar meu pedido</a>
         </div>
       </div>
       <div>

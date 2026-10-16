@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck,
-  Clock3, PackageCheck, RefreshCw, Search, ShoppingBag, Truck,
+  Clock3, Mail, PackageCheck, RefreshCw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -22,6 +22,7 @@ type StoreOrder = {
 type StoreOrderLine = {
   id: string; order_id: string; product_name: string; quantity: number; unit_price: number;
 };
+type NotificationJob = { id:string;order_id:string;event_type:string;status:string;attempts:number;last_error:string|null;created_at:string;sent_at:string|null; };
 type FulfillmentStatus =
   "pending" | "preparing" | "ready" | "out_for_delivery" | "delivered" | "delivery_issue" | "picked_up";
 type Fulfillment = {
@@ -82,6 +83,8 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const [lines, setLines] = useState<StoreOrderLine[]>([]);
   const [fulfillments, setFulfillments] = useState<Fulfillment[]>([]);
   const [events, setEvents] = useState<FulfillmentEvent[]>([]);
+  const [notifications,setNotifications] = useState<NotificationJob[]>([]);
+  const [notifying,setNotifying]=useState(false);
   const [loading, setLoading] = useState(true);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -112,7 +115,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const refresh = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     setError("");
-    const [orderResult, lineResult, fulfillmentResult] = await Promise.all([
+    const [orderResult, lineResult, fulfillmentResult, noticeResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
         .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
@@ -121,13 +124,17 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
         .order("created_at", { ascending: true }).limit(2000),
       supabase.from("artvideo_store_fulfillments")
         .select("order_id,status,updated_at,recipient_name,delivered_at"),
+      supabase.from("artvideo_store_notification_jobs")
+        .select("id,order_id,event_type,status,attempts,last_error,created_at,sent_at")
+        .order("created_at",{ascending:false}).limit(1500),
     ]);
-    const issue = orderResult.error || lineResult.error || fulfillmentResult.error;
+    const issue = orderResult.error || lineResult.error || fulfillmentResult.error || noticeResult.error;
     if (issue) setError(systemErrorMessage(issue));
     else {
       setOrders((orderResult.data || []) as StoreOrder[]);
       setLines((lineResult.data || []) as StoreOrderLine[]);
       setFulfillments((fulfillmentResult.data || []) as Fulfillment[]);
+      setNotifications((noticeResult.data || []) as NotificationJob[]);
     }
     setLoading(false);
   }, []);
@@ -180,6 +187,18 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
   const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
   const rows = filtered.slice((Math.min(page, totalPages) - 1) * 10, Math.min(page, totalPages) * 10);
 
+  const sendNotifications=async(orderId:string,showFeedback=true)=>{
+    if(!canManage||notifying)return;
+    setNotifying(true);
+    const {data,error:sendError}=await supabase.functions.invoke("artvideo-store-notify",{body:{order_id:orderId}});
+    if(sendError || data?.error){
+      if(showFeedback) setToast({type:"error",msg:String(data?.error||"O aviso foi registrado, mas o e-mail ainda não foi enviado. Confira a configuração do serviço.")});
+    }else if(showFeedback){
+      setToast({type:"success",msg:data?.sent>0 ? "Atualização enviada ao e-mail do cliente." : "Nenhuma notificação pendente para envio agora."});
+    }
+    await refresh(true);
+    setNotifying(false);
+  };
   const changeStage = async () => {
     if (!canManage || saving || !selected || !selectedIsPaid || !nextStatus) return;
     if (recipientRequired && recipient.trim().length < 3) {
@@ -199,6 +218,9 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
       setToast({ msg: "Etapa da entrega atualizada.", type: "success" });
       setNote(""); setRecipient(""); setActionMode("advance");
       await Promise.all([refresh(true), loadHistory(selected.id)]);
+      if(["ready","out_for_delivery","delivery_issue","delivered","picked_up"].includes(nextStatus)){
+        void sendNotifications(selected.id,false);
+      }
     }
     setSaving(false);
   };
@@ -331,6 +353,27 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
           </div>
         </div>
 
+        <div className="rounded-lg border border-border p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-2 font-bold"><Mail size={17} className="text-primary"/> Notificações ao cliente</h3>
+            {canManage && notifications.some(n=>n.order_id===selected.id && n.status!=="sent") && <BtnSecondary
+              onClick={()=>void sendNotifications(selected.id)} disabled={notifying}>
+              <Mail size={15}/> {notifying?"Enviando...":"Enviar atualizações pendentes"}
+            </BtnSecondary>}
+          </div>
+          {notifications.filter(n=>n.order_id===selected.id).length ? <div className="mt-3 space-y-2">
+            {notifications.filter(n=>n.order_id===selected.id).map(n=><div key={n.id}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-muted/40 px-3 py-2 text-xs">
+              <span>{({paid:"Pagamento confirmado",ready:isPickup?"Pronto para retirada":"Pedido pronto",
+                out_for_delivery:"Saiu para entrega",delivery_issue:"Ocorrência registrada",
+                delivered:"Entregue",picked_up:"Retirado"} as Record<string,string>)[n.event_type]||n.event_type}</span>
+              <span className={n.status==="sent"?"font-bold text-emerald-700 dark:text-emerald-300":"text-amber-700 dark:text-amber-300"}>
+                {n.status==="sent"?"E-mail enviado":n.status==="failed"?"Falha no envio":n.status==="sending"?"Enviando":"Pendente"}
+              </span>
+              {n.last_error && <p className="w-full text-[11px] text-muted-foreground">{n.last_error}</p>}
+            </div>)}
+          </div> : <p className="mt-3 text-xs text-muted-foreground">Ainda não há e-mails programados. Os avisos serão gerados após a confirmação do pagamento e nas movimentações importantes do pedido.</p>}
+        </div>
         <div className="rounded-lg border border-border p-4">
           <h3 className="mb-2 font-bold">Produtos e valores</h3>
           {orderLines(selected).map(line => <div key={line.id} className="flex justify-between gap-4 border-b border-border py-2">

@@ -83,7 +83,7 @@ export async function startStoreCheckout(payload: {
   district: string;
   city: string;
   state: string;
-}): Promise<{ url: string; orderId: string }> {
+}): Promise<{ url: string; orderId: string; trackingToken: string }> {
   const { data, error } = await supabase.functions.invoke("artvideo-store-checkout", { body: payload });
   if (error) throw new Error("O pagamento online ainda não está disponível. Nenhum valor foi cobrado.");
   if (data?.error) throw new Error(String(data.error));
@@ -91,7 +91,11 @@ export async function startStoreCheckout(payload: {
   if (!/^https:\/\/(www\.)?mercadopago\.com(\.br)?\//.test(destination)) {
     throw new Error("Não foi possível iniciar um checkout seguro. Nenhum valor foi cobrado.");
   }
-  return { url: destination, orderId: typeof data.order_id === "string" ? data.order_id : "" };
+  const trackingToken = typeof data?.tracking_token === "string" ? data.tracking_token : "";
+  if (!/^[a-f0-9]{64}$/i.test(trackingToken)) {
+    throw new Error("Não foi possível criar o acompanhamento seguro do pedido.");
+  }
+  return { url: destination, orderId: typeof data.order_id === "string" ? data.order_id : "", trackingToken };
 }
 
 export async function submitStoreReview(payload: { orderId: string; email: string; rating: number; comment: string }): Promise<void> {
@@ -123,4 +127,25 @@ export async function loadCatalogAvailability(productIds: string[]): Promise<Rec
     Object.assign(result, data || {});
   }
   return result;
+}
+
+
+export type StoreTracking = {
+  id: string; number: string; createdAt: string; paymentStatus: string; paidAt: string | null;
+  deliveryMethod: "pickup" | "delivery"; fulfillmentStatus: string; fulfillmentUpdatedAt: string | null;
+  deliveryName: string; shippingPrice: number; subtotal: number; total: number;
+  items: { title: string; quantity: number; unitPrice: number }[];
+  timeline: { status: string; createdAt: string }[];
+  pickupLocation?: { street: string; number: string; district: string; city: string;
+    state: string; postalCode: string; hours: string; instructions: string };
+};
+export async function getStoreTracking(token: string): Promise<StoreTracking> {
+  if (!/^[a-f0-9]{64}$/i.test(token)) throw new Error("Informe um código de acesso válido.");
+  const {data,error}=await supabase.functions.invoke("artvideo-store-order-status",{
+    body:{token:token.toLowerCase()},
+  });
+  if(error) throw new Error("Não foi possível consultar o pedido agora. Tente novamente.");
+  if(data?.error) throw new Error(String(data.error));
+  if(!data?.order || !Array.isArray(data.order.items)) throw new Error("Pedido indisponível.");
+  return data.order as StoreTracking;
 }

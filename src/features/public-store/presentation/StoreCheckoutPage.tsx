@@ -287,6 +287,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       if (checkout.orderId) {
         sessionStorage.setItem("artvideo-last-order", checkout.orderId);
         sessionStorage.setItem("artvideo-last-email", buyer.buyer_email.trim());
+        sessionStorage.setItem("artvideo-store-tracking", checkout.trackingToken);
       }
       window.location.assign(checkout.url);
     } catch (err) {

@@ -67,9 +67,7 @@ Deno.serve(async req => {
     orderId = order.id;
 
     const deadline = new Date(Date.now() + 20*60*1000).toISOString();
-    const detailUrl = validated.length === 1
-      ? `https://eletronicaartvideo.com.br/loja/${encodeURIComponent(products[0].slug)}`
-      : "https://eletronicaartvideo.com.br/carrinho";
+    const detailUrl = "https://eletronicaartvideo.com.br/acompanhar-pedido";
     const mpRequest = {
       items: [
         ...((order.items || []) as Array<{product_id: string; title: string; quantity: number; unit_price: number}>).map(item => ({
@@ -82,8 +80,8 @@ Deno.serve(async req => {
       payer: { name, email, phone: { area_code: phone.replace(/\D/g, "").slice(0,2), number: phone.replace(/\D/g, "").slice(2) } },
       external_reference: orderId,
       back_urls: {
-        success: `${detailUrl}?compra=retorno`, pending: `${detailUrl}?compra=pendente`,
-        failure: `${detailUrl}?compra=nao-concluida`,
+        success: `${detailUrl}?retorno=aprovado`, pending: `${detailUrl}?retorno=pendente`,
+        failure: `${detailUrl}?retorno=nao-concluido`,
       },
       auto_return: "approved",
       notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/artvideo-store-webhook`,
@@ -107,7 +105,9 @@ Deno.serve(async req => {
     if (!/^https:\/\/(www\.)?mercadopago\.com(\.br)?\//.test(checkoutUrl)) {
       throw new Error("O provedor retornou um endereço inválido.");
     }
-    return json({ checkout_url: checkoutUrl, order_id: orderId });
+    const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
+    if(trackingError || !trackingToken) throw new Error("Não foi possível preparar o acompanhamento da compra.");
+    return json({ checkout_url: checkoutUrl, order_id: orderId, tracking_token:trackingToken });
   } catch (error) {
     if (orderId) await admin.rpc("artvideo_store_cancel_v1", { p_order_id: orderId });
     return json({ error: error instanceof Error ? error.message : "Compra temporariamente indisponível. Nenhum valor foi cobrado." }, 400);
