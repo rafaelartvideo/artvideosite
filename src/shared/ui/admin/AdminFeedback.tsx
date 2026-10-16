@@ -132,19 +132,26 @@ export function LoadingDots({ className = "", size = "md" }: {
   </span>;
 }
 
-/** Mantém compatibilidade com os componentes existentes, usando a mesma animação nova. */
+/** Spinner circular para botões, inputs, seletores e carregamentos compactos. */
 export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
-  return <LoadingDots size={size} />;
+  return <span aria-hidden="true" className={cn(
+    "inline-block shrink-0 animate-spin rounded-full border-solid border-current border-r-transparent text-primary motion-reduce:animate-none",
+    size === "sm" && "h-4 w-4 border-2",
+    size === "md" && "h-6 w-6 border-[3px]",
+    size === "lg" && "h-9 w-9 border-[3px]",
+  )} />;
 }
 
-export function InlineLoading({ text = "Carregando...", className = "", size = "sm" }: {
+/** Para contexto inline, usa bolinha por padrão. Seções podem solicitar pontos. */
+export function InlineLoading({ text = "Carregando...", className = "", size = "sm", indicator = "spinner" }: {
   text?: React.ReactNode;
   className?: string;
   size?: "sm" | "md" | "lg";
+  indicator?: "spinner" | "dots";
 }) {
   return <span role="status" aria-live="polite" aria-busy="true"
     className={cn("inline-flex min-w-0 items-center justify-center gap-2.5 text-xs font-medium text-muted-foreground", className)}>
-    <LoadingDots size={size} />
+    {indicator === "spinner" ? <LoadingSpinner size={size} /> : <LoadingDots size={size} />}
     <span>{text}</span>
   </span>;
 }
