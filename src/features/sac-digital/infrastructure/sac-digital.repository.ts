@@ -687,6 +687,9 @@ export async function startSacDigitalNewConversation(
     success: true;
     mode: "protocol";
     protocol: string;
+    in_att?: boolean;
+    operator_id?: string | null;
+    operator_name?: string | null;
     pending_start_id?: null;
     external_contact_id: string;
   };
