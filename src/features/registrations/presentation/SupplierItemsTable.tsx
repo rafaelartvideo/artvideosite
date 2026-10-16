@@ -19,7 +19,7 @@ export function SupplierItemsTable({
 
   const totalPages = Math.max(1, Math.ceil(items.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const paged = useMemo(() => items.slice((safePage - 1) * pageSize, safePage * pageSize), [items, safePage, pageSize]);
+  const paged = useMemo(() => [...items].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).slice((safePage - 1) * pageSize, safePage * pageSize), [items, safePage, pageSize]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
