@@ -9,6 +9,7 @@ import {
   loadPublicMarketplaceShell, loadPublicMarketplaceListing, type MarketplaceCategory, type MarketplaceListing, type MarketplaceStore,
 } from "../infrastructure/marketplace.repository";
 import { MarketplaceCatalog } from "./MarketplaceCatalog";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { MarketplaceBuyerPage } from "./MarketplaceBuyerPage";
 import { MarketplaceProductDetailPage, MarketplaceServiceDetailPage } from "./MarketplaceListingDetailPage";
 
@@ -145,10 +146,10 @@ export function MarketplaceHomePage() {
 
     <main className="mx-auto max-w-[1400px] space-y-8 px-4 pb-16 pt-5 lg:px-6">
       {notice && <div role="status" className="flex items-center justify-between gap-4 rounded-lg border border-[#c8d1f5] bg-[#eef1ff] px-4 py-3 text-sm text-[#233d91]">{notice}<button onClick={() => setNotice("")} aria-label="Fechar aviso"><X size={18} /></button></div>}
-      {loading ? <div className="py-20 text-center text-sm text-[#66758e]">Carregando catálogo...</div> :
+      {loading ? <LoadingState text="Carregando catálogo..." /> :
       error ? <div className="rounded-xl bg-white p-10 text-center text-sm text-red-700">{error}</div> :
       buyerView ? <MarketplaceBuyerPage mode={path === "/marketplace/solicitar" ? "request" : "account"} categories={categories} /> :
-      listingId && (detailLoading || resolvedListingId !== listingId) ? <div className="flex min-h-[55vh] items-center justify-center text-sm text-[#66758e]" role="status">Carregando anúncio...</div> :
+      listingId && (detailLoading || resolvedListingId !== listingId) ? <div className="flex min-h-[55vh] items-center justify-center"><LoadingState text="Carregando anúncio..." /></div> :
       listingId && (detailError || !currentDetail) ? <div className="rounded-xl border border-[#e1e6ef] bg-white p-12 text-center">
         <h1 className="text-lg font-black">{detailError || "Anúncio indisponível"}</h1>
         <p className="mt-2 text-sm text-[#768399]">Este anúncio pode ter sido pausado ou retirado da vitrine.</p>
