@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, CalendarClock, CheckCircle2, Circle, ClipboardList, History, Plus, Search, Trash2, Users } from "lucide-react";
+import { Bell, CalendarClock, CheckCircle2, Circle, Plus, Search, Trash2, Users } from "lucide-react";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { useAuth } from "@/lib/auth";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
@@ -13,7 +13,7 @@ import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   addWorkChecklistItem, addWorkChecklistItems, findCustomerWorkOrders, findWorkCustomers, findWorkOrders, loadWorkDetails,
   removeWorkChecklistItem, saveWorkItem, updateWorkChecklistItem,
-  type WorkEmployee, type WorkItem, type WorkItemDraft, type WorkOutcome, type WorkPriority,
+  type WorkEmployee, type WorkItem, type WorkItemDraft, type WorkOrderOption, type WorkOutcome, type WorkPriority,
   type WorkStatus,
 } from "../infrastructure/work-items.repository";
 
@@ -84,7 +84,8 @@ export function WorkItemDialog({
   const [orderOptions, setOrderOptions] = useState<{ id: string; os_number: number | string }[]>([]);
   const [linkMode, setLinkMode] = useState<"customer" | "order">("customer");
   const [orderSearch, setOrderSearch] = useState("");
-  const [orderResults, setOrderResults] = useState<Array<{ id: string; os_number: number | string; customer_id: string | null }>>([]);
+  const [orderResults, setOrderResults] = useState<WorkOrderOption[]>([]);
+  const [selectedOrder, setSelectedOrder] = useState<WorkOrderOption | null>(null);
   const [searchingOrders, setSearchingOrders] = useState(false);
   const [stagedChecklist, setStagedChecklist] = useState<string[]>([]);
   const [checklistTitle, setChecklistTitle] = useState("");
@@ -104,6 +105,7 @@ export function WorkItemDialog({
     setLinkMode(item?.service_order_id ? "order" : "customer");
     setOrderSearch("");
     setOrderResults([]);
+    setSelectedOrder(null);
     setSearchingOrders(false);
     setStagedChecklist([]);
     setChecklistTitle("");
@@ -219,7 +221,7 @@ export function WorkItemDialog({
     setLinkMode(mode);
     setDraft(current => ({ ...current, customer_id: null, service_order_id: null }));
     setCustomerSearch(""); setCustomerInfo(null); setCustomerResults([]);
-    setOrderSearch(""); setOrderResults([]); setOrderOptions([]);
+    setOrderSearch(""); setOrderResults([]); setSelectedOrder(null); setOrderOptions([]);
   };
   const done = counts.filter(check => check.done).length;
   const isEditable = canEdit && !isFinalized;
@@ -230,14 +232,14 @@ export function WorkItemDialog({
     title={item ? (isFinalized ? "Detalhes da atividade" : "Editar atividade") : "Nova atividade"}
     description={item ? (item.kind === "commitment" ? "Compromisso registrado" : "Tarefa da equipe") : "Registre tarefas e compromissos em um só lugar"}
     minimizedDescription={draft.title || "Compromissos e Tarefas"}
-    className="max-w-3xl"
+    className="max-w-3xl h-[min(780px,calc(100dvh-1.5rem))]"
     footer={<div className="flex justify-end gap-2">
       <BtnSecondary disabled={saving} onClick={onClose}>Fechar</BtnSecondary>
       {isEditable && <BtnPrimary onClick={() => { void save(); }} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </div>}
   >
     <div className="space-y-4 text-foreground">
-      {!isFinalized && <>
+      {!isFinalized && section === "details" && <>
         {!item && <div className="space-y-2 text-center">
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Começar com um modelo</p>
           <div className="flex flex-wrap justify-center gap-2">
@@ -259,18 +261,25 @@ export function WorkItemDialog({
           )}
         </div>
       </>}
-      {<div className="flex gap-1 rounded-xl border border-border bg-muted/50 p-1">
-        {([{ key: "details", label: "Geral", icon: ClipboardList },
-           { key: "checklist", label: "Checklist", icon: CheckCircle2 },
-           ...(item ? [{ key: "history", label: "Histórico", icon: History } as const] : [])] as const).map(tab => {
-          const Icon = tab.icon;
-          return <button key={tab.key} type="button" onClick={() => setSection(tab.key)}
-            className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold transition-all",
-              section === tab.key ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-            <Icon size={15} /><span>{tab.label}</span>
-          </button>;
-        })}
-      </div>}
+      <div role="tablist" aria-label="Seções da atividade" className="flex min-w-0 gap-6 overflow-x-auto border-b border-border">
+        {([
+          { key: "details", label: "Geral" },
+          { key: "checklist", label: "Checklist" },
+          ...(item ? [{ key: "history", label: "Histórico" } as const] : []),
+        ] as const).map(tab => (
+          <button key={tab.key} type="button" role="tab"
+            aria-selected={section === tab.key}
+            onClick={() => setSection(tab.key)}
+            className={cn(
+              "relative shrink-0 whitespace-nowrap border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors",
+              section === tab.key
+                ? "border-primary text-primary"
+                : "border-transparent text-muted-foreground hover:text-foreground",
+            )}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
       {section === "details" && (isFinalized ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
         <div className="space-y-2">
