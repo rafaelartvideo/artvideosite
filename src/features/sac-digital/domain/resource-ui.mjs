@@ -74,6 +74,29 @@ export function friendlyEntries(value){const labels={id:'Identificador',name:'No
 export function actionLabel(endpoint){const action={Todos:'Listar',Todas:'Listar',All:'Listar',Filtrar:'Buscar',Adicionar:'Adicionar',Criar:'Criar',Editar:'Editar',Remover:'Remover',Consultar:'Consultar',Contato:'Enviar para contato',Direto:'Enviar por número',Perfil:'Ver perfil'};return action[endpoint.title]||endpoint.title;}
 export function privateMediaIds(rows){return rows.filter(row=>row.raw_metadata?.temp_storage_bucket==='sac-digital-attachments').slice(-50).map(row=>row.id);}
 export function hydrateMedia(rows,urls){return rows.map(row=>row.raw_metadata?.temp_storage_bucket==='sac-digital-attachments'&&typeof urls?.[row.id]==='string'&&urls[row.id]?{...row,media_url:urls[row.id]}:row);}
+// A oferta de número novo só aparece depois de uma busca exata.
+// Normalização brasileira é usada para consulta; jamais sobrescreve cadastro.
+function normalizedSacNumber(value) {
+ let digits=String(value||'').replace(/\D/g,'');
+ if((digits.length===10||digits.length===11)&&!digits.startsWith('55')) digits='55'+digits;
+ return digits;
+}
+export function isSacNumberCandidate(value) {
+ return /^[1-9]\d{9,14}$/.test(normalizedSacNumber(value));
+}
+export function sameSacPhone(left,right) {
+ const key=value=>{
+  const digits=normalizedSacNumber(value);
+  if(!digits)return '';
+  if(digits.startsWith('55')&&(digits.length===12||digits.length===13)){
+   const local=digits.slice(2);
+   return '55'+(local.length===11&&local[2]==='9' ? local.slice(0,2)+local.slice(3) : local);
+  }
+  return digits;
+ };
+ return Boolean(key(left))&&key(left)===key(right);
+}
+
 export function cloudChannel(channel){return /^(cloud|whatsapp_cloud|whatsapp cloud|waba|enterprise)$/i.test(String(channel?.type||channel?.channel_type||channel?.mode||''));}
 export function usableChannels(rows){return rows.filter(c=>c.id!=null&&c.actived!==false&&c.active!==false&&c.connected!==false&&!/^(off|offline|inactive|disabled|disconnected|desconectado)$/i.test(String(c.status||c.connection_status||''))&&(!/call.?center/i.test(String(c.type||c.mode||''))||c.primary===false));}
 export function approvedTemplates(rows){return rows.filter(t=>(t.id!=null||t.name)&&(!t.status||/^approved|aprovado$/i.test(String(t.status))));}
