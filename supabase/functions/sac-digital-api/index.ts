@@ -2235,12 +2235,20 @@ Deno.serve(async request => {
       }
 
       const now = new Date().toISOString();
+      // Importar por telefone não pode apagar o vínculo com um cliente CRM.
+      // Um vínculo explícito continua prevalecendo quando o atendente
+      // seleciona um cliente cadastrado.
+      const { data: cachedContact } = await admin.from("sac_digital_contacts")
+        .select("customer_id")
+        .eq("organization_id", organizationId)
+        .eq("external_contact_id", externalContactId)
+        .maybeSingle();
       const { error: cacheError } = await admin
         .from("sac_digital_contacts")
         .upsert({
           organization_id: organizationId,
           external_contact_id: externalContactId,
-          customer_id: customerId || null,
+          customer_id: customerId || cachedContact?.customer_id || null,
           name: resolvedName || null,
           phone: resolvedPhone || null,
           avatar_url: String(contact?.avatar || "").trim() || null,
