@@ -6,7 +6,7 @@ const SacDigitalContactsPage = lazy(() => import('./SacDigitalContactsPage').the
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { FInput, FSelect } from '@/shared/ui/admin/AdminFormControls';
 import { SAC_MODULE_SECTIONS } from './sac-navigation';
-import { mediaMaximum, deliveryLabel, isOperatorAuthError, liveMessageChanges, messageDeletedByCustomer } from '../domain/resource-ui.mjs';
+import { mediaMaximum, deliveryLabel, deliveryState, isOperatorAuthError, liveMessageChanges, messageDeletedByCustomer } from '../domain/resource-ui.mjs';
 import { SacMessageOutbox } from '../domain/message-outbox.mjs';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -23,6 +23,8 @@ import {
   Volume2,
   ChevronDown,
   LoaderCircle,
+  Check,
+  CheckCheck,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -2581,6 +2583,7 @@ export function SacDigitalToolPage({
                     <div className="mx-auto max-w-4xl">
                       {visibleMessages.map((item, index) => {
                         const outgoing = effectiveMessageDirection(item) === "outgoing";
+                        const delivery = outgoing ? deliveryState(item.raw_metadata) : "";
                         const previous = index > 0 ? visibleMessages[index - 1] : null;
                         const previousOutgoing = previous ? effectiveMessageDirection(previous) === "outgoing" : null;
                         const operatorName = messageOperatorName(item, selectedProtocol);
@@ -2711,7 +2714,15 @@ export function SacDigitalToolPage({
                             )}
                             <div className="mt-1 flex items-center justify-end gap-2 text-[9px] opacity-60" aria-live="polite">
                               {item.raw_metadata?.local_submission === "sending" && <LoaderCircle size={12} className="animate-spin" aria-hidden="true" />}
-                              {outgoing && deliveryStatus(item) && <span>{deliveryStatus(item)}</span>}
+                              {outgoing && deliveryStatus(item) && (
+                                <span className={`inline-flex items-center gap-1 ${delivery === "read" ? "font-semibold text-sky-700 dark:text-sky-300" : ""}`}
+                                  title={delivery === "read" ? "Visualizada pelo cliente, conforme confirmação da SAC Digital" : undefined}>
+                                  {delivery === "read" || delivery === "delivered"
+                                    ? <CheckCheck size={13} aria-hidden="true" />
+                                    : delivery === "sent" ? <Check size={13} aria-hidden="true" /> : null}
+                                  {delivery === "read" ? "Visualizada" : deliveryStatus(item)}
+                                </span>
+                              )}
                               <span>{formatCompactDate(item.sent_at)}</span>
                             </div>
                           </div>
