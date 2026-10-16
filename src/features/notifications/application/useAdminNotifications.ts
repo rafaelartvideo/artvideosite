@@ -27,6 +27,16 @@ export function useAdminNotifications(
   const isWorkReminder = (notification: AdminNotification) =>
     notification.module_key === "workItems" && notification.entity_type === "work_item"
       && notification.title === "Lembrete de atividade";
+  const enqueueLiveNotification = (notification: AdminNotification) => {
+    setLiveQueue(current => {
+      if (current.some(item => item.id === notification.id)) return current;
+      // Reminders must not wait behind routine notifications, which may
+      // otherwise occupy the popup for several seconds each.
+      return isWorkReminder(notification)
+        ? [notification, ...current].slice(0, 15)
+        : [...current, notification].slice(0, 15);
+    });
+  };
   const normalizedOrganizationId = organizationId || null;
   const normalizedUserId = userId || null;
   const enabled = Boolean(normalizedOrganizationId && normalizedUserId);
@@ -36,7 +46,9 @@ export function useAdminNotifications(
     queryKey,
     enabled,
     queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50),
-    staleTime: 5 * 60_000,
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+    refetchOnWindowFocus: "always",
     retry: false,
   });
 
@@ -57,9 +69,7 @@ export function useAdminNotifications(
           }),
         );
         void queryClient.invalidateQueries({ queryKey: ["admin-home", "activity", normalizedOrganizationId] });
-        setLiveQueue(current =>
-          current.some(item => item.id === notification.id) ? current : [...current, notification].slice(0, 15)
-        );
+        enqueueLiveNotification(notification);
       },
       onStateChange: () => {
         void queryClient.invalidateQueries({ queryKey });
@@ -67,6 +77,25 @@ export function useAdminNotifications(
       },
     });
   }, [normalizedOrganizationId, normalizedUserId, queryClient]);
+
+  // The realtime INSERT can be missed if the page was closed, switched tabs,
+  // the websocket reconnected, or the database cron fired during a reload.
+  // Recover pending reminders from the actual server inbox on initial load,
+  // focus and 30-second polling; dismissed/read notifications are not replayed.
+  useEffect(() => {
+    if (!enabled) return;
+    const since = Date.now() - 24 * 60 * 60_000;
+    const recentReminders = (notificationsQuery.data?.items || [])
+      .filter(item => isWorkReminder(item)
+        && !item.read_at && new Date(item.created_at).getTime() >= since)
+      .slice(0, 15);
+    if (recentReminders.length === 0) return;
+    setLiveQueue(current => {
+      const ids = new Set(current.map(item => item.id));
+      const missing = recentReminders.filter(item => !ids.has(item.id));
+      return missing.length ? [...missing, ...current].slice(0, 15) : current;
+    });
+  }, [enabled, notificationsQuery.data?.items]);
 
   useEffect(() => {
     if (!liveNotification || isWorkReminder(liveNotification)) return;
@@ -164,7 +193,19 @@ export function useAdminNotifications(
     unreadCount: notificationsQuery.data?.unreadCount || 0,
     isLoading: notificationsQuery.isPending,
     liveNotification,
-    dismissLiveNotification: () => setLiveQueue(current => current.slice(1)),
+    dismissLiveNotification: () => {
+      const active = liveQueue[0];
+      if (!active) return;
+      if (isWorkReminder(active)) {
+        // Acknowledging a sticky reminder must persist on the server;
+        // otherwise the periodic inbox refresh would make it reappear.
+        void dismiss(active).catch(error => {
+          console.error("[work-item-reminder] Could not dismiss notification", error);
+        });
+      } else {
+        setLiveQueue(current => current.slice(1));
+      }
+    },
     markRead,
     markAllRead,
     dismiss,
