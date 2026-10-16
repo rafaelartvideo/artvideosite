@@ -40,6 +40,23 @@ function formatPhone(value: string) {
   return value;
 }
 
+// Um número novo só pode ser proposto após a pesquisa retornar.
+// Digitar um nome não deve iniciar importação nem enviar mensagens.
+function isUsablePhone(value: string) {
+  const digits = normalizePhone(value);
+  return /^[1-9]\d{9,14}$/.test(digits);
+}
+
+function samePhone(left: string, right: string) {
+  const canonical = (value: string) => {
+    const digits = phoneKey(value);
+    return digits.length === 11 && digits[2] === "9"
+      ? digits.slice(0, 2) + digits.slice(3)
+      : digits;
+  };
+  return Boolean(canonical(left)) && canonical(left) === canonical(right);
+}
+
 function candidateKey(candidate: SacDigitalNewConversationCandidate) {
   return candidate.external_contact_id || `${candidate.source}:${candidate.customer_id || phoneKey(candidate.phone)}`;
 }
@@ -60,6 +77,8 @@ export function SacDigitalNewConversationDialog({
   onOpenExisting: (protocol: string) => Promise<boolean>;
 }) {
   const [query, setQuery] = useState("");
+  const [searchedTerm, setSearchedTerm] = useState("");
+  const [manualName, setManualName] = useState("");
   const [searching, setSearching] = useState(false);
   const [preparingKey, setPreparingKey] = useState<string | null>(null);
   const [contacts, setContacts] = useState<SacDigitalNewConversationCandidate[]>([]);
@@ -96,6 +115,8 @@ export function SacDigitalNewConversationDialog({
     searchRequestRef.current += 1;
     prepareRequestRef.current += 1;
     setQuery(initialContact.phone);
+    setSearchedTerm("");
+    setManualName(initialContact.name || "");
     setContacts([]);
     setCustomers([]);
     setPrepared(null);
@@ -124,6 +145,8 @@ export function SacDigitalNewConversationDialog({
     setTemplate("");
     setVariables({});
     setQuery("");
+    setSearchedTerm("");
+    setManualName("");
     setContacts([]);
     setCustomers([]);
     setPrepared(null);
@@ -146,6 +169,7 @@ export function SacDigitalNewConversationDialog({
 
     const requestId = ++searchRequestRef.current;
     setSearching(true);
+    setSearchedTerm("");
     setPrepared(null);
     setConfirmationPending(false);
     try {
@@ -153,8 +177,9 @@ export function SacDigitalNewConversationDialog({
       if (requestId !== searchRequestRef.current) return;
       setContacts(data.contacts);
       setCustomers(data.customers);
-      if (data.contacts.length === 0 && data.customers.length === 0) {
-        notifyAdmin("Nenhum contato encontrado. Por enquanto, selecione apenas contatos já cadastrados.", "warning");
+      setSearchedTerm(value);
+      if (data.contacts.length === 0 && data.customers.length === 0 && !isUsablePhone(value)) {
+        notifyAdmin("Nenhum contato encontrado na SAC Digital ou no CRM.", "warning");
       }
     } catch (caught) {
       if (requestId === searchRequestRef.current) {
@@ -165,8 +190,10 @@ export function SacDigitalNewConversationDialog({
     }
   };
 
-  const prepare = async (candidate: SacDigitalNewConversationCandidate) => {
-    const key = candidateKey(candidate);
+  const prepare = async (candidate?: SacDigitalNewConversationCandidate) => {
+    const manual = !candidate;
+    if (manual && (!isUsablePhone(query) || searchedTerm !== query.trim() || !channel)) return;
+    const key = candidate ? candidateKey(candidate) : "number";
     if (preparingKey) return;
 
     const requestId = ++prepareRequestRef.current;
@@ -177,10 +204,11 @@ export function SacDigitalNewConversationDialog({
       const result = await prepareSacDigitalNewConversationContact(
         organizationId,
         {
-          externalContactId: candidate.external_contact_id || undefined,
-          customerId: candidate.customer_id || undefined,
-          name: candidate.name,
-          phone: candidate.phone,
+          externalContactId: candidate?.external_contact_id || undefined,
+          customerId: candidate?.customer_id || undefined,
+          name: manual ? manualName.trim() || `Contato ${normalizePhone(query).slice(-4)}` : candidate?.name,
+          phone: manual ? query.trim() : candidate?.phone,
+          channel: manual ? channel : undefined,
         },
       );
       if (requestId !== prepareRequestRef.current) return;
@@ -192,6 +220,7 @@ export function SacDigitalNewConversationDialog({
       }
 
       setPrepared(result);
+      if (result.imported) notifyAdmin("Contato importado na SAC Digital. Nenhuma mensagem foi enviada ainda.", "success");
       const firstName = result.contact.name.trim().split(/\s+/).filter(Boolean)[0] || "";
       setDraft(firstName ? `Olá, ${firstName}!` : "Olá!");
     } catch (caught) {
@@ -250,6 +279,9 @@ export function SacDigitalNewConversationDialog({
     }
   };
 
+  const numberCandidate = searchedTerm === query.trim()
+    && isUsablePhone(query)
+    && !results.some(candidate => samePhone(candidate.phone, query));
   const selectedContact = prepared?.contact || null;
   // Um contato recém-importado pode ainda não ter canal confirmado na consulta.
   // Deixar a SAC decidir no envio, sem bloquear apenas por ausência no índice.
@@ -277,7 +309,7 @@ export function SacDigitalNewConversationDialog({
       open={open}
       onClose={close}
       title="Nova conversa"
-      description="Busque um contato cadastrado para abrir o atendimento existente ou iniciar uma conversa pela SAC Digital."
+      description="Busque pelo nome ou número. Se não encontrar o telefone, você pode validá-lo diretamente na SAC Digital."
       className="max-w-2xl"
       minimizable
       footer={
@@ -330,7 +362,7 @@ export function SacDigitalNewConversationDialog({
                 <FInput label="Buscar contato" aria-label="Buscar contato" value={query} placeholder="Nome ou número com DDD"
                   onChange={(event: any) => {
                     searchRequestRef.current += 1; prepareRequestRef.current += 1;
-                    setQuery(event.target.value); setPrepared(null); setContacts([]); setCustomers([]);
+                    setQuery(event.target.value); setSearchedTerm(""); setPrepared(null); setContacts([]); setCustomers([]);
                     setSearching(false); setPreparingKey(null); setConfirmationPending(false);
                   }} />
               </div>
@@ -388,6 +420,52 @@ export function SacDigitalNewConversationDialog({
               </div>
             )}
 
+            {numberCandidate && (
+              <div className="space-y-3 rounded-lg border border-border bg-muted/25 p-3">
+                <div>
+                  <p className="text-sm font-bold text-foreground">Iniciar com este número</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {formatPhone(query)} não foi encontrado na busca. A SAC verificará o contato e tentará importá-lo
+                    somente após sua confirmação.
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <FInput
+                    label="Nome do contato"
+                    aria-label="Nome do novo contato"
+                    value={manualName}
+                    onChange={(event: any) => setManualName(event.target.value)}
+                    placeholder="Opcional"
+                    maxLength={120}
+                  />
+                  <FSelect
+                    label="Canal de atendimento"
+                    value={channel}
+                    disabled={channelLoading || Boolean(preparingKey)}
+                    onChange={(event: any) => setChannel(event.target.value)}
+                    options={[{value:"",label:channelLoading?"Carregando canais…":"Selecione o canal"}, ...channels.map(item=>({
+                      value:String(item.id),
+                      label:(item.name||item.title||"Canal")+(item.number?" · "+formatPhone(String(item.number)):"")+(cloudChannel(item)?" · WhatsApp Cloud":""),
+                    }))]}
+                  />
+                </div>
+                {cloud && (
+                  <p className="text-xs text-amber-700 dark:text-amber-300">
+                    Este canal exige template aprovado. A importação pode ser validada, mas o envio de uma notificação
+                    não confirma automaticamente a abertura de um atendimento.
+                  </p>
+                )}
+                <div className="flex justify-end">
+                  <AdminButton
+                    onClick={() => void prepare()}
+                    loading={preparingKey === "number"}
+                    disabled={!channel || channelLoading || Boolean(preparingKey) || searching}
+                  >
+                    Validar número na SAC
+                  </AdminButton>
+                </div>
+              </div>
+            )}
           </>
         ) : selectedContact ? (
           <>
