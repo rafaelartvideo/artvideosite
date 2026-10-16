@@ -237,23 +237,10 @@ export function WorkItemDialog({
     </div>}
   >
     <div className="space-y-4 text-foreground">
-      {item && <div className="flex gap-1 rounded-xl border border-border bg-muted/50 p-1">
-        {([{ key: "details", label: "Detalhes", icon: ClipboardList },
-           { key: "checklist", label: "Checklist", icon: CheckCircle2 },
-           { key: "history", label: "Histórico", icon: History }] as const).map(tab => {
-          const Icon = tab.icon;
-          return <button key={tab.key} type="button" onClick={() => setSection(tab.key)}
-            className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold transition-all",
-              section === tab.key ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-            <Icon size={15} /><span>{tab.label}</span>
-          </button>;
-        })}
-      </div>}
-
-      {section === "details" && (isFinalized ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
-        {!item && <div className="space-y-2">
+      {!isFinalized && <>
+        {!item && <div className="space-y-2 text-center">
           <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Começar com um modelo</p>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap justify-center gap-2">
             {[
               { label: "Retorno do cliente", kind: "commitment" as const, title: "Cliente retornará à loja", category: "Atendimento" },
               { label: "Ligar para cliente", kind: "task" as const, title: "Entrar em contato com o cliente", category: "Atendimento" },
@@ -271,6 +258,21 @@ export function WorkItemDialog({
                 draft.kind === option.value ? "bg-card text-primary shadow-sm ring-1 ring-primary/15" : "text-muted-foreground hover:text-foreground")}>{option.label}</button>,
           )}
         </div>
+      </>}
+      {<div className="flex gap-1 rounded-xl border border-border bg-muted/50 p-1">
+        {([{ key: "details", label: "Geral", icon: ClipboardList },
+           { key: "checklist", label: "Checklist", icon: CheckCircle2 },
+           ...(item ? [{ key: "history", label: "Histórico", icon: History } as const] : [])] as const).map(tab => {
+          const Icon = tab.icon;
+          return <button key={tab.key} type="button" onClick={() => setSection(tab.key)}
+            className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-2 text-xs font-bold transition-all",
+              section === tab.key ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            <Icon size={15} /><span>{tab.label}</span>
+          </button>;
+        })}
+      </div>}
+
+      {section === "details" && (isFinalized ? <WorkItemReadonlyDetails item={item!} employees={employees} /> : <div className="space-y-4">
         <div className="space-y-2 rounded-xl border border-border bg-card p-3.5">
           <label className={fieldLabel}>Cliente vinculado (opcional)</label>
           {draft.customer_id ? <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg bg-primary/5 px-3 py-3">
