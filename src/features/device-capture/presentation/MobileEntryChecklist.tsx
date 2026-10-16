@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Camera, CheckCircle2, ClipboardCheck, Loader2, Plus, Save } from "lucide-react";
+import { Camera, CheckCircle2, ClipboardCheck, Plus, Save } from "lucide-react";
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import {
   getDeviceEntryChecklist,
   sendDeviceChecklistAnswer,
@@ -137,7 +138,7 @@ export function MobileEntryChecklist({ sessionId, token }: { sessionId: string; 
   };
 
   if (loading) {
-    return <section className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-5 shadow-sm"><div className="flex items-center justify-center gap-2 py-6 text-sm font-bold text-[#5a6a82]"><Loader2 size={18} className="animate-spin text-[#0057e7]" /> Carregando checklist de entrada...</div></section>;
+    return <section className="rounded-2xl border border-[#0d1b2e]/8 bg-white p-5 shadow-sm"><div className="flex min-h-24 items-center justify-center py-6"><InlineLoading text="Carregando checklist de entrada..." /></div></section>;
   }
 
   if (!checklist) {
