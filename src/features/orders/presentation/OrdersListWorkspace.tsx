@@ -132,7 +132,7 @@ export function OrdersListWorkspace(props: Props) {
       }}>Tentar novamente</AdminButton>
     </div>}
 
-    {resolvedDisplayMode === "list" ? <OrdersTable
+    {(filters.error || workspace.error) && !filteredOrders.length && !loading ? null : resolvedDisplayMode === "list" ? <OrdersTable
       loading={loading}
       filteredOrders={filteredOrders}
       pagedOrders={pagedOrders}
