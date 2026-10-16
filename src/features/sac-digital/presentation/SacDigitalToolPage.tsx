@@ -306,13 +306,11 @@ function EmptySacConversationState() {
 
 export function SacDigitalToolPage({
   onBack,
-  onOpenSettings,
   onOpenCustomer,
   onOpenOrder,
   onCreateOrder,
 }: {
   onBack: () => void;
-  onOpenSettings?: () => void;
   onOpenCustomer?: (customerId: string) => void;
   onOpenOrder?: (orderId: string) => void;
   onCreateOrder?: (customerId: string) => void;
@@ -326,7 +324,6 @@ export function SacDigitalToolPage({
   const routeStartConversation = new URLSearchParams(location.search).get("new") === "1";
   const routeStartPhone = new URLSearchParams(location.search).get("phone") || "";
   const routeStartName = new URLSearchParams(location.search).get("name") || "";
-  const canManage = hasPermission("sac_digital.settings.manage");
   const canManageProtocols = hasPermission("sac_digital.protocols.manage");
   const canViewMessages = hasPermission("sac_digital.messages.view");
   const canSendMessages = hasPermission("sac_digital.messages.send");
@@ -1889,10 +1886,6 @@ export function SacDigitalToolPage({
             </>
           )}
           <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
-          {canManage && onOpenSettings && (
-            <AdminButton variant="secondary" onClick={onOpenSettings}>Configurações</AdminButton>
-          )}
-
         </>
       }
     />
