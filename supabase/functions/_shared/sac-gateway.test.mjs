@@ -46,6 +46,9 @@ test('missing pagination only stops at empty page, explicit pager continues',()=
 test('phone import variants retain DDI and retries only documented validation refusal',()=>{
  assert.deepEqual(importPhoneCandidates('5511998765432'),['5511998765432','551198765432']);
  assert.equal(mayTryImportVariant({type:'invalid_number'},400),true);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:false},200),true);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:true},200),false);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:false},503),false);
  assert.equal(mayTryImportVariant({type:'error_valid_wpp'},500),false);
  assert.equal(mayTryImportVariant({type:'invalid_number',outcome:'unknown'},400),false);
 });
