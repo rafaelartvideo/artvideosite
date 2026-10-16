@@ -27,18 +27,18 @@ const buildDate = (date: string, time: string) => {
 };
 
 export function WorkItemDateTimeField({
-  label, value, onChange, disabled = false, hint,
+  label, value, onChange, disabled = false,
 }: {
   label: string;
   value: string | null;
   onChange: (value: string | null) => void;
   disabled?: boolean;
-  hint?: string;
-}) {
+ }) {
   const parts = localParts(value);
   const [timeText, setTimeText] = useState(parts.time);
   const [open, setOpen] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
+  const dateRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setTimeText(parts.time); }, [value]);
   useEffect(() => {
@@ -54,10 +54,11 @@ export function WorkItemDateTimeField({
   const chooseTime = (time: string) => { changeTime(time); setOpen(false); };
   return <div className="relative min-w-0 space-y-1.5">
     <label className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
-      <CalendarDays size={13} aria-hidden="true" />{label}
+      {label}
     </label>
     <div className="grid grid-cols-[minmax(0,1fr)_104px] gap-2 sm:grid-cols-[minmax(0,1fr)_112px]">
-      <input type="date" className={cn(INPUT, "min-w-0 text-sm")} value={parts.date} disabled={disabled}
+      <div className="flex min-w-0 gap-1.5">
+      <input ref={dateRef} type="date" className={cn(INPUT, "min-w-0 flex-1 text-sm [&::-webkit-calendar-picker-indicator]:hidden")} value={parts.date} disabled={disabled}
         aria-label={`Data de ${label.toLocaleLowerCase("pt-BR")}`}
         onChange={event => {
           const nextDate = event.target.value;
@@ -66,6 +67,12 @@ export function WorkItemDateTimeField({
           setTimeText(time);
           onChange(buildDate(nextDate, time));
         }} />
+      <button type="button" disabled={disabled} title={`Abrir calendário de ${label.toLowerCase()}`} aria-label={`Selecionar data de ${label.toLowerCase()}`}
+        onClick={() => { if (!dateRef.current) return; try { dateRef.current.showPicker(); } catch { dateRef.current.focus(); } }}
+        className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/25 disabled:opacity-50">
+        <CalendarDays size={18} />
+      </button>
+      </div>
       <Popover open={open && !disabled} onOpenChange={setOpen}>
         <PopoverAnchor asChild><div className="relative min-w-0">
         <Clock3 size={14} className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -105,9 +112,7 @@ export function WorkItemDateTimeField({
         </PopoverContent>}
       </Popover>
     </div>
-    <div className="flex min-h-4 items-center justify-between gap-2">
-      {hint && <p className="text-[10px] leading-4 text-muted-foreground">{hint}</p>}
-      {!hint && <span />}
+    <div className="flex min-h-4 items-center justify-end gap-2">
       {value && !disabled && <button type="button" className="inline-flex shrink-0 items-center gap-1 text-[10px] font-medium text-muted-foreground hover:text-destructive"
         onClick={() => { setTimeText(""); setOpen(false); onChange(null); }}><X size={11} /> Limpar</button>}
     </div>
