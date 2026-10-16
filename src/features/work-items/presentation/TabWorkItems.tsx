@@ -466,7 +466,8 @@ export function TabWorkItems() {
                 onKeyDown={event => { if (event.key === "Enter") openTask(item); }}>
                 <td className="max-w-[330px]">
                   <div className="flex items-center gap-2">
-                    <button type="button" disabled={!canEdit} aria-label={!canEdit ? "Atividade somente leitura" : "Alternar conclusão"}
+                    <button type="button" disabled={!canEdit || item.status === "completed" || item.status === "cancelled"}
+                      aria-label={item.status === "completed" || item.status === "cancelled" ? "Atividade finalizada — somente consulta" : !canEdit ? "Atividade somente leitura" : "Concluir atividade"}
                       onClick={event => { event.stopPropagation(); void moveTo(item, item.status === "completed" ? "pending" : "completed"); }}
                       className="shrink-0 text-primary disabled:cursor-not-allowed disabled:opacity-40">
                       {item.status === "completed" ? <CheckCheck size={19} className="text-emerald-500" /> : <Circle size={19} />}
