@@ -8,6 +8,8 @@ import type { useOrderListMutations } from "../application/useOrderListMutations
 import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
 import type { useOrderServiceAddress } from "../application/useOrderServiceAddress";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 
 type PermissionCheck = (permission: string) => boolean;
 
@@ -117,6 +119,18 @@ export function OrdersListWorkspace(props: Props) {
       onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
       onClear={clearFilters}
     />}
+
+    {(filters.error || workspace.error) && <div role="alert"
+      className="flex flex-col items-start justify-between gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 text-sm sm:flex-row sm:items-center">
+      <div className="space-y-1">
+        <p className="font-bold text-foreground">A conexão com os dados da OS está lenta ou indisponível.</p>
+        <p className="text-xs text-muted-foreground">{systemErrorMessage(filters.error || workspace.error, "Não foi possível consultar as ordens de serviço.")} Os dados já carregados foram preservados.</p>
+      </div>
+      <AdminButton variant="tertiary" size="sm" onClick={() => {
+        if (filters.error) filters.retryLoadOrders();
+        if (workspace.error) workspace.retryLoadWorkspace();
+      }}>Tentar novamente</AdminButton>
+    </div>}
 
     {resolvedDisplayMode === "list" ? <OrdersTable
       loading={loading}
