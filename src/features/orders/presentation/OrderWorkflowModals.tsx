@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import { validateOrderResolution } from "../application/order-resolution";
 import type { useOrderFormState } from "../application/useOrderFormState";
+import type { useOrderCustomerSelection } from "../application/useOrderCustomerSelection";
 import type { useOrderImages } from "../application/useOrderImages";
 import type { useOrderPartRequests } from "../application/useOrderPartRequests";
 import type { useOrderResolution } from "../application/useOrderResolution";
@@ -25,6 +26,7 @@ type Props = {
   saving: boolean;
   workspace: ReturnType<typeof useOrdersWorkspace>;
   formState: ReturnType<typeof useOrderFormState>;
+  customers: ReturnType<typeof useOrderCustomerSelection>;
   images: ReturnType<typeof useOrderImages>;
   resolution: ReturnType<typeof useOrderResolution>;
   completion: ReturnType<typeof useOrderCompletion>;
@@ -40,7 +42,7 @@ function appendUniqueById(current: any[], item?: any | null) {
 }
 
 export function OrderWorkflowModals({
-  detail, saving, workspace, formState, images, resolution, completion,
+  detail, saving, workspace, formState, customers, images, resolution, completion,
   partRequests, onSelectCustomer: selectCustomer, setToast, formatCurrency,
 }: Props) {
   const {
@@ -76,6 +78,17 @@ export function OrderWorkflowModals({
     closeTestResult, submitTestResults,
   } = partRequests;
 
+  // Strip CPF/CNPJ punctuation from the search value. QuickCustomerModal
+  // already formats these values through its CPF and CNPJ field controls.
+  const searchText = customers.customerSearch.trim();
+  const documentDigits = /^[\d.\-/\s]+$/.test(searchText)
+    ? searchText.replace(/\D/g, "") : "";
+  const initialCustomerValues = documentDigits.length === 11
+    ? { customerType: "PF" as const, document: documentDigits }
+    : documentDigits.length === 14
+      ? { customerType: "PJ" as const, cnpj: documentDigits }
+      : undefined;
+
   return <>
       {quickEquipment && <QuickEquipmentModal
         onClose={() => setQuickEquipment(false)}
@@ -104,6 +117,7 @@ export function OrderWorkflowModals({
         }}
       />}
       {quickCustomer && <QuickCustomerModal
+        initialValues={initialCustomerValues}
         onClose={() => setQuickCustomer(false)}
         onSaved={selectCustomer}
       />}
