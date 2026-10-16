@@ -1,4 +1,3 @@
-import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -8,7 +7,7 @@ import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, InlineLoading, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { getCustomer } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import {
