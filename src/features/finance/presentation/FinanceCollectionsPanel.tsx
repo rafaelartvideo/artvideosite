@@ -1,4 +1,4 @@
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -117,7 +117,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
     </AdminCardHeader>
     <AdminCardContent className="space-y-3">
       {errorText && !open && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
-      {query.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando cobranças...</p> : logs.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><MessageCircle size={17} /> Nenhum contato de cobrança registrado.</div> : logs.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/8 p-3">
+      {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : logs.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><MessageCircle size={17} /> Nenhum contato de cobrança registrado.</div> : logs.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/8 p-3">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"><p className="text-sm font-black text-[#0d1b2e]">{channelLabel(item.channel)}</p><p className="text-xs font-semibold text-[#5a6a82]">{new Date(item.contacted_at).toLocaleString("pt-BR")}</p></div>
         <p className="mt-2 whitespace-pre-wrap text-sm text-[#44546a]">{item.note}</p>
         {item.next_follow_up_at && <p className="mt-2 text-xs font-bold text-[#0057e7]">Próximo retorno: {new Date(item.next_follow_up_at).toLocaleString("pt-BR")}</p>}
