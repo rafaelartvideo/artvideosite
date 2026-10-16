@@ -105,7 +105,7 @@ export function WorkItemDialog({
     setSearchingCustomer(true);
     const timer = window.setTimeout(() => {
       void findWorkCustomers(organizationId, customerSearch)
-.then(results => { if (alive) setCustomerResults(results as WorkCustomer[]); })
+        .then(results => { if (alive) setCustomerResults(results as WorkCustomer[]); })
         .catch(error => { if (alive) notifyAdmin(error.message || "Não foi possível buscar clientes.", "error"); })
         .finally(() => { if (alive) setSearchingCustomer(false); });
     }, 300);
@@ -172,8 +172,9 @@ export function WorkItemDialog({
   const counts = details.data?.checklist || [];
   const done = counts.filter(check => check.done).length;
   const isEditable = canEdit && !isFinalized;
+  const customerDocumentDigits = customerSearch.replace(/\D/g, "");
 
-  return <AdminDialog
+  return <><AdminDialog
     open={open} onClose={() => { if (!saving) onClose(); }}
     title={item ? (isFinalized ? "Detalhes da atividade" : "Editar atividade") : "Nova atividade"}
     description={item ? (item.kind === "commitment" ? "Compromisso registrado" : "Tarefa da equipe") : "Registre tarefas e compromissos em um só lugar"}
@@ -402,5 +403,23 @@ export function WorkItemDialog({
         {!details.isPending && !details.data?.activity.length && <p className="text-sm text-muted-foreground">Nenhum registro encontrado.</p>}
       </div>}
     </div>
-  </AdminDialog>;
+  </AdminDialog>
+    {quickCustomerOpen && canCreateCustomer && <QuickCustomerModal
+      onClose={() => setQuickCustomerOpen(false)}
+      description="Cadastre o cliente e vincule-o à atividade."
+      initialValues={customerDocumentDigits.length === 11
+        ? { customerType: "PF", document: customerDocumentDigits }
+        : customerDocumentDigits.length === 14
+          ? { customerType: "PJ", cnpj: customerDocumentDigits }
+          : {}}
+      onSaved={customer => {
+        set("customer_id", customer.id);
+        set("service_order_id", null);
+        setCustomerInfo(customer as WorkCustomer);
+        setCustomerResults([]);
+        setCustomerSearch("");
+        setQuickCustomerOpen(false);
+      }}
+    />}
+  </>;
 }
