@@ -362,8 +362,11 @@ export function SacDigitalToolPage({
     };
   }, [activeOrganizationId, canViewMessages]);
   const [moduleSection, setModuleSection] = useState('conversations');
-  const [loading, setLoading] = useState(true);
-  const [inboxLoading, setInboxLoading] = useState(false);
+  // The initial gate is keyed to the active user and organization so a
+  // previous inbox never flashes while the next session is being loaded.
+  const screenIdentity = JSON.stringify([activeOrganizationId, user?.id, canViewMessages]);
+  const [readyScreenIdentity, setReadyScreenIdentity] = useState("");
+  const loading = screenIdentity !== readyScreenIdentity;
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [protocolAction, setProtocolAction] = useState<"routing" | "forward" | "assume" | "inbox" | "finish" | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
@@ -579,6 +582,9 @@ export function SacDigitalToolPage({
   );
 
   const isSacManager = operatorBinding?.linked && operatorBinding.access_mode === "manager";
+  // Binding updates should not recreate the loader and restart the whole page.
+  const isSacManagerRef = useRef(isSacManager);
+  isSacManagerRef.current = isSacManager;
 
   const visibleProtocols = useMemo(() => {
     const linkedOperatorId = operatorBinding?.linked && operatorBinding.access_mode === "operator"
@@ -667,26 +673,31 @@ export function SacDigitalToolPage({
   }, [conversationSearch, operatorFilter, statusFilter, visibleProtocols, waitingProtocolSet]);
 
   const loadStatus = useCallback(async () => {
-    if (!activeOrganizationId) return;
+    if (!activeOrganizationId) return null;
+    const identity = JSON.stringify([activeOrganizationId, user?.id]);
     try {
       const next = await getSacDigitalIntegrationStatus(activeOrganizationId);
-      setStatus(next);
+      if (currentIdentityRef.current === identity) setStatus(next);
+      return next;
     } catch (error) {
-      setMessage({
-        text: systemErrorMessage(error, "Não foi possível verificar o estado da integração SAC Digital."),
-        error: true,
-      });
+      if (currentIdentityRef.current === identity) {
+        setStatus(null);
+        setMessage({
+          text: systemErrorMessage(error, "Não foi possível verificar o estado da integração SAC Digital."),
+          error: true,
+        });
+      }
+      return null;
     }
-  }, [activeOrganizationId]);
+  }, [activeOrganizationId, user?.id, setMessage]);
 
-  const loadProtocols = useCallback(async (showLoading = false,fresh = false) => {
+  const loadProtocols = useCallback(async (fresh = false) => {
     const requestId=++protocolsRequestIdRef.current;
     if (!activeOrganizationId || !canViewMessages) {
       setProtocols([]);
       selectProtocol(null);
       return;
     }
-    if (showLoading) setInboxLoading(true);
     try {
       const [next, totalFinished] = await Promise.all([
         listSacDigitalProtocols(activeOrganizationId,fresh,user?.id || ""),
@@ -710,7 +721,7 @@ export function SacDigitalToolPage({
       setProtocols(currentProtocols => {
         const selectedIdToKeep = resolvedSelectedId || currentSelectedId;
         if (!selectedIdToKeep || next.some(protocol => protocol.id === selectedIdToKeep)) return next;
-        if (!isSacManager) return next;
+        if (!isSacManagerRef.current) return next;
         const previousSelected = currentProtocols.find(protocol => protocol.id === selectedIdToKeep);
         return previousSelected ? [previousSelected, ...next] : next;
       });
@@ -724,10 +735,8 @@ export function SacDigitalToolPage({
         text: systemErrorMessage(error, "Não foi possível carregar as conversas do SAC Digital."),
         error: true,
       });
-    } finally {
-      if (requestId===protocolsRequestIdRef.current) setInboxLoading(false);
     }
-  }, [activeOrganizationId, canViewMessages, isSacManager, selectProtocol,user?.id]);
+  }, [activeOrganizationId, canViewMessages, selectProtocol, user?.id, setMessage]);
 
   const loadMessages = useCallback(async (protocolId: string | null, showLoading = false) => {
     if (protocolId && selectedProtocolIdRef.current !== protocolId) return;
@@ -765,13 +774,30 @@ export function SacDigitalToolPage({
       setUnreadCounts({});
       return;
     }
+    const identity = JSON.stringify([activeOrganizationId, user?.id]);
     try {
       const counts = await getSacDigitalUnreadCounts(activeOrganizationId);
-      setUnreadCounts(counts);
+      if (currentIdentityRef.current === identity) setUnreadCounts(counts);
     } catch {
-      // A conversa continua funcional mesmo se o contador falhar temporariamente.
+      // Contadores são secundários e nunca bloqueiam a caixa de conversas.
     }
-  }, [activeOrganizationId, canViewMessages]);
+  }, [activeOrganizationId, canViewMessages, user?.id]);
+
+  // Wait for this binding exactly once per session instead of showing an empty
+  // operator inbox and then replacing it when the SAC profile arrives.
+  const loadOperatorBinding = useCallback(async (integrationEnabled: boolean) => {
+    if (!activeOrganizationId || !canViewMessages || !integrationEnabled) {
+      setOperatorBinding(null);
+      return;
+    }
+    const identity = JSON.stringify([activeOrganizationId, user?.id]);
+    try {
+      const binding = await getMySacDigitalOperatorBinding(activeOrganizationId);
+      if (currentIdentityRef.current === identity) setOperatorBinding(binding);
+    } catch {
+      if (currentIdentityRef.current === identity) setOperatorBinding(null);
+    }
+  }, [activeOrganizationId, canViewMessages, user?.id]);
 
   const [presenceLoading, setPresenceLoading] = useState(false);
   const [confirmedPresence, setConfirmedPresence] = useState<boolean | null>(null);
@@ -874,15 +900,19 @@ export function SacDigitalToolPage({
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
     void initializeSacScreen({
-      loadStatus, loadProtocols: () => loadProtocols(true), loadUnreadCounts,
-      onReady: () => { if (!alive) return false; setLoading(false); },
+      loadStatus,
+      loadProtocols: () => loadProtocols(),
+      loadOperatorBinding,
+      loadUnreadCounts,
+      onReady: () => {
+        if (!alive) return false;
+        setReadyScreenIdentity(screenIdentity);
+        return true;
+      },
     });
-    return () => {
-      alive = false;
-    };
-  }, [loadProtocols, loadStatus, loadUnreadCounts]);
+    return () => { alive = false; };
+  }, [loadProtocols, loadStatus, loadOperatorBinding, loadUnreadCounts, screenIdentity]);
 
   // O deep-link da OS deve abrir somente o protocolo informado no URL.
   // Primeiro sincronizamos diretamente com o fornecedor (pode haver atraso
@@ -1133,28 +1163,6 @@ export function SacDigitalToolPage({
     })();
     return () => { cancelled = true; };
   }, [activeOrganizationId, canSendMessages, canViewCustomers, loading, routeCustomerId, routeExternalProtocol, routeOrderConversationId, status?.enabled, visibleProtocols]);
-
-  useEffect(() => {
-    let cancelled = false;
-    if (!activeOrganizationId || !canViewMessages || !status?.enabled) {
-      setOperatorBinding(null);
-      return;
-    }
-
-    const loadBinding = async () => {
-      try {
-        const binding = await getMySacDigitalOperatorBinding(activeOrganizationId);
-        if (!cancelled) setOperatorBinding(binding);
-      } catch {
-        if (!cancelled) setOperatorBinding(null);
-      }
-    };
-
-    void loadBinding();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeOrganizationId, canViewMessages, status?.enabled]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1414,7 +1422,7 @@ export function SacDigitalToolPage({
   const reloadSelectedProtocol = async () => {
     if (!selectedProtocol) return;
     await Promise.all([
-      loadProtocols(false,true),
+      loadProtocols(true),
       loadMessages(selectedProtocol.id, false),
       loadOperatorQueue(true),
     ]);
@@ -1649,7 +1657,7 @@ export function SacDigitalToolPage({
         // O estado confirmado já está aplicado; o refresh normal fará a reconciliação.
       }
       if (currentIdentityRef.current === identity) {
-        await Promise.all([loadProtocols(false, true), loadOperatorQueue(true)]);
+        await Promise.all([loadProtocols(true), loadOperatorQueue(true)]);
       }
     } catch (error) {
       if (currentIdentityRef.current !== identity) return;
@@ -1773,7 +1781,7 @@ export function SacDigitalToolPage({
         setStatusFilter("waiting");
       }
       setMessage({ text: "Atendimento finalizado com sucesso." });
-      await Promise.all([loadProtocols(false, true), loadOperatorQueue(true)]);
+      await Promise.all([loadProtocols(true), loadOperatorQueue(true)]);
     } catch (error) {
       if (currentIdentityRef.current !== identity) return;
       setMessage({
@@ -1984,10 +1992,6 @@ export function SacDigitalToolPage({
           <AdminButton variant="secondary" onClick={() => setOrderRouteRetry(value => value + 1)}>
             Tentar novamente
           </AdminButton>
-        </div>
-      ) : inboxLoading && visibleProtocols.length === 0 ? (
-        <div className="flex h-full items-center justify-center p-6">
-          <LoadingState text="Carregando conversas..." />
         </div>
       ) : visibleProtocols.length === 0 ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
