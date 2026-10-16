@@ -1,3 +1,4 @@
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -239,7 +240,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
         </Section>
         {canPublish && <Section title="Loja da Artvideo">
           <div className="space-y-4">
-            {publicationLoading && <p role="status" className="text-xs text-muted-foreground">Carregando publicação do serviço...</p>}
+            {publicationLoading && <InlineLoading text="Carregando publicação do serviço..." />}
             {publicationError && <div role="alert" className="text-xs text-red-600">
               Não foi possível carregar os dados da loja: {publicationError}
               <button type="button" className="ml-2 font-semibold underline" onClick={() => loadPublication(editItem?.id || null)}>Tentar novamente</button>
@@ -273,7 +274,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
     <div className="px-4 pb-5 sm:px-5">
       <Section title="Equipamentos vinculados">
         <p className="mb-3 text-xs text-muted-foreground">Marque os equipamentos que podem receber este serviço.</p>
-        {equipmentLoading && <p role="status" className="py-4 text-xs text-muted-foreground">Carregando equipamentos...</p>}
+        {equipmentLoading && <InlineLoading className="py-4" text="Carregando equipamentos..." />}
         {!equipmentLoading && equipmentError && <div role="alert" className="space-y-2 py-3 text-xs text-red-600">
           <p>Não foi possível carregar os vínculos: {equipmentError}</p>
           <button type="button" disabled={saving} onClick={() => loadEquipmentLinks(editItem?.id ?? null)} className="font-semibold underline underline-offset-2">Tentar novamente</button>
