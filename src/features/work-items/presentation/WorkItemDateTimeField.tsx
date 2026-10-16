@@ -74,7 +74,11 @@ export function WorkItemDateTimeField({
           placeholder="HH:mm" maxLength={5} className={cn(INPUT, "min-w-0 pl-8 pr-7 text-center text-sm tabular-nums")}
           onFocus={() => setOpen(true)}
           onChange={event => {
-            const next = event.target.value.replace(/[^\d:]/g, "").slice(0, 5);
+            const raw = event.target.value.replace(/[^\d:]/g, "").slice(0, 5);
+            const digits = raw.replace(/\D/g, "");
+            const next = !raw.includes(":") && digits.length > 2
+              ? `${digits.slice(0, 2)}:${digits.slice(2, 4)}`
+              : raw;
             setTimeText(next);
             if (validTime(next)) onChange(buildDate(parts.date || todayDate(), next));
           }}
