@@ -27,6 +27,7 @@ const ServicesPage = lazy(() => import("@/features/public-services/presentation/
 const ServiceDetailPage = lazy(() => import("@/features/public-services/presentation/ServiceDetailPage").then(module => ({ default: module.ServiceDetailPage })));
 const StorePage = lazy(() => import("@/features/public-store/presentation/StorePage").then(module => ({ default: module.StorePage })));
 const ProductDetailPage = lazy(() => import("@/features/public-store/presentation/ProductDetailPage").then(module => ({ default: module.ProductDetailPage })));
+const StoreCheckoutPage = lazy(() => import("@/features/public-store/presentation/StoreCheckoutPage").then(module => ({ default: module.StoreCheckoutPage })));
 const AboutPage = lazy(() => import("@/features/institutional/presentation/AboutPage").then(module => ({ default: module.AboutPage })));
 const ContactPage = lazy(() => import("@/features/contact-public/presentation/ContactPage").then(module => ({ default: module.ContactPage })));
 const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistance/presentation/TechnicalAssistancePage").then(module => ({ default: module.TechnicalAssistancePage })));
@@ -367,6 +368,7 @@ function PublicRoutes() {
           <Route path="/" element={<HomePage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} trackingSection={<ServiceTrackingSection />} />} />
           <Route path="/loja" element={<StorePage setPage={setPage} onSelectProduct={selectProduct} />} />
           <Route path="/loja/:slug" element={<ProductDetailRoute setPage={setPage} />} />
+          <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
@@ -386,12 +388,18 @@ function ProductDetailRoute({ setPage }: { setPage: (page: Page) => void }) {
   return <ProductDetailPage slug={slug || null} setPage={setPage} />;
 }
 
+function StoreCheckoutRoute() {
+  const { slug } = useParams();
+  return <StoreCheckoutPage slug={slug || null} />;
+}
+
 function ServiceDetailRoute({ setPage }: { setPage: (page: Page) => void }) {
   const { slug } = useParams();
   return <ServiceDetailPage slug={slug || null} setPage={setPage} />;
 }
 
 function pageFromPath(pathname: string): Page {
+  if (/^\/checkout\/[^/]+$/.test(pathname)) return "loja";
   if (/^\/loja\/[^/]+$/.test(pathname)) return "produto";
   if (/^\/servicos\/[^/]+$/.test(pathname)) return "servico";
   if (pathname === "/loja") return "loja";

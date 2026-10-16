@@ -1,28 +1,20 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, Clock3,
-  CreditCard, Image as ImageIcon, LockKeyhole, MapPin, MessageCircle, Minus,
+  Image as ImageIcon, LockKeyhole, MessageCircle, Minus,
   Package, Plus, ShieldCheck, ShoppingCart, Star, Truck, X,
 } from "lucide-react";
 import { useProductDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
 import { publicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
-import { getStoreProductExtras, quoteStoreShipping, startStoreCheckout, submitStoreReview, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, quoteStoreShipping, submitStoreReview, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { PublicHeading, PublicButton } from "@/features/public-shell/presentation/PublicUi";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { getWhatsAppNumber } from "@/features/public-shell/application/site-settings";
 
-type CheckoutFields = {
-  buyer_name: string; buyer_email: string; buyer_phone: string;
-  street: string; number: string; complement: string;
-  district: string; city: string; state: string;
-};
-const blankFields: CheckoutFields = {
-  buyer_name: "", buyer_email: "", buyer_phone: "", street: "", number: "",
-  complement: "", district: "", city: "", state: "",
-};
 const inputClass = "min-h-11 w-full rounded-[6px] border border-[#dce5f1] bg-white px-3 py-2.5 text-[13px] text-[#0b1d37] outline-none transition-all placeholder:text-[#92a0b3] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-200";
 const reviewStars = (rating: number) => Array.from({ length: 5 }, (_, i) =>
   <Star key={i} size={17} fill={i < Math.round(rating) ? "currentColor" : "none"}
@@ -37,6 +29,7 @@ function ProductImage({ src, alt, className = "" }: { src?: string | null; alt: 
 
 export function ProductDetailPage({ slug, setPage }: { slug: string | null; setPage: (page: PublicPage) => void }) {
   const { detail, loading, error } = useProductDetailBySlug(slug);
+  const navigate = useNavigate();
   const { settings } = useSiteSettings();
   const productId: string = detail?.product?.id ?? "";
   const extraQuery = useQuery({
@@ -52,11 +45,6 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const [selectedShippingId, setSelectedShippingId] = useState("");
   const [shippingLoading, setShippingLoading] = useState(false);
   const [shippingError, setShippingError] = useState("");
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [checkoutLoading, setCheckoutLoading] = useState(false);
-  const [checkoutError, setCheckoutError] = useState("");
-  const [addressLoading, setAddressLoading] = useState(false);
-  const [fields, setFields] = useState<CheckoutFields>(blankFields);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [reviewOrderId, setReviewOrderId] = useState(() => typeof sessionStorage !== "undefined" ? sessionStorage.getItem("artvideo-last-order") || "" : "");
   const [reviewEmail, setReviewEmail] = useState(() => typeof sessionStorage !== "undefined" ? sessionStorage.getItem("artvideo-last-email") || "" : "");
@@ -68,7 +56,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
 
   useEffect(() => {
     setImageIndex(0); setQty(1); setPostalCode(""); setShipping(null); setSelectedShippingId("");
-    setCheckoutOpen(false); setCheckoutError(""); setShippingError(""); setFields(blankFields);
+    setShippingError("");
   }, [productId]);
 
   if (loading) return <div className="flex min-h-[55vh] items-center justify-center gap-2 text-[14px] text-[#5d6c83]"><Clock3 size={20} className="animate-spin text-[var(--art-primary)]"/> Carregando produto...</div>;
@@ -109,39 +97,6 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
       setSelectedShippingId(result[0].id);
     } catch (e) { setShippingError(e instanceof Error ? e.message : "Não foi possível calcular o frete."); }
     finally { setShippingLoading(false); }
-  };
-
-  const lookupAddress = async () => {
-    const zip = postalCode.replace(/\D/g, "");
-    if (!/^\d{8}$/.test(zip)) return;
-    setAddressLoading(true);
-    try {
-      const response = await fetch(`https://viacep.com.br/ws/${zip}/json/`);
-      if (!response.ok) throw new Error("CEP não encontrado.");
-      const data = await response.json();
-      if (data.erro) throw new Error("CEP não encontrado.");
-      setFields(prev => ({ ...prev, street: prev.street || data.logradouro || "",
-        district: prev.district || data.bairro || "", city: data.localidade || "", state: data.uf || "" }));
-    } catch { /* Endereço pode ser preenchido manualmente. */ }
-    finally { setAddressLoading(false); }
-  };
-
-  const checkout = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault(); setCheckoutError("");
-    if (!canBuy || !selectedOption) { setCheckoutError("Confira o estoque e selecione um frete válido antes de prosseguir."); return; }
-    setCheckoutLoading(true);
-    try {
-      const result = await startStoreCheckout({
-        product_id: productId, quantity: selectedQty, postal_code: postalCode.replace(/\D/g, ""),
-        shipping_service_id: selectedOption.id, ...fields,
-      });
-      if (result.orderId) {
-        sessionStorage.setItem("artvideo-last-order", result.orderId);
-        sessionStorage.setItem("artvideo-last-email", fields.buyer_email);
-      }
-      window.location.assign(result.url);
-    } catch (e) { setCheckoutError(e instanceof Error ? e.message : "Não foi possível iniciar a compra."); }
-    finally { setCheckoutLoading(false); }
   };
 
   const sendReview = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -248,13 +203,13 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             {selectedOption && <div className="flex justify-between gap-2"><span>Frete</span><span>{formatCurrency(selectedOption.price)}</span></div>}
             {selectedOption && <div className="flex justify-between gap-2 pt-2 text-[14px] font-extrabold"><span>Total</span><span>{formatCurrency(Number(product.price)*selectedQty+selectedOption.price)}</span></div>}
           </div>}
-          <button type="button" disabled={!canBuy || !selectedOption} onClick={() => { setCheckoutOpen(true); setCheckoutError(""); void lookupAddress(); }}
+          <button type="button" disabled={!canBuy} onClick={() => navigate("/checkout/" + encodeURIComponent(slug || product.slug) + "?q=" + selectedQty + (postalCode.replace(/\D/g, "").length === 8 ? "&cep=" + postalCode.replace(/\D/g, "") : ""))}
             className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--art-primary)] px-4 text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
             <ShoppingCart size={19}/> Comprar agora
           </button>
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-[#7b8ba1]"><LockKeyhole size={13}/> O pagamento só ocorre no checkout seguro.</p>
           {!canBuy && <p className="mt-2 text-center text-[12px] text-[#9a4851]">Compra online indisponível até confirmar preço e estoque.</p>}
-          {canBuy && !selectedOption && <p className="mt-2 text-center text-[12px] text-[#687b95]">Calcule e selecione um frete para continuar.</p>}
+          {canBuy && !selectedOption && <p className="mt-2 text-center text-[12px] text-[#687b95]">Você poderá consultar o frete durante a finalização da compra.</p>}
         </aside>
       </div>
     </section>
@@ -323,37 +278,5 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
       </div>
     </section>
 
-    {checkoutOpen && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#07172b]/70 p-3 backdrop-blur-sm" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget && !checkoutLoading) setCheckoutOpen(false); }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="artvideo-checkout-heading" className="flex max-h-[94dvh] w-full max-w-xl flex-col overflow-hidden rounded-[12px] bg-white shadow-2xl">
-        <div className="flex items-start justify-between gap-3 border-b border-[#e9eef4] px-5 py-4">
-          <div><h2 id="artvideo-checkout-heading" className="text-[18px] font-extrabold text-[#0b1d37]">Finalizar compra</h2>
-            <p className="mt-1 text-[12px] text-[#64748b]">Dados de entrega e contato para o pedido</p></div>
-          <button type="button" aria-label="Fechar" onClick={() => setCheckoutOpen(false)} disabled={checkoutLoading} className="rounded-md p-2 text-[#64748b] hover:bg-slate-100"><X size={21}/></button>
-        </div>
-        <form onSubmit={checkout} className="overflow-y-auto px-5 py-5">
-          <div className="mb-5 rounded-lg bg-[#f2f7ff] p-4 text-[12px]">
-            <strong className="block text-[13px]">{name}</strong><span>Quantidade: {selectedQty} · {selectedOption?.company} {selectedOption?.name}</span>
-            <strong className="mt-2 block text-[16px] text-[var(--art-primary)]">Total: {formatCurrency(Number(product.price || 0) * selectedQty + Number(selectedOption?.price || 0))}</strong>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="text-[12px] font-bold sm:col-span-2">Nome completo *<input required maxLength={150} className={`${inputClass} mt-1`} value={fields.buyer_name} onChange={e => setFields({...fields,buyer_name:e.target.value})}/></label>
-            <label className="text-[12px] font-bold">E-mail *<input required type="email" className={`${inputClass} mt-1`} value={fields.buyer_email} onChange={e => setFields({...fields,buyer_email:e.target.value})}/></label>
-            <label className="text-[12px] font-bold">Telefone/WhatsApp *<input required inputMode="tel" minLength={10} className={`${inputClass} mt-1`} value={fields.buyer_phone} onChange={e => setFields({...fields,buyer_phone:e.target.value})}/></label>
-            <p className="flex items-center gap-1 text-[12px] font-bold sm:col-span-2"><MapPin size={16}/> Endereço de entrega {addressLoading && <span className="font-normal text-[#64748b]">(consultando CEP...)</span>}</p>
-            <label className="text-[12px] font-bold sm:col-span-2">Rua/Avenida *<input required className={`${inputClass} mt-1`} value={fields.street} onChange={e => setFields({...fields,street:e.target.value})}/></label>
-            <label className="text-[12px] font-bold">Número *<input required className={`${inputClass} mt-1`} value={fields.number} onChange={e => setFields({...fields,number:e.target.value})}/></label>
-            <label className="text-[12px] font-bold">Complemento<input className={`${inputClass} mt-1`} value={fields.complement} onChange={e => setFields({...fields,complement:e.target.value})}/></label>
-            <label className="text-[12px] font-bold sm:col-span-2">Bairro *<input required className={`${inputClass} mt-1`} value={fields.district} onChange={e => setFields({...fields,district:e.target.value})}/></label>
-            <label className="text-[12px] font-bold">Cidade *<input required className={`${inputClass} mt-1`} value={fields.city} onChange={e => setFields({...fields,city:e.target.value})}/></label>
-            <label className="text-[12px] font-bold">UF *<input required maxLength={2} minLength={2} className={`${inputClass} mt-1`} value={fields.state} onChange={e => setFields({...fields,state:e.target.value.toUpperCase()})}/></label>
-          </div>
-          {checkoutError && <p role="alert" className="mt-4 rounded-md bg-red-50 p-3 text-[12px] text-red-700">{checkoutError}</p>}
-          <button type="submit" disabled={checkoutLoading || addressLoading} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] text-[13px] font-bold text-white hover:brightness-110 disabled:opacity-50">
-            {checkoutLoading ? <><Clock3 className="animate-spin" size={17}/> Criando pagamento...</> : <><CreditCard size={19}/> Ir para pagamento seguro</>}
-          </button>
-          <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-[#8290a4]"><LockKeyhole size={13}/> Nunca solicitamos dados de cartão neste formulário.</p>
-        </form>
-      </div>
-    </div>}
   </div>;
 }
