@@ -151,12 +151,12 @@ test('OAuth callback saves a confirmed token subject when SAC omits both id and 
  assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
  assert.equal(f.inspect().saved.p_operator_id,'op');
 });
-test('OAuth callback refuses to save a different token subject when profile identity is absent',async()=>{
+test('OAuth callback saves validated Operator OAuth even when token subject is not a documented Operator ID',async()=>{
  const f=callbackFixture();const token='h.'+Buffer.from(JSON.stringify({sub:'other'})).toString('base64url')+'.s';
  f.deps.fetcher=async url=>url.endsWith('/oauth/token')
   ? Response.json({access_token:token,refresh_token:'private-refresh',expires_in:604800})
   : Response.json({status:true,info:{name:'Atendente'}});
  const response=await handleSacOAuthCallback(callbackRequest(),f.admin,f.deps);
- assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'operator_auth_contract_unverified');
- assert.equal(f.inspect().saved,null);
+ assert.equal(new URL(response.headers.get('Location')).searchParams.get('sac_oauth'),'success');
+ assert.equal(f.inspect().saved.p_operator_id,'op');
 });
