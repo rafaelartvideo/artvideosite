@@ -6,7 +6,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import { FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 import {
   archiveFinancialAttachment,
@@ -121,7 +121,7 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
       </div>}
 
       {errorText && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
-      {query.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando documentos...</p> : attachments.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><FileText size={17} /> Nenhum documento anexado.</div> : <div className="space-y-2">
+      {query.isLoading ? <LoadingState text="Carregando documentos..." /> : attachments.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><FileText size={17} /> Nenhum documento anexado.</div> : <div className="space-y-2">
         {attachments.map(item => <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.file_name}</p><p className="mt-1 text-xs text-[#5a6a82]">{typeLabel(item.attachment_type)} · {formatSize(item.size_bytes)} · {new Date(item.created_at).toLocaleString("pt-BR")}</p></div>
           <div className="flex gap-2"><AdminButton size="sm" variant="secondary" onClick={() => void view(item)}><Eye size={14} /> Abrir</AdminButton>{canManage && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setArchiveReasonError(""); }}><Archive size={14} /> Arquivar</AdminButton>}</div>
