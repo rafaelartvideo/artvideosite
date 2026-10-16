@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
 import { AdminButton, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatNumber } from "@/shared/domain/formatters";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
@@ -111,7 +112,7 @@ export function OrderCompletionPaymentSection({
 
         {completion.financeOptionsLoading && (
           <div className="border-y border-border py-4 text-sm text-muted-foreground">
-            Carregando formas de recebimento...
+            <InlineLoading text="Carregando formas de recebimento..." />
           </div>
         )}
 
