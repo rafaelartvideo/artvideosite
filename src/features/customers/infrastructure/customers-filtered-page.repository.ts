@@ -49,7 +49,7 @@ export async function listExactCustomersPage(input: ExactCustomerPageInput): Pro
     const rightName = String(right.trade_name || right.full_name || right.legal_name || "");
     const comparison = leftName.localeCompare(rightName, "pt-BR", { sensitivity: "base", numeric: true });
     return sort === "asc" ? comparison : -comparison;
-  }) : [...filtered].sort((left: any, right: any) => String(right.created_at ?? "").localeCompare(String(left.created_at ?? "")));
+  }) : [...filtered].sort((left: any, right: any) => String(left.trade_name || left.full_name || left.legal_name || "").localeCompare(String(right.trade_name || right.full_name || right.legal_name || ""), "pt-BR", { sensitivity: "base", numeric: true }));
 
   const safeSize = Math.max(1, pageSize);
   const start = (Math.max(1, page) - 1) * safeSize;
