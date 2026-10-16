@@ -133,6 +133,7 @@ export function subscribeWorkItems(organizationId: string, onChange: () => void)
   const channel = supabase.channel("work-items:" + organizationId)
     .on("postgres_changes", { event: "*", schema: "public", table: "work_items", filter: "organization_id=eq." + organizationId }, onChange)
     .on("postgres_changes", { event: "*", schema: "public", table: "work_item_checklist", filter: "organization_id=eq." + organizationId }, onChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "work_item_activity", filter: "organization_id=eq." + organizationId }, onChange)
     .subscribe();
   return () => { void supabase.removeChannel(channel); };
 }
