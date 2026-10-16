@@ -1,3 +1,5 @@
+import { LoadingDots } from "./AdminFeedback";
+
 export function AdminPanelLoader({
   progress = 12,
   status = "Carregando painel",
@@ -23,6 +25,7 @@ export function AdminPanelLoader({
           className="h-40 w-40 object-contain sm:h-48 sm:w-48"
         />
 
+        <LoadingDots className="mt-4 text-white" size="lg" />
         <div className="mt-7 w-full">
           <div className="mb-2 flex items-center justify-between gap-4 text-xs font-semibold tracking-[0.06em] text-white/78">
             <span>{status}</span>
