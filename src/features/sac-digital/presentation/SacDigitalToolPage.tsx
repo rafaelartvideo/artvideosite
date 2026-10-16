@@ -1246,6 +1246,19 @@ export function SacDigitalToolPage({
     selectedProtocolId,
   ]);
 
+  const sacWasInBackgroundRef = useRef(false);
+  useEffect(() => {
+    if (!sacRouteActive) {
+      sacWasInBackgroundRef.current = true;
+      return;
+    }
+    if (!sacWasInBackgroundRef.current || loading || !activeOrganizationId || !canViewMessages) return;
+    sacWasInBackgroundRef.current = false;
+    // Ao voltar de um modal minimizado em outro módulo, recuperar apenas
+    // o estado atual, sem manter GETs contínuos enquanto a caixa está oculta.
+    void Promise.all([loadProtocols(false), loadUnreadCounts()]).catch(() => undefined);
+  }, [sacRouteActive, loading, activeOrganizationId, canViewMessages, loadProtocols, loadUnreadCounts]);
+
   useEffect(() => {
     if (loading || !sacRouteActive || !activeOrganizationId || !canViewMessages) return;
     let updating = false;
