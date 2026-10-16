@@ -939,7 +939,7 @@ export function sacDigitalMediaUrl(value?: string | null) {
   }
 }
 
-export type SacDigitalResourceResult = { success: boolean; data: unknown; outcome?: string; has_more?: boolean; next_page?: number | string | null; error?: string; type?: string };
+export type SacDigitalResourceResult = { success: boolean; data: unknown; outcome?: string; has_more?: boolean; next_page?: number | string | null; error?: string; type?: string; mode?: string; pending_start_id?: string | null; };
 export async function operateSacDigitalResource(organizationId: string, endpointId: number, values: Record<string, unknown>) {
   return await invokeSacDigitalApi({ action: 'resource_operation', organization_id: organizationId, endpoint_id: endpointId, values }) as unknown as SacDigitalResourceResult;
 }
