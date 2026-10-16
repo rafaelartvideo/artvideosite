@@ -165,8 +165,8 @@ export function SacDigitalNewConversationDialog({
     }
   };
 
-  const prepare = async (candidate?: SacDigitalNewConversationCandidate) => {
-    const key = candidate ? candidateKey(candidate) : "manual";
+  const prepare = async (candidate: SacDigitalNewConversationCandidate) => {
+    const key = candidateKey(candidate);
     if (preparingKey) return;
 
     const requestId = ++prepareRequestRef.current;
@@ -176,16 +176,12 @@ export function SacDigitalNewConversationDialog({
     try {
       const result = await prepareSacDigitalNewConversationContact(
         organizationId,
-        candidate
-          ? {
-              externalContactId: candidate.external_contact_id || undefined,
-              customerId: candidate.customer_id || undefined,
-              name: candidate.name,
-              phone: candidate.phone,
-            }
-          : {
-              phone: query.trim(),
-            },
+        {
+          externalContactId: candidate.external_contact_id || undefined,
+          customerId: candidate.customer_id || undefined,
+          name: candidate.name,
+          phone: candidate.phone,
+        },
       );
       if (requestId !== prepareRequestRef.current) return;
 
@@ -281,7 +277,7 @@ export function SacDigitalNewConversationDialog({
       open={open}
       onClose={close}
       title="Nova conversa"
-      description="Busque um contato existente ou informe um número para iniciar um atendimento pelo SAC Digital."
+      description="Busque um contato cadastrado para abrir o atendimento existente ou iniciar uma conversa pela SAC Digital."
       className="max-w-2xl"
       minimizable
       footer={
