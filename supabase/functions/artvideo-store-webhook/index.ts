@@ -7,8 +7,8 @@ async function verifySignature(req: Request, dataId: string): Promise<boolean> {
   const secret = Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET") || "";
   const signature = req.headers.get("x-signature") || "";
   const requestId = req.headers.get("x-request-id") || "";
-  const timestamp = /(?:^|,)ts=([^,]+)/.exec(signature)?.[1] || "";
-  const received = /(?:^|,)v1=([a-f\d]+)/i.exec(signature)?.[1] || "";
+  const timestamp = /(?:^|,)\s*ts\s*=\s*([0-9]+)/.exec(signature)?.[1] || "";
+  const received = /(?:^|,)\s*v1\s*=\s*([a-f\d]+)/i.exec(signature)?.[1] || "";
   if (!secret || !requestId || !timestamp || !received || !dataId) return false;
   if (!/^\d+$/.test(timestamp)) return false;
   const seconds = Number(timestamp) > 1e11 ? Number(timestamp) / 1000 : Number(timestamp);

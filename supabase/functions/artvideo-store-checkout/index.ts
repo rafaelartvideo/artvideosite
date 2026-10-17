@@ -28,6 +28,24 @@ Deno.serve(async req => {
     if (new Set(validated.map(item => item.product_id)).size !== validated.length) {
       throw new Error("O carrinho possui produtos duplicados.");
     }
+
+    // Os preços enviados pelo navegador servem somente para conferir o
+    // valor que o cliente aceitou. O preço cobrado vem exclusivamente do CRM.
+    const expectedItems = Array.isArray(input.expected_items) ? input.expected_items : [];
+    if (expectedItems.length !== validated.length) {
+      return json({ error: "Atualize o carrinho e revise os valores antes de pagar." }, 409);
+    }
+    const wantedPrices = new Map<string, number>();
+    for (const item of expectedItems) {
+      const productId = String(item?.product_id || "");
+      const cents = Number(item?.unit_price) * 100;
+      if (!/^[0-9a-f-]{36}$/i.test(productId) || !Number.isSafeInteger(Math.round(cents))
+        || !Number.isFinite(cents) || Math.abs(cents-Math.round(cents)) > 0.001
+        || cents <= 0 || wantedPrices.has(productId)) {
+        return json({ error: "Os valores do carrinho não são válidos. Atualize a página." }, 409);
+      }
+      wantedPrices.set(productId, Math.round(cents));
+    }
     const wantsPickup = String(input.shipping_service_id) === "pickup";
     const zip = wantsPickup ? "" : cleanPostalCode(input.postal_code);
     const email = safeText(input.buyer_email, 200);
@@ -44,11 +62,29 @@ Deno.serve(async req => {
         || !/^[A-Z]{2}$/.test(address.state)))) {
       return json({ error: "Confira os dados do comprador e endereço de entrega." }, 400);
     }
+
     const products = await Promise.all(validated.map(item => loadProduct(admin, item.product_id)));
+    let subtotalCents = 0;
+    for (let i=0;i<validated.length;i++) {
+      const currentPrice = Math.round(Number(products[i].price)*100);
+      if (wantedPrices.get(validated[i].product_id)!==currentPrice) {
+        return json({ error: "O preço de um produto mudou. Atualize o carrinho e confira o valor antes de pagar." }, 409);
+      }
+      subtotalCents += currentPrice * validated[i].quantity;
+    }
     const pickup = wantsPickup ? await pickupOption(admin) : null;
     const options = wantsPickup ? (pickup ? [pickup] : []) : await shippingQuotes(admin, zip);
     const selected = options.find(q => q.id === String(input.shipping_service_id));
+
     if (!selected) return json({ error: "O frete selecionado mudou. Calcule novamente antes de pagar." }, 409);
+    const expectedFreightCents = Math.round(Number(input.expected_shipping_price)*100);
+    const expectedTotalCents = Math.round(Number(input.expected_total)*100);
+    const shippingCents = Math.round(Number(selected.price)*100);
+    if (!Number.isFinite(expectedFreightCents) || !Number.isFinite(expectedTotalCents)
+      || expectedFreightCents !== shippingCents
+      || expectedTotalCents !== subtotalCents + shippingCents) {
+      return json({ error: "O total do pedido mudou. Revise os valores dos produtos e do frete antes de pagar." }, 409);
+    }
 
     const pickupAddress = wantsPickup && pickup ? {
       street: pickup.street, number: pickup.number, complement: pickup.complement,
@@ -68,6 +104,10 @@ Deno.serve(async req => {
 
     const deadline = new Date(Date.now() + 20*60*1000).toISOString();
     const detailUrl = "https://eletronicaartvideo.com.br/acompanhar-pedido";
+    const nationalPhone = phone.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
+    if (!/^\d{10,11}$/.test(nationalPhone)) {
+      return json({ error: "Informe um telefone brasileiro válido, com DDD." }, 400);
+    }
     const mpRequest = {
       items: [
         ...((order.items || []) as Array<{product_id: string; title: string; quantity: number; unit_price: number}>).map(item => ({
@@ -77,7 +117,7 @@ Deno.serve(async req => {
         { id: `shipping-${selected.id}`, title: `${wantsPickup ? "Retirada" : "Frete"}: ${selected.company} — ${selected.name}`.slice(0,200),
           quantity: 1, currency_id: "BRL", unit_price: Number(selected.price) },
       ].filter(item => item.unit_price > 0),
-      payer: { name, email, phone: { area_code: phone.replace(/\D/g, "").slice(0,2), number: phone.replace(/\D/g, "").slice(2) } },
+      payer: { name, email, phone: { area_code: nationalPhone.slice(0,2), number: nationalPhone.slice(2) } },
       external_reference: orderId,
       back_urls: {
         success: `${detailUrl}?retorno=aprovado`, pending: `${detailUrl}?retorno=pendente`,

@@ -72,6 +72,9 @@ export async function startStoreCheckout(payload: {
   product_id: string;
   quantity: number;
   items?: { product_id: string; quantity: number }[];
+  expected_items: { product_id: string; unit_price: number }[];
+  expected_shipping_price: number;
+  expected_total: number;
   postal_code: string;
   shipping_service_id: string;
   buyer_name: string;
@@ -85,7 +88,18 @@ export async function startStoreCheckout(payload: {
   state: string;
 }): Promise<{ url: string; orderId: string; trackingToken: string }> {
   const { data, error } = await supabase.functions.invoke("artvideo-store-checkout", { body: payload });
-  if (error) throw new Error("O pagamento online ainda não está disponível. Nenhum valor foi cobrado.");
+  if (error) {
+    const response = error.context;
+    if (response instanceof Response && response.status === 409) {
+      try {
+        const body = await response.clone().json() as { error?: string };
+        if (body.error) throw new Error(body.error);
+      } catch (cause) {
+        if (cause instanceof Error && !(cause instanceof SyntaxError)) throw cause;
+      }
+    }
+    throw new Error("O pagamento online ainda não está disponível. Nenhum valor foi cobrado.");
+  }
   if (data?.error) throw new Error(String(data.error));
   const destination = typeof data?.checkout_url === "string" ? data.checkout_url : "";
   if (!/^https:\/\/(www\.)?mercadopago\.com(\.br)?\//.test(destination)) {

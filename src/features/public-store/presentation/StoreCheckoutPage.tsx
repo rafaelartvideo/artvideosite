@@ -117,6 +117,13 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const subtotal = cartMode ? cartLines.reduce((total, line) => total + Number(line.product.price) * line.quantity, 0) : unitPrice * quantity;
   const total = subtotal + (selectedShipping?.price ?? 0);
   const backToProduct = cartMode ? "/carrinho" : slug ? "/loja/" + encodeURIComponent(slug) : "/loja";
+  const checkoutProductsKey = cartMode ? JSON.stringify(cartItems) : String(productId)+":"+quantity;
+  useEffect(() => {
+    if (step === 3 && !purchasable) {
+      setStep(2);
+      setError("A disponibilidade do carrinho mudou. Revise os itens antes de pagar.");
+    }
+  }, [checkoutProductsKey, purchasable]);
 
   useEffect(() => {
     setStep(1);
@@ -239,6 +246,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     inFlight.current = true;
     setPaying(true);
     setError("");
+    let redirecting = false;
     try {
       if (cartMode) {
         const latest = await Promise.all(cartExtras.map(q => q.refetch()));
@@ -273,6 +281,11 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       const checkout = await startStoreCheckout({
         product_id: productId, quantity,
         ...(cartMode ? { items: cartItems.map(i => ({ product_id: i.productId, quantity: i.quantity })) } : {}),
+        expected_items: cartMode
+          ? cartLines.map(line => ({ product_id: line.product.id, unit_price: Number(line.product.price) }))
+          : [{ product_id: productId, unit_price: unitPrice }],
+        expected_shipping_price: selectedShipping.price,
+        expected_total: total,
         postal_code: deliveryMode === "pickup" ? pickupQuery.data!.postal_code : zipDigits,
         shipping_service_id: selectedShipping.id,
         ...buyer,
@@ -285,16 +298,25 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         complement: buyer.complement.trim(),
       });
       if (checkout.orderId) {
-        sessionStorage.setItem("artvideo-last-order", checkout.orderId);
-        sessionStorage.setItem("artvideo-last-email", buyer.buyer_email.trim());
-        sessionStorage.setItem("artvideo-store-tracking", checkout.trackingToken);
+        try {
+          sessionStorage.setItem("artvideo-last-order", checkout.orderId);
+          sessionStorage.setItem("artvideo-last-email", buyer.buyer_email.trim());
+          sessionStorage.setItem("artvideo-store-tracking", checkout.trackingToken);
+        } catch {
+          // Navegadores sem armazenamento não devem impedir a navegação segura.
+        }
       }
       window.location.assign(checkout.url);
+      redirecting = true;
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível iniciar o pagamento.");
     } finally {
-      inFlight.current = false;
-      setPaying(false);
+      // Mantém o checkout bloqueado até a navegação para o provedor,
+      // evitando múltiplos pedidos se o redirecionamento demorar.
+      if (!redirecting) {
+        inFlight.current = false;
+        setPaying(false);
+      }
     }
   };
 
