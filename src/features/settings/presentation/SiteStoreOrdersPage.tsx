@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck,
@@ -59,17 +60,14 @@ const nextActions: Partial<Record<FulfillmentStatus, { status: FulfillmentStatus
 const timeText = (date: string) => new Date(date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 
 function paymentColor(status: string) {
-  if (status === "paid") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-  if (status === "manual_review") return "border-red-500/30 bg-red-500/10 text-red-600";
-  if (status === "cancelled" || status === "expired") return "border-border bg-muted text-muted-foreground";
-  return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (status === "paid") return STATUS_TONE_CLASSES.success.badge;
+  if (["manual_review", "cancelled", "expired"].includes(status)) return STATUS_TONE_CLASSES.danger.badge;
+  return STATUS_TONE_CLASSES.warning.badge;
 }
 function fulfillmentColor(status: FulfillmentStatus) {
-  if (status === "delivered" || status === "picked_up") return "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-  if (status === "delivery_issue") return "border-red-500/30 bg-red-500/10 text-red-600";
-  if (status === "out_for_delivery") return "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300";
-  if (status === "pending") return "border-border bg-muted text-muted-foreground";
-  return "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300";
+  if (status === "delivered" || status === "picked_up") return STATUS_TONE_CLASSES.success.badge;
+  if (status === "delivery_issue") return STATUS_TONE_CLASSES.danger.badge;
+  return STATUS_TONE_CLASSES.warning.badge;
 }
 function DeliveryBadge({ status }: { status: FulfillmentStatus }) {
   return <span className={"inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold " + fulfillmentColor(status)}>
@@ -300,7 +298,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
                 ? <><span className="mr-1 text-[11px] text-muted-foreground">{order.shipping_service_id === "pickup" ? "Retirada" : "Entrega"}</span><DeliveryBadge status={deliveryOf(order)}/></>
                 : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>
               <td className="p-3">{supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))
-                ? <span className="rounded-full bg-amber-500/10 px-2 py-1 text-xs font-bold text-amber-700 dark:text-amber-300">Em análise</span>
+                ? <span className={`rounded-full border px-2 py-1 text-xs font-bold ${STATUS_TONE_CLASSES.warning.badge}`}>Em análise</span>
                 : supportCases.some(c=>c.order_id===order.id) ? <span className="text-xs text-muted-foreground">Registrado</span> : "—"}</td>
             </tr>)}</tbody>
           </table>

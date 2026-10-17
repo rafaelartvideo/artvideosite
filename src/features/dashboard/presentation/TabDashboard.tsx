@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState, type ElementType, type ReactNode } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -709,9 +710,9 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     ];
     const activityTrend = buildTrend([...ordersInPeriod, ...quotesInPeriod], periodDays, item => item.created_at);
     const alerts: Array<{ title: string; subtitle: string; tone: string; tab: AdminTab }> = [
-      ...(waitingOrders.length ? [{ title: `${waitingOrders.length} OS aguardando`, subtitle: "Verifique clientes ou pendências", tone: "text-amber-700 bg-amber-50", tab: "orders" as AdminTab }] : []),
-      ...(outInventory.length ? [{ title: `${outInventory.length} itens sem estoque`, subtitle: "Reposição necessária", tone: "text-red-700 bg-red-50", tab: "inventory" as AdminTab }] : []),
-      ...(lowInventory.length ? [{ title: `${lowInventory.length} itens com estoque baixo`, subtitle: "Próximos do mínimo", tone: "text-amber-700 bg-amber-50", tab: "inventory" as AdminTab }] : []),
+      ...(waitingOrders.length ? [{ title: `${waitingOrders.length} OS aguardando`, subtitle: "Verifique clientes ou pendências", tone: STATUS_TONE_CLASSES.warning.badge, tab: "orders" as AdminTab }] : []),
+      ...(outInventory.length ? [{ title: `${outInventory.length} itens sem estoque`, subtitle: "Reposição necessária", tone: STATUS_TONE_CLASSES.danger.badge, tab: "inventory" as AdminTab }] : []),
+      ...(lowInventory.length ? [{ title: `${lowInventory.length} itens com estoque baixo`, subtitle: "Próximos do mínimo", tone: STATUS_TONE_CLASSES.warning.badge, tab: "inventory" as AdminTab }] : []),
       ...(todayAppointments.length ? [{ title: `${todayAppointments.length} compromissos hoje`, subtitle: "Confira a agenda do dia", tone: "text-blue-700 bg-blue-50", tab: "agenda" as AdminTab }] : []),
     ];
     return <DashboardArea metrics={overviewMetrics} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;

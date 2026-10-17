@@ -1,4 +1,4 @@
-import { getStatusBadgeClass } from "@/shared/domain/status-tone";
+import { getStatusBadgeClass, STATUS_TONE_CLASSES, STATUS_TONE_HEX } from "@/shared/domain/status-tone";
 import type React from "react";
 import { AlertTriangle, Check, ClipboardCheck, PackageCheck, RotateCcw, Truck, Undo2, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
@@ -16,22 +16,22 @@ type WizardStage = {
 
 const stageTone = (state: WizardStepState) => {
   if (state === "done") return {
-    dot: "bg-emerald-600 text-white",
-    panel: "border-emerald-200 bg-emerald-50/70",
-    title: "text-emerald-800",
-    line: "#059669",
+    dot: STATUS_TONE_CLASSES.success.solid,
+    panel: STATUS_TONE_CLASSES.success.badge,
+    title: STATUS_TONE_CLASSES.success.text,
+    line: STATUS_TONE_HEX.success,
   };
   if (state === "current") return {
-    dot: "bg-amber-500 text-white ring-4 ring-amber-100",
-    panel: "border-amber-300 bg-amber-50",
-    title: "text-amber-800",
-    line: "#f59e0b",
+    dot: STATUS_TONE_CLASSES.warning.solid + " ring-4 ring-orange-500/15",
+    panel: STATUS_TONE_CLASSES.warning.badge,
+    title: STATUS_TONE_CLASSES.warning.text,
+    line: STATUS_TONE_HEX.warning,
   };
   if (state === "error") return {
-    dot: "bg-red-600 text-white",
-    panel: "border-red-200 bg-red-50/80",
-    title: "text-red-700",
-    line: "#dc2626",
+    dot: STATUS_TONE_CLASSES.danger.solid,
+    panel: STATUS_TONE_CLASSES.danger.badge,
+    title: STATUS_TONE_CLASSES.danger.text,
+    line: STATUS_TONE_HEX.danger,
   };
   return {
     dot: "bg-[#dfe5ee] text-[#5a6a82]",
@@ -101,7 +101,7 @@ function PartCustodyWizard({ request, orderSolved, getCommittedQuantity }: {
     <div className="flex flex-col items-center text-center">
       <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#0d1b2e]">Fluxo das peças</p>
       <p className="mt-0.5 text-[10px] text-[#5a6a82]">{purpose === "TEST" ? "Pedido para teste" : "Pedido para resolução"}</p>
-      {stages.some(stage => stage.state === "current") && <span className="mt-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-semibold text-amber-700 sm:mt-2 sm:px-2.5 sm:py-1 sm:text-[10px]">Aguardando ação</span>}
+      {stages.some(stage => stage.state === "current") && <span className={`mt-1.5 rounded-full border px-2 py-0.5 text-[9px] font-semibold sm:mt-2 sm:px-2.5 sm:py-1 sm:text-[10px] ${STATUS_TONE_CLASSES.warning.badge}`}>Aguardando ação</span>}
     </div>
 
     <div className="mx-auto mt-3 w-full max-w-md md:hidden">
@@ -225,11 +225,11 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
             {(delivered > 0 || item.source_test_item_id || committed > 0) && <div className="mt-2.5 flex min-w-0 flex-wrap gap-1.5 text-[10px]">
               {delivered > 0 && <span className="rounded bg-blue-50 px-2 py-1 text-blue-700">Saída: {delivered} {unit}</span>}
               {delivered > 0 && <span className="rounded bg-cyan-50 px-2 py-1 text-cyan-700">Recebida pelo técnico: {received} {unit}</span>}
-              {returnPending > 0 && <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">Devolução pendente: {returnPending} {unit}</span>}
+              {returnPending > 0 && <span className={`rounded border px-2 py-1 ${STATUS_TONE_CLASSES.warning.badge}`}>Devolução pendente: {returnPending} {unit}</span>}
               {returned > 0 && <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">Recebida no estoque: {returned} {unit}</span>}
               {damaged > 0 && <span className="rounded bg-red-50 px-2 py-1 text-red-700">Danificada: {damaged} {unit}</span>}
               {purpose === "TEST" && committed > 0 && <span className="rounded bg-violet-50 px-2 py-1 text-violet-700">{requestOrderSolved ? "Usada na resolução" : "Para resolução"}: {committed} {unit}</span>}
-              {purpose === "TEST" && pending > 0 && <span className="rounded bg-amber-50 px-2 py-1 text-amber-700">Aguardando: {pending} {unit}</span>}
+              {purpose === "TEST" && pending > 0 && <span className={`rounded border px-2 py-1 ${STATUS_TONE_CLASSES.warning.badge}`}>Aguardando: {pending} {unit}</span>}
               {purpose === "RESOLUTION" && item.source_test_item_id && requestOrderSolved && <span className="rounded bg-emerald-50 px-2 py-1 text-emerald-700">Usada na resolução: {Number(item.approved_quantity ?? item.quantity)} {unit}</span>}
             </div>}
           </div>;

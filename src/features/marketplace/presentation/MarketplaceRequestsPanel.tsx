@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES, type StatusTone } from "@/shared/domain/status-tone";
 import { useEffect, useState, type FormEvent } from "react";
 import { CalendarDays, ClipboardList, MapPin } from "lucide-react";
 import { Section, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -36,6 +37,11 @@ const statusLabels: Record<string, string> = {
   withdrawn: "Retirada pela Union",
 };
 
+function marketplaceTone(status: string): StatusTone {
+  if (["rejected", "cancelled", "declined", "withdrawn"].includes(status)) return "danger";
+  if (["open", "confirmed", "accepted", "closed"].includes(status)) return "success";
+  return "warning";
+}
 function details(item: MarketplaceRequestLead, categories: MarketplaceCategory[]) {
   return <>
     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -45,7 +51,7 @@ function details(item: MarketplaceRequestLead, categories: MarketplaceCategory[]
           {categories.find(category => category.id === item.category_id)?.name || "Serviço geral"}
         </p>
       </div>
-      <span className="rounded-md border border-border bg-muted px-2 py-1 text-[11px] font-bold text-foreground">
+      <span className={`rounded-md border px-2 py-1 text-[11px] font-bold ${STATUS_TONE_CLASSES[marketplaceTone(item.status)].badge}`}>
         {statusLabels[item.status] || item.status}
       </span>
     </div>
@@ -209,7 +215,7 @@ export function MarketplaceRequestsPanel({ categories, stores, enabled, platform
                 )}>Encerrar</BtnSecondary>}
               </div>}
               {!platform && <div className="space-y-3">
-                {ownOffer ? <p className="text-xs font-bold text-primary">Sua proposta: {statusLabels[ownOffer.status] || ownOffer.status}</p>
+                {ownOffer ? <p className={`text-xs font-bold ${STATUS_TONE_CLASSES[marketplaceTone(ownOffer.status)].text}`}>Sua proposta: {statusLabels[ownOffer.status] || ownOffer.status}</p>
                   : composing === item.id ? <form onSubmit={event => submitProposal(event, item.id)} className="space-y-3 rounded-lg border border-border bg-muted/30 p-4">
                     <p className="text-sm font-bold">Enviar proposta à Union World</p>
                     <p className={noteClass}>Seu texto e os valores ficarão sob análise da Union antes de qualquer apresentação ao contratante.</p>
@@ -253,7 +259,7 @@ export function MarketplaceRequestsPanel({ categories, stores, enabled, platform
                   <p className="text-sm font-bold">{request?.title || "Solicitação " + item.request_id.slice(0, 8)}</p>
                   {platform && <p className={noteClass}>Empresa: {stores.find(store => store.organization_id === item.organization_id)?.display_name || "Empresa " + item.organization_id.slice(0, 8)}</p>}
                 </div>
-                <span className="rounded-md border border-border bg-muted px-2 py-1 text-[11px] font-bold">{statusLabels[item.status] || item.status}</span>
+                <span className={`rounded-md border px-2 py-1 text-[11px] font-bold ${STATUS_TONE_CLASSES[marketplaceTone(item.status)].badge}`}>{statusLabels[item.status] || item.status}</span>
               </div>
               <p className="whitespace-pre-wrap text-sm text-muted-foreground">{item.description}</p>
               <p className="text-xs font-bold text-foreground">

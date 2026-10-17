@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ClipboardList, MessageSquareText, Plus, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -132,9 +133,8 @@ export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orde
       {cases.map(item=><div key={item.id} className="rounded-md border border-border bg-background p-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <strong className="text-[13px]">{typeNames[item.request_type]}</strong>
-          <span className={"rounded-full px-2.5 py-1 text-[11px] font-bold "+
-            (["approved","closed"].includes(item.status)?"bg-emerald-500/10 text-emerald-700 dark:text-emerald-300":
-            item.status==="rejected"?"bg-red-500/10 text-red-600":"bg-primary/10 text-primary")}>
+          <span className={"rounded-full border px-2.5 py-1 text-[11px] font-bold " +
+            STATUS_TONE_CLASSES[["approved", "closed"].includes(item.status) ? "success" : item.status === "rejected" ? "danger" : "warning"].badge}>
             {statusNames[item.status]}
           </span>
         </div>

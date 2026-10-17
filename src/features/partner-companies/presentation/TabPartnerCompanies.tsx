@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Building2, Edit2, Plus } from "lucide-react";
@@ -20,7 +21,7 @@ type RouteProps = {
 
 const LEGACY_AREAS = new Set(["users", "companies", "permissions"]);
 const statusLabel = (value: string) => value === "active" ? "Ativa" : value === "suspended" ? "Suspensa" : "Cancelada";
-const statusClass = (value: string) => value === "active" ? "bg-emerald-50 text-emerald-700" : value === "suspended" ? "bg-amber-50 text-amber-700" : "bg-slate-100 text-slate-600";
+const statusClass = (value: string) => STATUS_TONE_CLASSES[value === "active" ? "success" : value === "suspended" ? "warning" : "danger"].badge;
 
 function PartnerPageFallback() {
   return <div className="p-8"><LoadingState text="Carregando empresa..." /></div>;
@@ -141,7 +142,7 @@ export function TabPartnerCompanies({ routeResourceId, onRouteChange }: RoutePro
             <tbody>{companies.map((company: any) => <tr key={company.id} onClick={() => onRouteChange?.(company.id, null)} className="cursor-pointer">
               <td><p className="font-bold text-[#0d1b2e]">{company.name}</p><p className="text-xs text-[#5a6a82]">{company.legal_name || (company.settings?.person_type === "PF" ? "Pessoa Física" : "Pessoa Jurídica")}</p></td>
               <td className="text-sm text-[#5a6a82]">{company.document || "—"}</td>
-              <td><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusClass(company.status)}`}>{statusLabel(company.status)}</span></td>
+              <td><span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${statusClass(company.status)}`}>{statusLabel(company.status)}</span></td>
               <td onClick={(event) => event.stopPropagation()}><div className="flex justify-end gap-2">
                 {canEdit && <AdminIconButton title="Editar empresa" onClick={() => onRouteChange?.(`edit-${company.id}`, null)}><Edit2 size={14} /></AdminIconButton>}
                 {canSuspend && company.status !== "cancelled" && <AdminActiveStateButton active={company.status === "active"} entityLabel="empresa" onClick={() => statusMutation.mutate(company)} loading={statusMutation.isPending} iconSize={14} />}

@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { protocolOperationalStatus, operatorCanSeeProtocolInInbox } from '../../../../supabase/functions/_shared/sac-runtime.mjs';
 import { createRefreshQueue, initializeSacScreen } from '../domain/refresh-coordinator.mjs';
 import { lazy, Suspense } from 'react';
@@ -2277,11 +2278,10 @@ export function SacDigitalToolPage({
                     <div className="mt-0.5 flex min-w-0 flex-wrap gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
                       {selectedProtocol.contact?.phone && <span>{formatPhone(selectedProtocol.contact.phone)}</span>}
                       <span>Protocolo {selectedProtocol.external_protocol_id}</span>
-                      <span className={`rounded px-1.5 py-0.5 font-semibold ${selectedOperationalStatus === "finished"
-                        ? "bg-muted text-muted-foreground"
-                        : selectedOperationalStatus === "in_att"
-                          ? "bg-blue-500/10 text-blue-700 dark:text-blue-300"
-                          : "bg-amber-500/10 text-amber-700 dark:text-amber-300"}`}>
+                      <span className={`rounded border px-1.5 py-0.5 font-semibold ${STATUS_TONE_CLASSES[
+                        selectedOperationalStatus === "finished" ? "success" :
+                        selectedOperationalStatus === "abandoned" || selectedOperationalStatus === "inbox" ? "danger" : "warning"
+                      ].badge}`}>
                         {selectedOperationalStatus
                           ? protocolStatusLabel[selectedOperationalStatus] || selectedOperationalStatus
                           : selectedProtocol.status}

@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES, STATUS_TONE_HEX } from "@/shared/domain/status-tone";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -92,20 +93,16 @@ function unitIcon(type: FieldTrackingUnitType) {
   return UserRound;
 }
 
-function statusColor(status: FieldTrackingStatus) {
-  if (status === "online") return "#16a34a";
-  if (status === "stationary") return "#f59e0b";
-  if (status === "lost") return "#dc2626";
-  if (status === "paused") return "#64748b";
-  return "#94a3b8";
+function trackingTone(status: FieldTrackingStatus) {
+  return status === "online" ? "success" as const
+    : status === "stationary" ? "warning" as const
+    : status === "lost" ? "danger" as const : "neutral" as const;
 }
-
+function statusColor(status: FieldTrackingStatus) {
+  return STATUS_TONE_HEX[trackingTone(status)];
+}
 function statusClasses(status: FieldTrackingStatus) {
-  if (status === "online") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (status === "stationary") return "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300";
-  if (status === "lost") return "border-red-200 bg-red-50 text-red-700";
-  if (status === "paused") return "border-slate-200 bg-slate-50 text-slate-600";
-  return "border-border bg-muted text-muted-foreground";
+  return STATUS_TONE_CLASSES[trackingTone(status)].badge;
 }
 
 function formatLastSeen(value?: string | null, now = Date.now()) {

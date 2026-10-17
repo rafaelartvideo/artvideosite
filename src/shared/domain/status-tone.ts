@@ -37,10 +37,13 @@ export function getStatusTone(value?: string | null): StatusTone {
   const normalized = String(value || "").trim().toLocaleLowerCase("pt-BR")
     .normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[\s-]+/g, "_");
   if (!normalized) return "neutral";
-  if (/(atras|overdue|expir|expired|vencid|cancel|recus|rejeit|reject|failed|failure|falha|error|erro|estorn|revers|refunded|no_show|nao_cumprid|bloquead)/.test(normalized)) return "danger";
-  if (/(conclu|completed|complete|finaliz|finished|pronto|entregue|aprov|approved|atendid|fulfilled|liquid|settled|pago|paid|assinad|signed|resolvid|success|sucesso|done)/.test(normalized)) return "success";
-  if (/(pendent|pending|aguard|waiting|analise|review|abert|open|in_progress|andamento|em_execuc|processing|processando|a_vencer|partial|parcial|solicit|viewed|visualizad)/.test(normalized)) return "warning";
+  if (/(atras|overdue|expir|expired|vencid|cancel|recus|rejeit|reject|failed|failure|falha|error|erro|estorn|revers|refunded|no_show|nao_cumprid|bloquead|delivery_issue|manual_review|abandon|declined|withdrawn|lost|suspend)/.test(normalized)) return "danger";
+  if (/(conclu|completed|complete|finaliz|finished|pronto|entregue|aprov|approved|atendid|fulfilled|liquid|settled|pago|paid|assinad|signed|resolvid|success|sucesso|done|fechad|closed|posted|picked_up|confirmed|accepted)/.test(normalized)) return "success";
+  if (/(pendent|pending|aguard|waiting|analise|review|abert|open|in_progress|andamento|em_execuc|processing|processando|a_vencer|partial|parcial|solicit|viewed|visualizad|preparing|ready|out_for_delivery|scheduled|submitted|presented|received|criando)/.test(normalized)) return "warning";
   return "neutral";
 }
+export const STATUS_TONE_HEX: Record<StatusTone, string> = {
+  warning: "#f97316", danger: "#dc2626", success: "#059669", neutral: "#94a3b8",
+};
 export const getStatusBadgeClass = (status?: string | null) => STATUS_TONE_CLASSES[getStatusTone(status)].badge;
 export const getStatusDotClass = (status?: string | null) => STATUS_TONE_CLASSES[getStatusTone(status)].dot;

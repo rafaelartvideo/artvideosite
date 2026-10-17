@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router";
@@ -375,7 +376,7 @@ export function MarketplaceBuyerPage({ mode, categories }: Props) {
               {requests.map(item => <div key={item.id} className="space-y-2 py-4 first:pt-0">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-black">{item.title}</h3>
-                  <span className={"rounded-md px-2 py-1 text-[11px] font-bold " + (item.status === "open" ? "bg-emerald-50 text-emerald-700" : "bg-[#f0f2f7] text-[#6f7d91]")}>
+                  <span className={`rounded-md border px-2 py-1 text-[11px] font-bold ${STATUS_TONE_CLASSES[item.status === "open" || item.status === "closed" ? "success" : item.status === "rejected" || item.status === "cancelled" ? "danger" : "warning"].badge}`}>
                     {item.status === "pending_union" ? "Em análise pela Union" : item.status === "open" ? "Aprovada pela Union" : item.status === "rejected" ? "Não aprovada" : item.status === "cancelled" ? "Cancelada" : "Encerrada"}
                   </span>
                 </div>

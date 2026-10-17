@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { AlertTriangle, Clock, History } from "lucide-react";
 import { cn, formatDateTime, formatDurationHours, formatNumber } from "@/shared/domain/formatters";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
@@ -62,7 +63,7 @@ export function ServiceOrderSlaCards({
   const styles = {
     neutral: { card: "border-border bg-muted/65", icon: "bg-muted text-muted-foreground", title: "text-muted-foreground", bar: "bg-muted-foreground", infoBorder: "border-border" },
     success: { card: "border-emerald-300 bg-emerald-50", icon: "bg-emerald-100 text-emerald-700", title: "text-emerald-700", bar: "bg-emerald-500", infoBorder: "border-emerald-200" },
-    warning: { card: "border-amber-400 bg-amber-50", icon: "bg-amber-100 text-amber-700", title: "text-amber-700", bar: "bg-amber-500", infoBorder: "border-amber-300" },
+    warning: { card: STATUS_TONE_CLASSES.warning.badge, icon: "bg-orange-500/15 text-orange-700 dark:text-orange-300", title: STATUS_TONE_CLASSES.warning.text, bar: STATUS_TONE_CLASSES.warning.dot, infoBorder: "border-orange-500/30" },
     danger: { card: "border-red-400 bg-red-50", icon: "bg-red-100 text-red-700", title: "text-red-700", bar: "bg-red-500", infoBorder: "border-red-300" },
   }[state];
 

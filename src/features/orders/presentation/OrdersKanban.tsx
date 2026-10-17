@@ -1,3 +1,4 @@
+import { getStatusBadgeClass, STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useState } from "react";
 import type React from "react";
 import { Ban, Edit2, GripVertical } from "lucide-react";
@@ -80,7 +81,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                   {draggable && <GripVertical size={14} className="hidden shrink-0 text-[#5a6a82]/60 md:block" />}
                   <OrderStatusDot status={orderStatus?.name || ""} color={orderStatus?.color} />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs font-black text-primary">{order.os_number || "—"}</span>
-                  {orderStatus?.name && <span className="shrink-0 rounded-full bg-muted px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#5a6a82]">{orderStatus.name}</span>}
+                  {orderStatus?.name && <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wide ${getStatusBadgeClass(orderStatus.name)}`}>{orderStatus.name}</span>}
                 </div>
 
                 <p className="mt-2 truncate text-sm font-semibold text-[#0d1b2e] md:mt-3">{(order.customer as any)?.full_name || "Cliente não informado"}</p>
@@ -92,7 +93,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                   {canChangeSituation && !order.completed_at && !isCancelled(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
-                {order.is_solved && !order.completed_at && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-green-100 px-2 py-1 text-[10px] font-bold uppercase text-green-700">✓ OS solucionada</span>}
+                {order.is_solved && !order.completed_at && !isCancelled(order) && <span className={`mt-2 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${STATUS_TONE_CLASSES.success.badge}`}>✓ OS solucionada</span>}
                 {order.cannot_be_solved && !isCancelled(order) && <span className="mt-2 inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-[10px] font-bold uppercase text-amber-700">⚠ OS não solucionável</span>}
 
                 {(canEdit && !order.is_solved && !isCancelled(order) || canCancel(order)) && <div className="mt-3 flex items-center justify-end gap-2 border-t border-border pt-3" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
