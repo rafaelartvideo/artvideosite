@@ -26,11 +26,13 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     setPreviewUrl(URL.createObjectURL(file));
     setUploading(true);
     try {
-      onUpload(await uploadMediaFile(bucket, file, organizationId));
+      const mediaId = await uploadMediaFile(bucket, file, organizationId);
+      onUpload(mediaId);
       setPreviewUrl(null);
-      notifyAdmin("Imagem enviada com sucesso.", "success");
+      notifyAdmin("Imagem enviada. Salve o cadastro para confirmar a alteração.", "success");
     } catch (error) {
       console.error("[MEDIA] image upload error:", error);
+      setPreviewUrl(null);
       notifyAdmin(`Erro ao enviar imagem: ${supabaseErrorMessage(error)}`, "error");
     } finally {
       setUploading(false);

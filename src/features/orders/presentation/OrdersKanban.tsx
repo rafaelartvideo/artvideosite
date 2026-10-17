@@ -1,4 +1,5 @@
-import { getStatusBadgeClass, STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
+import { getOrderStatusBadgeClass } from "../domain/order-status-palette";
 import { useState } from "react";
 import type React from "react";
 import { Ban, Edit2, GripVertical } from "lucide-react";
@@ -81,7 +82,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
                   {draggable && <GripVertical size={14} className="hidden shrink-0 text-[#5a6a82]/60 md:block" />}
                   <OrderStatusDot status={orderStatus?.name || ""} color={orderStatus?.color} />
                   <span className="min-w-0 flex-1 truncate font-mono text-xs font-black text-primary">{order.os_number || "—"}</span>
-                  {orderStatus?.name && <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wide ${getStatusBadgeClass(orderStatus.name)}`}>{orderStatus.name}</span>}
+                  {orderStatus?.name && <span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-wide ${getOrderStatusBadgeClass(orderStatus.name)}`}>{orderStatus.name}</span>}
                 </div>
 
                 <p className="mt-2 truncate text-sm font-semibold text-[#0d1b2e] md:mt-3">{(order.customer as any)?.full_name || "Cliente não informado"}</p>

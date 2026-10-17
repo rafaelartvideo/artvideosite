@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, X } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useAuth } from "@/lib/auth";
@@ -71,8 +73,16 @@ const groups: { title: string; subtitle?: string; fields: Field[] }[] = [
 function ImageSetting({ label, mediaId, onChange, disabled }: {
   label: string; mediaId: string; onChange: (id: string) => void; disabled: boolean;
 }) {
+  const mediaOrganizationQuery = useQuery({
+    queryKey: ["organization", "artvideo-id"],
+    queryFn: getArtVideoOrganizationId,
+    staleTime: Infinity,
+  });
   return <div className="space-y-2">
-    <ImageUpload bucket="public-assets" currentMediaId={mediaId} onUpload={onChange} canUpload={!disabled} label={label} />
+    <ImageUpload bucket="public-assets" organizationId={mediaOrganizationQuery.data}
+      currentMediaId={mediaId} onUpload={onChange}
+      canUpload={!disabled && !mediaOrganizationQuery.isPending}
+      label={label} />
     {mediaId && !disabled && <button type="button" onClick={() => onChange("")} className="text-xs font-semibold text-red-600 hover:underline">Remover imagem</button>}
   </div>;
 }

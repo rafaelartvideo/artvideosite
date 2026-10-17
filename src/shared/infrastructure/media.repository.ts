@@ -1,4 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 
@@ -49,8 +50,11 @@ export async function uploadMediaFile(bucket: MediaBucket, file: File, organizat
   const preparedFile = await prepareFileForUpload(file, preset);
   const extension = extensionForUploadFile(preparedFile);
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const path = organizationId ? `${organizationId}/${fileName}` : fileName;
-  return uploadMediaAtPath(bucket, path, preparedFile, organizationId);
+  // O Storage exige o ID da empresa no primeiro segmento do caminho e no
+  // registro em media. Sem ele, a política RLS bloqueia inclusive gestores.
+  const resolvedOrganizationId = organizationId || await getActiveOrganizationId();
+  const path = `${resolvedOrganizationId}/${fileName}`;
+  return uploadMediaAtPath(bucket, path, preparedFile, resolvedOrganizationId);
 }
 
 export async function uploadServiceOrderMediaFile(

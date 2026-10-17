@@ -1,4 +1,4 @@
-import { getStatusTone, STATUS_TONE_HEX } from "@/shared/domain/status-tone";
+import { getOrderStatusHex } from "../domain/order-status-palette";
 type OrderStatusDotProps = {
   status?: string | null;
   color?: string | null;
@@ -6,9 +6,8 @@ type OrderStatusDotProps = {
 };
 
 function dotPresentation(status?: string | null, color?: string | null) {
-  const tone = getStatusTone(status);
   return {
-    background: tone === "neutral" ? color || STATUS_TONE_HEX.neutral : STATUS_TONE_HEX[tone],
+    background: getOrderStatusHex(status, color),
     boxShadow: "inset 0 0 0 1px rgba(15,23,42,.10), 0 1px 2px rgba(15,23,42,.10)",
   };
 }
