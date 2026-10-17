@@ -222,10 +222,12 @@ export function OrderHistoryPage({
       <AdminStickyToolbar className="gap-2 px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
         <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
         {(canCreate || canCreateWorkItem) && <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <BtnPrimary className="h-11 w-11 min-w-0 flex-none !px-0 sm:h-auto sm:w-auto sm:!px-4">
-              <Plus className="h-5 w-5 sm:hidden" /><span className="sr-only sm:not-sr-only">Novo</span>
-            </BtnPrimary>
+          <DropdownMenuTrigger
+            type="button"
+            aria-label="Novo"
+            className="admin-primary-gradient inline-flex h-11 w-11 min-w-0 flex-none items-center justify-center rounded-lg border border-primary/30 px-0 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5"
+          >
+            <Plus className="h-5 w-5 sm:hidden" /><span className="sr-only sm:not-sr-only">Novo</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
             {canCreate && <DropdownMenuItem onSelect={() => { history.setText(""); history.setModalOpen(true); }}>
