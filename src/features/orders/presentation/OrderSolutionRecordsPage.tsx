@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { CheckCircle2, History, RotateCcw } from "lucide-react";
 import { AdminCard, AdminCardHeader, AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -47,7 +48,7 @@ export function OrderSolutionRecordsPage({
                 <p className="text-xs font-black text-[#0d1b2e]">{attempt.attempt_number}ª solução</p>
                 <p className="mt-0.5 text-[10px] text-[#7c899c]">{formatDateTime(attempt.solved_at)} · {attempt.solved_by_profile?.full_name || "Usuário não informado"}</p>
               </div>
-              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase ${active ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-slate-200 bg-slate-50 text-slate-600"}`}>
+              <span className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase ${STATUS_TONE_CLASSES[active ? "success" : "danger"].badge}`}>
                 {active ? <CheckCircle2 size={11} /> : <RotateCcw size={11} />}{active ? "Solução ativa" : "Solução desfeita"}
               </span>
             </div>

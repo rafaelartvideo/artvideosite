@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -800,10 +801,10 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       completed: "Concluído", cancelled: "Cancelado",
     };
     const tones: Record<OrderServiceTaskStatus, string> = {
-      pending: "border-border bg-muted/65 text-muted-foreground",
-      in_progress: "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-      completed: "border-emerald-500/35 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-      cancelled: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+      pending: STATUS_TONE_CLASSES.warning.badge,
+      in_progress: STATUS_TONE_CLASSES.warning.badge,
+      completed: STATUS_TONE_CLASSES.success.badge,
+      cancelled: STATUS_TONE_CLASSES.danger.badge,
     };
     const icon = status === "in_progress" ? <Wrench size={12} className="shrink-0 animate-spin motion-reduce:animate-none [animation-duration:3s]" />
       : status === "completed" ? <CheckCircle2 size={12} className="shrink-0" />
@@ -880,8 +881,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     const task = tasks[item.id];
     const status = task?.status || "pending";
     const progress = status === "completed" ? 100 : status === "in_progress" ? 55 : 0;
-    const progressTone = status === "completed" ? "bg-emerald-500"
-      : status === "in_progress" ? "bg-amber-500" : "bg-muted-foreground/30";
+    const progressTone = status === "completed" ? STATUS_TONE_CLASSES.success.dot
+      : status === "cancelled" ? STATUS_TONE_CLASSES.danger.dot
+      : STATUS_TONE_CLASSES.warning.dot;
     const locations = ([
       ["Início", task?.start_location],
       ["Conclusão", task?.finish_location],
