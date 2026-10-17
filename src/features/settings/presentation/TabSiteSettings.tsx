@@ -81,7 +81,7 @@ function ImageSetting({ label, mediaId, onChange, disabled }: {
   return <div className="space-y-2">
     <ImageUpload bucket="public-assets" organizationId={mediaOrganizationQuery.data}
       currentMediaId={mediaId} onUpload={onChange}
-      canUpload={!disabled && !mediaOrganizationQuery.isPending}
+      canUpload={!disabled && Boolean(mediaOrganizationQuery.data)}
       label={label} />
     {mediaId && !disabled && <button type="button" onClick={() => onChange("")} className="text-xs font-semibold text-red-600 hover:underline">Remover imagem</button>}
   </div>;
