@@ -1,4 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { findIntroducedDuplicateNameIndices } from "../domain/equipment-name-conflicts.mjs";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
@@ -389,8 +390,18 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   };
 
   const save = async () => {
-    if (!catalog || !drafts.every(type => type.id ? canEdit : canCreate)) return;
+    if (saving) return;
+    if (!catalog) {
+      setToast({ msg: "Os equipamentos ainda não foram carregados. Tente novamente.", type: "error" });
+      return;
+    }
+    if (!drafts.length || !drafts.every(type => type.id ? canEdit : canCreate)) {
+      setToast({ msg: "Você não possui permissão para salvar este cadastro.", type: "error" });
+      return;
+    }
     const nextErrors: Record<string, string> = {};
+    const originalBrandNames = new Map(catalog.brands.map(brand => [brand.id, brand.name]));
+    const originalModelNames = new Map(catalog.models.map(model => [model.id, model.name]));
     const editingTypeIds = new Set(drafts.flatMap(type => type.id ? [type.id] : []));
     const existingEquipmentNames = new Set(catalog.types.filter(type => !editingTypeIds.has(type.id)).map(type => normalizeCatalogName(type.name)));
     const draftEquipmentNames = new Map<string, number>();
@@ -406,28 +417,22 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         draftEquipmentNames.set(equipmentName, ti);
       }
 
-      const brandNames = new Map<string, number>();
+      // Alguns catálogos antigos possuem, por exemplo, "Britania" e "Britânia".
+      // Não impedir alterações não relacionadas; só rejeitar novas duplicidades.
+      const brandConflicts = findIntroducedDuplicateNameIndices(draft.brands, originalBrandNames, normalizeCatalogName);
       draft.brands.forEach((brand, bi) => {
         const brandName = normalizeCatalogName(brand.name);
         if (!brandName) nextErrors[`brand-${ti}-${bi}`] = "Informe o nome da marca.";
-        else if (brandNames.has(brandName)) {
+        else if (brandConflicts.has(bi)) {
           nextErrors[`brand-${ti}-${bi}`] = `A marca "${brand.name.trim()}" está duplicada neste equipamento.`;
-          const previousIndex = brandNames.get(brandName);
-          if (previousIndex != null) nextErrors[`brand-${ti}-${previousIndex}`] = nextErrors[`brand-${ti}-${bi}`];
-        } else {
-          brandNames.set(brandName, bi);
         }
 
-        const modelNames = new Map<string, number>();
+        const modelConflicts = findIntroducedDuplicateNameIndices(brand.models, originalModelNames, normalizeCatalogName);
         brand.models.forEach((model, mi) => {
           const modelName = normalizeCatalogName(model.name);
           if (!modelName) nextErrors[`model-${ti}-${bi}-${mi}`] = "Informe o nome do modelo.";
-          else if (modelNames.has(modelName)) {
+          else if (modelConflicts.has(mi)) {
             nextErrors[`model-${ti}-${bi}-${mi}`] = `O modelo "${model.name.trim()}" está duplicado nesta marca.`;
-            const previousIndex = modelNames.get(modelName);
-            if (previousIndex != null) nextErrors[`model-${ti}-${bi}-${previousIndex}`] = nextErrors[`model-${ti}-${bi}-${mi}`];
-          } else {
-            modelNames.set(modelName, mi);
           }
         });
       });
@@ -443,7 +448,18 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     });
 
     setHierarchyErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    const validationKeys = Object.keys(nextErrors);
+    if (validationKeys.length) {
+      const firstErrorKey = validationKeys[0];
+      const section = firstErrorKey.startsWith("type-") ? "general"
+        : firstErrorKey.startsWith("checklist-") ? "checklist" : "brands";
+      setEditorSection(section);
+      setToast({
+        msg: `Não foi possível salvar: ${nextErrors[firstErrorKey]} Confira a seção ${section === "general" ? "Geral" : section === "checklist" ? "Checklist" : "Marcas e modelos"}.`,
+        type: "error",
+      });
+      return;
+    }
     setSaving(true);
     try {
       await saveEquipmentHierarchy(drafts, catalog);
@@ -601,7 +617,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       </div>
       <div className="sticky bottom-0 flex justify-end gap-3 border-t border-border bg-background px-4 py-4 sm:px-5">
         <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
-        <BtnPrimary onClick={save} disabled={saving}>{saving ? "Salvando..." : "Salvar"}</BtnPrimary>
+        <BtnPrimary onClick={save} loading={saving} loadingText="Salvando..." disabled={saving}>Salvar</BtnPrimary>
       </div>
     </AdminPage>
     <AdminDialog
