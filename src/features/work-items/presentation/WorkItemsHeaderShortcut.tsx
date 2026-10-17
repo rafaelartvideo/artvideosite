@@ -1,4 +1,4 @@
-import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
+import { STATUS_TONE_CLASSES, type StatusTone } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -91,8 +91,10 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
     || b.created_at.localeCompare(a.created_at)),
     [query.data, userId, personalEmployeeIds.join(",")]);
 
-  const badgeTone = mine.some(item => item.due_at && new Date(item.due_at).getTime() < clock)
-    ? "danger" as const : "warning" as const;
+  const badgeTone: StatusTone = mine.some(item => item.due_at && new Date(item.due_at).getTime() < clock)
+    ? "danger" : mine.some(item => item.status === "waiting")
+    ? "waiting" : mine.some(item => item.status === "in_progress")
+    ? "progress" : "pending";
   const openDetails = (item: WorkItem) => {
     setPanelOpen(false);
     setSelected(item);
@@ -120,7 +122,7 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
 
 export type WorkItemsHeaderController = ReturnType<typeof useWorkItemsHeader>;
 
-export function WorkItemsHeaderBadge({ count, tone = "warning" }: { count: number; tone?: "warning" | "danger" }) {
+export function WorkItemsHeaderBadge({ count, tone = "pending" }: { count: number; tone?: StatusTone }) {
   if (count <= 0) return null;
   return <span className={`absolute -right-1 -top-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-card px-0.5 text-[9px] font-black leading-none ${STATUS_TONE_CLASSES[tone].solid}`}>
     {count > 99 ? "99+" : count}
@@ -156,8 +158,11 @@ export function WorkItemsHeaderDialog({ controller }: { controller: WorkItemsHea
                 <ListTodo size={17} className="mt-0.5 shrink-0 text-primary" />
                 <span className="min-w-0 flex-1 space-y-1">
                   <span className="block truncate text-sm font-bold text-foreground">{item.title}</span>
-                  <span className="block text-[11px] text-muted-foreground">
-                    {item.kind === "commitment" ? "Compromisso" : "Tarefa"} · {priorityText[item.priority]} · {item.status === "in_progress" ? "Em andamento" : item.status === "waiting" ? "Aguardando" : "Pendente"}
+                  <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
+                    {item.kind === "commitment" ? "Compromisso" : "Tarefa"} · {priorityText[item.priority]}
+                    <span className={`rounded border px-1.5 py-0.5 text-[10px] font-semibold ${STATUS_TONE_CLASSES[overdue ? "danger" : item.status === "in_progress" ? "progress" : item.status === "waiting" ? "waiting" : "pending"].badge}`}>
+                      {overdue ? "Atrasada" : item.status === "in_progress" ? "Em andamento" : item.status === "waiting" ? "Aguardando" : "Pendente"}
+                    </span>
                   </span>
                   <span className={overdue ? `flex items-center gap-1 text-[11px] font-semibold ${STATUS_TONE_CLASSES.danger.text}` : "flex items-center gap-1 text-[11px] text-muted-foreground"}>
                     <CalendarClock size={12} /> {overdue ? "Atrasada · " : ""}{dateText(item.due_at)}

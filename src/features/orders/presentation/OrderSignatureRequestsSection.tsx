@@ -54,8 +54,8 @@ type Props = {
 };
 
 const statusClasses: Record<string, string> = {
-  pending: STATUS_TONE_CLASSES.warning.badge,
-  viewed: STATUS_TONE_CLASSES.warning.badge,
+  pending: STATUS_TONE_CLASSES.pending.badge,
+  viewed: STATUS_TONE_CLASSES.info.badge,
   signed: STATUS_TONE_CLASSES.success.badge,
   expired: STATUS_TONE_CLASSES.danger.badge,
   cancelled: STATUS_TONE_CLASSES.danger.badge,

@@ -23,9 +23,9 @@ import { WorkItemDialog } from "./WorkItemDialog";
 type View = "overview" | "list" | "board" | "calendar";
 type Scope = "all" | "mine" | "today" | "overdue";
 const STATUSES: { value: WorkStatus; label: string; dot: string; tint: string }[] = [
-  { value: "pending", label: "Pendentes", dot: STATUS_TONE_CLASSES.warning.dot, tint: STATUS_TONE_CLASSES.warning.surface },
-  { value: "in_progress", label: "Em andamento", dot: STATUS_TONE_CLASSES.warning.dot, tint: STATUS_TONE_CLASSES.warning.surface },
-  { value: "waiting", label: "Aguardando", dot: STATUS_TONE_CLASSES.warning.dot, tint: STATUS_TONE_CLASSES.warning.surface },
+  { value: "pending", label: "Pendentes", dot: STATUS_TONE_CLASSES.pending.dot, tint: STATUS_TONE_CLASSES.pending.surface },
+  { value: "in_progress", label: "Em andamento", dot: STATUS_TONE_CLASSES.progress.dot, tint: STATUS_TONE_CLASSES.progress.surface },
+  { value: "waiting", label: "Aguardando", dot: STATUS_TONE_CLASSES.waiting.dot, tint: STATUS_TONE_CLASSES.waiting.surface },
   { value: "completed", label: "Concluídas", dot: STATUS_TONE_CLASSES.success.dot, tint: STATUS_TONE_CLASSES.success.surface },
   { value: "cancelled", label: "Canceladas", dot: STATUS_TONE_CLASSES.danger.dot, tint: STATUS_TONE_CLASSES.danger.surface },
 ];
@@ -102,6 +102,13 @@ function TaskCard({ item, employees, onOpen, canPerform, compact = false }: {
       </div>
     </div>
     <div className="flex flex-wrap items-center gap-1.5">
+      <span className={cn("inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-bold",
+        STATUS_TONE_CLASSES[pastDue(item) ? "danger" : item.status === "pending" ? "pending"
+          : item.status === "waiting" ? "waiting" : item.status === "in_progress" ? "progress"
+          : item.status === "completed" ? "success" : "danger"].badge)}>
+        {pastDue(item) ? "Atrasada" : item.status === "in_progress" ? "Em andamento" : item.status === "waiting" ? "Aguardando" :
+          item.status === "pending" ? "Pendente" : item.status === "completed" ? "Concluída" : "Cancelada"}
+      </span>
       <PriorityTag value={item.priority} />
       {item.kind === "commitment" && <span className="rounded-md bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-600 dark:text-violet-300">Compromisso</span>}
       {item.category && <span className="max-w-28 truncate rounded-md border border-border px-2 py-1 text-[10px] text-muted-foreground">{item.category}</span>}
@@ -166,7 +173,7 @@ function MonthCalendar({ items, selectedDate, setSelectedDate, onOpen }: {
               isToday && "bg-primary font-bold text-white")}>{day.getDate()}</span>
             {matches.length > 0 && <div className="flex flex-wrap gap-1">
               {matches.slice(0, 3).map(item => <span key={item.id}
-                className={cn("h-1.5 w-1.5 rounded-full", status(item.status).dot)} />)}
+                className={cn("h-1.5 w-1.5 rounded-full", pastDue(item) ? STATUS_TONE_CLASSES.danger.dot : status(item.status).dot)} />)}
               {matches.length > 3 && <span className="text-[9px] font-bold">+{matches.length - 3}</span>}
             </div>}
             {matches[0] && <span className="hidden max-w-full truncate text-[10px] font-medium text-muted-foreground sm:block">{matches[0].title}</span>}
@@ -263,7 +270,8 @@ export function TabWorkItems() {
     total: all.filter(item => item.status !== "cancelled").length,
     // Exclusive card buckets: a past-due item is Atrasada, never also
     // Em aberto or Em andamento. Waiting remains an open activity.
-    pending: all.filter(item => (item.status === "pending" || item.status === "waiting") && !pastDue(item)).length,
+    pending: all.filter(item => item.status === "pending" && !pastDue(item)).length,
+    waiting: all.filter(item => item.status === "waiting" && !pastDue(item)).length,
     inProgress: all.filter(item => item.status === "in_progress" && !pastDue(item)).length,
     overdue: all.filter(item => pastDue(item)).length,
     completed: all.filter(item => item.status === "completed").length,
@@ -353,10 +361,11 @@ export function TabWorkItems() {
       </div>
     </div>
 
-    <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 xl:grid-cols-5">
       {[
-        { label: "Em aberto", count: overview.pending, icon: ClipboardCheck, tint: STATUS_TONE_CLASSES.warning.text, bg: STATUS_TONE_CLASSES.warning.surface },
-        { label: "Em andamento", count: overview.inProgress, icon: TrendingUp, tint: STATUS_TONE_CLASSES.warning.text, bg: STATUS_TONE_CLASSES.warning.surface },
+        { label: "Pendentes", count: overview.pending, icon: ClipboardCheck, tint: STATUS_TONE_CLASSES.pending.text, bg: STATUS_TONE_CLASSES.pending.surface },
+        { label: "Em andamento", count: overview.inProgress, icon: TrendingUp, tint: STATUS_TONE_CLASSES.progress.text, bg: STATUS_TONE_CLASSES.progress.surface },
+        { label: "Aguardando", count: overview.waiting, icon: Clock3, tint: STATUS_TONE_CLASSES.waiting.text, bg: STATUS_TONE_CLASSES.waiting.surface },
         { label: "Atrasadas", count: overview.overdue, icon: Clock3, tint: STATUS_TONE_CLASSES.danger.text, bg: STATUS_TONE_CLASSES.danger.surface },
         { label: "Concluídas", count: overview.completed, icon: CheckCheck, tint: STATUS_TONE_CLASSES.success.text, bg: STATUS_TONE_CLASSES.success.surface },
       ].map(metric => { const Icon = metric.icon; return <div key={metric.label} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 shadow-sm transition-shadow hover:shadow-md">
@@ -472,7 +481,7 @@ export function TabWorkItems() {
                     </div>
                   </div>
                 </td>
-                <td><span className="inline-flex items-center gap-2 whitespace-nowrap text-xs"><span className={cn("h-2 w-2 rounded-full", pastDue(item) ? STATUS_TONE_CLASSES.danger.dot : status(item.status).dot)} />{status(item.status).label}</span></td>
+                <td><span className="inline-flex items-center gap-2 whitespace-nowrap text-xs"><span className={cn("h-2 w-2 rounded-full", pastDue(item) ? STATUS_TONE_CLASSES.danger.dot : status(item.status).dot)} />{pastDue(item) ? "Atrasada · " + status(item.status).label : status(item.status).label}</span></td>
                 <td><PriorityTag value={item.priority} /></td>
                 <td><DueTag item={item} /></td>
                 <td><AvatarStack employees={employees} ids={item.assigned_employee_ids || []} /></td>

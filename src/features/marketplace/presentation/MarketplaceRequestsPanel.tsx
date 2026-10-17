@@ -40,7 +40,9 @@ const statusLabels: Record<string, string> = {
 function marketplaceTone(status: string): StatusTone {
   if (["rejected", "cancelled", "declined", "withdrawn"].includes(status)) return "danger";
   if (["open", "confirmed", "accepted", "closed"].includes(status)) return "success";
-  return "warning";
+  if (["pending_union", "submitted"].includes(status)) return "review";
+  if (status === "presented") return "info";
+  return "pending";
 }
 function details(item: MarketplaceRequestLead, categories: MarketplaceCategory[]) {
   return <>

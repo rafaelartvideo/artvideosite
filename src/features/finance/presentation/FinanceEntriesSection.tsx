@@ -28,10 +28,10 @@ const operationLabels: Record<string, string> = { open: "A vencer", overdue: "Ve
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warning" | "danger" | "success" | "blue" }) {
   const tones = {
     neutral: STATUS_TONE_CLASSES.neutral.badge,
-    warning: STATUS_TONE_CLASSES.warning.badge,
+    warning: STATUS_TONE_CLASSES.pending.badge,
     danger: STATUS_TONE_CLASSES.danger.badge,
     success: STATUS_TONE_CLASSES.success.badge,
-    blue: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+    blue: STATUS_TONE_CLASSES.progress.badge,
   };
   return <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wide ${tones[tone]}`}>{children}</span>;
 }

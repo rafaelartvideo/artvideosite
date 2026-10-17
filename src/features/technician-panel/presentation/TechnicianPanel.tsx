@@ -33,8 +33,8 @@ const STATUS_LABEL: Record<TechnicianTaskStatus, string> = {
   cancelled: "Cancelado",
 };
 const STATUS_CLASS: Record<TechnicianTaskStatus, string> = {
-  pending: STATUS_TONE_CLASSES.warning.badge,
-  in_progress: STATUS_TONE_CLASSES.warning.badge,
+  pending: STATUS_TONE_CLASSES.pending.badge,
+  in_progress: STATUS_TONE_CLASSES.progress.badge,
   completed: STATUS_TONE_CLASSES.success.badge,
   cancelled: STATUS_TONE_CLASSES.danger.badge,
 };

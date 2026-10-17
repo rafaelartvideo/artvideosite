@@ -85,7 +85,7 @@ export function FinanceApprovalPanel({
           {showIcon && <ShieldCheck size={18} className="text-[#0057e7]" />}
           <div><h3 className="text-sm font-black text-[#0d1b2e]">Aprovação financeira</h3><p className="text-xs text-[#5a6a82]">Ciclo {detail.approval_cycle}</p></div>
         </div>
-        <div className={`rounded-full border px-3 py-1.5 text-xs font-black ${STATUS_TONE_CLASSES[detail.approval_status === "approved" ? "success" : detail.approval_status === "rejected" ? "danger" : "warning"].badge}`}>{progress.count}/{progress.required} aprovações</div>
+        <div className={`rounded-full border px-3 py-1.5 text-xs font-black ${STATUS_TONE_CLASSES[detail.approval_status === "approved" ? "success" : detail.approval_status === "rejected" ? "danger" : "pending"].badge}`}>{progress.count}/{progress.required} aprovações</div>
       </div>
     </AdminCardHeader>
     <AdminCardContent className="space-y-4">

@@ -189,7 +189,9 @@ export function OrderHistoryPage({
                   item.workItem.status !== "completed" && item.workItem.status !== "cancelled"
                     && item.workItem.due_at && new Date(item.workItem.due_at).getTime() < Date.now()
                     ? "danger" : item.workItem.status === "completed" ? "success"
-                    : item.workItem.status === "cancelled" ? "danger" : "warning"
+                    : item.workItem.status === "cancelled" ? "danger"
+                    : item.workItem.status === "in_progress" ? "progress"
+                    : item.workItem.status === "waiting" ? "waiting" : "pending"
                 ].badge :
                   item.type === "note" ? "border-primary/15" : "bg-muted/35",
               )}>

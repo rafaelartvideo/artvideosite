@@ -61,13 +61,18 @@ const timeText = (date: string) => new Date(date).toLocaleString("pt-BR", { date
 
 function paymentColor(status: string) {
   if (status === "paid") return STATUS_TONE_CLASSES.success.badge;
-  if (["manual_review", "cancelled", "expired"].includes(status)) return STATUS_TONE_CLASSES.danger.badge;
-  return STATUS_TONE_CLASSES.warning.badge;
+  if (["cancelled", "expired"].includes(status)) return STATUS_TONE_CLASSES.danger.badge;
+  return status === "manual_review" ? STATUS_TONE_CLASSES.review.badge
+    : status === "creating" ? STATUS_TONE_CLASSES.progress.badge
+    : status === "awaiting_payment" ? STATUS_TONE_CLASSES.waiting.badge
+    : STATUS_TONE_CLASSES.pending.badge;
 }
 function fulfillmentColor(status: FulfillmentStatus) {
   if (status === "delivered" || status === "picked_up") return STATUS_TONE_CLASSES.success.badge;
   if (status === "delivery_issue") return STATUS_TONE_CLASSES.danger.badge;
-  return STATUS_TONE_CLASSES.warning.badge;
+  return status === "pending" ? STATUS_TONE_CLASSES.pending.badge
+    : status === "preparing" || status === "out_for_delivery" ? STATUS_TONE_CLASSES.progress.badge
+    : STATUS_TONE_CLASSES.waiting.badge;
 }
 function DeliveryBadge({ status }: { status: FulfillmentStatus }) {
   return <span className={"inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold " + fulfillmentColor(status)}>
@@ -298,7 +303,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
                 ? <><span className="mr-1 text-[11px] text-muted-foreground">{order.shipping_service_id === "pickup" ? "Retirada" : "Entrega"}</span><DeliveryBadge status={deliveryOf(order)}/></>
                 : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>
               <td className="p-3">{supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))
-                ? <span className={`rounded-full border px-2 py-1 text-xs font-bold ${STATUS_TONE_CLASSES.warning.badge}`}>Em análise</span>
+                ? <span className={`rounded-full border px-2 py-1 text-xs font-bold ${STATUS_TONE_CLASSES.review.badge}`}>Em análise</span>
                 : supportCases.some(c=>c.order_id===order.id) ? <span className="text-xs text-muted-foreground">Registrado</span> : "—"}</td>
             </tr>)}</tbody>
           </table>

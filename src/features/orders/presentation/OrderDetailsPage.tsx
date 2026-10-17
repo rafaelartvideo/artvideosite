@@ -146,9 +146,9 @@ export function OrderDetailsPage(props: Props) {
 
   const itemBadge = itemsOverview
     ? itemsOverview.pending > 0
-      ? { label: itemsOverview.pending + " pendente" + (itemsOverview.pending > 1 ? "s" : ""), style: STATUS_TONE_CLASSES.warning.badge }
+      ? { label: itemsOverview.pending + " pendente" + (itemsOverview.pending > 1 ? "s" : ""), style: STATUS_TONE_CLASSES.pending.badge }
       : itemsOverview.inProgress > 0
-        ? { label: itemsOverview.inProgress + " em andamento", style: STATUS_TONE_CLASSES.warning.badge }
+        ? { label: itemsOverview.inProgress + " em andamento", style: STATUS_TONE_CLASSES.progress.badge }
         : itemsOverview.completed > 0
           ? { label: itemsOverview.completed + " concluído" + (itemsOverview.completed > 1 ? "s" : ""), style: STATUS_TONE_CLASSES.success.badge }
           : itemsOverview.total > 0

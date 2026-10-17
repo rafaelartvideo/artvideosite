@@ -530,7 +530,7 @@ function ReadinessCard({
   return <div className="rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-4">
     <div className="flex items-start justify-between gap-3">
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white text-primary shadow-sm"><Icon size={17} /></span>
-      <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${STATUS_TONE_CLASSES[ready ? "success" : "warning"].badge}`}>{ready ? "Pronto" : "Pendente"}</span>
+      <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${STATUS_TONE_CLASSES[ready ? "success" : "pending"].badge}`}>{ready ? "Pronto" : "Pendente"}</span>
     </div>
     <p className="mt-3 text-xs font-bold uppercase tracking-wide text-[#7a8aa0]">{title}</p>
     <p className="mt-1 text-lg font-black text-[#0d1b2e]">{value}</p>

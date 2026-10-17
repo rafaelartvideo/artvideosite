@@ -96,8 +96,8 @@ export function TechnicianOrdersTable({
     const underway = services.filter(service => service.status === "in_progress").length;
     const finished = services.filter(service => service.status === "completed").length;
     return <div className="flex flex-wrap items-center gap-1.5">
-      {pending > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.warning.badge}`}>{pending} pendente{pending > 1 ? "s" : ""}</span>}
-      {underway > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.warning.badge}`}>{underway} em andamento</span>}
+      {pending > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.pending.badge}`}>{pending} pendente{pending > 1 ? "s" : ""}</span>}
+      {underway > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.progress.badge}`}>{underway} em andamento</span>}
       {!pending && !underway && finished > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.success.badge}`}>{finished} concluído{finished > 1 ? "s" : ""}</span>}
     </div>;
   };

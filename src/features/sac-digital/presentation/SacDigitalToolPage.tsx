@@ -2280,7 +2280,9 @@ export function SacDigitalToolPage({
                       <span>Protocolo {selectedProtocol.external_protocol_id}</span>
                       <span className={`rounded border px-1.5 py-0.5 font-semibold ${STATUS_TONE_CLASSES[
                         selectedOperationalStatus === "finished" ? "success" :
-                        selectedOperationalStatus === "abandoned" || selectedOperationalStatus === "inbox" ? "danger" : "warning"
+                        selectedOperationalStatus === "abandoned" || selectedOperationalStatus === "inbox" ? "danger"
+                        : selectedOperationalStatus === "in_att" ? "progress"
+                        : selectedOperationalStatus === "pending" ? "pending" : "waiting"
                       ].badge}`}>
                         {selectedOperationalStatus
                           ? protocolStatusLabel[selectedOperationalStatus] || selectedOperationalStatus

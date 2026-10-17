@@ -801,8 +801,8 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       completed: "Concluído", cancelled: "Cancelado",
     };
     const tones: Record<OrderServiceTaskStatus, string> = {
-      pending: STATUS_TONE_CLASSES.warning.badge,
-      in_progress: STATUS_TONE_CLASSES.warning.badge,
+      pending: STATUS_TONE_CLASSES.pending.badge,
+      in_progress: STATUS_TONE_CLASSES.progress.badge,
       completed: STATUS_TONE_CLASSES.success.badge,
       cancelled: STATUS_TONE_CLASSES.danger.badge,
     };
@@ -883,7 +883,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     const progress = status === "completed" ? 100 : status === "in_progress" ? 55 : 0;
     const progressTone = status === "completed" ? STATUS_TONE_CLASSES.success.dot
       : status === "cancelled" ? STATUS_TONE_CLASSES.danger.dot
-      : STATUS_TONE_CLASSES.warning.dot;
+      : status === "in_progress" ? STATUS_TONE_CLASSES.progress.dot : STATUS_TONE_CLASSES.pending.dot;
     const locations = ([
       ["Início", task?.start_location],
       ["Conclusão", task?.finish_location],

@@ -134,7 +134,7 @@ export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orde
         <div className="flex flex-wrap items-center justify-between gap-2">
           <strong className="text-[13px]">{typeNames[item.request_type]}</strong>
           <span className={"rounded-full border px-2.5 py-1 text-[11px] font-bold " +
-            STATUS_TONE_CLASSES[["approved", "closed"].includes(item.status) ? "success" : item.status === "rejected" ? "danger" : "warning"].badge}>
+            STATUS_TONE_CLASSES[["approved", "closed"].includes(item.status) ? "success" : item.status === "rejected" ? "danger" : item.status === "in_review" ? "review" : "pending"].badge}>
             {statusNames[item.status]}
           </span>
         </div>
