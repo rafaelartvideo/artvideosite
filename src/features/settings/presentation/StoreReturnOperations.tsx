@@ -107,7 +107,7 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
  const [quantity,setQuantity]=useState(1);
  const [refundMode,setRefundMode]=useState(false);
  const [amount,setAmount]=useState("");
- const [provider,setProvider]=useState<"mercado_pago"|"other">("mercado_pago");
+ const [provider,setProvider]=useState<"getpay_link"|"getnet_checkout"|"mercado_pago"|"other">("other");
  const [reference,setReference]=useState("");
  const [date,setDate]=useState("");
  const [notes,setNotes]=useState("");
@@ -226,7 +226,7 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
         <span className="text-muted-foreground">{new Date(refund.refunded_at).toLocaleString("pt-BR")}</span>
       </div>
       <p className="mt-1 break-all text-[11px] text-muted-foreground">
-       {refund.provider==="mercado_pago"?"Mercado Pago":"Outro provedor"} · Comprovante {refund.provider_reference}
+       {({getpay_link:"GetPay",getnet_checkout:"Getnet Checkout",mercado_pago:"Mercado Pago (histórico)",other:"Outro provedor"} as Record<string,string>)[refund.provider]||refund.provider} · Comprovante {refund.provider_reference}
       </p>
       {refund.notes&&<p className="mt-1 whitespace-pre-wrap text-xs">{refund.notes}</p>}
     </div>):<p className="text-xs text-muted-foreground">Nenhum reembolso confirmado foi registrado neste atendimento.</p>}
@@ -241,8 +241,11 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
          value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.,]/g,""))} placeholder="0,00"/>
        </label>
        <label className="block text-xs font-bold">Provedor
-        <select value={provider} className={field+" mt-1.5"} onChange={e=>setProvider(e.target.value as "mercado_pago"|"other")}>
-         <option value="mercado_pago">Mercado Pago</option><option value="other">Outro meio</option>
+        <select value={provider} className={field+" mt-1.5"} onChange={e=>setProvider(e.target.value as "getpay_link"|"getnet_checkout"|"mercado_pago"|"other")}>
+         <option value="getpay_link">GetPay</option>
+          <option value="getnet_checkout">Getnet Checkout</option>
+          <option value="other">Outro provedor</option>
+          <option value="mercado_pago">Mercado Pago (histórico)</option>
         </select>
        </label>
        <label className="block text-xs font-bold">Referência de reembolso do provedor *

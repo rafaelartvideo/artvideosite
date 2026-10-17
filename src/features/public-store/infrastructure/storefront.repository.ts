@@ -102,7 +102,14 @@ export async function startStoreCheckout(payload: {
   }
   if (data?.error) throw new Error(String(data.error));
   const destination = typeof data?.checkout_url === "string" ? data.checkout_url : "";
-  if (!/^https:\/\/(www\.)?mercadopago\.com(\.br)?\//.test(destination)) {
+  try {
+    const redirect = new URL(destination);
+    if (redirect.protocol !== "https:" || redirect.username || redirect.password
+      || redirect.port || !redirect.hostname || redirect.hostname==="localhost"
+      || /^(?:127\.|10\.|192\.168\.|169\.254\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/.test(redirect.hostname)) {
+      throw new Error("Endereço de pagamento não autorizado.");
+    }
+  } catch {
     throw new Error("Não foi possível iniciar um checkout seguro. Nenhum valor foi cobrado.");
   }
   const trackingToken = typeof data?.tracking_token === "string" ? data.tracking_token : "";
@@ -184,4 +191,21 @@ export async function requestStoreAfterSales(payload: {
   if(data?.error) throw new Error(String(data.error));
   if(error) throw new Error("Não foi possível registrar a solicitação. Tente novamente.");
   if(!data?.case?.id) throw new Error("Não foi possível confirmar sua solicitação.");
+}
+
+
+/** Dados públicos da modalidade ativa; credenciais e configurações internas não são expostas. */
+export type StorePaymentAvailability={
+  available: boolean;
+  provider: string | null;
+  providerName: string | null;
+};
+export async function loadStorePaymentStatus():Promise<StorePaymentAvailability>{
+  const {data,error}=await supabase.rpc("artvideo_store_payment_status_v1");
+  if(error) throw error;
+  return {
+    available:data?.available===true,
+    provider:typeof data?.provider==="string"?data.provider:null,
+    providerName:typeof data?.provider_name==="string"?data.provider_name:null,
+  };
 }

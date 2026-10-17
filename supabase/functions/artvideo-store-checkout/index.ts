@@ -2,20 +2,23 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import {
   CORS, cleanPostalCode, json, loadProduct, pickupOption, safeText, shippingQuotes, validQuantity,
 } from "../_shared/artvideo-store.ts";
+import { getStorePaymentAdapter,validatePaymentRedirect } from "../_shared/artvideo-payment-providers.ts";
 
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { headers: CORS });
   if (req.method !== "POST") return json({ error: "Método inválido." }, 405);
-  const token = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN");
-  const collector = Deno.env.get("MERCADO_PAGO_COLLECTOR_ID");
-  if (!token || !collector) {
-    return json({ error: "A loja ainda está configurando o pagamento e a entrega online. Nenhum valor foi cobrado." }, 503);
-  }
   const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false },
   });
   let orderId = "";
   try {
+    // A configuração pertence à loja, não ao navegador.
+    const {data:paymentStatus,error:statusError}=await admin.rpc("artvideo_store_payment_status_v1");
+    const providerKey=String(paymentStatus?.provider||"");
+    const adapter=paymentStatus?.available===true ? getStorePaymentAdapter(providerKey) : null;
+    if(statusError || !adapter){
+      return json({error:"O pagamento online está sendo preparado. Nenhum valor foi cobrado."},503);
+    }
     const input = await req.json();
     const cart = Array.isArray(input.items) ? input.items : [
       { product_id: input.product_id, quantity: input.quantity },
@@ -106,48 +109,33 @@ Deno.serve(async req => {
     const detailUrl = "https://eletronicaartvideo.com.br/acompanhar-pedido";
     const nationalPhone = phone.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
     if (!/^\d{10,11}$/.test(nationalPhone)) {
-      return json({ error: "Informe um telefone brasileiro válido, com DDD." }, 400);
+      throw new Error("Informe um telefone brasileiro válido, com DDD.");
     }
-    const mpRequest = {
-      items: [
-        ...((order.items || []) as Array<{product_id: string; title: string; quantity: number; unit_price: number}>).map(item => ({
-          id: item.product_id, title: item.title.slice(0, 200),
-          quantity: item.quantity, currency_id: "BRL", unit_price: Number(item.unit_price),
-        })),
-        { id: `shipping-${selected.id}`, title: `${wantsPickup ? "Retirada" : "Frete"}: ${selected.company} — ${selected.name}`.slice(0,200),
-          quantity: 1, currency_id: "BRL", unit_price: Number(selected.price) },
-      ].filter(item => item.unit_price > 0),
-      payer: { name, email, phone: { area_code: nationalPhone.slice(0,2), number: nationalPhone.slice(2) } },
-      external_reference: orderId,
-      back_urls: {
-        success: `${detailUrl}?retorno=aprovado`, pending: `${detailUrl}?retorno=pendente`,
-        failure: `${detailUrl}?retorno=nao-concluido`,
+    const hosted = await adapter.createHostedCheckout({
+      orderId,
+      amountCents:Math.round(Number(order.total)*100),
+      currency:"BRL",
+      items:((order.items||[]) as Array<{product_id:string;title:string;quantity:number;unit_price:number}>).map(item=>({
+        productId:item.product_id,description:item.title,
+        quantity:item.quantity,unitPriceCents:Math.round(Number(item.unit_price)*100),
+      })),
+      deliveryCents:shippingCents,
+      buyer:{name,email,phone:nationalPhone},
+      expiresAt:deadline,
+      returnUrls:{
+        approved:`${detailUrl}?retorno=aprovado`,
+        pending:`${detailUrl}?retorno=pendente`,
+        failed:`${detailUrl}?retorno=nao-concluido`,
       },
-      auto_return: "approved",
-      notification_url: `${Deno.env.get("SUPABASE_URL")}/functions/v1/artvideo-store-webhook`,
-      expires: true,
-      expiration_date_from: new Date().toISOString(), expiration_date_to: deadline,
-      statement_descriptor: "ARTVIDEO",
-    };
-    const paymentResponse = await fetch("https://api.mercadopago.com/checkout/preferences", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "X-Idempotency-Key": orderId },
-      body: JSON.stringify(mpRequest), signal: AbortSignal.timeout(18000),
     });
-    const payment = await paymentResponse.json();
-    if (!paymentResponse.ok || !payment.init_point || !payment.id)
-      throw new Error("O provedor de pagamentos não confirmou a criação do checkout.");
-    const { error: preferenceError } = await admin.rpc("artvideo_store_preference_v1", {
-      p_order_id: orderId, p_preference_id: String(payment.id),
+    const checkoutUrl=validatePaymentRedirect(adapter,hosted.checkoutUrl);
+    const {error:checkoutError}=await admin.rpc("artvideo_store_register_checkout_v1",{
+      p_order_id:orderId,p_provider:adapter.providerKey,p_checkout_reference:hosted.checkoutReference,
     });
-    if (preferenceError) throw preferenceError;
-    const checkoutUrl = String(payment.init_point);
-    if (!/^https:\/\/(www\.)?mercadopago\.com(\.br)?\//.test(checkoutUrl)) {
-      throw new Error("O provedor retornou um endereço inválido.");
-    }
+    if(checkoutError) throw checkoutError;
     const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
     if(trackingError || !trackingToken) throw new Error("Não foi possível preparar o acompanhamento da compra.");
-    return json({ checkout_url: checkoutUrl, order_id: orderId, tracking_token:trackingToken });
+    return json({ checkout_url: checkoutUrl, order_id: orderId, payment_provider:providerKey, tracking_token:trackingToken });
   } catch (error) {
     if (orderId) await admin.rpc("artvideo_store_cancel_v1", { p_order_id: orderId });
     return json({ error: error instanceof Error ? error.message : "Compra temporariamente indisponível. Nenhum valor foi cobrado." }, 400);

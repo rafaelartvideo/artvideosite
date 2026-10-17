@@ -1,0 +1,1 @@
+begin;alter table public.artvideo_store_refund_records alter column provider set default 'other';commit;

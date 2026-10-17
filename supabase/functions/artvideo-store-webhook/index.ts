@@ -53,6 +53,15 @@ Deno.serve(async req => {
     const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
       auth:{persistSession:false},
     });
+    // Compatibilidade exclusivamente com transações históricas deste provedor.
+    // O endpoint legado nunca pode confirmar um pedido criado pela Getnet
+    // ou por qualquer outro conector selecionado futuramente.
+    const {data:order,error:orderError}=await admin.from("artvideo_store_orders")
+      .select("payment_provider").eq("id",orderId).maybeSingle();
+    if(orderError) return new Response("order lookup failed",{status:503});
+    if(!order || order.payment_provider!=="mercado_pago") {
+      return new Response("provider mismatch",{status:403});
+    }
     const { data: lines, error: linesError } = await admin.from("artvideo_store_order_items")
       .select("id").eq("order_id", orderId).limit(1);
     if (linesError) return new Response("order lookup failed", { status: 503 });

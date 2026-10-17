@@ -43,6 +43,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   roles: "/admin/operation/roles",
   siteSettings: "/admin/site/settings",
   siteDelivery: "/admin/site/entrega",
+  sitePayments: "/admin/site/pagamentos",
   siteStoreOrders: "/admin/site/pedidos-da-loja",
   settings: "/admin/operation/company",
   integrations: "/admin/operation/integrations",
@@ -104,7 +105,7 @@ export function resolveAdminTab(pathname: string): AdminTab {
 }
 
 export function parentAdminTab(tab: AdminTab): AdminTab | null {
-  if (["services", "categories", "brands", "siteSettings", "siteDelivery", "siteStoreOrders", "contact"].includes(tab)) return "site";
+  if (["services", "categories", "brands", "siteSettings", "siteDelivery", "sitePayments", "siteStoreOrders", "contact"].includes(tab)) return "site";
   if (["documents", "equipment", "checklists", "generalServices", "serviceTypes", "situations", "orderStatuses", "roles", "settings", "integrations", "terms"].includes(tab)) return "operation";
   return null;
 }

@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 
 type Step = 1 | 2 | 3;
@@ -87,6 +87,12 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     queryFn: loadStorePickupOption,
     staleTime: 30_000,
   });
+  const paymentQuery=useQuery({
+    queryKey:["artvideo-store-payment-status"],
+    queryFn:loadStorePaymentStatus,
+    staleTime:10_000,
+  });
+  const paymentsAvailable=paymentQuery.data?.available===true;
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [quoteKey, setQuoteKey] = useState("");
   const [shippingId, setShippingId] = useState("");
@@ -239,6 +245,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
   const placeOrder = async () => {
     if (inFlight.current || paying) return;
+    if(!paymentsAvailable){setError("O pagamento online está sendo preparado. Nenhuma cobrança foi realizada.");return;}
     if (!checkIdentity() || !checkDelivery() || !purchasable || !selectedShipping) {
       if (!error && !purchasable) setError("Revise a disponibilidade do produto.");
       return;
@@ -623,8 +630,14 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <div className="flex items-start gap-3">
                   <LockKeyhole size={22} className="mt-0.5 shrink-0 text-[var(--art-primary)]"/>
                   <div>
-                    <h3 className="text-[14px] font-extrabold text-[#14385d]">Pagamento pelo Mercado Pago</h3>
-                    <p className="mt-1 text-[12px] leading-relaxed text-[#58728e]">Ao continuar, você será direcionado para escolher a forma de pagamento disponível. A Artvideo não solicita os dados do cartão nesta página.</p>
+                    <h3 className="text-[14px] font-extrabold text-[#14385d]">
+                      {paymentsAvailable ? "Pagamento com " + (paymentQuery.data?.providerName || "provedor seguro") : "Pagamento online em preparação"}
+                    </h3>
+                    <p className="mt-1 text-[12px] leading-relaxed text-[#58728e]">
+                      {paymentsAvailable
+                        ? "Ao continuar, você será direcionado ao ambiente seguro de pagamento. A Artvideo não solicita dados do cartão nesta página."
+                        : "Estamos preparando uma nova forma de pagamento para a loja. Você pode consultar os produtos e o frete, mas novas cobranças estão temporariamente indisponíveis."}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -632,6 +645,10 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-[#278a61]"/>
                 O pedido só será considerado pago após a confirmação do provedor.
               </p>
+              {!paymentsAvailable && <Link to="/contato"
+                className="inline-flex min-h-10 items-center gap-2 text-[12px] font-bold text-[var(--art-primary)] hover:underline">
+                Entre em contato com a Artvideo para consultar opções de compra <ArrowRight size={16}/>
+              </Link>}
             </div>
           </section>}
 
@@ -650,10 +667,11 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 if (step === 2 && checkDelivery()) move(3);
               }}>
               Continuar <ArrowRight size={17}/>
-            </button> : <button type="button" className={buttonStyle} disabled={!purchasable || paying || !selectedShipping}
+            </button> : <button type="button" className={buttonStyle} disabled={!purchasable || paying || !selectedShipping || !paymentsAvailable}
               onClick={() => void placeOrder()}>
               {paying ? <><LoaderCircle className="animate-spin" size={19}/> Verificando seu pedido...</> :
-                <><LockKeyhole size={18}/> Ir para pagamento <ArrowRight size={16}/></>}
+                paymentsAvailable ? <><LockKeyhole size={18}/> Ir para pagamento <ArrowRight size={16}/></> :
+                <><LockKeyhole size={18}/> Pagamento indisponível</>}
             </button>}
           </div>
         </div>

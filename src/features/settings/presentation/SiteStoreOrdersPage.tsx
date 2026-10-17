@@ -19,7 +19,7 @@ type StoreOrder = {
   product_name: string; unit_price: number; shipping_price: number;
   shipping_service_name: string; shipping_service_id: string; postal_code: string;
   buyer: Record<string, string>; preference_id: string | null;
-  payment_id: string | null; paid_at: string | null; expires_at: string;
+  payment_id: string | null; payment_provider: string | null; paid_at: string | null; expires_at: string;
 };
 type StoreOrderLine = {
   id: string; order_id: string; product_name: string; quantity: number; unit_price: number;
@@ -121,7 +121,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
     setError("");
     const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
-        .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,paid_at,expires_at")
+        .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
       supabase.from("artvideo_store_order_items")
         .select("id,order_id,product_name,quantity,unit_price")
@@ -337,6 +337,9 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
           </span>
           {selectedIsPaid && <DeliveryBadge status={currentStatus}/>}
           {selected.paid_at && <span className="text-xs text-muted-foreground">Pagamento: {timeText(selected.paid_at)}</span>}
+          {selected.payment_provider && <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">
+            Provedor: {({getpay_link:"GetPay",getnet_checkout:"Getnet Checkout",mercado_pago:"Mercado Pago (histórico)",custom:"Outro provedor"} as Record<string,string>)[selected.payment_provider]||selected.payment_provider}
+          </span>}
         </div>
 
         {isPickup && <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-xs font-semibold text-primary">
