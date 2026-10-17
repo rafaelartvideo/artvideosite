@@ -1,3 +1,4 @@
+import { getStatusBadgeClass } from "@/shared/domain/status-tone";
 import type React from "react";
 import { AlertTriangle, Check, ClipboardCheck, PackageCheck, RotateCcw, Truck, Undo2, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
@@ -180,7 +181,7 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
     const hasPendingReturnReceipt = request.items.some(item => Number(item.return_pending_quantity ?? 0) > 0);
     const hasPendingTestResult = purpose === "TEST" && request.items.some(item => getPendingQuantity(request, item) > 0);
     const statusLabel = status === "APPROVED" ? "Aprovada" : status === "REJECTED" ? "Rejeitada" : status === "CANCELLED" ? "Cancelada" : "Em análise";
-    const statusClass = status === "APPROVED" ? "bg-green-100 text-green-700" : status === "REJECTED" ? "bg-red-100 text-red-700" : status === "CANCELLED" ? "bg-muted text-[#5a6a82]" : "bg-amber-100 text-amber-700";
+    const statusClass = getStatusBadgeClass(status);
 
     return <AdminCard key={request.id} className="min-w-0 bg-white p-0">
       <div className="px-4 py-4 sm:px-5">
@@ -190,7 +191,7 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
             <p className="mt-1 break-words text-[11px] text-[#5a6a82]">{request.requester?.full_name || "Solicitante não informado"} · {formatDate(request.created_at, true)}</p>
           </div>
           <div className="flex shrink-0 flex-wrap justify-end gap-1.5">
-            <span className={cn("rounded-full px-2.5 py-1 text-[10px] font-semibold", statusClass)}>{statusLabel}</span>
+            <span className={cn("rounded-full border px-2.5 py-1 text-[10px] font-semibold", statusClass)}>{statusLabel}</span>
             <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-semibold text-blue-700">{purposeLabel(purpose)}</span>
           </div>
         </div>

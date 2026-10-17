@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useRef, useState } from "react";
 import { BanknoteArrowDown, BanknoteArrowUp, Eye, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -25,12 +26,18 @@ const approvalLabels: Record<string, string> = { draft: "Rascunho", pending: "Pe
 const operationLabels: Record<string, string> = { open: "A vencer", overdue: "Vencida", partial: "Parcial", settled: "Liquidada", cancelled: "Cancelada" };
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warning" | "danger" | "success" | "blue" }) {
-  const tones = { neutral: "bg-slate-100 text-slate-600", warning: "bg-amber-100 text-amber-700", danger: "bg-red-100 text-red-700", success: "bg-emerald-100 text-emerald-700", blue: "bg-blue-100 text-blue-700" };
-  return <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-black uppercase tracking-wide ${tones[tone]}`}>{children}</span>;
+  const tones = {
+    neutral: STATUS_TONE_CLASSES.neutral.badge,
+    warning: STATUS_TONE_CLASSES.warning.badge,
+    danger: STATUS_TONE_CLASSES.danger.badge,
+    success: STATUS_TONE_CLASSES.success.badge,
+    blue: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  };
+  return <span className={`inline-flex rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-wide ${tones[tone]}`}>{children}</span>;
 }
 
-function approvalTone(status: string) { return status === "approved" ? "success" as const : status === "rejected" ? "danger" as const : status === "pending" ? "warning" as const : "neutral" as const; }
-function operationalTone(status?: string) { return status === "overdue" ? "danger" as const : status === "settled" ? "success" as const : status === "partial" ? "warning" as const : "blue" as const; }
+function approvalTone(status: string) { return status === "approved" ? "success" as const : ["rejected","cancelled","reversed"].includes(status) ? "danger" as const : status === "pending" ? "warning" as const : "neutral" as const; }
+function operationalTone(status?: string) { return ["overdue","cancelled"].includes(status || "") ? "danger" as const : status === "settled" ? "success" as const : ["partial","open"].includes(status || "") ? "warning" as const : "neutral" as const; }
 function approvalText(entry: FinancialEntry) {
   const base = approvalLabels[entry.approval_status] || entry.approval_status;
   return entry.approval_status === "pending" ? `${base} ${entry.approval_count || 0}/${entry.required_approvals}` : base;

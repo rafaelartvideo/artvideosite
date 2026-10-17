@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
@@ -184,7 +185,12 @@ export function OrderHistoryPage({
             : <div className="space-y-3">{entries.map(item => {
               const card = <AdminCard className={cn(
                 "min-w-0 p-4 shadow-none",
-                item.type === "work" ? "border-primary/20 bg-primary/5" :
+                item.type === "work" ? STATUS_TONE_CLASSES[
+                  item.workItem.status !== "completed" && item.workItem.status !== "cancelled"
+                    && item.workItem.due_at && new Date(item.workItem.due_at).getTime() < Date.now()
+                    ? "danger" : item.workItem.status === "completed" ? "success"
+                    : item.workItem.status === "cancelled" ? "danger" : "warning"
+                ].badge :
                   item.type === "note" ? "border-primary/15" : "bg-muted/35",
               )}>
                 <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-2">

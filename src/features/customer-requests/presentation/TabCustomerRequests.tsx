@@ -1,3 +1,4 @@
+import { getStatusBadgeClass } from "@/shared/domain/status-tone";
 import { useEffect, useState, type FormEvent } from "react";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -21,17 +22,12 @@ const statusOptions: Array<{ value: RequestStatus; label: string }> = [
   { value: "fulfilled", label: "Atendido" },
   { value: "cancelled", label: "Cancelado" },
 ];
-const statusStyles: Record<RequestStatus, string> = {
-  pending: "border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300",
-  fulfilled: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  cancelled: "border-border bg-muted text-muted-foreground",
-};
 const kindLabel = (value: RequestKind) => value === "product" ? "Produto" : "Serviço";
 const statusLabel = (value: RequestStatus) => statusOptions.find(option => option.value === value)?.label || "—";
 const dateLabel = (value: string) => new Date(value).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 
 function StatusTag({ value }: { value: RequestStatus }) {
-  return <span className={cn("inline-flex items-center rounded-lg border px-2.5 py-1.5 text-xs font-bold", statusStyles[value])}>{statusLabel(value)}</span>;
+  return <span className={cn("inline-flex items-center rounded-lg border px-2.5 py-1.5 text-xs font-bold", getStatusBadgeClass(value))}>{statusLabel(value)}</span>;
 }
 
 function DetailValue({ title, children }: { title: string; children: React.ReactNode }) {

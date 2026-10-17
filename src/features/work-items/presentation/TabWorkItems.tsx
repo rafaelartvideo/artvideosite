@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "react-router";
@@ -22,17 +23,17 @@ import { WorkItemDialog } from "./WorkItemDialog";
 type View = "overview" | "list" | "board" | "calendar";
 type Scope = "all" | "mine" | "today" | "overdue";
 const STATUSES: { value: WorkStatus; label: string; dot: string; tint: string }[] = [
-  { value: "pending", label: "Pendentes", dot: "bg-slate-400", tint: "bg-slate-500/5 dark:bg-slate-500/10" },
-  { value: "in_progress", label: "Em andamento", dot: "bg-blue-500", tint: "bg-blue-500/5 dark:bg-blue-500/10" },
-  { value: "waiting", label: "Aguardando", dot: "bg-amber-500", tint: "bg-amber-500/5 dark:bg-amber-500/10" },
-  { value: "completed", label: "Concluídas", dot: "bg-emerald-500", tint: "bg-emerald-500/5 dark:bg-emerald-500/10" },
-  { value: "cancelled", label: "Canceladas", dot: "bg-zinc-400", tint: "bg-zinc-500/5 dark:bg-zinc-500/10" },
+  { value: "pending", label: "Pendentes", dot: STATUS_TONE_CLASSES.warning.dot, tint: STATUS_TONE_CLASSES.warning.surface },
+  { value: "in_progress", label: "Em andamento", dot: STATUS_TONE_CLASSES.warning.dot, tint: STATUS_TONE_CLASSES.warning.surface },
+  { value: "waiting", label: "Aguardando", dot: STATUS_TONE_CLASSES.warning.dot, tint: STATUS_TONE_CLASSES.warning.surface },
+  { value: "completed", label: "Concluídas", dot: STATUS_TONE_CLASSES.success.dot, tint: STATUS_TONE_CLASSES.success.surface },
+  { value: "cancelled", label: "Canceladas", dot: STATUS_TONE_CLASSES.danger.dot, tint: STATUS_TONE_CLASSES.danger.surface },
 ];
 const PRIORITY: Record<WorkPriority, { label: string; color: string }> = {
   low: { label: "Baixa", color: "text-slate-500 bg-slate-500/10" },
   normal: { label: "Normal", color: "text-blue-600 bg-blue-500/10 dark:text-blue-300" },
-  high: { label: "Alta", color: "text-amber-700 bg-amber-500/10 dark:text-amber-300" },
-  urgent: { label: "Urgente", color: "text-red-600 bg-red-500/10 dark:text-red-300" },
+  high: { label: "Alta", color: STATUS_TONE_CLASSES.warning.badge },
+  urgent: { label: "Urgente", color: STATUS_TONE_CLASSES.danger.badge },
 };
 const status = (value: WorkStatus) => STATUSES.find(candidate => candidate.value === value) || STATUSES[0];
 const todayISO = () => new Date().toLocaleDateString("en-CA");
@@ -74,7 +75,7 @@ function PriorityTag({ value }: { value: WorkPriority }) {
 }
 function DueTag({ item }: { item: WorkItem }) {
   return <span className={cn("inline-flex items-center gap-1 text-[11px] font-medium",
-    pastDue(item) ? "text-red-600 dark:text-red-300" : "text-muted-foreground")}>
+    pastDue(item) ? STATUS_TONE_CLASSES.danger.text : "text-muted-foreground")}>
     <Clock3 size={12} />{dueLabel(item.due_at)}
   </span>;
 }
@@ -82,7 +83,7 @@ function TaskCard({ item, employees, onOpen, canPerform, compact = false }: {
   item: WorkItem; employees: WorkEmployee[]; onOpen: (item: WorkItem) => void;
   canPerform: boolean; compact?: boolean;
 }) {
-  const s = status(item.status);
+  const s = pastDue(item) ? { ...status(item.status), dot: STATUS_TONE_CLASSES.danger.dot } : status(item.status);
   const isFinalized = item.status === "completed" || item.status === "cancelled";
   return <div role="button" tabIndex={0} draggable={canPerform && !isFinalized}
     onDragStart={event => event.dataTransfer.setData("text/plain", item.id)}
@@ -354,10 +355,10 @@ export function TabWorkItems() {
 
     <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
       {[
-        { label: "Em aberto", count: overview.pending, icon: ClipboardCheck, tint: "text-amber-700 dark:text-amber-300", bg: "bg-amber-500/10" },
-        { label: "Em andamento", count: overview.inProgress, icon: TrendingUp, tint: "text-blue-600 dark:text-blue-300", bg: "bg-blue-500/10" },
-        { label: "Atrasadas", count: overview.overdue, icon: Clock3, tint: "text-red-600 dark:text-red-300", bg: "bg-red-500/10" },
-        { label: "Concluídas", count: overview.completed, icon: CheckCheck, tint: "text-emerald-600 dark:text-emerald-300", bg: "bg-emerald-500/10" },
+        { label: "Em aberto", count: overview.pending, icon: ClipboardCheck, tint: STATUS_TONE_CLASSES.warning.text, bg: STATUS_TONE_CLASSES.warning.surface },
+        { label: "Em andamento", count: overview.inProgress, icon: TrendingUp, tint: STATUS_TONE_CLASSES.warning.text, bg: STATUS_TONE_CLASSES.warning.surface },
+        { label: "Atrasadas", count: overview.overdue, icon: Clock3, tint: STATUS_TONE_CLASSES.danger.text, bg: STATUS_TONE_CLASSES.danger.surface },
+        { label: "Concluídas", count: overview.completed, icon: CheckCheck, tint: STATUS_TONE_CLASSES.success.text, bg: STATUS_TONE_CLASSES.success.surface },
       ].map(metric => { const Icon = metric.icon; return <div key={metric.label} className="flex items-center gap-3 rounded-xl border border-border bg-card p-3.5 shadow-sm transition-shadow hover:shadow-md">
         <div className={cn("flex h-11 w-11 shrink-0 items-center justify-center rounded-xl", metric.bg, metric.tint)}><Icon size={20} /></div>
         <div className="min-w-0">
@@ -471,7 +472,7 @@ export function TabWorkItems() {
                     </div>
                   </div>
                 </td>
-                <td><span className="inline-flex items-center gap-2 whitespace-nowrap text-xs"><span className={cn("h-2 w-2 rounded-full", status(item.status).dot)} />{status(item.status).label}</span></td>
+                <td><span className="inline-flex items-center gap-2 whitespace-nowrap text-xs"><span className={cn("h-2 w-2 rounded-full", pastDue(item) ? STATUS_TONE_CLASSES.danger.dot : status(item.status).dot)} />{status(item.status).label}</span></td>
                 <td><PriorityTag value={item.priority} /></td>
                 <td><DueTag item={item} /></td>
                 <td><AvatarStack employees={employees} ids={item.assigned_employee_ids || []} /></td>

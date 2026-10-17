@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -53,11 +54,11 @@ type Props = {
 };
 
 const statusClasses: Record<string, string> = {
-  pending: "bg-amber-50 text-amber-700 ring-amber-200",
-  viewed: "bg-blue-50 text-blue-700 ring-blue-200",
-  signed: "bg-emerald-50 text-emerald-700 ring-emerald-200",
-  expired: "bg-slate-100 text-slate-600 ring-slate-200",
-  cancelled: "bg-red-50 text-red-700 ring-red-200",
+  pending: STATUS_TONE_CLASSES.warning.badge,
+  viewed: STATUS_TONE_CLASSES.warning.badge,
+  signed: STATUS_TONE_CLASSES.success.badge,
+  expired: STATUS_TONE_CLASSES.danger.badge,
+  cancelled: STATUS_TONE_CLASSES.danger.badge,
 };
 
 const eventLabels: Record<string, string> = {
@@ -82,7 +83,7 @@ const eventLabels: Record<string, string> = {
 };
 
 function statusBadge(status: string) {
-  return <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-black uppercase ring-1 ring-inset ${statusClasses[status] || statusClasses.expired}`}>{DOCUMENT_SIGNATURE_STATUS_LABELS[status as keyof typeof DOCUMENT_SIGNATURE_STATUS_LABELS] || status}</span>;
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${statusClasses[status] || STATUS_TONE_CLASSES.neutral.badge}`}>{DOCUMENT_SIGNATURE_STATUS_LABELS[status as keyof typeof DOCUMENT_SIGNATURE_STATUS_LABELS] || status}</span>;
 }
 
 export function OrderSignatureRequestsSection({

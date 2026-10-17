@@ -509,7 +509,7 @@ export function AdminHeader({
               <HeaderAction label="Compromissos e Tarefas" active={workItemsHeader.panelOpen}
                 onClick={() => { setOpenMenu(null); workItemsHeader.setPanelOpen(true); }}>
                 <ListTodo size={17} strokeWidth={2} />
-                <WorkItemsHeaderBadge count={workItemsHeader.count} />
+                <WorkItemsHeaderBadge count={workItemsHeader.count} tone={workItemsHeader.badgeTone} />
               </HeaderAction>
             </div>}
 
@@ -576,7 +576,7 @@ export function AdminHeader({
             {workItemsHeader.canView && <HeaderAction label="Compromissos e Tarefas" active={workItemsHeader.panelOpen}
               onClick={() => { setOpenMenu(null); workItemsHeader.setPanelOpen(true); }}>
               <ListTodo size={16} />
-              <WorkItemsHeaderBadge count={workItemsHeader.count} />
+              <WorkItemsHeaderBadge count={workItemsHeader.count} tone={workItemsHeader.badgeTone} />
             </HeaderAction>}
             <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}><Settings size={16} /></HeaderAction>
             <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />

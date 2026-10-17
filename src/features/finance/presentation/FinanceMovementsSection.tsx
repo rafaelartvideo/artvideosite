@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
@@ -142,7 +143,7 @@ export function FinanceMovementsSection() {
           const overdue = new Date(item.expected_settlement_at).getTime() < Date.now();
           return <div key={item.id} className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${overdue ? "border-red-200 bg-red-50/50" : "border-[#0d1b2e]/8"}`}>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black text-[#0d1b2e]">{item.payment_method_name_snapshot}</p>{overdue && <span className="rounded-full bg-red-100 px-2 py-1 text-[10px] font-black uppercase text-red-700">Repasse atrasado</span>}</div>
+              <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black text-[#0d1b2e]">{item.payment_method_name_snapshot}</p>{overdue && <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${STATUS_TONE_CLASSES.danger.badge}`}>Repasse atrasado</span>}</div>
               <p className="mt-1 text-xs text-[#5a6a82]">{item.financial_account_name_snapshot} · previsto para {formatDateTime(item.expected_settlement_at)}</p>
               <p className="mt-1 text-xs text-[#5a6a82]">Bruto {formatCurrency(item.gross_amount)} · taxa {formatCurrency(item.fee_amount)} · <strong className="text-[#0d1b2e]">líquido {formatCurrency(item.net_amount)}</strong></p>
             </div>

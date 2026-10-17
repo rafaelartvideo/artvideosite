@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { CalendarClock, CheckCircle2, ClipboardList, Flag, UserRound, Users } from "lucide-react";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import type { WorkEmployee, WorkItem } from "../infrastructure/work-items.repository";
@@ -29,8 +30,8 @@ export function WorkItemReadonlyDetails({ item, employees }: { item: WorkItem; e
   const owners = (item.assigned_employee_ids || []).map(id => employees.find(employee => employee.id === id)?.full_name)
     .filter(Boolean) as string[];
   return <div className="space-y-4">
-    <div className="flex items-start gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4">
-      <CheckCircle2 size={21} className="mt-0.5 shrink-0 text-emerald-600" />
+    <div className={`flex items-start gap-3 rounded-xl border p-4 ${STATUS_TONE_CLASSES[item.status === "completed" ? "success" : "danger"].badge}`}>
+      <CheckCircle2 size={21} className={`mt-0.5 shrink-0 ${STATUS_TONE_CLASSES[item.status === "completed" ? "success" : "danger"].text}`} />
       <div>
         <p className="text-sm font-bold text-foreground">{item.status === "completed" ? "Atividade concluída" : "Atividade encerrada"}</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">Este registro está finalizado. Os detalhes, o checklist e o histórico permanecem disponíveis para consulta.</p>

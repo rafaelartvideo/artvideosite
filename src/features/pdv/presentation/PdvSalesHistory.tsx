@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Ban, Eye, Printer, ReceiptText, Search, ShoppingCart } from "lucide-react";
@@ -40,9 +41,9 @@ function formatDateTime(value?: string | null) {
 }
 
 function statusBadge(status: "completed" | "cancelled") {
-  return status === "completed"
-    ? <span className="inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Concluída</span>
-    : <span className="inline-flex rounded-full bg-red-100 px-2.5 py-1 text-[10px] font-black uppercase tracking-wide text-red-700">Cancelada</span>;
+  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wide ${STATUS_TONE_CLASSES[status === "completed" ? "success" : "danger"].badge}`}>
+    {status === "completed" ? "Concluída" : "Cancelada"}
+  </span>;
 }
 
 export function PdvSalesHistory({

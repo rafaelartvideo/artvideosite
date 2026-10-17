@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, CalendarDays, Check, Search } from "lucide-react";
 import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
@@ -95,9 +96,9 @@ export function TechnicianOrdersTable({
     const underway = services.filter(service => service.status === "in_progress").length;
     const finished = services.filter(service => service.status === "completed").length;
     return <div className="flex flex-wrap items-center gap-1.5">
-      {pending > 0 && <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">{pending} pendente{pending > 1 ? "s" : ""}</span>}
-      {underway > 0 && <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[10px] font-bold text-blue-700 dark:text-blue-300">{underway} em andamento</span>}
-      {!pending && !underway && finished > 0 && <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">{finished} concluído{finished > 1 ? "s" : ""}</span>}
+      {pending > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.warning.badge}`}>{pending} pendente{pending > 1 ? "s" : ""}</span>}
+      {underway > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.warning.badge}`}>{underway} em andamento</span>}
+      {!pending && !underway && finished > 0 && <span className={`rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_TONE_CLASSES.success.badge}`}>{finished} concluído{finished > 1 ? "s" : ""}</span>}
     </div>;
   };
 

@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { Check, History, Pencil, Play, WifiOff } from "lucide-react";
@@ -32,10 +33,10 @@ const STATUS_LABEL: Record<TechnicianTaskStatus, string> = {
   cancelled: "Cancelado",
 };
 const STATUS_CLASS: Record<TechnicianTaskStatus, string> = {
-  pending: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300",
-  in_progress: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300",
-  completed: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300",
-  cancelled: "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-300",
+  pending: STATUS_TONE_CLASSES.warning.badge,
+  in_progress: STATUS_TONE_CLASSES.warning.badge,
+  completed: STATUS_TONE_CLASSES.success.badge,
+  cancelled: STATUS_TONE_CLASSES.danger.badge,
 };
 
 function formatDate(value?: string | null) {

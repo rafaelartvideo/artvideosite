@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { supabase } from "@/lib/supabase";
 import { listOrderCommercialItems } from "../infrastructure/order-commercial-items.repository";
@@ -145,11 +146,11 @@ export function OrderDetailsPage(props: Props) {
 
   const itemBadge = itemsOverview
     ? itemsOverview.pending > 0
-      ? { label: itemsOverview.pending + " pendente" + (itemsOverview.pending > 1 ? "s" : ""), style: "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300" }
+      ? { label: itemsOverview.pending + " pendente" + (itemsOverview.pending > 1 ? "s" : ""), style: STATUS_TONE_CLASSES.warning.badge }
       : itemsOverview.inProgress > 0
-        ? { label: itemsOverview.inProgress + " em andamento", style: "border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-300" }
+        ? { label: itemsOverview.inProgress + " em andamento", style: STATUS_TONE_CLASSES.warning.badge }
         : itemsOverview.completed > 0
-          ? { label: itemsOverview.completed + " concluído" + (itemsOverview.completed > 1 ? "s" : ""), style: "border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300" }
+          ? { label: itemsOverview.completed + " concluído" + (itemsOverview.completed > 1 ? "s" : ""), style: STATUS_TONE_CLASSES.success.badge }
           : itemsOverview.total > 0
             ? { label: itemsOverview.total + " itens", style: "border-slate-500/30 bg-slate-500/10 text-muted-foreground" }
             : null

@@ -1,3 +1,4 @@
+import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
@@ -35,6 +36,14 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
   const canExecuteTeam = canManage && hasPermission("work_items.execute_team");
   const queryClient = useQueryClient();
   const [panelOpen, setPanelOpen] = useState(false);
+  const [clock, setClock] = useState(() => Date.now());
+  useEffect(() => {
+    if (!canView) return;
+    const tick = () => setClock(Date.now());
+    const interval = window.setInterval(tick, 60_000);
+    window.addEventListener("focus", tick);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", tick); };
+  }, [canView]);
   const [selected, setSelected] = useState<WorkItem | null>(null);
   const query = useQuery({
     queryKey: ["work-items", organizationId || ""],
@@ -82,6 +91,8 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
     || b.created_at.localeCompare(a.created_at)),
     [query.data, userId, personalEmployeeIds.join(",")]);
 
+  const badgeTone = mine.some(item => item.due_at && new Date(item.due_at).getTime() < clock)
+    ? "danger" as const : "warning" as const;
   const openDetails = (item: WorkItem) => {
     setPanelOpen(false);
     setSelected(item);
@@ -100,7 +111,7 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
   const liveSelected = selected ? (query.data || []).find(item => item.id === selected.id) || selected : null;
 
   return {
-    canView, canEdit, canManage, canExecuteTeam, personalEmployeeIds, userId, mine, count: mine.length,
+    canView, canEdit, canManage, canExecuteTeam, personalEmployeeIds, userId, mine, count: mine.length, badgeTone,
     loading: query.isPending, error: query.isError,
     panelOpen, setPanelOpen, selected: liveSelected, employees, organizationId: organizationId || "",
     openDetails, closeDetails, onSaved,
@@ -109,9 +120,9 @@ export function useWorkItemsHeader(organizationId?: string | null, userId?: stri
 
 export type WorkItemsHeaderController = ReturnType<typeof useWorkItemsHeader>;
 
-export function WorkItemsHeaderBadge({ count }: { count: number }) {
+export function WorkItemsHeaderBadge({ count, tone = "warning" }: { count: number; tone?: "warning" | "danger" }) {
   if (count <= 0) return null;
-  return <span className="absolute -right-1 -top-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-card bg-primary px-0.5 text-[9px] font-black leading-none text-white">
+  return <span className={`absolute -right-1 -top-1 inline-flex h-[17px] min-w-[17px] items-center justify-center rounded-full border-2 border-card px-0.5 text-[9px] font-black leading-none ${STATUS_TONE_CLASSES[tone].solid}`}>
     {count > 99 ? "99+" : count}
   </span>;
 }
@@ -148,7 +159,7 @@ export function WorkItemsHeaderDialog({ controller }: { controller: WorkItemsHea
                   <span className="block text-[11px] text-muted-foreground">
                     {item.kind === "commitment" ? "Compromisso" : "Tarefa"} · {priorityText[item.priority]} · {item.status === "in_progress" ? "Em andamento" : item.status === "waiting" ? "Aguardando" : "Pendente"}
                   </span>
-                  <span className={overdue ? "flex items-center gap-1 text-[11px] font-semibold text-red-600" : "flex items-center gap-1 text-[11px] text-muted-foreground"}>
+                  <span className={overdue ? `flex items-center gap-1 text-[11px] font-semibold ${STATUS_TONE_CLASSES.danger.text}` : "flex items-center gap-1 text-[11px] text-muted-foreground"}>
                     <CalendarClock size={12} /> {overdue ? "Atrasada · " : ""}{dateText(item.due_at)}
                   </span>
                 </span>

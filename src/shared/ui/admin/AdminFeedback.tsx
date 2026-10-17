@@ -1,3 +1,4 @@
+import { getStatusTone, STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle, Package, Plus, X } from "lucide-react";
@@ -101,16 +102,13 @@ export function StatusBadge({ status, color }: { status: string; color?: string 
   const lifecycleTone = lifecycleStatusTone(status);
   if (lifecycleTone) return <LifecycleStatusBadge status={status} />;
 
-  const normalized = (status || "").toLowerCase();
-  let classes = "border border-primary/15 bg-primary-soft text-primary";
-  if (/conclu|pronto|finaliz|entregue|aprovad/.test(normalized)) classes = "admin-semantic-success";
-  else if (/pendent|aguard|anál|analise/.test(normalized)) classes = "admin-semantic-warning";
-  else if (/cancel|recusad/.test(normalized)) classes = "admin-semantic-error";
-
-  const customColor = Boolean(color && isHexColor(color));
+  const tone = getStatusTone(status);
+  const classes = STATUS_TONE_CLASSES[tone].badge;
+  // Cores personalizadas só prevalecem para estados sem significado reconhecido.
+  const customColor = tone === "neutral" && Boolean(color && isHexColor(color));
   return (
     <span
-      className={cn("inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide", customColor ? "border" : classes)}
+      className={cn("inline-block rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide", customColor ? "border" : classes)}
       style={customColor ? { color: color!, backgroundColor: `${color}20`, borderColor: `${color}55` } : undefined}
     >
       {status || "—"}
