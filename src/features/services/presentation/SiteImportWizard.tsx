@@ -90,6 +90,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   const canServiceCategory = hasPermission("categories.create");
   const canProductCategory = hasPermission("inventory.categories.manage") || hasPermission("categories.create");
   const [url, setUrl] = useState("");
+  const [artvideoOrganizationId, setArtvideoOrganizationId] = useState<string | null>(null);
   const [maxPages, setMaxPages] = useState(16);
   const [types, setTypes] = useState({ service: true, product: true, page: false });
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -126,6 +127,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
     setScanning(true); setStats(null); setItems([]); setScanInfo(null); setOpened(null);
     try {
       const organizationId = await getArtVideoOrganizationId();
+      setArtvideoOrganizationId(organizationId);
       const { data: categoryData } = await supabase.from("product_categories").select("id,name").eq("organization_id", organizationId).order("name");
       setProductCategories(categoryData || []);
       const { data, error: requestError } = await supabase.functions.invoke<ResponsePayload>("site-catalog-discovery", {
@@ -417,7 +419,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                 {(item.imageUrl || item.selected) && <div className="rounded-xl border border-border p-3">
                   <div className="text-xs font-semibold">Imagem de capa</div>
                   {item.imageUrl && <a href={item.imageUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-blue-500 hover:underline"><ExternalLink size={12} /> Ver imagem de origem (referência)</a>}
-                  {item.selected && <div className="mt-2"><ImageUpload bucket={isService(item.type) ? "service-images" : "product-images"} currentMediaId={item.mediaId || null}
+                  {item.selected && <div className="mt-2"><ImageUpload bucket={isService(item.type) ? "service-images" : "product-images"} organizationId={artvideoOrganizationId} currentMediaId={item.mediaId || null}
                     onUpload={id => update(item.id, { mediaId: id })} label="Enviar imagem autorizada" /></div>}
                   <p className="mt-1 text-xs text-muted-foreground">Escolha um arquivo próprio ou que você tenha autorização para utilizar. O importador não copia a imagem do site.</p>
                 </div>}
