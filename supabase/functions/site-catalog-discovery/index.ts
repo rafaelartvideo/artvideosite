@@ -7,7 +7,7 @@ const respond = (data: unknown, status = 200) => new Response(JSON.stringify(dat
 const agent = "ArtvideoCatalogImporter/1.0";
 const blocked = /\/(admin|login|signin|logout|account|conta|checkout|cart|carrinho|pagamento|api|auth|wp-admin|painel)(\/|$)/i;
 const ext = /\.(pdf|jpe?g|png|gif|webp|svg|zip|rar|mp4|mp3|css|js|woff|ico)(\?|$)/i;
-const serviceTerms = /servi[cç]o|assist[eê]ncia|manuten[cç][aã]o|instala[cç][aã]o|conserto|reparo|suporte|revis[aã]o|montagem|limpeza|t[eé]cnico|seguro|solu[cç][aã]o/i;
+const serviceTerms = /servi[cç]o|assist[eê]ncia|manuten[cç][aã]o|instala[cç][aã]o|conserto|reparo|suporte|revis[aã]o|montagem|limpeza|t[eé]cnico|solu[cç][aã]o/i;
 const productTerms = /produto|equipamento|comprar|loja|shop|product|cat[aá]logo|pe[cç]a/i;
 type Kind = "service" | "product" | "page";
 type FAQ = { question: string; answer: string };
@@ -109,7 +109,8 @@ function parse(html: string, url: URL, types: Set<Kind>): Found | null {
   const title = (value(data?.name) || tagText(html, "h1") || meta(html, "og:title") || tagText(html, "title")).replace(/\s+[|–—]\s+.{4,}$/, "").slice(0, 150);
   if (title.length < 4) return null;
   const hint = url.pathname + " " + title;
-  const type: Kind = /Product/i.test(String(data?.["@type"] || "")) ? "product" : /Service/i.test(String(data?.["@type"] || "")) ? "service" : serviceTerms.test(hint) ? "service" : productTerms.test(hint) ? "product" : "page";
+  const isIndex = url.pathname.split("/").filter(Boolean).length === 0 || /^(serviços|servicos|nossos serviços|produtos|loja|início|inicio|home|quem somos|soluções|solucoes)$/i.test(title.trim());
+  const type: Kind = /Product/i.test(String(data?.["@type"] || "")) ? "product" : /Service/i.test(String(data?.["@type"] || "")) ? "service" : isIndex ? "page" : serviceTerms.test(hint) ? "service" : productTerms.test(hint) ? "product" : "page";
   if (!types.has(type)) return null;
   const breadcrumb = nodes.find(n => /BreadcrumbList/i.test(String(n["@type"] || "")));
   const crumbs = Array.isArray(breadcrumb?.itemListElement) ? breadcrumb.itemListElement : [];
@@ -172,6 +173,7 @@ Deno.serve(async req => {
     const pending = new Set<string>(), seen = new Set<string>();
     const items: Found[] = [], warnings: string[] = [];
     let blockedCount = 0, visited = 0;
+    const deadline = Date.now() + 45000;
     function enqueue(url: URL, score: number) {
       if (url.hostname !== root.hostname || url.protocol !== root.protocol || seen.has(url.href) || pending.has(url.href) || blocked.test(url.pathname) || ext.test(url.pathname)) return;
       if (!permitted(url.pathname + url.search, r)) { blockedCount += 1; return; }
@@ -189,7 +191,7 @@ Deno.serve(async req => {
         }
       } catch { /* Optional sitemap */ }
     }
-    while (queue.length && visited < maxPages) {
+    while (queue.length && visited < maxPages && Date.now() < deadline) {
       queue.sort((a, b) => b.score - a.score);
       const next = queue.shift()!;
       if (seen.has(next.url.href)) continue;
@@ -210,7 +212,7 @@ Deno.serve(async req => {
         } catch { /* Outside the selected domain */ }
       }
     }
-    if (queue.length) warnings.push("Limite de páginas atingido. Escolha uma seção específica ou aumente o limite para descobrir mais.");
+    if (queue.length) warnings.push("A leitura foi limitada por tempo ou quantidade de páginas. Escolha uma seção específica ou aumente o limite para descobrir mais.");
     if (!items.length && visited) warnings.push("Este site pode exigir JavaScript ou não ter páginas de catálogo identificáveis.");
     return respond({ items: items.slice(0, 100), pagesVisited: visited, blocked: blockedCount, warnings });
   } catch (cause) {
