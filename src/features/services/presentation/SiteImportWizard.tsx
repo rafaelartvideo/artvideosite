@@ -48,6 +48,7 @@ function numberFrom(text: string): number | null {
   if (lastComma > lastDot) normalized = sanitized.replace(/\./g, "").replace(",", ".");
   else if (lastDot > lastComma && lastComma >= 0) normalized = sanitized.replace(/,/g, "");
   else if (lastComma >= 0) normalized = sanitized.replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(sanitized)) normalized = sanitized.replace(/\./g, "");
   const n = Number(normalized);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
@@ -175,6 +176,8 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
     const categoryId = await resolveCategory(item, organizationId, categoryCache);
     const previous = getExisting(item);
     if (previous && item.action !== "merge") throw Error("Já existe um cadastro com esse nome. Selecione complementar existente.");
+    if (previous && !hasPermission(isService(item.type) ? "services.update" : "products.update") &&
+      !(item.type === "product" && hasPermission("inventory.update"))) throw Error("Você não possui permissão para complementar este cadastro.");
     if (!previous && taken.has((isService(item.type) ? "service" : "product") + ":" + cleanName(title))) throw Error("Nome duplicado dentro desta seleção.");
     if (item.type === "product") {
       if (previous) {
