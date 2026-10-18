@@ -1,5 +1,5 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
-import { corsHeaders } from "npm:@supabase/supabase-js@2.112.3/cors";
+const corsHeaders = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
 
 // Limited, public HTML discovery. Never retrieves authenticated content or copies media files.
 const headers = { ...corsHeaders, "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -11,7 +11,7 @@ const serviceTerms = /servi[cç]o|assist[eê]ncia|manuten[cç][aã]o|instala[cç
 const productTerms = /produto|equipamento|comprar|loja|shop|product|cat[aá]logo|pe[cç]a/i;
 type Kind = "service" | "product" | "page";
 type FAQ = { question: string; answer: string };
-type Found = { id: string; type: Kind; title: string; summary: string; category: string; sourceUrl: string; faqs: FAQ[]; price: number | null; imageUrl: string | null };
+type Found = { id: string; type: Kind; title: string; summary: string; category: string; sourceUrl: string; faqs: FAQ[]; price: number | null; imageUrl: string | null; blocks: ExtractedBlock[] };
 
 function publicUrl(raw: string, host?: string) {
   const url = new URL(raw);
@@ -103,6 +103,92 @@ function structured(html: string): Record<string, any>[] {
   return nodes;
 }
 function value(raw: any): string { return typeof raw === "string" ? clean(raw).slice(0, 400) : typeof raw?.name === "string" ? clean(raw.name).slice(0, 400) : ""; }
+
+type Destination = "description" | "short_description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "price" | "unmapped";
+type ExtractedBlock = { id: string; heading: string; text: string; suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; };
+const normalize = (raw: string) => raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+const clip = (raw: string, max = 420) => clean(raw).slice(0, max);
+const headingsToDestination = (heading: string): { target: Destination; confidence: ExtractedBlock["confidence"] } => {
+  const h = normalize(heading);
+  if (/nao (esta |estao )?(inclus|cobert)|nao inclui|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte/.test(h)) return { target: "exclusions", confidence: "high" };
+  if (/o que (esta )?inclu|inclus|cobert|servicos oferecidos|o que contempla|o que voce recebe|beneficios inclusos/.test(h)) return { target: "inclusions", confidence: "high" };
+  if (/faq|perguntas frequentes|duvidas frequentes/.test(h)) return { target: "faqs", confidence: "medium" };
+  if (/varia|modalidade|opcoes de plano|tipos de servico/.test(h)) return { target: "variants", confidence: "medium" };
+  if (/sobre (o |este )?servico|descricao do servico|apresentacao/.test(h)) return { target: "description", confidence: "medium" };
+  return { target: "unmapped", confidence: "low" };
+};
+function discoverDetails(html: string, nodes: Record<string, any>[], summary: string, price: number | null): ExtractedBlock[] {
+  const blocks: ExtractedBlock[] = [], keys = new Set<string>();
+  function add(heading: string, text: string, suggestedTarget: Destination, confidence: ExtractedBlock["confidence"], origin: ExtractedBlock["origin"]) {
+    const h = clip(heading, 130), t = clip(text, 480);
+    if (!t || t.length < 3 || blocks.length >= 90) return;
+    const key = normalize(h + " " + t).replace(/[^a-z0-9]/g, "").slice(0, 300);
+    if (keys.has(key)) return;
+    keys.add(key);
+    blocks.push({ id: String(blocks.length + 1), heading: h, text: t, suggestedTarget, confidence, origin });
+  }
+  if (summary) add("Resumo da página", summary, "short_description", "high", "schema");
+  const content = html
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(script|style|noscript|svg|nav|footer|header|aside|form)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<img\b[^>]*>/gi, " ");
+  // Structured FAQ data has priority over fragile accordion markup.
+  for (const node of nodes.filter(n => /FAQPage/i.test(String(n["@type"] || "")))) {
+    for (const q of (Array.isArray(node.mainEntity) ? node.mainEntity : [node.mainEntity])) {
+      if (q?.name && q?.acceptedAnswer?.text) add(value(q.name), value(q.acceptedAnswer.text), "faqs", "high", "schema");
+    }
+  }
+  for (const m of content.matchAll(/<details\b[^>]*>\s*<summary\b[^>]*>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/gi)) {
+    const heading = clip(m[1], 150);
+    const answer = clip(m[2], 480);
+    if (heading && answer) add(heading, answer, "faqs", "medium", "html");
+  }
+  const headingMatches = [...content.matchAll(/<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].slice(0, 45);
+  for (let i = 0; i < headingMatches.length; i++) {
+    const m = headingMatches[i];
+    const heading = clip(m[2], 130);
+    if (!heading || heading.length < 4 || /^(menu|rodape|navegacao|contato|siga-nos)$/i.test(normalize(heading))) continue;
+    const start = (m.index || 0) + m[0].length, end = headingMatches[i + 1]?.index ?? content.length;
+    const section = content.slice(start, Math.min(end, start + 8000));
+    const choice = headingsToDestination(heading);
+    const list = [...section.matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)]
+      .map(v => clip(v[1], 220)).filter(v => v.length > 3 && v.length < 220).slice(0, 18);
+    const paras = [...section.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+      .map(v => clip(v[1], 360)).filter(v => v.length > 12).slice(0, 6);
+    const full = [...new Set([...paras, ...list])].join("\n").slice(0, 600);
+    if (heading.endsWith("?") && full) {
+      add(heading, full, "faqs", "medium", "html");
+      continue;
+    }
+    if (choice.target === "inclusions" || choice.target === "exclusions" || choice.target === "variants") {
+      if (list.length) list.forEach(v => add(heading, v, choice.target, choice.confidence, "html"));
+      else if (paras.length) paras.forEach(v => add(heading, v, choice.target, "medium", "html"));
+    } else if (choice.target === "faqs") {
+      for (let j = 0; j < Math.min(10, paras.length - 1); j += 2) add(paras[j], paras[j + 1], "faqs", "low", "html");
+    } else if (full) {
+      add(heading, full, choice.target, choice.confidence, "html");
+    }
+  }
+  // Specifications and structured technical attributes have no dedicated Artvideo table:
+  // keep them as editable Seções, never silently discard them.
+  for (const table of [...content.matchAll(/<table\b[^>]*>([\s\S]*?)<\/table>/gi)].slice(0, 4)) {
+    const pairs = [...table[1].matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].slice(0, 15).map(row =>
+      [...row[1].matchAll(/<(?:th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/gi)].map(cell => clip(cell[1], 120)).filter(Boolean).join(": ")
+    ).filter(Boolean);
+    if (pairs.length) add("Ficha técnica", pairs.join("\n"), "sections", "medium", "html");
+  }
+  for (const node of nodes) {
+    if (Array.isArray(node.additionalProperty)) {
+      const pairs = node.additionalProperty.slice(0, 20).map((p: any) =>
+        value(p?.name) && value(p?.value) ? value(p.name) + ": " + value(p.value) : ""
+      ).filter(Boolean);
+      if (pairs.length) add("Especificações", pairs.join("\n"), "sections", "medium", "schema");
+    }
+  }
+  if (price !== null) add("Preço anunciado na origem", String(price), "unmapped", "low", "schema");
+  return blocks;
+}
+
 function parse(html: string, url: URL, types: Set<Kind>): Found | null {
   const nodes = structured(html);
   const data = nodes.find(n => /Service|Product/i.test(String(n["@type"] || "")));
@@ -124,7 +210,9 @@ function parse(html: string, url: URL, types: Set<Kind>): Found | null {
   const price = Number(data?.offers?.price);
   let imageUrl: string | null = null;
   try { const image = new URL(typeof data?.image === "string" ? data.image : meta(html, "og:image"), url); if (image.protocol === "https:") imageUrl = image.href; } catch { /* No image */ }
-  return { id: url.href, type, title, summary: (value(data?.description) || meta(html, "description") || meta(html, "og:description") || tagText(html, "p")).slice(0, 290), category, sourceUrl: url.href, faqs: faqs.slice(0, 10), price: Number.isFinite(price) && price > 0 ? price : null, imageUrl };
+  const summary = (value(data?.description) || meta(html, "description") || meta(html, "og:description") || tagText(html, "p")).slice(0, 290);
+  const discoveredPrice = Number.isFinite(price) && price > 0 ? price : null;
+  return { id: url.href, type, title, summary, category, sourceUrl: url.href, faqs: faqs.slice(0, 10), price: discoveredPrice, imageUrl, blocks: discoverDetails(html, nodes, summary, discoveredPrice) };
 }
 function rules(text: string) {
   const disallowed: string[] = [], allowed: string[] = [], sitemap: string[] = [];
