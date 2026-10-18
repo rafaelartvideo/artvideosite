@@ -11,7 +11,7 @@ const serviceTerms = /servi[cç]o|assist[eê]ncia|manuten[cç][aã]o|instala[cç
 const productTerms = /produto|equipamento|comprar|loja|shop|product|cat[aá]logo|pe[cç]a/i;
 type Kind = "service" | "product" | "page";
 type FAQ = { question: string; answer: string };
-type Found = { id: string; type: Kind; title: string; summary: string; category: string; sourceUrl: string; faqs: FAQ[]; price: number | null; imageUrl: string | null; blocks: ExtractedBlock[] };
+type Found = { id: string; type: Kind; title: string; summary: string; category: string; sourceUrl: string; faqs: FAQ[]; price: number | null; imageUrl: string | null; blocks: ExtractedBlock[]; relatedUrls?: string[] };
 
 function publicUrl(raw: string, host?: string) {
   const url = new URL(raw);
@@ -303,7 +303,7 @@ Deno.serve(async req => {
       try { html = await load(next.url, root.hostname, "html"); } catch { /* Timeout or blocked */ }
       visited += 1;
       if (!html) { blockedCount += 1; continue; }
-      const item = parse(html, next.url, types);
+      const item = parse(html, next.url, new Set<Kind>(["service", "product", "page"]));
       if (item) items.push(item);
       for (const match of html.match(/<a\b[^>]*>/gi) || []) {
         const href = attr(match, "href");
@@ -315,9 +315,36 @@ Deno.serve(async req => {
         } catch { /* Outside the selected domain */ }
       }
     }
+    // An offer may keep its FAQ, exclusions, and technical details in child pages.
+    // Attach those blocks to the deepest matching parent instead of offering separate duplicate services.
+    const mergedPages = new Set<string>();
+    const byDepth = [...items].sort((a, b) => new URL(b.sourceUrl).pathname.split("/").length - new URL(a.sourceUrl).pathname.split("/").length);
+    for (const child of byDepth) {
+      const childPath = new URL(child.sourceUrl).pathname.replace(/\/$/, "");
+      const parent = items
+        .filter(candidate => candidate !== child && (candidate.type === "service" || candidate.type === "product")
+          && types.has(candidate.type))
+        .filter(candidate => {
+          const path = new URL(candidate.sourceUrl).pathname.replace(/\/$/, "");
+          return path.split("/").filter(Boolean).length >= 2 && childPath.startsWith(path + "/");
+        })
+        .sort((a, b) => b.sourceUrl.length - a.sourceUrl.length)[0];
+      if (!parent) continue;
+      const known = new Set(parent.blocks.map(b => normalize(b.heading + " " + b.text)));
+      for (const b of child.blocks) {
+        const key = normalize(b.heading + " " + b.text);
+        if (!known.has(key) && parent.blocks.length < 100) {
+          parent.blocks.push({ ...b, id: String(parent.blocks.length + 1) });
+          known.add(key);
+        }
+      }
+      parent.relatedUrls = [...new Set([...(parent.relatedUrls || []), child.sourceUrl, ...(child.relatedUrls || [])])];
+      mergedPages.add(child.sourceUrl);
+    }
+    const output = items.filter(item => types.has(item.type) && !mergedPages.has(item.sourceUrl));
     if (queue.length) warnings.push("A leitura foi limitada por tempo ou quantidade de páginas. Escolha uma seção específica ou aumente o limite para descobrir mais.");
-    if (!items.length && visited) warnings.push("Este site pode exigir JavaScript ou não ter páginas de catálogo identificáveis.");
-    return respond({ items: items.slice(0, 100), pagesVisited: visited, blocked: blockedCount, warnings });
+    if (!output.length && visited) warnings.push("Este site pode exigir JavaScript ou não ter páginas de catálogo identificáveis.");
+    return respond({ items: output.slice(0, 100), pagesVisited: visited, blocked: blockedCount, warnings });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Erro desconhecido.";
     return respond({ error: /timed?out/i.test(message) ? "O site não respondeu a tempo." : message }, 400);
