@@ -160,7 +160,7 @@ Deno.serve(async req => {
     const body = await req.json();
     if (typeof body.organizationId !== "string" || !/^[0-9a-f-]{36}$/i.test(body.organizationId)) return respond({ error: "Empresa inválida." }, 400);
     const { data: permissions, error: permissionError } = await client.rpc("my_organization_permissions", { p_organization_id: body.organizationId });
-    if (permissionError || !Array.isArray(permissions) || !permissions.some((p: { permission_key: string }) => ["services.create", "products.create"].includes(p.permission_key))) return respond({ error: "Sem permissão para importar nesta empresa." }, 403);
+    if (permissionError || !Array.isArray(permissions) || !permissions.some((p: { permission_key?: string } | string) => ["services.create", "products.create", "inventory.create"].includes(typeof p === "string" ? p : p.permission_key || ""))) return respond({ error: "Sem permissão para importar nesta empresa." }, 403);
     const root = publicUrl(String(body.url || ""));
     await validateDNS(root.hostname);
     const maxPages = Math.min(24, Math.max(1, Number(body.maxPages) || 16));
