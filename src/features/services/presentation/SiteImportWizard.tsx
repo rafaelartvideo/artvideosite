@@ -198,8 +198,9 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
     if (!previous && taken.has((isService(item.type) ? "service" : "product") + ":" + cleanName(title))) throw Error("Nome duplicado dentro desta seleção.");
     if (item.type === "product") {
       if (previous) {
-        const { data: actual, error: fetchError } = await supabase.from("products").select("id,short_description,description,price,category_id,cover_media_id").eq("organization_id", organizationId).eq("id", previous.id).single();
+        const { data: actual, error: fetchError } = await supabase.from("products").select("id,short_description,description,price,category_id,cover_media_id,is_active,show_in_catalog").eq("organization_id", organizationId).eq("id", previous.id).single();
         if (fetchError) throw fetchError;
+        if (actual.is_active && actual.show_in_catalog) throw Error("Este item já está publicado. Oculte-o do site antes de complementar para não publicar alterações sem revisão.");
         const changes: Record<string, unknown> = {};
         if (!actual.short_description && result.short) changes.short_description = result.short;
         if (!actual.description && result.description) changes.description = result.description;
@@ -223,9 +224,10 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
     } else {
       if (previous) {
         const { data: actual, error: fetchError } = await supabase.from("services")
-          .select("id,short_description,description,base_price,price_mode,category_id,cover_media_id,service_inclusions(description),service_exclusions(description),service_variants(title,description,price),service_sections(title,content),service_faqs(question,answer)")
+          .select("id,short_description,description,base_price,price_mode,category_id,cover_media_id,is_active,show_in_catalog,service_inclusions(description),service_exclusions(description),service_variants(title,description,price),service_sections(title,content),service_faqs(question,answer)")
           .eq("organization_id", organizationId).eq("id", previous.id).single();
         if (fetchError) throw fetchError;
+        if (actual.is_active && actual.show_in_catalog) throw Error("Este item já está publicado. Oculte-o do site antes de complementar para não publicar alterações sem revisão.");
         const changes: Record<string, unknown> = {};
         if (!actual.short_description && result.short) changes.short_description = result.short;
         if (!actual.description && result.description) changes.description = result.description;
@@ -390,6 +392,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                 </div>
                 {existing && <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 text-sm">
                   <strong>Cadastro semelhante encontrado.</strong> Compare antes de complementar. Campos existentes não são substituídos.
+                  {existing.is_active && existing.show_in_catalog && <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">Este cadastro já está publicado. Oculte-o do site antes de importar alterações, para evitar atualização pública imediata.</p>}
                   <div className="mt-2 grid gap-2 sm:grid-cols-2 text-xs">
                     <p><span className="font-semibold">Artvideo:</span> {String(existing.short_description || existing.description || "Sem descrição")}</p>
                     <p><span className="font-semibold">Site de origem:</span> {item.summary || "Sem resumo"}</p>
