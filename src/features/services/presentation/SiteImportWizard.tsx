@@ -65,11 +65,6 @@ function payloadFor(item: ReviewItem) {
   const price = priceBlock ? numberFrom(priceBlock.text) : null;
   return { description, short, sections, faqs, variants, inclusions, exclusions, price };
 }
-function mergeTexts<T>(oldItems: T[], added: T[], getText: (item: T) => string): T[] {
-  const keys = new Set(oldItems.map(v => cleanName(getText(v))));
-  return [...oldItems, ...added.filter(v => { const key = cleanName(getText(v)); if (!key || keys.has(key)) return false; keys.add(key); return true; })];
-}
-
 export function SiteImportWizard({ onClose, onImported, services, products, categories }: {
   onClose: () => void; onImported: () => void; services: any[]; products: any[]; categories: any[];
 }) {
@@ -217,16 +212,41 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         if (actual.base_price == null && result.price !== null) Object.assign(changes, { base_price: result.price, price_mode: "FIXED" });
         if (!actual.category_id && categoryId) changes.category_id = categoryId;
         if (!actual.cover_media_id && item.mediaId) changes.cover_media_id = item.mediaId;
-        const inclusions = mergeTexts((actual.service_inclusions || []).map(v => v.description), result.inclusions, v => v);
-        const exclusions = mergeTexts((actual.service_exclusions || []).map(v => v.description), result.exclusions, v => v);
-        const faqs = mergeTexts((actual.service_faqs || []).map(v => ({ question: v.question || "", answer: v.answer || "" })), result.faqs, v => v.question);
-        const sections = mergeTexts((actual.service_sections || []).map(v => ({ title: v.title || "", content: v.content || "" })), result.sections, v => v.title + " " + v.content);
-        const variants = mergeTexts((actual.service_variants || []).map(v => ({ title: v.title || "", description: v.description || "", price: v.price == null ? "" : String(v.price) })), result.variants, v => v.title);
-        await saveServiceAggregate({ serviceId: actual.id, userId: user?.id || null, payload: changes,
-          variants, inclusions, exclusions, priceFactors: [], sections, faqs,
-          scope: { variants: result.variants.length > 0, inclusions: result.inclusions.length > 0, exclusions: result.exclusions.length > 0,
-            sections: result.sections.length > 0, faqs: result.faqs.length > 0, priceFactors: false },
-        });
+        // Append only new rows. Rewriting all relations would destroy IDs, icons and linked sections of existing records.
+        if (Object.keys(changes).length) {
+          const { error: scalarError } = await supabase.from("services").update(changes).eq("organization_id", organizationId).eq("id", actual.id);
+          if (scalarError) throw scalarError;
+        }
+        const additions = <T,>(existing: T[], incoming: T[], identity: (entry: T) => string) => {
+          const seen = new Set(existing.map(entry => cleanName(identity(entry))));
+          return incoming.filter(entry => {
+            const key = cleanName(identity(entry));
+            if (!key || seen.has(key)) return false;
+            seen.add(key); return true;
+          });
+        };
+        const insertExtra = async (table: string, rows: Record<string, unknown>[]) => {
+          if (!rows.length) return;
+          const { error: insertError } = await supabase.from(table).insert(rows.map((row, index) => ({
+            ...row, organization_id: organizationId, service_id: actual.id, sort_order: index + 1000,
+          })));
+          if (insertError) throw Error("Falha ao complementar " + table + ": " + insertError.message);
+        };
+        await insertExtra("service_inclusions",
+          additions((actual.service_inclusions || []).map(v => v.description), result.inclusions, v => v)
+            .map(description => ({ description })));
+        await insertExtra("service_exclusions",
+          additions((actual.service_exclusions || []).map(v => v.description), result.exclusions, v => v)
+            .map(description => ({ description })));
+        await insertExtra("service_faqs",
+          additions((actual.service_faqs || []).map(v => ({ question: v.question || "", answer: v.answer || "" })), result.faqs, v => v.question)
+            .map(row => ({ ...row, is_active: true })));
+        await insertExtra("service_sections",
+          additions((actual.service_sections || []).map(v => ({ title: v.title || "", content: v.content || "" })), result.sections, v => v.title + " " + v.content)
+            .map(row => ({ ...row, is_active: true })));
+        await insertExtra("service_variants",
+          additions((actual.service_variants || []).map(v => ({ title: v.title || "", description: v.description || "", price: v.price == null ? "" : String(v.price) })), result.variants, v => v.title)
+            .map(row => ({ title: row.title, description: row.description, price: row.price ? Number(row.price) : null, is_active: true })));
       } else {
         const slug = await generateUniqueSlug("services", title);
         await saveServiceAggregate({
