@@ -13,13 +13,13 @@ type ContentType = "service" | "product" | "page";
 type Destination = "short_description" | "description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "price" | "unmapped" | "ignore";
 type DataBlock = {
   id: string; heading: string; text: string;
-  suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema";
+  suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; sourceUrl?: string;
 };
 type ReviewBlock = DataBlock & { target: Destination };
 type SourceItem = {
   id: string; type: ContentType; title: string; summary: string; category: string; sourceUrl: string;
   blocks?: DataBlock[]; faqs?: { question: string; answer: string }[];
-  price?: number | null; imageUrl?: string | null;
+  price?: number | null; imageUrl?: string | null; relatedUrls?: string[];
 };
 type ReviewItem = Omit<SourceItem, "blocks"> & {
   selected: boolean; type: ContentType; blocks: ReviewBlock[]; categoryId: string;
@@ -39,7 +39,6 @@ const productDestinations: Destination[] = ["unmapped", "short_description", "de
 const serviceDestinations: Destination[] = ["unmapped", "short_description", "description", "inclusions", "exclusions", "faqs", "variants", "sections", "price", "ignore"];
 const supported = (type: ContentType, target: Destination) => type === "product" && !productDestinations.includes(target) ? "unmapped" : target;
 const isService = (type: ContentType) => type !== "product";
-const uniqueTexts = (values: string[]) => [...new Map(values.map(s => [cleanName(s), s])).values()].filter(Boolean);
 function numberFrom(text: string): number | null {
   const sanitized = text.replace(/[^0-9,.]/g, "").trim();
   if (!sanitized) return null;
@@ -66,6 +65,22 @@ function payloadFor(item: ReviewItem) {
   const price = priceBlock ? numberFrom(priceBlock.text) : null;
   return { description, short, sections, faqs, variants, inclusions, exclusions, price };
 }
+function currentMatch(existing: any, block: ReviewBlock): string {
+  if (!existing || block.target === "ignore" || block.target === "unmapped") return "";
+  if (block.target === "short_description" && existing.short_description) return "Já preenchido na Artvideo (será preservado)";
+  if (block.target === "description" && existing.description) return "Já preenchido na Artvideo (será preservado)";
+  if (block.target === "price" && (existing.base_price != null || existing.price != null)) return "Preço já cadastrado (será preservado)";
+  const linked: Record<string, [string, string]> = {
+    inclusions: ["service_inclusions", "description"], exclusions: ["service_exclusions", "description"],
+    faqs: ["service_faqs", "question"], variants: ["service_variants", "title"], sections: ["service_sections", "content"],
+  };
+  const field = linked[block.target];
+  if (field && Array.isArray(existing[field[0]]) &&
+    existing[field[0]].some((row: Record<string, unknown>) => cleanName(String(row[field[1]] || "")) === cleanName(block.target === "faqs" ? block.heading : block.text)))
+    return "Informação já cadastrada (não será duplicada)";
+  return "Informação nova para este campo";
+}
+
 export function SiteImportWizard({ onClose, onImported, services, products, categories }: {
   onClose: () => void; onImported: () => void; services: any[]; products: any[]; categories: any[];
 }) {
@@ -354,7 +369,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                 <button className="flex min-w-0 flex-1 items-center gap-2 text-left" onClick={() => setOpened(isOpen ? null : item.id)}>
                   {item.type === "product" ? <Package size={17} className="shrink-0 text-muted-foreground" /> : item.type === "page" ? <FileSearch size={17} className="shrink-0 text-muted-foreground" /> : <Wrench size={17} className="shrink-0 text-muted-foreground" />}
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{item.title}</span>
-                    <span className="block text-xs text-muted-foreground">{mapped} correspondências · {pending} pendentes {existing ? "· Já existe na Artvideo" : ""}</span>
+                    <span className="block text-xs text-muted-foreground">{mapped} correspondências · {pending} pendentes {item.relatedUrls?.length ? "· " + item.relatedUrls.length + " subpáginas vinculadas" : ""} {existing ? "· Já existe na Artvideo" : ""}</span>
                   </span>
                   <ChevronDown size={17} className={isOpen ? "rotate-180" : ""} />
                 </button>
@@ -423,6 +438,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                           <span className="font-semibold">Origem: {block.origin === "schema" ? "Dados estruturados" : "Página"}</span>
                           <span className="text-muted-foreground">Sugestão: {fieldNames[block.suggestedTarget]}</span>
                           <span className="text-muted-foreground">· Confiança {block.confidence === "high" ? "alta" : block.confidence === "medium" ? "média" : "baixa"}</span>
+                          {block.sourceUrl && block.sourceUrl !== item.sourceUrl && <a href={block.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver subpágina</a>}
                         </div>
                         <input aria-label="Título ou pergunta detectada" className={input} value={block.heading} disabled={saving} onChange={e => updateBlock(item.id, block.id, { heading: e.target.value })} />
                         <textarea aria-label="Conteúdo detectado" className={input + " min-h-16 resize-y"} rows={2} value={block.text} disabled={saving} onChange={e => updateBlock(item.id, block.id, { text: e.target.value })} />
@@ -433,6 +449,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                         </select>
                         {block.target === "unmapped" && <span className="block text-amber-600">Pendente de classificação</span>}
                         {block.target === "ignore" && <span className="block text-muted-foreground">Não será importado</span>}
+                        {existing && block.target !== "ignore" && block.target !== "unmapped" && <span className="block text-xs font-normal text-muted-foreground">{currentMatch(existing, block)}</span>}
                       </label>
                     </div>)}
                   </div>
