@@ -110,7 +110,7 @@ const normalize = (raw: string) => raw.normalize("NFD").replace(/[\u0300-\u036f]
 const clip = (raw: string, max = 420) => clean(raw).slice(0, max);
 const headingsToDestination = (heading: string): { target: Destination; confidence: ExtractedBlock["confidence"] } => {
   const h = normalize(heading);
-  if (/nao (esta |estao )?(inclus|cobert)|nao inclui|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte/.test(h)) return { target: "exclusions", confidence: "high" };
+  if (/nao (esta |estao )?(inclus|cobert)|nao (inclui|cobre|cobertos)|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte/.test(h)) return { target: "exclusions", confidence: "high" };
   if (/o que (esta )?inclu|inclus|cobert|servicos oferecidos|o que contempla|o que voce recebe|beneficios inclusos/.test(h)) return { target: "inclusions", confidence: "high" };
   if (/faq|perguntas frequentes|duvidas frequentes/.test(h)) return { target: "faqs", confidence: "medium" };
   if (/varia|modalidade|opcoes de plano|tipos de servico/.test(h)) return { target: "variants", confidence: "medium" };
@@ -143,6 +143,17 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     const answer = clip(m[2], 480);
     if (heading && answer) add(heading, answer, "faqs", "medium", "html");
   }
+  for (const m of content.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)) {
+    const question = clip(m[1], 150), answer = clip(m[2], 480);
+    if (question && answer && (question.endsWith("?") || /pergunt|duvida|faq/i.test(question))) add(question, answer, "faqs", "medium", "html");
+  }
+  // Some sites use accordion buttons instead of <details> or FAQPage.
+  for (const m of [...content.matchAll(/<button\b[^>]*(?:aria-expanded|data-accordion|aria-controls)[^>]*>([\s\S]*?)<\/button>([\s\S]{0,1500})/gi)].slice(0, 22)) {
+    const question = clip(m[1], 150);
+    if (!question.endsWith("?")) continue;
+    const answer = clip((m[2] || "").split(/<button\b|<h[2-4]\b/i)[0], 400);
+    if (answer && answer !== question) add(question, answer, "faqs", "low", "html");
+  }
   const headingMatches = [...content.matchAll(/<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].slice(0, 45);
   for (let i = 0; i < headingMatches.length; i++) {
     const m = headingMatches[i];
@@ -167,6 +178,10 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
       for (let j = 0; j < Math.min(10, paras.length - 1); j += 2) add(paras[j], paras[j + 1], "faqs", "low", "html");
     } else if (full) {
       add(heading, full, choice.target, choice.confidence, "html");
+    } else {
+      // Div/span-heavy pages may have no semantic paragraph or list tags.
+      const rawText = clip(section, 480);
+      if (rawText.length >= 24) add(heading, rawText, choice.target, "low", "html");
     }
   }
   // Specifications and structured technical attributes have no dedicated Artvideo table:
