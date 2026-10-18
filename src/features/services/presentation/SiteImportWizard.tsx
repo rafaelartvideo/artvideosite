@@ -51,7 +51,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   const [result, setResult] = useState<{ created: number; skipped: number; failed: number } | null>(null);
   const [error, setError] = useState("");
   const canCreateService = hasPermission("services.create");
-  const canCreateProduct = hasPermission("products.create");
+  const canCreateProduct = hasPermission("products.create") || hasPermission("inventory.create");
   const duplicates = useMemo(() => new Set([
     ...services.map(item => simplify(String(item.title || ""))),
     ...products.map(item => simplify(String(item.name || ""))),
@@ -76,7 +76,13 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           ...(scanPages ? ["page"] : []),
         ] },
       });
-      if (scanError || data?.error) throw new Error(data?.error || scanError?.message || "Não foi possível analisar o site.");
+      if (scanError || data?.error) {
+        let detail = data?.error || scanError?.message || "Não foi possível analisar o site.";
+        if (scanError && "context" in scanError && scanError.context instanceof Response) {
+          try { const payload = await scanError.context.clone().json(); detail = payload?.error || detail; } catch { /* An invalid response is shown as a generic error. */ }
+        }
+        throw new Error(detail);
+      }
       const seen = new Set<string>();
       const cleaned = (data?.items || []).filter(item => {
         if (!item.title?.trim() || !item.sourceUrl || seen.has(item.sourceUrl)) return false;
