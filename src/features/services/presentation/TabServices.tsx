@@ -14,6 +14,7 @@ import { FInput, FIntegerInput, FSelect, FTextarea, FToggle, INPUT, FCurrencyInp
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
+import { SiteImportWizard } from "./SiteImportWizard";
 
 export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack: () => void; routeResourceId?: string | null; routeSubpage?: string | null; onRouteChange?: (resourceId: string | null, subpage?: string | null) => void }) {
   const { user, hasPermission } = useAuth();
@@ -38,6 +39,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const products = catalogQuery.data?.products ?? [];
   const loading = catalogQuery.isPending;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -75,10 +77,11 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
       </AdminCard>}
       <AdminStickyToolbar className="justify-between">
         <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
-        {canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}
+        {canCreate && <div className="flex flex-wrap items-center gap-2"><BtnSecondary onClick={() => setImportOpen(true)}>Importar de site</BtnSecondary><BtnPrimary onClick={openNewPage}>Novo</BtnPrimary></div>}
       </AdminStickyToolbar>
     </>}
     {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
+    {importOpen && <SiteImportWizard onClose={() => setImportOpen(false)} onImported={() => void refresh()} services={services} products={products} categories={categories} />}
     <ServiceDrawer open={drawerOpen} onClose={() => { closeEditor(); void refresh(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
   </div>;
 }
