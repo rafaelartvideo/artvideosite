@@ -105,7 +105,7 @@ function structured(html: string): Record<string, any>[] {
 function value(raw: any): string { return typeof raw === "string" ? clean(raw).slice(0, 400) : typeof raw?.name === "string" ? clean(raw.name).slice(0, 400) : ""; }
 
 type Destination = "description" | "short_description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "price" | "unmapped";
-type ExtractedBlock = { id: string; heading: string; text: string; suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; };
+type ExtractedBlock = { id: string; heading: string; text: string; suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; sourceUrl?: string; };
 const normalize = (raw: string) => raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const clip = (raw: string, max = 420) => clean(raw).slice(0, max);
 const headingsToDestination = (heading: string): { target: Destination; confidence: ExtractedBlock["confidence"] } => {
@@ -227,7 +227,7 @@ function parse(html: string, url: URL, types: Set<Kind>): Found | null {
   try { const image = new URL(typeof data?.image === "string" ? data.image : meta(html, "og:image"), url); if (image.protocol === "https:") imageUrl = image.href; } catch { /* No image */ }
   const summary = (value(data?.description) || meta(html, "description") || meta(html, "og:description") || tagText(html, "p")).slice(0, 290);
   const discoveredPrice = Number.isFinite(price) && price > 0 ? price : null;
-  return { id: url.href, type, title, summary, category, sourceUrl: url.href, faqs: faqs.slice(0, 10), price: discoveredPrice, imageUrl, blocks: discoverDetails(html, nodes, summary, discoveredPrice) };
+  return { id: url.href, type, title, summary, category, sourceUrl: url.href, faqs: faqs.slice(0, 10), price: discoveredPrice, imageUrl, blocks: discoverDetails(html, nodes, summary, discoveredPrice).map(block => ({ ...block, sourceUrl: url.href })) };
 }
 function rules(text: string) {
   const disallowed: string[] = [], allowed: string[] = [], sitemap: string[] = [];
