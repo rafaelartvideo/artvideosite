@@ -80,7 +80,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   ];
   const socialClass = "inline-flex h-[43px] w-[43px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.065] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/15 hover:text-[#ffda59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
   const underlineClass = (active: boolean) => [
-    "pointer-events-none absolute -bottom-[7px] left-0 h-[3px] w-full origin-center rounded-full bg-[#ffd13b] transition-transform duration-300 ease-out motion-reduce:transition-none",
+    "pointer-events-none absolute -bottom-[7px] left-0 h-[3px] w-full origin-center rounded-full bg-white transition-transform duration-300 ease-out motion-reduce:transition-none",
     active ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100",
   ].join(" ");
   const navigate = (destination: PublicPage) => {
