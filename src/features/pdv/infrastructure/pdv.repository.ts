@@ -86,6 +86,8 @@ export type PdvSaleResult = {
   change_amount: number;
   customer_name: string | null;
   customer_document: string | null;
+  organization_name?: string | null;
+  organization_document?: string | null;
   sold_at: string;
   financial_entry_id?: string | null;
   idempotent_replay?: boolean;
@@ -125,8 +127,12 @@ export type PdvSaleDetail = PdvSaleResult & {
   cancellation_reason: string | null;
   items: Array<{
     id: string;
-    product_id: string;
+    product_id: string | null;
     product_name: string;
+    is_manual?: boolean;
+    condition?: "new" | "used" | "refurbished";
+    condition_notes?: string | null;
+    serial_number?: string | null;
     sku: string | null;
     barcode: string | null;
     quantity: number;
@@ -240,7 +246,16 @@ export type FinalizePdvSaleInput = {
   discountAmount?: number;
   surchargeAmount?: number;
   note?: string | null;
-  items: Array<{ productId: string; quantity: number; discountAmount?: number }>;
+  items: Array<{
+    productId?: string | null;
+    manualName?: string;
+    unitPrice?: number;
+    quantity: number;
+    discountAmount?: number;
+    condition?: "new" | "used" | "refurbished";
+    conditionNotes?: string;
+    serialNumber?: string;
+  }>;
   payments: Array<{ paymentMethodId: string; amount: number; tenderedAmount?: number | null }>;
 };
 
@@ -336,9 +351,14 @@ export async function finalizePdvSale(
       surcharge_amount: Number(input.surchargeAmount || 0),
       note: String(input.note || "").trim() || null,
       items: input.items.map(item => ({
-        product_id: item.productId,
+        product_id: item.productId || null,
+        manual_name: item.manualName || null,
+        unit_price: item.productId ? null : Number(item.unitPrice),
         quantity: Number(item.quantity),
         discount_amount: Number(item.discountAmount || 0),
+        condition: item.condition || "new",
+        condition_notes: String(item.conditionNotes || "").trim() || null,
+        serial_number: String(item.serialNumber || "").trim() || null,
       })),
       payments: input.payments.map(payment => ({
         payment_method_id: payment.paymentMethodId,
