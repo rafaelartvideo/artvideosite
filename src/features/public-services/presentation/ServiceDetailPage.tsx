@@ -2,7 +2,7 @@ import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPag
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Check, CheckCircle2, ChevronRight, Clock3, FileText, Info, Loader2, MapPin, Plus, Wrench, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock3, FileText, Info, Loader2, MapPin, Plus, Wrench, X } from 'lucide-react';
 import { useServiceDetailBySlug, useServices } from '@/features/public-catalog/application/usePublicCatalog';
 import { resolvePublicMediaUrl } from '@/features/public-catalog/infrastructure/public-media';
 import { useSiteSettings } from '@/features/public-shell/application/useSiteSettings';
@@ -53,11 +53,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
  const hasGuidance=orientations.length>0||Boolean(service.description)||extraSections.length>0||detail.priceFactors.length>0;
  const wide='mx-auto w-full max-w-[1480px] px-5 sm:px-8 lg:px-12';
  return <div className="art-service bg-white text-[#172b45]">
-   <nav aria-label="Trilha de navegação" className={wide+' flex items-center gap-2 overflow-hidden py-5 text-xs text-slate-500'}>
-     <button type="button" onClick={()=>setPage('home')} className="shrink-0 hover:text-[var(--art-primary)]">Início</button><ChevronRight size={13}/>
-     <button type="button" onClick={()=>setPage('servicos')} className="shrink-0 hover:text-[var(--art-primary)]">Serviços</button><ChevronRight size={13}/>
-     <span className="truncate font-medium text-slate-800" aria-current="page">{service.title}</span>
-   </nav>
+   <PublicBreadcrumb items={[{label:'Início',onClick:()=>setPage('home')},{label:'Serviços',onClick:()=>setPage('servicos')},{label:service.title}]}/>
    <section className={wide+' grid items-center gap-8 pb-10 pt-3 sm:pb-14 lg:grid-cols-[minmax(0,.93fr)_minmax(0,1.3fr)] lg:gap-16 lg:pb-16'}>
      <div className="py-3 lg:py-10">
        <h1 className="text-[34px] font-semibold leading-[1.14] tracking-[-.035em] sm:text-[44px] lg:text-[50px]">{service.title}</h1>
