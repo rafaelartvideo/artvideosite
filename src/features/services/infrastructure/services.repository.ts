@@ -66,6 +66,15 @@ export async function deleteService(serviceId: string): Promise<void> {
   if (error) throw error;
 }
 
+export async function setServicePublication(serviceId: string, published: boolean): Promise<void> {
+  const organizationId = await getArtVideoOrganizationId();
+  // A public service must be both active and visible in the catalog.
+  const flags = published ? { is_active: true, show_in_catalog: true } : { show_in_catalog: false };
+  const { data, error } = await supabase.from("services").update(flags).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
+  if (error) throw error;
+  if (!data) throw new Error("Não foi possível atualizar a publicação do serviço.");
+}
+
 export async function setServiceActive(serviceId: string, isActive: boolean): Promise<void> {
   const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase.from("services").update({ is_active: isActive }).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
@@ -99,8 +108,8 @@ export async function saveServiceAggregate({ serviceId: existingServiceId, paylo
   if (!serviceId) throw new Error("ID do serviço não obtido.");
 
   if (shouldReplace("variants")) await replaceServiceRows("service_variants", organizationId, serviceId, variants.map((variant, sortOrder) => ({ service_id: serviceId, title: variant.title, description: variant.description || null, price: variant.price ? Number(variant.price) : null, icon: null, is_active: true, sort_order: sortOrder })), "variantes antigas");
-  if (shouldReplace("inclusions")) await replaceServiceRows("service_inclusions", organizationId, serviceId, inclusions.filter(Boolean).map((description, sortOrder) => ({ service_id: serviceId, description, sort_order: sortOrder })), "inclusões");
-  if (shouldReplace("exclusions")) await replaceServiceRows("service_exclusions", organizationId, serviceId, exclusions.filter(Boolean).map((description, sortOrder) => ({ service_id: serviceId, description, sort_order: sortOrder })), "exclusões");
+  if (shouldReplace("inclusions")) await replaceServiceRows("service_inclusions", organizationId, serviceId, inclusions.filter(Boolean).map((description, sortOrder) => ({ service_id: serviceId, title: description.slice(0, 160), description, sort_order: sortOrder })), "inclusões");
+  if (shouldReplace("exclusions")) await replaceServiceRows("service_exclusions", organizationId, serviceId, exclusions.filter(Boolean).map((description, sortOrder) => ({ service_id: serviceId, title: description.slice(0, 160), description, sort_order: sortOrder })), "exclusões");
   if (shouldReplace("priceFactors")) await replaceServiceRows("service_price_factors", organizationId, serviceId, priceFactors.filter(factor => factor.name.trim()).map((factor, sortOrder) => ({ service_id: serviceId, name: factor.name.trim(), description: factor.description || null, impact: factor.impact, amount: Number(factor.amount) || 0, unit: factor.unit || null, sort_order: sortOrder })), "fatores");
   if (shouldReplace("sections")) await replaceServiceRows("service_sections", organizationId, serviceId, sections.filter(section => section.title.trim() && section.content.trim()).map((section, sortOrder) => ({ service_id: serviceId, title: section.title.trim(), content: section.content.trim(), sort_order: sortOrder })), "seções");
   if (shouldReplace("faqs")) await replaceServiceRows("service_faqs", organizationId, serviceId, faqs.filter(faq => faq.question).map((faq, sortOrder) => ({ service_id: serviceId, question: faq.question, answer: faq.answer, section_id: null, is_active: true, sort_order: sortOrder })), "FAQs");
