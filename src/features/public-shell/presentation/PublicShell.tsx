@@ -68,7 +68,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  return <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-[#071830] via-[var(--art-dark)] to-[#081a32] text-white shadow-md">
+  return <header className="sticky top-0 z-40 border-b border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white shadow-md">
     <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between gap-5 px-4 sm:px-6 lg:px-8">
       <button type="button" onClick={() => navigate("home")} aria-label="Eletrônica Artvideo — início" className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400">
         <PublicLogo/>
@@ -78,7 +78,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
           const active = PUBLIC_NAV_MAP[label] === page;
           return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
             aria-current={active ? "page" : undefined}
-            className={`relative flex h-full items-center whitespace-nowrap border-b-2 pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-white text-white" : "border-transparent text-white/75 hover:border-white/50 hover:text-white"}`}>{label}</button>;
+            className={`relative flex h-full items-center whitespace-nowrap border-b-[3px] pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-white font-semibold text-white" : "border-transparent text-white/75 hover:border-white/50 hover:text-white"}`}>{label}</button>;
         })}
       </nav>
       <div className="hidden shrink-0 items-center gap-3 lg:flex">
@@ -102,9 +102,10 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}
       </button>
     </div>
-    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/10 bg-[var(--art-dark)] px-4 pb-5 pt-2 shadow-xl lg:hidden">
+    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] px-4 pb-5 pt-2 shadow-xl lg:hidden">
       {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
-        className={`block w-full border-b border-white/10 py-3 text-left text-sm font-semibold transition-colors hover:text-blue-300 ${PUBLIC_NAV_MAP[label] === page ? "text-blue-300" : "text-white"}`}>{label}</button>)}
+        aria-current={PUBLIC_NAV_MAP[label] === page ? "page" : undefined}
+        className={`block w-full border-b py-3 text-left text-sm font-semibold transition-colors hover:text-white ${PUBLIC_NAV_MAP[label] === page ? "border-white text-white underline decoration-2 underline-offset-8" : "border-white/10 text-white/75"}`}>{label}</button>)}
       <button type="button" onClick={() => navigate("orcamento")} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] font-bold text-white hover:brightness-110">
         <FileText size={17} /> Solicitar orçamento
       </button>
