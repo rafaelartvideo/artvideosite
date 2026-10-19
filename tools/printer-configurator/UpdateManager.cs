@@ -130,7 +130,8 @@ internal static class UpdateManager
         start.ArgumentList.Add(current);
         start.ArgumentList.Add(Environment.ProcessId.ToString());
         start.ArgumentList.Add(build.Sha256);
-        Process.Start(start) ?? throw new InvalidOperationException("Não foi possível iniciar o atualizador.");
+        if (Process.Start(start) is null)
+            throw new InvalidOperationException("Não foi possível iniciar o atualizador.");
     }
 
     private static bool IsWithinUpdateDirectory(string path)
@@ -190,9 +191,9 @@ internal static class UpdateManager
                 File.Move(target, backup, overwrite: true);
                 oldMoved = true;
                 File.Copy(source, target);
-                Process.Start(new ProcessStartInfo(target) { UseShellExecute = true,
-                    WorkingDirectory = Path.GetDirectoryName(target)! })
-                    ?? throw new IOException("Falha ao reiniciar o aplicativo atualizado.");
+                if (Process.Start(new ProcessStartInfo(target) { UseShellExecute = true,
+                    WorkingDirectory = Path.GetDirectoryName(target)! }) is null)
+                    throw new IOException("Falha ao reiniciar o aplicativo atualizado.");
             }
             catch
             {
