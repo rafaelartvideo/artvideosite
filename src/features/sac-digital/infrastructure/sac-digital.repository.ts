@@ -529,18 +529,21 @@ export function sendSacDigitalSignatureInvite(
   });
 }
 
-export type SacDigitalOrderMessagePresetKey = "initial" | "estimate" | "completion";
+export type SacDigitalOrderMessagePresetKey = string;
+export type SacDigitalMessageScope = "order" | "quote" | "both";
 export type SacDigitalOrderMessagePreset = {
   preset_key: SacDigitalOrderMessagePresetKey;
   label: string;
   message_template: string;
   sort_order: number;
   is_active: boolean;
+  scope: SacDigitalMessageScope;
 };
 
 export const DEFAULT_SAC_ORDER_MESSAGE_PRESETS: SacDigitalOrderMessagePreset[] = [
   {
     preset_key: "initial",
+    scope: "order",
     label: "Contato sobre a OS",
     message_template: "Olá, {primeiro_nome}! Estamos entrando em contato sobre a OS {os}.",
     sort_order: 10,
@@ -548,6 +551,7 @@ export const DEFAULT_SAC_ORDER_MESSAGE_PRESETS: SacDigitalOrderMessagePreset[] =
   },
   {
     preset_key: "estimate",
+    scope: "order",
     label: "Mensagem sobre orçamento",
     message_template: "Olá, {primeiro_nome}! Gostaríamos de falar com você sobre o orçamento da OS {os}. Podemos esclarecer os valores e as próximas etapas por aqui.",
     sort_order: 20,
@@ -555,9 +559,18 @@ export const DEFAULT_SAC_ORDER_MESSAGE_PRESETS: SacDigitalOrderMessagePreset[] =
   },
   {
     preset_key: "completion",
+    scope: "order",
     label: "Confirmação / conclusão",
     message_template: "Olá, {primeiro_nome}! Temos uma atualização sobre a OS {os} e gostaríamos de confirmar os próximos passos com você.",
     sort_order: 30,
+    is_active: true,
+  },
+  {
+    preset_key: "quote_contact",
+    label: "Contato sobre orçamento",
+    scope: "quote",
+    message_template: "Olá, {primeiro_nome}! Recebemos o orçamento {protocolo} sobre {servico}. Podemos conversar sobre as próximas etapas?",
+    sort_order: 40,
     is_active: true,
   },
 ];
@@ -565,15 +578,14 @@ export const DEFAULT_SAC_ORDER_MESSAGE_PRESETS: SacDigitalOrderMessagePreset[] =
 export async function listSacDigitalOrderMessagePresets(organizationId: string) {
   const { data, error } = await (supabase as any)
     .from("sac_digital_order_message_presets")
-    .select("preset_key,label,message_template,sort_order,is_active")
+    .select("preset_key,label,message_template,sort_order,is_active,scope")
     .eq("organization_id", organizationId)
     .order("sort_order", { ascending: true });
   if (error) throw error;
 
   const rows = Array.isArray(data) ? data as SacDigitalOrderMessagePreset[] : [];
-  const byKey = new Map(rows.map(row => [row.preset_key, row]));
-  return DEFAULT_SAC_ORDER_MESSAGE_PRESETS
-    .map(fallback => byKey.get(fallback.preset_key) || fallback)
+  const defaults=DEFAULT_SAC_ORDER_MESSAGE_PRESETS.map(fallback => rows.find(row => row.preset_key === fallback.preset_key) || fallback);
+  return [...defaults,...rows.filter(row=>!DEFAULT_SAC_ORDER_MESSAGE_PRESETS.some(fallback=>fallback.preset_key===row.preset_key))]
     .sort((left, right) => left.sort_order - right.sort_order);
 }
 
@@ -588,12 +600,28 @@ export async function saveSacDigitalOrderMessagePresets(
     message_template: preset.message_template.trim(),
     sort_order: Number.isFinite(preset.sort_order) ? preset.sort_order : (index + 1) * 10,
     is_active: preset.is_active !== false,
+    scope: preset.scope || "order",
     updated_at: new Date().toISOString(),
   }));
+  if (rows.some(row => !/^[a-z][a-z0-9_-]{1,63}$/.test(row.preset_key)
+    || !row.label || row.label.length>80 || !row.message_template || row.message_template.length>5000
+    || !["order","quote","both"].includes(row.scope))) throw new Error("Há mensagens com dados inválidos.");
   const { error } = await (supabase as any)
     .from("sac_digital_order_message_presets")
     .upsert(rows, { onConflict: "organization_id,preset_key" });
   if (error) throw error;
+  // Remove only custom models deliberately removed in settings; never delete the built-ins.
+  const { data: saved, error: listError } = await (supabase as any).from("sac_digital_order_message_presets")
+    .select("preset_key").eq("organization_id",organizationId);
+  if (listError) throw listError;
+  const keys = new Set(rows.map(row => row.preset_key));
+  const obsolete=(saved||[]).map((row:any)=>row.preset_key)
+    .filter((key:string)=>!keys.has(key) && !DEFAULT_SAC_ORDER_MESSAGE_PRESETS.some(p=>p.preset_key===key));
+  if (obsolete.length) {
+    const {error: deleteError}=await (supabase as any).from("sac_digital_order_message_presets")
+      .delete().eq("organization_id",organizationId).in("preset_key",obsolete);
+    if (deleteError) throw deleteError;
+  }
   return listSacDigitalOrderMessagePresets(organizationId);
 }
 
