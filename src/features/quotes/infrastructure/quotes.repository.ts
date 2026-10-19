@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-const QUOTE_SELECT = "id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, customer_message, estimated_price, final_price, request_status:request_statuses(id,name,color), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)";
+const QUOTE_SELECT = "id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, service_address, customer_message, estimated_price, final_price, request_status:request_statuses(id,name,color), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)";
 const QUOTE_FILTER_SELECT = "id,protocol,created_at,status_id,customer_id,customer:customers(id,full_name,trade_name,document,cnpj,whatsapp)";
 
 export type QuotePageInput = {
