@@ -202,7 +202,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     setSaving(true);
     try {
       const payload: Record<string, unknown> = {};
-      if (canInfo) payload.public_booking = {...booking, blocked_dates:booking.blocked_dates.filter(Boolean), orientations:booking.orientations.filter((v:any)=>v.title.trim() && v.content.trim())};
+      if (canInfo) payload.public_booking = {...booking, blocked_dates:booking.blocked_dates.filter(Boolean), orientations:booking.orientations.filter((v:any)=>v.title.trim() && v.content.trim()), testimonials:(Array.isArray(booking.testimonials)?booking.testimonials:[]).filter((v:any)=>v.name?.trim() && v.text?.trim())};
       if (canInfo) {
         const finalSlug = await generateUniqueSlug("services", name, editItem?.id);
         Object.assign(payload, { ...(!editItem?.general_service_id ? { title: name.trim(), slug: finalSlug } : {}), category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, short_description: shortDesc.trim() || null, description: description.trim() || null });
