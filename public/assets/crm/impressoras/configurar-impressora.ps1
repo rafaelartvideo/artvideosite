@@ -16,7 +16,7 @@ function Finish([string]$message, [int]$exitCode = 0) {
 
 try {
   $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-  $isAdmin = (New-Object Security.Principal.WindowsPrincipal($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  $isAdmin = ([Security.Principal.WindowsPrincipal]::new($identity)).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
   if (-not $isAdmin) {
     Write-Host "O Windows pedira permissao para registrar o papel."
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $PSCommandPath + '"'))
@@ -66,9 +66,14 @@ public static class UnionPrintForms {
     public SIZEL Size;
     public RECTL ImageableArea;
   }
+  [StructLayout(LayoutKind.Sequential)] public struct PRINTER_DEFAULTS {
+    public IntPtr pDatatype;
+    public IntPtr pDevMode;
+    public int DesiredAccess;
+  }
   [DllImport("winspool.drv", EntryPoint="OpenPrinterW", CharSet=CharSet.Unicode, SetLastError=true)]
   [return: MarshalAs(UnmanagedType.Bool)]
-  public static extern bool OpenPrinter(string printerName, out IntPtr handle, IntPtr defaults);
+  public static extern bool OpenPrinter(string printerName, out IntPtr handle, ref PRINTER_DEFAULTS defaults);
   [DllImport("winspool.drv", EntryPoint="AddFormW", SetLastError=true)]
   [return: MarshalAs(UnmanagedType.Bool)]
   public static extern bool AddForm(IntPtr handle, int level, ref FORM_INFO_1 form);
@@ -79,8 +84,11 @@ public static class UnionPrintForms {
 '@ -ErrorAction Stop
 
   $handle = [IntPtr]::Zero
-  if (-not [UnionPrintForms]::OpenPrinter($chosen.Name, [ref]$handle, [IntPtr]::Zero)) {
-    throw "Nao foi possivel abrir a impressora. Codigo $([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
+  # Formularios personalizados sao registrados no spooler local, nao na porta USB.
+  $defaults = New-Object UnionPrintForms+PRINTER_DEFAULTS
+  $defaults.DesiredAccess = 0x00000001 # SERVER_ACCESS_ADMINISTER
+  if (-not [UnionPrintForms]::OpenPrinter($null, [ref]$handle, [ref]$defaults)) {
+    throw "Nao foi possivel abrir o servidor local de impressao como administrador. Codigo $([Runtime.InteropServices.Marshal]::GetLastWin32Error())."
   }
   try {
     $form = New-Object UnionPrintForms+FORM_INFO_1
