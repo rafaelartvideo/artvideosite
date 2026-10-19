@@ -269,7 +269,7 @@ export function UnsubscribePage() {
       <List items={[
         "Você pede para não receber novas mensagens de divulgação ou campanhas promocionais pelo contato informado.",
         "Mensagens necessárias a um orçamento, compra, entrega, agendamento ou ordem de serviço em andamento podem continuar sendo enviadas.",
-        "O pedido será tratado manualmente pela equipe; não há integração automática com listas de envio nem com a API do WhatsApp nesta etapa."
+        "O pedido será tratado manualmente pela equipe. O site não realiza o descadastramento automático ao preparar a mensagem."
       ]}/>
     </Section>
     <RightsRequest kind="descadastramento"/>
