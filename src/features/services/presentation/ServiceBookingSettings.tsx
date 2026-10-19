@@ -14,7 +14,7 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
  const toggleDay=(day:number,enabled:boolean)=>{
   const weekdays=enabled?[...new Set([...(c.weekdays||[]),day])].sort((a,b)=>a-b):(c.weekdays||[]).filter((d:number)=>d!==day);
   const daySlots=weekly[String(day)]||[];
-  onChange({...c,weekdays,weekly_slots:{...weekly,[String(day)]:enabled && !daySlots.length?[{start:'08:00',end:'10:00'}]:daySlots}});
+  onChange({...c,weekdays,weekly_slots:{...weekly,[String(day)]:enabled && !daySlots.length?[{start:'',end:''}]:daySlots}});
  };
  return <div className="space-y-5">
   <Section title="Cobertura do atendimento"><div className="space-y-4">
@@ -29,11 +29,12 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
      {dayNames.map((name,day)=>{
       const active=(c.weekdays||[]).includes(day);
       const slots=weekly[String(day)]||[];
+      const completed=slots.filter((s:{start:string;end:string})=>s.start && s.end && s.end>s.start).length;
       return <div key={day} className={`overflow-hidden rounded-xl border transition-colors ${active?'border-blue-300 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20':'border-border bg-background'}`}>
        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <div className="min-w-0">
          <p className="text-sm font-semibold">{name}</p>
-         <p className="mt-0.5 text-xs text-muted-foreground">{active?`${slots.length} ${slots.length===1?'intervalo configurado':'intervalos configurados'}`:'Sem atendimento'}</p>
+         <p className="mt-0.5 text-xs text-muted-foreground">{active?`${completed} ${completed===1?'intervalo definido':'intervalos definidos'}${completed<slots.length?' · horários a preencher':''}`:'Sem atendimento'}</p>
         </div>
         <FToggle label={active?'Ativo':'Inativo'} checked={active} onChange={(enabled:boolean)=>toggleDay(day,enabled)}/>
        </div>
@@ -46,7 +47,7 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
          <button type="button" aria-label={`Remover intervalo de ${name}`} title="Remover intervalo" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30" onClick={()=>setDaySlots(day,slots.filter((_:any,i:number)=>i!==index))}><Trash2 size={17}/></button>
         </div>)}
         {!slots.length&&<p className="text-xs text-amber-700 dark:text-amber-300">Adicione pelo menos um intervalo para permitir agendamento neste dia.</p>}
-        <BtnSecondary onClick={()=>setDaySlots(day,[...slots,{start:'08:00',end:'10:00'}])}><Plus size={15}/> Adicionar horário em {name}</BtnSecondary>
+        <BtnSecondary onClick={()=>setDaySlots(day,[...slots,{start:'',end:''}])}><Plus size={15}/> Adicionar horário em {name}</BtnSecondary>
        </div>}
       </div>;
      })}
