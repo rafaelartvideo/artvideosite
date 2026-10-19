@@ -145,6 +145,8 @@ export function PdvSaleWorkspace({
   const [customerSearch, setCustomerSearch] = useState("");
   const debouncedCustomerSearch = useDebouncedValue(customerSearch);
   const [selectedCustomer, setSelectedCustomer] = useState<PdvCustomer | null>(null);
+  const [buyerName, setBuyerName] = useState("");
+  const [buyerDocument, setBuyerDocument] = useState("");
   const [discount, setDiscount] = useState("");
   const [surcharge, setSurcharge] = useState("");
   const [note, setNote] = useState("");
@@ -417,6 +419,8 @@ export function PdvSaleWorkspace({
   const resetCheckout = () => {
     setCustomerSearch("");
     setSelectedCustomer(null);
+    setBuyerName("");
+    setBuyerDocument("");
     setDiscount("");
     setSurcharge("");
     setNote("");
@@ -483,6 +487,7 @@ export function PdvSaleWorkspace({
     if (discountValue > afterItemDiscounts) return "O desconto geral não pode ser maior que o valor após os descontos dos itens.";
     if (total <= 0) return "O total da venda deve ser maior que zero.";
     if (!settings?.allow_sale_without_customer && !selectedCustomer) return "Selecione um cliente.";
+    if (!selectedCustomer && buyerDocument.trim() && !buyerName.trim()) return "Informe o nome do comprador para constar no recibo.";
     if (payments.length === 0) return "Adicione uma forma de pagamento.";
     if (Math.abs(remaining) >= 0.01) return remaining > 0
       ? `Faltam ${formatCurrency(remaining)} nos pagamentos.`
@@ -504,6 +509,8 @@ export function PdvSaleWorkspace({
     mutationFn: () => finalizePdvSale(organizationId, {
       idempotencyKey,
       customerId: selectedCustomer?.id || null,
+      customerName: selectedCustomer ? null : buyerName.trim(),
+      customerDocument: selectedCustomer ? null : buyerDocument.trim(),
       discountAmount: discountValue,
       surchargeAmount: surchargeValue,
       note: note.trim() || null,
@@ -895,7 +902,7 @@ export function PdvSaleWorkspace({
         closeCheckout();
       }}
       title="Pagamento"
-      minimizedDescription={`${selectedCustomer?.name || "Sem cliente"} · ${formatCurrency(total)} · ${remaining > 0.009 ? `Restante ${formatCurrency(remaining)}` : changeTotal > 0 ? `Troco ${formatCurrency(changeTotal)}` : "Pagamento fechado"}`}
+      minimizedDescription={`${selectedCustomer?.name || buyerName.trim() || "Sem cliente"} · ${formatCurrency(total)} · ${remaining > 0.009 ? `Restante ${formatCurrency(remaining)}` : changeTotal > 0 ? `Troco ${formatCurrency(changeTotal)}` : "Pagamento fechado"}`}
       className="!max-w-6xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="text-xs text-muted-foreground">
@@ -961,6 +968,18 @@ export function PdvSaleWorkspace({
                   <Plus size={13} className="shrink-0 text-primary" />
                 </button>)}
               </div>
+              {settings?.allow_sale_without_customer && <div className="mt-3 rounded-xl border border-border bg-muted/20 p-3">
+                <p className="mb-2 text-[11px] font-bold text-foreground">Identificar comprador sem cadastro</p>
+                <p className="mb-3 text-[10px] text-muted-foreground">Opcional. Os dados informados aparecerão apenas nos registros desta venda e no recibo.</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <label><span className="mb-1 block text-[10px] font-bold">Nome do comprador</span>
+                    <input className={cn(INPUT, "w-full")} maxLength={180} value={buyerName} onChange={event => setBuyerName(event.target.value)} placeholder="Nome para o recibo" />
+                  </label>
+                  <label><span className="mb-1 block text-[10px] font-bold">CPF/CNPJ (opcional)</span>
+                    <input className={cn(INPUT, "w-full")} maxLength={30} value={buyerDocument} onChange={event => setBuyerDocument(event.target.value)} placeholder="Documento" />
+                  </label>
+                </div>
+              </div>}
             </>}
           </section>
 
