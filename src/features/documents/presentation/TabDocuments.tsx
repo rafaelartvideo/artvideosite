@@ -13,8 +13,9 @@ import { PRINT_TEMPLATE_TYPE_LABELS } from "../domain/print-template";
 import { useDocuments } from "../application/useDocuments";
 import type { AttachmentTypeRecord } from "../infrastructure/documents.repository";
 import { PrintTemplateEditor } from "./PrintTemplateEditor";
+import { PrinterSetupPanel } from "./PrinterSetupPanel";
 
-type DocumentsSection = "printing" | "attachments" | "labels";
+type DocumentsSection = "printing" | "attachments" | "labels" | "printers";
 
 function DocumentsAreaHeader({ title, description, action }: { title: string; description: string; action?: React.ReactNode }) {
   return <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -101,7 +102,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const showActions = hasPermission("documents.table.actions");
   const documents = useDocuments();
   const { templates, attachmentTypes, filteredTemplates, loading, attachmentTypesLoading, error, attachmentError, editorOpen, editorValue, editingTemplateId, openingEditor, saving, savingAttachmentType, openNew, openEditor, closeEditor, save, toggleActive, saveAttachmentType, toggleAttachmentType, removeAttachmentType } = documents;
-  const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : routeResourceId === "labels" ? "labels" : "printing");
+  const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : routeResourceId === "labels" ? "labels" : routeResourceId === "printers" ? "printers" : "printing");
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
   const [typeName, setTypeName] = useState("");
@@ -120,12 +121,12 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const attachmentTotalPages = Math.max(1, Math.ceil(sortedAttachmentTypes.length / attachmentPageSize));
   const safeAttachmentPage = Math.min(attachmentPage, attachmentTotalPages);
   const pagedAttachmentTypes = sortedAttachmentTypes.slice((safeAttachmentPage - 1) * attachmentPageSize, safeAttachmentPage * attachmentPageSize);
-  const editorRouteActive = Boolean(routeResourceId && !["attachments", "labels"].includes(routeResourceId));
+  const editorRouteActive = Boolean(routeResourceId && !["attachments", "labels", "printers"].includes(routeResourceId));
 
   useEffect(() => { if (templatePage > templateTotalPages) setTemplatePage(templateTotalPages); }, [templatePage, templateTotalPages]);
   useEffect(() => { if (attachmentPage > attachmentTotalPages) setAttachmentPage(attachmentTotalPages); }, [attachmentPage, attachmentTotalPages]);
   useEffect(() => {
-    if (routeResourceId === "attachments" || routeResourceId === "labels") { setSection(routeResourceId); if (editorOpen) closeEditor(); return; }
+    if (routeResourceId === "attachments" || routeResourceId === "labels" || routeResourceId === "printers") { setSection(routeResourceId); if (editorOpen) closeEditor(); return; }
     setSection("printing");
     if (!routeResourceId) { if (editorOpen) closeEditor(); return; }
     if (routeResourceId === "new") { if (canCreate && !editorOpen) openNew(); return; }
@@ -203,6 +204,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
         {([
           ["attachments", "Anexos"],
           ["labels", "Etiquetas"],
+          ["printers", "Impressoras"],
           ["printing", "Impressão"],
         ] as const).map(([value, title]) => <button key={value} type="button"
           onClick={() => selectSection(value)}
@@ -222,7 +224,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
             <PaginationBar page={safeTemplatePage} pageSize={templatePageSize} totalItems={filteredTemplates.length} onPageChange={setTemplatePage} onPageSizeChange={size => { setTemplatePageSize(size); setTemplatePage(1); }} />
           </>}
         </AdminCard>
-      </> : section === "labels" ? <OrderLabelPrintSettings canEdit={canEdit} /> : <>
+      </> : section === "labels" ? <OrderLabelPrintSettings canEdit={canEdit} /> : section === "printers" ? <PrinterSetupPanel /> : <>
         <DocumentsAreaHeader
           title="Anexos"
           description="Cadastre os tipos exibidos ao adicionar arquivos aos documentos de uma OS."
