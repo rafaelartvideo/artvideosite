@@ -243,6 +243,8 @@ export type PdvCashSessionReport = {
 export type FinalizePdvSaleInput = {
   idempotencyKey: string;
   customerId?: string | null;
+  customerName?: string | null;
+  customerDocument?: string | null;
   discountAmount?: number;
   surchargeAmount?: number;
   note?: string | null;
@@ -347,6 +349,8 @@ export async function finalizePdvSale(
     p_idempotency_key: input.idempotencyKey,
     p_payload: {
       customer_id: input.customerId || null,
+      customer_name: input.customerId ? null : (String(input.customerName || "").trim() || null),
+      customer_document: input.customerId ? null : (String(input.customerDocument || "").trim() || null),
       discount_amount: Number(input.discountAmount || 0),
       surcharge_amount: Number(input.surchargeAmount || 0),
       note: String(input.note || "").trim() || null,
