@@ -1,4 +1,4 @@
-export const EMPTY_BOOKING_CONFIG = { coverage_mode:'consult', cep_ranges:[], schedule_enabled:false, weekdays:[1,2,3,4,5], slots:[], lead_days:1, horizon_days:30, blocked_dates:[], related_position:'after_coverage', testimonials:[], benefits:[
+export const EMPTY_BOOKING_CONFIG = { coverage_mode:'consult', cep_ranges:[], schedule_enabled:false, weekdays:[], slots:[], lead_days:1, horizon_days:30, blocked_dates:[], related_position:'after_coverage', testimonials:[], benefits:[
  {title:'Atendimento próximo',content:'Converse diretamente com a equipe da Artvideo sobre o que você precisa.'},
  {title:'Orçamento antes da execução',content:'Conheça os valores e os detalhes do serviço antes de aprovar.'},
  {title:'Atendimento combinado',content:'A equipe confirma o local, o dia e as condições para realizar o serviço.'}
