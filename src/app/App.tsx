@@ -31,6 +31,9 @@ const StoreCheckoutPage = lazy(() => import("@/features/public-store/presentatio
 const StoreCartPage = lazy(() => import("@/features/public-store/presentation/StoreCartPage").then(module => ({ default: module.StoreCartPage })));
 const StoreOrderTrackingPage = lazy(() => import("@/features/public-store/presentation/StoreOrderTrackingPage").then(module => ({ default: module.StoreOrderTrackingPage })));
 const AboutPage = lazy(() => import("@/features/institutional/presentation/AboutPage").then(module => ({ default: module.AboutPage })));
+const PrivacyPolicyPage = lazy(() => import("@/features/institutional/presentation/PrivacyAndRightsPages").then(module => ({ default: module.PrivacyPolicyPage })));
+const DataDeletionPage = lazy(() => import("@/features/institutional/presentation/PrivacyAndRightsPages").then(module => ({ default: module.DataDeletionPage })));
+const UnsubscribePage = lazy(() => import("@/features/institutional/presentation/PrivacyAndRightsPages").then(module => ({ default: module.UnsubscribePage })));
 const ContactPage = lazy(() => import("@/features/contact-public/presentation/ContactPage").then(module => ({ default: module.ContactPage })));
 const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistance/presentation/TechnicalAssistancePage").then(module => ({ default: module.TechnicalAssistancePage })));
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
@@ -376,6 +379,9 @@ function PublicRoutes() {
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
+          <Route path="/politica-de-privacidade" element={<PrivacyPolicyPage />} />
+          <Route path="/exclusao-de-dados" element={<DataDeletionPage />} />
+          <Route path="/descadastramento" element={<UnsubscribePage />} />
           <Route path="/contato" element={<ContactPage />} />
           <Route path="/orcamento" element={<PublicQuotePage />} />
           <Route path="/assistencia" element={<TechnicalAssistancePage setPage={setPage} />} />
