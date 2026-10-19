@@ -550,7 +550,7 @@ export function PdvSaleWorkspace({
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (saleResult || finalizeMutation.isPending) return;
+      if (saleResult || manualOpen || finalizeMutation.isPending) return;
       const editable = isEditableTarget(event.target);
 
       if (event.key === "F2") {
@@ -646,6 +646,7 @@ export function PdvSaleWorkspace({
   }, [
     saleResult,
     checkoutOpen,
+    manualOpen,
     checkoutInvalidReason,
     cart,
     selectedCartProductId,
@@ -838,7 +839,7 @@ export function PdvSaleWorkspace({
                   {itemDiscount > 0 && <p className="mt-0.5 text-[9px] text-[#8a98aa] line-through">{formatCurrency(lineSubtotal)}</p>}
                   <p className={cn("mt-0.5 text-base font-black", itemDiscount > 0 ? "text-emerald-700" : "text-foreground")}>{formatCurrency(lineTotal)}</p>
                 </div>
-                <div className="mt-2 flex flex-wrap gap-2" onClick={event => event.stopPropagation()}>
+                <div className="mt-2 flex flex-wrap gap-2 sm:col-span-3" onClick={event => event.stopPropagation()}>
                   <label className="min-w-[135px] flex-1">
                     <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Condição</span>
                     <select value={item.condition} onChange={event => updateCondition(productId, { condition: event.target.value as ProductCondition })} className={cn(INPUT, "h-8 w-full text-xs")}>
