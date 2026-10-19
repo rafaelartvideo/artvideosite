@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "id": "elgin-l42",
+      "name": "Elgin L42 / BTP-L42(U)",
+      "manufacturer": "Elgin",
+      "match": [
+        "BTP-L42",
+        "L42",
+        "L-42"
+      ],
+      "paperWidthMm": 104,
+      "paperHeightMm": 23,
+      "driverUrl": "https://www.elgin.com.br/download-center",
+      "description": "3 etiquetas de 32 × 23 mm, espaçamento de 3 mm, margens laterais de 1 mm."
+    },
+    {
+      "id": "custom",
+      "name": "Personalizado (outras impressoras)",
+      "manufacturer": "Outro",
+      "match": [],
+      "paperWidthMm": 104,
+      "paperHeightMm": 23,
+      "driverUrl": "",
+      "description": "Informe as medidas adequadas para esta impressora."
+    }
+  ]
+}
