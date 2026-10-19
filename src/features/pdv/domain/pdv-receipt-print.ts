@@ -22,6 +22,8 @@ export function printPdvReceipt(sale: PdvSaleDetail, organizationName: string) {
   const itemRows = sale.items.map(item => `
     <div class="item">
       <div class="item-name">${escapeHtml(item.product_name)}</div>
+      <div class="muted">${item.is_manual ? "Item avulso · " : ""}${item.condition === "used" ? "Usado" : item.condition === "refurbished" ? "Recondicionado" : "Novo"}${item.serial_number ? " · Série " + escapeHtml(item.serial_number) : ""}</div>
+      ${item.condition_notes ? '<div class="muted wrap">' + escapeHtml(item.condition_notes) + '</div>' : ""}
       <div class="item-line">
         <span>${escapeHtml(item.quantity)} ${escapeHtml(item.unit)} × ${escapeHtml(formatCurrency(item.unit_price))}</span>
         <strong>${escapeHtml(formatCurrency(item.line_total))}</strong>
