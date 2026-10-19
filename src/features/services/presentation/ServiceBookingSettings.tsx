@@ -6,6 +6,7 @@ import { formatZipCode } from '@/lib/address';
 
 export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:(value:any)=>void}) {
  const c=bookingConfig(value);
+ const testimonials=Array.isArray(c.testimonials)?c.testimonials:[];
  const set=(key:string,v:any)=>onChange({...c,[key]:v});
  return <div className="space-y-5">
   <Section title="Cobertura do atendimento"><div className="space-y-4">
@@ -23,6 +24,15 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
    </>}
   </div></Section>
   <Section title="Apresentação da página"><div className="space-y-4"><FSelect label="Serviços relacionados" value={c.related_position} onChange={(e:any)=>set('related_position',e.target.value)} options={[{value:'after_coverage',label:'Após a consulta de CEP'},{value:'bottom',label:'No final da página'},{value:'hidden',label:'Não exibir'}]}/><p className="text-xs font-bold">Por que contratar?</p>{c.benefits.map((b:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4"><FInput label="Título" value={b.title} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/><FTextarea label="Descrição" value={b.content} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,content:e.target.value}:v))} rows={2}/><button type="button" className="text-xs font-bold text-red-600" onClick={()=>set('benefits',c.benefits.filter((_:any,j:number)=>j!==i))}>Remover benefício</button></div>)}<BtnSecondary onClick={()=>set('benefits',[...c.benefits,{title:'',content:''}])}><Plus size={15}/> Adicionar benefício</BtnSecondary></div></Section>
+  <Section title="Depoimentos de clientes"><div className="space-y-4">
+   <p className="text-xs leading-5 text-muted-foreground">Inclua somente avaliações reais que a Artvideo tenha autorização para divulgar. Elas aparecerão no carrossel da página deste serviço. Sem avaliações cadastradas, a seção não aparece.</p>
+   {testimonials.map((review:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4">
+    <FInput label="Nome do cliente" value={review.name||''} onChange={(e:any)=>set('testimonials',testimonials.map((v:any,j:number)=>i===j?{...v,name:e.target.value}:v))} placeholder="Nome autorizado para exibição"/>
+    <FTextarea label="Depoimento" value={review.text||''} onChange={(e:any)=>set('testimonials',testimonials.map((v:any,j:number)=>i===j?{...v,text:e.target.value}:v))} rows={3}/>
+    <button type="button" className="text-xs font-bold text-red-600" onClick={()=>set('testimonials',testimonials.filter((_:any,j:number)=>j!==i))}>Remover depoimento</button>
+   </div>)}
+   <BtnSecondary onClick={()=>set('testimonials',[...testimonials,{name:'',text:''}])}><Plus size={15}/> Adicionar depoimento</BtnSecondary>
+  </div></Section>
   <Section title="Orientações para este serviço"><div className="space-y-4">
    <p className="text-xs text-muted-foreground">Cada orientação aparece como um card com o botão Saiba mais e abre seu próprio modal.</p>
    {c.orientations.map((o:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4"><FInput label="Título do card" value={o.title} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/><FTextarea label="Conteúdo do modal" value={o.content} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,content:e.target.value}:v))} rows={4}/><button type="button" className="text-xs font-bold text-red-600" onClick={()=>set('orientations',c.orientations.filter((_:any,j:number)=>j!==i))}>Remover orientação</button></div>)}
