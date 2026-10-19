@@ -25,6 +25,7 @@ import {
   type PdvSaleDetail,
 } from "../infrastructure/pdv.repository";
 import { printPdvReceipt } from "../domain/pdv-receipt-print";
+import { printPdvA4Receipt } from "../domain/pdv-a4-receipt";
 
 function useDebouncedValue(value: string, delay = 250) {
   const [debounced, setDebounced] = useState(value);
@@ -131,10 +132,11 @@ export function PdvSalesHistory({
     setCancelOpen(true);
   };
 
-  const handlePrint = () => {
+  const handlePrint = (mode: "a4" | "80mm" = "80mm") => {
     if (!detail) return;
     try {
-      printPdvReceipt(detail, organizationName);
+      if (mode === "a4") printPdvA4Receipt(detail, organizationName);
+      else printPdvReceipt(detail, organizationName);
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível abrir a impressão do comprovante."), type: "error" });
     }
@@ -271,7 +273,8 @@ export function PdvSalesHistory({
         </div>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
           {canCancel && detail.status === "completed" && <AdminButton variant="danger" onClick={openCancel}><Ban size={14} /> Cancelar venda</AdminButton>}
-          <AdminButton variant="secondary" onClick={handlePrint}><Printer size={14} /> Imprimir comprovante</AdminButton>
+          {detail.status === "completed" && <AdminButton variant="secondary" onClick={() => handlePrint("a4")}><ReceiptText size={14} /> Recibo A4 / PDF</AdminButton>}
+          <AdminButton variant="secondary" onClick={() => handlePrint("80mm")}><Printer size={14} /> Comprovante 80mm</AdminButton>
         </div>
       </div> : undefined}
     >
@@ -334,7 +337,12 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
           {detail.items.map(item => <div key={item.id} className="grid gap-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_90px_120px_120px] sm:items-center">
             <div className="min-w-0">
               <p className="truncate text-xs font-black text-[#0d1b2e]">{item.product_name}</p>
-              <p className="mt-0.5 text-[10px] text-[#7a8aa0]">{item.sku || item.barcode || "Sem SKU"}</p>
+              <p className="mt-0.5 text-[10px] text-[#7a8aa0]">
+                {item.is_manual ? "Venda avulsa" : (item.sku || item.barcode || "Sem SKU")}
+                {" · "}{item.condition === "used" ? "Usado" : item.condition === "refurbished" ? "Recondicionado" : "Novo"}
+                {item.serial_number ? " · Série: " + item.serial_number : ""}
+              </p>
+              {item.condition_notes && <p className="mt-1 whitespace-pre-wrap text-[10px] text-muted-foreground">{item.condition_notes}</p>
             </div>
             <p className="text-xs text-[#5a6a82]">{item.quantity} {item.unit}</p>
             <p className="text-xs text-[#5a6a82]">{formatCurrency(item.unit_price)}</p>
