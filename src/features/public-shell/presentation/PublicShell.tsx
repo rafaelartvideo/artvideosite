@@ -66,7 +66,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const { settings } = useSiteSettings();
   const { count: cartCount } = useStoreCart();
   const { pathname } = useLocation();
-  const isLegalPage = ["/politica-de-privacidade", "/exclusao-de-dados", "/descadastramento"].includes(pathname.replace(/\\/+$/, "") || "/");
+  const isLegalPage = ["/politica-de-privacidade", "/exclusao-de-dados", "/descadastramento"].includes(pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname);
   const isCurrent = (destination: PublicPage) => !isLegalPage &&
     (destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja"));
   const instagramUrl = validExternalUrl(settings.instagram, "https://instagram.com/") || "https://www.instagram.com/eletronica_artvideo/";
