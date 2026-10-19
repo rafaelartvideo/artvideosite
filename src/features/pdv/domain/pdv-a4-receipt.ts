@@ -40,64 +40,143 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
     </tr>`).join("");
 
   const payments = sale.payments.map(payment =>
-    `<span>${html(payment.payment_method_name)}: <strong>${html(formatCurrency(payment.amount))}</strong></span>`
-  ).join(" &nbsp; | &nbsp; ");
+    `<div class="payment-entry"><span>${html(payment.payment_method_name)}</span><strong>${html(formatCurrency(payment.amount))}</strong></div>`
+  ).join("");
 
   popup.document.open();
   popup.document.write(`<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8" /><title>${html(number)} · ${html(companyName)}</title>
-<style>
-  @page { size: A4; margin: 17mm 16mm; }
-  * { box-sizing: border-box; }
-  body { margin: 0; font: 13px Arial, Helvetica, sans-serif; color: #16253d; background: white; }
-  .head { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; border-bottom: 3px solid #125cc8; padding-bottom: 22px; }
-  .company { font-size: 19px; font-weight: 800; }
-  .minor { color: #64748b; font-size: 11px; line-height: 1.65; }
-  .doc { text-align: right; }
-  .doc .kind { color: #125cc8; font-size: 21px; font-weight: 900; }
-  .doc .number { font-weight: 700; margin-top: 5px; }
-  h2 { font-size: 13px; margin: 25px 0 11px; text-transform: uppercase; letter-spacing: .08em; }
-  .detail { display: flex; flex-wrap: wrap; gap: 14px 40px; padding: 16px; background: #f5f7fa; border: 1px solid #e2e8f0; border-radius: 7px; }
-  .detail > div { min-width: 170px; flex: 1; }
-  .label { font-size: 10px; color: #64748b; display: block; margin-bottom: 5px; text-transform: uppercase; }
-  table { width: 100%; border-collapse: collapse; font-size: 12px; }
-  th { background: #eef3fa; color: #3b506c; font-size: 10px; text-align: left; padding: 10px 8px; }
-  td { padding: 12px 8px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
-  .right { text-align: right; white-space: nowrap; }
-  .pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-  .totals { margin-left: auto; margin-top: 16px; width: 300px; }
-  .totals > div { display: flex; justify-content: space-between; padding: 5px 0; }
-  .totals .grand { font-size: 20px; font-weight: 900; color: #125cc8; border-top: 2px solid #125cc8; margin-top: 9px; padding-top: 10px; }
-  .payment { margin: 18px 0; padding: 14px 16px; border: 1px solid #e2e8f0; border-radius: 7px; }
-  .note { overflow-wrap: anywhere; margin-top: 18px; }
-  .disclaimer { margin-top: 30px; padding: 13px; border: 1px solid #cbd5e1; font-size: 11px; line-height: 1.55; }
-  .signature { margin-top: 55px; border-top: 1px solid #94a3b8; width: 65%; padding-top: 8px; font-size: 11px; }
-  @media screen { body { max-width: 794px; min-height: 1123px; margin: 25px auto; padding: 62px 60px; box-shadow: 0 0 0 1px #ddd, 0 8px 30px #0001; } }
-</style></head><body>
-<header class="head">
-  <div><div class="company">${html(companyName)}</div>${organizationDocument ? '<div class="minor">CNPJ/CPF: ' + html(organizationDocument) + '</div>' : ''}<div class="minor">Comprovante emitido pela Union World</div></div>
-  <div class="doc"><div class="kind">RECIBO</div><div class="number">${html(number)}</div><div class="minor">Venda #${html(sale.sale_number)}</div></div>
-</header>
-<h2>Dados do recebimento</h2>
-<section class="detail">
-  <div><span class="label">Recebemos de</span><strong>${html(sale.customer_name || "Consumidor não identificado")}</strong>${sale.customer_document ? '<div class="minor">' + html(sale.customer_document) + '</div>' : ''}</div>
-  <div><span class="label">Data da venda</span><strong>${html(date)}</strong></div>
-  <div><span class="label">Responsável</span><strong>${html(sale.sold_by_name || "—")}</strong></div>
-</section>
-<h2>Itens da venda</h2>
-<table><thead><tr><th>#</th><th>Descrição</th><th class="right">Qtd.</th><th class="right">Unitário</th><th class="right">Total</th></tr></thead><tbody>${rows}</tbody></table>
-<div class="totals">
-  <div><span>Subtotal</span><strong>${html(formatCurrency(sale.subtotal))}</strong></div>
-  ${Number(sale.discount_amount) ? '<div><span>Descontos</span><strong>- ' + html(formatCurrency(sale.discount_amount)) + '</strong></div>' : ""}
-  ${Number(sale.surcharge_amount) ? '<div><span>Acréscimos</span><strong>+ ' + html(formatCurrency(sale.surcharge_amount)) + '</strong></div>' : ""}
-  <div class="grand"><span>RECEBIDO</span><span>${html(formatCurrency(sale.total_amount))}</span></div>
-</div>
-<div style="clear:both"></div>
-<div class="payment"><span class="label">Formas de pagamento</span>${payments}</div>
-${sale.notes ? '<div class="note"><strong>Observações:</strong> ' + html(sale.notes) + '</div>' : ""}
-<div class="disclaimer"><strong>DOCUMENTO NÃO FISCAL.</strong> Este recibo comprova o recebimento do valor referente à venda identificada. Não substitui NFC-e, NF-e ou outro documento fiscal exigido pela legislação. A indicação de produto usado não exclui a garantia legal nem os direitos do consumidor.</div>
-<div class="signature">${html(companyName)}${organizationDocument ? " · " + html(organizationDocument) : ""}</div>
-<script>window.addEventListener("load", function () { setTimeout(function () { window.focus(); window.print(); }, 250); });<\/script>
-</body></html>`);
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <title>${html(number)} · ${html(companyName)}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <style>
+    @page { size: A4; margin: 0; }
+    * { box-sizing: border-box; }
+    html { background: #fff; }
+    body { margin: 0; padding: 0; background: white; color: #111; font: 12px/1.45 Arial, Helvetica, sans-serif; }
+    .sheet { width: 210mm; min-height: 296mm; margin: 0 auto; padding: 17mm 16mm 14mm; display: flex; flex-direction: column; }
+    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18mm; padding-bottom: 9mm; border-bottom: 1.5px solid #242424; }
+    .issuer { min-width: 0; flex: 1; }
+    .company { font-size: 24px; line-height: 1.2; font-weight: 800; overflow-wrap: anywhere; }
+    .muted { margin-top: 4px; color: #555; font-size: 10.5px; line-height: 1.4; }
+    .doc { min-width: 47mm; max-width: 64mm; padding-left: 7mm; border-left: 1px solid #555; text-align: right; }
+    .doc-kind { font-size: 25px; line-height: 1.15; font-weight: 800; letter-spacing: .01em; }
+    .doc-number { margin-top: 4px; font-size: 12px; font-weight: 700; }
+    .doc-sale { margin-top: 4px; color: #444; font-size: 11px; }
+    .panel { margin-top: 8mm; border: .8px solid #555; border-radius: 5px; overflow: hidden; }
+    .panel-title { margin: 0; padding: 9px 12px; font-size: 12px; line-height: 1.4; font-weight: 800; text-transform: uppercase; letter-spacing: .025em; border-bottom: .8px solid #999; }
+    .panel-content { padding: 14px 13px; }
+    .grid-info { display: grid; grid-template-columns: 1.1fr 1.05fr .85fr; }
+    .info { min-width: 0; padding: 0 12px; border-left: .6px solid #b3b3b3; overflow-wrap: anywhere; }
+    .info:first-child { padding-left: 0; border-left: 0; }
+    .info:last-child { padding-right: 0; }
+    .label { display: block; margin-bottom: 6px; color: #555; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
+    .info strong { display: block; font-size: 12.5px; line-height: 1.4; color: #111; }
+    .info .muted { font-size: 11px; }
+    .items-panel { margin-top: 8mm; }
+    .items-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11.5px; }
+    .items-table th { padding: 10px 10px; text-align: left; font-size: 10px; color: #444; font-weight: 700; border-bottom: .8px solid #999; }
+    .items-table td { padding: 12px 10px; border-top: .6px solid #d0d0d0; vertical-align: top; overflow-wrap: anywhere; }
+    .items-table td + td, .items-table th + th { border-left: .5px solid #d0d0d0; }
+    .items-table tbody tr:first-child td { border-top: 0; }
+    .items-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
+    .items-table thead { display: table-header-group; }
+    .items-table strong { font-size: 11.5px; font-weight: 700; }
+    .item-number { width: 7%; }
+    .item-description { width: 45%; }
+    .item-quantity { width: 12%; }
+    .item-price { width: 18%; }
+    .right { text-align: right !important; }
+    .minor { color: #555; font-size: 10px; line-height: 1.5; margin-top: 4px; }
+    .pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+    .money { white-space: nowrap; }
+    .totals { width: 76mm; max-width: 100%; margin: 7mm 0 0 auto; break-inside: avoid; page-break-inside: avoid; }
+    .totals > .line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 11.5px; }
+    .totals > .line strong { font-size: 12px; }
+    .grand { margin-top: 7px; padding: 12px; border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 800; font-size: 16px; }
+    .grand .amount { font-size: 21px; padding-left: 12px; border-left: .8px solid #888; white-space: nowrap; }
+    .payment-panel { margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
+    .payment-entry { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 5px 0; border-bottom: .5px solid #ddd; }
+    .payment-entry:first-child { padding-top: 0; }
+    .payment-entry:last-child { padding-bottom: 0; border-bottom: 0; }
+    .payment-entry strong { font-size: 12px; white-space: nowrap; }
+    .note { margin-top: 7mm; padding: 11px 13px; border: .7px solid #888; border-radius: 4px; overflow-wrap: anywhere; }
+    .disclaimer { margin-top: 8mm; border: .8px solid #777; border-radius: 4px; padding: 12px 14px; color: #333; font-size: 10.5px; line-height: 1.6; break-inside: avoid; page-break-inside: avoid; }
+    .disclaimer strong { color: #111; }
+    .signature { margin: 16mm auto 0; width: 76mm; max-width: 100%; padding-top: 6px; border-top: .7px solid #777; text-align: center; color: #444; font-size: 10.5px; overflow-wrap: anywhere; break-inside: avoid; }
+    .footer { margin-top: auto; padding-top: 10mm; text-align: center; }
+    @media screen {
+      body { background: #eee; }
+      .sheet { background: #fff; box-shadow: 0 0 0 1px #d4d4d4, 0 8px 30px #0001; margin: 22px auto; }
+    }
+    @media print {
+      html, body { background: #fff !important; }
+      .sheet { margin: 0; box-shadow: none; width: 210mm; }
+      .panel, .payment-panel, .disclaimer, .grand { background: #fff !important; }
+    }
+  </style>
+</head>
+<body>
+<main class="sheet">
+  <header class="head">
+    <div class="issuer">
+      <div class="company">${html(companyName)}</div>
+      ${organizationDocument ? '<div class="muted">CNPJ/CPF: ' + html(organizationDocument) + '</div>' : ""}
+      <div class="muted">Comprovante emitido pela Union World</div>
+    </div>
+    <div class="doc">
+      <div class="doc-kind">RECIBO</div>
+      <div class="doc-number">${html(number)}</div>
+      <div class="doc-sale">Venda #${html(sale.sale_number)}</div>
+    </div>
+  </header>
+  <section class="panel">
+    <h2 class="panel-title">Dados do recebimento</h2>
+    <div class="panel-content grid-info">
+      <div class="info">
+        <span class="label">Recebemos de</span>
+        <strong>${html(sale.customer_name || "Consumidor não identificado")}</strong>
+        ${sale.customer_document ? '<div class="muted">' + html(sale.customer_document) + '</div>' : ""}
+      </div>
+      <div class="info">
+        <span class="label">Data da venda</span>
+        <strong>${html(date)}</strong>
+      </div>
+      <div class="info">
+        <span class="label">Responsável</span>
+        <strong>${html(sale.sold_by_name || "—")}</strong>
+      </div>
+    </div>
+  </section>
+  <section class="panel items-panel">
+    <h2 class="panel-title">Itens da venda</h2>
+    <table class="items-table">
+      <colgroup><col class="item-number"><col class="item-description"><col class="item-quantity"><col class="item-price"><col class="item-price"></colgroup>
+      <thead><tr><th>#</th><th>Descrição</th><th class="right">Qtd.</th><th class="right">Unitário</th><th class="right">Total</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </section>
+  <section class="totals" aria-label="Total do recibo">
+    <div class="line"><span>Subtotal</span><strong>${html(formatCurrency(sale.subtotal))}</strong></div>
+    ${Number(sale.discount_amount) ? '<div class="line"><span>Descontos</span><strong>- ' + html(formatCurrency(sale.discount_amount)) + '</strong></div>' : ""}
+    ${Number(sale.surcharge_amount) ? '<div class="line"><span>Acréscimos</span><strong>+ ' + html(formatCurrency(sale.surcharge_amount)) + '</strong></div>' : ""}
+    <div class="grand"><span>RECEBIDO</span><span class="amount">${html(formatCurrency(sale.total_amount))}</span></div>
+  </section>
+  <section class="panel payment-panel">
+    <h2 class="panel-title">Formas de pagamento</h2>
+    <div class="panel-content">${payments}</div>
+  </section>
+  ${sale.notes ? '<section class="note"><strong>Observações:</strong> ' + html(sale.notes) + '</section>' : ""}
+  <aside class="disclaimer"><strong>DOCUMENTO NÃO FISCAL.</strong> Este recibo comprova o recebimento do valor referente à venda identificada. Não substitui NFC-e, NF-e ou outro documento fiscal exigido pela legislação. A indicação de produto usado não exclui a garantia legal nem os direitos do consumidor.</aside>
+  <footer class="footer"><div class="signature">${html(companyName)} ${organizationDocument ? " · " + html(organizationDocument) : ""}</div></footer>
+</main>
+<script>
+  window.addEventListener("load", function () {
+    setTimeout(function () { window.focus(); window.print(); }, 250);
+  });
+</script>
+</body>
+</html>`);
   popup.document.close();
 }
