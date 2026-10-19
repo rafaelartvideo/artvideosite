@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { coverageForCep, bookingDates, slotsForDate, validateBookingConfig, mergeResolvedAddress } from './service-booking.mjs';
+import { coverageForCep, bookingDates, slotsForDate, validateBookingConfig, mergeResolvedAddress, scheduleSlotsForDay, effectiveWeeklySlots } from './service-booking.mjs';
 const config = { coverage_mode:'ranges', cep_ranges:[{start:'49000-001',end:'49099-999'}], schedule_enabled:true, weekdays:[1,2,3,4,5], slots:[{start:'08:00',end:'10:00'},{start:'14:00',end:'16:00'}], lead_days:0, horizon_days:7, blocked_dates:['2026-10-20'] };
 const now = new Date('2026-10-19T12:00:00Z');
 test('CEP boundaries and invalid CEPs',()=>{
@@ -42,4 +42,40 @@ test('returning to address preserves user edits for generic CEPs',()=>{
  const entered={zip_code:'49000-001',street:'Rua digitada',number:'100',neighborhood:'Bairro corrigido',city:'Aracaju',state:'SE'};
  assert.deepEqual(mergeResolvedAddress(entered,{street:'',neighborhood:'Centro',city:'Aracaju',state:'SE'}),entered);
  assert.equal(mergeResolvedAddress({street:''},{street:'Rua encontrada'}).street,'Rua encontrada');
+});
+
+test('independent availability for each weekday and past hours are hidden',()=>{
+ const weekly={...config,weekdays:[1,2,3],weekly_slots:{
+  '1':[{start:'08:00',end:'10:00'},{start:'14:00',end:'17:00'}],
+  '2':[{start:'10:00',end:'12:00'}],
+  '3':[]
+ }};
+ const dates=bookingDates(weekly,now);
+ assert.ok(dates.includes('2026-10-19'));
+ assert.ok(dates.includes('2026-10-20')===false); // blocked by date-specific exception
+ assert.ok(!dates.includes('2026-10-21')); // Wednesday has no schedule
+ assert.deepEqual(slotsForDate(weekly,'2026-10-19',now),[{start:'14:00',end:'17:00'}]);
+ assert.deepEqual(slotsForDate(weekly,'2026-10-21',now),[]);
+ assert.deepEqual(slotsForDate({...weekly,blocked_dates:[]},'2026-10-20',now),[{start:'10:00',end:'12:00'}]);
+ assert.deepEqual(slotsForDate({...weekly,weekdays:[2],blocked_dates:[]},'2026-10-19',now),[]);
+});
+
+test('legacy shared hours can be represented as weekday-specific hours',()=>{
+ const migrated=effectiveWeeklySlots(config);
+ assert.deepEqual(migrated['1'],config.slots);
+ assert.deepEqual(migrated['6'],config.slots);
+ assert.deepEqual(scheduleSlotsForDay({...config,weekly_slots:{'1':[ {start:'07:00',end:'11:00'} ]}},2),[]);
+ assert.deepEqual(scheduleSlotsForDay({...config,weekly_slots:{'1':[ {start:'07:00',end:'11:00'} ]}},1),[{start:'07:00',end:'11:00'}]);
+});
+
+test('day-specific validation blocks invalid, empty and overlapping intervals',()=>{
+ const weekly={...config,weekdays:[1,2],weekly_slots:{
+  '1':[{start:'08:00',end:'12:00'}],
+  '2':[{start:'13:00',end:'18:00'}]
+ }};
+ assert.equal(validateBookingConfig(weekly),null);
+ assert.match(validateBookingConfig({...weekly,weekly_slots:{'1':weekly.weekly_slots['1'],'2':[]}}),/Terça-feira/);
+ assert.match(validateBookingConfig({...weekly,weekly_slots:{'1':[{start:'08:00',end:'07:00'}],'2':weekly.weekly_slots['2']}}),/Segunda-feira/);
+ assert.match(validateBookingConfig({...weekly,weekly_slots:{'1':[{start:'08:00',end:'12:00'},{start:'11:00',end:'13:00'}],'2':weekly.weekly_slots['2']}}),/sobrepostos/);
+ assert.equal(validateBookingConfig({...weekly,weekdays:[1],weekly_slots:{'1':weekly.weekly_slots['1'],'2':[]}}),null);
 });
