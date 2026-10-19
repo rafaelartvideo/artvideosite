@@ -60,56 +60,91 @@ function WhatsAppFloat() {
   </a>;
 }
 
+
 function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: PublicPage) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { settings } = useSiteSettings();
   const { count: cartCount } = useStoreCart();
   const isCurrent = (destination: PublicPage) => destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja");
+  const instagramUrl = validExternalUrl(settings.instagram, "https://instagram.com/") || "https://www.instagram.com/eletronica_artvideo/";
+  const address = getSettingText(settings.address) ||
+    [settings.street, settings.number, settings.complement, settings.neighborhood, settings.city, settings.state].map(getSettingText).filter(Boolean).join(", ");
+  const locationUrl = validExternalUrl(settings.google_maps_url) || validExternalUrl(settings.maps_url) || validExternalUrl(settings.location_url) ||
+    "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(address || "Eletrônica Artvideo, Aracaju, SE");
+  const socialLinks = [
+    { label: "Instagram da Eletrônica Artvideo", title: "Instagram", url: instagramUrl, Icon: Instagram },
+    { label: "Localização da Eletrônica Artvideo no Google Maps", title: "Localização", url: locationUrl, Icon: MapPin },
+  ];
+  const socialClass = "inline-flex h-[43px] w-[43px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.065] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/15 hover:text-[#ffda59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
+  const underlineClass = (active: boolean) => [
+    "pointer-events-none absolute -bottom-[7px] left-0 h-[3px] w-full origin-center rounded-full bg-[#ffd13b] transition-transform duration-300 ease-out motion-reduce:transition-none",
+    active ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100",
+  ].join(" ");
   const navigate = (destination: PublicPage) => {
     setPage(destination);
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
   return <header className="sticky top-0 z-40 border-b border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white shadow-md">
-    <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between gap-5 px-4 sm:px-6 lg:px-8">
+    <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[84px] sm:px-6 xl:h-[96px] xl:gap-4 lg:px-8">
       <button type="button" onClick={() => navigate("home")} aria-label="Eletrônica Artvideo — início" className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400">
         <PublicLogo/>
       </button>
-      <nav aria-label="Navegação principal" className="hidden h-full items-center gap-5 lg:flex xl:gap-7">
+      <nav aria-label="Navegação principal" className="hidden h-full items-center gap-4 xl:flex 2xl:gap-6">
         {PUBLIC_NAV_LINKS.map(label => {
           const active = isCurrent(PUBLIC_NAV_MAP[label]);
           return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
             aria-current={active ? "page" : undefined}
-            className={`relative flex h-full items-center whitespace-nowrap border-b-[3px] pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-white font-semibold text-white" : "border-transparent text-white/75 hover:border-white/50 hover:text-white"}`}>{label}</button>;
+            className={["group relative flex h-full items-center whitespace-nowrap text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400", active ? "font-semibold text-white" : "text-white/75 hover:text-white"].join(" ")}>
+            <span className="relative inline-flex py-1">{label}<span aria-hidden="true" className={underlineClass(active)}/></span>
+          </button>;
         })}
       </nav>
-      <div className="hidden shrink-0 items-center gap-3 lg:flex">
-        <a href="/carrinho" aria-label={`Meu carrinho, ${cartCount} produtos`}
+      <div className="hidden shrink-0 items-center gap-2 xl:flex">
+        <a href="/carrinho" aria-label={"Meu carrinho, " + cartCount + " produtos"}
           className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
           <ShoppingCart size={21}/>
           {cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[var(--art-primary)] px-1 text-[10px] font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>}
         </a>
         <button type="button" onClick={() => navigate("orcamento")} aria-current={page === "orcamento" ? "page" : undefined}
-          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-4 text-[12px] font-bold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-blue-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400">
+          className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-3 text-[12px] font-bold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-blue-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 2xl:px-4">
           <FileText size={16} /> Solicitar orçamento
         </button>
+        <div className="ml-1 flex items-center gap-2 border-l border-white/15 pl-3" aria-label="Redes sociais e localização">
+          {socialLinks.map(({ label, title, url, Icon }) =>
+            <a key={title} href={url} aria-label={label} title={title} target="_blank" rel="noopener noreferrer" className={socialClass}>
+              <Icon size={21}/>
+            </a>)}
+        </div>
       </div>
-      <a href="/carrinho" aria-label={`Meu carrinho, ${cartCount} produtos`}
-        className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 lg:hidden">
+      <a href="/carrinho" aria-label={"Meu carrinho, " + cartCount + " produtos"}
+        className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 xl:hidden">
         <ShoppingCart size={22}/>
         {cartCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--art-primary)] px-1.5 text-[10px] font-bold">{cartCount > 99 ? "99+" : cartCount}</span>}
       </a>
       <button type="button" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen}
-        onClick={() => setMenuOpen(x => !x)} className="rounded-md p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400 lg:hidden">
+        onClick={() => setMenuOpen(x => !x)} className="rounded-md p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400 xl:hidden">
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}
       </button>
     </div>
-    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] px-4 pb-5 pt-2 shadow-xl lg:hidden">
-      {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
-        aria-current={isCurrent(PUBLIC_NAV_MAP[label]) ? "page" : undefined}
-        className={`block w-full border-b py-3 text-left text-sm font-semibold transition-colors hover:text-white ${isCurrent(PUBLIC_NAV_MAP[label]) ? "border-white text-white underline decoration-2 underline-offset-8" : "border-white/10 text-white/75"}`}>{label}</button>)}
+    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] px-4 pb-5 pt-2 shadow-xl xl:hidden">
+      {PUBLIC_NAV_LINKS.map(label => {
+        const active = isCurrent(PUBLIC_NAV_MAP[label]);
+        return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
+          aria-current={active ? "page" : undefined}
+          className={["group flex w-full items-center border-b border-white/10 py-3 text-left text-sm font-semibold transition-colors hover:text-white", active ? "text-white" : "text-white/75"].join(" ")}>
+          <span className="relative inline-flex py-1">{label}<span aria-hidden="true" className={underlineClass(active)}/></span>
+        </button>;
+      })}
       <button type="button" onClick={() => navigate("orcamento")} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] font-bold text-white hover:brightness-110">
         <FileText size={17} /> Solicitar orçamento
       </button>
+      <div className="mt-4 flex items-center justify-center gap-3" aria-label="Redes sociais e localização">
+        {socialLinks.map(({ label, title, url, Icon }) =>
+          <a key={title} href={url} aria-label={label} title={title} target="_blank" rel="noopener noreferrer" className={socialClass}>
+            <Icon size={21}/>
+          </a>)}
+      </div>
     </nav>}
   </header>;
 }
