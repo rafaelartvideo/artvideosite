@@ -49,7 +49,7 @@ export function ServiceTestimonialsCarousel({ items }: { items: ServiceTestimoni
         <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-8 bg-gradient-to-l from-white to-transparent sm:w-16" aria-hidden="true"/>
         <div ref={emblaRef} className="overflow-hidden">
           <div className="-ml-4 flex touch-pan-y py-1">
-            {items.map((item, index) => <div key={`${item.name}-${index}`} className="min-w-0 flex-[0_0_88%] pl-4 sm:flex-[0_0_49%] lg:flex-[0_0_32%]">
+            {items.map((item, index) => <div key={`${item.name}-${index}`} className={'min-w-0 flex-[0_0_88%] pl-4 sm:flex-[0_0_49%] ' + (items.length <= 2 ? 'lg:flex-[0_0_58%]' : 'lg:flex-[0_0_38%]')}>
               <blockquote className="flex h-full min-h-[220px] flex-col rounded-2xl border border-[#e0e4e8] bg-white px-6 py-6 shadow-[0_3px_12px_rgba(0,0,0,.025)] sm:min-h-[235px]">
                 <Quote size={25} className="shrink-0 text-[var(--art-primary)]" strokeWidth={2}/>
                 <p className="mt-4 flex-1 whitespace-pre-line text-[15px] leading-[1.7] text-[#4d5662]">{item.text}</p>
