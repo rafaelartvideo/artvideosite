@@ -342,7 +342,7 @@ function SaleDetail({ detail }: { detail: PdvSaleDetail }) {
                 {" · "}{item.condition === "used" ? "Usado" : item.condition === "refurbished" ? "Recondicionado" : "Novo"}
                 {item.serial_number ? " · Série: " + item.serial_number : ""}
               </p>
-              {item.condition_notes && <p className="mt-1 whitespace-pre-wrap text-[10px] text-muted-foreground">{item.condition_notes}</p>
+              {item.condition_notes && <p className="mt-1 whitespace-pre-wrap text-[10px] text-muted-foreground">{item.condition_notes}</p>}
             </div>
             <p className="text-xs text-[#5a6a82]">{item.quantity} {item.unit}</p>
             <p className="text-xs text-[#5a6a82]">{formatCurrency(item.unit_price)}</p>
