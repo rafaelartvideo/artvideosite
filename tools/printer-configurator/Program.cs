@@ -42,23 +42,45 @@ internal sealed class PrinterSetupWindow : Form
         Font = new Font("Segoe UI", 10);
         AutoScaleMode = AutoScaleMode.Dpi;
 
-        var header = new Panel { Dock = DockStyle.Top, Height = 100 };
+        // Header e conteudo ocupam linhas diferentes: Dock.Fill nao pode ficar sob Dock.Top.
+        // Desenhamos os textos na mesma superficie do gradiente para evitar os blocos brancos
+        // de controles Label com fundo opaco em alguns Windows e configuracoes de DPI.
+        var root = new TableLayoutPanel {
+            Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
+            Padding = Padding.Empty, Margin = Padding.Empty
+        };
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        Controls.Add(root);
+
+        var header = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = Blue };
         header.Paint += (_, e) => {
+            if (header.Width <= 0 || header.Height <= 0) return;
             using var gradient = new LinearGradientBrush(header.ClientRectangle, Color.FromArgb(0, 66, 181), Blue, 0f);
             e.Graphics.FillRectangle(gradient, header.ClientRectangle);
+            using var headingFont = new Font("Segoe UI", 20, FontStyle.Bold);
+            using var subtitleFont = new Font("Segoe UI", 10);
+            var commonFlags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter |
+                TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis;
+            TextRenderer.DrawText(e.Graphics, "Configurador de Impressoras", headingFont,
+                new Rectangle(24, 12, Math.Max(1, header.Width - 48), 45),
+                Color.White, commonFlags);
+            TextRenderer.DrawText(e.Graphics, "Selecione a impressora e prepare o papel para a Union World",
+                subtitleFont, new Rectangle(26, 58, Math.Max(1, header.Width - 52), 29),
+                Color.FromArgb(231, 239, 255), commonFlags);
         };
-        header.Controls.Add(NewLabel("Configurador de Impressoras", 24, 16, 20, Color.White, true));
-        header.Controls.Add(NewLabel("Selecione a impressora e prepare o papel para a Union World", 26, 61, 10, Color.White));
-        Controls.Add(header);
+        root.Controls.Add(header, 0, 0);
 
-        var container = new TableLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(20, 18, 20, 16), RowCount = 4, ColumnCount = 1 };
+        var container = new TableLayoutPanel {
+            Dock = DockStyle.Fill, Margin = Padding.Empty,
+            Padding = new Padding(20, 18, 20, 16), RowCount = 4, ColumnCount = 1
+        };
         container.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));
         container.RowStyles.Add(new RowStyle(SizeType.Absolute, 151));
         container.RowStyles.Add(new RowStyle(SizeType.Absolute, 67));
         container.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        Controls.Add(container);
-        container.BringToFront();
-        header.BringToFront();
+        root.Controls.Add(container, 0, 1);
 
         var printerCard = NewCard();
         container.Controls.Add(printerCard, 0, 0);
@@ -119,16 +141,26 @@ internal sealed class PrinterSetupWindow : Form
 
         var statusCard = NewCard();
         container.Controls.Add(statusCard, 0, 3);
-        statusCard.Controls.Add(NewLabel("3. Orientações e resultado", 15, 12, 12, Ink, true));
-        var textPanel = new Panel { Dock = DockStyle.Fill, Padding = new Padding(15, 45, 15, 10) };
-        statusCard.Controls.Add(textPanel);
-        textPanel.BringToFront();
+        // O titulo tambem precisa ter sua propria linha; um painel Dock.Fill
+        // sobre a etiqueta estava ocultando "3. Orientacoes e resultado".
+        var statusLayout = new TableLayoutPanel {
+            Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
+            Padding = new Padding(15, 4, 15, 10), Margin = Padding.Empty
+        };
+        statusLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
+        statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        var statusTitle = NewLabel("3. Orientações e resultado", 0, 0, 12, Ink, true);
+        statusTitle.Dock = DockStyle.Fill;
+        statusTitle.TextAlign = ContentAlignment.MiddleLeft;
+        statusLayout.Controls.Add(statusTitle, 0, 0);
         result.Dock = DockStyle.Fill;
+        result.Margin = Padding.Empty;
         result.BorderStyle = BorderStyle.None;
         result.BackColor = Color.White;
         result.ForeColor = Ink;
         result.Font = new Font("Segoe UI", 9);
-        textPanel.Controls.Add(result);
+        statusLayout.Controls.Add(result, 0, 1);
+        statusCard.Controls.Add(statusLayout);
         SetStatus("Selecione uma impressora instalada. O aplicativo identifica modelos conhecidos pelo nome da fila.\r\n" +
             "Ao confirmar, cadastra o tamanho do papel no Windows. Alguns drivers exigem selecionar esse papel em Preferências de impressão.\r\n" +
             "Nenhuma outra impressora, driver, porta USB ou configuração padrão será alterada.");
