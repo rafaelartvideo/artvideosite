@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
-import { saveServiceAggregate } from "../infrastructure/services.repository";
+import { saveServiceAggregate, setServicePublication } from "../infrastructure/services.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
@@ -99,6 +99,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   const [scanInfo, setScanInfo] = useState<{ pages: number; blocked: number; warnings: string[] } | null>(null);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [publishAfterImport, setPublishAfterImport] = useState(false);
   const [stats, setStats] = useState<ImportStats | null>(null);
   const [error, setError] = useState("");
   const existingService = useMemo(() => new Map(services.map(s => [cleanName(s.title || ""), s])), [services]);
@@ -145,10 +146,17 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         if (!item.sourceUrl || !item.title || found.has(item.sourceUrl)) return false;
         found.add(item.sourceUrl); return true;
       }).map(item => {
-        const blocks: DataBlock[] = item.blocks?.length ? item.blocks : [
+        const blocks: DataBlock[] = item.blocks?.length ? [...item.blocks] : [
           ...(item.summary ? [{ id: "summary", heading: "Resumo da página", text: item.summary, suggestedTarget: "short_description" as Destination, confidence: "high" as const, origin: "html" as const }] : []),
-          ...(item.faqs || []).map((faq, index) => ({ id: "faq" + index, heading: faq.question, text: faq.answer, suggestedTarget: "faqs" as Destination, confidence: "medium" as const, origin: "schema" as const })),
         ];
+        // Include structured FAQ questions even when HTML already contributed other blocks.
+        const knownQuestions = new Set(blocks.filter(b => b.suggestedTarget === "faqs").map(b => cleanName(b.heading)));
+        (item.faqs || []).forEach((faq, index) => {
+          if (!faq.question || !faq.answer || knownQuestions.has(cleanName(faq.question))) return;
+          blocks.push({ id: "faq-fallback-" + index, heading: faq.question, text: faq.answer,
+            suggestedTarget: "faqs", confidence: "high", origin: "schema" });
+          knownQuestions.add(cleanName(faq.question));
+        });
         return {
           ...item, selected: false, categoryId: "", categoryStrategy: "none" as const, newCategory: item.category || "",
           action: "create" as const, mediaId: "",
@@ -211,13 +219,18 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           const { error: saveError } = await supabase.from("products").update(changes).eq("organization_id", organizationId).eq("id", actual.id);
           if (saveError) throw saveError;
         }
+        if (publishAfterImport) {
+          const { error: publishError } = await supabase.from("products")
+            .update({ is_active: true, show_in_catalog: true }).eq("organization_id", organizationId).eq("id", actual.id);
+          if (publishError) throw publishError;
+        }
       } else {
         const slug = await generateUniqueSlug("products", title);
         const { error: saveError } = await supabase.from("products").insert({
           organization_id: organizationId, created_by: user?.id, name: title, slug,
           short_description: result.short || null, description: result.description || null,
           price: result.price, category_id: categoryId, cover_media_id: item.mediaId || null,
-          is_active: false, show_in_catalog: false, is_featured: false,
+          is_active: publishAfterImport, show_in_catalog: publishAfterImport, is_featured: false,
         });
         if (saveError) throw saveError;
       }
@@ -256,10 +269,10 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         };
         await insertExtra("service_inclusions",
           additions((actual.service_inclusions || []).map(v => v.description), result.inclusions, v => v)
-            .map(description => ({ description })));
+            .map(description => ({ title: description.slice(0, 160), description })));
         await insertExtra("service_exclusions",
           additions((actual.service_exclusions || []).map(v => v.description), result.exclusions, v => v)
-            .map(description => ({ description })));
+            .map(description => ({ title: description.slice(0, 160), description })));
         await insertExtra("service_faqs",
           additions((actual.service_faqs || []).map(v => ({ question: v.question || "", answer: v.answer || "" })), result.faqs, v => v.question)
             .map(row => ({ ...row, is_active: true })));
@@ -269,9 +282,10 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         await insertExtra("service_variants",
           additions((actual.service_variants || []).map(v => ({ title: v.title || "", description: v.description || "", price: v.price == null ? "" : String(v.price) })), result.variants, v => v.title)
             .map(row => ({ title: row.title, description: row.description, price: row.price ? Number(row.price) : null, is_active: true })));
+        if (publishAfterImport) await setServicePublication(actual.id, true);
       } else {
         const slug = await generateUniqueSlug("services", title);
-        await saveServiceAggregate({
+        const createdServiceId = await saveServiceAggregate({
           userId: user?.id || null,
           payload: {
             title, slug, category_id: categoryId, short_description: result.short || null,
@@ -281,6 +295,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           variants: result.variants, inclusions: result.inclusions, exclusions: result.exclusions, priceFactors: [],
           sections: result.sections, faqs: result.faqs,
         });
+        if (publishAfterImport) await setServicePublication(createdServiceId, true);
       }
     }
     taken.add((isService(item.type) ? "service" : "product") + ":" + cleanName(title));
@@ -349,7 +364,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           {scanInfo.warnings.map((warning, i) => <p key={i} className="mt-1 text-xs text-muted-foreground">{warning}</p>)}
         </div>}
         {stats && <div role="status" className="rounded-xl border border-blue-500/25 bg-blue-500/5 px-4 py-3 text-sm">
-          {stats.created} criados · {stats.updated} complementados · {stats.skipped} ignorados · {stats.failed} erros. Nenhuma publicação automática.
+          {stats.created} criados · {stats.updated} complementados · {stats.skipped} ignorados · {stats.failed} erros. {publishAfterImport ? "Publicação solicitada para os itens concluídos." : "Itens novos foram salvos como rascunho (fora do site)."}
         </div>}
         {scanning && <div className="flex min-h-36 items-center justify-center gap-3 text-sm text-muted-foreground"><Loader2 size={22} className="animate-spin" /> Analisando seções, listas e perguntas frequentes...</div>}
         {!scanning && scanInfo && !items.length && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -466,8 +481,12 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         </section>}
       </main>
       <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-4">
-        <div><p className="text-xs font-medium">{selected.length} selecionados · {unresolved.length} trechos pendentes</p>
-          <p className="text-xs text-muted-foreground">Novos registros ficam inativos e ocultos até publicação manual.</p></div>
+        <div className="space-y-1"><p className="text-xs font-medium">{selected.length} selecionados · {unresolved.length} trechos pendentes</p>
+          <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
+            <input type="checkbox" checked={publishAfterImport} disabled={saving} onChange={event => setPublishAfterImport(event.target.checked)} />
+            Publicar no site após importar com sucesso
+          </label>
+          <p className="text-xs text-muted-foreground">{publishAfterImport ? "Os itens importados ficarão ativos e visíveis no catálogo." : "Padrão: salvar como rascunho para revisar antes de publicar."}</p></div>
         <div className="flex gap-2"><BtnSecondary onClick={onClose} disabled={saving}><ChevronLeft size={15} /> Voltar</BtnSecondary>
           <BtnPrimary onClick={() => void importSelected()} loading={saving} loadingText="Importando..." disabled={scanning || saving || !selected.length || unresolved.length > 0}>
             <Check size={16} /> Importar ({selected.length})
