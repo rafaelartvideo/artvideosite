@@ -51,7 +51,7 @@ export function bookingDates(value, now=new Date()) {
   const d=new Date(`${today}T12:00:00Z`); d.setUTCDate(d.getUTCDate()+i);
   const iso=d.toISOString().slice(0,10), weekday=d.getUTCDay();
   if(c.weekdays?.includes(weekday) && !c.blocked_dates?.includes(iso)
-   && normalizedIntervals(scheduleSlotsForDay(c,weekday)).some(s=>iso>today || s.start>brazilNow(now).time)) dates.push(iso);
+   && normalizedIntervals(scheduleSlotsForDay(c,weekday)).length>0) dates.push(iso);
  }
  return dates;
 }
