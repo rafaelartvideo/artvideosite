@@ -48,8 +48,13 @@ test('phone import variants retain DDI and retries only documented validation re
  assert.equal(mayTryImportVariant({type:'invalid_number'},400),true);
  assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:false},200),true);
  assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:true},200),false);
- assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:false},503),false);
- assert.equal(mayTryImportVariant({type:'error_valid_wpp'},500),false);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:false},503),true);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp'},500),true);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:false,outcome:'unknown'},500),false);
+ assert.equal(mayTryImportVariant({type:'system_error',status:false},500),false);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',status:true},500),false);
+ assert.equal(mayTryImportVariant({type:'error_valid_wpp',success:true},500),false);
+ assert.equal(mayTryImportVariant({type:'invalid_number'},500),false);
  assert.equal(mayTryImportVariant({type:'invalid_number',outcome:'unknown'},400),false);
 });
 test('common protocol routing protects direct catalog requests',()=>{
