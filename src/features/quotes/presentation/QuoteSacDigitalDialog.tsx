@@ -63,6 +63,7 @@ export function QuoteSacDigitalDialog({quote,organizationId,onClose}:{
  const send=async()=>{
   if(inFlight.current||uncertainProtocol||!message.trim()||!organizationId||!quote.customer_id)return;
   inFlight.current=true;setSending(true);setError("");
+  let attemptedProtocol="";
   try{
    const prepared=await prepareSacDigitalNewConversationContact(organizationId,{customerId:quote.customer_id});
    const contactId=prepared?.contact?.external_contact_id;
@@ -70,6 +71,7 @@ export function QuoteSacDigitalDialog({quote,organizationId,onClose}:{
    const response=await startSacDigitalNewConversation(organizationId,contactId,message.trim());
    if(!response?.success || !response.protocol) throw new Error("Não foi possível identificar o protocolo de atendimento.");
    if(response.mode==="existing"){
+    attemptedProtocol=response.protocol;
     // The API returns success:true merely for discovering an active conversation.
     // It DOES NOT send a message in this branch. Submit it explicitly and await
     // a provider-backed send receipt before presenting any confirmation.
@@ -92,7 +94,7 @@ export function QuoteSacDigitalDialog({quote,organizationId,onClose}:{
    const failure=caught as Error & {outcome?:string;protocol?:string};
    setError(systemErrorMessage(caught,"Não foi possível enviar a mensagem pela SAC Digital."));
    if(failure.outcome==="unknown"){
-    setUncertainProtocol(String(failure.protocol||""));
+    setUncertainProtocol(String(failure.protocol||attemptedProtocol||"unknown"));
     setError("O resultado do envio é incerto. Consulte a conversa no SAC Digital antes de repetir para evitar mensagens duplicadas.");
    }
   }
@@ -101,7 +103,7 @@ export function QuoteSacDigitalDialog({quote,organizationId,onClose}:{
  const openConversation=()=>{
   const query=new URLSearchParams({customer:String(quote.customer_id)});
   const destination=acceptedProtocol||uncertainProtocol;
-  if(destination && /^[A-Za-z0-9_-]{3,80}$/.test(destination))query.set("protocol",destination);
+  if(destination && destination!=="unknown" && /^[A-Za-z0-9_-]{3,80}$/.test(destination))query.set("protocol",destination);
   window.open(`${adminPath("tools","sac-digital") }?${query.toString()}`,"_blank","noopener,noreferrer");
   onClose();
  };
