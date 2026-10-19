@@ -218,7 +218,7 @@ export function TabPdv({
   const canStartSale = Boolean(
     canSell
     && bootstrap?.configured
-    && Number(bootstrap.readiness.active_products || 0) > 0
+    // Permite venda avulsa mesmo quando não há produtos cadastrados.
     && Number(bootstrap.readiness.ready_payment_methods || 0) > 0
     && (!settings?.require_open_cash || openSession),
   );
