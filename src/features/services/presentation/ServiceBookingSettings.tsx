@@ -1,13 +1,21 @@
 import { Plus, Trash2 } from 'lucide-react';
 import { Section, BtnSecondary } from '@/shared/ui/admin/AdminLayout';
 import { FInput, FIntegerInput, FSelect, FTextarea, FToggle } from '@/shared/ui/admin/AdminFormControls';
-import { bookingConfig } from '@/features/public-services/domain/service-booking.mjs';
+import { bookingConfig, effectiveWeeklySlots } from '@/features/public-services/domain/service-booking.mjs';
 import { formatZipCode } from '@/lib/address';
 
 export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:(value:any)=>void}) {
  const c=bookingConfig(value);
  const testimonials=Array.isArray(c.testimonials)?c.testimonials:[];
  const set=(key:string,v:any)=>onChange({...c,[key]:v});
+ const dayNames=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+ const weekly=effectiveWeeklySlots(c);
+ const setDaySlots=(day:number,slots:{start:string;end:string}[])=>onChange({...c,weekly_slots:{...weekly,[String(day)]:slots}});
+ const toggleDay=(day:number,enabled:boolean)=>{
+  const weekdays=enabled?[...new Set([...(c.weekdays||[]),day])].sort((a,b)=>a-b):(c.weekdays||[]).filter((d:number)=>d!==day);
+  const daySlots=weekly[String(day)]||[];
+  onChange({...c,weekdays,weekly_slots:{...weekly,[String(day)]:enabled && !daySlots.length?[{start:'08:00',end:'10:00'}]:daySlots}});
+ };
  return <div className="space-y-5">
   <Section title="Cobertura do atendimento"><div className="space-y-4">
    <FSelect label="Consulta de CEP" value={c.coverage_mode} onChange={(e:any)=>set('coverage_mode',e.target.value)} options={[{value:'consult',label:'A equipe confirma a cobertura'},{value:'ranges',label:'Atender somente nas faixas de CEP configuradas'}]}/>
@@ -16,9 +24,33 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
   <Section title="Dias e horários"><div className="space-y-4">
    <FToggle label="Permitir escolher uma preferência de agendamento" description="A data será confirmada pela Artvideo após a análise do orçamento." checked={c.schedule_enabled} onChange={(v:boolean)=>set('schedule_enabled',v)}/>
    {c.schedule_enabled && <>
-    <div><p className="mb-2 text-xs font-bold">Dias de atendimento</p><div className="flex flex-wrap gap-2">{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((d,i)=><button key={d} type="button" aria-pressed={c.weekdays.includes(i)} onClick={()=>set('weekdays',c.weekdays.includes(i)?c.weekdays.filter((v:number)=>v!==i):[...c.weekdays,i].sort())} className={`rounded-lg border px-4 py-2 text-sm ${c.weekdays.includes(i)?'border-blue-600 bg-blue-50 text-blue-700 dark:bg-blue-950':'border-border'}`}>{d}</button>)}</div></div>
-    {c.slots.map((s:any,i:number)=><div key={i} className="flex items-end gap-3"><FInput label="Início" type="time" value={s.start} onChange={(e:any)=>set('slots',c.slots.map((v:any,j:number)=>i===j?{...v,start:e.target.value}:v))}/><FInput label="Fim" type="time" value={s.end} onChange={(e:any)=>set('slots',c.slots.map((v:any,j:number)=>i===j?{...v,end:e.target.value}:v))}/><button type="button" aria-label="Remover horário" className="p-3 text-red-600" onClick={()=>set('slots',c.slots.filter((_:any,j:number)=>j!==i))}><Trash2 size={16}/></button></div>)}
-    <BtnSecondary onClick={()=>set('slots',[...c.slots,{start:'08:00',end:'10:00'}])}><Plus size={15}/> Adicionar intervalo</BtnSecondary>
+    <div className="space-y-3">
+     <p className="text-xs leading-5 text-muted-foreground">Ative os dias de atendimento e defina um ou mais intervalos de horário para cada dia. Dias desativados não aparecem no calendário do cliente.</p>
+     {dayNames.map((name,day)=>{
+      const active=(c.weekdays||[]).includes(day);
+      const slots=weekly[String(day)]||[];
+      return <div key={day} className={`overflow-hidden rounded-xl border transition-colors ${active?'border-blue-300 bg-blue-50/30 dark:border-blue-800 dark:bg-blue-950/20':'border-border bg-background'}`}>
+       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+         <p className="text-sm font-semibold">{name}</p>
+         <p className="mt-0.5 text-xs text-muted-foreground">{active?`${slots.length} ${slots.length===1?'intervalo configurado':'intervalos configurados'}`:'Sem atendimento'}</p>
+        </div>
+        <FToggle label={active?'Ativo':'Inativo'} checked={active} onChange={(enabled:boolean)=>toggleDay(day,enabled)}/>
+       </div>
+       {active&&<div className="space-y-3 border-t border-border px-4 pb-4 pt-4">
+        {slots.map((slot:{start:string;end:string},index:number)=><div key={index} className="flex min-w-0 items-end gap-2 sm:gap-3">
+         <div className="grid min-w-0 flex-1 grid-cols-2 gap-2 sm:gap-3">
+          <FInput label="Início" type="time" value={slot.start} onChange={(e:any)=>setDaySlots(day,slots.map((s:{start:string;end:string},i:number)=>i===index?{...s,start:e.target.value}:s))}/>
+          <FInput label="Fim" type="time" value={slot.end} onChange={(e:any)=>setDaySlots(day,slots.map((s:{start:string;end:string},i:number)=>i===index?{...s,end:e.target.value}:s))}/>
+         </div>
+         <button type="button" aria-label={`Remover intervalo de ${name}`} title="Remover intervalo" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-950/30" onClick={()=>setDaySlots(day,slots.filter((_:any,i:number)=>i!==index))}><Trash2 size={17}/></button>
+        </div>)}
+        {!slots.length&&<p className="text-xs text-amber-700 dark:text-amber-300">Adicione pelo menos um intervalo para permitir agendamento neste dia.</p>}
+        <BtnSecondary onClick={()=>setDaySlots(day,[...slots,{start:'08:00',end:'10:00'}])}><Plus size={15}/> Adicionar horário em {name}</BtnSecondary>
+       </div>}
+      </div>;
+     })}
+    </div>
     <div className="grid gap-4 sm:grid-cols-2"><FIntegerInput label="Antecedência mínima (dias)" value={String(c.lead_days)} onChange={(e:any)=>set('lead_days',Number(e.target.value))}/><FIntegerInput label="Exibir próximos dias (até 90)" value={String(c.horizon_days)} onChange={(e:any)=>set('horizon_days',Number(e.target.value))}/></div>
     <FTextarea label="Datas bloqueadas (uma por linha, AAAA-MM-DD)" value={c.blocked_dates.join('\n')} onChange={(e:any)=>set('blocked_dates',e.target.value.split('\n').map((v:string)=>v.trim()))} rows={3}/>
    </>}
