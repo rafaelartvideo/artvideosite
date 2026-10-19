@@ -58,7 +58,8 @@ jobs:
           $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json
           $published = $release.assets | Where-Object { $_.name -eq "UnionWorld-Configurador.exe" } | Select-Object -First 1
           if ($null -eq $published -or $published.label -ne $version -or
-              $published.digest -notmatch '^sha256:[0-9a-fA-F]{64}
-) {
+              [string]::IsNullOrWhiteSpace($published.digest) -or
+              -not $published.digest.StartsWith("sha256:") -or
+              $published.digest.Length -ne 71) {
             throw "Release invalido: conferir versao, label e SHA-256 publicados."
           }
