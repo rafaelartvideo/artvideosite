@@ -9,9 +9,14 @@ namespace UnionWorld.Printers;
 internal static class Program
 {
     [STAThread]
-    private static void Main()
+    private static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
+        if (args.Length > 0 && args[0] == "--apply-update")
+        {
+            UpdateManager.ApplyAfterExit(args);
+            return;
+        }
         Application.Run(new PrinterSetupWindow());
     }
 }
@@ -29,12 +34,14 @@ internal sealed class PrinterSetupWindow : Form
     private readonly Label description = new() { AutoSize = false };
     private readonly TextBox result = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, TabStop = false };
     private readonly Button apply = new() { Text = "Configurar papel" };
+    private readonly Button checkUpdates = new() { Text = "Verificar atualização" };
+    private bool updating;
     private ProfileRegistry registry = Profiles.Offline();
     private bool loadingProfiles;
 
     public PrinterSetupWindow()
     {
-        Text = "Union World - Configurador de Impressoras";
+        Text = "Union World - Configurador de Impressoras · versão " + UpdateManager.CurrentVersion.ToString(3);
         ClientSize = new Size(856, 628);
         MinimumSize = new Size(820, 660);
         StartPosition = FormStartPosition.CenterScreen;
@@ -138,6 +145,13 @@ internal sealed class PrinterSetupWindow : Form
         officialDriver.SetBounds(430, 10, 200, 40);
         officialDriver.Click += (_, _) => OpenDriver();
         actions.Controls.Add(officialDriver);
+        checkUpdates.SetBounds(642, 10, 164, 40);
+        checkUpdates.Font = new Font("Segoe UI", 8, FontStyle.Bold);
+        checkUpdates.ForeColor = Blue;
+        checkUpdates.BackColor = Color.White;
+        checkUpdates.FlatStyle = FlatStyle.Flat;
+        checkUpdates.Click += async (_, _) => await CheckForUpdatesAsync(true);
+        actions.Controls.Add(checkUpdates);
 
         var statusCard = NewCard();
         container.Controls.Add(statusCard, 0, 3);
@@ -178,7 +192,67 @@ internal sealed class PrinterSetupWindow : Form
                 if (same is not null) profiles.SelectedItem = same;
             }
             AutoSelectProfile();
+            await CheckForUpdatesAsync(false);
         };
+    }
+
+    private async Task CheckForUpdatesAsync(bool showUpToDate)
+    {
+        if (updating || IsDisposed) return;
+        updating = true;
+        checkUpdates.Enabled = false;
+        checkUpdates.Text = "Verificando...";
+        try
+        {
+            RemoteBuild? update = await UpdateManager.FindNewerAsync();
+            if (IsDisposed) return;
+            if (update is null)
+            {
+                if (showUpToDate)
+                    MessageBox.Show("O configurador está atualizado.\nVersão instalada: " +
+                        UpdateManager.CurrentVersion.ToString(3), "Union World",
+                        MessageBoxButtons.OK, MessageBoxIcon.Information);
+                return;
+            }
+
+            string mb = Math.Ceiling(update.Size / (1024d * 1024d)).ToString("0");
+            DialogResult choice = MessageBox.Show(
+                "Atualização disponível: " + update.Version.ToString(3) + "\n" +
+                "Versão atual: " + UpdateManager.CurrentVersion.ToString(3) + "\n" +
+                "Download: aproximadamente " + mb + " MB.\n\n" +
+                "Deseja baixar e instalar agora? O aplicativo será reiniciado.",
+                "Union World - Atualização", MessageBoxButtons.YesNo, MessageBoxIcon.Question);
+            if (choice != DialogResult.Yes) return;
+
+            checkUpdates.Text = "Baixando...";
+            var progress = new Progress<int>(percent =>
+            {
+                if (!IsDisposed) checkUpdates.Text = "Download " + percent + "%";
+            });
+            string stagedFile = await UpdateManager.DownloadVerifiedAsync(update, progress);
+            if (IsDisposed) return;
+            checkUpdates.Text = "Instalando...";
+            UpdateManager.StartInstaller(stagedFile, update);
+            Close();
+        }
+        catch (Exception error)
+        {
+            if (IsDisposed) return;
+            string message = "Não foi possível verificar ou instalar a atualização: " + error.Message;
+            if (showUpToDate)
+                MessageBox.Show(message, "Union World", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            else
+                SetStatus(message + "\r\nVocê pode continuar utilizando o configurador normalmente.");
+        }
+        finally
+        {
+            updating = false;
+            if (!IsDisposed)
+            {
+                checkUpdates.Enabled = true;
+                checkUpdates.Text = "Verificar atualização";
+            }
+        }
     }
 
     private static Panel NewCard() => new() {

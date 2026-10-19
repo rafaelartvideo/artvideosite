@@ -27,7 +27,8 @@ jobs:
       - name: Compilar EXE autocontido
         shell: pwsh
         run: |
-          dotnet publish tools/printer-configurator/UnionPrinterConfigurator.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o output/printer
+          $version = "1.0.$env:GITHUB_RUN_NUMBER"
+          dotnet publish tools/printer-configurator/UnionPrinterConfigurator.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false "-p:Version=$version" -o output/printer
           if (!(Test-Path "output/printer/UnionWorld-Configurador.exe")) { throw "EXE nao encontrado." }
       - name: Disponibilizar artefato
         uses: actions/upload-artifact@v4
@@ -43,9 +44,21 @@ jobs:
         run: |
           $tag = "union-printer-configurator"
           $asset = "output/printer/UnionWorld-Configurador.exe"
+          $version = "1.0.$env:GITHUB_RUN_NUMBER"
+          # O campo Label do asset no GitHub Releases guarda a mesma versao
+          # gravada no Assembly. A API publica tambem o SHA-256 do binario.
+          $versionedAsset = "$asset#$version"
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
-            gh release upload $tag $asset --clobber
+            gh release upload $tag $versionedAsset --clobber
           } else {
-            gh release create $tag $asset --target $env:GITHUB_SHA --title "Union World - Configurador de Impressoras" --notes "Windows 10/11. Selecione a impressora, escolha o perfil e cadastre o tamanho do papel. Precisa de permissao de administrador. Arquivo sem assinatura digital." --latest=false
+            gh release create $tag $versionedAsset --target $env:GITHUB_SHA --title "Union World - Configurador de Impressoras" --notes "Windows 10/11. Atualizacoes verificadas por versao e SHA-256 do release. A instalacao pede confirmacao; o binario ainda nao tem assinatura Authenticode." --latest=false
+          }
+          if ($LASTEXITCODE -ne 0) { throw "Falha ao publicar o executavel versionado." }
+          $release = gh api "repos/$env:GITHUB_REPOSITORY/releases/tags/$tag" | ConvertFrom-Json
+          $published = $release.assets | Where-Object { $_.name -eq "UnionWorld-Configurador.exe" } | Select-Object -First 1
+          if ($null -eq $published -or $published.label -ne $version -or
+              $published.digest -notmatch '^sha256:[0-9a-fA-F]{64}
+) {
+            throw "Release invalido: conferir versao, label e SHA-256 publicados."
           }
