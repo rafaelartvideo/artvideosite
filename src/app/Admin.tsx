@@ -59,7 +59,7 @@ const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").the
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
-const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
+const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 const UnionCatalogAdminPage = lazy(() => import("@/features/segments/presentation/UnionCatalogAdminPage").then(({ UnionCatalogAdminPage }) => ({ default: UnionCatalogAdminPage })));
 
@@ -438,7 +438,7 @@ export function AdminDashboard({
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
-            <Route path="operation/integrations/*" element={<SacDigitalSettingsPage onBack={() => backToParent("integrations")} />} />
+            <Route path="operation/integrations/*" element={<IntegrationsPage onBack={() => backToParent("integrations")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
