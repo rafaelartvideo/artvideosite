@@ -11,6 +11,8 @@ import {
   Plus,
   Search,
   ShoppingCart,
+  ReceiptText,
+  Printer,
   Tag,
   Trash2,
   UserRound,
@@ -33,6 +35,7 @@ import { FCurrencyInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormCon
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import {
   finalizePdvSale,
+  loadPdvSaleDetail,
   searchPdvCustomers,
   searchPdvProducts,
   type PdvBootstrap,
@@ -41,11 +44,18 @@ import {
   type PdvProduct,
   type PdvSaleResult,
 } from "../infrastructure/pdv.repository";
+import { printPdvReceipt } from "../domain/pdv-receipt-print";
+import { printPdvA4Receipt } from "../domain/pdv-a4-receipt";
+
+type ProductCondition = "new" | "used" | "refurbished";
 
 type CartItem = {
   product: PdvProduct;
   quantity: number;
   discount: string;
+  condition: ProductCondition;
+  conditionNotes: string;
+  serialNumber: string;
 };
 
 type CheckoutPayment = {
@@ -64,6 +74,7 @@ function useDebouncedValue(value: string, delay = 320) {
 }
 
 function availableQuantity(product: PdvProduct) {
+  if (product.product_id.startsWith("avulso:")) return Number.POSITIVE_INFINITY;
   const quantity = Number(product.quantity || 0);
   const factor = Math.max(1, Number(product.conversion_factor || 1));
   if (product.unit === "cx") return Math.floor(quantity / factor);
@@ -117,7 +128,7 @@ export function PdvSaleWorkspace({
   bootstrap: PdvBootstrap;
   onBack: () => void;
 }) {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const canSell = hasPermission("pdv.sales.create");
@@ -140,6 +151,13 @@ export function PdvSaleWorkspace({
   const [payments, setPayments] = useState<CheckoutPayment[]>([]);
   const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID());
   const [saleResult, setSaleResult] = useState<PdvSaleResult | null>(null);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualPrice, setManualPrice] = useState("");
+  const [manualQuantity, setManualQuantity] = useState(1);
+  const [manualCondition, setManualCondition] = useState<ProductCondition>("used");
+  const [manualNotes, setManualNotes] = useState("");
+  const [manualSerial, setManualSerial] = useState("");
 
   const focusProductSearch = () => {
     if (!window.matchMedia("(min-width: 768px) and (pointer: fine)").matches) return;
@@ -170,6 +188,23 @@ export function PdvSaleWorkspace({
       && (debouncedCustomerSearch.trim().length === 0 || debouncedCustomerSearch.trim().length >= 2)
     ),
   });
+
+  const receiptQuery = useQuery({
+    queryKey: queryKeys.pdv.saleDetail(organizationId || "none", saleResult?.id || "none"),
+    queryFn: () => loadPdvSaleDetail(organizationId, saleResult!.id),
+    enabled: Boolean(organizationId && saleResult?.id),
+  });
+
+  const printCompleted = (mode: "a4" | "80mm") => {
+    if (!receiptQuery.data) return;
+    try {
+      const company = activeOrganization?.organization_name || "Empresa";
+      if (mode === "a4") printPdvA4Receipt(receiptQuery.data, company);
+      else printPdvReceipt(receiptQuery.data, company);
+    } catch (error) {
+      setToast({ msg: systemErrorMessage(error, "Não foi possível emitir o documento."), type: "error" });
+    }
+  };
 
   const products = productsQuery.data || [];
   const settings = bootstrap.settings;
@@ -257,10 +292,44 @@ export function PdvSaleWorkspace({
             : item,
         );
       }
-      return [...currentCart, { product, quantity: 1, discount: "" }];
+      return [...currentCart, { product, quantity: 1, discount: "", condition: "new", conditionNotes: "", serialNumber: "" }];
     });
     setSelectedCartProductId(product.product_id);
     setSearch("");
+  };
+
+  const addManualProduct = () => {
+    const name = manualName.trim();
+    const price = currencyNumber(manualPrice);
+    if (name.length < 2 || name.length > 180 || !Number.isFinite(price) || price <= 0 || price > 99999999) {
+      setToast({ msg: "Informe o nome e um preço válido para o item avulso.", type: "error" });
+      return;
+    }
+    if (!Number.isSafeInteger(manualQuantity) || manualQuantity < 1 || manualQuantity > 99999) {
+      setToast({ msg: "Informe uma quantidade inteira válida.", type: "error" });
+      return;
+    }
+    const productId = "avulso:" + crypto.randomUUID();
+    const product: PdvProduct = {
+      product_id: productId, inventory_item_id: null, name, sku: null, barcode: null,
+      price, cover_media_id: null, quantity: 0, min_quantity: 0, unit: "un", conversion_factor: 1,
+    };
+    setCart(current => [...current, {
+      product, quantity: manualQuantity, discount: "",
+      condition: manualCondition, conditionNotes: manualNotes.trim(), serialNumber: manualSerial.trim(),
+    }]);
+    setSelectedCartProductId(productId);
+    setManualName("");
+    setManualPrice("");
+    setManualQuantity(1);
+    setManualCondition("used");
+    setManualNotes("");
+    setManualSerial("");
+    setManualOpen(false);
+  };
+
+  const updateCondition = (productId: string, patch: Partial<Pick<CartItem, "condition" | "conditionNotes" | "serialNumber">>) => {
+    setCart(current => current.map(item => item.product.product_id === productId ? { ...item, ...patch } : item));
   };
 
   const setQuantity = (productId: string, nextQuantity: number) => {
@@ -439,9 +508,14 @@ export function PdvSaleWorkspace({
       surchargeAmount: surchargeValue,
       note: note.trim() || null,
       items: cart.map(item => ({
-        productId: item.product.product_id,
+        productId: item.product.product_id.startsWith("avulso:") ? null : item.product.product_id,
+        manualName: item.product.product_id.startsWith("avulso:") ? item.product.name : undefined,
+        unitPrice: item.product.product_id.startsWith("avulso:") ? Number(item.product.price) : undefined,
         quantity: item.quantity,
         discountAmount: currencyNumber(item.discount),
+        condition: item.condition,
+        conditionNotes: item.conditionNotes,
+        serialNumber: item.serialNumber,
       })),
       payments: payments.map(payment => ({
         paymentMethodId: payment.paymentMethodId,
@@ -626,6 +700,13 @@ export function PdvSaleWorkspace({
           </div>
           <p className="mt-1.5 text-[10px] leading-4 text-muted-foreground">O leitor continua pronto mesmo depois de mexer no carrinho. Código exato + Enter adiciona direto.</p>
         </AdminSearchPanel>
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card px-3 py-2.5">
+          <div>
+            <p className="text-xs font-black text-foreground">Produto não cadastrado?</p>
+            <p className="text-[10px] text-muted-foreground">Faça uma venda avulsa sem alterar o catálogo ou estoque.</p>
+          </div>
+          <AdminButton variant="secondary" onClick={() => setManualOpen(true)}><Plus size={15} /> Item avulso</AdminButton>
+        </div>
 
         <Section title="Produtos encontrados" flush>
           {productsQuery.isPending ? <LoadingState text="Buscando produtos..." /> : products.length === 0 ? (
@@ -700,7 +781,7 @@ export function PdvSaleWorkspace({
                 )}>{index + 1}</div>
                 <div className="min-w-0">
                   <p className="truncate text-xs font-black text-foreground">{item.product.name}</p>
-                  <p className="mt-0.5 truncate text-[9px] text-[#7a8aa0]">{item.product.sku || item.product.barcode || "Sem código"} · {formatCurrency(item.product.price || 0)} / {item.product.unit || "un"}</p>
+                  <p className="mt-0.5 truncate text-[9px] text-[#7a8aa0]">{item.product.product_id.startsWith("avulso:") ? "Venda avulsa · Sem movimentação de estoque" : (item.product.sku || item.product.barcode || "Sem código")} · {formatCurrency(item.product.price || 0)} / {item.product.unit || "un"}</p>
                 </div>
                 <AdminIconButton ariaLabel="Remover produto" title="Remover" variant="danger" onClick={event => {
                   event.stopPropagation();
@@ -756,6 +837,22 @@ export function PdvSaleWorkspace({
                   <p className="text-[9px] font-bold uppercase tracking-wider text-[#8a98aa]">Total do item</p>
                   {itemDiscount > 0 && <p className="mt-0.5 text-[9px] text-[#8a98aa] line-through">{formatCurrency(lineSubtotal)}</p>}
                   <p className={cn("mt-0.5 text-base font-black", itemDiscount > 0 ? "text-emerald-700" : "text-foreground")}>{formatCurrency(lineTotal)}</p>
+                </div>
+                <div className="mt-2 flex flex-wrap gap-2" onClick={event => event.stopPropagation()}>
+                  <label className="min-w-[135px] flex-1">
+                    <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Condição</span>
+                    <select value={item.condition} onChange={event => updateCondition(productId, { condition: event.target.value as ProductCondition })} className={cn(INPUT, "h-8 w-full text-xs")}>
+                      <option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option>
+                    </select>
+                  </label>
+                  <label className="min-w-[160px] flex-1">
+                    <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Nº de série (opcional)</span>
+                    <input className={cn(INPUT, "h-8 w-full text-xs")} maxLength={100} value={item.serialNumber} onChange={event => updateCondition(productId, { serialNumber: event.target.value })} placeholder="Identificação do item" />
+                  </label>
+                  {item.condition !== "new" && <label className="w-full">
+                    <span className="mb-1 block text-[9px] font-bold uppercase text-muted-foreground">Estado de conservação / defeitos informados</span>
+                    <input className={cn(INPUT, "h-8 w-full text-xs")} maxLength={600} value={item.conditionNotes} onChange={event => updateCondition(productId, { conditionNotes: event.target.value })} placeholder="Ex.: riscos na tampa, funcionamento testado" />
+                  </label>}
                 </div>
               </div>
             </div>;
@@ -975,13 +1072,55 @@ export function PdvSaleWorkspace({
     </AdminDialog>
 
     <AdminDialog
+      open={manualOpen}
+      onClose={() => setManualOpen(false)}
+      title="Adicionar item avulso"
+      description="Para itens ocasionais que não precisam ser cadastrados no catálogo. Não movimenta o estoque."
+      className="max-w-lg"
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" onClick={() => setManualOpen(false)}>Cancelar</AdminButton>
+        <AdminButton onClick={addManualProduct}><Plus size={15} /> Adicionar ao carrinho</AdminButton>
+      </div>}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold">Descrição do produto <span className="text-red-600">*</span></span>
+          <input className={cn(INPUT, "w-full")} maxLength={180} value={manualName} onChange={event => setManualName(event.target.value)} placeholder="Ex.: Controle remoto Samsung" autoFocus />
+        </label>
+        <label><span className="mb-1 block text-xs font-bold">Preço unitário (R$) <span className="text-red-600">*</span></span>
+          <input className={cn(INPUT, "w-full")} inputMode="decimal" value={manualPrice} onChange={event => setManualPrice(event.target.value)} placeholder="45,00" />
+        </label>
+        <label><span className="mb-1 block text-xs font-bold">Quantidade <span className="text-red-600">*</span></span>
+          <input className={cn(INPUT, "w-full")} type="number" min={1} step={1} value={manualQuantity} onChange={event => setManualQuantity(Number(event.target.value))} />
+        </label>
+        <label><span className="mb-1 block text-xs font-bold">Condição</span>
+          <select className={cn(INPUT, "w-full")} value={manualCondition} onChange={event => setManualCondition(event.target.value as ProductCondition)}>
+            <option value="new">Novo</option><option value="used">Usado</option><option value="refurbished">Recondicionado</option>
+          </select>
+        </label>
+        <label><span className="mb-1 block text-xs font-bold">Número de série</span>
+          <input className={cn(INPUT, "w-full")} maxLength={100} value={manualSerial} onChange={event => setManualSerial(event.target.value)} placeholder="Opcional" />
+        </label>
+        <label className="sm:col-span-2"><span className="mb-1 block text-xs font-bold">Estado de conservação / observações</span>
+          <textarea className={cn(INPUT, "min-h-[72px] w-full resize-y")} maxLength={600} value={manualNotes} onChange={event => setManualNotes(event.target.value)} placeholder="Informações sobre uso, testes e defeitos conhecidos" />
+        </label>
+      </div>
+      <p className="mt-3 text-[11px] text-amber-700">O recibo não substitui a emissão de nota fiscal quando ela for obrigatória. A garantia legal continua aplicável.</p>
+    </AdminDialog>
+
+    <AdminDialog
       open={Boolean(saleResult)}
       onClose={newSale}
       title="Venda concluída"
       description={saleResult ? `Venda #${saleResult.sale_number} registrada com sucesso.` : undefined}
       minimizedDescription={saleResult ? [`Venda #${saleResult.sale_number}`, saleResult.customer_name, formatCurrency(saleResult.total_amount)].filter(Boolean).join(" · ") : undefined}
       className="max-w-lg"
-      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+      footer={<div className="flex flex-wrap items-center justify-end gap-2">
+        <AdminButton variant="secondary" disabled={!receiptQuery.data} onClick={() => printCompleted("a4")}>
+          <ReceiptText size={15} /> Recibo A4 / PDF
+        </AdminButton>
+        <AdminButton variant="secondary" disabled={!receiptQuery.data} onClick={() => printCompleted("80mm")}>
+          <Printer size={15} /> Comprovante 80mm
+        </AdminButton>
         <AdminButton variant="secondary" onClick={onBack}>Voltar ao PDV</AdminButton>
         <AdminButton onClick={newSale}><ShoppingCart size={15} /> Nova venda</AdminButton>
       </div>}
@@ -1000,7 +1139,8 @@ export function PdvSaleWorkspace({
           {Number(saleResult.change_amount || 0) > 0 && <div className="mt-2 flex items-center justify-between gap-3 text-primary"><span>Troco</span><strong>{formatCurrency(saleResult.change_amount)}</strong></div>}
           {saleResult.customer_name && <div className="mt-3 border-t border-border pt-3"><span className="text-muted-foreground">Cliente</span><strong className="ml-2 text-foreground">{saleResult.customer_name}</strong></div>}
         </div>
-        <p className="text-center text-[10px] leading-4 text-[#7a8aa0]">Estoque e Financeiro foram atualizados na mesma transação da venda.</p>
+        <p className="text-center text-[10px] leading-4 text-[#7a8aa0]">Financeiro atualizado. Produtos cadastrados tiveram baixa no estoque; itens avulsos não movimentam o estoque.</p>
+        {receiptQuery.isPending && <p className="text-center text-[10px] text-muted-foreground">Preparando documentos da venda...</p>}
       </div>}
     </AdminDialog>
   </div>;
