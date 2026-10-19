@@ -9,7 +9,7 @@ export const EMPTY_BOOKING_CONFIG = { coverage_mode:'consult', cep_ranges:[], sc
  {title:'Orçamento e confirmação',content:'A solicitação pelo site não gera cobrança antecipada. A Artvideo entrará em contato para informar os valores, conferir os detalhes e confirmar a disponibilidade de atendimento.'}
  ], terms:'O envio da solicitação não confirma o agendamento nem gera pagamento antecipado. A Artvideo avaliará as informações, entrará em contato e apresentará o orçamento. Materiais, condições de execução, prazos e valores serão confirmados pela equipe antes da sua aprovação.', duration:'' };
 const digits = value => String(value ?? '').replace(/\D/g,'');
-const validTime = value => /^([01]\\d|2[0-3]):[0-5]\\d$/.test(value ?? '');
+const validTime = value => /^([01]\d|2[0-3]):[0-5]\d$/.test(value ?? '');
 const dayNames = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
 
 // Per-day hours take precedence. Existing records with only `slots` retain
