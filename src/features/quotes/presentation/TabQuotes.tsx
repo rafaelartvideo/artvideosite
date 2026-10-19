@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ClipboardList, Eraser, FileText, Search } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ClipboardList, Eraser, FileText, MapPin, MessageCircle, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
@@ -24,6 +24,8 @@ import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
+import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
+import { parseQuoteRequestMessage, quoteRequestAddress, quoteAddressLabel } from "../domain/quote-request-details.mjs";
 
 type TabQuotesProps = {
   onNavigate?: (tab: AdminTab) => void;
@@ -85,6 +87,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
   const [conversionSituationId, setConversionSituationId] = useState("");
+  const [sacQuoteOpen, setSacQuoteOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const debouncedSearch = useDebouncedValue(search);
@@ -195,7 +198,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     setConversionSituationId("");
     if (onRouteChange) onRouteChange(quote.id, null);
   };
-  const closeDetails = () => { setDetail(null); setConversionSituationId(""); onRouteChange?.(null, null); };
+  const closeDetails = () => { setSacQuoteOpen(false); setDetail(null); setConversionSituationId(""); onRouteChange?.(null, null); };
 
   const sortLabel = orderSort === "asc" ? "Protocolo crescente" : orderSort === "desc" ? "Protocolo decrescente" : "Ordenação padrão";
   const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
@@ -243,6 +246,13 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
 
   const InfoRow = ({ label, value }: { label: string; value?: string | null }) => value ? <div className="min-w-0"><p className="mb-0.5 break-words text-[10px] font-bold uppercase text-[#5a6a82]">{label}</p><p className="break-words whitespace-pre-line text-sm font-medium text-[#0d1b2e]">{value}</p></div> : null;
 
+  const parsedQuote=detail?parseQuoteRequestMessage(detail.customer_message):null;
+  const quoteAddress=detail?quoteRequestAddress(detail):null;
+  const currentAddress=quoteAddress?.address;
+  const displayAddress=quoteAddressLabel(quoteAddress);
+  const mapsUrl=displayAddress?"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(displayAddress):"";
+  const quoteWhatsapp=String(detail?.customer?.whatsapp||detail?.customer?.phone||"").replace(/\D/g,"");
+  const canMessageQuote=hasPermission("sac_digital.messages.send") && Boolean(detail?.customer_id && quoteWhatsapp && organizationId);
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
@@ -286,8 +296,62 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     {routeResourceId && !detail && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     {detail && canViewDetails && <AdminPage open onClose={closeDetails} breadcrumb={`Orçamentos > ${detail.protocol || detail.id.slice(0, 8)}`} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
       <div className="min-w-0 space-y-4 p-3 sm:p-5">
-        <Section title="Dados pessoais / empresariais"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Tipo" value={(detail.customer as any)?.customer_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} />{(detail.customer as any)?.customer_type === "PJ" ? <><InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name || (detail.customer as any)?.full_name} /><InfoRow label="Razão social" value={(detail.customer as any)?.legal_name} /><InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj ? formatCnpj((detail.customer as any).cnpj) : null} /></> : <><InfoRow label="Nome completo" value={(detail.customer as any)?.full_name} /><InfoRow label="CPF" value={(detail.customer as any)?.document ? formatCpf((detail.customer as any).document) : null} /></>}<InfoRow label="E-mail" value={(detail.customer as any)?.email} /><InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)} /><InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)} /></div></Section>
-        <Section title="Dados do orçamento"><div className="grid min-w-0 gap-3 sm:grid-cols-2"><InfoRow label="Protocolo" value={detail.protocol || detail.id} /><InfoRow label="Serviço" value={(detail.service as any)?.title} /><InfoRow label="Marca" value={(detail.brand as any)?.name} /><InfoRow label="Produto" value={(detail.product as any)?.name} /><InfoRow label="Data de criação" value={formatDateTime(detail.created_at)} /><InfoRow label="Valor estimado" value={detail.estimated_price == null ? null : formatCurrency(detail.estimated_price)} /></div>{detail.customer_message && <div className="mt-4"><InfoRow label="Mensagem do cliente" value={detail.customer_message} /></div>}</Section>
+        <Section title="Dados pessoais / empresariais"
+         actions={<button type="button" onClick={()=>setSacQuoteOpen(true)}
+           disabled={!canMessageQuote} title={canMessageQuote?"Enviar WhatsApp pelo SAC Digital":"Envio indisponível para este orçamento"}
+           aria-label="Enviar WhatsApp pelo SAC Digital"
+           className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#25d366]/40 bg-[#e7f9ed] px-3 text-[#148c47] hover:bg-[#d8f4e1] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-950/30 dark:text-emerald-300"><MessageCircle size={16}/><span>WhatsApp</span></button>}>
+          <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+           <InfoRow label="Tipo" value={(detail.customer as any)?.customer_type==="PJ"?"Pessoa Jurídica":"Pessoa Física"}/>
+           {(detail.customer as any)?.customer_type==="PJ"?<>
+             <InfoRow label="Nome fantasia" value={(detail.customer as any)?.trade_name||(detail.customer as any)?.full_name}/>
+             <InfoRow label="Razão social" value={(detail.customer as any)?.legal_name}/>
+             <InfoRow label="CNPJ" value={(detail.customer as any)?.cnpj?formatCnpj((detail.customer as any).cnpj):null}/>
+            </>:<>
+             <InfoRow label="Nome completo" value={(detail.customer as any)?.full_name}/>
+             <InfoRow label="CPF" value={(detail.customer as any)?.document?formatCpf((detail.customer as any).document):null}/>
+            </>}
+           <InfoRow label="E-mail" value={(detail.customer as any)?.email}/>
+           <InfoRow label="Telefone" value={formatPhone((detail.customer as any)?.phone)}/>
+           <InfoRow label="WhatsApp" value={formatPhone((detail.customer as any)?.whatsapp)}/>
+          </div>
+        </Section>
+        <Section title="Endereço do atendimento"
+         description={quoteAddress?"Endereço informado para esta solicitação.":"Nenhum endereço específico foi informado nesta solicitação."}
+         actions={mapsUrl?<a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+           title="Abrir endereço no mapa" aria-label="Abrir endereço no mapa"
+           className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-[#0057e7]/25 bg-[#eef5ff] px-3 text-xs font-semibold text-[#0057e7] hover:bg-[#e4f0ff]"><MapPin size={16}/> Mapa</a>:undefined}>
+         {currentAddress?<div className="grid gap-4 sm:grid-cols-2">
+          <InfoRow label="CEP" value={currentAddress.zip_code}/>
+          <InfoRow label="Rua / Avenida" value={currentAddress.street}/>
+          <InfoRow label="Número" value={currentAddress.number}/>
+          <InfoRow label="Complemento" value={currentAddress.complement}/>
+          <InfoRow label="Bairro" value={currentAddress.neighborhood}/>
+          <InfoRow label="Cidade" value={currentAddress.city}/>
+          <InfoRow label="Estado" value={currentAddress.state}/>
+          {currentAddress.text&&<InfoRow label="Endereço registrado" value={currentAddress.text}/>}
+         </div>:<p className="text-sm text-muted-foreground">Endereço não informado neste orçamento.</p>}
+        </Section>
+        <Section title="Dados do orçamento">
+         <div className="grid min-w-0 gap-4 sm:grid-cols-2">
+          <InfoRow label="Protocolo" value={detail.protocol||detail.id}/>
+          <InfoRow label="Serviço" value={(detail.service as any)?.title||parsedQuote?.service||parsedQuote?.repairType||null}/>
+          <InfoRow label="Equipamento" value={parsedQuote?.equipment}/>
+          <InfoRow label="Marca" value={(detail.brand as any)?.name||parsedQuote?.brand}/>
+          <InfoRow label="Modelo" value={parsedQuote?.model}/>
+          <InfoRow label="Produto" value={(detail.product as any)?.name}/>
+          <InfoRow label="Opção" value={parsedQuote?.option}/>
+          <InfoRow label="Quantidade" value={parsedQuote?.quantity}/>
+          <InfoRow label="Preferência de atendimento" value={parsedQuote?.schedule}/>
+          <InfoRow label="Modalidade de atendimento" value={parsedQuote?.repairLocation}/>
+          <InfoRow label="Data de criação" value={formatDateTime(detail.created_at)}/>
+          <InfoRow label="Valor estimado" value={detail.estimated_price==null?null:formatCurrency(detail.estimated_price)}/>
+         </div>
+        </Section>
+        {(parsedQuote?.issue||parsedQuote?.notes)&&<Section title="Observações do cliente">
+          {parsedQuote.issue&&<InfoRow label="Problema relatado" value={parsedQuote.issue}/>}
+          {parsedQuote.notes&&<div className={parsedQuote.issue?"mt-4":""}><InfoRow label="Mensagem" value={parsedQuote.notes}/></div>}
+        </Section>}
       </div>
       <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <div className="w-full sm:w-52"><label className="mb-1 block text-[11px] font-bold text-muted-foreground">Situação da OS *</label><AdminSelect value={conversionSituationId} onValueChange={setConversionSituationId} options={[{ value: "", label: conversionSituationsQuery.isLoading ? "Carregando situações..." : "Selecionar situação..." }, ...conversionSituations.map(situation => ({ value: situation.id, label: situation.name }))]} ariaLabel="Situação obrigatória para converter orçamento em OS" className="min-h-10 w-full" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
         if (!conversionSituationId || !conversionSituations.some(situation => situation.id === conversionSituationId)) { setToast({ msg: "Selecione uma situação válida antes de converter o orçamento em OS.", type: "error" }); return; }
@@ -304,6 +368,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         onNavigate?.("orders");
       }}><ClipboardList size={13} /> Converter em OS</AdminButton>}</div><BtnSecondary onClick={closeDetails} className="w-full sm:w-auto">Fechar</BtnSecondary></AdminStickyToolbar>
     </AdminPage>}
+    {sacQuoteOpen && detail && <QuoteSacDigitalDialog quote={detail} organizationId={organizationId} onClose={()=>setSacQuoteOpen(false)}/>}
   </div>;
 }
 
