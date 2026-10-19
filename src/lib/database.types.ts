@@ -124,6 +124,7 @@ export interface ServiceCategory {
 
 // ── Services & Related ───────────────────────────────────────
 export interface Service {
+  public_booking?: Record<string, any>;
   id: string;
   category_id: string | null;
   brand_id: string | null;

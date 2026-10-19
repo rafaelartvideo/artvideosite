@@ -62,20 +62,11 @@ export function ServiceCard({ service, onSelectService }: { service: any; onSele
     service.price_mode === "FIXED" && basePrice ? basePrice :
     service.price_mode === "STARTING_FROM" && basePrice ? `A partir de ${basePrice}` : "Consulte o valor";
 
-  return <article className="group overflow-hidden rounded-[7px] border border-[#e3ebf6] bg-white shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-lg">
-    <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="relative isolate flex h-[204px] w-full flex-col justify-between overflow-hidden p-5 text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      {imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="absolute inset-y-0 right-0 -z-20 h-full w-[59%] object-cover transition-transform duration-500 group-hover:scale-105"/>
-        : <div className="absolute inset-y-0 right-0 -z-20 w-[63%] bg-gradient-to-br from-white via-blue-50 to-blue-200"/>}
-      <div className="pointer-events-none absolute inset-0 -z-10" style={{ background: "linear-gradient(90deg, white 0%, white 26%, rgba(255,255,255,.97) 46%, rgba(255,255,255,.68) 66%, rgba(255,255,255,0) 91%)" }}/>
-      <Icon size={32} strokeWidth={2} className="text-[var(--art-primary)] transition-transform group-hover:scale-110"/>
-      <div className="relative max-w-[67%]">
-        <h3 className="line-clamp-2 text-[14px] font-extrabold leading-[1.36] text-[#0b1d37]">{service.title}</h3>
-        <p className="mt-2 line-clamp-3 text-[12px] leading-[1.45] text-[#5c6c81]">{service.short_description || service.description || "Saiba mais sobre este serviço."}</p>
-      </div>
+  return <article className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg">
+    <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="w-full text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+      <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"/> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
+      <div className="p-6 pb-3"><h3 className="text-lg font-semibold leading-6 tracking-tight text-[#172b45]">{service.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-[#64717e]">{service.short_description || service.description || "Conheça o atendimento e solicite seu orçamento."}</p></div>
     </button>
-    <div className="flex items-center justify-between gap-2 border-t border-[#edf1f6] px-4 py-2.5">
-      <span className="text-[12px] font-semibold text-[#596b84]">{priceLabel || " "}</span>
-      <button type="button" onClick={() => onSelectService(service.slug)} className="inline-flex items-center gap-1 text-[12px] font-bold text-[var(--art-primary)] transition-all hover:gap-2 hover:text-blue-800">Ver detalhes <ArrowRight size={14}/></button>
-    </div>
+    <div className="mt-auto flex flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-4"><span className="text-sm font-medium text-[#172b45]">{priceLabel || " "}</span><button type="button" onClick={() => onSelectService(service.slug)} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)] transition-all hover:gap-3">Saiba mais <ArrowRight size={16}/></button></div>
   </article>;
 }

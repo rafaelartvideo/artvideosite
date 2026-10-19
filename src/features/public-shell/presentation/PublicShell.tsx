@@ -23,12 +23,12 @@ function validExternalUrl(value: unknown, base?: string): string {
 function themeColor(value: unknown, fallback: string): string {
   return typeof value === "string" && /^#[a-f0-9]{6}$/i.test(value) ? value : fallback;
 }
-function PublicLogo({ className = "" }: { className?: string }) {
+function PublicLogo({ className = "", dark = false }: { className?: string; dark?: boolean }) {
   const { settings } = useSiteSettings();
   const { url } = useMediaUrl(typeof settings.logo_media_id === "string" ? settings.logo_media_id : undefined);
   return <span className={`inline-flex items-center gap-2.5 ${className}`}>
     <ImageWithFallback src={url || safeImageUrl(settings.logo_url) || logoIcon} alt="" className="h-10 w-auto max-w-12 shrink-0 object-contain" />
-    <span className="flex flex-col text-left leading-[1.03] text-white">
+    <span className={`flex flex-col text-left leading-[1.03] ${dark ? "text-[#172b45]" : "text-white"}`}>
       <span className="text-[12px] font-medium tracking-tight sm:text-[13px]">Eletrônica</span>
       <strong className="text-[19px] font-extrabold tracking-[-.055em] sm:text-[21px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>ARTVIDEO</strong>
     </span>
@@ -66,22 +66,22 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
-  return <header className="sticky top-0 z-40 border-b border-white/10 bg-gradient-to-r from-[#071830] via-[var(--art-dark)] to-[#081a32] text-white shadow-md">
+  return <header className="sticky top-0 z-40 border-b border-slate-200 bg-white text-[#172b45] shadow-[0_2px_8px_rgba(0,0,0,.025)]">
     <div className="mx-auto flex h-[74px] max-w-7xl items-center justify-between gap-5 px-4 sm:px-6 lg:px-8">
       <button type="button" onClick={() => navigate("home")} aria-label="Eletrônica Artvideo — início" className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400">
-        <PublicLogo/>
+        <PublicLogo dark/>
       </button>
       <nav aria-label="Navegação principal" className="hidden h-full items-center gap-5 lg:flex xl:gap-7">
         {PUBLIC_NAV_LINKS.map(label => {
           const active = PUBLIC_NAV_MAP[label] === page;
           return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
             aria-current={active ? "page" : undefined}
-            className={`relative flex h-full items-center whitespace-nowrap border-b-2 pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-white text-white" : "border-transparent text-white/75 hover:border-white/50 hover:text-white"}`}>{label}</button>;
+            className={`relative flex h-full items-center whitespace-nowrap border-b-2 pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-[var(--art-primary)] text-[var(--art-primary)]" : "border-transparent text-[#52606d] hover:border-blue-200 hover:text-[var(--art-primary)]"}`}>{label}</button>;
         })}
       </nav>
       <div className="hidden shrink-0 items-center gap-3 lg:flex">
         <a href="/carrinho" aria-label={`Meu carrinho, ${cartCount} produtos`}
-          className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
+          className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-[var(--art-primary)] transition-all hover:border-blue-300 hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-400">
           <ShoppingCart size={21}/>
           {cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[var(--art-primary)] px-1 text-[10px] font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>}
         </a>
@@ -91,18 +91,18 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         </button>
       </div>
       <a href="/carrinho" aria-label={`Meu carrinho, ${cartCount} produtos`}
-        className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 lg:hidden">
+        className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-[var(--art-primary)] hover:bg-blue-50 lg:hidden">
         <ShoppingCart size={22}/>
         {cartCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--art-primary)] px-1.5 text-[10px] font-bold">{cartCount > 99 ? "99+" : cartCount}</span>}
       </a>
       <button type="button" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen}
-        onClick={() => setMenuOpen(x => !x)} className="rounded-md p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400 lg:hidden">
+        onClick={() => setMenuOpen(x => !x)} className="rounded-md p-2 text-[#172b45] transition-colors hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-blue-400 lg:hidden">
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}
       </button>
     </div>
-    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/10 bg-[var(--art-dark)] px-4 pb-5 pt-2 shadow-xl lg:hidden">
+    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-slate-200 bg-white px-4 pb-5 pt-2 shadow-xl lg:hidden">
       {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
-        className={`block w-full border-b border-white/10 py-3 text-left text-sm font-semibold transition-colors hover:text-blue-300 ${PUBLIC_NAV_MAP[label] === page ? "text-blue-300" : "text-white"}`}>{label}</button>)}
+        className={`block w-full border-b border-slate-100 py-3 text-left text-sm font-semibold transition-colors hover:text-blue-600 ${PUBLIC_NAV_MAP[label] === page ? "text-blue-600" : "text-[#172b45]"}`}>{label}</button>)}
       <button type="button" onClick={() => navigate("orcamento")} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] font-bold text-white hover:brightness-110">
         <FileText size={17} /> Solicitar orçamento
       </button>

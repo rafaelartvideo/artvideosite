@@ -1,151 +1,65 @@
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { AlertCircle, ArrowRight, BadgeCheck, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, Package, X } from "lucide-react";
-import { useServiceDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
-import { resolvePublicMediaUrl } from "@/features/public-catalog/infrastructure/public-media";
-import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
-import { homeServiceDisplay, inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
-import type { PublicPage } from "@/features/public-shell/domain/navigation";
-import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
-import { PublicButton, PublicHeading } from "@/features/public-shell/presentation/PublicUi";
-import { formatCurrency } from "@/shared/domain/formatters";
-import { useMediaUrl } from "@/shared/application/useMediaUrl";
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, Check, CheckCircle2, ChevronDown, ChevronRight, Clock3, FileText, Info, Loader2, MapPin, Wrench, X } from 'lucide-react';
+import { useServiceDetailBySlug, useServices } from '@/features/public-catalog/application/usePublicCatalog';
+import { resolvePublicMediaUrl } from '@/features/public-catalog/infrastructure/public-media';
+import { useSiteSettings } from '@/features/public-shell/application/useSiteSettings';
+import { homeServiceDisplay, inferredServiceIcon, publicIcon } from '@/features/public-shell/domain/site-appearance';
+import type { PublicPage } from '@/features/public-shell/domain/navigation';
+import { PublicButton, PublicHeading } from '@/features/public-shell/presentation/PublicUi';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/shared/ui/primitives/dialog';
+import { ServiceCard } from '@/features/public-catalog/presentation/PublicCatalogCards';
+import { formatCurrency } from '@/shared/domain/formatters';
+import { useMediaUrl } from '@/shared/application/useMediaUrl';
+import { bookingConfig } from '../domain/service-booking.mjs';
+import { ServiceCepLookup } from './ServiceCepLookup';
 
-export function ServiceDetailPage({ slug, setPage }: { slug: string | null; setPage: (page: PublicPage) => void }) {
-  const { detail, loading, error } = useServiceDetailBySlug(slug);
-  const { settings } = useSiteSettings();
-  const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const service = detail?.service;
-  const appearance = homeServiceDisplay(settings.home_service_display)[service?.id ?? ""];
-  const Icon = publicIcon(appearance?.icon || service?.public_icon || inferredServiceIcon(service?.title));
-  const { url: customPhoto } = useMediaUrl(appearance?.media_id);
-  const mediaBucket = detail?.media?.bucket_id ?? detail?.media?.bucket_name ?? "";
-  const mediaPath = detail?.media?.storage_path ?? "";
-  const imageQuery = useQuery({
-    queryKey: ["public-service-media", mediaBucket, mediaPath],
-    enabled: Boolean(mediaBucket && mediaPath && !customPhoto),
-    queryFn: () => resolvePublicMediaUrl(detail?.media),
-    staleTime: 30 * 60_000,
-  });
-  const imageUrl = customPhoto || imageQuery.data || null;
+export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page:PublicPage)=>void}) {
+ const navigate=useNavigate(); const {detail,loading,error}=useServiceDetailBySlug(slug);const {services}=useServices();const {settings}=useSiteSettings();
+ const [cep,setCep]=useState(''),[coverage,setCoverage]=useState('idle'),[optionOpen,setOptionOpen]=useState(false),[variant,setVariant]=useState('');
+ const [modal,setModal]=useState<{title:string;content:string}|null>(null);
+ useEffect(()=>{setCep('');setCoverage('idle');setOptionOpen(false);setVariant('');setModal(null);},[slug]);
+ const service=detail?.service; const appearance=homeServiceDisplay(settings.home_service_display)[service?.id??''];
+ const Icon=publicIcon(appearance?.icon||service?.public_icon||inferredServiceIcon(service?.title));
+ const {url:customPhoto}=useMediaUrl(appearance?.media_id);
+ const mediaBucket=detail?.media?.bucket_id??detail?.media?.bucket_name??'',mediaPath=detail?.media?.storage_path??'';
+ const imageQuery=useQuery({queryKey:['public-service-media',mediaBucket,mediaPath],enabled:Boolean(mediaBucket&&mediaPath&&!customPhoto),queryFn:()=>resolvePublicMediaUrl(detail?.media),staleTime:30*60_000});
+ const imageUrl=customPhoto||imageQuery.data||null;
+ if(loading)return <div role="status" className="flex min-h-[55vh] items-center justify-center gap-3 text-sm text-slate-500"><Loader2 size={20} className="animate-spin"/> Carregando serviço...</div>;
+ if(error||!detail)return <section className="mx-auto max-w-xl px-5 py-20 text-center"><PublicHeading>{error?'Não foi possível carregar este serviço':'Serviço não encontrado'}</PublicHeading><p className="my-5 text-slate-600">Tente novamente ou escolha outro serviço disponível.</p><PublicButton onClick={()=>setPage('servicos')}>Ver serviços</PublicButton></section>;
+ const {inclusions,exclusions,faqs,sections}=detail;
+ const c=bookingConfig(service.public_booking);const variants=detail.variants.filter((v:any)=>v.is_active!==false);
+ const related=services.filter(s=>s.id!==service.id&&(service.category_id?s.category_id===service.category_id:true)).slice(0,3);
+ const price=service.price_mode==='HIDDEN'?null:service.base_price==null||service.price_mode==='QUOTE'?'Solicite seu orçamento':`${service.price_mode==='STARTING_FROM'?'A partir de ':''}${formatCurrency(service.base_price)}`;
+ const relatedSection=related.length>0&&<section className="mx-auto max-w-6xl px-5 py-12 sm:px-8"><h2 className="mb-7 text-[28px] font-medium tracking-tight">Outros serviços para você</h2><div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{related.map(s=><ServiceCard key={s.id} service={s} onSelectService={value=>navigate(`/servicos/${value}`)}/>)}</div></section>;
+ const start=(selected='')=>navigate(`/orcamento?servico=${encodeURIComponent(service.slug)}&cep=${encodeURIComponent(cep)}${selected?`&opcao=${encodeURIComponent(selected)}`:''}`);
+ const begin=()=>variants.length?setOptionOpen(true):start();
+ const available=['available','consult'].includes(coverage);
+ const orientations=c.orientations.filter((o:any)=>o.title&&o.content);
+ return <div className="art-service bg-white">
+  <nav aria-label="Trilha de navegação" className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-5 py-5 text-xs text-slate-500 sm:px-8"><button onClick={()=>setPage('home')} className="shrink-0 hover:text-[var(--art-primary)]">Início</button><ChevronRight size={13}/><button onClick={()=>setPage('servicos')} className="shrink-0 hover:text-[var(--art-primary)]">Serviços</button><ChevronRight size={13}/><span className="truncate font-medium text-slate-800">{service.title}</span></nav>
+  <section className="mx-auto grid max-w-7xl items-center gap-7 px-5 pb-12 sm:px-8 lg:grid-cols-[.85fr_1.8fr] lg:gap-12">
+   <div className="py-5 lg:py-10"><h1 className="text-[34px] font-semibold leading-[1.15] tracking-[-.035em] sm:text-[42px]">{service.title}</h1>{service.short_description&&<p className="mt-6 text-lg leading-[1.55] text-[#394553]">{service.short_description}</p>}</div>
+   <div className="aspect-[16/9] overflow-hidden bg-[#f3f5f7]">{imageUrl?<img src={imageUrl} alt={service.title} fetchPriority="high" className="h-full w-full object-cover"/>:<div className="flex h-full items-center justify-center bg-[#eef3f8]"><Icon size={95} strokeWidth={1} className="text-[#8babc5]"/></div>}</div>
+  </section>
+  <section id="solicitar-servico" className="mx-auto grid max-w-6xl items-start gap-8 px-5 py-10 sm:px-8 lg:grid-cols-2 lg:gap-12">
+   <div><h2 className="mb-6 text-2xl font-medium tracking-tight sm:text-[30px]">Onde o serviço será realizado?</h2><ServiceCepLookup config={c} value={cep} onChange={v=>{setCep(v);setCoverage('idle');}} onResolved={(_,status)=>setCoverage(status)}/><PublicButton disabled={!available} onClick={begin} className="mt-5 w-full !min-h-12">Solicitar orçamento <ArrowRight size={18}/></PublicButton><p className="mt-3 text-center text-xs leading-5 text-slate-500">Sem pagamento antecipado. A Artvideo entrará em contato.</p></div>
+   <div className="rounded-xl border border-[#e0e4e8] p-7 sm:p-8"><p className="text-sm text-slate-500">{detail.category?.name||'Serviço Artvideo'}</p>{price&&<p className="mt-3 text-[28px] font-semibold tracking-tight">{price}</p>}<p className="mt-3 text-sm leading-6 text-slate-600">Informe o que precisa e receba as orientações da nossa equipe.</p>{c.duration&&<p className="mt-5 flex items-center gap-2 text-sm"><Clock3 size={18} className="text-[var(--art-primary)]"/>{c.duration}</p>}</div>
+  </section>
+  {c.related_position==='after_coverage'&&relatedSection}
+  {(inclusions.length>0||exclusions.length>0)&&<section className="mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:px-8 lg:grid-cols-2 lg:gap-12">{[{title:'O que está incluso',items:inclusions,included:true},{title:'O que não está incluso',items:exclusions,included:false}].filter(group=>group.items.length).map(group=><div key={group.title} className={`rounded-xl p-6 sm:p-8 ${group.included?'bg-[#f4f7fb]':'bg-[#f8f8f8]'}`}><h2 className="text-[22px] font-semibold tracking-tight">{group.title}</h2><ul className="mt-6 space-y-4">{group.items.map((item:any)=><li key={item.id} className="flex items-start gap-3 text-[15px] leading-7 text-[#45505e]">{group.included?<Check size={19} className="mt-1 shrink-0 text-[var(--art-primary)]"/>:<X size={19} className="mt-1 shrink-0 text-slate-500"/>}<span>{item.description}</span></li>)}</ul></div>)}</section>}
+  {service.description&&<section className="mx-auto max-w-6xl px-5 py-10 sm:px-8"><h2 className="text-2xl font-semibold tracking-tight">Sobre o serviço</h2><p className="mt-5 whitespace-pre-line text-[15px] leading-8 text-slate-600">{service.description}</p></section>}
+  {orientations.length>0&&<section className="mx-auto max-w-6xl px-5 py-12 sm:px-8"><h2 className="text-[28px] font-medium tracking-tight">Orientações para este serviço</h2><div className="mt-7 grid grid-cols-2 gap-4 lg:grid-cols-4">{orientations.map((o:any,i:number)=>{const OIcon=[Wrench,MapPin,Info,FileText][i%4];return <button type="button" key={i} onClick={()=>setModal(o)} className="group flex min-h-48 flex-col items-center justify-center rounded-xl border border-slate-200 p-5 text-center transition-all hover:-translate-y-1 hover:border-blue-400 hover:shadow-md"><OIcon size={32} strokeWidth={1.4} className="mb-5 text-[var(--art-primary)]"/><span className="text-sm font-semibold">{o.title}</span><span className="mt-4 inline-flex items-center gap-1 text-sm text-[var(--art-primary)]">Saiba mais <ChevronRight size={15}/></span></button>;})}</div></section>}
+  {detail.priceFactors.length>0&&<section className="mx-auto max-w-6xl px-5 py-10 sm:px-8"><h2 className="text-2xl font-medium">O que pode alterar o orçamento?</h2><div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">{detail.priceFactors.map((f:any)=><div key={f.id} className="rounded-xl border border-slate-200 p-5"><h3 className="font-semibold">{f.name}</h3>{f.description&&<p className="mt-3 text-sm leading-7 text-slate-600">{f.description}</p>}</div>)}</div></section>}
+  {sections.filter((s:any)=>s.is_active!==false).map((s:any)=><section key={s.id} className="mx-auto max-w-6xl border-t border-slate-100 px-5 py-10 sm:px-8"><h2 className="text-2xl font-medium">{s.title}</h2><p className="mt-5 whitespace-pre-line text-[15px] leading-8 text-slate-600">{s.content}</p></section>)}
+  {faqs.length>0&&<section className="mx-auto max-w-6xl px-5 py-12 sm:px-8"><h2 className="mb-7 text-[28px] font-medium tracking-tight">Dúvidas frequentes</h2><div className="border-t border-slate-200">{faqs.map((faq:any)=><details key={faq.id} className="group border-b border-slate-200"><summary className="flex cursor-pointer list-none items-center justify-between gap-5 py-5 text-[15px] font-medium focus-visible:outline-2 focus-visible:outline-blue-600">{faq.question}<ChevronDown size={20} className="shrink-0 text-[var(--art-primary)] transition-transform group-open:rotate-180"/></summary><p className="art-faq-answer mb-6 max-w-4xl whitespace-pre-line text-[15px] leading-8 text-slate-600">{faq.answer}</p></details>)}</div></section>}
+  <section className="bg-[#f6f7f9] py-14"><div className="mx-auto max-w-6xl px-5 sm:px-8"><h2 className="text-center text-[28px] font-medium tracking-tight">Como funciona?</h2><div className="mt-10 grid gap-7 sm:grid-cols-2 lg:grid-cols-4">{[{title:'Sua solicitação',text:'Escolha o serviço e informe o local do atendimento.'},{title:'Preferência de horário',text:'Selecione uma opção disponível ou combine com a equipe.'},{title:'Orçamento e confirmação',text:'A Artvideo entra em contato com os valores e os detalhes.'},{title:'Realização do serviço',text:'Com sua aprovação, a equipe combina a execução.'}].map((s,i)=><div key={s.title} className="text-center"><span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-semibold text-[var(--art-primary)]">{i+1}</span><h3 className="mt-5 text-base font-semibold">{s.title}</h3><p className="mt-3 text-sm leading-7 text-slate-600">{s.text}</p></div>)}</div></div></section>
+  {c.benefits.filter((b:any)=>b.title&&b.content).length>0&&<section className="mx-auto max-w-6xl px-5 py-14 sm:px-8"><h2 className="text-center text-[28px] font-medium tracking-tight">Por que escolher a Artvideo?</h2><div className="mt-9 grid gap-7 sm:grid-cols-3">{c.benefits.filter((b:any)=>b.title&&b.content).map((b:any,i:number)=><div key={i} className="text-center"><CheckCircle2 size={34} strokeWidth={1.3} className="mx-auto text-[var(--art-primary)]"/><h3 className="mt-5 font-semibold">{b.title}</h3><p className="mt-3 text-sm leading-7 text-slate-600">{b.content}</p></div>)}</div></section>}
+  {c.related_position==='bottom'&&relatedSection}
+  {c.terms&&<section className="mx-auto flex max-w-6xl flex-col items-start justify-between gap-5 px-5 py-12 sm:flex-row sm:items-center sm:px-8"><div><h2 className="text-xl font-semibold">Condições do serviço</h2><p className="mt-2 text-sm text-slate-500">Confira as orientações antes de solicitar.</p></div><PublicButton variant="outline" onClick={()=>setModal({title:'Condições do serviço',content:c.terms})}>Consultar <FileText size={17}/></PublicButton></section>}
 
-  if (loading) return <div className="flex min-h-[55vh] items-center justify-center gap-2 text-sm text-[#5d6c83]"><Clock3 size={19} className="animate-spin text-[var(--art-primary)]"/> Carregando serviço...</div>;
-  if (error || !detail) return <section className="min-h-[55vh] bg-[#f8fbff] py-20"><div className="mx-auto max-w-lg px-4 text-center">
-    {error ? <AlertCircle size={36} className="mx-auto mb-4 text-red-500"/> : <Package size={36} className="mx-auto mb-4 text-[var(--art-primary)]"/>}
-    <PublicHeading>{error ? "Não foi possível carregar este serviço" : "Serviço não encontrado"}</PublicHeading>
-    <p className="mt-3 mb-6 text-[14px] text-[#5d6c83]">{error || "O serviço solicitado não está disponível no momento."}</p>
-    <PublicButton onClick={() => setPage("servicos")}>Ver serviços disponíveis</PublicButton>
-  </div></section>;
-
-  const { category, brand, product, variants, inclusions, exclusions, priceFactors, faqs, sections, filters } = detail;
-  const formattedBase = service.base_price == null ? null : formatCurrency(service.base_price, "");
-  const priceLabel = service.price_mode === "HIDDEN" ? null :
-    service.price_mode === "STARTING_FROM" && formattedBase ? `A partir de ${formattedBase}` :
-    service.price_mode === "FIXED" && formattedBase ? formattedBase : "Consulte o valor";
-  const hasInformation = Boolean(service.description || inclusions.length || exclusions.length);
-
-  return <div className="bg-white">
-    <nav aria-label="Localização na navegação" className="border-b border-[#e8edf4] bg-white">
-      <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-4 py-3 text-[12px] text-[#68768c] sm:px-6 lg:px-8">
-        <button type="button" onClick={() => setPage("home")} className="shrink-0 transition-colors hover:text-[var(--art-primary)]">Início</button>
-        <ChevronRight size={14} className="shrink-0"/>
-        <button type="button" onClick={() => setPage("servicos")} className="shrink-0 transition-colors hover:text-[var(--art-primary)]">Serviços</button>
-        <ChevronRight size={14} className="shrink-0"/>
-        <span className="truncate font-semibold text-[#173252]">{service.title}</span>
-      </div>
-    </nav>
-
-    <section className="relative overflow-hidden bg-gradient-to-r from-[#081a32] via-[var(--art-dark)] to-[#123457] text-white">
-      <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-11 sm:px-6 sm:py-14 lg:grid-cols-2 lg:gap-14 lg:px-8">
-        <div>
-          <p className="mb-3 inline-flex items-center gap-2 text-[12px] font-semibold text-blue-300"><Icon size={18}/> {category?.name || "Serviço Artvideo"}</p>
-          <h1 className="text-[35px] font-extrabold leading-[1.17] tracking-[-.04em] sm:text-[45px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>{service.title}</h1>
-          {service.short_description && <p className="mt-4 max-w-xl text-[14px] leading-[1.7] text-white/80">{service.short_description}</p>}
-          {priceLabel && <p className="mt-5 text-[22px] font-extrabold text-white">{priceLabel}</p>}
-          <div className="mt-6 flex flex-wrap gap-3">
-            <PublicButton onClick={() => setPage("orcamento")} className="gap-2"><FileText size={18}/> Solicitar orçamento <ArrowRight size={16}/></PublicButton>
-            <WhatsAppAction className="!min-h-11"/>
-          </div>
-          {(brand?.name || product?.name) && <p className="mt-5 text-[12px] text-white/65">
-            {brand?.name ? `Marca: ${brand.name}` : ""}{brand?.name && product?.name ? " · " : ""}{product?.name ? `Produto: ${product.name}` : ""}
-          </p>}
-        </div>
-        <div className="relative h-[250px] overflow-hidden rounded-[9px] border border-white/15 bg-gradient-to-br from-[#173a62] via-[#225382] to-[#07182f] sm:h-[340px]">
-          {imageUrl ? <img src={imageUrl} alt={service.title} loading="eager" className="h-full w-full object-cover"/> :
-            <div className="flex h-full items-center justify-center"><Icon size={95} strokeWidth={1.2} className="text-white/50"/></div>}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#07182f]/30 to-transparent"/>
-        </div>
-      </div>
-    </section>
-
-    {hasInformation && <section className="bg-[#f8fbff] py-11 sm:py-14">
-      <div className="mx-auto grid max-w-6xl gap-6 px-4 sm:px-6 lg:grid-cols-2 lg:gap-8">
-        {service.description && <div className="rounded-[8px] border border-[#e5ecf5] bg-white p-6">
-          <PublicHeading>Sobre este serviço</PublicHeading>
-          <p className="mt-4 whitespace-pre-line text-[14px] leading-[1.85] text-[#53637a]">{service.description}</p>
-        </div>}
-        {(inclusions.length > 0 || exclusions.length > 0) && <div className="space-y-4">
-          {inclusions.length > 0 && <div className="rounded-[8px] border border-[#e5ecf5] bg-white p-6">
-            <h2 className="text-[18px] font-extrabold text-[#0b1d37]">O que está incluso</h2>
-            <ul className="mt-4 space-y-3">{inclusions.map((item: any) => <li key={item.id} className="flex items-start gap-2.5 text-[13px] leading-6 text-[#53637a]"><CheckCircle2 size={18} className="mt-0.5 shrink-0 text-[var(--art-primary)]"/>{item.description}</li>)}</ul>
-          </div>}
-          {exclusions.length > 0 && <div className="rounded-[8px] border border-[#e5ecf5] bg-white p-6">
-            <h2 className="text-[18px] font-extrabold text-[#0b1d37]">O que não está incluso</h2>
-            <ul className="mt-4 space-y-3">{exclusions.map((item: any) => <li key={item.id} className="flex items-start gap-2.5 text-[13px] leading-6 text-[#53637a]"><X size={18} className="mt-0.5 shrink-0 text-red-500"/>{item.description}</li>)}</ul>
-          </div>}
-        </div>}
-      </div>
-    </section>}
-
-    {variants.length > 0 && <section className="py-12">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <PublicHeading>Opções e valores</PublicHeading>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{variants.map((item: any) =>
-          <div key={item.id} className="rounded-[8px] border border-[#e5ecf5] bg-white p-5 transition-all hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-md">
-            <h3 className="text-[15px] font-extrabold text-[#0b1d37]">{item.title}</h3>
-            {item.description && <p className="mt-2 text-[13px] leading-6 text-[#62738a]">{item.description}</p>}
-            <p className="mt-4 text-[18px] font-extrabold text-[var(--art-primary)]">{item.price == null ? "Consulte o valor" : formatCurrency(item.price)}</p>
-          </div>)}</div>
-      </div>
-    </section>}
-
-    {priceFactors.length > 0 && <section className="bg-[#f8fbff] py-12">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <PublicHeading>O que pode alterar o valor?</PublicHeading>
-        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{priceFactors.map((item: any) =>
-          <div key={item.id} className="rounded-[8px] border border-[#e5ecf5] bg-white p-5">
-            <h3 className="text-[14px] font-extrabold text-[#0b1d37]">{item.name}</h3>
-            {item.description && <p className="mt-2 text-[13px] leading-6 text-[#62738a]">{item.description}</p>}
-          </div>)}</div>
-      </div>
-    </section>}
-
-    {filters.length > 0 && <section className="py-9"><div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <h2 className="text-[17px] font-extrabold text-[#0b1d37]">Características</h2>
-      <div className="mt-4 flex flex-wrap gap-2">{filters.map((item: any) =>
-        <span key={item.id} className="rounded-full bg-[#e8f1fd] px-3 py-1.5 text-[12px] font-semibold text-[#28578f]">{item.name || item.value}</span>)}</div>
-    </div></section>}
-
-    {sections.map((item: any) => <section key={item.id} className="border-t border-[#edf1f7] bg-white py-11"><div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <PublicHeading>{item.title}</PublicHeading>
-      <p className="mt-4 whitespace-pre-line text-[14px] leading-[1.85] text-[#53637a]">{item.content}</p>
-    </div></section>)}
-
-    {faqs.length > 0 && <section className="bg-[#f8fbff] py-12"><div className="mx-auto max-w-4xl px-4 sm:px-6">
-      <PublicHeading>Dúvidas frequentes</PublicHeading>
-      <div className="mt-6 space-y-3">{faqs.map((faq: any, i: number) => <div key={faq.id} className="overflow-hidden rounded-[7px] border border-[#e5ecf5] bg-white">
-        <button type="button" onClick={() => setOpenFaq(openFaq === i ? null : i)} aria-expanded={openFaq === i}
-          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[14px] font-bold text-[#0b1d37] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-          {faq.question}<ChevronDown size={18} className={`shrink-0 text-[var(--art-primary)] transition-transform ${openFaq === i ? "rotate-180" : ""}`}/>
-        </button>
-        {openFaq === i && <p className="border-t border-[#edf1f7] px-5 py-4 text-[13px] leading-[1.8] text-[#53637a]">{faq.answer}</p>}
-      </div>)}</div>
-    </div></section>}
-
-    <section className="bg-[var(--art-primary)] text-white"><div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center lg:px-8">
-      <div><h2 className="text-[23px] font-extrabold tracking-[-.03em]">Precisa deste serviço?</h2>
-        <p className="mt-1 text-[13px] text-white/85">Nossa equipe pode orientar você sobre o atendimento.</p></div>
-      <PublicButton onClick={() => setPage("orcamento")} className="gap-2 !bg-white !text-[var(--art-primary)] hover:!bg-blue-50"><FileText size={17}/> Solicitar orçamento <ArrowRight size={16}/></PublicButton>
-    </div></section>
-  </div>;
+  <Dialog open={Boolean(modal)} onOpenChange={open=>{if(!open)setModal(null);}}><DialogContent className="artvideo-dialog max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-7 text-[#172b45] sm:max-w-xl sm:p-9"><DialogHeader><DialogTitle className="pr-6 text-2xl font-semibold">{modal?.title}</DialogTitle><DialogDescription className="sr-only">Orientações para o atendimento</DialogDescription></DialogHeader><p className="whitespace-pre-line text-[15px] leading-8 text-slate-600">{modal?.content}</p></DialogContent></Dialog>
+  <Dialog open={optionOpen} onOpenChange={setOptionOpen}><DialogContent className="artvideo-dialog max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-7 text-[#172b45] sm:max-w-lg"><DialogHeader><DialogTitle className="text-2xl font-semibold">Selecione a opção</DialogTitle><DialogDescription>Escolha o atendimento que você precisa.</DialogDescription></DialogHeader><fieldset className="space-y-3"><legend className="sr-only">Opções do serviço</legend>{variants.map((v:any)=><label key={v.id} className={`art-choice ${variant===v.id?'is-selected':''}`}><input type="radio" name="service-option" checked={variant===v.id} onChange={()=>setVariant(v.id)}/><span>{v.title}</span>{service.price_mode!=='HIDDEN'&&v.price!=null&&<strong className="ml-auto shrink-0 text-sm">{formatCurrency(v.price)}</strong>}</label>)}</fieldset><PublicButton disabled={!variant} onClick={()=>start(variant)} className="mt-3 w-full">Continuar <ArrowRight size={17}/></PublicButton></DialogContent></Dialog>
+ </div>;
 }

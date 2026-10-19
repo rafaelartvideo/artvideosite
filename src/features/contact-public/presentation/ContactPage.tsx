@@ -27,13 +27,13 @@ export function ContactPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-[#0d1b2e] py-14 sm:py-20">
+      <section className="bg-white border-b border-slate-100 py-14 sm:py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <SectionLabel light>Contato</SectionLabel>
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+          <SectionLabel>Contato</SectionLabel>
+          <h1 className="text-4xl sm:text-5xl font-semibold text-[#172b45] mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
             Fale com a {getSettingText(settings.company_name) || "Eletrônica Artvideo"}
           </h1>
-          <p className="text-white/70 text-lg">Precisa de informações sobre produtos, serviços ou assistência técnica? Entre em contato com nossa equipe.</p>
+          <p className="text-slate-600 text-lg">Precisa de informações sobre produtos, serviços ou assistência técnica? Entre em contato com nossa equipe.</p>
         </div>
       </section>
 
@@ -44,7 +44,7 @@ export function ContactPage() {
           <div className="flex flex-col gap-5">
             {/* WhatsApp highlight */}
             <div className="bg-[#25d366] rounded-2xl p-6 text-white">
-              <p className="font-black text-lg mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Prefere falar diretamente com nossa equipe?</p>
+              <p className="font-semibold text-lg mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Prefere falar diretamente com nossa equipe?</p>
               <p className="text-white/85 text-sm mb-4">Atendimento rápido pelo WhatsApp.</p>
               {whatsappNumber && <a href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Olá! Gostaria de saber mais sobre os serviços da Artvideo.")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white text-[#25d366] font-bold rounded-lg px-5 py-3 text-sm hover:bg-[#f0fff4] transition-colors"><MessageCircle size={16} /> Falar pelo WhatsApp</a>}
             </div>
@@ -71,7 +71,7 @@ export function ContactPage() {
 
           {/* Form */}
           <div className="bg-white rounded-2xl border border-[#0d1b2e]/10 shadow-sm p-6 sm:p-8">
-            <h2 className="text-2xl font-black text-[#0d1b2e] mb-6" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Envie uma mensagem</h2>
+            <h2 className="text-2xl font-semibold text-[#0d1b2e] mb-6" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Envie uma mensagem</h2>
             {sent ? (
               <div className="flex flex-col items-center gap-3 py-12 text-center">
                 <CheckCircle size={40} className="text-[#0057e7]" />

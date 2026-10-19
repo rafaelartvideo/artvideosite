@@ -10,7 +10,7 @@ import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 
 type ContentType = "service" | "product" | "page";
-type Destination = "short_description" | "description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "price" | "unmapped" | "ignore";
+type Destination = "short_description" | "description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "orientations" | "terms" | "price" | "unmapped" | "ignore";
 type DataBlock = {
   id: string; heading: string; text: string;
   suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; sourceUrl?: string;
@@ -31,12 +31,12 @@ type ImportStats = { created: number; updated: number; skipped: number; failed: 
 const fieldNames: Record<Destination, string> = {
   short_description: "Descrição curta", description: "Descrição completa", inclusions: "Incluso",
   exclusions: "Não incluso", faqs: "Perguntas frequentes", variants: "Variações",
-  sections: "Seções / informações técnicas", price: "Preço base", unmapped: "Definir destino", ignore: "Ignorar",
+  sections: "Seções / informações técnicas", orientations: "Orientações (cards e modais)", terms: "Condições do serviço", price: "Preço base", unmapped: "Definir destino", ignore: "Ignorar",
 };
 const cleanName = (name: string) => name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]/g, "");
 const input = "w-full min-w-0 rounded-xl border border-border bg-background px-3 py-2.5 text-sm text-foreground outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10";
 const productDestinations: Destination[] = ["unmapped", "short_description", "description", "price", "ignore"];
-const serviceDestinations: Destination[] = ["unmapped", "short_description", "description", "inclusions", "exclusions", "faqs", "variants", "sections", "price", "ignore"];
+const serviceDestinations: Destination[] = ["unmapped", "short_description", "description", "inclusions", "exclusions", "faqs", "variants", "sections", "orientations", "terms", "price", "ignore"];
 const supported = (type: ContentType, target: Destination) => type === "product" && !productDestinations.includes(target) ? "unmapped" : target;
 const isService = (type: ContentType) => type !== "product";
 function numberFrom(text: string): number | null {
@@ -63,7 +63,9 @@ function payloadFor(item: ReviewItem) {
   const exclusions = chooseBlocks(item, "exclusions").map(b => b.text);
   const priceBlock = chooseBlocks(item, "price")[0];
   const price = priceBlock ? numberFrom(priceBlock.text) : null;
-  return { description, short, sections, faqs, variants, inclusions, exclusions, price };
+  const orientations = chooseBlocks(item, "orientations").map(b => ({title:b.heading || "Orientações",content:b.text}));
+  const terms = chooseBlocks(item, "terms").map(b => b.text).join("\n\n");
+  return { description, short, sections, faqs, variants, inclusions, exclusions, price, orientations, terms };
 }
 function currentMatch(existing: any, block: ReviewBlock): string {
   if (!existing || block.target === "ignore" || block.target === "unmapped") return "";
@@ -237,13 +239,19 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
     } else {
       if (previous) {
         const { data: actual, error: fetchError } = await supabase.from("services")
-          .select("id,short_description,description,base_price,price_mode,category_id,cover_media_id,is_active,show_in_catalog,service_inclusions(description),service_exclusions(description),service_variants(title,description,price),service_sections(title,content),service_faqs(question,answer)")
+          .select("id,public_booking,short_description,description,base_price,price_mode,category_id,cover_media_id,is_active,show_in_catalog,service_inclusions(description),service_exclusions(description),service_variants(title,description,price),service_sections(title,content),service_faqs(question,answer)")
           .eq("organization_id", organizationId).eq("id", previous.id).single();
         if (fetchError) throw fetchError;
         if (actual.is_active && actual.show_in_catalog) throw Error("Este item já está publicado. Oculte-o do site antes de complementar para não publicar alterações sem revisão.");
         const changes: Record<string, unknown> = {};
         if (!actual.short_description && result.short) changes.short_description = result.short;
         if (!actual.description && result.description) changes.description = result.description;
+        if (result.orientations.length || result.terms) {
+          const config = actual.public_booking || {};
+          const current = Array.isArray(config.orientations) ? config.orientations : [];
+          const incoming = result.orientations.filter(o => !current.some((r:any) => cleanName(r.title + r.content) === cleanName(o.title + o.content)));
+          changes.public_booking = {...config, orientations:[...current,...incoming], terms:config.terms || result.terms};
+        }
         if (actual.base_price == null && result.price !== null) Object.assign(changes, { base_price: result.price, price_mode: "FIXED" });
         if (!actual.category_id && categoryId) changes.category_id = categoryId;
         if (!actual.cover_media_id && item.mediaId) changes.cover_media_id = item.mediaId;
@@ -289,6 +297,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           userId: user?.id || null,
           payload: {
             title, slug, category_id: categoryId, short_description: result.short || null,
+            public_booking: {...(result.orientations.length ? {orientations:result.orientations} : {}), ...(result.terms ? {terms:result.terms} : {})},
             description: result.description || null, base_price: result.price, price_mode: result.price !== null ? "FIXED" : "QUOTE",
             is_active: false, show_in_catalog: false, is_featured: false, sort_order: 0, cover_media_id: item.mediaId || null,
           },
