@@ -1,5 +1,5 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { PublicBreadcrumb } from "./PublicPageHeader";
 import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, ShoppingCart, X, Youtube } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
@@ -65,7 +65,10 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const [menuOpen, setMenuOpen] = useState(false);
   const { settings } = useSiteSettings();
   const { count: cartCount } = useStoreCart();
-  const isCurrent = (destination: PublicPage) => destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja");
+  const { pathname } = useLocation();
+  const isLegalPage = ["/politica-de-privacidade", "/exclusao-de-dados", "/descadastramento"].includes(pathname.replace(/\\/+$/, "") || "/");
+  const isCurrent = (destination: PublicPage) => !isLegalPage &&
+    (destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja"));
   const instagramUrl = validExternalUrl(settings.instagram, "https://instagram.com/") || "https://www.instagram.com/eletronica_artvideo/";
   const address = getSettingText(settings.address) ||
     [settings.street, settings.number, settings.complement, settings.neighborhood, settings.city, settings.state].map(getSettingText).filter(Boolean).join(", ");
@@ -203,7 +206,11 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
     <div className="border-t border-white/10 py-4">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 text-[11px] text-white/50 sm:px-6 lg:px-8">
         <span>© {new Date().getFullYear()} Eletrônica Artvideo. Todos os direitos reservados.</span>
-        {validExternalUrl(settings.privacy_url) && <a href={validExternalUrl(settings.privacy_url)} target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-white">Política de privacidade</a>}
+        <nav aria-label="Informações legais" className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Link to="/politica-de-privacidade" className="transition-colors hover:text-white">Política de Privacidade</Link>
+          <Link to="/exclusao-de-dados" className="transition-colors hover:text-white">Exclusão de Dados</Link>
+          <Link to="/descadastramento" className="transition-colors hover:text-white">Descadastramento</Link>
+        </nav>
       </div>
     </div>
   </footer>;
@@ -217,6 +224,9 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     "/loja": "Loja", "/servicos": "Serviços", "/assistencia": "Assistência técnica",
     "/sobre": "Sobre nós", "/contato": "Contato", "/orcamento": "Solicitar orçamento",
     "/carrinho": "Meu carrinho", "/acompanhar-pedido": "Acompanhar pedido",
+    "/politica-de-privacidade": "Política de Privacidade",
+    "/exclusao-de-dados": "Exclusão de Dados",
+    "/descadastramento": "Descadastramento",
   };
   const routePath = pathname.replace(/\/+$/, "") || "/";
   const isCheckout = routePath.startsWith("/checkout/");
