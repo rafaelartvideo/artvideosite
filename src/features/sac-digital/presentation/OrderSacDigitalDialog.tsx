@@ -41,7 +41,7 @@ function presetMessage(
   key: SacDigitalOrderMessagePresetKey,
   order: any,
 ) {
-  const preset = presets.find(item => item.preset_key === key)
+  const preset = presets.find(item => item.preset_key === key && item.scope !== "quote")
     || DEFAULT_SAC_ORDER_MESSAGE_PRESETS.find(item => item.preset_key === key)
     || DEFAULT_SAC_ORDER_MESSAGE_PRESETS[0];
   return renderOrderMessage(preset.message_template, order);
@@ -93,8 +93,8 @@ export function OrderSacDigitalDialog({
       void listSacDigitalOrderMessagePresets(order.organization_id)
         .then(presets => {
           if (cancelled) return;
-          const active = presets.filter(item => item.is_active);
-          const next = active.length ? presets : DEFAULT_SAC_ORDER_MESSAGE_PRESETS;
+          const active = presets.filter(item => item.is_active && item.scope !== "quote");
+          const next = active.length ? active : DEFAULT_SAC_ORDER_MESSAGE_PRESETS.filter(item=>item.scope==="order");
           const first = next.find(item => item.is_active) || next[0];
           setMessagePresets(next);
           if (first) {
@@ -262,7 +262,7 @@ export function OrderSacDigitalDialog({
               if (preset) setText(renderOrderMessage(preset.message_template, order));
             }}
             options={messagePresets
-              .filter(item => item.is_active)
+              .filter(item => item.is_active && item.scope !== "quote")
               .map(item => ({ value: item.preset_key, label: item.label }))} /></div>
           <FTextarea label="Mensagem" aria-label="Mensagem" rows={6} maxLength={5000} value={text} disabled={sending} onChange={(event: any) => setText(event.target.value)} placeholder="Digite a mensagem para o cliente" />
           <div className="mt-1 flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
