@@ -59,13 +59,16 @@ export function importPhoneCandidates(value) {
   return [...new Set(values)];
 }
 export function mayTryImportVariant(body,httpStatus) {
-  // Algumas instalações SAC devolvem erros de negócio com HTTP 200 e
-  // status:false. Tentar o formato alternativo do 9º dígito nesse caso,
-  // mas nunca repetir uma resposta de resultado desconhecido ou HTTP 5xx.
-  const explicitlyRejected = httpStatus >= 400 || body?.status === false || body?.success === false;
-  return httpStatus>=200 && httpStatus<500 && explicitlyRejected
-    && ['error_valid_wpp','invalid_number','invalid_wpp','contact_validation_failed'].includes(String(body?.type || ''))
-    && body?.outcome !== 'unknown';
+  // Some SAC installations return error_valid_wpp as HTTP 500, although it
+  // is a specific business rejection of the input phone variant.
+  // Only that exact definitive error authorizes trying the other phone
+  // representation. Never retry generic server errors, timeouts, or unknown outcomes.
+  const type=String(body?.type || '').toLowerCase();
+  if(body?.outcome === 'unknown' || body?.status === true || body?.success === true) return false;
+  if(httpStatus>=500) return httpStatus<600 && type==='error_valid_wpp';
+  const explicitlyRejected=httpStatus>=400 || body?.status===false || body?.success===false;
+  return httpStatus>=200 && explicitlyRejected
+    && ['error_valid_wpp','invalid_number','invalid_wpp','contact_validation_failed'].includes(type);
 }
 export function routeProtocolOperation(endpointId, input, info) {
   const values={...input};
