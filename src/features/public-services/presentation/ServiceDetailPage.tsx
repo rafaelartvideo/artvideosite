@@ -1,3 +1,4 @@
+import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPageHeader";
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -38,7 +39,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
  const available=['available','consult'].includes(coverage);
  const orientations=c.orientations.filter((o:any)=>o.title&&o.content);
  return <div className="art-service bg-white">
-  <nav aria-label="Trilha de navegação" className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-5 py-5 text-xs text-slate-500 sm:px-8"><button onClick={()=>setPage('home')} className="shrink-0 hover:text-[var(--art-primary)]">Início</button><ChevronRight size={13}/><button onClick={()=>setPage('servicos')} className="shrink-0 hover:text-[var(--art-primary)]">Serviços</button><ChevronRight size={13}/><span className="truncate font-medium text-slate-800">{service.title}</span></nav>
+  <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Serviços", onClick: () => setPage("servicos") }, { label: service.title }]}/>
   <section className="mx-auto grid max-w-7xl items-center gap-7 px-5 pb-12 sm:px-8 lg:grid-cols-[.85fr_1.8fr] lg:gap-12">
    <div className="py-5 lg:py-10"><h1 className="text-[34px] font-semibold leading-[1.15] tracking-[-.035em] sm:text-[42px]">{service.title}</h1>{service.short_description&&<p className="mt-6 text-lg leading-[1.55] text-[#394553]">{service.short_description}</p>}</div>
    <div className="aspect-[16/9] overflow-hidden bg-[#f3f5f7]">{imageUrl?<img src={imageUrl} alt={service.title} fetchPriority="high" className="h-full w-full object-cover"/>:<div className="flex h-full items-center justify-center bg-[#eef3f8]"><Icon size={95} strokeWidth={1} className="text-[#8babc5]"/></div>}</div>

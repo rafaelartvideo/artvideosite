@@ -1,3 +1,4 @@
+import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
 import { ChevronRight, Cpu, Monitor, Package, Tv, Zap, Wrench } from "lucide-react";
 import { useBrands } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -29,27 +30,15 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
   return (
     <>
       {/* Hero */}
-      <section className="bg-[#0d1b2e] py-12 sm:py-16 overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10 items-center">
-          <div>
-            <SectionLabel light>Assistência Técnica Artvideo</SectionLabel>
-            <h1 className="text-4xl sm:text-5xl font-black text-white leading-tight mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-              Seu equipamento precisa de atenção?
-            </h1>
-            <p className="text-white/70 text-base leading-relaxed mb-8">Conte com nossa equipe para diagnóstico, manutenção e reparo de equipamentos eletrônicos.</p>
-            <div className="flex flex-wrap gap-3">
-              <Btn variant="primary" className="px-6 py-3 text-base" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn>
-              <WhatsAppAction className="px-6 py-3 text-base" />
-            </div>
+      <PublicPageHeader title="Seu equipamento precisa de atenção?" description="Conte com nossa equipe para diagnóstico, manutenção e reparo de equipamentos eletrônicos.">
+        <div className="grid items-center gap-8 lg:grid-cols-2">
+          <div className="flex flex-wrap gap-3">
+            <Btn variant="primary" onClick={() => setPage("orcamento")}>Solicitar orçamento</Btn>
+            <WhatsAppAction/>
           </div>
-          <div className="relative">
-            <div className="absolute -inset-4 bg-[#0057e7]/20 rounded-2xl blur-2xl" />
-            <div className="relative rounded-xl overflow-hidden border border-white/10">
-              {assistancePhoto ? <img src={assistancePhoto} alt="Assistência técnica Artvideo" className="w-full h-64 sm:h-80 object-cover" /> : <div className="flex h-64 items-center justify-center bg-gradient-to-br from-[#0d1b2e] via-[#183d69] to-[#0057e7] text-white sm:h-80"><Wrench size={58} strokeWidth={1.3}/></div>}
-            </div>
-          </div>
+          {assistancePhoto && <img src={assistancePhoto} alt="Assistência técnica Artvideo" className="h-52 w-full rounded-xl border border-white/15 object-cover sm:h-64"/>}
         </div>
-      </section>
+      </PublicPageHeader>
 
       {/* O que atendemos */}
       <section className="py-14 bg-[#f5f7fa]">

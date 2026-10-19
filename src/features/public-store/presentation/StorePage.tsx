@@ -1,8 +1,9 @@
+import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight, BadgePercent, ChevronDown, ChevronLeft, ChevronRight,
-  Grid3X3, Package, Search, ShoppingBag, SlidersHorizontal,
+  ArrowRight, BadgePercent, ChevronDown, ChevronLeft,
+  Grid3X3, Package, Search, SlidersHorizontal,
   Tag, X,
 } from "lucide-react";
 import { useBrands, useProductCategories, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
@@ -148,23 +149,15 @@ export function StorePage({ setPage, onSelectProduct }: {
   </div>;
 
   return <div className="bg-[#f7faff] text-[#132947]">
-    <section className="relative isolate overflow-hidden bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white">
-      <div className="pointer-events-none absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"/>
-      <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-blue-200">
-          <ShoppingBag size={17}/> Eletrônica Artvideo <ChevronRight size={13}/> Loja
-        </div>
-        <h1 className="mt-3 text-[30px] font-extrabold tracking-[-.04em] sm:text-[42px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>Nossa loja</h1>
-        <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/75">Encontre produtos, compare preços e escolha como receber seu pedido.</p>
-        <label className="relative mt-6 block max-w-3xl">
+    <PublicPageHeader title="Nossa loja" description="Encontre produtos, compare preços e escolha como receber seu pedido.">
+        <label className="relative block">
           <span className="sr-only">Pesquisar produtos</span>
           <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#7991ae]"/>
           <input type="search" value={search} onChange={e=>{setSearch(e.target.value);resetPage();}}
             placeholder="O que você está procurando? Produto, modelo ou marca"
-            className="h-12 w-full rounded-lg bg-white py-3 pl-12 pr-5 text-[13px] text-[#10243d] shadow-lg outline-none focus:ring-2 focus:ring-blue-400"/>
+            className="min-h-[60px] w-full sm:min-h-[70px] rounded-lg bg-white py-3 pl-12 pr-5 text-[15px] text-[#10243d] shadow-lg outline-none focus:ring-2 focus:ring-blue-400"/>
         </label>
-      </div>
-    </section>
+    </PublicPageHeader>
     <div className="border-b border-[#e1eafa] bg-white">
       <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8">
         <button type="button" onClick={()=>setCategoryFilter("all")}

@@ -1,4 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { useLocation, useNavigate } from "react-router";
+import { PublicBreadcrumb } from "./PublicPageHeader";
 import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, ShoppingCart, X, Youtube } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
@@ -172,6 +174,22 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
 
 export function PublicShell({ page, setPage, children }: { page: PublicPage; setPage: (page: PublicPage) => void; children: ReactNode }) {
   const { settings } = useSiteSettings();
+  const { pathname } = useLocation();
+  const navigate = useNavigate();
+  const routeLabels: Record<string, string> = {
+    "/loja": "Loja", "/servicos": "Serviços", "/assistencia": "Assistência técnica",
+    "/sobre": "Sobre nós", "/contato": "Contato", "/orcamento": "Solicitar orçamento",
+    "/carrinho": "Meu carrinho", "/acompanhar-pedido": "Acompanhar pedido",
+  };
+  const routePath = pathname.replace(/\/+$/, "") || "/";
+  const isCheckout = routePath.startsWith("/checkout/");
+  const routeLabel = routeLabels[routePath] || (isCheckout ? "Finalizar compra" : "");
+  const breadcrumbItems = [
+    { label: "Início", onClick: () => setPage("home") },
+    ...((isCheckout || routePath === "/carrinho" || routePath === "/acompanhar-pedido") ? [{ label: "Loja", onClick: () => setPage("loja") }] : []),
+    ...(isCheckout ? [{ label: "Meu carrinho", onClick: () => navigate("/carrinho") }] : []),
+    { label: routeLabel },
+  ];
   const themeStyle = {
     "--art-primary": themeColor(settings.primary_color, "#0866f5"),
     "--art-dark": themeColor(settings.secondary_color, "#0b1d37"),
@@ -179,7 +197,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
   } as CSSProperties;
   return <div className="artvideo-public min-h-screen bg-white text-[#10213d]" style={themeStyle}>
     <PublicHeader page={page} setPage={setPage}/>
-    <main>{children}</main>
+    <main>{routeLabel && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
     <PublicFooter setPage={setPage}/>
     <WhatsAppFloat/>
   </div>;

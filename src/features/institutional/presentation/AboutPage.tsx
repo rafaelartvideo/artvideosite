@@ -1,3 +1,4 @@
+import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
 import { CheckCircle, Layers, Monitor, Plug, Settings, Shield, ShoppingCart, Star, Users, Wrench, Zap } from "lucide-react";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 import { WhatsAppAction } from "@/features/public-shell/presentation/PublicShell";
@@ -28,17 +29,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
   return (
     <>
       {/* Hero */}
-      <section className="bg-[#0d1b2e] py-14 sm:py-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <SectionLabel light>Eletrônica Artvideo</SectionLabel>
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            Tecnologia, experiência e atendimento próximo.
-          </h1>
-          <p className="text-white/70 text-lg leading-relaxed">
-            A Eletrônica Artvideo atua com produtos, serviços, instalações, manutenção e assistência técnica, oferecendo soluções para equipamentos eletrônicos em Aracaju e região.
-          </p>
-        </div>
-      </section>
+      <PublicPageHeader title="Tecnologia, experiência e atendimento próximo." description="A Eletrônica Artvideo atua com produtos, serviços, instalações, manutenção e assistência técnica, oferecendo soluções para equipamentos eletrônicos em Aracaju e região."/>
 
       {/* Quem somos */}
       <section className="py-14 bg-white">

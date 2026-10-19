@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, ChevronRight, LayoutGrid, Search, X } from "lucide-react";
+import { ArrowRight, LayoutGrid, Search, X } from "lucide-react";
 import { useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
+import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
 import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 
 const normalize = (value: unknown) =>
@@ -33,16 +34,7 @@ export function ServicesPage({ setPage, onSelectService }: {
   ];
 
   return <div className="art-services-catalog bg-white text-[#172b45]">
-    <div className="mx-auto max-w-[1344px] px-5 pb-16 pt-6 sm:px-8 lg:px-10">
-      <nav aria-label="Navegação estrutural" className="mb-8 flex items-center gap-2 text-xs text-[#697684]">
-        <button type="button" onClick={() => setPage("home")} className="transition-colors hover:text-[var(--art-primary)]">Início</button>
-        <ChevronRight size={13}/><span aria-current="page">Serviços</span>
-      </nav>
-      <div className="mb-8 sm:mb-10">
-        <h1 className="text-[30px] font-semibold leading-tight tracking-[-.035em] sm:text-[40px]">Como podemos ajudar você?</h1>
-        <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#697684]">Encontre o serviço para sua casa ou seus equipamentos e solicite um orçamento à Artvideo.</p>
-      </div>
-
+    <PublicPageHeader title="Como podemos ajudar você?" description="Encontre o serviço para sua casa ou seus equipamentos e solicite um orçamento à Artvideo.">
       <label className="relative block">
         <span className="sr-only">Encontre o serviço que precisa</span>
         <input value={search} onChange={event => setSearch(event.target.value)} type="search"
@@ -50,6 +42,8 @@ export function ServicesPage({ setPage, onSelectService }: {
           className="art-catalog-search min-h-[60px] w-full rounded-lg border border-[#8c98a5] bg-white py-4 pl-5 pr-14 text-[15px] text-[#172b45] outline-none transition-shadow placeholder:text-[#697684] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-100 sm:min-h-[70px] sm:pl-6 sm:text-base"/>
         <Search size={24} strokeWidth={1.5} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[var(--art-primary)]"/>
       </label>
+    </PublicPageHeader>
+    <div className="mx-auto max-w-[1344px] px-5 pb-16 sm:px-8 lg:px-10">
 
       <nav aria-label="Categorias de serviços" className="-mx-5 mt-8 flex gap-2 overflow-x-auto px-5 pb-5 sm:-mx-0 sm:mt-10 sm:gap-4 sm:px-0">
         {categoryOptions.map(({ id, name, Icon }) => <button type="button" key={id}

@@ -1,9 +1,10 @@
+import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPageHeader";
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { addStoreCartItem } from "../application/store-cart";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, Clock3,
+  AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, Clock3,
   Image as ImageIcon, LockKeyhole, MessageCircle, Minus,
   Package, Plus, ShieldCheck, ShoppingCart, Star, Truck, X,
 } from "lucide-react";
@@ -123,13 +124,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         "O pagamento não foi concluído. Nenhum pedido é considerado pago sem confirmação do gateway." :
         "Retorno do pagamento recebido. A Artvideo confirmará seu pedido apenas após a verificação pelo provedor."}
     </div>}
-    <nav aria-label="Navegação de produtos" className="border-b border-[#e8edf4]">
-      <div className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-4 py-3 text-[12px] text-[#68768c] sm:px-6 lg:px-8">
-        <button onClick={() => setPage("home")} className="shrink-0 hover:text-[var(--art-primary)]">Início</button><ChevronRight size={14}/>
-        <button onClick={() => setPage("loja")} className="shrink-0 hover:text-[var(--art-primary)]">Loja</button><ChevronRight size={14}/>
-        <span className="truncate font-semibold text-[#173252]">{name}</span>
-      </div>
-    </nav>
+    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Loja", onClick: () => setPage("loja") }, { label: name }]}/>
     <section className="bg-[#f8fbff] py-7 sm:py-10">
       <div className="mx-auto grid max-w-7xl items-start gap-7 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(250px,.72fr)] lg:gap-6 lg:px-8">
         {/* Miniaturas verticais e imagem principal */}

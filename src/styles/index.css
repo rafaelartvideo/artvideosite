@@ -933,3 +933,12 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 @media(prefers-reduced-motion:reduce) {
   .art-services-catalog * { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
 }
+
+/* Public website typography and page introductions share one visual system. */
+.artvideo-public, .artvideo-dialog { font-family:'Inter',ui-sans-serif,system-ui,sans-serif; }
+:is(.artvideo-public,.artvideo-dialog) :is(h1,h2,h3,h4,h5,h6,button,input,select,textarea,strong,[style*="font-family"]) {
+  font-family:'Inter',ui-sans-serif,system-ui,sans-serif!important;
+}
+:is(.artvideo-public,.artvideo-dialog) :is(h1,h2,h3,h4,h5,h6,.font-extrabold,.font-black,.font-bold) { font-weight:600; }
+.art-public-page-header :is(input,select,textarea) { color:#172b45; }
+.art-public-page-header h1 { letter-spacing:-.035em; }

@@ -1,3 +1,4 @@
+import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
 import { useState } from "react";
 import { CheckCircle, Clock, Instagram, Mail, MapPin, MessageCircle, Phone } from "lucide-react";
 import { formatPhone, formatPhoneInput } from "@/shared/domain/formatters";
@@ -27,15 +28,7 @@ export function ContactPage() {
   return (
     <>
       {/* Hero */}
-      <section className="bg-[#0d1b2e] py-14 sm:py-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <SectionLabel light>Contato</SectionLabel>
-          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
-            Fale com a {getSettingText(settings.company_name) || "Eletrônica Artvideo"}
-          </h1>
-          <p className="text-white/70 text-lg">Precisa de informações sobre produtos, serviços ou assistência técnica? Entre em contato com nossa equipe.</p>
-        </div>
-      </section>
+      <PublicPageHeader title={`Fale com a ${getSettingText(settings.company_name) || "Eletrônica Artvideo"}`} description="Precisa de informações sobre produtos, serviços ou assistência técnica? Entre em contato com nossa equipe."/>
 
       <section className="py-14 bg-[#f5f7fa]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10">
