@@ -110,17 +110,19 @@ const normalize = (raw: string) => raw.normalize("NFD").replace(/[\u0300-\u036f]
 const clip = (raw: string, max = 420) => clean(raw).slice(0, max);
 const headingsToDestination = (heading: string): { target: Destination; confidence: ExtractedBlock["confidence"] } => {
   const h = normalize(heading);
-  if (/nao (esta |estao )?(inclus|cobert)|nao (inclui|cobre|cobertos)|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte/.test(h)) return { target: "exclusions", confidence: "high" };
+  if (/nao (esta |estao )?(inclus|cobert)|nao (inclui|cobre|cobertos)|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte|o que pode impedir|limitacoes tecnicas/.test(h)) return { target: "exclusions", confidence: "high" };
   if (/o que (esta )?inclu|inclus|cobert|servicos oferecidos|o que contempla|o que voce recebe|beneficios inclusos/.test(h)) return { target: "inclusions", confidence: "high" };
   if (/faq|perguntas frequentes|duvidas frequentes/.test(h)) return { target: "faqs", confidence: "medium" };
   if (/varia|modalidade|opcoes de plano|tipos de servico/.test(h)) return { target: "variants", confidence: "medium" };
   if (/sobre (o |este )?servico|descricao do servico|apresentacao/.test(h)) return { target: "description", confidence: "medium" };
+  if (/orientac|informac|especificac|requisit|como funciona|passo a passo|tempo de execuc|garantia|antes de receber|condic|atendimento|equipamento|aparelho|como e feito/.test(h))
+    return { target: "sections", confidence: "medium" };
   return { target: "unmapped", confidence: "low" };
 };
 function discoverDetails(html: string, nodes: Record<string, any>[], summary: string, price: number | null): ExtractedBlock[] {
   const blocks: ExtractedBlock[] = [], keys = new Set<string>();
   function add(heading: string, text: string, suggestedTarget: Destination, confidence: ExtractedBlock["confidence"], origin: ExtractedBlock["origin"]) {
-    const h = clip(heading, 130), t = clip(text, 480);
+    const h = clip(heading, 130), t = clip(text, 1500);
     if (!t || t.length < 3 || blocks.length >= 90) return;
     const key = normalize(h + " " + t).replace(/[^a-z0-9]/g, "").slice(0, 300);
     if (keys.has(key)) return;
@@ -154,7 +156,7 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     const answer = clip((m[2] || "").split(/<button\b|<h[2-4]\b/i)[0], 400);
     if (answer && answer !== question) add(question, answer, "faqs", "low", "html");
   }
-  const headingMatches = [...content.matchAll(/<h([2-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].slice(0, 45);
+  const headingMatches = [...content.matchAll(/<h([2-5])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].slice(0, 65);
   for (let i = 0; i < headingMatches.length; i++) {
     const m = headingMatches[i];
     const heading = clip(m[2], 130);
@@ -166,7 +168,7 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
       .map(v => clip(v[1], 220)).filter(v => v.length > 3 && v.length < 220).slice(0, 18);
     const paras = [...section.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
       .map(v => clip(v[1], 360)).filter(v => v.length > 12).slice(0, 6);
-    const full = [...new Set([...paras, ...list])].join("\n").slice(0, 600);
+    const full = [...new Set([...paras, ...list])].join("\n").slice(0, 1500);
     if (heading.endsWith("?") && full) {
       add(heading, full, "faqs", "medium", "html");
       continue;
@@ -174,13 +176,18 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     if (choice.target === "inclusions" || choice.target === "exclusions" || choice.target === "variants") {
       if (list.length) list.forEach(v => add(heading, v, choice.target, choice.confidence, "html"));
       else if (paras.length) paras.forEach(v => add(heading, v, choice.target, "medium", "html"));
+      else {
+        const fallback = clip(section, 1100);
+        if (fallback.length > 20) add(heading, fallback, choice.target, "low", "html");
+      }
     } else if (choice.target === "faqs") {
       for (let j = 0; j < Math.min(10, paras.length - 1); j += 2) add(paras[j], paras[j + 1], "faqs", "low", "html");
+      if (!paras.length && list.length) add(heading, list.join("\n"), "sections", "low", "html");
     } else if (full) {
       add(heading, full, choice.target, choice.confidence, "html");
     } else {
       // Div/span-heavy pages may have no semantic paragraph or list tags.
-      const rawText = clip(section, 480);
+      const rawText = clip(section, 1150);
       if (rawText.length >= 24) add(heading, rawText, choice.target, "low", "html");
     }
   }
@@ -344,6 +351,8 @@ Deno.serve(async req => {
     const output = items.filter(item => types.has(item.type) && !mergedPages.has(item.sourceUrl));
     if (queue.length) warnings.push("A leitura foi limitada por tempo ou quantidade de páginas. Escolha uma seção específica ou aumente o limite para descobrir mais.");
     if (!output.length && visited) warnings.push("Este site pode exigir JavaScript ou não ter páginas de catálogo identificáveis.");
+    const thin = output.filter(item => item.blocks.filter(b => b.suggestedTarget !== "short_description" && b.suggestedTarget !== "unmapped").length === 0);
+    if (thin.length) warnings.push(thin.length + " página(s) têm poucas informações detalhadas identificadas. Confira o mapeamento antes de importar; alguns sites carregam conteúdo via JavaScript.");
     return respond({ items: output.slice(0, 100), pagesVisited: visited, blocked: blockedCount, warnings });
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : "Erro desconhecido.";
