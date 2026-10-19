@@ -148,14 +148,14 @@ export function StorePage({ setPage, onSelectProduct }: {
   </div>;
 
   return <div className="bg-[#f7faff] text-[#132947]">
-    <section className="relative isolate overflow-hidden border-b border-slate-100 bg-white text-[#172b45]">
+    <section className="relative isolate overflow-hidden bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white">
       <div className="pointer-events-none absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"/>
       <div className="mx-auto max-w-7xl px-4 py-9 sm:px-6 lg:px-8">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-[var(--art-primary)]">
+        <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-blue-200">
           <ShoppingBag size={17}/> Eletrônica Artvideo <ChevronRight size={13}/> Loja
         </div>
-        <h1 className="mt-3 text-[30px] font-semibold tracking-[-.04em] sm:text-[42px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>Nossa loja</h1>
-        <p className="mt-2 max-w-xl text-[13px] leading-6 text-slate-600">Encontre produtos, compare preços e escolha como receber seu pedido.</p>
+        <h1 className="mt-3 text-[30px] font-extrabold tracking-[-.04em] sm:text-[42px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>Nossa loja</h1>
+        <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/75">Encontre produtos, compare preços e escolha como receber seu pedido.</p>
         <label className="relative mt-6 block max-w-3xl">
           <span className="sr-only">Pesquisar produtos</span>
           <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#7991ae]"/>

@@ -59,18 +59,31 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
   ];
 
   return <div className="bg-white">
-    <section className="mx-auto grid max-w-7xl items-center gap-8 px-5 py-10 sm:px-8 sm:py-14 lg:grid-cols-[1fr_1.2fr] lg:gap-14 lg:py-16">
-      <div className="py-3">
-        <p className="mb-5 text-sm font-medium text-[var(--art-primary)]">Eletrônica Artvideo</p>
-        <h1 className="max-w-xl text-[36px] font-semibold leading-[1.16] tracking-[-.04em] sm:text-[46px]">{heroTitle} <span className="text-[var(--art-primary)]">{highlight}</span></h1>
-        <p className="mt-6 max-w-lg text-base leading-7 text-[#576574]">{t("hero_subtitle", "Produtos, assistência técnica, instalações e manutenção para sua casa ou seu negócio.")}</p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <PublicButton onClick={() => setPage("servicos")} className="!min-h-12">Encontrar um serviço <ArrowRight size={17}/></PublicButton>
-          <PublicButton onClick={() => setPage("loja")} variant="outline" className="!min-h-12">Conhecer a loja</PublicButton>
+    {/* Hero com imagem editável e máscara azul permanente. */}
+    <section className="relative isolate overflow-hidden bg-[#08182f] text-white">
+      {heroImage ? <div className="absolute inset-y-0 right-0 -z-20 h-full w-full lg:w-[64%]">
+        <img src={heroImage} alt={t("hero_image_alt", "Eletrônica Artvideo")} fetchPriority="high" className="h-full w-full object-cover object-center" />
+      </div> : <div aria-hidden="true" className="absolute inset-y-0 right-0 -z-20 hidden w-[60%] items-center justify-center bg-gradient-to-br from-[#0d294c] via-[#153961] to-[#0c2342] lg:flex">
+        <Store size={126} strokeWidth={.85} className="text-white/15"/>
+        <div className="absolute -right-12 bottom-0 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
+      </div>}
+      <div className="pointer-events-none absolute inset-0 -z-10 bg-gradient-to-r from-[#08182f] via-[#0b1c35]/98 to-[#0b1c35]/50 lg:bg-[linear-gradient(90deg,#08182f_0%,#0b1c35_25%,rgba(11,28,53,.98)_39%,rgba(11,28,53,.75)_53%,rgba(11,28,53,.12)_79%,rgba(11,28,53,.03)_100%)]"/>
+      <div className="mx-auto flex min-h-[390px] max-w-7xl items-center px-4 py-12 sm:px-6 lg:min-h-[428px] lg:px-8 lg:py-14">
+        <div className="max-w-[655px]">
+          <h1 className="max-w-[650px] text-[36px] font-extrabold leading-[1.15] tracking-[-.044em] sm:text-[44px] lg:text-[50px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>
+            {heroTitle} <span className="text-[#1680ff]">{highlight}</span>
+          </h1>
+          <p className="mt-4 max-w-[560px] text-[14px] leading-[1.6] text-white/85 sm:text-[15px]">{t("hero_subtitle", "Produtos, assistência técnica, instalações e manutenção para sua casa ou seu negócio. Qualidade, confiança e experiência em eletrônica.")}</p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <PublicButton onClick={() => setPage("loja")} className="!min-h-11 gap-2.5 px-6"><ShoppingCart size={18} fill="currentColor" strokeWidth={1.7}/> Comprar na loja <ArrowRight size={16}/></PublicButton>
+            <PublicButton onClick={() => setPage("orcamento")} variant="outline" className="!min-h-11 !border-white/80 !text-white hover:!bg-white/10"><FileText size={18}/> Solicitar orçamento</PublicButton>
+          </div>
+          <div className="mt-7 flex flex-wrap gap-x-5 gap-y-3 text-[11px] font-semibold text-white/85 sm:text-[12px]">
+            <span className="inline-flex items-center gap-2"><ShieldCheck size={17}/> Atendimento especializado</span>
+            <span className="inline-flex items-center gap-2"><Star size={17} fill="currentColor"/> Produtos de qualidade</span>
+            <span className="inline-flex items-center gap-2"><Settings2 size={17}/> Suporte pós-venda</span>
+          </div>
         </div>
-      </div>
-      <div className="aspect-[6/5] overflow-hidden rounded-xl bg-[#eef2f5] sm:aspect-[4/3]">
-        {heroImage ? <img src={heroImage} alt={t("hero_image_alt", "Eletrônica Artvideo")} fetchPriority="high" className="h-full w-full object-cover"/> : <div className="flex h-full items-center justify-center"><Store size={110} strokeWidth={1} className="text-[#9ab1c8]"/></div>}
       </div>
     </section>
 
@@ -82,7 +95,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
             className="group flex min-h-[157px] w-full items-start gap-4 rounded-[7px] border border-[#e8edf4] bg-white px-5 py-6 text-left shadow-[0_3px_15px_rgba(7,33,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(16,53,96,.11)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">
             <Icon size={43} strokeWidth={2.6} className="mt-0.5 shrink-0 text-[var(--art-primary)] transition-transform duration-200 group-hover:scale-110"/>
             <div className="flex min-h-[105px] flex-col items-start">
-              <h2 className="text-[15px] font-semibold tracking-[-.02em] text-[#0c1a32]">{label}</h2>
+              <h2 className="text-[15px] font-extrabold tracking-[-.02em] text-[#0c1a32]">{label}</h2>
               <p className="mt-2 text-[12px] leading-[1.48] text-[#57657b]">{description}</p>
               <span className="mt-auto flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e7f0] bg-white text-[var(--art-primary)] transition-all group-hover:translate-x-1 group-hover:border-blue-300 group-hover:bg-blue-50">
                 <ArrowRight size={15} strokeWidth={2.2}/>
@@ -132,7 +145,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
     <section className="relative overflow-hidden bg-gradient-to-r from-[#081a32] via-[var(--art-dark)] to-[#0c2344] py-7 text-white sm:py-9">
       <div className="mx-auto grid max-w-7xl items-center gap-6 px-4 sm:px-6 lg:grid-cols-[.78fr_1.22fr] lg:gap-10 lg:px-8">
         <div>
-          <h2 className="text-[24px] font-semibold leading-[1.2] tracking-[-.03em] sm:text-[29px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>{t("home_assistance_title", "Seu equipamento apresentou algum problema?")}</h2>
+          <h2 className="text-[24px] font-extrabold leading-[1.2] tracking-[-.03em] sm:text-[29px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>{t("home_assistance_title", "Seu equipamento apresentou algum problema?")}</h2>
           <p className="mt-3 text-[13px] leading-[1.55] text-white/75">{t("home_assistance_subtitle", "Nossa assistência técnica é especializada em diversas marcas e categorias. Agilidade, transparência e qualidade no atendimento.")}</p>
         </div>
         <div className="space-y-3.5">
@@ -172,7 +185,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
           {steps.map(({ defaultTitle, defaultDesc, Icon }, i) => <div key={i} className="relative flex min-w-0 items-start gap-3 pr-2">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--art-primary)] text-[12px] font-bold text-white">{i + 1}</span>
             <Icon size={31} strokeWidth={1.8} className="shrink-0 text-[var(--art-primary)]"/>
-            <div className="min-w-0"><h3 className="text-[12px] font-semibold text-[#0d1d37]">{t(`home_step_${i + 1}_title`, defaultTitle)}</h3>
+            <div className="min-w-0"><h3 className="text-[12px] font-extrabold text-[#0d1d37]">{t(`home_step_${i + 1}_title`, defaultTitle)}</h3>
               <p className="mt-1 text-[11px] leading-[1.45] text-[#66738a]">{t(`home_step_${i + 1}_description`, defaultDesc)}</p></div>
             {i < steps.length - 1 && <ArrowRight aria-hidden="true" size={17} className="absolute -right-3 top-3 hidden text-[#a6b7d2] lg:block"/>}
           </div>)}
@@ -209,7 +222,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
         <div className="flex items-center gap-4">
           <Store size={35} strokeWidth={1.6} className="hidden shrink-0 sm:block"/>
           <div>
-            <h2 className="text-[20px] font-semibold leading-tight tracking-[-.025em]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>{t("home_cta_title", "Precisa de um produto ou de um reparo?")}</h2>
+            <h2 className="text-[20px] font-extrabold leading-tight tracking-[-.025em]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>{t("home_cta_title", "Precisa de um produto ou de um reparo?")}</h2>
             <p className="mt-1 text-[12px] leading-relaxed text-white/85">{t("home_cta_subtitle", "Conte com a Eletrônica Artvideo para encontrar a melhor solução em eletrônicos.")}</p>
           </div>
         </div>

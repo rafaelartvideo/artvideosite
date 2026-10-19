@@ -28,13 +28,13 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
   return (
     <>
       {/* Hero */}
-      <section className="bg-white border-b border-slate-100 py-14 sm:py-20">
+      <section className="bg-[#0d1b2e] py-14 sm:py-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <SectionLabel>Eletrônica Artvideo</SectionLabel>
-          <h1 className="text-4xl sm:text-5xl font-semibold text-[#172b45] mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
+          <SectionLabel light>Eletrônica Artvideo</SectionLabel>
+          <h1 className="text-4xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>
             Tecnologia, experiência e atendimento próximo.
           </h1>
-          <p className="text-slate-600 text-lg leading-relaxed">
+          <p className="text-white/70 text-lg leading-relaxed">
             A Eletrônica Artvideo atua com produtos, serviços, instalações, manutenção e assistência técnica, oferecendo soluções para equipamentos eletrônicos em Aracaju e região.
           </p>
         </div>
@@ -109,7 +109,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
       {/* CTA */}
       <section className="py-20 bg-[#0057e7]">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 text-center">
-          <h2 className="text-3xl sm:text-5xl font-semibold text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa de ajuda?</h2>
+          <h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa de ajuda?</h2>
           <p className="text-white/80 text-lg mb-10">Fale com nossa equipe ou visite nossa loja.</p>
           <div className="flex flex-wrap justify-center gap-4">
             <button onClick={() => setPage("contato")} className="bg-white text-[#0057e7] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Solicitar orçamento</button>

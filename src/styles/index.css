@@ -904,11 +904,10 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   .crm-reminder-vibrate { animation: none; }
 }
 
-/* Artvideo public experience — restrained typography, generous whitespace. */
-.artvideo-public { --art-ink:#172b45; --art-muted:#5d6875; }
-.artvideo-public :is(h1,h2,h3,h4), .artvideo-dialog :is(h1,h2,h3,h4) { font-family:'Inter',ui-sans-serif,system-ui,sans-serif!important; }
-.artvideo-public :is(h1,h2) { font-weight:600; letter-spacing:-.035em; }
-.artvideo-public :is(input,select,textarea) { accent-color:var(--art-primary); }
+/* Service detail and quote styles; keep the rest of the public site unchanged. */
+:is(.art-service,.art-booking,.art-service-card,.artvideo-dialog) :is(h1,h2,h3,h4) { font-family:'Inter',ui-sans-serif,system-ui,sans-serif!important; }
+:is(.art-service,.art-booking) :is(h1,h2) { font-weight:600; letter-spacing:-.035em; }
+:is(.art-service,.art-booking) :is(input,select,textarea) { accent-color:var(--art-primary); }
 .art-input { width:100%; min-height:52px; border:1px solid #cbd2da; border-radius:6px; background:#fff; padding:12px 14px; color:#172b45; font-size:15px; outline:none; transition:border-color .18s,box-shadow .18s; }
 .art-input:focus { border-color:var(--art-primary,#0866f5); box-shadow:0 0 0 3px #0866f515; }
 .art-input:disabled { background:#f5f6f7; color:#7b8794; }
@@ -920,9 +919,9 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 .art-review strong { display:block; margin-bottom:8px; font-size:15px; }
 .art-review button { margin-top:12px; color:var(--art-primary); font-weight:600; }
 .art-faq-answer { animation:art-reveal .2s ease-out; }
-.artvideo-public details summary::-webkit-details-marker { display:none; }
-.artvideo-public section { scroll-margin-top:100px; }
-.artvideo-public button, .artvideo-public a { -webkit-tap-highlight-color:transparent; }
-.artvideo-public :is(button,a):focus-visible { outline:2px solid var(--art-primary); outline-offset:3px; }
+.art-service details summary::-webkit-details-marker { display:none; }
+.art-service section { scroll-margin-top:100px; }
+:is(.art-service,.art-booking) :is(button,a) { -webkit-tap-highlight-color:transparent; }
+:is(.art-service,.art-booking) :is(button,a):focus-visible { outline:2px solid var(--art-primary); outline-offset:3px; }
 @keyframes art-reveal { from {opacity:0;transform:translateY(-5px);} to {opacity:1;transform:translateY(0);} }
-@media(prefers-reduced-motion:reduce) { .artvideo-public *, .artvideo-dialog * { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+@media(prefers-reduced-motion:reduce) { :is(.art-service,.art-booking,.art-service-card,.artvideo-dialog) * { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }

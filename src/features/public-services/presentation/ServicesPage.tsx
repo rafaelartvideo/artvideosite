@@ -31,15 +31,15 @@ export function ServicesPage({ setPage, onSelectService }: {
   const clearFilters = () => { setSearch(""); setCategoryId("all"); };
 
   return <div className="bg-[#f8fbff]">
-    <section className="relative isolate overflow-hidden border-b border-slate-100 bg-white text-[#172b45]">
+    <section className="relative isolate overflow-hidden bg-gradient-to-r from-[#081a32] via-[var(--art-dark)] to-[#153557] text-white">
       <div className="pointer-events-none absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"/>
       <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
         <div className="max-w-2xl">
-          <div className="mb-3 inline-flex items-center gap-2 text-[12px] font-semibold text-[var(--art-primary)]"><Wrench size={16}/> Serviços da Artvideo</div>
-          <h1 className="text-[35px] font-semibold leading-[1.15] tracking-[-.04em] sm:text-[46px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>
+          <div className="mb-3 inline-flex items-center gap-2 text-[12px] font-semibold text-blue-300"><Wrench size={16}/> Serviços da Artvideo</div>
+          <h1 className="text-[35px] font-extrabold leading-[1.15] tracking-[-.04em] sm:text-[46px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>
             Serviços para sua casa e seus equipamentos
           </h1>
-          <p className="mt-4 max-w-xl text-[14px] leading-6 text-slate-600">Instalação, manutenção, configuração e reparos. Encontre o serviço que precisa e solicite um orçamento.</p>
+          <p className="mt-4 max-w-xl text-[14px] leading-6 text-white/75">Instalação, manutenção, configuração e reparos. Encontre o serviço que precisa e solicite um orçamento.</p>
         </div>
         <label className="relative mt-7 block max-w-2xl">
           <span className="sr-only">Buscar serviços</span>
@@ -64,7 +64,7 @@ export function ServicesPage({ setPage, onSelectService }: {
 
     <section className="mx-auto min-h-[300px] max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[22px] font-semibold tracking-[-.03em] text-[#0b1d37]">{categoryId === "all" ? "Todos os serviços" : availableCategories.find(c => c.id === categoryId)?.name ?? "Serviços"}</h2>
+        <h2 className="text-[22px] font-extrabold tracking-[-.03em] text-[#0b1d37]">{categoryId === "all" ? "Todos os serviços" : availableCategories.find(c => c.id === categoryId)?.name ?? "Serviços"}</h2>
         {!loading && <span className="text-[12px] text-[#64748b]">{filtered.length} {filtered.length === 1 ? "serviço encontrado" : "serviços encontrados"}</span>}
       </div>
       {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">{Array.from({length:6},(_,i)=><div key={i} className="h-64 animate-pulse rounded-lg bg-[#e5eef8]"/>)}</div>
@@ -80,7 +80,7 @@ export function ServicesPage({ setPage, onSelectService }: {
     <section className="bg-[var(--art-primary)] text-white">
       <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center lg:px-8">
         <div>
-          <h2 className="text-[22px] font-semibold tracking-[-.025em]">Não encontrou o serviço que procura?</h2>
+          <h2 className="text-[22px] font-extrabold tracking-[-.025em]">Não encontrou o serviço que procura?</h2>
           <p className="mt-1 text-[13px] text-white/85">Explique o que precisa e nossa equipe poderá orientar você.</p>
         </div>
         <PublicButton variant="outline" onClick={() => setPage("orcamento")} className="gap-2 !border-white !bg-white !text-[var(--art-primary)] hover:!-translate-y-0.5 hover:!bg-blue-50">Solicitar orçamento <ArrowRight size={17}/></PublicButton>

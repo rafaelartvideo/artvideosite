@@ -62,7 +62,7 @@ export function ServiceCard({ service, onSelectService }: { service: any; onSele
     service.price_mode === "FIXED" && basePrice ? basePrice :
     service.price_mode === "STARTING_FROM" && basePrice ? `A partir de ${basePrice}` : "Consulte o valor";
 
-  return <article className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg">
+  return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="w-full text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
       <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"/> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
       <div className="p-6 pb-3"><h3 className="text-lg font-semibold leading-6 tracking-tight text-[#172b45]">{service.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-[#64717e]">{service.short_description || service.description || "Conheça o atendimento e solicite seu orçamento."}</p></div>
