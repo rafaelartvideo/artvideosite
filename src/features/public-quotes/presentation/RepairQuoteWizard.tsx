@@ -34,7 +34,6 @@ export function RepairQuoteWizard() {
   function validate(current: number) {
     if (current === 0) {
       if (!device) return "Selecione o tipo de equipamento.";
-      if (!form.marca) return "Informe a marca ou selecione Outra marca.";
       if (form.marca === "Outra marca" && !form.outraMarca.trim()) return "Informe o nome da marca.";
       if (!form.descricao.trim()) return "Descreva o defeito ou o serviço necessário.";
       if (!location) return "Escolha como deseja realizar o atendimento.";
@@ -113,8 +112,8 @@ export function RepairQuoteWizard() {
             <option value="">Selecione o equipamento</option>{deviceTypes.map(type => <option value={type} key={type}>{type}</option>)}
           </select></FormField>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Marca" required><select className={input} value={form.marca} onChange={event => { update("marca", event.target.value); if (event.target.value !== "Outra marca") update("outraMarca", ""); }}>
-              <option value="">Selecionar marca</option>{brands.map(brand => <option value={brand.id} key={brand.id}>{brand.name}</option>)}<option value="Outra marca">Outra marca</option>
+            <FormField label="Marca (se souber)"><select className={input} value={form.marca} onChange={event => { update("marca", event.target.value); if (event.target.value !== "Outra marca") update("outraMarca", ""); }}>
+              <option value="">Não sei informar</option>{brands.map(brand => <option value={brand.id} key={brand.id}>{brand.name}</option>)}<option value="Outra marca">Outra marca</option>
             </select></FormField>
             <FormField label="Modelo (se souber)"><input className={input} value={form.modelo} onChange={event => update("modelo", event.target.value)} placeholder="Ex.: modelo do aparelho"/></FormField>
           </div>
