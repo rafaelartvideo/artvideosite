@@ -1,7 +1,7 @@
 import { SacDigitalMenuConfiguration } from './SacDigitalMenuSettings';
 import { AdminSubnav } from '@/shared/ui/admin/AdminSubnav';
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
+import { CheckCircle2, Clipboard, MessageCircle, MessageSquare, Phone, Plus, Trash2, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -517,12 +517,15 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
 
     {section === "messages" && <Section
       title="Mensagens predefinidas"
-      description="Textos usados no envio pelo botão SAC Digital dentro da OS. Você pode alterar o nome do tipo, o texto e desativar opções que não usa."
-      actions={<AdminButton onClick={() => void saveMessagePresets()} loading={presetSaving} disabled={presetLoading}>Salvar mensagens</AdminButton>}
+      description="Configure mensagens para ordens de serviço e orçamentos. Adicione quantos modelos precisar, edite o texto ou desative modelos que não devem aparecer nos envios."
+      actions={<div className="flex flex-wrap items-center gap-2">
+       <AdminButton variant="secondary" disabled={presetLoading||presetSaving} onClick={() => setMessagePresets(current => [...current,{preset_key:"modelo_"+crypto.randomUUID().replace(/-/g,"").slice(0,18),label:"Nova mensagem",message_template:"Olá, {primeiro_nome}!",scope:"quote",sort_order:(Math.max(0,...current.map(item=>item.sort_order))+10),is_active:true}])}><Plus size={15}/> Nova mensagem</AdminButton>
+       <AdminButton onClick={() => void saveMessagePresets()} loading={presetSaving} disabled={presetLoading}>Salvar mensagens</AdminButton>
+      </div>}
     >
       {presetLoading ? <LoadingState text="Carregando mensagens..." /> : <div className="space-y-4">
         <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          Variáveis disponíveis: <strong>{'{primeiro_nome}'}</strong>, <strong>{'{nome_cliente}'}</strong> e <strong>{'{os}'}</strong>. Elas são substituídas automaticamente ao abrir o envio da OS.
+          Variáveis: <strong>{'{primeiro_nome}'}</strong>, <strong>{'{nome_cliente}'}</strong>, <strong>{'{os}'}</strong>, <strong>{'{protocolo}'}</strong>, <strong>{'{servico}'}</strong>, <strong>{'{data}'}</strong>, <strong>{'{horario}'}</strong> e <strong>{'{endereco}'}</strong>. Na OS e no orçamento são preenchidas conforme os dados disponíveis.
         </div>
         {messagePresets.map((preset, index) => (
           <div key={preset.preset_key} className="space-y-3 rounded-xl border border-border bg-card p-4">
@@ -544,6 +547,15 @@ export function SacDigitalSettingsPage({ onBack }: { onBack: () => void }) {
                   itemIndex === index ? { ...item, is_active } : item
                 ))}
               />
+            </div>
+            <div className="flex items-end gap-3">
+              <div className="min-w-0 flex-1"><FSelect label="Disponível para" value={preset.scope||"order"} disabled={presetSaving}
+                options={[{value:"order",label:"Ordens de serviço"},{value:"quote",label:"Orçamentos"},{value:"both",label:"OS e orçamentos"}]}
+                onChange={(event:any)=>setMessagePresets(current=>current.map((item,itemIndex)=>itemIndex===index?{...item,scope:event.target.value}:item))}/></div>
+              {!DEFAULT_SAC_ORDER_MESSAGE_PRESETS.some(item=>item.preset_key===preset.preset_key) && <button type="button" disabled={presetSaving}
+                onClick={()=>setMessagePresets(current=>current.filter((_,itemIndex)=>itemIndex!==index))}
+                className="mb-1 flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                aria-label={`Remover modelo ${preset.label}`} title="Remover mensagem"><Trash2 size={17}/></button>}
             </div>
             <FTextarea
               label="Mensagem"
