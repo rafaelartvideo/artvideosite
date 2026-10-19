@@ -2,12 +2,12 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 export function PublicBreadcrumb({ items }: { items: { label: string; onClick?: () => void }[] }) {
-  return <nav aria-label="Navegação estrutural" className="art-public-breadcrumb border-y border-[#dce4ed] bg-[#f7f9fc]">
-    <ol className="mx-auto flex max-w-[1344px] items-center gap-2 overflow-hidden px-5 py-4 text-[13px] text-[#526377] sm:px-8 lg:px-10">
+  return <nav aria-label="Navegação estrutural" className="art-public-breadcrumb border-y border-white/20 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white">
+    <ol className="mx-auto flex max-w-[1344px] items-center gap-2 overflow-hidden px-5 py-3.5 text-[13px] sm:px-8 lg:px-10">
       {items.map((item, index) => <li key={`${index}-${item.label}`} className={`flex min-w-0 items-center gap-2 ${index === items.length - 1 ? "" : "shrink-0"}`}>
-        {index > 0 && <ChevronRight size={14} className="shrink-0 text-[#7c8da0]"/>}
-        {item.onClick ? <button type="button" onClick={item.onClick} className="whitespace-nowrap transition-colors hover:text-[var(--art-primary)] focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">{item.label}</button>
-          : <span aria-current={index === items.length - 1 ? "page" : undefined} className="truncate font-medium text-[#172b45]">{item.label}</span>}
+        {index > 0 && <ChevronRight size={14} aria-hidden="true" className="shrink-0 text-white/45"/>}
+        {item.onClick ? <button type="button" onClick={item.onClick} className="whitespace-nowrap rounded-sm text-white/75 underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{item.label}</button>
+          : <span aria-current={index === items.length - 1 ? "page" : undefined} className="min-w-0 truncate border-b-2 border-white pb-0.5 font-semibold text-white">{item.label}</span>}
       </li>)}
     </ol>
   </nav>;
