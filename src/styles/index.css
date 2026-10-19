@@ -925,3 +925,11 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 :is(.art-service,.art-booking) :is(button,a):focus-visible { outline:2px solid var(--art-primary); outline-offset:3px; }
 @keyframes art-reveal { from {opacity:0;transform:translateY(-5px);} to {opacity:1;transform:translateY(0);} }
 @media(prefers-reduced-motion:reduce) { :is(.art-service,.art-booking,.art-service-card,.artvideo-dialog) * { animation:none!important; transition:none!important; scroll-behavior:auto!important; } }
+
+/* Catalog typography is scoped to the services listing. */
+.art-services-catalog { font-family:'Inter',ui-sans-serif,system-ui,sans-serif; }
+.art-services-catalog :is(h1,h2,h3,h4) { font-family:'Inter',ui-sans-serif,system-ui,sans-serif!important; }
+.art-services-catalog .art-catalog-search::-webkit-search-cancel-button { margin-right:4px; cursor:pointer; }
+@media(prefers-reduced-motion:reduce) {
+  .art-services-catalog * { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+}

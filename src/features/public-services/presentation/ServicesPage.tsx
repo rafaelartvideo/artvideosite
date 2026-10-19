@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, Search, SlidersHorizontal, Wrench, X } from "lucide-react";
+import { ArrowRight, ChevronRight, LayoutGrid, Search, X } from "lucide-react";
 import { useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
-import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
+import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 
 const normalize = (value: unknown) =>
   String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
@@ -16,7 +16,6 @@ export function ServicesPage({ setPage, onSelectService }: {
   const [search, setSearch] = useState("");
   const { services, loading, error } = useServices();
   const { categories } = useServiceCategories();
-
   const availableCategories = useMemo(() => categories
     .filter(category => services.some(service => service.category_id === category.id)), [categories, services]);
   const filtered = useMemo(() => {
@@ -27,64 +26,62 @@ export function ServicesPage({ setPage, onSelectService }: {
       return !query || normalize([service.title, service.short_description, service.description, categoryName].join(" ")).includes(query);
     });
   }, [services, categories, categoryId, search]);
-
   const clearFilters = () => { setSearch(""); setCategoryId("all"); };
+  const categoryOptions = [
+    { id: "all", name: "Todos os serviços", Icon: LayoutGrid },
+    ...availableCategories.map(category => ({ ...category, Icon: publicIcon(inferredServiceIcon(category.name)) })),
+  ];
 
-  return <div className="bg-[#f8fbff]">
-    <section className="relative isolate overflow-hidden bg-gradient-to-r from-[#081a32] via-[var(--art-dark)] to-[#153557] text-white">
-      <div className="pointer-events-none absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"/>
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
-        <div className="max-w-2xl">
-          <div className="mb-3 inline-flex items-center gap-2 text-[12px] font-semibold text-blue-300"><Wrench size={16}/> Serviços da Artvideo</div>
-          <h1 className="text-[35px] font-extrabold leading-[1.15] tracking-[-.04em] sm:text-[46px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>
-            Serviços para sua casa e seus equipamentos
-          </h1>
-          <p className="mt-4 max-w-xl text-[14px] leading-6 text-white/75">Instalação, manutenção, configuração e reparos. Encontre o serviço que precisa e solicite um orçamento.</p>
+  return <div className="art-services-catalog bg-white text-[#172b45]">
+    <div className="mx-auto max-w-[1344px] px-5 pb-16 pt-6 sm:px-8 lg:px-10">
+      <nav aria-label="Navegação estrutural" className="mb-8 flex items-center gap-2 text-xs text-[#697684]">
+        <button type="button" onClick={() => setPage("home")} className="transition-colors hover:text-[var(--art-primary)]">Início</button>
+        <ChevronRight size={13}/><span aria-current="page">Serviços</span>
+      </nav>
+      <div className="mb-8 sm:mb-10">
+        <h1 className="text-[30px] font-semibold leading-tight tracking-[-.035em] sm:text-[40px]">Como podemos ajudar você?</h1>
+        <p className="mt-3 max-w-2xl text-[15px] leading-7 text-[#697684]">Encontre o serviço para sua casa ou seus equipamentos e solicite um orçamento à Artvideo.</p>
+      </div>
+
+      <label className="relative block">
+        <span className="sr-only">Encontre o serviço que precisa</span>
+        <input value={search} onChange={event => setSearch(event.target.value)} type="search"
+          placeholder="Encontre o serviço que precisa"
+          className="art-catalog-search min-h-[60px] w-full rounded-lg border border-[#8c98a5] bg-white py-4 pl-5 pr-14 text-[15px] text-[#172b45] outline-none transition-shadow placeholder:text-[#697684] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-100 sm:min-h-[70px] sm:pl-6 sm:text-base"/>
+        <Search size={24} strokeWidth={1.5} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[var(--art-primary)]"/>
+      </label>
+
+      <nav aria-label="Categorias de serviços" className="-mx-5 mt-8 flex gap-2 overflow-x-auto px-5 pb-5 sm:-mx-0 sm:mt-10 sm:gap-4 sm:px-0">
+        {categoryOptions.map(({ id, name, Icon }) => <button type="button" key={id}
+          aria-pressed={categoryId === id} onClick={() => setCategoryId(id)}
+          className={`group flex w-[100px] shrink-0 flex-col items-center gap-3 rounded-lg px-1 py-1 text-center text-[12px] leading-5 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] sm:w-[112px] sm:text-[13px] ${categoryId === id ? "font-semibold text-[var(--art-primary)]" : "text-[#475563] hover:text-[var(--art-primary)]"}`}>
+          <span className={`flex h-[72px] w-[72px] items-center justify-center rounded-xl border transition-all duration-200 group-hover:-translate-y-0.5 group-hover:border-blue-200 group-hover:bg-[#eaf4ff] ${categoryId === id ? "border-[#b7d9f6] bg-[#e6f3ff]" : "border-transparent bg-[#f2f4f6]"}`}>
+            <Icon size={30} strokeWidth={1.35}/>
+          </span>
+          <span>{name}</span>
+        </button>)}
+      </nav>
+
+      <section aria-label="Serviços disponíveis" className="min-h-[300px] pt-5 sm:pt-7">
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-3 border-t border-[#edf0f3] pt-6">
+          <p role="status" aria-live="polite" className="text-sm text-[#566473]">{loading ? "Carregando serviços…" : `${filtered.length} ${filtered.length === 1 ? "serviço disponível" : "serviços disponíveis"}`}</p>
+          {(search || categoryId !== "all") && <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1.5 text-sm text-[var(--art-primary)] hover:underline"><X size={15}/> Limpar filtros</button>}
         </div>
-        <label className="relative mt-7 block max-w-2xl">
-          <span className="sr-only">Buscar serviços</span>
-          <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#647792]"/>
-          <input value={search} onChange={e => setSearch(e.target.value)} type="search"
-            placeholder="Qual serviço você procura?"
-            className="min-h-12 w-full rounded-[6px] border border-white/15 bg-white py-3 pl-12 pr-5 text-[14px] text-[#10213d] shadow-md outline-none transition-all placeholder:text-[#7b8ba1] focus:ring-2 focus:ring-blue-400"/>
-        </label>
-      </div>
-    </section>
+        {loading ? <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:gap-8">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-[390px] animate-pulse rounded-xl bg-[#f0f3f6]"/>)}</div>
+        : error ? <div role="alert" className="rounded-lg border border-red-100 p-8 text-center text-sm text-[#a23a3a]">{error}</div>
+        : filtered.length ? <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 lg:gap-8">{filtered.map(service => <ServiceCard key={service.id} service={service} onSelectService={onSelectService} variant="catalog" categoryName={categories.find(category => category.id === service.category_id)?.name}/>)}</div>
+        : <div className="flex min-h-[260px] flex-col items-center justify-center rounded-xl bg-[#f7f9fb] p-8 text-center">
+          <Search size={32} strokeWidth={1.3} className="text-[#8a9daf]"/>
+          <h2 className="mt-4 text-xl font-semibold">Nenhum serviço encontrado</h2>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-[#697684]">Tente outro nome ou escolha uma categoria para encontrar o que precisa.</p>
+          <button type="button" onClick={clearFilters} className="mt-5 text-sm font-medium text-[var(--art-primary)] hover:underline">Ver todos os serviços</button>
+        </div>}
+      </section>
 
-    <section className="sticky top-[74px] z-20 border-b border-[#e4ebf5] bg-white/95 py-3.5 shadow-sm backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center gap-2.5 overflow-x-auto px-4 sm:px-6 lg:px-8">
-        <SlidersHorizontal size={17} className="mr-1 shrink-0 text-[var(--art-primary)]"/>
-        <button type="button" onClick={() => setCategoryId("all")} aria-pressed={categoryId === "all"}
-          className={`shrink-0 rounded-full border px-4 py-2 text-[12px] font-bold transition-all focus-visible:outline-2 focus-visible:outline-[var(--art-primary)] ${categoryId === "all" ? "border-[var(--art-primary)] bg-[var(--art-primary)] text-white shadow-sm" : "border-[#d8e2f0] text-[#33465f] hover:border-[var(--art-primary)] hover:bg-blue-50"}`}>Todos</button>
-        {availableCategories.map(category => <button type="button" key={category.id} aria-pressed={categoryId === category.id}
-          onClick={() => setCategoryId(category.id)}
-          className={`shrink-0 rounded-full border px-4 py-2 text-[12px] font-bold transition-all focus-visible:outline-2 focus-visible:outline-[var(--art-primary)] ${categoryId === category.id ? "border-[var(--art-primary)] bg-[var(--art-primary)] text-white shadow-sm" : "border-[#d8e2f0] text-[#33465f] hover:border-[var(--art-primary)] hover:bg-blue-50"}`}>{category.name}</button>)}
-      </div>
-    </section>
-
-    <section className="mx-auto min-h-[300px] max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-[22px] font-extrabold tracking-[-.03em] text-[#0b1d37]">{categoryId === "all" ? "Todos os serviços" : availableCategories.find(c => c.id === categoryId)?.name ?? "Serviços"}</h2>
-        {!loading && <span className="text-[12px] text-[#64748b]">{filtered.length} {filtered.length === 1 ? "serviço encontrado" : "serviços encontrados"}</span>}
-      </div>
-      {loading ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-live="polite">{Array.from({length:6},(_,i)=><div key={i} className="h-64 animate-pulse rounded-lg bg-[#e5eef8]"/>)}</div>
-      : error ? <div className="rounded-lg border border-red-100 bg-white p-8 text-center text-sm text-[#a23a3a]">{error}</div>
-      : filtered.length ? <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{filtered.map(service => <ServiceCard key={service.id} service={service} onSelectService={onSelectService}/>)}</div>
-      : <div className="flex min-h-[220px] flex-col items-center justify-center rounded-lg border border-dashed border-[#d1e0f3] bg-white p-8 text-center">
-        <Search size={33} className="text-[#8ea8ca]"/>
-        <h3 className="mt-3 text-[15px] font-bold text-[#0b1d37]">Nenhum serviço encontrado</h3>
-        <p className="mt-1 max-w-sm text-[13px] text-[#64748b]">Tente outro nome ou categoria. Também podemos atender sua solicitação diretamente.</p>
-        {(search || categoryId !== "all") && <button type="button" onClick={clearFilters} className="mt-4 inline-flex items-center gap-2 text-[13px] font-bold text-[var(--art-primary)] hover:underline"><X size={15}/> Limpar filtros</button>}
-      </div>}
-    </section>
-    <section className="bg-[var(--art-primary)] text-white">
-      <div className="mx-auto flex max-w-7xl flex-col justify-between gap-5 px-4 py-8 sm:px-6 md:flex-row md:items-center lg:px-8">
-        <div>
-          <h2 className="text-[22px] font-extrabold tracking-[-.025em]">Não encontrou o serviço que procura?</h2>
-          <p className="mt-1 text-[13px] text-white/85">Explique o que precisa e nossa equipe poderá orientar você.</p>
-        </div>
-        <PublicButton variant="outline" onClick={() => setPage("orcamento")} className="gap-2 !border-white !bg-white !text-[var(--art-primary)] hover:!-translate-y-0.5 hover:!bg-blue-50">Solicitar orçamento <ArrowRight size={17}/></PublicButton>
-      </div>
-    </section>
+      <aside className="mt-14 flex flex-col justify-between gap-5 rounded-xl bg-[#f2f7fc] px-6 py-7 sm:flex-row sm:items-center sm:px-8">
+        <div><h2 className="text-xl font-semibold tracking-tight">Precisa de ajuda para escolher?</h2><p className="mt-2 text-sm leading-6 text-[#697684]">Conte o que precisa. Nossa equipe entra em contato com você.</p></div>
+        <button type="button" onClick={() => setPage("orcamento")} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-3 rounded-md border border-[var(--art-primary)] px-6 text-sm font-medium text-[var(--art-primary)] transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">Solicitar orçamento <ArrowRight size={17}/></button>
+      </aside>
+    </div>
   </div>;
 }

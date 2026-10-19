@@ -52,7 +52,12 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
   </article>;
 }
 
-export function ServiceCard({ service, onSelectService }: { service: any; onSelectService: (slug: string) => void }) {
+export function ServiceCard({ service, onSelectService, variant = "default", categoryName }: {
+  service: any;
+  onSelectService: (slug: string) => void;
+  variant?: "default" | "catalog";
+  categoryName?: string;
+}) {
   const { settings } = useSiteSettings();
   const appearance = homeServiceDisplay(settings.home_service_display)[service.id];
   const Icon = publicIcon(appearance?.icon || service.public_icon || inferredServiceIcon(service.title));
@@ -61,6 +66,29 @@ export function ServiceCard({ service, onSelectService }: { service: any; onSele
   const priceLabel = service.price_mode === "HIDDEN" ? null :
     service.price_mode === "FIXED" && basePrice ? basePrice :
     service.price_mode === "STARTING_FROM" && basePrice ? `A partir de ${basePrice}` : "Consulte o valor";
+
+  if (variant === "catalog") return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#dfe4e9] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-[#acc9e6] hover:shadow-[0_12px_28px_rgba(23,43,69,.08)]">
+    <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)}
+      className="relative isolate block aspect-[16/10] w-full overflow-hidden bg-[#f0f5fa] text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+      {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="absolute inset-y-0 right-0 h-full w-[85%] object-cover transition-transform duration-500 group-hover:scale-105"/>}
+      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, white 0%, white 16%, rgba(255,255,255,.97) 30%, rgba(255,255,255,.68) 52%, rgba(255,255,255,0) 91%)" }}/>
+      <Icon size={38} strokeWidth={1.3} className="absolute left-6 top-6 text-[var(--art-primary)]"/>
+    </button>
+    <div className="flex flex-1 flex-col px-5 pb-5 pt-5">
+      <p className="mb-2 text-[11px] leading-4 text-[#697684]">{categoryName || "Serviços Artvideo"}</p>
+      <button type="button" onClick={() => onSelectService(service.slug)} className="text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+        <h3 className="min-h-12 text-[17px] font-semibold leading-6 tracking-[-.025em] text-[#172b45]">{service.title}</h3>
+      </button>
+      <p className="mt-3 line-clamp-2 text-[13px] leading-5 text-[#697684]">{service.short_description || "Conheça o serviço e solicite seu orçamento."}</p>
+      <div className="mt-auto pt-6">
+        {priceLabel && <div className="mb-5">
+          {service.price_mode === "STARTING_FROM" && basePrice && <p className="mb-1 text-xs text-[#697684]">A partir de</p>}
+          <p className={`${basePrice && (service.price_mode === "FIXED" || service.price_mode === "STARTING_FROM") ? "text-[25px] leading-8 tracking-tight" : "text-base leading-8"} font-semibold text-[#172b45]`}>{basePrice && (service.price_mode === "FIXED" || service.price_mode === "STARTING_FROM") ? basePrice : priceLabel}</p>
+        </div>}
+        <button type="button" onClick={() => onSelectService(service.slug)} className="flex min-h-11 w-full items-center justify-center gap-3 rounded-md bg-[var(--art-primary)] px-4 py-3 text-sm font-medium text-white transition-all hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">Ver serviço <ArrowRight size={16}/></button>
+      </div>
+    </div>
+  </article>;
 
   return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="w-full text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
