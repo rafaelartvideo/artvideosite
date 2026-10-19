@@ -63,6 +63,7 @@ function WhatsAppFloat() {
 function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: PublicPage) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { count: cartCount } = useStoreCart();
+  const isCurrent = (destination: PublicPage) => destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja");
   const navigate = (destination: PublicPage) => {
     setPage(destination);
     setMenuOpen(false);
@@ -75,7 +76,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
       </button>
       <nav aria-label="Navegação principal" className="hidden h-full items-center gap-5 lg:flex xl:gap-7">
         {PUBLIC_NAV_LINKS.map(label => {
-          const active = PUBLIC_NAV_MAP[label] === page;
+          const active = isCurrent(PUBLIC_NAV_MAP[label]);
           return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
             aria-current={active ? "page" : undefined}
             className={`relative flex h-full items-center whitespace-nowrap border-b-[3px] pt-0.5 text-[13px] font-medium transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-blue-400 ${active ? "border-white font-semibold text-white" : "border-transparent text-white/75 hover:border-white/50 hover:text-white"}`}>{label}</button>;
@@ -87,7 +88,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
           <ShoppingCart size={21}/>
           {cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[var(--art-primary)] px-1 text-[10px] font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>}
         </a>
-        <button type="button" onClick={() => navigate("orcamento")}
+        <button type="button" onClick={() => navigate("orcamento")} aria-current={page === "orcamento" ? "page" : undefined}
           className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-4 text-[12px] font-bold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-blue-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400">
           <FileText size={16} /> Solicitar orçamento
         </button>
@@ -104,8 +105,8 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     </div>
     {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] px-4 pb-5 pt-2 shadow-xl lg:hidden">
       {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
-        aria-current={PUBLIC_NAV_MAP[label] === page ? "page" : undefined}
-        className={`block w-full border-b py-3 text-left text-sm font-semibold transition-colors hover:text-white ${PUBLIC_NAV_MAP[label] === page ? "border-white text-white underline decoration-2 underline-offset-8" : "border-white/10 text-white/75"}`}>{label}</button>)}
+        aria-current={isCurrent(PUBLIC_NAV_MAP[label]) ? "page" : undefined}
+        className={`block w-full border-b py-3 text-left text-sm font-semibold transition-colors hover:text-white ${isCurrent(PUBLIC_NAV_MAP[label]) ? "border-white text-white underline decoration-2 underline-offset-8" : "border-white/10 text-white/75"}`}>{label}</button>)}
       <button type="button" onClick={() => navigate("orcamento")} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] font-bold text-white hover:brightness-110">
         <FileText size={17} /> Solicitar orçamento
       </button>
