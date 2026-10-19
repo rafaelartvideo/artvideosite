@@ -47,14 +47,14 @@ internal sealed class PrinterSetupWindow : Form
         // de controles Label com fundo opaco em alguns Windows e configuracoes de DPI.
         var root = new TableLayoutPanel {
             Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
-            Padding = Padding.Empty, Margin = Padding.Empty
+            Padding = new Padding(0), Margin = new Padding(0)
         };
         root.RowStyles.Add(new RowStyle(SizeType.Absolute, 100));
         root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         Controls.Add(root);
 
-        var header = new Panel { Dock = DockStyle.Fill, Margin = Padding.Empty, BackColor = Blue };
+        var header = new Panel { Dock = DockStyle.Fill, Margin = new Padding(0), BackColor = Blue };
         header.Paint += (_, e) => {
             if (header.Width <= 0 || header.Height <= 0) return;
             using var gradient = new LinearGradientBrush(header.ClientRectangle, Color.FromArgb(0, 66, 181), Blue, 0f);
@@ -73,7 +73,7 @@ internal sealed class PrinterSetupWindow : Form
         root.Controls.Add(header, 0, 0);
 
         var container = new TableLayoutPanel {
-            Dock = DockStyle.Fill, Margin = Padding.Empty,
+            Dock = DockStyle.Fill, Margin = new Padding(0),
             Padding = new Padding(20, 18, 20, 16), RowCount = 4, ColumnCount = 1
         };
         container.RowStyles.Add(new RowStyle(SizeType.Absolute, 178));
@@ -145,7 +145,7 @@ internal sealed class PrinterSetupWindow : Form
         // sobre a etiqueta estava ocultando "3. Orientacoes e resultado".
         var statusLayout = new TableLayoutPanel {
             Dock = DockStyle.Fill, RowCount = 2, ColumnCount = 1,
-            Padding = new Padding(15, 4, 15, 10), Margin = Padding.Empty
+            Padding = new Padding(15, 4, 15, 10), Margin = new Padding(0)
         };
         statusLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
         statusLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
@@ -154,7 +154,7 @@ internal sealed class PrinterSetupWindow : Form
         statusTitle.TextAlign = ContentAlignment.MiddleLeft;
         statusLayout.Controls.Add(statusTitle, 0, 0);
         result.Dock = DockStyle.Fill;
-        result.Margin = Padding.Empty;
+        result.Margin = new Padding(0);
         result.BorderStyle = BorderStyle.None;
         result.BackColor = Color.White;
         result.ForeColor = Ink;
