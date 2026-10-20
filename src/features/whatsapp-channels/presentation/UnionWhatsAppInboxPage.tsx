@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
+import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -21,6 +22,21 @@ type Filter = UnionWhatsAppConversation["status"];
 const initials = (text: string) => {
   const parts = text.trim().split(/\s+/).filter(Boolean);
   return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || "?").slice(0, 2)).toUpperCase();
+};
+const brazilNumberDigits = (raw: string) => {
+  const digits=raw.replace(/\\D/g, "");
+  const national=digits.startsWith("55") && digits.length>11 ? digits.slice(2) : digits;
+  return national.slice(0,11);
+};
+const brazilPhoneMask = (raw: string) => {
+  const digits=brazilNumberDigits(raw);
+  if(!digits) return "";
+  if(digits.length<3) return "(" + digits;
+  const ddd=digits.slice(0,2);
+  const local=digits.slice(2);
+  const initial=local.startsWith("9")?5:4;
+  return "(" + ddd + ") " + (local.length>initial
+    ? local.slice(0,initial)+"-"+local.slice(initial):local);
 };
 const compactDate = (value: string | null) => value && !Number.isNaN(new Date(value).getTime())
   ? new Date(value).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
@@ -111,6 +127,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [attachment, setAttachment] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const [imageOptimizing, setImageOptimizing] = useState(false);
+  const optimizeSeq = useRef(0);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
@@ -346,9 +364,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
 
   const startConversation = async () => {
     if (!activeOrganizationId || !canSend || starting) return;
-    const digits = newPhone.replace(/\D/g, "");
-    if (!/^[1-9][0-9]{9,14}$/.test(digits)) {
-      setError("Informe um telefone válido com DDI e DDD.");
+    const digits = brazilNumberDigits(newPhone);
+    if(!/^[1-9][0-9][0-9]{8,9}$/.test(digits)) {
+      setError("Informe o DDD e um telefone brasileiro válido.");
       return;
     }
     setStarting(true);
@@ -356,7 +374,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     try {
       const result = await operateUnionWhatsAppInbox(
         activeOrganizationId, crypto.randomUUID(), "start",
-        {phone:digits,contact_name:newName.trim()},
+        {phone:"55"+digits,contact_name:newName.trim()},
       );
       if (!result.conversation_id) throw new Error("A conversa não foi confirmada.");
       await refresh(true);
@@ -404,32 +422,48 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     }
   };
 
-  const onChooseMedia = (file: File | null) => {
-    if (!file) return;
-    const type = file.type;
-    const max = type.startsWith("image/") ? 10 * 1048576 :
-      type.startsWith("audio/") ? 16 * 1048576 : 25 * 1048576;
-    const allowed = type.startsWith("image/") ? ["image/jpeg","image/png"].includes(type)
-      : type.startsWith("audio/") ? ["audio/ogg","audio/opus"].includes(type)
-      : type.startsWith("video/") ? ["video/mp4","video/3gpp"].includes(type)
-      : ["application/pdf","text/plain","application/zip","application/octet-stream",
-          "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-          "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
-    if (!allowed || file.size === 0 || file.size > max) {
-      setError("Arquivo incompatível ou muito grande. Imagens: 10 MB; áudios: 16 MB; vídeos e documentos: 25 MB.");
-      if (mediaInputRef.current) mediaInputRef.current.value = "";
+  const onChooseMedia = async (file: File | null) => {
+    if(!file) return;
+    const seq=++optimizeSeq.current;
+    const type=file.type;
+    const image=["image/jpeg","image/png","image/webp"].includes(type);
+    const audio=["audio/ogg","audio/opus"].includes(type);
+    const video=["video/mp4","video/3gpp"].includes(type);
+    const doc=["application/pdf","text/plain","application/zip","application/octet-stream",
+      "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
+    const sourceLimit=image ? 25*1048576 : audio ? 16*1048576 : 25*1048576;
+    if((!image && !audio && !video && !doc) || !file.size || file.size>sourceLimit) {
+      setError("Formato não permitido ou arquivo maior que 25 MB. Áudios têm limite de 16 MB.");
+      if(mediaInputRef.current) mediaInputRef.current.value="";
       return;
     }
-    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
-    setMediaPreview(type.startsWith("image/") ? URL.createObjectURL(file) : null);
-    setAttachment(file);
+    setImageOptimizing(image);
     setError("");
-    inputRef.current?.focus({ preventScroll:true });
+    try {
+      const prepared=image ? await prepareImageForUpload(file,"whatsapp-image") : file;
+      if(seq!==optimizeSeq.current) return;
+      const limit=image ? 10*1048576 : audio ? 16*1048576 : 25*1048576;
+      if(prepared.size>limit || (image && !["image/jpeg","image/png"].includes(prepared.type))) {
+        setError("Não foi possível otimizar a imagem para até 10 MB em JPEG ou PNG.");
+        if(mediaInputRef.current) mediaInputRef.current.value="";
+        return;
+      }
+      if(mediaPreview) URL.revokeObjectURL(mediaPreview);
+      setMediaPreview(image ? URL.createObjectURL(prepared) : null);
+      setAttachment(prepared);
+      inputRef.current?.focus({preventScroll:true});
+    } catch(reason) {
+      if(seq===optimizeSeq.current) setError(systemErrorMessage(reason,"Falha ao preparar a imagem."));
+      if(mediaInputRef.current) mediaInputRef.current.value="";
+    } finally {
+      if(seq===optimizeSeq.current) setImageOptimizing(false);
+    }
   };
 
   const sendText = () => {
-    if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || (!draft.trim() && !attachment)) return;
+    if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || imageOptimizing || (!draft.trim() && !attachment)) return;
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
     const text = draft.trim();
@@ -640,6 +674,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
             </div>
             <footer className="border-t border-border bg-card px-3 py-3">
               {canReply ? <div className="mx-auto max-w-4xl">
+                {imageOptimizing && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                  <LoaderCircle size={14} className="animate-spin"/> Otimizando imagem antes do envio...
+                </div>}
                 {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
                   {mediaPreview && <img src={mediaPreview} alt="Prévia do anexo" className="h-10 w-10 rounded object-cover" />}
                   <Paperclip size={15} className="shrink-0"/>
@@ -650,8 +687,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
                   <input ref={mediaInputRef} type="file" className="hidden"
-                    accept="image/jpeg,image/png,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                    aria-label="Selecionar anexo" onChange={event => onChooseMedia(event.target.files?.[0] || null)}/>
+                    accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
                   <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
@@ -676,7 +713,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                     }}
                     className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
                   />
-                  <button type="submit" disabled={!draft.trim() && !attachment} aria-label="Enviar mensagem" title="Enviar mensagem"
+                  <button type="submit" disabled={imageOptimizing || (!draft.trim() && !attachment)} aria-label="Enviar mensagem" title="Enviar mensagem"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45">
                     <Send size={22}/>
                   </button>
@@ -700,10 +737,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
           <p className="font-black">Nova conversa</p>
           <button type="button" aria-label="Fechar" onClick={() => setNewConversationOpen(false)} className="rounded p-1 hover:bg-muted"><X size={18}/></button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">Abra um atendimento para um número com DDI e DDD, sem criar mensagem automática.</p>
+        <p className="mt-2 text-xs text-muted-foreground">Informe o DDD e o telefone. O código do Brasil (+55) é aplicado automaticamente.</p>
         <label className="mt-4 block text-xs font-semibold" htmlFor="union-new-phone">WhatsApp *</label>
-        <input id="union-new-phone" required autoFocus inputMode="tel" value={newPhone} onChange={event => setNewPhone(event.target.value)}
-          placeholder="5579999999999" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+        <div className="mt-1 flex w-full items-stretch overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
+          <span className="flex shrink-0 items-center border-r border-border bg-muted/45 px-3 text-sm font-semibold text-foreground">+55</span>
+          <input id="union-new-phone" required autoFocus inputMode="tel" autoComplete="tel-national"
+            value={newPhone} onChange={event => setNewPhone(brazilPhoneMask(event.target.value))}
+            maxLength={16} placeholder="(79) 98803-7605"
+            className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none"/>
+        </div>
         <label className="mt-3 block text-xs font-semibold" htmlFor="union-new-name">Nome do contato (opcional)</label>
         <input id="union-new-name" value={newName} maxLength={120} onChange={event => setNewName(event.target.value)}
           placeholder="Nome" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
