@@ -26,6 +26,7 @@ async function signedBridge(
   download?: {url:string;key:string;sha:string;encSha:string;length:number;mime:string;type:string},
   lookup = false,
   avatar = false,
+  presence = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -36,7 +37,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
@@ -61,6 +62,7 @@ async function signedBridge(
     });
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
+    if (presence) return "";
     if (avatar) {
       const url=typeof result.avatar_url==="string" ? result.avatar_url.slice(0,2048) : "";
       if(!url) return "";
@@ -110,7 +112,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -317,6 +319,16 @@ Deno.serve(async request => {
         .eq("id",thread.id).eq("organization_id",org);
       if(saveError)throw saveError;
       return json({success:true,service_order_id:target||null});
+    }
+    if(action==="presence_subscribe") {
+      if(!(canManage || thread.assigned_to===actorId ||
+        (thread.status==="waiting" && !thread.assigned_to)))
+        return json({success:false,error:"Conversa não disponível."},403);
+      try{
+        await signedBridge({id:thread.channel_id,organization_id:org},"",thread.chat_jid,
+          crypto.randomUUID(),undefined,undefined,false,false,true);
+        return json({success:true});
+      }catch{return json({success:true});}
     }
     if(action==="customer_match") {
       if(!permissions.has("customers.view")) return json({success:false,error:"Sem permissão para visualizar clientes."},403);
