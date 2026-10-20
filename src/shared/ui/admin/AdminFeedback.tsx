@@ -202,7 +202,7 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
   </div>;
 }
 
-export function Toast({ message, type = "success", onClose, persistent = false }: { message: unknown; type?: FeedbackType; onClose: () => void; persistent?: boolean }) {
+export function Toast({ message, type = "success", onClose, persistent = false, onRetry }: { message: unknown; type?: FeedbackType; onClose: () => void; persistent?: boolean; onRetry?: () => void }) {
   const displayMessage = type === "error" ? systemErrorMessage(message) : normalizeFeedbackMessage(message);
   useEffect(() => {
     if (persistent) return;
@@ -216,6 +216,7 @@ export function Toast({ message, type = "success", onClose, persistent = false }
   )} role={type === "error" ? "alert" : "status"} aria-live={type === "error" ? "assertive" : "polite"}>
     {type === "success" ? <CheckCircle size={18} className="mt-0.5 shrink-0" /> : type === "warning" ? <AlertTriangle size={18} className="mt-0.5 shrink-0" /> : <AlertCircle size={18} className="mt-0.5 shrink-0" />}
     <span className="min-w-0 flex-1 leading-relaxed">{displayMessage}</span>
+    {onRetry && <button type="button" onClick={onRetry} className="shrink-0 rounded-md border border-current/30 px-2 py-1 text-[11px] font-bold transition-colors hover:bg-current/10">Tentar novamente</button>}
     <button type="button" onClick={onClose} className="shrink-0 rounded-md p-0.5 opacity-70 transition hover:opacity-100" aria-label="Fechar mensagem"><X size={15} /></button>
   </div>;
 }
