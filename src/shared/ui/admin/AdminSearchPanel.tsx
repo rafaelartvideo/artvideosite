@@ -6,8 +6,8 @@ import {
 } from "@/shared/ui/primitives/dropdown-menu";
 import { AdminCard } from "./AdminLayout";
 
-export function AdminSearchPanel({ title, children, headerActions }: { title: string; children: ReactNode; headerActions?: ReactNode }) {
-  return <AdminCard square className="overflow-hidden p-0">
+export function AdminSearchPanel({ title, children, headerActions, allowOverflow = false }: { title: string; children: ReactNode; headerActions?: ReactNode; allowOverflow?: boolean }) {
+  return <AdminCard square className={allowOverflow ? "overflow-visible p-0" : "overflow-hidden p-0"}>
     <div className="flex h-12 items-center justify-between gap-3 border-b border-primary-active/35 admin-primary-bar px-4 text-white md:h-11">
       <div className="flex min-w-0 items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.08]"><Search size={14} className="shrink-0 text-white/90" /></span>
