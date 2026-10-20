@@ -15,7 +15,9 @@ export function IntegrationsPage({ onBack }: { onBack: () => void }) {
   const canSac = hasPermission("sac_digital.settings.manage");
   const canChannels = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
   if (selected === "sac" && canSac) return <SacDigitalSettingsPage onBack={() => setSelected(null)} />;
-  if (selected === "channels" && canChannels) return <WhatsAppChannelsPage onBack={() => setSelected(null)} />;
+  if (selected === "channels" && canChannels) return <WhatsAppChannelsPage onBack={() => setSelected(null)}
+    initialSection={(["configuration","connections","departments","queues","operators"].includes(searchParams.get("section") || "")
+      ? searchParams.get("section") : "configuration") as "configuration" | "connections" | "departments" | "queues" | "operators"}/>
   return <div className="space-y-5">
     <PageHeader title="Integrações" subtitle="Configure serviços conectados à empresa ativa. Cada provedor mantém suas credenciais separadas."
       actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>} />
