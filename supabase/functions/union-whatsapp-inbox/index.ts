@@ -119,7 +119,7 @@ Deno.serve(async request => {
     }
 
     if(action==="start") {
-      const phone=String(body.phone||"").replace(/\\D/g,"");
+      const phone=String(body.phone||"").replace(/\D/g,"");
       const customerName=String(body.contact_name||"").trim().slice(0,120);
       if(!/^[1-9][0-9]{9,14}$/.test(phone))
         return json({success:false,error:"Informe um número válido com DDI e DDD."},400);
