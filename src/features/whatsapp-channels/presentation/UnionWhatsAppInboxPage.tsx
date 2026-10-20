@@ -122,6 +122,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     status: "sending" | "unknown" | "failed"; error?: string; sentAt: string; fileName?: string; mediaType?: string };
   const [pending, setPending] = useState<PendingEntry[]>([]);
   const sendingIds = useRef(new Set<string>());
+  const submitGateRef = useRef(false);
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
   // Regenerating it automatically would risk sending the same message twice.
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
@@ -349,7 +350,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   };
 
   const sendText = () => {
-    if (!selected || !activeOrganizationId || !canReply || (!draft.trim() && !attachment)) return;
+    if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || (!draft.trim() && !attachment)) return;
+    submitGateRef.current = true;
+    queueMicrotask(() => { submitGateRef.current = false; });
     const text = draft.trim();
     const file = attachment;
     const preview = mediaPreview;
@@ -498,8 +501,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
               <div ref={scrollRef} onScroll={handleMessagesScroll}
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
                 style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148,163,184,0.18) 1px, transparent 0)", backgroundSize: "22px 22px" }}>
-              {messagesLoading ? <LoadingState text="Carregando mensagens..."/>
-              : messages.length === 0 ? <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
+              {messagesLoading && messages.length === 0 ? <LoadingState text="Carregando mensagens..."/>
+              : messages.length === 0 && pending.filter(item => item.conversationId === selected.id).length === 0 ?
+                <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
                 {messages.map(message => <div key={message.id} className={`mt-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
@@ -525,7 +529,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                         {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
                           : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
                       </div>
-                      {item.status !== "sending" && <button type="button" className="mt-1 text-[10px] font-semibold underline"
+                      {item.status === "failed" && <button type="button" className="mt-1 text-[10px] font-semibold underline"
                         onClick={() => { setDraft(current => current || item.text); setPending(current => current.filter(x => x.id !== item.id)); inputRef.current?.focus(); }}>
                         Editar mensagem
                       </button>}
