@@ -378,15 +378,16 @@ export async function finalizePdvSale(
 
 export async function loadPdvSalesPage(
   organizationId: string,
-  options: { page?: number; pageSize?: number; search?: string; status?: "" | "completed" | "cancelled" } = {},
+  options: { page?: number; pageSize?: number; search?: string; status?: "" | "completed" | "cancelled"; sort?: "newest" | "oldest" } = {},
 ): Promise<PdvSalePage> {
   const org = requiredOrganizationId(organizationId);
-  const { data, error } = await supabase.rpc("get_pdv_sales_page_v1", {
+  const { data, error } = await supabase.rpc("get_pdv_sales_page_v2", {
     p_organization_id: org,
     p_page: options.page || 1,
     p_page_size: options.pageSize || 20,
     p_search: options.search || "",
     p_status: options.status || null,
+    p_sort: options.sort || "newest",
   });
   if (error) throw error;
   return data as PdvSalePage;
