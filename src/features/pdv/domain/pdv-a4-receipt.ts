@@ -12,7 +12,7 @@ const conditionLabel = (value?: string) =>
  * Recibo não fiscal de quitação, ligado ao número imutável da venda do PDV.
  * A impressão pelo navegador permite papel A4 ou "Salvar como PDF".
  */
-export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName: string, options?: { general?: boolean; direction?: "received" | "paid"; number?: string; reference?: string; popup?: Window | null }) {
+export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName: string, options?: { general?: boolean; direction?: "received" | "paid"; number?: string; reference?: string; reason?: string; detailDescription?: string | null; popup?: Window | null }) {
   if (sale.status !== "completed") throw new Error("Venda cancelada não permite emitir recibo de quitação.");
   if (sale.payments.some(payment => payment.settlement_status === "reversed")) {
     throw new Error("Há pagamento estornado nesta venda; não é possível emitir recibo de quitação.");
@@ -149,6 +149,7 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
       </div>
     </div>
   </section>
+  ${options?.general ? '<section class="panel"><h2 class="panel-title">Motivo do recibo</h2><div class="panel-content"><strong>' + html(options.reason || sale.notes || "—") + '</strong>' + (options.detailDescription ? '<p class="pre" style="margin:6px 0 0">' + html(options.detailDescription) + '</p>' : '') + '</div></section>' : ""}
   <section class="panel items-panel">
     <h2 class="panel-title">${options?.general ? "Discriminação" : "Itens da venda"}</h2>
     <table class="items-table">
@@ -189,6 +190,7 @@ export type GeneralReceiptA4 = {
   counterpart_name: string;
   counterpart_document: string | null;
   description: string;
+  detail_description?: string | null;
   items: Array<{ description: string; quantity: number; unit_price: number }>;
   total_amount: number;
   payment_method_name: string | null;
@@ -248,7 +250,7 @@ export function printGeneralFinancialReceipt(data: GeneralReceiptA4, printWindow
     }],
   };
   printPdvA4Receipt(sale, data.organization_name, {
-    general: true, direction: data.direction, popup: printWindow,
+    general: true, direction: data.direction, reason: data.description, detailDescription: data.detail_description, popup: printWindow,
     number: `REC-FIN-${String(data.receipt_number).padStart(6,"0")}`,
     reference: data.service_order_number ? `OS ${data.service_order_number}` : data.description,
   });
