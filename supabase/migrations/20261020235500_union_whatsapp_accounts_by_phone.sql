@@ -130,8 +130,8 @@ begin
     raise exception 'channel_not_connected';
   end if;
   if exists (
-    select 1 from jsonb_array_elements(p_contacts) r
-    where r->>'account_phone' is distinct from v_account
+    select 1 from jsonb_array_elements(p_contacts) as item(value)
+    where item.value->>'account_phone' is distinct from v_account
   ) then
     raise exception 'account_mismatch';
   end if;
