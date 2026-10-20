@@ -199,7 +199,9 @@ Deno.serve(async request => {
           addr.hostname==="fbcdn.net" || addr.hostname.endsWith(".fbcdn.net")) &&
         fileLength>0 && fileLength<=5242880 && Boolean(mediaKey && fileHash && mime);
     } catch { /* A media thumbnail alone is not a decryptable attachment. */ }
-    const name = str(get(info, "PushName", "pushName") || "", 160).trim();
+    // PushName on IsFromMe events identifies OUR OWN WhatsApp account,
+    // not the recipient. Never assign it to the conversation contact.
+    const name = isFromMe ? "" : str(get(info, "PushName", "pushName") || "", 160).trim();
     // WhatsApp privacy JIDs (@lid) aren't phone numbers. Only fill a real
     // number when Whatsmeow provides a verified alternate phone JID.
     const altJid = str(get(info,"ChatAlt","chatAlt","chat_alt",
@@ -265,7 +267,8 @@ Deno.serve(async request => {
           patch.assigned_to = null;
         }
       }
-      if (name && thread.contact_name === (phone || "Contato WhatsApp")) patch.contact_name = name;
+      if (!isFromMe && name && (thread.contact_name === (phone || "Contato WhatsApp") ||
+        thread.contact_name === "Contato WhatsApp")) patch.contact_name = name;
       const { error: updateError } = await admin.from("union_whatsapp_conversations")
         .update(patch).eq("id", thread.id).eq("organization_id", org);
       if (updateError) throw updateError;
