@@ -142,6 +142,7 @@ export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
   useEffect(() => {
     if (!qrOpen || !activeOrganizationId || !channel?.id || !canManage) return;
     let cancelled = false;
+    let qrUnavailableCount = 0;
     const org = activeOrganizationId;
     const id = channel.id;
     const interval = window.setInterval(async () => {
@@ -149,14 +150,25 @@ export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
       qrInFlight.current = true;
       try {
         const result = await operateWhatsAppChannel(org, "qr", id);
-        if (!cancelled && result.qr) setQr(result.qr);
+        if (cancelled) return;
+        if (result.qr) {
+          qrUnavailableCount = 0;
+          setQr(result.qr);
+        }
       } catch {
-        // During pairing, WuzAPI can stop serving QR before status is logged in.
-        // The separate status poll remains active and shows any persistent errors.
+        // A QR that stops being available after it was displayed can mean
+        // that pairing started. Two failures avoid transitioning on one hiccup.
+        // This is only a progress indicator, never proof of connection.
+        qrUnavailableCount += 1;
+        if (!cancelled && qrUnavailableCount >= 2 && channelRef.current?.state === "connecting") {
+          setQrOpen(false);
+          setQr(null);
+          setSyncOpen(true);
+        }
       } finally {
         qrInFlight.current = false;
       }
-    }, 25000);
+    }, 15000);
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [qrOpen, activeOrganizationId, channel?.id, canManage]);
 
