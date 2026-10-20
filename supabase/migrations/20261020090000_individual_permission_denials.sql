@@ -47,7 +47,7 @@ AS $function$
         )
       )
   );
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION private.has_effective_organization_permission(p_organization_id uuid, p_permission_key text)
@@ -76,7 +76,7 @@ AS $function$
       and private.has_platform_permission(p_permission_key)
     )
   );
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.my_organization_permissions(p_organization_id uuid)
@@ -178,7 +178,7 @@ AS $function$
     target.organization_id, candidate.permission_key
   )
   order by candidate.permission_key;
-$function$
+$function$;
 
 
 CREATE OR REPLACE FUNCTION public.set_user_permission_overrides_v2(p_organization_id uuid, p_user_id uuid, p_granted_ids uuid[] DEFAULT ARRAY[]::uuid[], p_denied_ids uuid[] DEFAULT ARRAY[]::uuid[])
@@ -289,7 +289,7 @@ begin
   select distinct p_organization_id,p_user_id,permission_id,(select auth.uid()),false
   from unnest(coalesce(p_denied_ids, array[]::uuid[])) permission_id;
 end;
-$function$
+$function$;
 
 
 REVOKE ALL ON FUNCTION public.set_user_permission_overrides_v2(uuid,uuid,uuid[],uuid[]) FROM PUBLIC, anon;
