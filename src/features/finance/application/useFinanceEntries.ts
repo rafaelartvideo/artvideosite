@@ -80,6 +80,7 @@ export function useFinanceEntries(
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
       operationalStatus: filters.operationalStatus,
+      sort: filters.sort,
     }),
     placeholderData: previous => previous,
   });
