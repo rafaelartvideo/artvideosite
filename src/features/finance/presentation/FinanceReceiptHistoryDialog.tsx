@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, History, Printer, Search } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -39,10 +39,10 @@ function useDebouncedSearch(value: string) {
   return debounced;
 }
 
-function DetailField({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailField({ label, value }: { label: string; value: ReactNode }) {
   return <div className="min-w-0">
-    <dt className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</dt>
-    <dd className="mt-1 break-words text-sm font-semibold text-foreground">{value || "—"}</dd>
+    <p className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
+    <div className="mt-1 break-words text-sm font-semibold text-foreground">{value || "—"}</div>
   </div>;
 }
 
