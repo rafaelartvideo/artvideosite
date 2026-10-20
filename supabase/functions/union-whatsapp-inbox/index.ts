@@ -53,7 +53,7 @@ async function signedBridge(
   const signature = hex(await crypto.subtle.sign("HMAC", key,
     encoder.encode(timestamp + "." + nonce + "." + body)));
   const abort = new AbortController();
-  const timer = setTimeout(()=>abort.abort(), download || media ? 65000 : 14000);
+  const timer = setTimeout(()=>abort.abort(), download || media ? 65000 : avatar ? 25000 : 14000);
   try {
     const response = await fetch(url, {
       method:"POST",
@@ -71,9 +71,22 @@ async function signedBridge(
     if (avatar) {
       const base64=typeof result.avatar_base64==="string" ? result.avatar_base64 : "";
       const mime=typeof result.avatar_mime==="string" ? result.avatar_mime : "";
-      if(!["image/jpeg","image/png","image/webp"].includes(mime) ||
-        !base64 || base64.length>270000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) return "";
-      return "data:"+mime+";base64,"+base64;
+      if(["image/jpeg","image/png","image/webp"].includes(mime) &&
+        base64 && base64.length<=270000 && /^[A-Za-z0-9+/]+={0,2}$/.test(base64))
+        return "data:"+mime+";base64,"+base64;
+      // If the VPS cannot retrieve a valid photo from the CDN, let the
+      // authenticated browser render the ephemeral WhatsApp CDN image URL.
+      // Revalidate the origin here: never pass arbitrary provider URLs on.
+      const remote=typeof result.avatar_cdn_url==="string" ? result.avatar_cdn_url : "";
+      try {
+        const url=new URL(remote);
+        const hostname=url.hostname;
+        if(url.protocol==="https:" && !url.username && !url.password && !url.port &&
+          (hostname==="pps.whatsapp.net" || hostname.endsWith(".whatsapp.net") ||
+           hostname==="fbcdn.net" || hostname.endsWith(".fbcdn.net")))
+          return url.href;
+      }catch{/* No safe external image URL available. */}
+      return "";
     }
     if (lookup) {
       const name=typeof result.name==="string" ? result.name.trim().slice(0,160) : "";
