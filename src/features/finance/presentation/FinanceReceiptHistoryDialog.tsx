@@ -59,7 +59,7 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
   const [selected, setSelected] = useState<Receipt | null>(null);
 
   useEffect(() => { setPage(1); }, [search, direction, pageSize]);
-  useEffect(() => { setSelected(null); }, [organizationId]);
+  useEffect(() => { setSelected(null); setDirection("all"); setPage(1); }, [organizationId, canViewReceived, canViewPaid]);
 
   const effectiveDirection = canViewReceived && canViewPaid ? direction : canViewReceived ? "received" : "paid";
   const history = useQuery({
@@ -74,15 +74,25 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
         .range((page - 1) * pageSize, page * pageSize - 1);
       if (effectiveDirection !== "all") request = request.eq("direction", effectiveDirection);
 
-      const term = debouncedSearch.trim().replace(/[^a-zA-ZÀ-ÿ0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
-      if (term) {
-        const receiptNumber = term.match(/^(?:REC-FIN-?)?0*(\d+)$/i);
-        if (receiptNumber) request = request.eq("receipt_number", Number(receiptNumber[1]));
-        else {
-          const termPattern = "%" + term.replace(/\s+/g, "%") + "%";
+      const rawSearch = debouncedSearch.trim();
+      const digits = rawSearch.replace(/\D/g, "");
+      const receiptCode = rawSearch.match(/^REC-FIN-?0*(\d+)$/i);
+      const orderCode = rawSearch.match(/^OS\s*[#-]?\s*(\d+)$/i);
+      if (receiptCode) {
+        request = request.eq("receipt_number", Number(receiptCode[1]));
+      } else if (orderCode) {
+        request = request.ilike("service_order_number", "%" + orderCode[1] + "%");
+      } else if (/^[\d.\-\/\s]+$/.test(rawSearch) && digits.length >= 11) {
+        request = request.ilike("counterpart_document", "%" + digits.split("").join("%") + "%");
+      } else if (/^\d{1,9}$/.test(rawSearch)) {
+        request = request.eq("receipt_number", Number(rawSearch));
+      } else {
+        const term = rawSearch.replace(/[^a-zA-ZÀ-ÿ0-9\s-]/g, " ").replace(/\s+/g, " ").trim();
+        if (term) {
+          const pattern = "%" + term.replace(/\s+/g, "%") + "%";
           request = request.or(
-            "counterpart_name.ilike." + termPattern + ",counterpart_document.ilike." + termPattern
-            + ",description.ilike." + termPattern + ",service_order_number.ilike." + termPattern,
+            "counterpart_name.ilike." + pattern + ",counterpart_document.ilike." + pattern
+            + ",description.ilike." + pattern + ",service_order_number.ilike." + pattern,
           );
         }
       }
