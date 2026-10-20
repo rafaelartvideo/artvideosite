@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CircleAlert, LoaderCircle, MessageCircle, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Wifi } from "lucide-react";
+import { CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, QrCode, RefreshCw, Settings2, ShieldCheck, Smartphone, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -27,8 +27,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
-  const [syncOpen, setSyncOpen] = useState(false);
-  const [syncSeconds, setSyncSeconds] = useState(0);
   const [statusError, setStatusError] = useState("");
   const [qr, setQr] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -43,12 +41,11 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
     setChannel(next);
     if (next.state === "connected") {
       setQrOpen(false);
-      setSyncOpen(false);
       setQr(null);
       setStatusError("");
       if (previous?.state !== "connected") {
         setError("");
-        setNotice("WhatsApp conectado e pronto para uso na Union.");
+        setNotice(next.webhook_ready ? "WhatsApp conectado e recebimento ativo." : "Número conectado. Configurando o recebimento automaticamente.");
       }
     }
   }, []);
@@ -78,7 +75,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
     setChannel(null);
     setQr(null);
     setQrOpen(false);
-    setSyncOpen(false);
     setStatusError("");
     setConfirmLogout(false);
     void load();
@@ -88,7 +84,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
   // closes. A single timeout follows each completed request: no overlapping
   // intervals, no work in hidden tabs, and no constant polling elsewhere.
   useEffect(() => {
-    if (!activeOrganizationId || !channel?.id || !canView) return;
+    if (!activeOrganizationId || !channel?.id || channel.state === "not_connected" || !canView) return;
     const org = activeOrganizationId;
     const connectionId = channel.id;
     let cancelled = false;
@@ -161,9 +157,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
         // This is only a progress indicator, never proof of connection.
         qrUnavailableCount += 1;
         if (!cancelled && qrUnavailableCount >= 2 && channelRef.current?.state === "connecting") {
-          setQrOpen(false);
+          // QR can disappear when pairing begins; wait for actual status.
           setQr(null);
-          setSyncOpen(true);
         }
       } finally {
         qrInFlight.current = false;
@@ -172,14 +167,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [qrOpen, activeOrganizationId, channel?.id, canManage]);
 
-  useEffect(() => {
-    if (!syncOpen) return;
-    setSyncSeconds(0);
-    const timer = window.setInterval(() => setSyncSeconds(seconds => seconds + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [syncOpen]);
-
-  const perform = useCallback(async (operation: "register" | "provision" | "status" | "qr" | "logout" | "webhook_setup") => {
+  const perform = useCallback(async (operation: "activate" | "status" | "qr" | "logout" | "webhook_setup") => {
     if (!activeOrganizationId || (!canManage && operation !== "status") || action) return;
     setAction(operation);
     setError("");
@@ -188,13 +176,11 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
       const result = await operateWhatsAppChannel(activeOrganizationId, operation, channelRef.current?.id);
       if (result.channel) applyChannel(result.channel);
       if (operation === "qr") setQr(result.qr || null);
-      if (operation === "register") setNotice("Canal cadastrado para esta empresa.");
+      if (operation === "activate") setNotice("WhatsApp ativado. Agora basta conectar seu número.");
       if (operation === "webhook_setup") setNotice("Recebimento autenticado por HMAC configurado. Envie uma mensagem de outro número para testar a entrega.");
-      if (operation === "provision") setNotice("Sessão preparada na VPS. Você já pode conectar o WhatsApp.");
       if (operation === "logout") {
         setQr(null);
         setQrOpen(false);
-        setSyncOpen(false);
         setConfirmLogout(false);
         setNotice("WhatsApp desconectado da Union.");
       }
@@ -212,7 +198,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
     setStatusError("");
     setNotice("");
     setQr(null);
-    setSyncOpen(false);
     setQrOpen(true);
     setAction("connect");
     try {
@@ -231,14 +216,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
     }
   };
 
-  const startSyncing = () => {
-    setQrOpen(false);
-    setQr(null);
-    setStatusError("");
-    setSyncOpen(true);
-  };
-
-  const closeSyncing = () => setSyncOpen(false);
   const statusClass = channel?.state === "connected"
     ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
     : channel?.state === "connecting"
@@ -249,108 +226,122 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
+  const enabled = Boolean(channel && channel.state !== "not_connected");
+  const connected = channel?.state === "connected";
+  const receiving = connected && channel.webhook_ready;
+
   return <div className="space-y-5">
-    <PageHeader title="Canais de Atendimento" subtitle="Conecte o WhatsApp da empresa ativa por QR Code e acompanhe a sincronização e o estado da sessão."
+    <PageHeader title="Canais de Atendimento" subtitle="Ative o canal e gerencie os números conectados em áreas separadas."
       actions={<AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>} />
     {error && <div role="alert" className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-400">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-700 dark:text-emerald-400">{notice}</div>}
-    {loading ? <LoadingState text="Carregando canais..." /> :
+    {loading ? <LoadingState text="Carregando canais..." /> : <>
       <AdminCard>
         <AdminCardHeader>
           <div className="flex min-w-0 items-center gap-3">
-            <span className="rounded-lg bg-blue-500/10 p-2 text-blue-600"><MessageCircle size={21}/></span>
-            <div><h2 className="text-sm font-bold">WhatsApp</h2>
-              <p className="text-xs text-muted-foreground">WuzAPI · WhatsApp normal ou Business</p></div>
+            <span className="rounded-xl bg-blue-500/10 p-2.5 text-blue-600"><Settings2 size={20}/></span>
+            <div><h2 className="text-sm font-bold">Configuração do canal</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Ativação e recebimento de mensagens</p></div>
           </div>
-          <span className={`rounded-lg px-2 py-1 text-xs font-bold ${statusClass}`}>
-            {channel ? stateLabels[channel.state] : "Não cadastrado"}
+          <span className={enabled ? "rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400" : "rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground"}>
+            {enabled ? "Ativado" : "Desativado"}
           </span>
         </AdminCardHeader>
-        <AdminCardContent className="space-y-5">
-          {!channel ? <>
-            <div className="flex items-start gap-3">
-              <Smartphone className="mt-0.5 shrink-0 text-muted-foreground" size={20}/>
-              <p className="text-sm text-muted-foreground">Nenhum canal foi cadastrado nesta empresa. O cadastro não conecta nem modifica o WhatsApp existente.</p>
+        <AdminCardContent className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="max-w-2xl">
+              <p className="text-sm font-semibold">WhatsApp da empresa</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Ao ativar, a Union cadastra e prepara a integração segura de uma vez. Depois você só precisa conectar o número.</p>
             </div>
-            {canManage && <AdminButton disabled={Boolean(action)} loading={action === "register"} onClick={() => void perform("register")}>
-              Cadastrar WhatsApp
-            </AdminButton>}
-          </> : <>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div><p className="text-xs text-muted-foreground">Nome do canal</p><p className="mt-1 text-sm font-semibold">{channel.display_name}</p></div>
-              <div><p className="text-xs text-muted-foreground">Número</p><p className="mt-1 text-sm font-semibold">
-                {channel.phone || (channel.state === "connected" ? "Conectado · número não identificado" : "Aguardando vinculação")}
-              </p></div>
-              <div><p className="text-xs text-muted-foreground">Última verificação</p><p className="mt-1 text-sm">{dateLabel(channel.last_checked_at)}</p></div>
-              <div><p className="text-xs text-muted-foreground">Última conexão</p><p className="mt-1 text-sm">{dateLabel(channel.last_connected_at)}</p></div>
+            {!enabled && canManage && <AdminButton disabled={Boolean(action)} loading={action === "activate"} onClick={() => void perform("activate")}>Ativar WhatsApp</AdminButton>}
+          </div>
+          {enabled && <div className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-2">
+            <div className="flex items-start gap-2.5">
+              <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600"/>
+              <div><p className="text-sm font-semibold">Integração preparada</p><p className="mt-1 text-xs text-muted-foreground">Canal habilitado e sessão segura criada para esta empresa.</p></div>
             </div>
-            {channel.state === "connecting" && <div role="status" className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
-              <LoaderCircle size={19} className="mt-0.5 shrink-0 animate-spin text-amber-600 motion-reduce:animate-none"/>
-              <div><p className="font-semibold">Aguardando confirmação do WhatsApp</p>
-                <p className="mt-1 text-xs text-muted-foreground">Se você já escaneou o QR Code, a sincronização inicial pode levar alguns minutos. A Union consulta o estado automaticamente enquanto esta página estiver aberta.</p>
+            <div className="flex items-start gap-2.5">
+              {receiving ? <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-600"/> :
+                connected ? <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-amber-600 motion-reduce:animate-none"/> :
+                  <CircleAlert size={18} className="mt-0.5 shrink-0 text-muted-foreground"/>}
+              <div><p className="text-sm font-semibold">Recebimento de mensagens</p>
+                <p className="mt-1 text-xs text-muted-foreground">{receiving ? "Autenticado e ativo." :
+                  connected ? "Número conectado. Finalizando configuração automaticamente." :
+                    "Será ativado automaticamente após conectar o número."}</p></div>
+            </div>
+          </div>}
+          {connected && !channel?.webhook_ready && canManage && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/25 p-3">
+            <p className="text-xs text-muted-foreground">Se a ativação do recebimento continuar pendente, confira a ponte de integração.</p>
+            <AdminButton variant="secondary" size="sm" disabled={Boolean(action)} loading={action === "webhook_setup"} onClick={() => void perform("webhook_setup")}>
+              <RefreshCw size={15}/> Tentar novamente
+            </AdminButton>
+          </div>}
+        </AdminCardContent>
+      </AdminCard>
+
+      <AdminCard>
+        <AdminCardHeader>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="rounded-xl bg-blue-500/10 p-2.5 text-blue-600"><Smartphone size={20}/></span>
+            <div><h2 className="text-sm font-bold">Conexões</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Gerencie o número vinculado ao canal</p></div>
+          </div>
+          <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
+            {!enabled ? "Não habilitado" : connected ? "Conectado" : channel?.state === "connecting" ? "Conectando" : "Sem número"}
+          </span>
+        </AdminCardHeader>
+        <AdminCardContent className="space-y-4">
+          {!enabled ? <div className="flex items-center gap-3 rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+            <Smartphone size={21} className="shrink-0"/>Ative o canal acima para conectar um número.
+          </div> : <>
+            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4">
+              <div className="flex min-w-0 items-center gap-3">
+                <span className="rounded-xl bg-emerald-500/10 p-3 text-emerald-600"><MessageCircle size={20}/></span>
+                <div><p className="text-sm font-semibold">{channel?.display_name || "WhatsApp"}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{connected ?
+                    (channel?.phone || "Conectado · número não identificado") :
+                    channel?.state === "connecting" ? "Aguardando confirmação do WhatsApp" : "Nenhum número conectado"}</p></div>
               </div>
-            </div>}
-            {statusError && <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-xs text-red-600 dark:text-red-400">
-              <CircleAlert size={16} className="shrink-0"/>{statusError}
-            </div>}
-            {channel.state === "connected" && <div role="status" className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${channel.webhook_ready ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300" : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300"}`}>
-              {channel.webhook_ready ? <ShieldCheck size={16}/> : <CircleAlert size={16}/>}
-              {channel.webhook_ready ? "Recebimento de mensagens ativo" : "Recebimento de mensagens ainda não configurado"}
-            </div>}
-            <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
-              {canManage && channel.state === "not_connected" && <AdminButton disabled={Boolean(action)} loading={action === "provision"} onClick={() => void perform("provision")}>Preparar sessão</AdminButton>}
-              {canManage && channel.state !== "connected" && channel.state !== "not_connected" && <AdminButton disabled={Boolean(action)} onClick={() => void openQr()}><QrCode size={16}/> Conectar QR Code</AdminButton>}
-              {canManage && channel.state === "connecting" && <AdminButton variant="tertiary" onClick={startSyncing}><LoaderCircle size={16}/> Acompanhar sincronização</AdminButton>}
-              <AdminButton variant="secondary" disabled={Boolean(action)} loading={action === "status"} onClick={() => void perform("status")}><RefreshCw size={16}/> Atualizar estado</AdminButton>
-              {canManage && channel.state === "connected" && <AdminButton loading={action === "webhook_setup"} disabled={Boolean(action)} onClick={() => void perform("webhook_setup")}><MessageCircle size={16}/> {channel.webhook_ready ? "Revalidar recebimento" : "Ativar recebimento"}</AdminButton>}
-              {onOpenInbox && channel.webhook_ready && <AdminButton disabled={Boolean(action)} onClick={onOpenInbox}><MessageCircle size={16}/> Abrir conversas</AdminButton>}
-              {canManage && channel.state === "connected" && <AdminButton variant="danger" disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}><Unplug size={16}/> Desconectar</AdminButton>}
+              <div className="flex flex-wrap gap-2">
+                {canManage && !connected && <AdminButton disabled={Boolean(action)} loading={action === "connect"} onClick={() => void openQr()}>
+                  <QrCode size={16}/> Conectar número
+                </AdminButton>}
+                {connected && onOpenInbox && <AdminButton disabled={Boolean(action) || !receiving} onClick={onOpenInbox}>
+                  <MessageCircle size={16}/> Abrir conversas
+                </AdminButton>}
+                {canManage && connected && <AdminButton variant="danger" disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}>
+                  <Unplug size={16}/> Desconectar
+                </AdminButton>}
+              </div>
             </div>
+            <div className="grid gap-3 px-1 text-xs text-muted-foreground sm:grid-cols-2">
+              <p>Última verificação: <span className="font-medium text-foreground">{dateLabel(channel?.last_checked_at ?? null)}</span></p>
+              <p>Última conexão: <span className="font-medium text-foreground">{dateLabel(channel?.last_connected_at ?? null)}</span></p>
+            </div>
+            {channel?.state === "connecting" && <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
+              <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-amber-600 motion-reduce:animate-none"/>
+              <span>Esperando o WhatsApp confirmar o número. A verificação é automática.</span>
+            </div>}
+            {statusError && <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"><CircleAlert size={16}/>{statusError}</div>}
           </>}
         </AdminCardContent>
       </AdminCard>
-    }
-    <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }} title="Conectar WhatsApp"
-      description="No WhatsApp normal ou Business, abra Aparelhos conectados e escaneie o QR Code."
-      footer={<div className="flex flex-wrap justify-end gap-2">
-        <AdminButton variant="secondary" onClick={() => { setQrOpen(false); setQr(null); }}>Fechar</AdminButton>
-        <AdminButton onClick={startSyncing} disabled={!qr}>Já escaneei o QR Code</AdminButton>
-      </div>}>
-      <div className="flex min-h-[300px] flex-col items-center justify-center gap-4 p-5">
-        {qr
-          ? <img src={qr} width={240} height={240} className="rounded-lg bg-white p-3" alt="QR Code temporário para conectar WhatsApp da empresa"/>
-          : <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
-            <LoaderCircle size={40} className="animate-spin text-primary motion-reduce:animate-none"/><span>Gerando QR Code...</span>
+    </>}
+    <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }}
+      title="Conectar número" description="No WhatsApp, acesse Aparelhos conectados e leia o QR Code."
+      footer={<AdminButton variant="secondary" onClick={() => { setQrOpen(false); setQr(null); }}>Fechar</AdminButton>}>
+      <div className="flex min-h-[310px] flex-col items-center justify-center gap-4 p-5">
+        {qr ? <img src={qr} width={240} height={240} className="rounded-lg bg-white p-3" alt="QR Code para conectar o WhatsApp"/> :
+          <div className="flex flex-col items-center gap-3 text-sm text-muted-foreground">
+            <LoaderCircle size={40} className="animate-spin text-primary motion-reduce:animate-none"/>
+            <span>{action === "connect" ? "Gerando QR Code..." : "Aguardando QR Code ou confirmação..."}</span>
           </div>}
-        <p className="text-center text-xs text-muted-foreground">Depois da leitura, clique em “Já escaneei o QR Code” para acompanhar a sincronização.</p>
-        <AdminButton variant="secondary" disabled={Boolean(action)} loading={action === "qr"} onClick={() => void perform("qr")}><RefreshCw size={16}/> Atualizar QR Code</AdminButton>
-      </div>
-    </AdminDialog>
-
-    <AdminDialog open={syncOpen} onClose={closeSyncing} title="Sincronizando WhatsApp"
-      description="O aparelho já pode aparecer como ativo no celular antes de a Union confirmar a sessão."
-      footer={<div className="flex justify-end gap-2">
-        <AdminButton variant="secondary" onClick={closeSyncing}>Continuar em segundo plano nesta página</AdminButton>
-        <AdminButton loading={action === "status"} onClick={() => void perform("status")} disabled={Boolean(action)}><RefreshCw size={16}/> Verificar agora</AdminButton>
-      </div>}>
-      <div role="status" aria-live="polite" className="flex min-h-[280px] flex-col items-center justify-center gap-5 px-4 py-6 text-center">
-        <div className="relative flex h-24 w-24 items-center justify-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-blue-500/10 motion-reduce:animate-none"/>
-          <span className="absolute inset-2 rounded-full border border-blue-500/25 bg-blue-500/10"/>
-          <Wifi size={35} className="relative text-primary"/>
-          <LoaderCircle size={20} className="absolute -bottom-1 -right-1 animate-spin rounded-full bg-card text-primary motion-reduce:animate-none"/>
-        </div>
-        <div>
-          <p className="text-base font-bold">Confirmando a conexão...</p>
-          <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            {syncSeconds < 90
-              ? "Aguardando o WhatsApp finalizar a sincronização e confirmar que a sessão está pronta."
-              : "Esta sincronização está levando mais tempo que o habitual. A Union continuará verificando; não é necessário escanear novamente."}
-          </p>
-          <p className="mt-3 text-xs text-muted-foreground">Tempo decorrido: {Math.floor(syncSeconds / 60)}m {String(syncSeconds % 60).padStart(2, "0")}s · Verificação automática a cada 5 segundos</p>
-        </div>
-        {statusError && <div role="alert" className="rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-xs text-red-600 dark:text-red-400">{statusError}</div>}
-        <p className="text-xs text-muted-foreground">A confirmação depende do estado real da sessão no servidor; não marcamos como conectado antes disso.</p>
+        <p className="max-w-sm text-center text-xs leading-relaxed text-muted-foreground">
+          Após escanear, a Union reconhece a conexão e ativa o recebimento automaticamente, sem etapas adicionais.
+        </p>
+        <AdminButton variant="secondary" disabled={Boolean(action)} loading={action === "qr"} onClick={() => void perform("qr")}>
+          <RefreshCw size={16}/> Atualizar QR Code
+        </AdminButton>
       </div>
     </AdminDialog>
 
