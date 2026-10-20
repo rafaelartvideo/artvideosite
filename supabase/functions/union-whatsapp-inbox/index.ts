@@ -179,6 +179,14 @@ Deno.serve(async request => {
         if(!staffMember.is_owner && !eligibleRoleIds.has(staffMember.role_id))
           return json({success:false,error:"Conceda a permissão de envio WhatsApp à função deste funcionário antes de vinculá-lo."},409);
         const enabled=body.enabled===true;
+        if(!enabled){
+          const {count,error:activeError}=await admin.from("union_whatsapp_conversations")
+            .select("id",{count:"exact",head:true})
+            .eq("organization_id",org).eq("assigned_to",targetId).eq("status","in_att");
+          if(activeError)throw activeError;
+          if((count||0)>0) return json({success:false,error:
+            "Este operador possui atendimentos em andamento. Encaminhe ou devolva as conversas antes de desvinculá-lo."},409);
+        }
         const {error:saveError}=await admin.from("union_whatsapp_operator_bindings")
           .upsert({organization_id:org,user_id:targetId,is_active:enabled,updated_at:new Date().toISOString()},
             {onConflict:"organization_id,user_id"});
