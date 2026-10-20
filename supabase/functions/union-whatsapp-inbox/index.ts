@@ -124,8 +124,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -145,7 +145,7 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["contacts_import","contacts_import_device","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
+    if (!canRead || (["contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
       (["contacts_save","send_text","send_media","start","prepare_media"].includes(action) && !canSend && !canManage) ||
       (["assume","members","transfer","transfer_department"].includes(action) && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
@@ -301,7 +301,7 @@ Deno.serve(async request => {
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
-    if(["contacts_list","contacts_import","contacts_import_device","contacts_save","contacts_avatar"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
       if(channelError)throw channelError;
@@ -419,10 +419,18 @@ Deno.serve(async request => {
         if(renameError)throw renameError;
         return json({success:true,contact:saved});
       }
-      if(action==="contacts_import_device") {
+      if(action==="contacts_apply_names"){
+        const {error:applyError}=await admin.rpc("union_whatsapp_apply_contact_names",{
+          p_organization:org,p_channel:channel.id,
+        });
+        if(applyError)throw applyError;
+        return json({success:true});
+      }
+      if(action==="contacts_import_device" || action==="contacts_import_batch") {
         const provided=body.contacts;
-        if(!Array.isArray(provided) || !provided.length || provided.length>100)
-          return json({success:false,error:"Envie de 1 a 100 contatos por vez."},400);
+        const maxBatch=action==="contacts_import_batch"?250:100;
+        if(!Array.isArray(provided) || !provided.length || provided.length>maxBatch)
+          return json({success:false,error:"Envie de 1 a "+maxBatch+" contatos por vez."},400);
         const normalized=new Map<string,{organization_id:string;channel_id:string;chat_jid:string;contact_phone:string;device_name:string;updated_at:string}>();
         for(const item of provided) {
           const row=item&&typeof item==="object"?item as Record<string,unknown>:{};
@@ -438,10 +446,15 @@ Deno.serve(async request => {
         }
         if(!normalized.size)return json({success:false,error:"Nenhum telefone brasileiro válido encontrado no arquivo."},400);
         await mergeContactRows([...normalized.values()]);
-        const {error:applyError}=await admin.rpc("union_whatsapp_apply_contact_names",{
-          p_organization:org,p_channel:channel.id,
-        });
-        if(applyError)throw applyError;
+        // For large imports, postpone the conversation-name sweep to a
+        // separate completion/pause call. Running it for every 250 contacts
+        // would make a 31k-row upload unnecessarily expensive.
+        if(action==="contacts_import_device"){
+          const {error:applyError}=await admin.rpc("union_whatsapp_apply_contact_names",{
+            p_organization:org,p_channel:channel.id,
+          });
+          if(applyError)throw applyError;
+        }
         return json({success:true,imported:normalized.size});
       }
       if(channel.state!=="connected")
