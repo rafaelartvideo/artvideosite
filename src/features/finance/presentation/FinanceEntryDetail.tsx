@@ -174,7 +174,6 @@ export function FinanceEntryDetail({
   decisionPending,
   decisionError,
   settlementPending,
-  confirmSettlementPending,
   reverseSettlementPending,
   settlementError,
   onBack,
@@ -182,7 +181,6 @@ export function FinanceEntryDetail({
   onApprove,
   onReject,
   onRegisterSettlement,
-  onConfirmSettlement,
   onReverseSettlement,
   initialSettlementOpen = false,
 }: {
