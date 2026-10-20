@@ -47,6 +47,8 @@ export function UnionWhatsAppContactsDialog({
   const [avatar,setAvatar]=useState<string|null>(null);
   const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
+  const listScrollRef=useRef<HTMLDivElement|null>(null);
+  const [visibleAvatarJids,setVisibleAvatarJids]=useState<string[]>([]);
   const vcfInputRef=useRef<HTMLInputElement|null>(null);
 
   const refresh=useCallback(async (value:string,index:number)=>{
@@ -82,14 +84,30 @@ export function UnionWhatsAppContactsDialog({
     return()=>{canceled=true;};
   },[organizationId,selected?.chat_jid]);
 
-  // Load only a small visible-page preview set. Never block the contact
-  // list or import workflow on profile photos, which may be private.
-  const previewJids=contacts.slice(0,12).map(item=>item.chat_jid).join(",");
+  // Only fetch avatars entering the contact list's viewport. The prior
+  // first-12-only cap permanently left all other contacts as initials.
+  useEffect(()=>{
+    const root=listScrollRef.current;
+    if(!root || loading || !contacts.length)return;
+    const observer=new IntersectionObserver(entries=>{
+      const entering=entries.filter(item=>item.isIntersecting)
+        .map(item=>(item.target as HTMLElement).dataset.avatarJid||"")
+        .filter(Boolean);
+      if(entering.length)setVisibleAvatarJids(old=>[...new Set([...old,...entering])]);
+    },{root,rootMargin:"100px 0px",threshold:0.01});
+    root.querySelectorAll<HTMLElement>("[data-avatar-jid]").forEach(node=>observer.observe(node));
+    return()=>observer.disconnect();
+  },[contacts,loading]);
+  const previewJids=[...new Set([
+    ...contacts.slice(0,3).map(item=>item.chat_jid),
+    ...visibleAvatarJids.filter(jid=>contacts.some(item=>item.chat_jid===jid)),
+  ])].join(",");
   useEffect(()=>{
     if(!previewJids || loading)return;
     const toFetch=previewJids.split(",").filter(jid=>jid &&
       !Object.prototype.hasOwnProperty.call(listAvatars,jid) &&
-      !avatarRequestsRef.current.has(jid)).slice(0,3);
+      !avatarRequestsRef.current.has(jid))
+      .slice(0,Math.max(0,3-avatarRequestsRef.current.size));
     for(const jid of toFetch){
       avatarRequestsRef.current.add(jid);
       void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
@@ -246,12 +264,12 @@ export function UnionWhatsAppContactsDialog({
               <Plus size={18}/>
             </button>}
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto">
             {loading && contacts.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Carregando contatos...</p>}
             {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato salvo encontrado. Importe a agenda do celular por VCF, sincronize os nomes salvos disponíveis no WuzAPI ou cadastre um contato. Participantes de grupos não entram automaticamente na agenda.</p>}
             {contacts.map(contact=>{
               const display=labelFor(contact);
-              return <button type="button" key={contact.id} onClick={()=>choose(contact)}
+              return <button type="button" key={contact.id} data-avatar-jid={contact.chat_jid} onClick={()=>choose(contact)}
                 className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left hover:bg-muted ${selected?.id===contact.id?"bg-primary/10":""}`}>
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold text-muted-foreground">
                   {listAvatars[contact.chat_jid]
