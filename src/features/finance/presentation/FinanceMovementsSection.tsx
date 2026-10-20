@@ -1,4 +1,3 @@
-import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
@@ -46,13 +45,10 @@ export function FinanceMovementsSection() {
   const { hasPermission } = useAuth();
   const foundation = useFinanceFoundation();
   const canTransfer = hasPermission("finance.transfers.create");
-  const canConfirmSettlements = hasPermission("finance.settlements.create");
   const [search, setSearch] = useState("");
   const [accountFilter, setAccountFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
-  const [settlementPage, setSettlementPage] = useState(1);
-  const [settlementPageSize, setSettlementPageSize] = useState(10);
   const [transferOpen, setTransferOpen] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<FinancialMovement | null>(null);
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
@@ -64,8 +60,7 @@ export function FinanceMovementsSection() {
     movementPageSize: pageSize,
     movementSearch: debouncedSearch,
     movementAccountId: accountFilter === "all" ? "" : accountFilter,
-    settlementPage,
-    settlementPageSize,
+    loadScheduledSettlements: false,
   });
 
   useEffect(() => {
@@ -78,11 +73,9 @@ export function FinanceMovementsSection() {
   const movements = finance.movementsQuery.data?.items || [];
   const totalMovements = finance.movementsQuery.data?.total || 0;
   const transfers = finance.transfersQuery.data || [];
-  const scheduledSettlements = finance.scheduledSettlementsQuery.data?.items || [];
-  const totalScheduledSettlements = finance.scheduledSettlementsQuery.data?.total || 0;
   const totalBalance = accounts.reduce((sum, item) => sum + Number(item.balance || 0), 0);
 
-  const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.scheduledSettlementsQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error || finance.confirmScheduledSettlementMutation.error;
+  const error = finance.movementsQuery.error || finance.balancesQuery.error || finance.transfersQuery.error || finance.transferMutation.error || finance.reverseTransferMutation.error;
   useEffect(() => {
     if (error) notifyAdmin(systemErrorMessage(error), "error");
   }, [error]);
@@ -135,36 +128,6 @@ export function FinanceMovementsSection() {
           pageSizeOptions={[20, 50, 100]}
         />
       </>}
-
-    {(scheduledSettlements.length > 0 || finance.scheduledSettlementsQuery.isLoading) && <section className="space-y-3 border-t border-border pt-5">
-      <div><h3 className="text-sm font-bold text-foreground">Repasses futuros</h3><p className="mt-1 text-xs text-muted-foreground">Confirme quando os valores dos cartões entrarem na conta.</p></div>
-      <div className="space-y-2">
-        {finance.scheduledSettlementsQuery.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando créditos pendentes de confirmação...</p> : scheduledSettlements.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhum crédito pendente na conta.</p> : scheduledSettlements.map(item => {
-          const overdue = new Date(item.expected_settlement_at).getTime() < Date.now();
-          return <div key={item.id} className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${overdue ? "border-red-200 bg-red-50/50" : "border-[#0d1b2e]/8"}`}>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-black text-[#0d1b2e]">{item.payment_method_name_snapshot}</p>{overdue && <span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${STATUS_TONE_CLASSES.danger.badge}`}>Repasse atrasado</span>}</div>
-              <p className="mt-1 text-xs text-[#5a6a82]">{item.financial_account_name_snapshot} · previsto para {formatDateTime(item.expected_settlement_at)}</p>
-              <p className="mt-1 text-xs text-[#5a6a82]">Bruto {formatCurrency(item.gross_amount)} · taxa {formatCurrency(item.fee_amount)} · <strong className="text-[#0d1b2e]">líquido {formatCurrency(item.net_amount)}</strong></p>
-            </div>
-            {canConfirmSettlements && <AdminButton size="sm" onClick={() => finance.confirmScheduledSettlementMutation.mutateAsync({ settlementId: item.id })} loading={finance.confirmScheduledSettlementMutation.isPending} loadingText="Confirmando...">Confirmar crédito na conta</AdminButton>}
-          </div>;
-        })}
-      <PaginationBar
-        page={settlementPage}
-        pageSize={settlementPageSize}
-        totalItems={totalScheduledSettlements}
-        onPageChange={setSettlementPage}
-        onPageSizeChange={value => {
-          setSettlementPageSize(value);
-          setSettlementPage(1);
-        }}
-        defaultPageSize={10}
-        pageSizeOptions={[10, 20, 50]}
-      />
-
-      </div>
-    </section>}
 
     {canTransfer && transfers.length > 0 && <section className="space-y-2 border-t border-border pt-5"><h3 className="text-sm font-bold text-foreground">Transferências</h3>{transfers.slice(0, 20).map(transfer => <div key={transfer.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-[#0d1b2e]">{accountById.get(transfer.from_account_id)?.name || "Conta"} → {accountById.get(transfer.to_account_id)?.name || "Conta"}</p><p className="mt-1 text-xs text-[#5a6a82]">{formatDateTime(transfer.occurred_at)} · {formatCurrency(transfer.amount)}{transfer.note ? ` · ${transfer.note}` : ""}</p>{transfer.reversal_reason && <p className="mt-1 text-xs font-semibold text-red-700">Estornada: {transfer.reversal_reason}</p>}</div>{transfer.transfer_status === "posted" && <AdminButton size="sm" variant="danger" onClick={() => { setReverseTransferId(transfer.id); setReverseReason(""); setReverseReasonError(""); }}><RotateCcw size={14} /> Estornar</AdminButton>}</div>)}</section>}
 
