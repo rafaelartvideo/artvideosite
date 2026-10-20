@@ -33,6 +33,9 @@ const ORDER_PART_KEYS = new Set(["orders.request_parts", "orders.manage_part_req
 const ORDER_FLOW_KEYS = new Set(["orders.create", "orders.edit", "orders.delete", "orders.view_all", "orders.status", "orders.situation.change", "orders.solve", "orders.complete", "orders.cancel"]);
 const ACTION_SUFFIXES = [".create", ".edit", ".update", ".delete", ".toggle_active", ".toggle_featured", ".status.change", ".refresh", ".convert_to_order", ".lookup_cnpj"];
 const HIDDEN_LEGACY_PERMISSIONS = new Set([
+  // O financeiro não utiliza mais etapas de aprovação; preserva as chaves somente como histórico.
+  "finance.payables.approve",
+  "finance.receivables.approve",
   "tools.sac_digital.use",
   "customers.requests.view",
   "customers.requests.create",
