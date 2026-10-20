@@ -150,6 +150,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [channelError, setChannelError] = useState("");
+  const [avatars, setAvatars] = useState<Record<string,string|null>>({});
   const messageIdentity = useRef(0);
 
   const loadingList = useRef(false);
@@ -191,6 +192,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     loadingList.current = false;
     setConversations([]);
     setMessages([]);
+    setAvatars({});
     setSelectedId(null);
     setFilter("waiting");
     setDraft("");
@@ -281,6 +283,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     return ()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,canView,channelReady]);
 
+  useEffect(() => {
+    if(!selectedId || !activeOrganizationId || !canView || channelReady!==true ||
+      Object.prototype.hasOwnProperty.call(avatars,selectedId)) return;
+    let cancelled=false;
+    const org=activeOrganizationId;
+    void operateUnionWhatsAppInbox(org,selectedId,"contact_avatar")
+      .then(result=>{
+        if(cancelled || organizationRef.current!==org) return;
+        setAvatars(old=>({...old,[selectedId]:result.avatar_url||null}));
+      }).catch(()=>{if(!cancelled) setAvatars(old=>({...old,[selectedId]:null}));});
+    return()=>{cancelled=true;};
+  },[selectedId,activeOrganizationId,canView,channelReady,avatars]);
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
     setShowJumpToLatest(false);
@@ -583,8 +597,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
               const name = item.contact_name || item.contact_phone || "Contato";
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
                 className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-primary/50 bg-primary-soft/45 hover:bg-primary-soft/65" : "bg-card hover:bg-muted/55"}`}>
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                  {initials(name)}
+                <span className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
+                  {avatars[item.id] ? <img src={avatars[item.id]!} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatars(old=>({...old,[item.id]:null}))}/> : initials(name)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex justify-between gap-2">
@@ -609,7 +623,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
             </div>
           </div> : <>
             <header className="flex min-h-16 items-center gap-3 border-b border-border bg-muted/30 px-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-black">{initials(selected.contact_name)}</span>
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-black">
+                 {avatars[selected.id] ? <img src={avatars[selected.id]!} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/> : initials(selected.contact_name)}
+               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black text-foreground">{selected.contact_name}</p>
                 <p className="text-xs text-muted-foreground">{selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}</p>
