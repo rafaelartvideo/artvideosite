@@ -172,7 +172,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{entry.payment_method_summary || "A definir"}</strong></span>
-                <span>Recebido: <strong className="text-foreground">{formatCurrency(entry.settled_amount || 0)}</strong></span>
+                <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-foreground">{formatCurrency(entry.settled_amount || 0)}</strong></span>
                 <span>Saldo: <strong className="text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -191,7 +191,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <th className="text-left">Forma de pagamento</th>
               <th className="text-left">Vencimento</th>
               <th className="text-right">Valor</th>
-              <th className="text-right">Recebido</th>
+              <th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th>
               <th className="text-left">Situação</th>
               <th className="text-right">Ações</th>
             </tr></thead>
@@ -203,7 +203,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-primary">{formatCurrency(entry.original_amount)}</td>
                 <td className="text-right tabular-nums">{formatCurrency(entry.settled_amount || 0)}</td>
-                <td></td>
                 <td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-muted" onClick={event => event.stopPropagation()}><MoreHorizontal size={17} /></button></DropdownMenuTrigger>
@@ -239,6 +238,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           : finance.detailQuery.data
             ? <FinanceEntryDetail
               scrollContainerRef={receivableScrollRef}
+              initialSettlementOpen={quickSettlementId === selectedEntryId}
               detail={finance.detailQuery.data}
               accounts={accounts}
               paymentMethods={paymentMethods}
