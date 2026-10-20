@@ -1044,13 +1044,14 @@ export type SacDigitalContactPageItem = {
 };
 
 export async function listSacDigitalContactsPage(
-  organizationId: string, search: string, page: number, pageSize: number,
+  organizationId: string, search: string, page: number, pageSize: number, sort: "newest" | "oldest" = "newest",
 ): Promise<{ items: SacDigitalContactPageItem[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_sac_digital_contacts_search_v1", {
+  const { data, error } = await supabase.rpc("list_sac_digital_contacts_search_v2", {
     p_organization_id: organizationId,
     p_search: search,
     p_page: page,
     p_page_size: pageSize,
+    p_sort: sort,
   });
   if (error) throw error;
   const result = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
