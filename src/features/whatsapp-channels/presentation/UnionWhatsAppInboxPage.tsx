@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
@@ -90,6 +90,8 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
       className="max-h-80 w-full rounded-md" />}
     {mediaUrl && message.message_type === "audio" && <audio src={mediaUrl} controls preload="metadata"
       className="w-full min-w-[240px] max-w-full" />}
+    {mediaUrl && message.message_type === "file" && message.media_mime?.startsWith("audio/") &&
+      <audio src={mediaUrl} controls preload="metadata" className="min-w-[240px] max-w-full"/>}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
       <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
       <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
@@ -130,6 +132,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [imageOptimizing, setImageOptimizing] = useState(false);
   const optimizeSeq = useRef(0);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const discardRecordingRef = useRef(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
@@ -436,14 +443,77 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     }
   };
 
+  const stopRecording = (discard = false) => {
+    const recorder=recorderRef.current;
+    if(!recorder) return;
+    discardRecordingRef.current=discard;
+    if(recorder.state!=="inactive") recorder.stop();
+    micStreamRef.current?.getTracks().forEach(track=>track.stop());
+    micStreamRef.current=null;
+    setRecording(false);
+  };
+
+  const startRecording = async () => {
+    if(!canReply || recording || imageOptimizing || attachment) return;
+    if(!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder==="undefined") {
+      setError("Este navegador não permite gravar áudio. Use o anexo para enviar um arquivo.");return;
+    }
+    const formats=["audio/ogg;codecs=opus","audio/mp4","audio/webm;codecs=opus","audio/webm"];
+    const selectedFormat=formats.find(value=>MediaRecorder.isTypeSupported(value));
+    if(!selectedFormat) {setError("O navegador não oferece um formato de gravação compatível.");return;}
+    try {
+      const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+      const recorder=new MediaRecorder(stream,{mimeType:selectedFormat,audioBitsPerSecond:64000});
+      micStreamRef.current=stream;
+      recorderRef.current=recorder;
+      discardRecordingRef.current=false;
+      const pieces:Blob[]=[];
+      recorder.ondataavailable=event=>{if(event.data.size) pieces.push(event.data);};
+      recorder.onstop=()=>{
+        stream.getTracks().forEach(track=>track.stop());
+        if(recorderRef.current===recorder) recorderRef.current=null;
+        if(micStreamRef.current===stream) micStreamRef.current=null;
+        setRecording(false);
+        if(discardRecordingRef.current || !pieces.length)return;
+        const realMime=recorder.mimeType.split(";")[0];
+        const ext=realMime==="audio/ogg"?"ogg":realMime==="audio/mp4"?"m4a":"webm";
+        const file=new File(pieces,`gravacao-${new Date().toISOString().replace(/[:.]/g,"-")}.${ext}`,{
+          type:realMime,lastModified:Date.now(),
+        });
+        void onChooseMedia(file);
+      };
+      recorder.onerror=()=>{
+        stream.getTracks().forEach(track=>track.stop());
+        setRecording(false);
+        setError("A gravação de áudio foi interrompida.");
+      };
+      recorder.start(500);
+      setRecordingSeconds(0);
+      setRecording(true);
+      setError("");
+    } catch {
+      setError("Não foi possível acessar o microfone. Verifique a permissão do navegador.");
+    }
+  };
+  useEffect(() => {
+    if(!recording) return;
+    const ticker=window.setInterval(()=>setRecordingSeconds(s=>s+1),1000);
+    return()=>window.clearInterval(ticker);
+  },[recording]);
+  useEffect(()=>()=>{
+    discardRecordingRef.current=true;
+    if(recorderRef.current && recorderRef.current.state!=="inactive") recorderRef.current.stop();
+    micStreamRef.current?.getTracks().forEach(track=>track.stop());
+  },[selectedId,activeOrganizationId]);
+
   const onChooseMedia = async (file: File | null) => {
     if(!file) return;
     const seq=++optimizeSeq.current;
     const type=file.type;
     const image=["image/jpeg","image/png","image/webp"].includes(type);
-    const audio=["audio/ogg","audio/opus"].includes(type);
+    const audio=["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(type);
     const video=["video/mp4","video/3gpp"].includes(type);
-    const doc=["application/pdf","text/plain","application/zip","application/octet-stream",
+    const doc=["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
       "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
@@ -484,7 +554,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     const file = attachment;
     const preview = mediaPreview;
     const fileType = file ? file.type.startsWith("image/") ? "image" :
-      file.type.startsWith("audio/") ? "audio" : file.type.startsWith("video/") ? "video" : "file" : null;
+      file.type.startsWith("audio/") && file.type!=="audio/webm" ? "audio" : file.type.startsWith("video/") ? "video" : "file" : null;
     const threadId = selected.id;
     const organizationId = activeOrganizationId;
     const requestId = crypto.randomUUID();
@@ -693,6 +763,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 {imageOptimizing && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <LoaderCircle size={14} className="animate-spin"/> Otimizando imagem antes do envio...
                 </div>}
+                {recording && <div role="status" className="mb-2 flex items-center gap-2 text-xs font-semibold text-red-600">
+                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-600"/>
+                  Gravando · {String(Math.floor(recordingSeconds/60)).padStart(2,"0")}:{String(recordingSeconds%60).padStart(2,"0")}
+                  <button type="button" onClick={()=>stopRecording(true)} className="ml-auto rounded-md border border-border px-2 py-1 text-muted-foreground hover:bg-muted">Cancelar</button>
+                  <button type="button" onClick={()=>stopRecording(false)} className="rounded-md bg-primary px-2 py-1 text-primary-foreground">Concluir</button>
+                </div>}
                 {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
                   {mediaPreview && <img src={mediaPreview} alt="Prévia do anexo" className="h-10 w-10 rounded object-cover" />}
                   <Paperclip size={15} className="shrink-0"/>
@@ -703,7 +779,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
                   <input ref={mediaInputRef} type="file" className="hidden"
-                    accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
+                    accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
                   <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
                     title="Anexar (imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
@@ -729,7 +805,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                     }}
                     className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
                   />
-                  <button type="submit" disabled={imageOptimizing || (!draft.trim() && !attachment)} aria-label="Enviar mensagem" title="Enviar mensagem"
+                  {!draft.trim() && !attachment && <button type="button" aria-label={recording?"Parar gravação":"Gravar áudio"}
+                    title="Gravar áudio" onClick={()=>recording ? stopRecording(false) : void startRecording()}
+                    className={`flex h-12 w-12 shrink-0 items-center justify-center border-l border-border hover:bg-muted ${recording?"text-red-600":"text-foreground"}`}>
+                    {recording ? <Square size={20}/> : <Mic size={21}/>}
+                  </button>}
+                  <button type="submit" disabled={recording || imageOptimizing || (!draft.trim() && !attachment)} aria-label="Enviar mensagem" title="Enviar mensagem"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45">
                     <Send size={22}/>
                   </button>
