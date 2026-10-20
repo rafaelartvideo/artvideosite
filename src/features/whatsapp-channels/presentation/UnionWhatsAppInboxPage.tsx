@@ -63,7 +63,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   }
   const mediaIcons = { image:ImageIcon, video:FileText, audio:Volume2, file:FileText,
     location:FileText, contact:FileText };
-  const Icon = mediaIcons[message.message_type] || FileText;
+  const Icon = (mediaIcons as Record<string, typeof FileText>)[message.message_type] || FileText;
   const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
     location:"Localização", contact:"Contato"} as Record<string,string>)[message.message_type] || "Mensagem";
   return <div className="space-y-2">
