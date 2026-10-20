@@ -106,13 +106,32 @@ async function provision(id, org) {
   return attempt;
 }
 
-async function operate({ action, connection_id: id, organization_id: org }) {
+async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
+  if (action === "send_text") {
+    // Only the authenticated Union Edge Function may reach this action.
+    // The existing HMAC envelope binds the organization, channel, recipient,
+    // full text and request ID. Never take a provider token from the request.
+    const jid = String(chatJid || "");
+    const body = typeof bodyText === "string" ? bodyText : "";
+    const clientId = String(clientMessageId || "");
+    if (!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid)
+        || !body.trim() || body.length > 4000 || !uuid(clientId)) {
+      throw new Error("bad_request");
+    }
+    const sentId = clientId.replaceAll("-", "").toUpperCase();
+    const response = await wuzapi("/chat/send/text", session.token, "POST", {
+      Phone: jid, Body: body, Id: sentId,
+    });
+    const confirmedId = String(response?.data?.Id || response?.data?.id || "").trim();
+    if (!confirmedId || confirmedId.length > 180) throw new Error("provider_confirmation_unknown");
+    return { ok: true, provider_message_id: confirmedId };
+  }
   if (action === "webhook_setup") {
     // WuzAPI JSON callbacks may omit the user token altogether. Authenticate
     // with the provider's per-user HMAC signature instead (both JSON and form).
