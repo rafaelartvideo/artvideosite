@@ -9,6 +9,7 @@ export type UnionWhatsAppConversation = {
   contact_phone: string | null;
   status: "waiting" | "in_att" | "abandoned" | "finished";
   assigned_to: string | null;
+  department_id: string | null;
   last_message: string | null;
   last_message_at: string | null;
   unread_count: number;
@@ -36,7 +37,7 @@ const raise = (error: { message: string } | null) => { if (error) throw new Erro
 
 export async function listUnionWhatsAppConversations(organizationId: string): Promise<UnionWhatsAppConversation[]> {
   const { data, error } = await supabase.from("union_whatsapp_conversations")
-    .select("id,organization_id,channel_id,chat_jid,contact_name,contact_phone,status,assigned_to,last_message,last_message_at,unread_count,created_at")
+    .select("id,organization_id,channel_id,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,last_message,last_message_at,unread_count,created_at")
     .eq("organization_id", organizationId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(150);
@@ -55,15 +56,16 @@ export async function listUnionWhatsAppMessages(
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "transfer_department" | "handoff_history";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { text?: string; client_message_id?: string; target_user_id?: string;
-    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string } = {},
-): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; avatar_url?: string | null; customer?: {id:string;name:string} | null; ambiguous?: boolean; channel_connected?: boolean; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}> }> {
+    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean } = {},
+): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; avatar_url?: string | null; customer?: {id:string;name:string} | null; ambiguous?: boolean; channel_connected?: boolean; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}>; departments?: Array<{id:string;name:string;is_active:boolean}>; member_ids?: string[];
+  history?: Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}> }> {
   const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
     body: {
       action, organization_id: organizationId, conversation_id: conversationId, ...extra,
