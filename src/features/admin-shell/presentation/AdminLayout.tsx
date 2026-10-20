@@ -89,7 +89,7 @@ export function AdminLayout({
         <UniqCallOverlay />
 
         <aside
-          className={`fixed left-0 top-0 z-40 hidden h-full flex-shrink-0 flex-col bg-[#0d1b2e] transition-[width] duration-200 ease-out md:flex ${sidebarCollapsed ? "w-[72px]" : "w-60"}`}
+          className={`fixed left-0 z-40 hidden flex-shrink-0 flex-col bg-[#0d1b2e] transition-[width,top,height] duration-200 ease-out md:flex ${sidebarCollapsed ? "top-12 h-[calc(100dvh-3rem)] w-[56px]" : "top-0 h-full w-60"}`}
         >
           <AdminSidebarLayoutContext.Provider value={{ collapsed: sidebarCollapsed, canCollapse: true, toggleCollapsed }}>
             {sidebar}
@@ -113,9 +113,11 @@ export function AdminLayout({
         )}
 
         <main
-          className={`flex h-screen min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[margin] duration-200 ease-out ${sidebarCollapsed ? "md:ml-[72px]" : "md:ml-60"}`}
+          className={`flex h-screen min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[margin,padding] duration-200 ease-out ${sidebarCollapsed ? "md:ml-[56px] md:pt-12" : "md:ml-60"}`}
         >
-          {header}
+          <AdminSidebarLayoutContext.Provider value={{ collapsed: sidebarCollapsed, canCollapse: true, toggleCollapsed }}>
+            {header}
+          </AdminSidebarLayoutContext.Provider>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {children}
           </div>
