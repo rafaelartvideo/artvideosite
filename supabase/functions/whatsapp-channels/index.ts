@@ -163,6 +163,10 @@ Deno.serve(async request => {
     }
 
     if (action === "webhook_setup") {
+      if (remote.auth_mode !== "hmac-sha256") {
+        return json({ success: false, code: "bridge_update_required",
+          error: "A ponte WhatsApp da VPS precisa ser atualizada antes de ativar o recebimento seguro." }, 409);
+      }
       const hash = String(remote.token_sha256 || "");
       if (!/^[a-f0-9]{64}$/.test(hash)) {
         return json({ success: false, error: "A configuração segura do webhook não foi confirmada." }, 502);
