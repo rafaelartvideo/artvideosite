@@ -43,7 +43,8 @@ export async function listQuotesPage(organizationId: string, input: QuotePageInp
   const { data: index, error: indexError } = await supabase
     .from("quote_requests")
     .select(QUOTE_FILTER_SELECT)
-    .eq("organization_id", org);
+    .eq("organization_id", org)
+    .is("archived_at", null);
   if (indexError) throw indexError;
 
   const desktopNeedle = normalizeText(search);

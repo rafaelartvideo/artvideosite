@@ -107,6 +107,7 @@ export async function getCustomerHistory(organizationId: string, customerId: str
       .select("id, protocol, created_at, status_id, estimated_price, final_price, customer_message, request_status:request_statuses(name), service:services(title), brand:brands(name)")
       .eq("organization_id", organizationId)
       .eq("customer_id", customerId)
+      .is("archived_at", null)
       .order("created_at", { ascending: false }),
     supabase
       .from("service_orders")
