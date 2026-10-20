@@ -43,9 +43,9 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
 type EntryTab = "overview" | "settlements" | "documents" | "collections";
 
 function EntryDetailContent({
-  detail, accounts, paymentMethods, canEdit, canApprove, canSettle, canReverseSettlement,
-  currentUserId, decisionPending, decisionError, settlementPending, confirmSettlementPending,
-  reverseSettlementPending, settlementError, onBack, onEdit, onApprove, onReject,
+  detail, accounts, paymentMethods, canEdit, canSettle, canReverseSettlement,
+  settlementPending, confirmSettlementPending,
+  reverseSettlementPending, settlementError, onEdit,
   onRegisterSettlement, onConfirmSettlement, onReverseSettlement, scrollContainerRef, initialSettlementOpen,
 }: Parameters<typeof FinanceEntryDetail>[0]) {
   const [tab, setTab] = useState<EntryTab>(initialSettlementOpen ? "settlements" : "overview");
@@ -53,6 +53,8 @@ function EntryDetailContent({
   const settledAmount = detail.installments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
   const remaining = detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
   const methods = [...new Set(detail.settlements.filter(item => item.settlement_status !== "reversed").map(item => item.payment_method_name_snapshot).filter(Boolean))];
+  const plannedMethods = (Array.isArray(detail.source_details?.payment_plan) ? detail.source_details.payment_plan : []) as Array<{payment_method_id:string;amount:number}>;
+  const plannedText = plannedMethods.map(item=>{const method=paymentMethods.find(m=>m.id===item.payment_method_id);return `${method?.name||"Forma cadastrada"}: ${formatCurrency(item.amount)}`;}).join(", ");
   const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
   const originLabel = detail.origin_type === "manual" ? "Cadastro manual" : detail.origin_type === "service_order" ? "Ordem de Serviço" : detail.origin_type === "inventory_purchase" ? "Compra de estoque" : detail.origin_type === "recurring" ? "Recorrência" : "Outros";
   const postedEvent = detail.events.find(event => event.event_type === "settlement_posted" && event.created_by);
@@ -99,7 +101,7 @@ function EntryDetailContent({
           <div className="grid gap-x-5 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
             <Info label={isReceivable ? "Cliente / pagador" : "Favorecido"} value={detail.counterpart_name_snapshot || "—"} />
             <Info label="CPF / CNPJ" value={formatFinancialDocument(detail.counterpart_document_snapshot)} />
-            <Info label="Forma de pagamento" value={methods.length ? methods.join(", ") : "A definir (sem baixa)"} />
+            <Info label="Forma de pagamento" value={methods.length ? methods.join(", ") : plannedText ? `${plannedText} (previsto)` : "A definir (sem baixa)"} />
             <Info label="Emissão" value={formatDate(detail.issue_date)} />
             <Info label="Competência" value={formatDate(detail.competence_date)} />
             <Info label="Próximo vencimento" value={formatDate(due?.due_date)} />
