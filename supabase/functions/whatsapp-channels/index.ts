@@ -91,7 +91,7 @@ Deno.serve(async request => {
     const org = String(input?.organization_id || "");
     const action = String(input?.action || "");
     if (!uuid(org)) return json({ success: false, error: "Empresa inválida." }, 400);
-    if (!["list", "register", "activate", "provision", "connect", "status", "qr", "logout", "webhook_setup"].includes(action)) {
+    if (!["list", "register", "activate", "provision", "connect", "disconnect", "status", "qr", "logout", "webhook_setup"].includes(action)) {
       return json({ success: false, error: "Operação inválida." }, 400);
     }
     const scoped = createClient(supabaseUrl, publicKey, {
@@ -239,8 +239,8 @@ Deno.serve(async request => {
     }
     const loggedIn = remote.logged_in === true;
     const connected = remote.connected === true;
-    const state = loggedIn ? "connected" :
-      action === "logout" ? "disconnected" :
+    const state = action === "disconnect" || action === "logout" ? "disconnected" :
+      loggedIn ? "connected" :
       action === "provision" || action === "connect" || connected ? "connecting" :
       action === "status" ? "disconnected" : previous;
     const patch: Record<string, unknown> = {
@@ -249,6 +249,9 @@ Deno.serve(async request => {
     const phone = String(remote.phone || "").trim();
     if (loggedIn && /^[0-9]{10,15}$/.test(phone)) patch.phone = phone;
     if (loggedIn && (previous !== "connected" || (/^[0-9]{10,15}$/.test(phone) && phone!==channel.phone))) patch.last_connected_at = new Date().toISOString();
+    // A full logout invalidates the paired session. On the next pairing,
+    // configure the authenticated webhook again. Simple disconnect keeps it.
+    if (action === "logout") patch.webhook_ready = false;
     const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
       .update(patch).eq("id", channel.id).eq("organization_id", org)
       .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
