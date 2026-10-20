@@ -465,12 +465,18 @@ test("buscador técnico reutiliza cabeçalho azul e UI compartilhada de inputs",
 
 test("ordenação OS crescente e decrescente é aplicada antes da paginação", () => {
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  const shared = read("src/shared/ui/admin/AdminSearchPanel.tsx");
+  const sortIndex = table.indexOf("if (sort) matching.sort");
+  const paginationIndex = table.indexOf("const visible = rows.slice");
+  assert.ok(sortIndex >= 0 && paginationIndex > sortIndex, "A ordenação deve preceder a paginação");
   assert.match(table, /osNumberCollator\.compare/);
   assert.match(table, /sort === "asc"/);
-  assert.match(table, /const visible = rows\.slice/);
-  assert.match(table, /DropdownMenuContent align="end"/);
+  assert.match(table, /<AdminSearchSortMenu value=\{sort\} onChange=\{setSort\}/);
   assert.match(table, /Ordenação padrão/);
+  assert.match(table, /OS crescente/);
   assert.match(table, /OS decrescente/);
+  assert.match(shared, /<DropdownMenuContent align="end"/);
+  assert.match(shared, /onSelect=\{\(\) => onChange\(option.value\)\}/);
 });
 
 test("calendário filtra intervalo inclusivo de agendamentos com validação", () => {
