@@ -30,9 +30,18 @@ const constantTimeHexEqual = (left: string, right: string) => {
 };
 // Go's url.Values.Encode sorts form keys before producing the HMAC input.
 const canonicalForm = (input: string) => {
-  const params = new URLSearchParams(input);
-  params.sort();
-  return params.toString();
+  // Go net/url.QueryEscape keeps ~ literal; URLSearchParams.toString() does
+  // not. Exact byte equivalence matters for signatures on customer messages.
+  const encoder = new TextEncoder();
+  const encode = (value: string) => Array.from(encoder.encode(value)).map(byte =>
+    (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122)
+      || (byte >= 48 && byte <= 57) || [45, 46, 95, 126].includes(byte)
+      ? String.fromCharCode(byte)
+      : byte === 32 ? "+" : "%" + byte.toString(16).toUpperCase().padStart(2, "0")
+  ).join("");
+  const entries = [...new URLSearchParams(input).entries()];
+  entries.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+  return entries.map(([key, value]) => encode(key) + "=" + encode(value)).join("&");
 };
 const dateOf = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) {
