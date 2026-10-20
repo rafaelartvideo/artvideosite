@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
@@ -67,6 +67,7 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [term, setTerm] = useState("");
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<SacDigitalContactPageItem | null>(null);
@@ -84,8 +85,8 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
   }, [search]);
 
   const query = useQuery({
-    queryKey: ["sac-digital", "contacts-page", organizationId, term, page, pageSize],
-    queryFn: () => listSacDigitalContactsPage(organizationId, term, page, pageSize),
+    queryKey: ["sac-digital", "contacts-page", organizationId, term, page, pageSize, sort],
+    queryFn: () => listSacDigitalContactsPage(organizationId, term, page, pageSize, sort),
     enabled: Boolean(organizationId && canView),
     staleTime: 30_000,
   });
@@ -161,7 +162,13 @@ export function SacDigitalContactsPage({ organizationId, canView, canSendMessage
   if (!canView) return <p className="border border-border p-4 text-sm text-muted-foreground">Você não possui acesso aos contatos da SAC Digital.</p>;
 
   return <div className="min-w-0 space-y-4">
-    <AdminSearchPanel title="Buscar contatos">
+    <AdminSearchPanel title="Buscar contatos" headerActions={<>
+      {(search || sort !== "newest") && <AdminSearchClearButton onClick={() => {
+        setSearch(""); setTerm(""); setSort("newest"); setPage(1);
+      }} />}
+      <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
+        options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
+    </>}>
       <FInput label="Contato" value={search} onChange={(event: any) => { setSearch(event.target.value); setPage(1); }}
         placeholder="Pesquisar nome, telefone, CPF ou CNPJ" />
     </AdminSearchPanel>
