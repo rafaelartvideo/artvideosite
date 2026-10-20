@@ -116,7 +116,6 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
 
     {errorText && !open && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
     {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : <FinanceTableSurface>
-      <div className="overflow-x-auto">
         <table className="w-full min-w-[700px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -137,7 +136,6 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
               </tr>)}
           </tbody>
         </table>
-      </div>
     </FinanceTableSurface>}
 
     {open && <AdminDialog open onClose={() => { if (!mutation.isPending) setOpen(false); }} title="Novo contato de cobrança" className="max-w-xl" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!mutation.isPending) setOpen(false); }} disabled={mutation.isPending}>Cancelar</AdminButton><AdminButton onClick={() => void submit()} loading={mutation.isPending} loadingText="Salvando...">Registrar contato</AdminButton></div>}><div className="space-y-4">
