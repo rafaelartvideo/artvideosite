@@ -194,7 +194,7 @@ Deno.serve(async request => {
       : message.locationMessage || message.LocationMessage ? "location"
       : message.contactMessage || message.ContactMessage ? "contact" : "text";
     const extended = obj(get(message, "extendedTextMessage", "ExtendedTextMessage"));
-    const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "documentMessage", "DocumentMessage"));
+    const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "audioMessage", "AudioMessage", "documentMessage", "DocumentMessage"));
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
     // WuzAPI can emit a sent/echo envelope without an actual message body.
     // These blank "text" events previously created a phantom contact and
