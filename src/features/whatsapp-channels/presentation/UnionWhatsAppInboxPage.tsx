@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowDown, CircleAlert, FileText, Image as ImageIcon, MessageCircle, RefreshCw, Search, ShieldCheck, Smartphone, Volume2 } from "lucide-react";
+import { CircleAlert, FileText, Image as ImageIcon, MessageCircle, RefreshCw, Search, Send, ShieldCheck, RotateCcw, CheckCircle2, UserCheck, Volume2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppMessages,
-  type UnionWhatsAppConversation, type UnionWhatsAppMessage,
+  listUnionWhatsAppConversations, listUnionWhatsAppMessages, operateUnionWhatsAppInbox,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
@@ -42,8 +42,10 @@ function MessageBody({ message }: { message: UnionWhatsAppMessage }) {
 }
 
 export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => void; onConfigure: () => void }) {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
+  const canSend = hasPermission("whatsapp.inbox.send");
+  const canManage = hasPermission("whatsapp.inbox.manage");
   const [conversations, setConversations] = useState<UnionWhatsAppConversation[]>([]);
   const [messages, setMessages] = useState<UnionWhatsAppMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -52,6 +54,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [draft, setDraft] = useState("");
+  const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
+  // Preserve the same request ID if a network timeout leaves delivery uncertain.
+  // Regenerating it automatically would risk sending the same message twice.
+  const sendRequestIdRef = useRef<string | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const messageIdentity = useRef(0);
   const messagesBottom = useRef<HTMLDivElement | null>(null);
@@ -97,6 +106,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setMessages([]);
     setSelectedId(null);
     setFilter("waiting");
+    setDraft("");
+    setNotice("");
+    sendRequestIdRef.current = null;
     setError("");
     messageIdentity.current += 1;
     setLoading(true);
@@ -154,6 +166,61 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       [item.contact_name, item.contact_phone || "", item.chat_jid].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
   }, [scopedConversations, filter, query]);
 
+  const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
+  const canOperateSelected = Boolean(selected && (isMine || canManage));
+  const canReply = Boolean(selected && canSend && selected.status === "in_att" && (isMine || canManage));
+
+  const operate = async (action: Exclude<UnionWhatsAppInboxAction, "send_text" | "mark_read">) => {
+    if (!selected || !activeOrganizationId || runningAction) return;
+    setRunningAction(action);
+    setNotice("");
+    setError("");
+    try {
+      await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, action);
+      await refresh(true);
+      if (action === "assume") {
+        setFilter("in_att");
+        setNotice("Atendimento assumido. Agora você pode responder.");
+        window.setTimeout(() => inputRef.current?.focus(), 100);
+      } else if (action === "reopen") {
+        setFilter("waiting");
+        setSelectedId(null);
+        setNotice("Conversa devolvida à fila Aguardando.");
+      } else {
+        setSelectedId(null);
+        setFilter("waiting");
+        setNotice(action === "finish" ? "Atendimento finalizado." : "Atendimento devolvido à fila.");
+      }
+    } catch (reason) {
+      setError(systemErrorMessage(reason, "Não foi possível atualizar o atendimento."));
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const sendText = async () => {
+    if (!selected || !activeOrganizationId || !canReply || runningAction || !draft.trim()) return;
+    const requestId = sendRequestIdRef.current || crypto.randomUUID();
+    sendRequestIdRef.current = requestId;
+    setRunningAction("send_text");
+    setError("");
+    setNotice("");
+    try {
+      await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "send_text", {
+        text: draft.trim(), client_message_id: requestId,
+      });
+      setDraft("");
+      sendRequestIdRef.current = null;
+      setNotice("Mensagem aceita pelo WhatsApp.");
+      await Promise.all([refreshMessages(selected.id, true), refresh(true)]);
+      inputRef.current?.focus();
+    } catch (reason) {
+      setError(systemErrorMessage(reason, "Não foi possível confirmar o envio. Verifique o WhatsApp antes de tentar novamente."));
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
   return <div className="space-y-5">
@@ -162,6 +229,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
         <AdminButton variant="secondary" onClick={() => void refresh()}><RefreshCw size={16}/> Atualizar</AdminButton>
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
+    {notice && <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-2 text-xs text-emerald-700 dark:text-emerald-300">{notice}</div>}
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
@@ -237,7 +305,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 <p className="truncate text-sm font-black text-foreground">{selected.contact_name}</p>
                 <p className="text-xs text-muted-foreground">{selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}</p>
               </div>
-              <AdminButton variant="secondary" size="sm" onClick={() => void refreshMessages(selected.id)}><RefreshCw size={15}/> <span className="hidden sm:inline">Atualizar</span></AdminButton>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                {selected.status === "waiting" && (canSend || canManage) &&
+                  <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
+                {selected.status === "in_att" && canOperateSelected && <>
+                  <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>
+                  <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>
+                </>}
+                {selected.status === "finished" && (canSend || canManage) &&
+                  <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
+                <AdminButton variant="secondary" size="sm" onClick={() => void refreshMessages(selected.id)}><RefreshCw size={15}/><span className="hidden sm:inline">Atualizar</span></AdminButton>
+              </div>
             </header>
             <div className="min-h-0 flex-1 overflow-y-auto bg-muted/15 px-4 py-5">
               {messagesLoading ? <LoadingState text="Carregando mensagens..."/>
@@ -252,10 +330,35 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 <div ref={messagesBottom}/>
               </div>}
             </div>
-            <footer className="border-t border-border bg-card px-4 py-3">
-              <p className="text-center text-xs text-muted-foreground">
-                <Smartphone size={14} className="mr-1 inline"/>
-                Histórico recebido · O envio será habilitado após validar os eventos do WuzAPI
+            <footer className="border-t border-border bg-card px-3 py-3 sm:px-4">
+              {canReply ? <div className="flex items-end gap-2">
+                <textarea
+                  ref={inputRef}
+                  rows={2}
+                  value={draft}
+                  onChange={event => { setDraft(event.target.value); sendRequestIdRef.current = null; }}
+                  onKeyDown={event => {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      void sendText();
+                    }
+                  }}
+                  placeholder="Digite sua mensagem..."
+                  aria-label="Digite sua mensagem"
+                  maxLength={4000}
+                  disabled={Boolean(runningAction)}
+                  className="min-h-[46px] max-h-28 flex-1 resize-y rounded-lg border border-border bg-muted/25 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 disabled:opacity-60"
+                />
+                <AdminButton disabled={!draft.trim() || Boolean(runningAction)} onClick={() => void sendText()}>
+                  <Send size={16}/>{runningAction === "send_text" ? "Enviando..." : "Enviar"}
+                </AdminButton>
+              </div> : <p className="py-2 text-center text-xs text-muted-foreground">
+                {selected.status === "waiting" ? "Assuma o atendimento para responder." :
+                  selected.status === "finished" ? "Atendimento finalizado. Reabra para responder." :
+                  "Esta conversa está atribuída a outro atendente."}
+              </p>}
+              <p className="mt-2 text-center text-[10px] text-muted-foreground">
+                Envio pelo WuzAPI · Enter para enviar · Shift+Enter para nova linha
               </p>
             </footer>
           </>}
