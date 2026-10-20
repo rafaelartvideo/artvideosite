@@ -347,7 +347,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       bodyClassName="overscroll-contain"
       bodyRef={receivableScrollRef}
       footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
-        <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); onSelectEntry(null); }}>Fechar</AdminButton>
+        <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canSettle
           && !["cancelled", "reversed"].includes(finance.detailQuery.data.approval_status)
           && finance.detailQuery.data.installments.some(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001)
