@@ -5,7 +5,6 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
-  expectedSettlementDate,
   paymentMethodFee,
   settlementCashAmount,
   settlementNetAmount,
@@ -74,10 +73,6 @@ export function FinanceSettlementDialog({
     ? paymentMethodFee(gross, selectedMethod.percentage_fee, selectedMethod.fixed_fee)
     : 0;
   const net = settlementNetAmount(gross, fee);
-  const scheduled = detail.entry_type === "receivable" && Boolean(selectedMethod?.creates_future_settlement);
-  const expectedDate = selectedMethod && occurredAt
-    ? expectedSettlementDate(occurredAt.slice(0, 10), selectedMethod.settlement_days)
-    : null;
 
   useEffect(() => {
     if (!open) return;
@@ -193,7 +188,7 @@ export function FinanceSettlementDialog({
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Taxa</p><p className="mt-1 text-sm font-black">{formatCurrency(fee)}</p></div>
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Líquido</p><p className="mt-1 text-sm font-black text-emerald-700">{formatCurrency(net)}</p></div>
       </div>
-      {selectedMethod && <div className={`rounded-lg border px-4 py-3 text-xs font-semibold ${scheduled ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}>{scheduled ? `Liquidação futura: o título será baixado agora e o saldo da conta será movimentado quando a liquidação for confirmada. Previsão: ${expectedDate || "—"}.` : `Liquidação imediata. Previsão da forma de pagamento: ${expectedDate || "—"}.`}</div>}
+      {selectedMethod && <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">Baixa imediata: ao confirmar, o lançamento é liquidado e a conta financeira é movimentada automaticamente.</p>}
     </div>
   </AdminDialog>
   {confirmation && <AdminDialog open onClose={() => { if(!saving) setConfirmation(null); }} title="Confirmar baixa financeira" description="Confira os dados antes de movimentar o financeiro." className="max-w-lg"
