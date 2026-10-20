@@ -3,6 +3,7 @@ import { Check, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle,
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
+import { parseContactTable, parseContactsCSV, type ContactImportSummary } from "../domain/contact-file-import";
 
 const labelFor = (contact: UnionWhatsAppContact) =>
   contact.display_name || contact.device_name || contact.imported_name || contact.profile_name ||
@@ -50,6 +51,8 @@ export function UnionWhatsAppContactsDialog({
   const listScrollRef=useRef<HTMLDivElement|null>(null);
   const [visibleAvatarJids,setVisibleAvatarJids]=useState<string[]>([]);
   const vcfInputRef=useRef<HTMLInputElement|null>(null);
+  const spreadsheetInputRef=useRef<HTMLInputElement|null>(null);
+  const [pendingImport,setPendingImport]=useState<{filename:string;summary:ContactImportSummary}|null>(null);
 
   const refresh=useCallback(async (value:string,index:number)=>{
     setLoading(true);
@@ -191,6 +194,48 @@ export function UnionWhatsAppContactsDialog({
       if(vcfInputRef.current)vcfInputRef.current.value="";
     }
   };
+  const readSpreadsheet=async(file:File|null)=>{
+    if(!file||!canImport||busy)return;
+    if(!/\\.(xlsx|csv)$/i.test(file.name)||file.size>3*1048576){
+      setError("Selecione uma planilha .xlsx ou .csv de até 3 MB.");
+      return;
+    }
+    setError("");setNotice("");setBusy(true);
+    try{
+      const rows=/\\.xlsx$/i.test(file.name)
+        ? await import("read-excel-file/browser").then(module=>module.readSheet(file))
+        : parseContactsCSV(await file.text());
+      const summary=parseContactTable(rows);
+      if(!summary.entries.length)throw Error("Não há contatos válidos para importar. Use as colunas Nome e Telefone.");
+      setPendingImport({filename:file.name,summary});
+    }catch(reason){
+      setError(systemErrorMessage(reason,"Não foi possível ler a planilha. Verifique as colunas Nome e Telefone."));
+    }finally{
+      setBusy(false);
+      if(spreadsheetInputRef.current)spreadsheetInputRef.current.value="";
+    }
+  };
+  const confirmSpreadsheetImport=async()=>{
+    if(!pendingImport||busy)return;
+    setBusy(true);setError("");setNotice("");
+    const entries=pendingImport.summary.entries;
+    try{
+      let imported=0;
+      for(let i=0;i<entries.length;i+=100){
+        const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
+          "contacts_import_device",{contacts:entries.slice(i,i+100)});
+        imported+=result.imported||0;
+        setNotice("Importando: "+imported+" de "+entries.length+" contatos...");
+      }
+      setPendingImport(null);
+      setNotice(imported+" contato(s) processado(s) da planilha. Nomes salvos manualmente foram preservados.");
+      setPage(0);
+      await refresh(search,0);
+      onSaved();
+    }catch(reason){
+      setError(systemErrorMessage(reason,"Não foi possível concluir a importação. Contatos já enviados foram preservados."));
+    }finally{setBusy(false);}
+  };
   const save=async()=>{
     if(!canEdit || busy)return;
     if(name.trim().length<2){setError("Informe um nome com pelo menos dois caracteres.");return;}
@@ -236,6 +281,15 @@ export function UnionWhatsAppContactsDialog({
               className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50">
               Importar VCF
             </button>
+            <input ref={spreadsheetInputRef} type="file"
+              accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+              className="hidden" aria-label="Arquivo Excel ou CSV com contatos"
+              onChange={event=>{void readSpreadsheet(event.target.files?.[0]||null);}}/>
+            <button type="button" disabled={busy} onClick={()=>spreadsheetInputRef.current?.click()}
+              title="Importar Excel (.xlsx) ou CSV com colunas Nome e Telefone"
+              className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50">
+              Excel / CSV
+            </button>
             <button type="button" disabled={busy} onClick={()=>void importContacts()}
               title="Importar somente os contatos salvos identificados pelo WhatsApp; não importar membros de grupos"
               className="flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/15 disabled:opacity-50">
@@ -266,7 +320,7 @@ export function UnionWhatsAppContactsDialog({
           </div>
           <div ref={listScrollRef} className="min-h-0 flex-1 overflow-y-auto">
             {loading && contacts.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Carregando contatos...</p>}
-            {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato salvo encontrado. Importe a agenda do celular por VCF, sincronize os nomes salvos disponíveis no WuzAPI ou cadastre um contato. Participantes de grupos não entram automaticamente na agenda.</p>}
+            {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato salvo encontrado. Importe por VCF, Excel ou CSV, sincronize os nomes salvos disponíveis no WuzAPI ou cadastre um contato. Participantes de grupos não entram automaticamente na agenda.</p>}
             {contacts.map(contact=>{
               const display=labelFor(contact);
               return <button type="button" key={contact.id} data-avatar-jid={contact.chat_jid} onClick={()=>choose(contact)}
@@ -330,7 +384,7 @@ export function UnionWhatsAppContactsDialog({
               </div>
             </div>}
             {!creating && selected && <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
-              <p><span className="text-muted-foreground">Nome importado do celular: </span>{selected.device_name||"Não importado"}</p>
+              <p><span className="text-muted-foreground">Nome importado por arquivo (VCF/Excel/CSV): </span>{selected.device_name||"Não importado"}</p>
               <p><span className="text-muted-foreground">Nome da agenda sincronizada: </span>{selected.imported_name||"Não disponibilizado"}</p>
               <p><span className="text-muted-foreground">Nome público do WhatsApp: </span>{selected.profile_name||"Não disponibilizado"}</p>
               <p className="text-muted-foreground">O nome salvo na Union tem prioridade. A importação não o sobrescreve.</p>
@@ -348,5 +402,58 @@ export function UnionWhatsAppContactsDialog({
         </div>
       </div>
     </div>
+    {pendingImport && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-3 sm:p-5"
+      onClick={event=>{if(event.target===event.currentTarget&&!busy)setPendingImport(null);}}>
+      <div role="dialog" aria-modal="true" aria-label="Prévia da importação de contatos"
+        className="flex w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+        <div className="flex items-start justify-between gap-3 border-b border-border p-4">
+          <div>
+            <h3 className="text-base font-bold">Conferir contatos da planilha</h3>
+            <p className="mt-1 break-all text-xs text-muted-foreground">{pendingImport.filename}</p>
+          </div>
+          <button type="button" aria-label="Fechar prévia" disabled={busy} onClick={()=>setPendingImport(null)}
+            className="rounded-lg p-1.5 hover:bg-muted disabled:opacity-40"><X size={18}/></button>
+        </div>
+        <div className="space-y-3 p-4">
+          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+            <div className="rounded-lg bg-primary/10 p-2">
+              <p className="text-lg font-bold text-primary">{pendingImport.summary.entries.length}</p>
+              <p>Válidos</p>
+            </div>
+            <div className="rounded-lg bg-muted p-2">
+              <p className="text-lg font-bold">{pendingImport.summary.duplicates}</p>
+              <p>Duplicados</p>
+            </div>
+            <div className="rounded-lg bg-muted p-2">
+              <p className="text-lg font-bold">{pendingImport.summary.invalidRows}</p>
+              <p>Inválidos</p>
+            </div>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-border">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-muted text-muted-foreground">
+                <tr><th className="px-3 py-2">Nome</th><th className="px-3 py-2">Telefone</th></tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {pendingImport.summary.entries.slice(0,5).map(entry=>
+                  <tr key={entry.phone}><td className="max-w-[200px] truncate px-3 py-2">{entry.name}</td>
+                    <td className="px-3 py-2 tabular-nums">+{entry.phone}</td></tr>)}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Prévia dos primeiros 5 contatos. A importação aceita até 2.000 contatos brasileiros por arquivo;
+            nomes salvos manualmente na Union não serão substituídos.
+            {pendingImport.summary.capped?" O arquivo ultrapassou o limite e parte das linhas será ignorada.":""}
+          </p>
+          <div className="flex justify-end gap-2 border-t border-border pt-3">
+            <AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingImport(null)}>Cancelar</AdminButton>
+            <AdminButton disabled={busy} loading={busy} onClick={()=>void confirmSpreadsheetImport()}>
+              Importar {pendingImport.summary.entries.length} contato(s)
+            </AdminButton>
+          </div>
+        </div>
+      </div>
+    </div>}
   </div>;
 }
