@@ -139,7 +139,7 @@ export function FinanceMovementsSection() {
     {(scheduledSettlements.length > 0 || finance.scheduledSettlementsQuery.isLoading) && <section className="space-y-3 border-t border-border pt-5">
       <div><h3 className="text-sm font-bold text-foreground">Repasses futuros</h3><p className="mt-1 text-xs text-muted-foreground">Confirme quando os valores dos cartões entrarem na conta.</p></div>
       <div className="space-y-2">
-        {finance.scheduledSettlementsQuery.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando liquidações futuras...</p> : scheduledSettlements.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma liquidação futura pendente.</p> : scheduledSettlements.map(item => {
+        {finance.scheduledSettlementsQuery.isLoading ? <p className="text-sm text-[#5a6a82]">Carregando créditos pendentes de confirmação...</p> : scheduledSettlements.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhum crédito pendente na conta.</p> : scheduledSettlements.map(item => {
           const overdue = new Date(item.expected_settlement_at).getTime() < Date.now();
           return <div key={item.id} className={`flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center sm:justify-between ${overdue ? "border-red-200 bg-red-50/50" : "border-[#0d1b2e]/8"}`}>
             <div className="min-w-0">
@@ -147,7 +147,7 @@ export function FinanceMovementsSection() {
               <p className="mt-1 text-xs text-[#5a6a82]">{item.financial_account_name_snapshot} · previsto para {formatDateTime(item.expected_settlement_at)}</p>
               <p className="mt-1 text-xs text-[#5a6a82]">Bruto {formatCurrency(item.gross_amount)} · taxa {formatCurrency(item.fee_amount)} · <strong className="text-[#0d1b2e]">líquido {formatCurrency(item.net_amount)}</strong></p>
             </div>
-            {canConfirmSettlements && <AdminButton size="sm" onClick={() => finance.confirmScheduledSettlementMutation.mutateAsync({ settlementId: item.id })} loading={finance.confirmScheduledSettlementMutation.isPending} loadingText="Confirmando...">Confirmar liquidação</AdminButton>}
+            {canConfirmSettlements && <AdminButton size="sm" onClick={() => finance.confirmScheduledSettlementMutation.mutateAsync({ settlementId: item.id })} loading={finance.confirmScheduledSettlementMutation.isPending} loadingText="Confirmando...">Confirmar crédito na conta</AdminButton>}
           </div>;
         })}
       <PaginationBar
