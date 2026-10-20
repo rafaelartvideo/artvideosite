@@ -2,9 +2,6 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  ArrowDownWideNarrow,
-  ArrowUpDown,
-  ArrowUpNarrowWide,
   Check,
   ChevronDown,
   Edit2,
@@ -166,7 +163,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [mobileFilter, setMobileFilter] = useState<MobileRegistrationFilter>("name");
-  const [sortOrder, setSortOrder] = useState<RegistrationSort>("name_asc");
+  const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const debouncedNameSearch = useDebouncedValue(nameSearch);
@@ -372,7 +369,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setDocumentSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
-    setSortOrder("name_asc");
+    setSortOrder("");
     setPage(1);
   };
 
@@ -720,33 +717,13 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     ? mobileFilterOptions.filter(option => option.value !== "role")
     : mobileFilterOptions;
   const mobileFilterLabel = visibleMobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome / Razão social";
-  const sortLabel = sortOrder === "name_asc" ? "Nome A–Z" : sortOrder === "name_desc" ? "Nome Z–A" : sortOrder === "newest" ? "Mais recentes" : sortOrder === "oldest" ? "Mais antigos" : "Ordenação padrão";
-  const SortIcon = sortOrder === "name_asc" || sortOrder === "oldest" ? ArrowUpNarrowWide : sortOrder === "name_desc" || sortOrder === "newest" ? ArrowDownWideNarrow : ArrowUpDown;
   const renderMobileFilter = () => {
     if (mobileFilter === "name") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Buscar por nome ou razão social" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
     if (mobileFilter === "document") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Buscar por CPF ou CNPJ" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
     if (mobileFilter === "role") return <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Filtrar por vínculo" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />;
     return <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Filtrar por status" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />;
   };
-  const sortMenu = (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button type="button" aria-label={`Ordenação atual: ${sortLabel}`} title={`Ordenação: ${sortLabel}`} className={cn(
-          "inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border bg-white shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40",
-          sortOrder ? "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]" : "border-[#0d1b2e]/15 text-muted-foreground hover:border-[#0057e7]/40 hover:bg-[#eef5ff]",
-        )}><SortIcon size={20} className="text-[#0057e7]" /></button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[200px]">
-        {([
-          ["", "Ordenação padrão", ArrowUpDown],
-          ["name_asc", "Nome A–Z", ArrowUpNarrowWide],
-          ["name_desc", "Nome Z–A", ArrowDownWideNarrow],
-          ["newest", "Mais recentes", ArrowDownWideNarrow],
-          ["oldest", "Mais antigos", ArrowUpNarrowWide],
-        ] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setSortOrder(value)} className={cn("cursor-pointer", sortOrder === value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Icon size={15} className={sortOrder === value ? "text-[#0057e7]" : "text-muted-foreground"} /><span>{label}</span>{sortOrder === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
