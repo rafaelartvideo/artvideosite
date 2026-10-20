@@ -21,6 +21,12 @@ export type FinanceEntryListFilters = {
   pageSize: number;
   search: string;
   approvalStatus: string;
+  name?: string;
+  document?: string;
+  os?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  operationalStatus?: string;
 };
 
 export function useFinanceEntries(
@@ -49,6 +55,12 @@ export function useFinanceEntries(
         pageSize: filters.pageSize,
         search: filters.search,
         approvalStatus: filters.approvalStatus,
+        name: filters.name,
+        document: filters.document,
+        os: filters.os,
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        operationalStatus: filters.operationalStatus,
       },
     ] as const,
     // Keep the paginated table mounted behind the receivable details modal.
@@ -60,6 +72,12 @@ export function useFinanceEntries(
       pageSize: filters.pageSize,
       search: filters.search,
       approvalStatus: filters.approvalStatus,
+      name: filters.name,
+      document: filters.document,
+      os: filters.os,
+      dateFrom: filters.dateFrom,
+      dateTo: filters.dateTo,
+      operationalStatus: filters.operationalStatus,
     }),
     placeholderData: previous => previous,
   });
