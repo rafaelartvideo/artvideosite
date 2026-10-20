@@ -56,6 +56,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const messageIdentity = useRef(0);
   const messagesBottom = useRef<HTMLDivElement | null>(null);
   const loadingList = useRef(false);
+  const organizationRef = useRef(activeOrganizationId);
+  organizationRef.current = activeOrganizationId;
 
   const refresh = useCallback(async (silent = false) => {
     if (!activeOrganizationId || !canView || loadingList.current) return;
@@ -63,14 +65,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     if (!silent) setLoading(true);
     try {
       const items = await listUnionWhatsAppConversations(activeOrganizationId);
+      if (organizationRef.current !== activeOrganizationId) return;
       setConversations(items);
       setLastUpdated(new Date().toISOString());
       setError("");
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível consultar as conversas."));
+      if (organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as conversas."));
     } finally {
       loadingList.current = false;
-      setLoading(false);
+      if (organizationRef.current === activeOrganizationId) setLoading(false);
     }
   }, [activeOrganizationId, canView]);
 
@@ -80,15 +83,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     if (!silent) setMessagesLoading(true);
     try {
       const list = await listUnionWhatsAppMessages(activeOrganizationId, conversationId);
-      if (identity === messageIdentity.current) setMessages(list);
+      if (identity === messageIdentity.current && organizationRef.current === activeOrganizationId) setMessages(list);
     } catch (reason) {
-      if (identity === messageIdentity.current) setError(systemErrorMessage(reason, "Não foi possível consultar as mensagens."));
+      if (identity === messageIdentity.current && organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as mensagens."));
     } finally {
       if (identity === messageIdentity.current) setMessagesLoading(false);
     }
   }, [activeOrganizationId, canView]);
 
   useEffect(() => {
+    loadingList.current = false;
     setConversations([]);
     setMessages([]);
     setSelectedId(null);
@@ -137,17 +141,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     messagesBottom.current?.scrollIntoView({ block: "end" });
   }, [selectedId, messages.length]);
 
-  const selected = conversations.find(item => item.id === selectedId) || null;
+  const scopedConversations = conversations.filter(item => item.organization_id === activeOrganizationId);
+  const selected = scopedConversations.find(item => item.id === selectedId) || null;
   const counts = useMemo(() => {
     const result: Record<Filter, number> = { waiting: 0, in_att: 0, abandoned: 0, finished: 0 };
-    conversations.forEach(item => { result[item.status] = (result[item.status] || 0) + 1; });
+    scopedConversations.forEach(item => { result[item.status] = (result[item.status] || 0) + 1; });
     return result;
-  }, [conversations]);
+  }, [scopedConversations]);
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("pt-BR");
-    return conversations.filter(item => item.status === filter && (!search ||
+    return scopedConversations.filter(item => item.status === filter && (!search ||
       [item.contact_name, item.contact_phone || "", item.chat_jid].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
-  }, [conversations, filter, query]);
+  }, [scopedConversations, filter, query]);
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
@@ -173,7 +178,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
           <div className="border-b border-border bg-muted/35 p-3">
             <p className="text-base font-black text-foreground">Conversas</p>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {conversations.length} conversa(s) · {conversations.filter(item => item.unread_count > 0).length} não lida(s)
+              {scopedConversations.length} conversa(s) · {scopedConversations.filter(item => item.unread_count > 0).length} não lida(s)
             </p>
             <div className="mt-3 grid grid-cols-2 gap-1.5">
               {filters.map(item => <button key={item.value} type="button" onClick={() => setFilter(item.value)}
@@ -194,7 +199,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
             {loading ? <div className="p-5"><LoadingState text="Carregando conversas..."/></div>
             : visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
               <MessageCircle size={26}/><p>Nenhuma conversa encontrada.</p>
-              {conversations.length === 0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
+              {scopedConversations.length === 0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
             : visible.map(item => {
               const selected = item.id === selectedId;
