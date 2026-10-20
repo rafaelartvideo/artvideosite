@@ -315,7 +315,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!activeOrganizationId||!canView)return;
     let last=0;
     const onResume=()=>{
-      if(document.visibilityState!=="visible"||Date.now()-last<30000)return;
+      // No provider or database polling while disconnected. Users reconnect
+      // from Canais or explicitly click Verificar conexão below.
+      if(channelReady===false || document.visibilityState!=="visible"||
+        Date.now()-last<30000)return;
       last=Date.now();
       void checkChannel();
     };
@@ -325,7 +328,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       window.removeEventListener("focus",onResume);
       document.removeEventListener("visibilitychange",onResume);
     };
-  },[activeOrganizationId,canView,checkChannel]);
+  },[activeOrganizationId,canView,channelReady,checkChannel]);
 
   // Realtime only while the inbox page is open. A bounded foreground refresh
   // is kept as fallback when tenant replication is temporarily unavailable.
@@ -886,8 +889,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <p className="text-base font-bold">Nenhum canal WhatsApp conectado</p>
         <p className="max-w-sm text-sm text-muted-foreground">Configure e conecte um canal para começar a receber e enviar mensagens.</p>
       </div>
-      {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
-        <AdminButton onClick={() => onConfigure()}><Settings2 size={16}/> Configurar canal</AdminButton>}
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        <AdminButton variant="secondary" onClick={()=>void checkChannel()}>
+          <RefreshCw size={16}/> Verificar conexão
+        </AdminButton>
+        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
+          <AdminButton onClick={() => onConfigure()}>
+            <Settings2 size={16}/> Reconectar WhatsApp
+          </AdminButton>}
+      </div>
     </div> : <div className="h-[min(76vh,850px)] min-h-[520px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
       <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
         <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
