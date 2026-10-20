@@ -121,24 +121,44 @@ Deno.serve(async request => {
     if (payload.type === "UnionProbe") return json({ ok: true, probe: "authenticated" });
     const eventType = str(get(payload, "type", "Type", "event"), 60);
     if (eventType === "ReadReceipt" || eventType === "events.ReadReceipt") {
-      const receipt = obj(get(payload, "data", "Data") ?? get(payload, "event", "Event"));
-      const ids = get(receipt, "ids", "IDs", "messageIds", "MessageIDs");
+      // WuzAPI serializes receipts as { type:"ReadReceipt", state:"Delivered"
+      // | "Read" | "ReadSelf", event:{ MessageIDs, Chat, Sender, Type } }.
+      // The mere event name is NEVER proof that the recipient read a
+      // message. Old logic treated a missing state as read: false blue ticks.
+      const rawEvent = obj(get(payload, "event", "Event"));
+      const compact = obj(get(payload, "data", "Data"));
+      const state = str(get(payload,"state","State") ??
+        get(compact,"state","State") ?? get(rawEvent,"state","State"), 40).toLowerCase();
+      if (state !== "delivered" && state !== "read")
+        return json({ok:true,ignored:"unconfirmed_receipt_state"});
+      const ids = get(rawEvent,"MessageIDs","messageIDs","messageIds","ids","IDs") ??
+        get(compact,"MessageIDs","messageIDs","messageIds","ids","IDs");
       if (!Array.isArray(ids)) return json({ok:true,ignored:"invalid_receipt"});
-      const uniqueIds = [...new Set(ids.filter(id => typeof id === "string" && id.length > 0 && id.length <= 180))].slice(0,100);
+      const uniqueIds = [...new Set(ids.filter((id): id is string =>
+        typeof id === "string" && id.length > 0 && id.length <= 180))].slice(0,100);
       if (!uniqueIds.length) return json({ok:true,ignored:"empty_receipt"});
-      const kind = str(get(receipt, "type", "status", "Type", "Status"), 40).toLowerCase();
-      const read = ["", "read", "readreceipt", "read_receipt"].includes(kind);
-      const delivered = ["delivered", "delivery"].includes(kind);
-      if (read || delivered) {
-        let query = admin.from("union_whatsapp_messages")
-          .update({delivery_status:read ? "read" : "delivered"})
-          .eq("organization_id",channel.organization_id).eq("channel_id",channelId)
-          .eq("direction","outgoing").in("provider_message_id",uniqueIds);
-        // Never downgrade a read acknowledgement to delivered.
-        if (delivered) query = query.neq("delivery_status","read");
-        const {error:receiptError} = await query;
-        if (receiptError) throw receiptError;
-      }
+      // The receipt must reference a concrete recipient chat. Never match
+      // bare message IDs across contacts, and never mark self-read as read.
+      const jidValue = get(rawEvent,"Chat","chat") ?? get(compact,"Chat","chat");
+      const jidObject = obj(jidValue);
+      const chatJid = str(jidValue,160) ||
+        (str(get(jidObject,"User","user"),30) && str(get(jidObject,"Server","server"),40)
+          ? str(get(jidObject,"User","user"),30)+"@"+str(get(jidObject,"Server","server"),40) : "");
+      if (!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(chatJid))
+        return json({ok:true,ignored:"invalid_receipt_chat"});
+      const {data:conversation,error:conversationError}=await admin.from("union_whatsapp_conversations")
+        .select("id").eq("organization_id",channel.organization_id)
+        .eq("channel_id",channelId).eq("chat_jid",chatJid).maybeSingle();
+      if(conversationError) throw conversationError;
+      if(!conversation) return json({ok:true,ignored:"unknown_receipt_chat"});
+      let query = admin.from("union_whatsapp_messages")
+        .update({delivery_status:state==="read"?"read":"delivered"})
+        .eq("organization_id",channel.organization_id).eq("channel_id",channelId)
+        .eq("conversation_id",conversation.id)
+        .eq("direction","outgoing").in("provider_message_id",uniqueIds);
+      if(state==="delivered") query=query.neq("delivery_status","read");
+      const {error:receiptError}=await query;
+      if(receiptError) throw receiptError;
       return json({ok:true});
     }
     if (eventType !== "Message" && eventType !== "events.Message") return json({ ok: true, ignored: "event_type" });
