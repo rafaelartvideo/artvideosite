@@ -310,7 +310,7 @@ Deno.serve(async request => {
       }
       if(action==="contacts_list") {
         const page=Math.min(40,Math.max(0,Number(body.page)||0));
-        const search=String(body.search||"").trim().replace(/[^\\p{L}\\p{N} +().-]/gu,"").slice(0,60);
+        const search=String(body.search||"").trim().replace(/[^\p{L}\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
           .eq("organization_id",org).eq("channel_id",channel.id);
