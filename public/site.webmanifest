@@ -1,1 +1,22 @@
-{"name":"Union World","short_name":"Union World","icons":[{"src":"/android-chrome-192x192.png","sizes":"192x192","type":"image/png"},{"src":"/android-chrome-512x512.png","sizes":"512x512","type":"image/png"}],"theme_color":"#0057e7","background_color":"#0d1b2e","display":"standalone","start_url":"/admin"}
+{
+  "name": "Eletrônica ArtVideo",
+  "short_name": "ArtVideo",
+  "description": "Eletrônica ArtVideo — assistência técnica, serviços e loja de eletrônicos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0d1b2e",
+  "theme_color": "#0057e7",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
