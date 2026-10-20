@@ -257,7 +257,7 @@ Deno.serve(async request => {
     // Pairing a number automatically configures authenticated message delivery.
     // Status checks retry only until ready; pairing still succeeds if the
     // bridge cannot finish webhook setup, without claiming it is enabled.
-    if (loggedIn && !updated.webhook_ready) {
+    if (loggedIn && !updated.webhook_ready && canManage) {
       try {
         const setup = await signedBridge("webhook_setup", updated as ChannelRow);
         const ready = await persistWebhook(setup);
