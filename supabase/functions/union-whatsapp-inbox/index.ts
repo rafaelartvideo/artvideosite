@@ -298,11 +298,12 @@ Deno.serve(async request => {
       const mergeContactRows=async(rows:Array<{
         chat_jid:string;contact_phone?:string|null;display_name?:string|null;
         device_name?:string|null;imported_name?:string|null;profile_name?:string|null;
+        wuzapi_verified_saved?:boolean;
       }>)=>{
         for(let offset=0;offset<rows.length;offset+=100){
           const batch=rows.slice(offset,offset+100);
           const {data:old,error:oldError}=await admin.from("union_whatsapp_contacts")
-            .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name")
+            .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
             .eq("organization_id",org).eq("channel_id",channel.id)
             .in("chat_jid",batch.map(row=>row.chat_jid));
           if(oldError)throw oldError;
@@ -316,6 +317,8 @@ Deno.serve(async request => {
               device_name:row.device_name??previous?.device_name??null,
               imported_name:row.imported_name??previous?.imported_name??null,
               profile_name:row.profile_name??previous?.profile_name??null,
+              wuzapi_verified_saved:row.wuzapi_verified_saved===true ||
+                previous?.wuzapi_verified_saved===true,
               updated_at:new Date().toISOString(),
             };
           });
@@ -356,7 +359,7 @@ Deno.serve(async request => {
         let q=admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
           .eq("organization_id",org).eq("channel_id",channel.id)
-          .or("display_name.not.is.null,device_name.not.is.null,imported_name.not.is.null");
+          .or("display_name.not.is.null,device_name.not.is.null,wuzapi_verified_saved.eq.true");
         if(search){
           const term=search.replace(/[%,]/g,"");
           q=q.or("display_name.ilike.%"+term+"%,device_name.ilike.%"+term+
@@ -454,6 +457,7 @@ Deno.serve(async request => {
           contact_phone:jid.endsWith("@s.whatsapp.net")?jid.split("@")[0]:null,
           imported_name:safe(row.imported_name)||null,
           profile_name:safe(row.profile_name)||null,
+          wuzapi_verified_saved:true,
           updated_at:new Date().toISOString(),
         }];
       });
