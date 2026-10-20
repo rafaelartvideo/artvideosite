@@ -111,8 +111,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -132,7 +132,7 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["contacts_import","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
+    if (!canRead || (["contacts_import","contacts_import_device","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
       (["contacts_save","send_text","send_media","start","prepare_media"].includes(action) && !canSend && !canManage) ||
       (["assume","members","transfer","transfer_department"].includes(action) && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
@@ -288,7 +288,7 @@ Deno.serve(async request => {
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
-    if(["contacts_list","contacts_import","contacts_save","contacts_avatar"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_import_device","contacts_save","contacts_avatar"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
       if(channelError)throw channelError;
@@ -312,7 +312,7 @@ Deno.serve(async request => {
         const page=Math.min(40,Math.max(0,Number(body.page)||0));
         const search=String(body.search||"").trim().replace(/[^\\p{L}\\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
-          .select("id,chat_jid,contact_phone,display_name,imported_name,profile_name,updated_at",{count:"exact"})
+          .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
           .eq("organization_id",org).eq("channel_id",channel.id);
         if(search){
           const term=search.replace(/[%,]/g,"");
@@ -357,6 +357,33 @@ Deno.serve(async request => {
           .eq("organization_id",org).eq("channel_id",channel.id).eq("chat_jid",jid);
         if(renameError)throw renameError;
         return json({success:true,contact:saved});
+      }
+      if(action==="contacts_import_device") {
+        const provided=body.contacts;
+        if(!Array.isArray(provided) || !provided.length || provided.length>100)
+          return json({success:false,error:"Envie de 1 a 100 contatos por vez."},400);
+        const normalized=new Map<string,{organization_id:string;channel_id:string;chat_jid:string;contact_phone:string;device_name:string;updated_at:string}>();
+        for(const item of provided) {
+          const row=item&&typeof item==="object"?item as Record<string,unknown>:{};
+          const digits=String(row.phone||"").replace(/\D/g,"");
+          const national=digits.startsWith("55")&&digits.length>11?digits.slice(2):digits;
+          const deviceName=String(row.name||"").trim().replace(/\s+/g," ").slice(0,160);
+          if(!/^[1-9][0-9][0-9]{8,9}$/.test(national) ||
+            deviceName.length<2)continue;
+          const phone="55"+national,jid=phone+"@s.whatsapp.net";
+          normalized.set(jid,{organization_id:org,channel_id:channel.id,
+            chat_jid:jid,contact_phone:phone,device_name:deviceName,
+            updated_at:new Date().toISOString()});
+        }
+        if(!normalized.size)return json({success:false,error:"Nenhum telefone brasileiro válido encontrado no arquivo."},400);
+        const {error:deviceError}=await admin.from("union_whatsapp_contacts")
+          .upsert([...normalized.values()],{onConflict:"channel_id,chat_jid"});
+        if(deviceError)throw deviceError;
+        const {error:applyError}=await admin.rpc("union_whatsapp_apply_contact_names",{
+          p_organization:org,p_channel:channel.id,
+        });
+        if(applyError)throw applyError;
+        return json({success:true,imported:normalized.size});
       }
       if(channel.state!=="connected")
         return json({success:false,error:"Conecte o canal para importar a agenda."},409);
@@ -418,12 +445,12 @@ Deno.serve(async request => {
         return json({success:false,error:"Conecte o canal WhatsApp antes de iniciar uma conversa."},409);
       const jid=phone+"@s.whatsapp.net";
       const {data:knownContact,error:knownError}=await admin.from("union_whatsapp_contacts")
-        .select("display_name,imported_name,profile_name")
+        .select("display_name,device_name,imported_name,profile_name")
         .eq("organization_id",org).eq("channel_id",channel.id)
         .eq("chat_jid",jid).maybeSingle();
       if(knownError)throw knownError;
       const preferredName=customerName || knownContact?.display_name ||
-        knownContact?.imported_name || knownContact?.profile_name || phone;
+        knownContact?.device_name || knownContact?.imported_name || knownContact?.profile_name || phone;
       const persistManualName=async()=>{
         if(!customerName)return;
         const {error:contactError}=await admin.from("union_whatsapp_contacts").upsert({
@@ -607,11 +634,11 @@ Deno.serve(async request => {
     }
     if(action==="resolve_contact") {
       const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
-        .select("display_name,imported_name,profile_name")
+        .select("display_name,device_name,imported_name,profile_name")
         .eq("organization_id",org).eq("channel_id",thread.channel_id)
         .eq("chat_jid",thread.chat_jid).maybeSingle();
       if(knownError)throw knownError;
-      const authoritative=String(known?.display_name||known?.imported_name||"").trim();
+      const authoritative=String(known?.display_name||known?.device_name||known?.imported_name||"").trim();
       const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
         .select("contact_name,contact_phone").eq("id",thread.id)
         .eq("organization_id",org).maybeSingle();
