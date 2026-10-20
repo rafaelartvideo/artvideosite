@@ -10,7 +10,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminButton, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -386,8 +386,12 @@ export function TabWorkItems() {
       </button>; })}
     </div>
 
-    <AdminSearchPanel title="Buscar atividades" headerActions={hasFilters ? <button type="button" onClick={reset}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-bold text-white hover:bg-white/20"><Eraser size={13} /> Limpar filtros</button> : undefined}>
+    <AdminSearchPanel title="Buscar atividades" headerActions={<>
+      {hasFilters && <AdminSearchClearButton onClick={reset} />}
+      <AdminSearchSortMenu value={sort} onChange={setSort} options={[
+        { value: "due", label: "Prazo" }, { value: "priority", label: "Prioridade" }, { value: "newest", label: "Mais recentes" },
+      ]} />
+    </>}>
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-5">
         <div className="relative col-span-2 md:col-span-2">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
@@ -456,13 +460,7 @@ export function TabWorkItems() {
         {!filtered.length ? <EmptyState icon={ClipboardCheck} title="Nenhuma atividade encontrada" message="Ajuste os filtros ou crie uma atividade." /> : <>
           <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-4 py-3">
             <p className="text-xs font-bold text-muted-foreground">{filtered.length} atividade(s)</p>
-            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <ArrowDownWideNarrow size={14} /> Ordenar
-              <select aria-label="Ordenação" value={sort} onChange={event => setSort(event.target.value as typeof sort)}
-                className="rounded-lg border border-border bg-card px-2 py-1.5 text-xs text-foreground">
-                <option value="due">Prazo</option><option value="priority">Prioridade</option><option value="newest">Mais recentes</option>
-              </select>
-            </label>
+
           </div>
           <div className="divide-y divide-border md:hidden">
             {listPage.map(item => <div key={item.id} className="p-3">
