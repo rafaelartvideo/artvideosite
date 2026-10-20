@@ -111,7 +111,7 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "disconnect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
@@ -406,6 +406,13 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     await wuzapi("/session/connect", session.token, "POST", {
       Subscribe: ["Message", "ReadReceipt", "HistorySync"], Immediate: true,
     });
+  }
+  if (action === "disconnect") {
+    // Unlike /session/logout, this preserves device credentials and allows
+    // /session/connect to reuse the same WhatsApp account without scanning QR.
+    // Do not clear message subscriptions or delete the private session token.
+    await wuzapi("/session/disconnect", session.token, "POST");
+    return { ok:true, connected:false, logged_in:false, session_preserved:true };
   }
   if (action === "logout") {
     await wuzapi("/session/logout", session.token, "POST");
