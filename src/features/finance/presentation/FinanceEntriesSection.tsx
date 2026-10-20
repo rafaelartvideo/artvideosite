@@ -13,7 +13,6 @@ import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceEntries } from "../application/useFinanceEntries";
 import { listFinancialReceivableCreators } from "../infrastructure/finance-entries.repository";
-import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
@@ -85,11 +84,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
-  const [cnpj, setCnpj] = useState("");
   const [os, setOs] = useState("");
   const [creatorId, setCreatorId] = useState("");
   const [creatorSearch, setCreatorSearch] = useState("");
   const [creatorOpen, setCreatorOpen] = useState(false);
+  const creatorContainerRef = useRef<HTMLDivElement>(null);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
@@ -102,7 +101,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [counterpartySearch, setCounterpartySearch] = useState("");
   const debouncedName = useDebouncedValue(name);
   const debouncedDocument = useDebouncedValue(document);
-  const debouncedCnpj = useDebouncedValue(cnpj);
   const debouncedOs = useDebouncedValue(os);
   const debouncedCounterpartySearch = useDebouncedValue(counterpartySearch);
   const creatorsQuery = useQuery({
@@ -111,6 +109,15 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     staleTime: 60_000,
     queryFn: () => listFinancialReceivableCreators(String(activeOrganizationId)),
   });
+  // Lista local pesquisável: evita o auto-dismiss do Popover ao focar o input.
+  useEffect(() => {
+    if (!creatorOpen) return;
+    const closeOnOutside = (event: PointerEvent) => {
+      if (creatorContainerRef.current && !creatorContainerRef.current.contains(event.target as Node)) setCreatorOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutside);
+    return () => document.removeEventListener("pointerdown", closeOnOutside);
+  }, [creatorOpen]);
   const filteredCreators = useMemo(() => {
     const search = creatorSearch.trim().toLocaleLowerCase("pt-BR");
     const choices = creatorsQuery.data || [];
@@ -128,7 +135,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       sort,
       approvalStatus: "all",
       name: debouncedName,
-      document: entryType === "receivable" ? (debouncedDocument || debouncedCnpj) : debouncedDocument,
+      document: debouncedDocument,
       os: debouncedOs,
       createdBy: entryType === "receivable" ? creatorId : "",
       dateFrom,
@@ -142,7 +149,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   useEffect(() => {
     setPage(1);
-  }, [name, document, cnpj, os, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
+  }, [name, document, os, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
   const canCreate = hasPermission(isReceivable ? "finance.receivables.create" : "finance.payables.create");
@@ -184,10 +191,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]}
   />;
 
-  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || cnpj || os || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
+  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
   const resetFilters = () => {
     setOperationalFilter("pending");
-    setName(""); setDocument(""); setCnpj(""); setOs(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
+    setName(""); setDocument(""); setOs(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
     setSort("newest"); setPage(1);
   };
 
@@ -195,6 +202,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   return <div className="space-y-4">
     <AdminSearchPanel
       title={isReceivable ? "Buscar contas a receber" : "Buscar contas a pagar"}
+      allowOverflow={isReceivable}
       headerActions={<>
         {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
         <AdminSearchSortMenu value={sort} onChange={setSort} label="Ordenação das contas"
@@ -204,56 +212,50 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       <div className="grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-4">
         {isReceivable && <FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />}
         <FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
-        {isReceivable ? <>
-          <FInput label="CPF" inputMode="numeric" value={document} placeholder="000.000.000-00"
-            onChange={(event: any) => { setDocument(event.target.value); if (event.target.value) setCnpj(""); }} />
-          <FInput label="CNPJ" inputMode="numeric" value={cnpj} placeholder="00.000.000/0000-00"
-            onChange={(event: any) => { setCnpj(event.target.value); if (event.target.value) setDocument(""); }} />
-        </> : <FInput label="CPF / CNPJ" value={document} onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />}
+        <FInput label="CPF / CNPJ" inputMode="numeric" value={document}
+          onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />
         <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
           { value: "settled", label: "Baixadas" },
         ]} onChange={(event: any) => setOperationalFilter(event.target.value)} />
         {!isReceivable && <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />}
-        {isReceivable && <div className="min-w-0 space-y-1">
+        {isReceivable && <div ref={creatorContainerRef} className="relative z-20 min-w-0 space-y-1">
           <AdminFieldLabel label="Responsável" />
-          <Popover open={creatorOpen} onOpenChange={setCreatorOpen}>
-            <PopoverAnchor asChild>
-              <div className="relative">
-                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input className={INPUT + " w-full pl-9 pr-9"} value={creatorSearch}
-                  placeholder="Buscar ou selecionar responsável"
-                  onFocus={() => setCreatorOpen(true)}
-                  onChange={event => { setCreatorSearch(event.target.value); setCreatorId(""); setCreatorOpen(true); }}
-                  aria-label="Filtrar pelo responsável que cadastrou o lançamento" />
-                {creatorSearch && <button type="button" aria-label="Limpar responsável" title="Limpar responsável"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-                  onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
-                  <X size={15} />
-                </button>}
-              </div>
-            </PopoverAnchor>
-            <PopoverContent align="start" side="bottom" sideOffset={4} collisionPadding={8}
-              onOpenAutoFocus={event => event.preventDefault()}
-              className="z-[230] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] border-border bg-popover p-1 text-popover-foreground shadow-xl">
-              <div className="max-h-56 overflow-y-auto">
-                <button type="button" className="block w-full rounded-md px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
-                  onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
-                  Todos os responsáveis
-                </button>
-                {filteredCreators.map(person => <button type="button" key={person.id}
-                  className="block w-full rounded-md px-3 py-2.5 text-left text-xs font-semibold hover:bg-muted"
-                  onClick={() => { setCreatorId(person.id); setCreatorSearch(person.name); setCreatorOpen(false); }}>
-                  {person.name}
-                </button>)}
-                {creatorsQuery.isLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Carregando responsáveis...</p>}
-                {creatorsQuery.isError && <p className="px-3 py-2 text-xs text-red-600">Não foi possível carregar os responsáveis.</p>}
-                {!creatorsQuery.isLoading && !creatorsQuery.isError && filteredCreators.length === 0 &&
-                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum responsável encontrado.</p>}
-              </div>
-            </PopoverContent>
-          </Popover>
+          <div className="relative">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input className={INPUT + " w-full pl-9 pr-9"} value={creatorSearch}
+              role="combobox" aria-expanded={creatorOpen} aria-controls="finance-creator-options"
+              aria-autocomplete="list"
+              placeholder="Buscar ou selecionar responsável"
+              onFocus={() => setCreatorOpen(true)}
+              onClick={() => setCreatorOpen(true)}
+              onKeyDown={event => { if (event.key === "Escape") setCreatorOpen(false); }}
+              onChange={event => { setCreatorSearch(event.target.value); setCreatorId(""); setCreatorOpen(true); }}
+              aria-label="Filtrar pelo responsável que cadastrou o lançamento" />
+            {creatorSearch && <button type="button" aria-label="Limpar responsável" title="Limpar responsável"
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+              onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
+              <X size={15} />
+            </button>}
+          </div>
+          {creatorOpen && <div id="finance-creator-options" role="listbox"
+            className="absolute left-0 right-0 top-full z-[90] mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl animate-in fade-in-0 slide-in-from-top-1 duration-150">
+            <button type="button" role="option" aria-selected={!creatorId}
+              className="block w-full rounded-md px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
+              onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
+              Todos os responsáveis
+            </button>
+            {filteredCreators.map(person => <button type="button" role="option" aria-selected={creatorId === person.id} key={person.id}
+              className="block w-full rounded-md px-3 py-2.5 text-left text-xs font-semibold hover:bg-muted"
+              onClick={() => { setCreatorId(person.id); setCreatorSearch(person.name); setCreatorOpen(false); }}>
+              {person.name}
+            </button>)}
+            {creatorsQuery.isLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Carregando responsáveis...</p>}
+            {creatorsQuery.isError && <p className="px-3 py-2 text-xs text-red-600">Não foi possível carregar os responsáveis.</p>}
+            {!creatorsQuery.isLoading && !creatorsQuery.isError && filteredCreators.length === 0 &&
+              <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum responsável encontrado.</p>}
+          </div>}
         </div>}
         <FInput label="Vencimento de" type="date" value={dateFrom} onChange={(event: any) => setDateFrom(event.target.value)} />
         <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
