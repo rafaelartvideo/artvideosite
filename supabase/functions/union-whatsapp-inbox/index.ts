@@ -132,9 +132,9 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["contacts_import","order_link","members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
+    if (!canRead || (["contacts_import","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
       (["contacts_save","send_text","send_media","start","prepare_media"].includes(action) && !canSend && !canManage) ||
-      (action==="assume" && !canSend && !canManage) ||
+      (["assume","members","transfer","transfer_department"].includes(action) && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
     }
