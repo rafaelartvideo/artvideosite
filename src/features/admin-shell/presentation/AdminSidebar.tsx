@@ -141,12 +141,12 @@ export function AdminSidebar({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      {!collapsed && <div className={cn(
+      <div className={cn(
         "relative flex h-16 shrink-0 items-center border-b border-white/8 transition-all",
-        "justify-center px-9",
+        collapsed ? "justify-center px-2" : "justify-center px-9",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
-          {menuLogoUrl ? (
+          {!collapsed && menuLogoUrl ? (
             <div className={cn("flex shrink-0 items-center justify-center", collapsed ? "h-8 w-8" : "h-10 w-[160px]")}>
               <AutoFitLogo
                 src={menuLogoUrl}
@@ -154,7 +154,7 @@ export function AdminSidebar({
                 className="h-full w-full object-contain transition-all"
               />
             </div>
-          ) : (
+          ) : !collapsed ? (
             <>
               <div className={cn(
                 "flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-primary-light",
@@ -168,7 +168,7 @@ export function AdminSidebar({
                 </span>
               )}
             </>
-          )}
+          ) : null}
         </div>
 
         {canCollapse && (
@@ -185,7 +185,8 @@ export function AdminSidebar({
             {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
           </button>
         )}
-      </div>}
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-3">
           {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
