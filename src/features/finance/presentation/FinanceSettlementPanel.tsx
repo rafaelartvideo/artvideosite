@@ -6,6 +6,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { FinanceTableSurface } from "./FinanceTableSurface";
 import type { FinancialEntryDetail } from "../domain/finance.types";
 
 function formatDateTime(value?: string | null) {
@@ -50,7 +51,7 @@ export function FinanceSettlementPanel({
   };
 
   return <>
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
+    <FinanceTableSurface>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -98,7 +99,7 @@ export function FinanceSettlementPanel({
           </tbody>
         </table>
       </div>
-    </div>
+    </FinanceTableSurface>
 
     {detail.settlements.some(item => item.settlement_status === "scheduled") && <p className="flex items-start gap-2 text-xs text-muted-foreground"><Clock3 size={14} className="mt-0.5 shrink-0" />Baixas futuras reduzem o valor em aberto, mas só entram no saldo da conta quando a liquidação é confirmada.</p>}
 
