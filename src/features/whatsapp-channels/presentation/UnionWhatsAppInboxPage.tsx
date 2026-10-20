@@ -248,6 +248,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     void refreshMessages(selectedId);
   }, [selectedId, refreshMessages]);
 
+  // Reconcile WhatsApp address-book names by exact recipient JID, never
+  // from the sender PushName of an outgoing mobile message.
+  useEffect(() => {
+    if(!selectedId || !activeOrganizationId || !canView || channelReady!==true) return;
+    let cancelled=false;
+    const org=activeOrganizationId;
+    void operateUnionWhatsAppInbox(org,selectedId,"resolve_contact")
+      .then(result=>{
+        if(cancelled || organizationRef.current!==org || !result.contact_name) return;
+        setConversations(current=>current.map(item=>item.id===selectedId
+          ? {...item,contact_name:result.contact_name!} : item));
+      }).catch(()=>undefined);
+    return ()=>{cancelled=true;};
+  },[selectedId,activeOrganizationId,canView,channelReady]);
+
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
     setShowJumpToLatest(false);
