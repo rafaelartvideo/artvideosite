@@ -366,7 +366,7 @@ export function AdminDashboard({
       : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "union-whatsapp"
       ? canAccessWhatsAppTool
-        ? <UnionWhatsAppInboxPage onBack={() => navigateAdmin("tools")} onConfigure={() => navigateAdmin("integrations")} />
+        ? <UnionWhatsAppInboxPage onBack={() => navigateAdmin("tools")} onConfigure={() => navigate(`${adminPath("integrations")}?channels=1`)} />
         : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "sac-digital"
       ? canAccessSacDigitalTool
