@@ -245,12 +245,19 @@ Deno.serve(async request => {
     const candidatePhone = phoneJid.split("@")[0];
     const phone = /^[0-9]{10,15}$/.test(candidatePhone) ? candidatePhone : null;
     const org = channel.organization_id;
+    const {data:savedContact,error:contactError}=await admin.from("union_whatsapp_contacts")
+      .select("display_name,imported_name,profile_name")
+      .eq("organization_id",org).eq("channel_id",channelId)
+      .eq("chat_jid",chatJid).maybeSingle();
+    if(contactError)throw contactError;
+    const preferredContactName=String(savedContact?.display_name ||
+      savedContact?.imported_name || "").trim();
     const timestamp = dateOf(get(info, "Timestamp", "timestamp"));
 
     const { error: ensureError } = await admin.from("union_whatsapp_conversations")
       .upsert({
         organization_id: org, channel_id: channelId, chat_jid: chatJid,
-        contact_name: name || (phone || "Contato WhatsApp"),
+        contact_name: preferredContactName || name || (phone || "Contato WhatsApp"),
         contact_phone: phone,
       }, { onConflict: "channel_id,chat_jid", ignoreDuplicates: true });
     if (ensureError) throw ensureError;
@@ -301,8 +308,11 @@ Deno.serve(async request => {
           patch.assigned_to = null;
         }
       }
-      if (!isFromMe && name && (thread.contact_name === (phone || "Contato WhatsApp") ||
-        thread.contact_name === "Contato WhatsApp")) patch.contact_name = name;
+      if(preferredContactName && thread.contact_name!==preferredContactName) {
+        patch.contact_name=preferredContactName;
+      } else if(!preferredContactName && !isFromMe && name &&
+        (thread.contact_name === (phone || "Contato WhatsApp") ||
+         thread.contact_name === "Contato WhatsApp")) patch.contact_name=name;
       const { error: updateError } = await admin.from("union_whatsapp_conversations")
         .update(patch).eq("id", thread.id).eq("organization_id", org);
       if (updateError) throw updateError;
