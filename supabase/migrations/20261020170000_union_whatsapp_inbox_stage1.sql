@@ -24,6 +24,9 @@ on conflict (key) do update set label=excluded.label,description=excluded.descri
 insert into public.role_permissions(role_id,permission_id)
 select distinct rp.role_id,target.id
 from public.role_permissions rp
+join public.roles ownrole on ownrole.id=rp.role_id
+join public.organization_modules enabled on enabled.organization_id=ownrole.organization_id
+ and enabled.module_key='whatsapp' and enabled.is_enabled
 join public.permissions source on source.id=rp.permission_id
 join public.permissions target on target.key='whatsapp.inbox.view'
 where source.key in ('sac_digital.messages.view','sac_digital.view','settings.channels.manage')
@@ -32,6 +35,9 @@ on conflict (role_id,permission_id) do nothing;
 insert into public.role_permissions(role_id,permission_id)
 select distinct rp.role_id,target.id
 from public.role_permissions rp
+join public.roles ownrole on ownrole.id=rp.role_id
+join public.organization_modules enabled on enabled.organization_id=ownrole.organization_id
+ and enabled.module_key='whatsapp' and enabled.is_enabled
 join public.permissions source on source.id=rp.permission_id
 join public.permissions target on target.key='whatsapp.inbox.send'
 where source.key in ('sac_digital.messages.send','settings.channels.manage')
@@ -40,6 +46,9 @@ on conflict (role_id,permission_id) do nothing;
 insert into public.role_permissions(role_id,permission_id)
 select distinct rp.role_id,target.id
 from public.role_permissions rp
+join public.roles ownrole on ownrole.id=rp.role_id
+join public.organization_modules enabled on enabled.organization_id=ownrole.organization_id
+ and enabled.module_key='whatsapp' and enabled.is_enabled
 join public.permissions source on source.id=rp.permission_id
 join public.permissions target on target.key='whatsapp.inbox.manage'
 where source.key in ('sac_digital.protocols.manage','settings.channels.manage')
