@@ -107,94 +107,6 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
     </div>}
     {message.body_text && <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text}</p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
-    {ordersOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
-      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setOrdersOpen(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Vincular ordem de serviço"
-        className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
-        <div className="flex items-center justify-between">
-          <p className="font-bold">Vincular ordem de serviço</p>
-          <button type="button" aria-label="Fechar" onClick={()=>setOrdersOpen(false)}><X size={18}/></button>
-        </div>
-        <p className="mt-2 text-xs text-muted-foreground">Apenas OS do cadastro verificado por este telefone.</p>
-        <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
-          {possibleOrders.length===0 && <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma OS encontrada para este cliente.</p>}
-          {possibleOrders.map(order=><button key={order.id} type="button" onClick={()=>void linkOrder(order.id)}
-            disabled={savingOrder} className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-muted">
-            <span>OS {order.os_number}</span>
-            {selected.service_order_id===order.id && <Check size={16} className="text-primary"/>}
-          </button>)}
-        </div>
-        <div className="mt-4 flex justify-end gap-2">
-          {selected.service_order_id && <AdminButton variant="secondary" disabled={savingOrder} onClick={()=>void linkOrder("")}>Desvincular</AdminButton>}
-          <AdminButton variant="secondary" onClick={()=>setOrdersOpen(false)}>Fechar</AdminButton>
-        </div>
-      </div>
-    </div>}
-    {departmentSettingsOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
-      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setDepartmentSettingsOpen(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Departamentos WhatsApp"
-        className="flex max-h-[82vh] w-full max-w-xl flex-col rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <p className="font-bold">Departamentos e equipe</p>
-          <button type="button" onClick={()=>setDepartmentSettingsOpen(false)} aria-label="Fechar"
-            className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
-        </div>
-        <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
-          <div className="flex items-stretch gap-2">
-            <input value={newDepartmentName} maxLength={80}
-              onChange={event=>setNewDepartmentName(event.target.value)}
-              placeholder="Novo departamento"
-              aria-label="Nome do novo departamento"
-              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
-            <AdminButton disabled={savingDepartment || newDepartmentName.trim().length<2}
-              onClick={()=>void saveDepartment()}><Plus size={15}/> Adicionar</AdminButton>
-          </div>
-          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-            {departments.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Nenhum departamento cadastrado.</p>}
-            {departments.map(dept=><button key={dept.id} type="button" onClick={()=>void manageDepartmentMembers(dept.id)}
-              className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-muted ${chosenDepartmentId===dept.id?"bg-primary-soft":""}`}>
-              <span className="flex items-center gap-2"><Building2 size={16}/>{dept.name}</span>
-              <span className="text-[11px] text-muted-foreground">{dept.is_active?"Ativo":"Desativado"}</span>
-            </button>)}
-          </div>
-          {chosenDepartmentId && <div className="space-y-2">
-            <p className="text-sm font-bold">Funcionários autorizados</p>
-            <p className="text-xs text-muted-foreground">Selecione quem pode assumir conversas direcionadas a este departamento.</p>
-            {members.map(person=><label key={person.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm">
-              <input type="checkbox" checked={departmentMembers.includes(person.id)}
-                onChange={event=>void toggleDepartmentMember(person.id,event.target.checked)}/>
-              <span>{person.name}</span>
-            </label>)}
-            {members.length===0 && <p className="text-xs text-muted-foreground">Nenhum funcionário autorizado.</p>}
-          </div>}
-        </div>
-        <div className="flex justify-end border-t border-border px-5 py-3">
-          <AdminButton variant="secondary" onClick={()=>setDepartmentSettingsOpen(false)}>Fechar</AdminButton>
-        </div>
-      </div>
-    </div>}
-    {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
-      onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Histórico do atendimento"
-        className="flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <p className="font-bold">Histórico do atendimento</p>
-          <button aria-label="Fechar" type="button" onClick={()=>setHistoryOpen(false)}><X size={18}/></button>
-        </div>
-        <div className="min-h-0 space-y-2 overflow-y-auto p-4">
-          {handoffs.length===0 && <p className="text-xs text-muted-foreground">Nenhum encaminhamento registrado.</p>}
-          {handoffs.map(item=><div key={item.id} className="border-b border-border py-2 text-xs">
-            <p className="font-semibold">{({
-              assume:"Atendimento assumido",return_queue:"Devolvido à fila",
-              finish:"Finalizado",reopen:"Reaberto",
-              transfer_operator:"Encaminhado ao atendente",transfer_department:"Encaminhado ao departamento",
-              start:"Conversa iniciada",
-            } as Record<string,string>)[item.action]||item.action}</p>
-            <p className="text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</p>
-          </div>)}
-        </div>
-      </div>
-    </div>}
   </div>;
 }
 
@@ -833,8 +745,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <button type="button" aria-label="Configurações do Atendimento WhatsApp"
               aria-expanded={settingsOpen} title="Configurações"
               onClick={()=>setSettingsOpen(value=>!value)}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted">
-              <Settings2 size={17}/>
+              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted">
+              <Settings2 size={22}/>
             </button>
             {settingsOpen && <div className="absolute right-0 top-11 z-40 w-60 rounded-lg border border-border bg-card p-1.5 shadow-xl">
               {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
@@ -1152,6 +1064,94 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <div className="mt-5 flex justify-end gap-2">
           <AdminButton variant="secondary" onClick={() => setRoutingOpen(false)}>Cancelar</AdminButton>
           <AdminButton disabled={!(routingMode==="department"?targetDepartmentId:targetUserId) || Boolean(runningAction)} onClick={() => void transfer()}>Encaminhar</AdminButton>
+        </div>
+      </div>
+    </div>}
+    {ordersOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setOrdersOpen(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Vincular ordem de serviço"
+        className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <p className="font-bold">Vincular ordem de serviço</p>
+          <button type="button" aria-label="Fechar" onClick={()=>setOrdersOpen(false)}><X size={18}/></button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Apenas OS do cadastro verificado por este telefone.</p>
+        <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
+          {possibleOrders.length===0 && <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma OS encontrada para este cliente.</p>}
+          {possibleOrders.map(order=><button key={order.id} type="button" onClick={()=>void linkOrder(order.id)}
+            disabled={savingOrder} className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-muted">
+            <span>OS {order.os_number}</span>
+            {selected.service_order_id===order.id && <Check size={16} className="text-primary"/>}
+          </button>)}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          {selected.service_order_id && <AdminButton variant="secondary" disabled={savingOrder} onClick={()=>void linkOrder("")}>Desvincular</AdminButton>}
+          <AdminButton variant="secondary" onClick={()=>setOrdersOpen(false)}>Fechar</AdminButton>
+        </div>
+      </div>
+    </div>}
+    {departmentSettingsOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setDepartmentSettingsOpen(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Departamentos WhatsApp"
+        className="flex max-h-[82vh] w-full max-w-xl flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <p className="font-bold">Departamentos e equipe</p>
+          <button type="button" onClick={()=>setDepartmentSettingsOpen(false)} aria-label="Fechar"
+            className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
+        </div>
+        <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="flex items-stretch gap-2">
+            <input value={newDepartmentName} maxLength={80}
+              onChange={event=>setNewDepartmentName(event.target.value)}
+              placeholder="Novo departamento"
+              aria-label="Nome do novo departamento"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
+            <AdminButton disabled={savingDepartment || newDepartmentName.trim().length<2}
+              onClick={()=>void saveDepartment()}><Plus size={15}/> Adicionar</AdminButton>
+          </div>
+          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+            {departments.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Nenhum departamento cadastrado.</p>}
+            {departments.map(dept=><button key={dept.id} type="button" onClick={()=>void manageDepartmentMembers(dept.id)}
+              className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-muted ${chosenDepartmentId===dept.id?"bg-primary-soft":""}`}>
+              <span className="flex items-center gap-2"><Building2 size={16}/>{dept.name}</span>
+              <span className="text-[11px] text-muted-foreground">{dept.is_active?"Ativo":"Desativado"}</span>
+            </button>)}
+          </div>
+          {chosenDepartmentId && <div className="space-y-2">
+            <p className="text-sm font-bold">Funcionários autorizados</p>
+            <p className="text-xs text-muted-foreground">Selecione quem pode assumir conversas direcionadas a este departamento.</p>
+            {members.map(person=><label key={person.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm">
+              <input type="checkbox" checked={departmentMembers.includes(person.id)}
+                onChange={event=>void toggleDepartmentMember(person.id,event.target.checked)}/>
+              <span>{person.name}</span>
+            </label>)}
+            {members.length===0 && <p className="text-xs text-muted-foreground">Nenhum funcionário autorizado.</p>}
+          </div>}
+        </div>
+        <div className="flex justify-end border-t border-border px-5 py-3">
+          <AdminButton variant="secondary" onClick={()=>setDepartmentSettingsOpen(false)}>Fechar</AdminButton>
+        </div>
+      </div>
+    </div>}
+    {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Histórico do atendimento"
+        className="flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="font-bold">Histórico do atendimento</p>
+          <button aria-label="Fechar" type="button" onClick={()=>setHistoryOpen(false)}><X size={18}/></button>
+        </div>
+        <div className="min-h-0 space-y-2 overflow-y-auto p-4">
+          {handoffs.length===0 && <p className="text-xs text-muted-foreground">Nenhum encaminhamento registrado.</p>}
+          {handoffs.map(item=><div key={item.id} className="border-b border-border py-2 text-xs">
+            <p className="font-semibold">{({
+              assume:"Atendimento assumido",return_queue:"Devolvido à fila",
+              finish:"Finalizado",reopen:"Reaberto",
+              transfer_operator:"Encaminhado ao atendente",transfer_department:"Encaminhado ao departamento",
+              start:"Conversa iniciada",
+            } as Record<string,string>)[item.action]||item.action}</p>
+            <p className="text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</p>
+          </div>)}
         </div>
       </div>
     </div>}
