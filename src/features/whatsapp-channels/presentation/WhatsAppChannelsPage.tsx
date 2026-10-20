@@ -1,18 +1,40 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, QrCode, RefreshCw, Settings2, ShieldCheck, Smartphone, Unplug } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, Plus, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
 
+// The provider may return a full JID or digits with/without the Brazilian country code.
+function formatPhone(value: string | null): string {
+  if (!value) return "—";
+  const digits = value.split("@")[0].replace(/\D/g, "");
+  const national = digits.startsWith("55") && (digits.length === 12 || digits.length === 13)
+    ? digits.slice(2)
+    : digits.length === 10 || digits.length === 11 ? digits : null;
+  if (national) {
+    const ddd = national.slice(0, 2);
+    const subscriber = national.slice(2);
+    return `+55 (${ddd}) ${subscriber.slice(0, -4)}-${subscriber.slice(-4)}`;
+  }
+  return digits ? `+${digits}` : "—";
+}
+
+type ChannelSection = "configuration" | "connections";
+const channelSections: Array<{ id: ChannelSection; label: string }> = [
+  { id: "configuration", label: "Configuração do canal" },
+  { id: "connections", label: "Conexões" },
+];
+
 export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => void; onOpenInbox?: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
   const canManage = hasPermission("settings.channels.manage");
+  const [section, setSection] = useState<ChannelSection>("configuration");
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
   const channelRef = useRef<WhatsAppChannel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -169,7 +191,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
       const result = await operateWhatsAppChannel(activeOrganizationId, operation, channelRef.current?.id);
       if (result.channel) applyChannel(result.channel);
       if (operation === "qr") setQr(result.qr || null);
-      if (operation === "activate") setNotice("WhatsApp ativado. Agora basta conectar seu número.");
+      if (operation === "activate") { setNotice("WhatsApp ativado. Agora basta conectar seu número."); setSection("connections"); }
       if (operation === "webhook_setup") setNotice("Recebimento autenticado por HMAC configurado. Envie uma mensagem de outro número para testar a entrega.");
       if (operation === "logout") {
         setQr(null);
@@ -223,103 +245,123 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
   const connected = channel?.state === "connected";
   const receiving = connected && channel?.webhook_ready === true;
 
+
+  const connectionState = connected ? "Conectado" :
+    channel?.state === "connecting" ? "Conectando" :
+    channel?.state === "error" ? "Falha na conexão" : "Desconectado";
+  const canStartConnection = canManage && enabled && !connected && !Boolean(action);
+
   return <div className="space-y-5">
-    <PageHeader title="Canais de Atendimento" subtitle="Ative o canal e gerencie os números conectados em áreas separadas."
-      actions={<AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>} />
+    <PageHeader title="Canais de Atendimento" subtitle="Configure o canal e gerencie os números conectados." />
+    <nav aria-label="Subseções de canais de atendimento" className="mr-auto flex w-fit max-w-full justify-start overflow-x-auto">
+      <div className="flex w-max items-center justify-start gap-1">
+        {channelSections.map(item => <button key={item.id} type="button"
+          onClick={() => setSection(item.id)} aria-current={section === item.id ? "page" : undefined}
+          className={`relative inline-flex min-h-11 shrink-0 items-center justify-center bg-transparent px-3 text-xs font-black transition-colors duration-200 after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:transition-transform after:duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 ${section === item.id ? "text-primary after:scale-x-100" : "text-muted-foreground after:scale-x-0 hover:text-primary"}`}>
+          {item.label}
+        </button>)}
+      </div>
+    </nav>
     {error && <div role="alert" className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-400">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-700 dark:text-emerald-400">{notice}</div>}
-    {loading ? <LoadingState text="Carregando canais..." /> : <>
+    {loading ? <LoadingState text="Carregando canais..." /> : section === "configuration" ?
       <AdminCard>
-        <AdminCardHeader>
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="rounded-xl bg-blue-500/10 p-2.5 text-blue-600"><Settings2 size={20}/></span>
-            <div><h2 className="text-sm font-bold">Configuração do canal</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Ativação e recebimento de mensagens</p></div>
-          </div>
-          <span className={enabled ? "rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400" : "rounded-lg bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground"}>
-            {enabled ? "Ativado" : "Desativado"}
-          </span>
-        </AdminCardHeader>
-        <AdminCardContent className="space-y-4">
+        <AdminCardContent className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="max-w-2xl">
               <p className="text-sm font-semibold">WhatsApp da empresa</p>
-              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">Ao ativar, a Union cadastra e prepara a integração segura de uma vez. Depois você só precisa conectar o número.</p>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+                Ative o canal uma única vez. A Union prepara a integração e configura o recebimento automaticamente quando um número é conectado.
+              </p>
             </div>
-            {!enabled && canManage && <AdminButton disabled={Boolean(action)} loading={action === "activate"} onClick={() => void perform("activate")}>Ativar WhatsApp</AdminButton>}
+            <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${enabled ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+              {enabled ? "Ativado" : "Desativado"}
+            </span>
           </div>
+          {!enabled && canManage && <AdminButton disabled={Boolean(action)} loading={action === "activate"}
+            onClick={() => void perform("activate")}>Ativar WhatsApp</AdminButton>}
           {enabled && <div className="grid gap-4 rounded-xl border border-border bg-muted/20 p-4 sm:grid-cols-2">
             <div className="flex items-start gap-2.5">
               <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600"/>
-              <div><p className="text-sm font-semibold">Integração preparada</p><p className="mt-1 text-xs text-muted-foreground">Canal habilitado e sessão segura criada para esta empresa.</p></div>
+              <div><p className="text-sm font-semibold">Integração preparada</p>
+                <p className="mt-1 text-xs text-muted-foreground">Sessão segura criada para esta empresa.</p></div>
             </div>
             <div className="flex items-start gap-2.5">
               {receiving ? <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-600"/> :
                 connected ? <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-amber-600 motion-reduce:animate-none"/> :
                   <CircleAlert size={18} className="mt-0.5 shrink-0 text-muted-foreground"/>}
               <div><p className="text-sm font-semibold">Recebimento de mensagens</p>
-                <p className="mt-1 text-xs text-muted-foreground">{receiving ? "Autenticado e ativo." :
-                  connected ? "Número conectado. Finalizando configuração automaticamente." :
-                    "Será ativado automaticamente após conectar o número."}</p></div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {receiving ? "Autenticado e ativo." :
+                    connected ? "Número conectado. Finalizando configuração automaticamente." :
+                      "Será configurado após conectar um número."}
+                </p></div>
             </div>
           </div>}
-          {connected && !channel?.webhook_ready && canManage && <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/25 p-3">
-            <p className="text-xs text-muted-foreground">Se a ativação do recebimento continuar pendente, confira a ponte de integração.</p>
-            <AdminButton variant="secondary" size="sm" disabled={Boolean(action)} loading={action === "webhook_setup"} onClick={() => void perform("webhook_setup")}>
-              <RefreshCw size={15}/> Tentar novamente
-            </AdminButton>
-          </div>}
-        </AdminCardContent>
-      </AdminCard>
-
-      <AdminCard>
-        <AdminCardHeader>
-          <div className="flex min-w-0 items-center gap-3">
-            <span className="rounded-xl bg-blue-500/10 p-2.5 text-blue-600"><Smartphone size={20}/></span>
-            <div><h2 className="text-sm font-bold">Conexões</h2>
-              <p className="mt-1 text-xs text-muted-foreground">Gerencie o número vinculado ao canal</p></div>
-          </div>
-          <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
-            {!enabled ? "Não habilitado" : connected ? "Conectado" : channel?.state === "connecting" ? "Conectando" : "Sem número"}
-          </span>
-        </AdminCardHeader>
-        <AdminCardContent className="space-y-4">
-          {!enabled ? <div className="flex items-center gap-3 rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">
-            <Smartphone size={21} className="shrink-0"/>Ative o canal acima para conectar um número.
-          </div> : <>
-            <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-border p-4">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="rounded-xl bg-emerald-500/10 p-3 text-emerald-600"><MessageCircle size={20}/></span>
-                <div><p className="text-sm font-semibold">{channel?.display_name || "WhatsApp"}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{connected ?
-                    (channel?.phone || "Conectado · número não identificado") :
-                    channel?.state === "connecting" ? "Aguardando confirmação do WhatsApp" : "Nenhum número conectado"}</p></div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {canManage && !connected && <AdminButton disabled={Boolean(action)} loading={action === "connect"} onClick={() => void openQr()}>
-                  <QrCode size={16}/> Conectar número
-                </AdminButton>}
-                {connected && onOpenInbox && <AdminButton disabled={Boolean(action) || !receiving} onClick={onOpenInbox}>
-                  <MessageCircle size={16}/> Abrir conversas
-                </AdminButton>}
-                {canManage && connected && <AdminButton variant="danger" disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}>
-                  <Unplug size={16}/> Desconectar
-                </AdminButton>}
-              </div>
-            </div>
-            <div className="grid gap-3 px-1 text-xs text-muted-foreground sm:grid-cols-2">
-              <p>Última verificação: <span className="font-medium text-foreground">{dateLabel(channel?.last_checked_at ?? null)}</span></p>
-              <p>Última conexão: <span className="font-medium text-foreground">{dateLabel(channel?.last_connected_at ?? null)}</span></p>
-            </div>
-            {channel?.state === "connecting" && <div role="status" className="flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3 text-sm">
-              <LoaderCircle size={18} className="mt-0.5 shrink-0 animate-spin text-amber-600 motion-reduce:animate-none"/>
-              <span>Esperando o WhatsApp confirmar o número. A verificação é automática.</span>
+          {connected && !channel?.webhook_ready && canManage &&
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/25 p-3">
+              <p className="text-xs text-muted-foreground">Se o recebimento continuar pendente, confira a ponte de integração.</p>
+              <AdminButton variant="secondary" size="sm" disabled={Boolean(action)}
+                loading={action === "webhook_setup"} onClick={() => void perform("webhook_setup")}>
+                <RefreshCw size={15}/> Tentar novamente
+              </AdminButton>
             </div>}
-            {statusError && <div role="alert" className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"><CircleAlert size={16}/>{statusError}</div>}
-          </>}
         </AdminCardContent>
-      </AdminCard>
-    </>}
+      </AdminCard> :
+      <AdminCard square>
+        <div className="overflow-x-auto">
+          <table className="min-w-[850px] w-full">
+            <thead><tr>
+              <th className="text-left">Canal</th>
+              <th className="text-left">Número</th>
+              <th className="text-left">Conexão</th>
+              <th className="text-left">Recebimento</th>
+              <th className="text-left">Última conexão</th>
+              <th className="text-right">Ações</th>
+            </tr></thead>
+            <tbody>
+              {enabled && channel ? <tr key={channel.id}>
+                <td><div className="flex items-center gap-2.5">
+                  <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><MessageCircle size={17}/></span>
+                  <div><p className="font-semibold">{channel.display_name || "WhatsApp"}</p>
+                    <p className="text-xs text-muted-foreground">WhatsApp normal ou Business</p></div>
+                </div></td>
+                <td className="whitespace-nowrap font-medium tabular-nums">{formatPhone(channel.phone)}</td>
+                <td><span className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
+                  {connectionState}</span></td>
+                <td><span className={`text-xs font-semibold ${receiving ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
+                  {receiving ? "Ativo" : connected ? "Configurando" : "Inativo"}</span></td>
+                <td className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(channel.last_connected_at)}</td>
+                <td><div className="flex justify-end gap-2">
+                  {connected && onOpenInbox && <AdminButton variant="secondary" size="sm"
+                    disabled={Boolean(action) || !receiving} onClick={onOpenInbox}>Abrir conversas</AdminButton>}
+                  {canManage && connected && <AdminButton variant="danger" size="sm"
+                    disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}>
+                    <Unplug size={15}/> Desconectar</AdminButton>}
+                  {!connected && <span className="whitespace-nowrap text-xs text-muted-foreground">Aguardando conexão</span>}
+                </div></td>
+              </tr> : <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
+                {enabled ? "Nenhuma conexão encontrada." : "Ative o canal na subseção Configuração do canal para conectar um número."}
+              </td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {enabled && channel?.state === "connecting" && <p role="status" className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
+          O WhatsApp está confirmando a conexão. A verificação ocorre automaticamente.
+        </p>}
+        {statusError && <div role="alert" className="border-t border-border px-4 py-3 text-xs text-red-600 dark:text-red-400">
+          {statusError}
+        </div>}
+      </AdminCard>}
+    <AdminStickyToolbar className="justify-between">
+      <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
+      {section === "connections" && canManage && <AdminButton onClick={() => void openQr()}
+        disabled={!canStartConnection} loading={action === "connect"}
+        title={!enabled ? "Ative o canal primeiro" :
+          connected ? "Esta integração permite um número por empresa. Desconecte o atual antes de adicionar outro." : undefined}>
+        <Plus size={16}/> Nova conexão
+      </AdminButton>}
+    </AdminStickyToolbar>
     <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }}
       title="Conectar número" description="No WhatsApp, acesse Aparelhos conectados e leia o QR Code."
       footer={<AdminButton variant="secondary" onClick={() => { setQrOpen(false); setQr(null); }}>Fechar</AdminButton>}>
