@@ -29,7 +29,7 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
@@ -136,6 +136,7 @@ export function PdvSaleWorkspace({
   const customerSearchInputRef = useRef<HTMLInputElement>(null);
 
   const [search, setSearch] = useState("");
+  const [productSort, setProductSort] = useState<"name_asc" | "name_desc" | "price_asc">("name_asc");
   const debouncedSearch = useDebouncedValue(search);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedCartProductId, setSelectedCartProductId] = useState<string | null>(null);
@@ -208,7 +209,9 @@ export function PdvSaleWorkspace({
     }
   };
 
-  const products = productsQuery.data || [];
+  const products = [...(productsQuery.data || [])].sort((a, b) => productSort === "price_asc"
+    ? Number(a.price ?? Number.MAX_SAFE_INTEGER) - Number(b.price ?? Number.MAX_SAFE_INTEGER)
+    : String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }) * (productSort === "name_desc" ? -1 : 1));
   const settings = bootstrap.settings;
   const allowNegativeStock = settings?.allow_negative_stock === true;
   const paymentMethods = useMemo(
@@ -688,7 +691,11 @@ export function PdvSaleWorkspace({
 
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,0.82fr)_minmax(460px,1.18fr)]">
       <div className="min-w-0 space-y-3">
-        <AdminSearchPanel title="Leitor / buscar produto">
+        <AdminSearchPanel title="Leitor / buscar produto" headerActions={<>
+          {(search || productSort !== "name_asc") && <AdminSearchClearButton onClick={() => { setSearch(""); setProductSort("name_asc"); }} />}
+          <AdminSearchSortMenu value={productSort} onChange={setProductSort}
+            options={[{ value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "price_asc", label: "Menor preço" }]} />
+        </>}>
           <div className="relative">
             <Barcode size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
             <input
