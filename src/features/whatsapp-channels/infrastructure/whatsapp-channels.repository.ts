@@ -29,7 +29,14 @@ export async function operateWhatsAppChannel(
   const { data, error } = await supabase.functions.invoke("whatsapp-channels", {
     body: { organization_id: organizationId, action, ...(connectionId ? { connection_id: connectionId } : {}) },
   });
-  if (error) throw new Error("Não foi possível acessar os canais. Confira sua conexão e permissões.");
+  if (error) {
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === "function") {
+      const details = await response.json().catch(() => null) as { error?: string } | null;
+      if (details?.error) throw new Error(details.error);
+    }
+    throw new Error("Não foi possível acessar os canais. Confira sua conexão e permissões.");
+  }
   const result = data as ChannelResult;
   if (!result || result.success !== true) {
     throw new Error(result?.error || "Não foi possível executar a operação de WhatsApp.");
