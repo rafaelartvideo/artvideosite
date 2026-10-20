@@ -386,6 +386,31 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       [item.contact_name, item.contact_phone || "", item.chat_jid].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
   }, [scopedConversations, filter, query, departmentFilter]);
 
+  // Fetch photo previews for the first visible rows, in small batches so
+  // scrolling and messaging never wait for WhatsApp profile requests.
+  const previewIds=visible.slice(0,12).map(item=>item.id).join(",");
+  const avatarRequestsRef=useRef(new Set<string>());
+  useEffect(()=>{
+    if(!activeOrganizationId || channelReady!==true || !previewIds)return;
+    const toLoad=previewIds.split(",")
+      .filter(id=>id && !Object.prototype.hasOwnProperty.call(avatars,id) &&
+        !avatarRequestsRef.current.has(id))
+      .slice(0,3);
+    if(!toLoad.length)return;
+    const org=activeOrganizationId;
+    for(const id of toLoad){
+      avatarRequestsRef.current.add(id);
+      void operateUnionWhatsAppInbox(org,id,"contact_avatar")
+        .then(result=>{
+          if(organizationRef.current===org)setAvatars(old=>({...old,[id]:result.avatar_url||null}));
+        })
+        .catch(()=>{
+          if(organizationRef.current===org)setAvatars(old=>({...old,[id]:null}));
+        })
+        .finally(()=>avatarRequestsRef.current.delete(id));
+    }
+  },[activeOrganizationId,channelReady,previewIds,avatars]);
+
   useEffect(() => {
     if (!activeOrganizationId || !selected || selected.status !== "in_att"
       || selected.assigned_to !== user?.id || selected.unread_count <= 0) return;
