@@ -8,6 +8,8 @@ type Props = {
   selectedIds: ReadonlySet<string>;
   inheritedIds?: ReadonlySet<string>;
   individualIds?: ReadonlySet<string>;
+  deniedIds?: ReadonlySet<string>;
+  allowInheritedOverrides?: boolean;
   canManage: boolean;
   onToggle: (permission: PermissionRecord) => void;
   onToggleMany?: (permissions: PermissionRecord[]) => void;
@@ -19,7 +21,7 @@ const kinds: Array<{ key: PermissionPresentationKind; title: string }> = [
   { key: "actions", title: "Ações" },
 ];
 
-export function PermissionMatrix({ permissions, selectedIds, inheritedIds, individualIds, canManage, onToggle, onToggleMany }: Props) {
+export function PermissionMatrix({ permissions, selectedIds, inheritedIds, individualIds, deniedIds, allowInheritedOverrides = false, canManage, onToggle, onToggleMany }: Props) {
   const [search, setSearch] = useState("");
   const [expanded, setExpanded] = useState<string[]>([]);
   const term = normalize(search.trim());
@@ -46,7 +48,7 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
       {groups.map(group => {
         const opened = expanded.includes(group.name) || term.length > 0;
         const checkedCount = group.permissions.filter(permission => selectedIds.has(permission.id)).length;
-        const editable = group.permissions.filter(permission => !inheritedIds?.has(permission.id));
+        const editable = group.permissions.filter(permission => allowInheritedOverrides || !inheritedIds?.has(permission.id));
         const checkedAll = editable.length > 0 && editable.every(permission => selectedIds.has(permission.id));
         return <div key={group.name}>
           <div className="flex items-center gap-3 py-3">
@@ -77,12 +79,14 @@ export function PermissionMatrix({ permissions, selectedIds, inheritedIds, indiv
                     {section.permissions.map(permission => {
                       const inherited = inheritedIds?.has(permission.id) || false;
                       return <button key={permission.id} type="button" title={permission.description || permission.key}
-                        disabled={!canManage || inherited} onClick={() => onToggle(permission)}
+                        disabled={!canManage || (inherited && !allowInheritedOverrides)} onClick={() => onToggle(permission)}
                         className="flex min-w-0 items-start gap-2.5 border-b border-[#0d1b2e]/5 py-2.5 text-left disabled:cursor-default">
                         <Checkbox checked={selectedIds.has(permission.id)} tabIndex={-1} />
                         <span className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-[#0d1b2e]">
                           {permissionLabelForEditor(permission)}
                           {inherited && <span className="ml-2 text-[10px] text-[#65748b]">Herdada</span>}
+                          {inherited && !selectedIds.has(permission.id) && allowInheritedOverrides && <span className="ml-2 text-[10px] font-semibold text-amber-700">Desativada individualmente</span>}
+                          {deniedIds?.has(permission.id) && selectedIds.has(permission.id) && <span className="ml-2 text-[10px] text-[#1032DC]">Alteração não salva</span>}
                           {!inherited && individualIds?.has(permission.id) && <span className="ml-2 text-[10px] text-[#1032DC]">Individual</span>}
                         </span>
                       </button>;
