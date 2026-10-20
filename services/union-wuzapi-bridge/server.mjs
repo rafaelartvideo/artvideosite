@@ -292,8 +292,11 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const first=String(entry.FirstName||"").trim().slice(0,160);
     const business=String(entry.BusinessName||"").trim().slice(0,160);
     const push=String(entry.PushName||"").trim().slice(0,160);
-    const name=full||first||business||push;
-    return {ok:true,name:name||null,source:full||first||business?"saved":"push"};
+    // BusinessName is a public business profile, not proof of a phonebook
+    // save. Only FullName / FirstName are authoritative saved names.
+    const saved=full||first;
+    const name=saved||push||business;
+    return {ok:true,name:name||null,source:saved?"saved":"push"};
   }
   if (action === "send_media") {
     const jid=String(chatJid||"");
