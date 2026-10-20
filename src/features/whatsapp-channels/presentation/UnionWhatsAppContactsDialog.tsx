@@ -386,7 +386,7 @@ export function UnionWhatsAppContactsDialog({
   };
   const currentName=selected?(name.trim()||labelFor(selected)):name;
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
-    onClick={event=>{if(event.target===event.currentTarget)onClose();}}>
+    onClick={event=>{if(event.target===event.currentTarget)closeContacts();}}>
     <div role="dialog" aria-modal="true" aria-label="Gerenciar contatos WhatsApp"
       className="flex h-[min(83vh,740px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
       <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -410,7 +410,7 @@ export function UnionWhatsAppContactsDialog({
               className="hidden" aria-label="Arquivo Excel ou CSV com contatos"
               onChange={event=>{void readSpreadsheet(event.target.files?.[0]||null);}}/>
             <button type="button" disabled={busy} onClick={()=>spreadsheetInputRef.current?.click()}
-              title="Importar Excel (.xlsx) ou CSV com colunas Nome e Telefone"
+              title="Importar até 50.000 contatos via Excel/CSV, inclusive Nome + DDI + Número"
               className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50">
               Excel / CSV
             </button>
@@ -421,7 +421,7 @@ export function UnionWhatsAppContactsDialog({
               WuzAPI
             </button>
           </>}
-          <button type="button" onClick={onClose} title="Fechar" aria-label="Fechar"
+          <button type="button" onClick={closeContacts} title="Fechar" aria-label="Fechar"
             className="rounded-lg p-2 hover:bg-muted"><X size={19}/></button>
         </div>
       </div>
@@ -526,31 +526,39 @@ export function UnionWhatsAppContactsDialog({
         </div>
       </div>
     </div>
-    {pendingImport && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-3 sm:p-5"
-      onClick={event=>{if(event.target===event.currentTarget&&!busy)setPendingImport(null);}}>
-      <div role="dialog" aria-modal="true" aria-label="Prévia da importação de contatos"
-        className="flex w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+    {pendingImport && importProgress && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 p-3 sm:p-5"
+      onClick={event=>{
+        if(event.target===event.currentTarget&&!importing&&!busy)setPendingImport(null);
+      }}>
+      <div role="dialog" aria-modal="true" aria-label="Importação de contatos da planilha"
+        className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
         <div className="flex items-start justify-between gap-3 border-b border-border p-4">
-          <div>
-            <h3 className="text-base font-bold">Conferir contatos da planilha</h3>
+          <div className="min-w-0">
+            <h3 className="text-base font-bold">Importação de contatos</h3>
             <p className="mt-1 break-all text-xs text-muted-foreground">{pendingImport.filename}</p>
           </div>
-          <button type="button" aria-label="Fechar prévia" disabled={busy} onClick={()=>setPendingImport(null)}
-            className="rounded-lg p-1.5 hover:bg-muted disabled:opacity-40"><X size={18}/></button>
+          <button type="button" aria-label="Fechar importação" onClick={()=>{
+            if(importing)pauseSpreadsheetImport();
+            else setPendingImport(null);
+          }} className="rounded-lg p-1.5 hover:bg-muted"><X size={18}/></button>
         </div>
-        <div className="space-y-3 p-4">
-          <div className="grid grid-cols-3 gap-2 text-center text-xs">
+        <div className="min-h-0 space-y-4 overflow-y-auto p-4">
+          <div className="grid grid-cols-4 gap-1.5 text-center text-xs">
             <div className="rounded-lg bg-primary/10 p-2">
-              <p className="text-lg font-bold text-primary">{pendingImport.summary.entries.length}</p>
+              <p className="text-base font-bold text-primary">{pendingImport.summary.entries.length.toLocaleString("pt-BR")}</p>
               <p>Válidos</p>
             </div>
             <div className="rounded-lg bg-muted p-2">
-              <p className="text-lg font-bold">{pendingImport.summary.duplicates}</p>
+              <p className="text-base font-bold">{pendingImport.summary.duplicates.toLocaleString("pt-BR")}</p>
               <p>Duplicados</p>
             </div>
             <div className="rounded-lg bg-muted p-2">
-              <p className="text-lg font-bold">{pendingImport.summary.invalidRows}</p>
+              <p className="text-base font-bold">{pendingImport.summary.invalidRows.toLocaleString("pt-BR")}</p>
               <p>Inválidos</p>
+            </div>
+            <div className="rounded-lg bg-muted p-2">
+              <p className="text-base font-bold">{pendingImport.summary.unsupportedCountries.toLocaleString("pt-BR")}</p>
+              <p>Outro DDI</p>
             </div>
           </div>
           <div className="overflow-hidden rounded-lg border border-border">
@@ -560,21 +568,80 @@ export function UnionWhatsAppContactsDialog({
               </thead>
               <tbody className="divide-y divide-border">
                 {pendingImport.summary.entries.slice(0,5).map(entry=>
-                  <tr key={entry.phone}><td className="max-w-[200px] truncate px-3 py-2">{entry.name}</td>
-                    <td className="px-3 py-2 tabular-nums">+{entry.phone}</td></tr>)}
+                  <tr key={entry.phone}>
+                    <td className="max-w-[200px] truncate px-3 py-2">{entry.name}</td>
+                    <td className="px-3 py-2 tabular-nums">+{entry.phone}</td>
+                  </tr>)}
               </tbody>
             </table>
           </div>
           <p className="text-xs text-muted-foreground">
-            Prévia dos primeiros 5 contatos. A importação aceita até 2.000 contatos brasileiros por arquivo;
-            nomes salvos manualmente na Union não serão substituídos.
-            {pendingImport.summary.capped?" O arquivo ultrapassou o limite e parte das linhas será ignorada.":""}
+            {pendingImport.summary.totalRows.toLocaleString("pt-BR")} linhas analisadas.
+            Aceita até 50.000 contatos brasileiros por arquivo (20 MB).
+            A coluna DDI pode conter 55; outros países são listados como ignorados.
+            Nomes personalizados na Union não são substituídos.
+            {pendingImport.summary.layout==="without_header"?" Detectado formato sem cabeçalho (Nome, DDI, Número).":""}
+            {pendingImport.summary.capped?" Parte dos contatos excede o limite e não será importada.":""}
           </p>
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
-            <AdminButton variant="secondary" disabled={busy} onClick={()=>setPendingImport(null)}>Cancelar</AdminButton>
-            <AdminButton disabled={busy} loading={busy} onClick={()=>void confirmSpreadsheetImport()}>
-              Importar {pendingImport.summary.entries.length} contato(s)
-            </AdminButton>
+          <div className="space-y-2 rounded-lg border border-border p-3" role="status" aria-live="polite">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-semibold">
+                {importProgress.status==="running"?"Importando contatos":
+                 importProgress.status==="pausing"?"Pausando após o lote atual":
+                 importProgress.status==="paused"?"Importação pausada":
+                 importProgress.status==="cancelling"?"Cancelando após o lote atual":
+                 importProgress.status==="failed"?"Importação interrompida por erro":
+                 importProgress.status==="completed"?"Importação concluída":"Pronto para importar"}
+              </span>
+              <span className="text-sm font-bold tabular-nums">
+                {Math.floor(100*importProgress.completed/pendingImport.summary.entries.length)}%
+              </span>
+            </div>
+            <div role="progressbar"
+              aria-label="Progresso da importação" aria-valuemin={0} aria-valuemax={100}
+              aria-valuenow={Math.floor(100*importProgress.completed/pendingImport.summary.entries.length)}
+              className="h-2.5 overflow-hidden rounded-full bg-muted">
+              <div className="h-full rounded-full bg-primary transition-[width] duration-200"
+                style={{width:(100*importProgress.completed/pendingImport.summary.entries.length)+"%"}}/>
+            </div>
+            <div className="flex items-center justify-between gap-2 text-xs tabular-nums">
+              <span>{importProgress.completed.toLocaleString("pt-BR")} processados</span>
+              <span>{(pendingImport.summary.entries.length-importProgress.completed).toLocaleString("pt-BR")} restantes</span>
+            </div>
+            {importProgress.retries>0&&<p className="text-[11px] text-muted-foreground">
+              {importProgress.retries} tentativa(s) automática(s) após falhas de conexão.
+            </p>}
+            {importProgress.status==="failed"&&<p className="text-xs text-destructive">
+              {importProgress.error||"Falha no envio. Você pode retomar de onde parou."}
+            </p>}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Os contatos são enviados em lotes de {CONTACT_IMPORT_BATCH_SIZE}, com confirmação de cada lote.
+            Pausar ou cancelar aguarda o lote atual; contatos já confirmados permanecem salvos.
+            Se fechar a página, selecione novamente o mesmo arquivo para retomar.
+            O arquivo e os telefones não são guardados no armazenamento do navegador.
+          </p>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+            {importProgress.status!=="completed"&&
+              <AdminButton variant="secondary"
+                disabled={importProgress.status==="cancelling"}
+                onClick={cancelSpreadsheetImport}>
+                {importProgress.status==="cancelling"?"Cancelando...":"Cancelar"}
+              </AdminButton>}
+            {importProgress.status==="running"?
+              <AdminButton onClick={pauseSpreadsheetImport}>Pausar</AdminButton>:
+             importProgress.status==="pausing"||importProgress.status==="cancelling"?
+              <AdminButton disabled>
+                <LoaderCircle size={15} className="animate-spin"/> Aguardando lote...
+              </AdminButton>:
+             importProgress.status==="completed"?
+              <AdminButton onClick={()=>{setPendingImport(null);setImportProgress(null);}}>
+                Concluir
+              </AdminButton>:
+              <AdminButton disabled={busy} onClick={()=>void runSpreadsheetImport()}>
+                {importProgress.completed>0?"Retomar importação":
+                  "Importar "+pendingImport.summary.entries.length.toLocaleString("pt-BR")+" contatos"}
+              </AdminButton>}
           </div>
         </div>
       </div>
