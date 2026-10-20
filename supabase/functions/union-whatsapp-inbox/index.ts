@@ -78,7 +78,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || !uuid(conversationId) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","members","transfer"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -98,7 +98,8 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (action==="send_text" && !canSend) ||
+    if (!canRead || (["members","transfer"].includes(action) && !canManage) ||
+      (action==="send_text" && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
@@ -109,6 +110,56 @@ Deno.serve(async request => {
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(action==="members" || action==="transfer") {
+      // Same-company, active operators only. Never trust a client-provided
+      // destination name, role or organization.
+      const {data:members,error:membersError}=await admin.from("organization_members")
+        .select("user_id,role_id,is_owner")
+        .eq("organization_id",org).eq("status","active").limit(500);
+      if(membersError) throw membersError;
+      const roleIds=[...new Set((members||[]).map(m=>m.role_id).filter(Boolean))];
+      const {data:sendPermission,error:permissionLookupError}=await admin.from("permissions")
+        .select("id").eq("key","whatsapp.inbox.send").maybeSingle();
+      if(permissionLookupError || !sendPermission) return json({success:false,error:"Permissão de operadores não configurada."},503);
+      const {data:grants,error:grantsError}=roleIds.length
+        ? await admin.from("role_permissions").select("role_id").in("role_id",roleIds)
+          .eq("permission_id",sendPermission.id)
+        : {data:[],error:null};
+      if(grantsError) throw grantsError;
+      const eligibleRoles=new Set((grants||[]).map(r=>r.role_id));
+      const eligible=(members||[]).filter(m=>m.is_owner || eligibleRoles.has(m.role_id));
+      if(action==="members") {
+        const ids=eligible.map(m=>m.user_id);
+        const {data:profiles,error:profilesError}=ids.length
+          ? await admin.from("profiles").select("id,full_name,is_active").in("id",ids)
+          : {data:[],error:null};
+        if(profilesError) throw profilesError;
+        const people=(profiles||[]).filter(p=>p.is_active!==false)
+          .map(p=>({id:p.id,name:p.full_name || "Funcionário"}))
+          .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+        return json({success:true,members:people});
+      }
+      const targetId=String(body.target_user_id || "");
+      if(!uuid(targetId) || !eligible.some(m=>m.user_id===targetId)) {
+        return json({success:false,error:"Atendente de destino inválido ou sem permissão."},403);
+      }
+      const {data:targetProfile}=await admin.from("profiles").select("is_active")
+        .eq("id",targetId).maybeSingle();
+      if(!targetProfile || targetProfile.is_active===false) {
+        return json({success:false,error:"Atendente indisponível."},409);
+      }
+      if(thread.status!=="in_att" || !thread.assigned_to) {
+        return json({success:false,error:"Assuma a conversa antes de encaminhar."},409);
+      }
+      const {data:routed,error:routingError}=await admin.from("union_whatsapp_conversations")
+        .update({assigned_to:targetId,updated_at:new Date().toISOString()})
+        .eq("organization_id",org).eq("id",thread.id)
+        .eq("status","in_att").eq("assigned_to",thread.assigned_to)
+        .select("id").maybeSingle();
+      if(routingError) throw routingError;
+      if(!routed) return json({success:false,error:"Atendimento alterado por outro funcionário. Atualize."},409);
+      return json({success:true});
+    }
     const owned=thread.assigned_to === actorId;
     const assignedToOther=Boolean(thread.assigned_to && !owned);
     if(action==="assume") {
