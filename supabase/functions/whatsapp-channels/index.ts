@@ -175,6 +175,8 @@ Deno.serve(async request => {
     const patch: Record<string, unknown> = {
       state, last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString(),
     };
+    const phone = String(remote.phone || "").trim();
+    if (loggedIn && /^[0-9]{10,15}$/.test(phone)) patch.phone = phone;
     if (loggedIn && previous !== "connected") patch.last_connected_at = new Date().toISOString();
     const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
       .update(patch).eq("id", channel.id).eq("organization_id", org)
