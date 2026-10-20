@@ -70,6 +70,15 @@ export function UnionWhatsAppContactsDialog({
   // A tab closure pauses after the request in flight. Only the SHA-256 and
   // acknowledged item count are persisted in sessionStorage, never contacts.
   useEffect(()=>()=>{importControlRef.current.intent="pause";},[]);
+  useEffect(()=>{
+    if(!importing)return;
+    const warnIfLeaving=(event:BeforeUnloadEvent)=>{
+      event.preventDefault();
+      event.returnValue="";
+    };
+    window.addEventListener("beforeunload",warnIfLeaving);
+    return()=>window.removeEventListener("beforeunload",warnIfLeaving);
+  },[importing]);
 
   const refresh=useCallback(async (value:string,index:number)=>{
     setLoading(true);
@@ -618,7 +627,7 @@ export function UnionWhatsAppContactsDialog({
           <p className="text-[11px] text-muted-foreground">
             Os contatos são enviados em lotes de {CONTACT_IMPORT_BATCH_SIZE}, com confirmação de cada lote.
             Pausar ou cancelar aguarda o lote atual; contatos já confirmados permanecem salvos.
-            Se fechar a página, selecione novamente o mesmo arquivo para retomar.
+            Se atualizar esta aba, selecione o mesmo arquivo para recuperar o ponto salvo.
             O arquivo e os telefones não são guardados no armazenamento do navegador.
           </p>
           <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
