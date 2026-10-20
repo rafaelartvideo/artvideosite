@@ -106,13 +106,51 @@ async function provision(id, org) {
   return attempt;
 }
 
-async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId }) {
+async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
+  if (action === "send_media") {
+    const jid=String(chatJid||"");
+    const caption=typeof bodyText==="string" ? bodyText : "";
+    const idText=String(clientMessageId||"");
+    const kind=String(mediaType||"");
+    const mime=String(mediaMime||"");
+    const name=String(mediaName||"").replace(/[\\/\\\\\\x00-\\x1f]/g,"").slice(0,160);
+    const limits={image:1024*1024,audio:3*1024*1024,video:5*1024*1024,file:5*1024*1024};
+    const acceptable=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
+      : kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
+      : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
+      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream"].includes(mime) : false;
+    if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid) || !uuid(idText)
+      || !acceptable || caption.length>4000 || !name) throw new Error("bad_request");
+    let fileUrl;
+    try { fileUrl=new URL(String(mediaUrl||"")); } catch { throw new Error("bad_request"); }
+    if(fileUrl.protocol!=="https:" ||
+      fileUrl.hostname!=="wmjmtcjpunmzvonlkjcu.supabase.co" ||
+      !fileUrl.pathname.startsWith("/storage/v1/object/sign/union-whatsapp-media/") ||
+      fileUrl.username || fileUrl.password) throw new Error("bad_request");
+    const response=await fetch(fileUrl,{signal:AbortSignal.timeout(12000)});
+    if(!response.ok) throw new Error("media_download_unavailable");
+    const declared=Number(response.headers.get("content-length")||"0");
+    if(declared>limits[kind]) throw new Error("media_too_large");
+    const buffer=Buffer.from(await response.arrayBuffer());
+    if(!buffer.length || buffer.length>limits[kind]) throw new Error("media_too_large");
+    const dataUrl="data:"+mime+";base64,"+buffer.toString("base64");
+    const fields={Phone:jid,Id:idText.replaceAll("-","").toUpperCase()};
+    let resource,path;
+    if(kind==="image"){path="/chat/send/image";resource={...fields,Image:dataUrl,Caption:caption};}
+    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl};}
+    else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
+    else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime};}
+    const result=await wuzapi(path,session.token,"POST",resource);
+    const resultId=String(result?.data?.Id||result?.data?.id||"");
+    if(!resultId || resultId.length>180) throw new Error("provider_confirmation_unknown");
+    return {ok:true,provider_message_id:resultId};
+  }
   if (action === "send_text") {
     // Only the authenticated Union Edge Function may reach this action.
     // The existing HMAC envelope binds the organization, channel, recipient,
