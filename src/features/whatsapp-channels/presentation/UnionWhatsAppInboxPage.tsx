@@ -788,7 +788,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <p className="max-w-sm text-sm text-muted-foreground">Configure e conecte um canal para começar a receber e enviar mensagens.</p>
       </div>
       {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
-        <AdminButton onClick={onConfigure}><Settings2 size={16}/> Configurar canal</AdminButton>}
+        <AdminButton onClick={() => onConfigure()}><Settings2 size={16}/> Configurar canal</AdminButton>}
     </div> : <div className="h-[min(76vh,850px)] min-h-[520px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
       <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
         <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
