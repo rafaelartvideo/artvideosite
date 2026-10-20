@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
+import { WhatsAppOperationsSettings, type WhatsAppOperationsSection } from "./WhatsAppOperationsSettings";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
-import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -111,8 +112,13 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   </div>;
 }
 
+function WhatsAppIcon() {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
+  </svg>;
+}
 export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder }: {
-  onBack: () => void; onConfigure: (section?: string) => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
+  onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
@@ -146,11 +152,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [departments,setDepartments] = useState<Array<{id:string;name:string;is_active:boolean}>>([]);
   const [departmentFilter,setDepartmentFilter] = useState("all");
   const [settingsOpen,setSettingsOpen] = useState(false);
-  const [departmentSettingsOpen,setDepartmentSettingsOpen] = useState(false);
-  const [newDepartmentName,setNewDepartmentName] = useState("");
-  const [savingDepartment,setSavingDepartment] = useState(false);
-  const [chosenDepartmentId,setChosenDepartmentId] = useState("");
-  const [departmentMembers,setDepartmentMembers] = useState<string[]>([]);
+  const [settingsModal,setSettingsModal] = useState<WhatsAppOperationsSection|null>(null);
+  const settingsMenuRef=useRef<HTMLDivElement|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
@@ -180,6 +183,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [avatars, setAvatars] = useState<Record<string,string|null>>({});
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
   const messageIdentity = useRef(0);
+
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!settingsMenuRef.current?.contains(event.target as Node)) setSettingsOpen(false);
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSettingsOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [settingsOpen]);
 
   const loadingList = useRef(false);
   const organizationRef = useRef(activeOrganizationId);
@@ -233,7 +252,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setContactsOpen(false);
     setEditContactId(null);
     setSettingsOpen(false);
-    setDepartmentSettingsOpen(false);
+    setSettingsModal(null);
     setOrdersOpen(false);
     setDepartments([]);
     setDepartmentFilter("all");
@@ -432,41 +451,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const rows=result.departments||[];
     setDepartments(rows);
     return rows;
-  };
-  const saveDepartment = async () => {
-    if(!activeOrganizationId || !newDepartmentName.trim() || savingDepartment)return;
-    setSavingDepartment(true);setError("");
-    try{
-      await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"department_save",{name:newDepartmentName.trim()});
-      setNewDepartmentName("");
-      await loadDepartments();
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível salvar o departamento."));}
-    finally{setSavingDepartment(false);}
-  };
-  const manageDepartmentMembers = async (id:string) => {
-    if(!activeOrganizationId)return;
-    setChosenDepartmentId(id);setError("");
-    try{
-      const [staff,membership]=await Promise.all([
-        operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"members"),
-        operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"department_members",{department_id:id}),
-      ]);
-      setMembers(staff.members||[]);
-      setDepartmentMembers(membership.member_ids||[]);
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar a equipe."));}
-  };
-  const toggleDepartmentMember = async (id:string,enabled:boolean) => {
-    if(!activeOrganizationId || !chosenDepartmentId)return;
-    try{
-      const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"department_set_member",{
-        department_id:chosenDepartmentId,target_user_id:id,enabled,
-      });
-      setDepartmentMembers(result.member_ids||[]);
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível atualizar o departamento."));}
-  };
-  const openDepartmentSettings = async () => {
-    setSettingsOpen(false);setDepartmentSettingsOpen(true);
-    try{await loadDepartments();}catch(reason){setError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}
   };
   const viewHistory = async () => {
     if(!selected || !activeOrganizationId)return;
@@ -792,44 +776,53 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
   return <div className="space-y-5">
-    <PageHeader title="Atendimento WhatsApp"
+    <PageHeader title="Atendimentos"
       actions={<div className="flex items-center gap-2">
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || canManage) &&
-          <div className="relative">
-            <button type="button" aria-label="Configurações do Atendimento WhatsApp"
-              aria-expanded={settingsOpen} title="Configurações"
-              onClick={()=>setSettingsOpen(value=>!value)}
-              className="flex h-11 w-11 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted">
-              <Settings2 size={22}/>
+          <div ref={settingsMenuRef} className="relative">
+            <button type="button" aria-label="Configurações dos atendimentos" aria-haspopup="menu"
+              aria-expanded={settingsOpen} title="Configurações" onClick={() => setSettingsOpen(value => !value)}
+              className="flex h-12 w-12 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+              <Settings2 size={28} strokeWidth={2.2}/>
             </button>
-            {settingsOpen && <div className="absolute right-0 top-11 z-40 w-60 rounded-lg border border-border bg-card p-1.5 shadow-xl">
+            {settingsOpen && <div role="menu" aria-label="Configurações dos atendimentos"
+              className="absolute right-0 top-full z-40 mt-2 w-64 rounded-lg border border-border bg-card p-1.5 shadow-xl">
               {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
-                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure();}}
+                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);onConfigure();}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Settings2 size={15}/> Canais de Atendimento
+                  <Settings2 size={18}/> Canais de Atendimento
                 </button>}
               {canManage && <>
-                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure("departments");}}
+                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("departments");}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Building2 size={16}/> Departamentos e equipe
+                  <Building2 size={18}/> Departamentos e equipe
                 </button>
-                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure("queues");}}
+                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("queues");}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <MessageCircle size={16}/> Configurar filas
+                  <MessageCircle size={18}/> Configurar filas
                 </button>
-                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure("operators");}}
+                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("operators");}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Users size={16}/> Operadores
+                  <Users size={18}/> Operadores
                 </button>
               </>}
             </div>}
           </div>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
-    <nav aria-label="Canais de atendimento" className="flex border-b border-border">
-      <span aria-current="page" className="relative inline-flex min-h-10 items-center px-4 text-xs font-black text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary">
-        WhatsApp
-      </span>
+    <nav aria-label="Canais de atendimento" className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
+      <button type="button" aria-current="page" aria-label="WhatsApp, canal selecionado"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3.5 py-2 text-sm font-bold text-primary">
+        <WhatsAppIcon/> WhatsApp
+      </button>
+      <button type="button" disabled aria-label="Instagram, em breve" title="Instagram · Em breve"
+        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
+        <Instagram size={19}/> Instagram
+      </button>
+      <button type="button" disabled aria-label="Facebook, em breve" title="Facebook · Em breve"
+        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
+        <Facebook size={19}/> Facebook
+      </button>
     </nav>
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
       <CircleAlert size={17} className="mr-2 inline"/>{error}
@@ -1187,49 +1180,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </div>
       </div>
     </div>}
-    {departmentSettingsOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
-      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setDepartmentSettingsOpen(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Departamentos WhatsApp"
-        className="flex max-h-[82vh] w-full max-w-xl flex-col rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-5 py-4">
-          <p className="font-bold">Departamentos e equipe</p>
-          <button type="button" onClick={()=>setDepartmentSettingsOpen(false)} aria-label="Fechar"
-            className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
-        </div>
-        <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
-          <div className="flex items-stretch gap-2">
-            <input value={newDepartmentName} maxLength={80}
-              onChange={event=>setNewDepartmentName(event.target.value)}
-              placeholder="Novo departamento"
-              aria-label="Nome do novo departamento"
-              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
-            <AdminButton disabled={savingDepartment || newDepartmentName.trim().length<2}
-              onClick={()=>void saveDepartment()}><Plus size={15}/> Adicionar</AdminButton>
-          </div>
-          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-            {departments.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Nenhum departamento cadastrado.</p>}
-            {departments.map(dept=><button key={dept.id} type="button" onClick={()=>void manageDepartmentMembers(dept.id)}
-              className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-muted ${chosenDepartmentId===dept.id?"bg-primary-soft":""}`}>
-              <span className="flex items-center gap-2"><Building2 size={16}/>{dept.name}</span>
-              <span className="text-[11px] text-muted-foreground">{dept.is_active?"Ativo":"Desativado"}</span>
-            </button>)}
-          </div>
-          {chosenDepartmentId && <div className="space-y-2">
-            <p className="text-sm font-bold">Funcionários autorizados</p>
-            <p className="text-xs text-muted-foreground">Selecione quem pode assumir conversas direcionadas a este departamento.</p>
-            {members.map(person=><label key={person.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm">
-              <input type="checkbox" checked={departmentMembers.includes(person.id)}
-                onChange={event=>void toggleDepartmentMember(person.id,event.target.checked)}/>
-              <span>{person.name}</span>
-            </label>)}
-            {members.length===0 && <p className="text-xs text-muted-foreground">Nenhum funcionário autorizado.</p>}
-          </div>}
-        </div>
-        <div className="flex justify-end border-t border-border px-5 py-3">
-          <AdminButton variant="secondary" onClick={()=>setDepartmentSettingsOpen(false)}>Fechar</AdminButton>
-        </div>
-      </div>
-    </div>}
+    {settingsModal && <AdminDialog open={true} onClose={() => setSettingsModal(null)}
+      title={settingsModal === "departments" ? "Departamentos e equipe" : settingsModal === "queues" ? "Configurar filas" : "Operadores"}
+      className="w-full max-w-4xl" bodyClassName="p-3 sm:p-5" minimizable={false}>
+      <WhatsAppOperationsSettings section={settingsModal}/>
+    </AdminDialog>}
     {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
       <div role="dialog" aria-modal="true" aria-label="Histórico do atendimento"
