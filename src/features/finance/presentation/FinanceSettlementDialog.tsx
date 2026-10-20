@@ -57,6 +57,7 @@ export function FinanceSettlementDialog({
   const [accountId, setAccountId] = useState("");
   const [occurredAt, setOccurredAt] = useState(localDateTimeInput());
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
+  const [confirmation, setConfirmation] = useState<FinancialSettlementDraft | null>(null);
 
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
@@ -92,6 +93,7 @@ export function FinanceSettlementDialog({
     setAccountId(firstMethod?.default_financial_account_id || activeAccounts[0]?.id || "");
     setOccurredAt(localDateTimeInput());
     setFieldErrors({});
+    setConfirmation(null);
   }, [open]);
 
   useEffect(() => {
@@ -118,20 +120,25 @@ export function FinanceSettlementDialog({
     if (!accountId) nextErrors.account = "Selecione a conta financeira.";
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
+    setFieldErrors({});
+    setConfirmation({
+      entry_id: detail.id,
+      installment_id: selectedInstallment.id,
+      principal_amount: principalValue,
+      interest_amount: Number(interest || 0),
+      penalty_amount: Number(penalty || 0),
+      other_additions: Number(additions || 0),
+      discount_amount: Number(discount || 0),
+      payment_method_id: selectedMethod.id,
+      financial_account_id: accountId,
+      occurred_at: occurredAt,
+    });
+  };
+  const confirmSave = async () => {
+    if (!confirmation) return;
     try {
-      setFieldErrors({});
-      await onSave({
-        entry_id: detail.id,
-        installment_id: selectedInstallment.id,
-        principal_amount: principalValue,
-        interest_amount: Number(interest || 0),
-        penalty_amount: Number(penalty || 0),
-        other_additions: Number(additions || 0),
-        discount_amount: Number(discount || 0),
-        payment_method_id: selectedMethod.id,
-        financial_account_id: accountId,
-        occurred_at: occurredAt,
-      });
+      await onSave(confirmation);
+      setConfirmation(null);
       onClose();
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, "Não foi possível registrar a baixa."), "error");
@@ -140,7 +147,8 @@ export function FinanceSettlementDialog({
 
   if (!open) return null;
   const actionLabel = detail.entry_type === "receivable" ? "Receber" : "Pagar";
-  return <AdminDialog
+  return <>
+  <AdminDialog
     open
     onClose={onClose}
     title={`${actionLabel} lançamento`}
@@ -177,5 +185,10 @@ export function FinanceSettlementDialog({
       </div>
       {selectedMethod && <div className={`rounded-lg border px-4 py-3 text-xs font-semibold ${scheduled ? "border-amber-200 bg-amber-50 text-amber-800" : "border-blue-200 bg-blue-50 text-blue-800"}`}>{scheduled ? `Liquidação futura: o título será baixado agora e o saldo da conta será movimentado quando a liquidação for confirmada. Previsão: ${expectedDate || "—"}.` : `Liquidação imediata. Previsão da forma de pagamento: ${expectedDate || "—"}.`}</div>}
     </div>
-  </AdminDialog>;
+  </AdminDialog>
+  {confirmation && <AdminDialog open onClose={() => { if(!saving) setConfirmation(null); }} title="Confirmar baixa financeira" description="Confira os dados antes de movimentar o financeiro." className="max-w-lg"
+    footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={saving} onClick={() => setConfirmation(null)}>Voltar</AdminButton><AdminButton loading={saving} loadingText="Registrando..." onClick={confirmSave}>Confirmar baixa</AdminButton></div>}>
+    <div className="space-y-2 text-sm"><p><strong>Conta:</strong> {detail.description}</p><p><strong>Valor:</strong> {formatCurrency(settlementCashAmount({principal:confirmation.principal_amount,interest:confirmation.interest_amount,penalty:confirmation.penalty_amount,additions:confirmation.other_additions,discount:confirmation.discount_amount}))}</p><p><strong>Forma:</strong> {paymentMethods.find(item=>item.id===confirmation.payment_method_id)?.name || "—"}</p><p><strong>Conta financeira:</strong> {accounts.find(item=>item.id===confirmation.financial_account_id)?.name || "—"}</p><p className="text-xs text-muted-foreground">A baixa será registrada na movimentação financeira e poderá exigir estorno para desfazer.</p></div>
+  </AdminDialog>}
+  </>;
 }
