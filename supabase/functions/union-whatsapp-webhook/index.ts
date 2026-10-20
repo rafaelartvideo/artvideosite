@@ -1,8 +1,9 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
-// Public webhook endpoint: authenticates every event using a SHA-256 digest
-// of the high-entropy WuzAPI session token, never a browser credential.
-// Both WuzAPI's default form mode and the optional JSON mode are supported.
+// Public WuzAPI webhook. Per-channel HMAC-SHA256 signatures are preferred;
+// existing high-entropy session-token digests are a temporary compatibility
+// fallback while the VPS bridge is updated. Never accept unsigned events
+// without a verified token or leak provider tokens via URL/logs.
 const json = (body: Record<string, unknown>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const uuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
@@ -14,6 +15,25 @@ const get = (value: Record<string, unknown>, ...keys: string[]) =>
 const digest = async (value: string) => Array.from(new Uint8Array(
   await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)),
 )).map(byte => byte.toString(16).padStart(2, "0")).join("");
+const hmacHex = async (key: Uint8Array<ArrayBuffer> | string, value: string) => {
+  const encoder = new TextEncoder();
+  const bytes = typeof key === "string" ? encoder.encode(key) : key;
+  const imported = await crypto.subtle.importKey("raw", bytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return Array.from(new Uint8Array(await crypto.subtle.sign("HMAC", imported, encoder.encode(value))))
+    .map(byte => byte.toString(16).padStart(2, "0")).join("");
+};
+const constantTimeHexEqual = (left: string, right: string) => {
+  if (!/^[a-f0-9]{64}$/i.test(left) || !/^[a-f0-9]{64}$/i.test(right)) return false;
+  let diff = 0;
+  for (let i = 0; i < 64; i++) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
+};
+// Go's url.Values.Encode sorts form keys before producing the HMAC input.
+const canonicalForm = (input: string) => {
+  const params = new URLSearchParams(input);
+  params.sort();
+  return params.toString();
+};
 const dateOf = (value: unknown) => {
   if (typeof value === "number" && Number.isFinite(value)) {
     const d = new Date(value < 1e11 ? value * 1000 : value);
@@ -57,11 +77,32 @@ Deno.serve(async request => {
       token = str(payload.token, 256);
     } else return json({ ok: false }, 415);
 
-    if (!/^[a-f0-9]{64}$/i.test(token)) return json({ ok: false }, 401);
-    const hash = await digest(token);
-    const { data: registered, error: keyError } = await admin
-      .from("union_whatsapp_webhook_keys").select("token_sha256").eq("channel_id", channelId).maybeSingle();
-    if (keyError || !registered || registered.token_sha256 !== hash) return json({ ok: false }, 401);
+    const providerSignature = str(request.headers.get("x-hmac-signature"), 128);
+    let authenticated = false;
+    if (providerSignature) {
+      // Signed callbacks: don't permit fallback to weaker credentials on an
+      // invalid signature. The same shared secret is already installed in
+      // both the bridge service and the Supabase Edge Functions environment.
+      const shared = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET")?.trim() || "";
+      if (shared.length < 32 || !/^[a-f0-9]{64}$/i.test(providerSignature)) {
+        return json({ ok: false }, 401);
+      }
+      const derivedKey = await hmacHex(shared, "union-whatsapp-webhook:v1:" + channelId);
+      const signable = contentType.includes("application/x-www-form-urlencoded") ? canonicalForm(raw) : raw;
+      const expected = await hmacHex(derivedKey, signable);
+      authenticated = constantTimeHexEqual(expected, providerSignature);
+      if (!authenticated) return json({ ok: false }, 401);
+    } else if (/^[a-f0-9]{64}$/i.test(token)) {
+      // Backwards-compatible signed-in session format. Existing probes and
+      // current form callbacks remain supported without moving any secrets.
+      const hash = await digest(token);
+      const { data: registered, error: keyError } = await admin
+        .from("union_whatsapp_webhook_keys").select("token_sha256")
+        .eq("channel_id", channelId).maybeSingle();
+      if (keyError || !registered) return json({ ok: false }, 401);
+      authenticated = constantTimeHexEqual(registered.token_sha256, hash);
+    }
+    if (!authenticated) return json({ ok: false }, 401);
 
     const { data: channel, error: channelError } = await admin
       .from("whatsapp_channel_connections").select("organization_id").eq("id", channelId).eq("provider", "wuzapi").maybeSingle();
