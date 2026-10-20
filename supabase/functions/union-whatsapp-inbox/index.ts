@@ -109,8 +109,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -130,13 +130,69 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["members","transfer"].includes(action) && !canManage) ||
+    if (!canRead || (["members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history"].includes(action) && !canManage) ||
       (["send_text","send_media","start","prepare_media"].includes(action) && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
     }
 
+    if(action==="departments_list" || action==="department_save" ||
+      action==="department_members" || action==="department_set_member") {
+      if(action==="department_save") {
+        const departmentId=String(body.department_id||"");
+        const name=String(body.name||"").trim().replace(/\s+/g," ").slice(0,80);
+        if((departmentId && !uuid(departmentId)) || name.length<2)
+          return json({success:false,error:"Informe um nome de departamento válido."},400);
+        if(departmentId) {
+          const {data:updated,error}=await admin.from("union_whatsapp_departments")
+            .update({name,is_active:body.is_active!==false,updated_at:new Date().toISOString()})
+            .eq("organization_id",org).eq("id",departmentId).select("id").maybeSingle();
+          if(error) throw error;
+          if(!updated)return json({success:false,error:"Departamento não encontrado."},404);
+        } else {
+          const {error}=await admin.from("union_whatsapp_departments")
+            .insert({organization_id:org,name,is_active:true});
+          if(error)throw error;
+        }
+      }
+      if(action==="department_members" || action==="department_set_member") {
+        const departmentId=String(body.department_id||"");
+        if(!uuid(departmentId))return json({success:false,error:"Departamento inválido."},400);
+        const {data:dept,error:deptError}=await admin.from("union_whatsapp_departments")
+          .select("id").eq("organization_id",org).eq("id",departmentId).maybeSingle();
+        if(deptError)throw deptError;
+        if(!dept)return json({success:false,error:"Departamento não encontrado."},404);
+        if(action==="department_set_member"){
+          const target=String(body.target_user_id||"");
+          if(!uuid(target))return json({success:false,error:"Funcionário inválido."},400);
+          const {data:member,error:memberError}=await admin.from("organization_members")
+            .select("user_id").eq("organization_id",org).eq("user_id",target)
+            .eq("status","active").maybeSingle();
+          if(memberError)throw memberError;
+          if(!member)return json({success:false,error:"Funcionário não pertence à empresa."},403);
+          if(body.enabled===true){
+            const {error}=await admin.from("union_whatsapp_department_members")
+              .upsert({department_id:departmentId,organization_id:org,user_id:target},
+                {onConflict:"department_id,user_id",ignoreDuplicates:true});
+            if(error)throw error;
+          }else{
+            const {error}=await admin.from("union_whatsapp_department_members")
+              .delete().eq("organization_id",org).eq("department_id",departmentId)
+              .eq("user_id",target);
+            if(error)throw error;
+          }
+        }
+        const {data:members,error}=await admin.from("union_whatsapp_department_members")
+          .select("user_id").eq("organization_id",org).eq("department_id",departmentId);
+        if(error)throw error;
+        return json({success:true,member_ids:(members||[]).map(m=>m.user_id)});
+      }
+      const {data:departments,error}=await admin.from("union_whatsapp_departments")
+        .select("id,name,is_active").eq("organization_id",org).order("name").limit(100);
+      if(error)throw error;
+      return json({success:true,departments:departments||[]});
+    }
     if(action==="channel_status") {
       const {data:channel,error}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready").eq("organization_id",org)
@@ -189,10 +245,41 @@ Deno.serve(async request => {
       return json({success:true,conversation_id:claimed.id});
     }
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
-      .select("id,organization_id,channel_id,chat_jid,contact_phone,status,assigned_to,last_message_at")
+      .select("id,organization_id,channel_id,chat_jid,contact_phone,status,assigned_to,department_id,last_message_at")
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(action==="handoff_history") {
+      const {data:history,error}=await admin.from("union_whatsapp_handoffs")
+        .select("id,action,actor_id,to_user_id,to_department_id,created_at")
+        .eq("organization_id",org).eq("conversation_id",thread.id)
+        .order("created_at",{ascending:false}).limit(50);
+      if(error)throw error;
+      return json({success:true,history:history||[]});
+    }
+    if(action==="transfer_department") {
+      const targetId=String(body.department_id||"");
+      if(!uuid(targetId))return json({success:false,error:"Selecione um departamento."},400);
+      if(thread.status!=="in_att" || !thread.assigned_to)
+        return json({success:false,error:"Assuma o atendimento antes de encaminhar."},409);
+      const {data:dept,error:deptError}=await admin.from("union_whatsapp_departments")
+        .select("id").eq("organization_id",org).eq("id",targetId)
+        .eq("is_active",true).maybeSingle();
+      if(deptError)throw deptError;
+      if(!dept)return json({success:false,error:"Departamento não está ativo."},409);
+      const {data:updated,error:changeError}=await admin.from("union_whatsapp_conversations")
+        .update({status:"waiting",assigned_to:null,department_id:targetId,
+          updated_at:new Date().toISOString()})
+        .eq("id",thread.id).eq("organization_id",org).eq("status","in_att")
+        .eq("assigned_to",thread.assigned_to).select("id").maybeSingle();
+      if(changeError)throw changeError;
+      if(!updated)return json({success:false,error:"Atendimento alterado. Atualize a conversa."},409);
+      await admin.from("union_whatsapp_handoffs").insert({
+        organization_id:org,conversation_id:thread.id,actor_id:actorId,
+        action:"transfer_department",to_department_id:targetId
+      });
+      return json({success:true});
+    }
     if(action==="customer_match") {
       if(!permissions.has("customers.view")) return json({success:false,error:"Sem permissão para visualizar clientes."},403);
       if(!(canManage || thread.assigned_to===actorId ||
@@ -358,7 +445,20 @@ Deno.serve(async request => {
         .select("id").maybeSingle();
       if(routingError) throw routingError;
       if(!routed) return json({success:false,error:"Atendimento alterado por outro funcionário. Atualize."},409);
+      await admin.from("union_whatsapp_handoffs").insert({
+        organization_id:org,conversation_id:thread.id,actor_id:actorId,
+        action:"transfer_operator",to_user_id:targetId,
+      });
       return json({success:true});
+    }
+    // Department routing limits who may assume a queue; company managers
+    // retain access to all departments.
+    if(action==="assume" && thread.department_id && !canManage) {
+      const {data:belongs,error:membershipError}=await admin.from("union_whatsapp_department_members")
+        .select("user_id").eq("organization_id",org)
+        .eq("department_id",thread.department_id).eq("user_id",actorId).maybeSingle();
+      if(membershipError)throw membershipError;
+      if(!belongs)return json({success:false,error:"Você não pertence ao departamento deste atendimento."},403);
     }
     const owned=thread.assigned_to === actorId;
     const assignedToOther=Boolean(thread.assigned_to && !owned);
@@ -372,6 +472,9 @@ Deno.serve(async request => {
         .is("assigned_to",null).select("id").maybeSingle();
       if(error) throw error;
       if(!updated) return json({success:false,code:"already_claimed",error:"Outro atendente assumiu essa conversa."},409);
+      await admin.from("union_whatsapp_handoffs").insert({
+        organization_id:org,conversation_id:thread.id,actor_id:actorId,action:"assume",
+      });
       return json({success:true});
     }
     if(action==="mark_read") {
@@ -394,6 +497,9 @@ Deno.serve(async request => {
         .eq("status",required).select("id").maybeSingle();
       if(error) throw error;
       if(!updated) return json({success:false,error:"Situação alterada por outro atendente."},409);
+      await admin.from("union_whatsapp_handoffs").insert({
+        organization_id:org,conversation_id:thread.id,actor_id:actorId,action,
+      });
       return json({success:true});
     }
     // From here only text or private attachment sending remains.
