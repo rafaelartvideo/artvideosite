@@ -256,7 +256,7 @@ export function UnionWhatsAppContactsDialog({
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold text-muted-foreground">
                   {listAvatars[contact.chat_jid]
                     ? <img src={listAvatars[contact.chat_jid]!} alt="" loading="lazy"
-                        className="h-full w-full object-cover"
+                        referrerPolicy="no-referrer" className="h-full w-full object-cover"
                         onError={()=>setListAvatars(old=>({...old,[contact.chat_jid]:null}))}/>
                     : initials(display)}
                 </span>
@@ -288,7 +288,7 @@ export function UnionWhatsAppContactsDialog({
           </div> : <div className="space-y-4">
             <div className="flex items-center gap-3">
               <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-lg font-bold">
-                {avatar?<img alt="" src={avatar} className="h-full w-full object-cover" onError={()=>setAvatar(null)}/>:initials(currentName)}
+                {avatar?<img alt="" src={avatar} referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatar(null)}/>:initials(currentName)}
               </span>
               <div className="min-w-0">
                 <p className="truncate text-base font-bold">{creating?"Novo contato":currentName}</p>
