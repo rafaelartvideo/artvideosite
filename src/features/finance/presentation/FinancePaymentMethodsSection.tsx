@@ -16,7 +16,7 @@ const METHOD_TYPES: { value: FinancialPaymentMethodType; label: string }[] = [
   { value: "cash", label: "Dinheiro" }, { value: "pix", label: "PIX" }, { value: "debit_card", label: "Cartão de débito" },
   { value: "credit_card", label: "Cartão de crédito" }, { value: "boleto", label: "Boleto" }, { value: "transfer", label: "Transferência" }, { value: "other", label: "Outra" },
 ];
-const emptyForm = () => ({ id: undefined as string | undefined, name: "", method_type: "pix" as FinancialPaymentMethodType, percentage_fee: "0", fixed_fee: "0", default_financial_account_id: "", is_active: true });
+const emptyForm = () => ({ id: undefined as string | undefined, name: "", method_type: "pix" as FinancialPaymentMethodType, percentage_fee: "0", fixed_fee: "0", requires_financial_account: true, default_financial_account_id: "", is_active: true });
 const typeLabel = (type: FinancialPaymentMethodType) => METHOD_TYPES.find(item => item.value === type)?.label || type;
 
 export function FinancePaymentMethodsSection() {
