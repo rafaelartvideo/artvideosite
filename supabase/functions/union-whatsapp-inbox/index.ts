@@ -389,9 +389,9 @@ Deno.serve(async request => {
       const fileSize=Number(body.media_size);
       const caps:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
       const accepted=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
-        :kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
+        :kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
         :kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
-        :kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream",
+        :kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
             "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
             "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(mime)
@@ -400,7 +400,7 @@ Deno.serve(async request => {
         fileSize<1 || fileSize>caps[kind]) return json({success:false,
         error:"Formato ou tamanho do arquivo não permitido para este canal."},413);
       const ext=kind==="image"?(mime==="image/png"?"png":"jpg"):
-        kind==="audio"?"ogg":kind==="video"?"mp4":
+        kind==="audio"?(mime==="audio/mp4"?"m4a":mime==="audio/mpeg"?"mp3":"ogg"):kind==="video"?"mp4":
         (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
       const path=org+"/"+thread.channel_id+"/"+thread.id+"/"+id+"."+ext;
       const {data:upload,error:uploadError}=await admin.storage.from("union-whatsapp-media")
@@ -417,9 +417,9 @@ Deno.serve(async request => {
     const limits:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
     const mimeAllowed=isMedia && (
       kind==="image" ? ["image/jpeg","image/png"].includes(mime)
-      : kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
+      : kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
-      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream",
+      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
           "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
           "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(mime) : false
@@ -427,7 +427,7 @@ Deno.serve(async request => {
     const fileSize=Number(body.media_size);
     const mediaPath=isMedia ? String(body.media_path||"") : "";
     const ext=isMedia ? kind==="image"?(mime==="image/png"?"png":"jpg"):
-      kind==="video"?"mp4":kind==="audio"?"ogg":
+      kind==="video"?"mp4":kind==="audio"?(mime==="audio/mp4"?"m4a":mime==="audio/mpeg"?"mp3":"ogg"):
       (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin" : "";
     const expectedMediaPath=isMedia ? org+"/"+thread.channel_id+"/"+thread.id+"/"+clientId+"."+ext : "";
     if(!uuid(clientId) || text.length>4000 || (!isMedia && !text) ||
