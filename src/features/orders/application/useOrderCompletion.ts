@@ -412,7 +412,7 @@ export function useOrderCompletion({
       return;
     }
 
-    if (generateCertificate && (warrantyLoading || warrantyError)) {
+    if (warrantyLoading || warrantyError) {
       showToast({ msg: warrantyError || "Carregando opções de garantia.", type: "error" });
       return;
     }
@@ -431,7 +431,7 @@ export function useOrderCompletion({
       setOrders(current => current.map(order => order.id === detail.id ? { ...order, ...financial } : order));
       setOpen(false);
       showToast({ msg: financeEnabled ? "OS concluída e integrada ao Financeiro com sucesso." : "OS concluída com sucesso.", type: "success" });
-      if (generateCertificate) {
+      {
         try {
           const certificate = await issueWarrantyCertificate(
             String(detail.organization_id), String(detail.id), warrantyOptionId || null,
