@@ -111,8 +111,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -132,12 +132,91 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["order_link","members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history"].includes(action) && !canManage) ||
+    if (!canRead || (["order_link","members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
       (["send_text","send_media","start","prepare_media"].includes(action) && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
     }
+
+    // CRM permissions and the explicit WhatsApp operator assignment are both
+    // required. Managers retain oversight of all queues.
+    if(!canManage){
+      const {data:operator,error:operatorError}=await admin.from("union_whatsapp_operator_bindings")
+        .select("is_active").eq("organization_id",org).eq("user_id",actorId).maybeSingle();
+      if(operatorError) throw operatorError;
+      if(!operator?.is_active) return json({success:false,error:"Seu usuário ainda não está vinculado como operador de atendimento. Solicite a ativação nas configurações."},403);
+    }
+
+    if(action==="operator_list" || action==="operator_set"){
+      const {data:staff,error:staffError}=await admin.from("organization_members")
+        .select("user_id,role_id,is_owner").eq("organization_id",org).eq("status","active").limit(500);
+      if(staffError)throw staffError;
+      const userIds=(staff||[]).map(m=>m.user_id);
+      const roleIds=[...new Set((staff||[]).map(m=>m.role_id).filter(Boolean))];
+      const {data:perm,error:permError}=await admin.from("permissions")
+        .select("id").eq("key","whatsapp.inbox.send").maybeSingle();
+      if(permError||!perm) return json({success:false,error:"Permissão de atendimento não configurada."},503);
+      const {data:grants,error:grantsError}=roleIds.length
+        ? await admin.from("role_permissions").select("role_id").eq("permission_id",perm.id).in("role_id",roleIds)
+        : {data:[],error:null};
+      if(grantsError)throw grantsError;
+      const eligibleRoleIds=new Set((grants||[]).map(r=>r.role_id));
+      const {data:profiles,error:profileError}=userIds.length
+        ? await admin.from("profiles").select("id,full_name,username,is_active").in("id",userIds)
+        : {data:[],error:null};
+      if(profileError)throw profileError;
+      const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));
+      const {data:bindings,error:bindingsError}=await admin.from("union_whatsapp_operator_bindings")
+        .select("user_id,is_active").eq("organization_id",org);
+      if(bindingsError)throw bindingsError;
+      const bindingMap=new Map((bindings||[]).map(b=>[b.user_id,b.is_active]));
+      if(action==="operator_set"){
+        const targetId=String(body.target_user_id||"");
+        const staffMember=(staff||[]).find(m=>m.user_id===targetId);
+        if(!uuid(targetId)||!staffMember||!profileMap.get(targetId)?.is_active)
+          return json({success:false,error:"Funcionário inativo ou fora desta empresa."},403);
+        if(!staffMember.is_owner && !eligibleRoleIds.has(staffMember.role_id))
+          return json({success:false,error:"Conceda a permissão de envio WhatsApp à função deste funcionário antes de vinculá-lo."},409);
+        const enabled=body.enabled===true;
+        const {error:saveError}=await admin.from("union_whatsapp_operator_bindings")
+          .upsert({organization_id:org,user_id:targetId,is_active:enabled,updated_at:new Date().toISOString()},
+            {onConflict:"organization_id,user_id"});
+        if(saveError)throw saveError;
+        bindingMap.set(targetId,enabled);
+      }
+      const operators=(staff||[]).filter(m=>profileMap.get(m.user_id)?.is_active)
+        .map(m=>({id:m.user_id,name:profileMap.get(m.user_id)?.full_name||
+            profileMap.get(m.user_id)?.username||"Funcionário",
+          eligible:Boolean(m.is_owner||eligibleRoleIds.has(m.role_id)),
+          is_active:bindingMap.get(m.user_id)===true,
+          is_manager:Boolean(m.is_owner)}))
+        .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
+      return json({success:true,operators});
+    }
+
+    if(action==="queue_default"){
+      const queueId=String(body.department_id||"");
+      if(queueId && !uuid(queueId)) return json({success:false,error:"Fila inválida."},400);
+      if(queueId){
+        const {data:target,error:targetError}=await admin.from("union_whatsapp_departments")
+          .select("id").eq("organization_id",org).eq("id",queueId).eq("is_active",true).maybeSingle();
+        if(targetError)throw targetError;
+        if(!target) return json({success:false,error:"Selecione uma fila ativa."},409);
+      }
+      const {error:clearError}=await admin.from("union_whatsapp_departments")
+        .update({is_default:false,updated_at:new Date().toISOString()})
+        .eq("organization_id",org).eq("is_default",true);
+      if(clearError)throw clearError;
+      if(queueId){
+        const {error:setError}=await admin.from("union_whatsapp_departments")
+          .update({is_default:true,updated_at:new Date().toISOString()})
+          .eq("organization_id",org).eq("id",queueId);
+        if(setError)throw setError;
+      }
+      return json({success:true});
+    }
+
 
     if(action==="departments_list" || action==="department_save" ||
       action==="department_members" || action==="department_set_member") {
@@ -148,7 +227,9 @@ Deno.serve(async request => {
           return json({success:false,error:"Informe um nome de departamento válido."},400);
         if(departmentId) {
           const {data:updated,error}=await admin.from("union_whatsapp_departments")
-            .update({name,is_active:body.is_active!==false,updated_at:new Date().toISOString()})
+            .update({name,is_active:body.is_active!==false,
+               ...(body.is_active===false?{is_default:false}:{}),
+               updated_at:new Date().toISOString()})
             .eq("organization_id",org).eq("id",departmentId).select("id").maybeSingle();
           if(error) throw error;
           if(!updated)return json({success:false,error:"Departamento não encontrado."},404);
@@ -174,6 +255,10 @@ Deno.serve(async request => {
           if(memberError)throw memberError;
           if(!member)return json({success:false,error:"Funcionário não pertence à empresa."},403);
           if(body.enabled===true){
+            const {data:binding,error:bindingError}=await admin.from("union_whatsapp_operator_bindings")
+              .select("is_active").eq("organization_id",org).eq("user_id",target).maybeSingle();
+            if(bindingError)throw bindingError;
+            if(!binding?.is_active) return json({success:false,error:"Ative o funcionário como operador antes de adicioná-lo à fila."},409);
             const {error}=await admin.from("union_whatsapp_department_members")
               .upsert({department_id:departmentId,organization_id:org,user_id:target},
                 {onConflict:"department_id,user_id",ignoreDuplicates:true});
@@ -191,7 +276,7 @@ Deno.serve(async request => {
         return json({success:true,member_ids:(members||[]).map(m=>m.user_id)});
       }
       const {data:departments,error}=await admin.from("union_whatsapp_departments")
-        .select("id,name,is_active").eq("organization_id",org).order("name").limit(100);
+        .select("id,name,is_active,is_default").eq("organization_id",org).order("name").limit(100);
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
@@ -259,6 +344,21 @@ Deno.serve(async request => {
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(!canManage){
+      const assigned=thread.assigned_to===actorId;
+      let inQueue=false;
+      if(thread.status==="waiting" && !thread.assigned_to){
+        if(!thread.department_id) inQueue=true;
+        else{
+          const {data:membership,error:membershipError}=await admin.from("union_whatsapp_department_members")
+            .select("user_id").eq("organization_id",org)
+            .eq("department_id",thread.department_id).eq("user_id",actorId).maybeSingle();
+          if(membershipError)throw membershipError;
+          inQueue=Boolean(membership);
+        }
+      }
+      if(!assigned && !inQueue) return json({success:false,error:"Atendimento pertencente a outra fila ou outro operador."},403);
+    }
     if(action==="handoff_history") {
       const {data:history,error}=await admin.from("union_whatsapp_handoffs")
         .select("id,action,actor_id,to_user_id,to_department_id,created_at")
@@ -472,7 +572,12 @@ Deno.serve(async request => {
         : {data:[],error:null};
       if(grantsError) throw grantsError;
       const eligibleRoles=new Set((grants||[]).map(r=>r.role_id));
-      const eligible=(members||[]).filter(m=>m.is_owner || eligibleRoles.has(m.role_id));
+      const {data:activeBindings,error:activeBindingsError}=await admin.from("union_whatsapp_operator_bindings")
+        .select("user_id").eq("organization_id",org).eq("is_active",true);
+      if(activeBindingsError)throw activeBindingsError;
+      const activeOperators=new Set((activeBindings||[]).map(b=>b.user_id));
+      const eligible=(members||[]).filter(m=>
+        (m.is_owner || eligibleRoles.has(m.role_id)) && activeOperators.has(m.user_id));
       if(action==="members") {
         const ids=eligible.map(m=>m.user_id);
         const {data:profiles,error:profilesError}=ids.length
