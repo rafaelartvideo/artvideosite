@@ -111,7 +111,18 @@ async function operate({ action, connection_id: id, organization_id: org }) {
     return { ok: true, qr };
   }
   const status = safeData(await wuzapi("/session/status", session.token));
-  return { ok: true, ...status };
+  let phone = null;
+  if (status.logged_in) {
+    try {
+      const users = await wuzapi("/admin/users", adminToken);
+      const rows = Array.isArray(users) ? users : (Array.isArray(users?.data) ? users.data : []);
+      const own = rows.find(user => user?.name === "union_" + id.replaceAll("-", ""));
+      const jid = String(own?.jid || "");
+      const digits = jid.split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
+      if (/^[0-9]{10,15}$/.test(digits)) phone = digits;
+    } catch { /* Phone is non-essential; login status remains authoritative. */ }
+  }
+  return { ok: true, ...status, phone };
 }
 
 function verified(headers, raw) {
