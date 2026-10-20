@@ -67,11 +67,12 @@ export function AdminSidebar({
   const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessTools = hasPermission("tools.view")
+  const canAccessTools = (hasPermission("tools.view") || hasPermission("whatsapp.inbox.view"))
     && (
       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       || canAccessTab("fieldTracking")
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
