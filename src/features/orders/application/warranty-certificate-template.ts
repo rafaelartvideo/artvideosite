@@ -3,8 +3,6 @@ import { supabase } from "@/lib/supabase";
 export type WarrantyCertificateTemplate = {
   title: string;
   brand_subtitle: string;
-  brand_values: string;
-  brand_slogan: string;
   footer_slogan: string;
   legal_notice: string;
   coverage: string;
@@ -23,9 +21,7 @@ export type WarrantyCertificateTemplate = {
 export const DEFAULT_WARRANTY_CERTIFICATE_TEMPLATE: WarrantyCertificateTemplate = {
   title: "CERTIFICADO DE GARANTIA",
   brand_subtitle: "ASSISTÊNCIA TÉCNICA ESPECIALIZADA",
-  brand_values: "QUALIDADE\nCONFIANÇA\nTECNOLOGIA\nSEMPRE COM VOCÊ",
-  brand_slogan: "Seu equipamento\nem boas mãos.",
-  footer_slogan: "Seu equipamento em boas mãos.",
+  footer_slogan: "",
   legal_notice: "Documento não fiscal. Este certificado não exclui, restringe nem substitui os direitos e garantias legais aplicáveis.",
   coverage: "Cobre falhas relacionadas ao serviço executado e às peças discriminadas na OS, quando aplicável.\nA cobertura contratual refere-se ao reparo realizado, em condições normais de uso.\nO atendimento em garantia poderá solicitar a identificação da OS vinculada.",
   exclusions: "Danos novos por mau uso, quedas, umidade, oxidação, surtos elétricos ou desgaste natural não relacionados ao reparo não integram a cobertura contratual.\nIntervenções externas serão avaliadas quanto à relação com a falha reclamada.\nA cobertura refere-se ao serviço executado e não implica necessariamente a substituição integral do equipamento.\nPermanecem preservadas a garantia legal e as demais disposições do Código de Defesa do Consumidor.",
@@ -46,7 +42,12 @@ export async function loadWarrantyCertificateTemplate(organizationId: string): P
   if (error) throw error;
   const config = data?.config && typeof data.config === "object" && !Array.isArray(data.config)
     ? data.config as Partial<WarrantyCertificateTemplate> : {};
-  return { ...DEFAULT_WARRANTY_CERTIFICATE_TEMPLATE, ...config };
+  const resolved = { ...DEFAULT_WARRANTY_CERTIFICATE_TEMPLATE, ...config };
+  // Também esconde o slogan padrão caso tenha sido salvo no modelo antigo.
+  if (/^Seu equipamento em boas mãos\.?$/i.test(String(resolved.footer_slogan || "").trim())) {
+    resolved.footer_slogan = "";
+  }
+  return resolved;
 }
 
 export async function saveWarrantyCertificateTemplate(organizationId: string, config: WarrantyCertificateTemplate) {

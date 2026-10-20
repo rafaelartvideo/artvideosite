@@ -8,8 +8,6 @@ type TextField = { key: TextKey; label: string; rows?: number };
 const GROUPS: { title: string; hint?: string; fields: TextField[] }[] = [
   { title: "Identidade e cabeçalho", fields: [
     {key:"title",label:"Título do certificado"}, {key:"brand_subtitle",label:"Descrição da empresa"},
-    {key:"brand_values",label:"Valores da empresa (uma linha por item)",rows:4},
-    {key:"brand_slogan",label:"Frase de destaque",rows:4},
   ] },
   { title: "Serviços e produtos",
     hint: "Os nomes e as quantidades serão preenchidos com os itens reais da OS, incluindo serviços avulsos. A solução da OS não será utilizada.",
