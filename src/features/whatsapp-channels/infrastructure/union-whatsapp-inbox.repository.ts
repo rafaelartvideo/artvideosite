@@ -11,6 +11,8 @@ export type UnionWhatsAppConversation = {
   assigned_to: string | null;
   department_id: string | null;
   service_order_id: string | null;
+  contact_presence: "online"|"offline"|"composing"|"paused"|"recording"|null;
+  contact_presence_at: string|null;
   last_message: string | null;
   last_message_at: string | null;
   unread_count: number;
@@ -38,7 +40,7 @@ const raise = (error: { message: string } | null) => { if (error) throw new Erro
 
 export async function listUnionWhatsAppConversations(organizationId: string): Promise<UnionWhatsAppConversation[]> {
   const { data, error } = await supabase.from("union_whatsapp_conversations")
-    .select("id,organization_id,channel_id,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,last_message,last_message_at,unread_count,created_at")
+    .select("id,organization_id,channel_id,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at")
     .eq("organization_id", organizationId)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(150);
@@ -57,7 +59,7 @@ export async function listUnionWhatsAppMessages(
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "transfer_department" | "handoff_history" | "order_options" | "order_link";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
