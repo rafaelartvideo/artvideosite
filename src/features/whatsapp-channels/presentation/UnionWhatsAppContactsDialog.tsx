@@ -265,13 +265,13 @@ export function UnionWhatsAppContactsDialog({
     onClick={event=>{if(event.target===event.currentTarget)onClose();}}>
     <div role="dialog" aria-modal="true" aria-label="Gerenciar contatos WhatsApp"
       className="flex h-[min(83vh,740px)] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
-        <div className="flex items-center gap-2"><ContactRound size={20} className="text-primary"/>
+      <div className="flex shrink-0 flex-col gap-3 border-b border-border px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div className="flex min-w-0 items-center gap-2"><ContactRound size={20} className="shrink-0 text-primary"/>
           <div><h2 className="font-bold">Contatos WhatsApp</h2>
             <p className="text-[11px] text-muted-foreground">Agenda exclusiva desta empresa · {total} registros</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
           {canImport && <>
             <input ref={vcfInputRef} type="file" accept=".vcf,text/vcard,text/x-vcard" className="hidden"
               aria-label="Arquivo VCF da agenda do celular"
