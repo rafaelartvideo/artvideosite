@@ -236,11 +236,21 @@ export async function getFinancialEntryDetail(organizationId: string, id: string
   ].filter((id): id is string => Boolean(id)))];
   const profileNames = new Map<string, string>();
   if (actorIds.length) {
-    const profilesResult = await supabase.from("profiles").select("id,full_name").in("id", actorIds);
-    // A user's record may be invisible to the current role; never block viewing the account.
+    const [profilesResult, employeesResult] = await Promise.all([
+      supabase.from("profiles").select("id,full_name").in("id", actorIds),
+      supabase.from("employees").select("profile_id,full_name")
+        .eq("organization_id", org).in("profile_id", actorIds),
+    ]);
+    // O vínculo de funcionário da própria empresa complementa nomes não visíveis na consulta de perfis.
+    // Erros de uma dessas fontes não devem impedir o extrato de abrir.
     if (!profilesResult.error) {
       for (const profile of profilesResult.data || []) {
         if (profile.full_name) profileNames.set(profile.id, profile.full_name);
+      }
+    }
+    if (!employeesResult.error) {
+      for (const employee of employeesResult.data || []) {
+        if (employee.profile_id && employee.full_name) profileNames.set(employee.profile_id, employee.full_name);
       }
     }
   }
