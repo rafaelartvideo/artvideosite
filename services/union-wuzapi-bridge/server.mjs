@@ -167,7 +167,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))continue;
       const entry=raw && typeof raw==="object" ? raw : {};
       if(entry.Found===false)continue;
-      const clean=value=>String(value||"").replace(/[\\x00-\\x1f]/g," ").trim().slice(0,160);
+      const clean=value=>String(value||"").replace(/[\x00-\x1f]/g," ").trim().slice(0,160);
       contacts.push({
         jid,
         imported_name:clean(entry.FullName||entry.FirstName||entry.BusinessName),
