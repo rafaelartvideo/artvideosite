@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, CalendarDays, Check, Search } from "lucide-react";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
@@ -103,7 +103,13 @@ export function TechnicianOrdersTable({
   };
 
   return <div className="min-w-0 space-y-4">
-    <AdminSearchPanel title="Minhas ordens de serviço">
+    <AdminSearchPanel title="Minhas ordens de serviço" headerActions={<>
+      {(search || filter !== "all" || sort || dateFrom || dateTo) && <AdminSearchClearButton onClick={() => {
+        setSearch(""); setFilter("all"); setSort(""); setDateFrom(""); setDateTo(""); setDraftFrom(""); setDraftTo(""); setPage(1);
+      }} />}
+      <AdminSearchSortMenu value={sort} onChange={setSort}
+        options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
+    </>}>
       <div className="space-y-3">
         <div className="flex min-w-0 items-end gap-2">
           <div className="min-w-0 flex-1">
@@ -117,22 +123,6 @@ export function TechnicianOrdersTable({
                 className={INPUT + " h-[42px] pl-9 text-sm"} />
             </div>
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button type="button" title={sortLabel} aria-label={`Ordenação atual: ${sortLabel}`}
-                className={"inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 " +
-                  (sort ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground")}>
-                <SortIcon size={17} />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-[195px]">
-              {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) =>
-                <DropdownMenuItem key={value || "default"} onSelect={() => setSort(value)}
-                  className={sort === value ? "bg-primary/10 font-bold text-primary" : ""}>
-                  <Icon size={15} /><span>{label}</span>{sort === value && <Check size={15} className="ml-auto text-primary" />}
-                </DropdownMenuItem>)}
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Popover open={dateOpen} onOpenChange={onDateOpenChange}>
             <PopoverTrigger asChild>
               <button type="button" aria-label={dateFilterLabel} title={dateFilterLabel}
