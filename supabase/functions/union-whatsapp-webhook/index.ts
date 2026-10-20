@@ -183,6 +183,22 @@ Deno.serve(async request => {
       return json({ ok: true, ignored: "empty_text_event" });
     }
     const displayText = body || ({ image: "Imagem", video: "Vídeo", audio: "Áudio", file: "Documento", location: "Localização", contact: "Contato" }[typeHint] || "Mensagem");
+    const mediaKind=typeHint==="image" || typeHint==="audio" || typeHint==="video" || typeHint==="file";
+    const mime=str(get(media,"mimetype","Mimetype","mimeType","MimeType"),160);
+    const originalName=str(get(media,"fileName","FileName","filename"),180).replace(/[^\\p{L}\\p{N}._() -]/gu,"");
+    const fileLength=Number(get(media,"fileLength","FileLength","fileSize","FileSize") || 0);
+    const fileUrl=str(get(media,"URL","Url","url"),2000);
+    const mediaKey=str(get(media,"mediaKey","MediaKey"),512);
+    const fileHash=str(get(media,"fileSHA256","FileSHA256"),512);
+    const fileEncHash=str(get(media,"fileEncSHA256","FileEncSHA256"),512);
+    let validMedia=false;
+    try {
+      const addr=new URL(fileUrl);
+      validMedia=mediaKind && addr.protocol==="https:" &&
+        (addr.hostname==="whatsapp.net" || addr.hostname.endsWith(".whatsapp.net") ||
+          addr.hostname==="fbcdn.net" || addr.hostname.endsWith(".fbcdn.net")) &&
+        fileLength>0 && fileLength<=5242880 && Boolean(mediaKey && fileHash && mime);
+    } catch { /* A media thumbnail alone is not a decryptable attachment. */ }
     const name = str(get(info, "PushName", "pushName") || "", 160).trim();
     const phone = chatJid.endsWith("@s.whatsapp.net") ? chatJid.split("@")[0] : null;
     const org = channel.organization_id;
@@ -207,9 +223,27 @@ Deno.serve(async request => {
         provider_message_id: providerMessageId, direction: isFromMe ? "outgoing" : "incoming",
         message_type: typeHint, body_text: body, sender_name: name || null, sent_at: timestamp,
         delivery_status: isFromMe ? "sent" : null,
+        media_name:mediaKind ? (originalName || null) : null,
+        media_mime:mediaKind ? (mime || null) : null,
+        media_available:validMedia,
       }, { onConflict: "channel_id,provider_message_id", ignoreDuplicates: true })
       .select("id").maybeSingle();
     if (messageError) throw messageError;
+    if(validMedia && !isFromMe) {
+      const existingId=inserted?.id || (await admin.from("union_whatsapp_messages")
+        .select("id").eq("channel_id",channelId).eq("provider_message_id",providerMessageId)
+        .maybeSingle()).data?.id;
+      if(existingId) {
+        const {error:descriptorError}=await admin.from("union_whatsapp_inbound_media_refs")
+          .upsert({
+            message_id:existingId,organization_id:org,channel_id:channelId,
+            mime_type:mime,file_url:fileUrl,media_key:mediaKey,file_sha256:fileHash,
+            file_enc_sha256:fileEncHash || null,file_length:fileLength,
+            media_type:typeHint,file_name:originalName || null,
+          },{onConflict:"message_id"});
+        if(descriptorError) throw descriptorError;
+      }
+    }
     if (inserted) {
       // Do not let delayed historical events replace the latest preview.
       const later = !thread.last_message_at || new Date(timestamp) >= new Date(thread.last_message_at);
