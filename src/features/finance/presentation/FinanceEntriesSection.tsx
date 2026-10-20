@@ -85,6 +85,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
+  const [cnpj, setCnpj] = useState("");
   const [os, setOs] = useState("");
   const [creatorId, setCreatorId] = useState("");
   const [creatorSearch, setCreatorSearch] = useState("");
@@ -125,7 +126,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       sort,
       approvalStatus: "all",
       name: debouncedName,
-      document: debouncedDocument,
+      document: entryType === "receivable" ? (debouncedDocument || cnpj) : debouncedDocument,
       os: debouncedOs,
       createdBy: entryType === "receivable" ? creatorId : "",
       dateFrom,
@@ -139,7 +140,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   useEffect(() => {
     setPage(1);
-  }, [name, document, os, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
+  }, [name, document, cnpj, os, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
   const canCreate = hasPermission(isReceivable ? "finance.receivables.create" : "finance.payables.create");
@@ -181,10 +182,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]}
   />;
 
-  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
+  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || cnpj || os || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
   const resetFilters = () => {
     setOperationalFilter("pending");
-    setName(""); setDocument(""); setOs(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
+    setName(""); setDocument(""); setCnpj(""); setOs(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
     setSort("newest"); setPage(1);
   };
 
@@ -199,26 +200,32 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       </>}
     >
       <div className="grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        {isReceivable && <FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />}
+        <FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
+        {isReceivable ? <>
+          <FInput label="CPF" inputMode="numeric" value={document} placeholder="000.000.000-00"
+            onChange={(event: any) => { setDocument(event.target.value); if (event.target.value) setCnpj(""); }} />
+          <FInput label="CNPJ" inputMode="numeric" value={cnpj} placeholder="00.000.000/0000-00"
+            onChange={(event: any) => { setCnpj(event.target.value); if (event.target.value) setDocument(""); }} />
+        </> : <FInput label="CPF / CNPJ" value={document} onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />}
         <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
           { value: "settled", label: "Baixadas" },
         ]} onChange={(event: any) => setOperationalFilter(event.target.value)} />
-        <FInput label="Nome do cliente / favorecido" value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
-        <FInput label="CPF / CNPJ" value={document} onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />
-        <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />
+        {!isReceivable && <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />}
         {isReceivable && <div className="min-w-0 space-y-1">
-          <AdminFieldLabel label="Funcionário (Cadastrado por)" />
+          <AdminFieldLabel label="Responsável" />
           <Popover open={creatorOpen} onOpenChange={setCreatorOpen}>
             <PopoverAnchor asChild>
               <div className="relative">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                 <input className={INPUT + " w-full pl-9 pr-9"} value={creatorSearch}
-                  placeholder="Digite ou selecione um funcionário"
+                  placeholder="Buscar ou selecionar responsável"
                   onFocus={() => setCreatorOpen(true)}
                   onChange={event => { setCreatorSearch(event.target.value); setCreatorId(""); setCreatorOpen(true); }}
-                  aria-label="Filtrar pelo funcionário que cadastrou o lançamento" />
-                {creatorSearch && <button type="button" aria-label="Limpar funcionário" title="Limpar funcionário"
+                  aria-label="Filtrar pelo responsável que cadastrou o lançamento" />
+                {creatorSearch && <button type="button" aria-label="Limpar responsável" title="Limpar responsável"
                   className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
                   onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
                   <X size={15} />
@@ -231,17 +238,17 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <div className="max-h-56 overflow-y-auto">
                 <button type="button" className="block w-full rounded-md px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
                   onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
-                  Todos os funcionários
+                  Todos os responsáveis
                 </button>
                 {filteredCreators.map(person => <button type="button" key={person.id}
                   className="block w-full rounded-md px-3 py-2.5 text-left text-xs font-semibold hover:bg-muted"
                   onClick={() => { setCreatorId(person.id); setCreatorSearch(person.name); setCreatorOpen(false); }}>
                   {person.name}
                 </button>)}
-                {creatorsQuery.isLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Carregando funcionários...</p>}
-                {creatorsQuery.isError && <p className="px-3 py-2 text-xs text-red-600">Não foi possível carregar os funcionários.</p>}
+                {creatorsQuery.isLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Carregando responsáveis...</p>}
+                {creatorsQuery.isError && <p className="px-3 py-2 text-xs text-red-600">Não foi possível carregar os responsáveis.</p>}
                 {!creatorsQuery.isLoading && !creatorsQuery.isError && filteredCreators.length === 0 &&
-                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum funcionário encontrado.</p>}
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum responsável encontrado.</p>}
               </div>
             </PopoverContent>
           </Popover>
