@@ -32,6 +32,7 @@ export function FinanceSettlementDialog({
   saving,
   onClose,
   onSave,
+  onStepChange,
 }: {
   open: boolean;
   detail: FinancialEntryDetail;
@@ -40,6 +41,7 @@ export function FinanceSettlementDialog({
   saving: boolean;
   onClose: () => void;
   onSave: (draft: FinancialSettlementDraft) => Promise<void>;
+  onStepChange?: (step: "question" | "form" | "review") => void;
 }) {
   const openInstallments = useMemo(
     () => detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001),
@@ -59,6 +61,10 @@ export function FinanceSettlementDialog({
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
   const [confirmation, setConfirmation] = useState<FinancialSettlementDraft | null>(null);
   const [step, setStep] = useState<"question" | "form" | "review">("question");
+  const goToStep = (next: "question" | "form" | "review") => {
+    setStep(next);
+    onStepChange?.(next);
+  };
 
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
@@ -141,7 +147,7 @@ export function FinanceSettlementDialog({
       financial_account_id: accountId,
       occurred_at: occurredAt,
     });
-    setStep("review");
+    goToStep("review");
   };
   const confirmSave = async () => {
     if (!confirmation) return;
@@ -168,7 +174,7 @@ export function FinanceSettlementDialog({
   // Fluxo embutido no Extrato: nenhum segundo AdminDialog é montado.
   return <section aria-label="Baixa financeira" className="min-w-0 space-y-5 animate-in fade-in-0 slide-in-from-right-2 duration-300">
     {step === "question" ? <>
-      <div className="flex flex-col items-center gap-4 py-8 text-center">
+      <div className="flex flex-col items-center gap-4 py-3 text-center sm:py-5">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={32} /></div>
         <div className="max-w-md space-y-2">
           <h3 className="text-xl font-bold text-foreground">Deseja dar baixa neste lançamento?</h3>
@@ -182,7 +188,7 @@ export function FinanceSettlementDialog({
       </div>
       <div className="flex justify-end gap-2 border-t border-border pt-4">
         <AdminButton variant="secondary" onClick={onClose}>Não, voltar</AdminButton>
-        <AdminButton onClick={() => setStep("form")}><CheckCircle2 size={16} /> Sim, continuar</AdminButton>
+        <AdminButton onClick={() => goToStep("form")}>Sim, continuar</AdminButton>
       </div>
     </> : step === "review" && confirmation ? <>
       <div className="space-y-4 animate-in fade-in-0 slide-in-from-right-3 duration-300">
@@ -199,7 +205,7 @@ export function FinanceSettlementDialog({
         </div>
       </div>
       <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <AdminButton variant="secondary" disabled={saving} onClick={() => { setStep("form"); setConfirmation(null); }}><ArrowLeft size={15} /> Voltar</AdminButton>
+        <AdminButton variant="secondary" disabled={saving} onClick={() => { goToStep("form"); setConfirmation(null); }}><ArrowLeft size={15} /> Voltar</AdminButton>
         <AdminButton loading={saving} loadingText="Registrando..." onClick={() => void confirmSave()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>
       </div>
     </> : <>
