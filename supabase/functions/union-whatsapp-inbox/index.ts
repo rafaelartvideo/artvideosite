@@ -225,7 +225,12 @@ Deno.serve(async request => {
         },{onConflict:"channel_id,chat_jid",ignoreDuplicates:true})
         .select("id").maybeSingle();
       if(createError) throw createError;
-      if(created) return json({success:true,conversation_id:created.id});
+      if(created) {
+        await admin.from("union_whatsapp_handoffs").insert({
+          organization_id:org,conversation_id:created.id,actor_id:actorId,action:"start"
+        });
+        return json({success:true,conversation_id:created.id});
+      }
       const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
         .select("id,status,assigned_to").eq("organization_id",org)
         .eq("channel_id",channel.id).eq("chat_jid",jid).single();
@@ -244,6 +249,9 @@ Deno.serve(async request => {
         .select("id").maybeSingle();
       if(claimError) throw claimError;
       if(!claimed) return json({success:false,error:"A conversa foi assumida por outro funcionário."},409);
+      await admin.from("union_whatsapp_handoffs").insert({
+        organization_id:org,conversation_id:claimed.id,actor_id:actorId,action:"start"
+      });
       return json({success:true,conversation_id:claimed.id});
     }
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
