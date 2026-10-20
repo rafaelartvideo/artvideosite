@@ -193,14 +193,26 @@ Deno.serve(async request => {
         error:"Não foi possível confirmar o envio. Verifique o WhatsApp antes de tentar novamente."},502);
     }
     const now=new Date().toISOString();
+    // Use the organization's verified profile name for the same styling as SAC.
+    const {data:profile}=await admin.from("profiles").select("full_name")
+      .eq("id",actorId).maybeSingle();
+    const firstName=String(profile?.full_name || "").trim().split(/\\s+/)[0] || "";
+    const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR") + firstName.slice(1) : null;
     const {data:message,error:insertError}=await admin.from("union_whatsapp_messages")
       .upsert({
         organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:"text",
-        body_text:text,sent_at:now,
+        body_text:text,sender_name:senderName,sent_at:now,
       },{onConflict:"channel_id,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
     if(insertError) throw insertError;
+    // A fast provider webhook can insert the same message before this Edge
+    // request finishes. Enrich it in place instead of creating another bubble.
+    if(!message && senderName) {
+      await admin.from("union_whatsapp_messages").update({sender_name:senderName})
+        .eq("channel_id",thread.channel_id).eq("provider_message_id",messageId)
+        .eq("organization_id",org).eq("direction","outgoing").is("sender_name",null);
+    }
     if(!thread.last_message_at || new Date(now)>=new Date(thread.last_message_at)) {
       const {error:previewError}=await admin.from("union_whatsapp_conversations")
         .update({last_message:text,last_message_at:now,updated_at:now})
