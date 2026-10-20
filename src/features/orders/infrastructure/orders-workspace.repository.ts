@@ -17,9 +17,9 @@ export type OrdersReferenceData = {
   serviceTypeSituations: any[];
 };
 
-function requestReferences(organizationId: string) {
+function requestReferences(organizationId: string, timeoutMs: number) {
   return supabase.rpc("load_orders_reference_data_v1", { p_organization_id: organizationId })
-    .abortSignal(AbortSignal.timeout(35_000));
+    .abortSignal(AbortSignal.timeout(timeoutMs));
 }
 
 export async function loadOrdersReferenceData(
@@ -30,7 +30,7 @@ export async function loadOrdersReferenceData(
   let response: Awaited<ReturnType<typeof requestReferences>> | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      response = await requestReferences(organizationId);
+      response = await requestReferences(organizationId, attempt === 0 ? 30_000 : 12_000);
       if (!response.error) break;
       const transient = /timeout|timed out|abort|network|fetch failed/i.test(response.error.message || "");
       if (!transient || attempt > 0) throw response.error;
