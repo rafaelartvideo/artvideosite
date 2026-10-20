@@ -614,6 +614,17 @@ Deno.serve(async request => {
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    // Do not read or operate on conversations of disconnected/retired channels.
+    const {data:activeChannel,error:activeChannelError}=await admin
+      .from("whatsapp_channel_connections")
+      .select("id,state,webhook_ready,phone")
+      .eq("id",thread.channel_id).eq("organization_id",org)
+      .eq("provider","wuzapi").maybeSingle();
+    if(activeChannelError)throw activeChannelError;
+    if(!activeChannel || activeChannel.state!=="connected" ||
+      !activeChannel.webhook_ready ||
+      !/^[0-9]{10,15}$/.test(String(activeChannel.phone||"")))
+      return json({success:false,error:"Este canal WhatsApp não está conectado."},409);
     if(!canManage){
       const assigned=thread.assigned_to===actorId;
       let inQueue=false;
