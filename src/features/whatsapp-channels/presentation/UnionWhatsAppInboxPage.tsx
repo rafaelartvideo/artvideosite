@@ -531,7 +531,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const showRouting = async () => {
-    if (!selected || !activeOrganizationId || !canManage || runningAction) return;
+    if (!selected || !activeOrganizationId || (!canSend && !canManage) || (!canManage && selected.assigned_to !== user?.id) || runningAction) return;
     setRunningAction("members");
     setError("");
     try {
@@ -893,7 +893,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     onClick={()=>void viewHistory()} className="flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted">
                     <History size={15}/>
                   </button>}
-                  {canManage && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
+                  {(canSend || canManage) && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
                   </AdminButton>}
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>
