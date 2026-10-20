@@ -442,7 +442,7 @@ Deno.serve(async request => {
         const maxBatch=action==="contacts_import_batch"?250:100;
         if(!Array.isArray(provided) || !provided.length || provided.length>maxBatch)
           return json({success:false,error:"Envie de 1 a "+maxBatch+" contatos por vez."},400);
-        const normalized=new Map<string,{organization_id:string;channel_id:string;chat_jid:string;contact_phone:string;device_name:string;updated_at:string}>();
+        const normalized=new Map<string,{organization_id:string;channel_id:string;account_phone:string;chat_jid:string;contact_phone:string;device_name:string;updated_at:string}>();
         for(const item of provided) {
           const row=item&&typeof item==="object"?item as Record<string,unknown>:{};
           const digits=String(row.phone||"").replace(/\D/g,"");
