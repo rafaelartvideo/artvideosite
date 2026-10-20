@@ -141,9 +141,9 @@ export function AdminSidebar({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className={cn(
+      {!collapsed && <div className={cn(
         "relative flex h-16 shrink-0 items-center border-b border-white/8 transition-all",
-        collapsed ? "justify-center px-2" : "justify-center px-9",
+        "justify-center px-9",
       )}>
         <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
           {menuLogoUrl ? (
@@ -185,8 +185,7 @@ export function AdminSidebar({
             {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
           </button>
         )}
-      </div>
-
+      </div>}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-3">
           {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
