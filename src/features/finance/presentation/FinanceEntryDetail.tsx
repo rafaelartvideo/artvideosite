@@ -36,7 +36,7 @@ function eventLabel(type: string) {
 }
 
 function Info({ label, value }: { label: string; value: React.ReactNode }) {
-  return <div><p className="text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</p><div className="mt-1 break-words text-sm font-semibold text-[#0d1b2e]">{value}</div></div>;
+  return <div><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p><div className="mt-1 break-words text-sm font-semibold text-foreground">{value}</div></div>;
 }
 
 
@@ -62,20 +62,30 @@ function EntryDetailContent({
   const editable = canEdit && ["draft", "pending", "rejected", "approved"].includes(detail.approval_status) && detail.origin_type === "manual" && detail.settlements.length === 0;
 
   return <div className="space-y-4">
-    <div className="overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex flex-col gap-3 border-b border-border bg-muted/40 p-4 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0"><p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Extrato da conta a {isReceivable ? "receber" : "pagar"}</p>
-          <h3 className="mt-1 break-words text-lg font-bold text-foreground">{detail.description}</h3>
-          <p className="mt-1 text-xs text-muted-foreground">{detail.counterpart_name_snapshot || "Cliente não informado"}</p>
+    <section aria-label="Identificação e saldos do extrato" className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="border-b border-border bg-muted/30 px-5 py-5">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Extrato financeiro · Conta a {isReceivable ? "receber" : "pagar"}</p>
+            <h3 className="mt-2 break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
+            <p className="mt-1 text-sm text-muted-foreground">{detail.counterpart_name_snapshot || (isReceivable ? "Cliente não informado" : "Favorecido não informado")}</p>
+            {detail.counterpart_document_snapshot && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{formatFinancialDocument(detail.counterpart_document_snapshot)}</p>}
+          </div>
+          {editable && <AdminButton size="sm" variant="secondary" onClick={onEdit}>Editar lançamento</AdminButton>}
         </div>
-        {editable && <AdminButton size="sm" variant="secondary" onClick={onEdit}>Editar</AdminButton>}
+        <div className="mt-5 grid gap-3 border-t border-border/70 pt-4 text-xs sm:grid-cols-2 lg:grid-cols-4">
+          <div><p className="text-muted-foreground">Emissão</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{formatDate(detail.issue_date)}</p></div>
+          <div><p className="text-muted-foreground">Próximo vencimento</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{formatDate(due?.due_date)}</p></div>
+          <div><p className="text-muted-foreground">Origem</p><p className="mt-0.5 font-semibold text-foreground">{originLabel}</p></div>
+          <div><p className="text-muted-foreground">Parcelas</p><p className="mt-0.5 font-semibold tabular-nums text-foreground">{detail.installments.length}</p></div>
+        </div>
       </div>
       <div className="grid grid-cols-1 divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-        <div className="p-4"><p className="text-xs text-muted-foreground">Valor da conta</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatCurrency(detail.original_amount)}</p></div>
-        <div className="p-4"><p className="text-xs text-muted-foreground">{isReceivable ? "Recebido / baixado" : "Pago / baixado"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600">{formatCurrency(settledAmount)}</p></div>
-        <div className="p-4"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-primary">{formatCurrency(remaining)}</p></div>
+        <div className="px-5 py-4"><p className="text-xs text-muted-foreground">Valor original</p><p className="mt-1 text-xl font-bold tabular-nums text-foreground">{formatCurrency(detail.original_amount)}</p></div>
+        <div className="px-5 py-4"><p className="text-xs text-muted-foreground">{isReceivable ? "Total recebido" : "Total pago"}</p><p className="mt-1 text-xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(settledAmount)}</p></div>
+        <div className="bg-primary/5 px-5 py-4"><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="mt-1 text-xl font-bold tabular-nums text-primary">{formatCurrency(remaining)}</p></div>
       </div>
-    </div>
+    </section>
 
     <FinanceSubsectionTabs<EntryTab>
       value={tab}
@@ -146,12 +156,9 @@ function EntryDetailContent({
     </div>}
 
     {tab === "settlements" && <FinanceSettlementPanel
-      detail={detail} accounts={accounts} paymentMethods={paymentMethods}
-      canSettle={canSettle} canReverse={canReverseSettlement} showIcon={false}
-      settlementPending={settlementPending} confirmPending={confirmSettlementPending}
-      reversePending={reverseSettlementPending} error={settlementError}
-      onRegister={onRegisterSettlement} onConfirm={onConfirmSettlement} onReverse={onReverseSettlement}
-      initialOpen={initialSettlementOpen}
+      detail={detail} canSettle={canSettle} canReverse={canReverseSettlement}
+      confirmPending={confirmSettlementPending} reversePending={reverseSettlementPending}
+      error={settlementError} onConfirm={onConfirmSettlement} onReverse={onReverseSettlement}
     />}
     {tab === "documents" && <FinanceDocumentsPanel entryId={detail.id} />}
     {tab === "collections" && <FinanceCollectionsPanel detail={detail} />}
