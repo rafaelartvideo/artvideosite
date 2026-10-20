@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clock3, RotateCcw } from "lucide-react";
+import { RotateCcw } from "lucide-react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -18,7 +18,7 @@ function statusLabel(status: string) {
 }
 
 export function FinanceSettlementPanel({
-  detail, canSettle, canReverse, confirmPending, reversePending, error, onConfirm, onReverse,
+  detail, canReverse, reversePending, error, onReverse,
 }: {
   detail: FinancialEntryDetail;
   canSettle: boolean;
@@ -90,7 +90,6 @@ export function FinanceSettlementPanel({
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap justify-end gap-2">
-                    {item.settlement_status === "scheduled" && canSettle && <AdminButton size="sm" onClick={() => onConfirm(item.id)} loading={confirmPending} loadingText="Confirmando..."><CheckCircle2 size={14} /> Confirmar crédito</AdminButton>}
                     {item.settlement_status !== "reversed" && canReverse && <AdminButton size="sm" variant="danger" disabled={reversePending} onClick={() => { setReverseId(item.id); setReverseReason(""); setReverseReasonError(""); }}><RotateCcw size={14} /> Estornar</AdminButton>}
                   </div>
                 </td>
@@ -99,7 +98,6 @@ export function FinanceSettlementPanel({
         </table>
     </FinanceTableSurface>
 
-    {detail.settlements.some(item => item.settlement_status === "scheduled") && <p className="flex items-start gap-2 text-xs text-muted-foreground"><Clock3 size={14} className="mt-0.5 shrink-0" />Baixas futuras reduzem o valor em aberto, mas só entram no saldo da conta quando a liquidação é confirmada.</p>}
 
     {reverseId && <AdminDialog open onClose={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }} title="Estornar baixa" description="O lançamento original será preservado e movimentos inversos serão criados." className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverse} loading={reversePending} loadingText="Estornando...">Confirmar estorno</AdminButton></div>}><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></AdminDialog>}
   </>;
