@@ -163,6 +163,7 @@ export type InventoryItemListPageInput = {
   nameSearch?: string;
   skuSearch?: string;
   addressSearch?: string;
+  sort?: "asc" | "desc";
 };
 
 export type InventoryItemListPage = {
@@ -178,10 +179,11 @@ export async function listInventoryItemsPage({
   nameSearch = "",
   skuSearch = "",
   addressSearch = "",
+  sort = "asc",
 }: InventoryItemListPageInput): Promise<InventoryItemListPage> {
   const organizationId = await resolveOrganizationId(organizationIdOverride);
   const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_inventory_item_page_ids_v1",
+    "search_inventory_item_page_ids_v2",
     {
       p_organization_id: organizationId,
       p_page: Math.max(1, page),
@@ -189,6 +191,7 @@ export async function listInventoryItemsPage({
       p_name_search: nameSearch,
       p_sku_search: skuSearch,
       p_address_search: addressSearch,
+      p_sort: sort,
     },
   );
   if (pageIndexError) throw pageIndexError;
