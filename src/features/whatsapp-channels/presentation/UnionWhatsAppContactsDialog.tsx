@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, X } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const labelFor = (contact: UnionWhatsAppContact) =>
-  contact.display_name || contact.imported_name || contact.profile_name ||
+  contact.display_name || contact.device_name || contact.imported_name || contact.profile_name ||
   contact.contact_phone || "Contato sem nome";
 
 const normalizePhone = (value:string) => {
@@ -43,6 +43,7 @@ export function UnionWhatsAppContactsDialog({
   const [name,setName]=useState("");
   const [phone,setPhone]=useState("");
   const [avatar,setAvatar]=useState<string|null>(null);
+  const vcfInputRef=useRef<HTMLInputElement|null>(null);
 
   const refresh=useCallback(async (value:string,index:number)=>{
     setLoading(true);
@@ -76,7 +77,7 @@ export function UnionWhatsAppContactsDialog({
 
   const choose=(contact:UnionWhatsAppContact)=>{
     setSelected(contact);setCreating(false);
-    setName(contact.display_name||contact.imported_name||contact.profile_name||"");
+    setName(contact.display_name||contact.device_name||contact.imported_name||contact.profile_name||"");
     setPhone(contact.contact_phone ? mask(contact.contact_phone) : "");
     setNotice("");
   };
@@ -92,6 +93,58 @@ export function UnionWhatsAppContactsDialog({
       onSaved();
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível importar a agenda."));}
     finally{setBusy(false);}
+  };
+  const importVCard=async(file:File|null)=>{
+    if(!file || !canImport || busy)return;
+    if(file.size>2*1048576 || !/\\.vcf$/i.test(file.name)){
+      setError("Selecione um arquivo .vcf de até 2 MB exportado da agenda do celular.");
+      return;
+    }
+    setBusy(true);setError("");setNotice("");
+    try{
+      const raw=await file.text();
+      const unfolded=raw.replace(/\\r\\n/g,"\\n").replace(/\\n[ \\t]/g,"");
+      const blocks=unfolded.split(/BEGIN:VCARD/i).slice(1);
+      const normalized=new Map<string,{name:string;phone:string}>();
+      for(const block of blocks.slice(0,3000)){
+        const content=block.split(/END:VCARD/i)[0]||"";
+        const lines=content.split("\\n");
+        const value=(prefix:string)=>{
+          const hit=lines.find(line=>new RegExp("^"+prefix+"(?:;[^:]*)?:","i").test(line));
+          return hit?hit.slice(hit.indexOf(":")+1).replace(/\\\\([,;\\\\nN])/g,(_,v)=>v==="n"||v==="N"?" ":v).trim():"";
+        };
+        const name=value("FN").slice(0,160);
+        const candidates=lines.filter(line=>/^TEL(?:;[^:]*)?:/i.test(line));
+        if(name.length<2)continue;
+        for(const line of candidates){
+          const digits=line.slice(line.indexOf(":")+1).replace(/\\D/g,"");
+          const national=digits.startsWith("55")&&digits.length>11?digits.slice(2):digits;
+          if(/^[1-9][0-9][0-9]{8,9}$/.test(national)){
+            const phone="55"+national;
+            normalized.set(phone,{name,phone});
+            break;
+          }
+        }
+      }
+      const entries=[...normalized.values()].slice(0,2000);
+      if(!entries.length)throw Error("Nenhum contato brasileiro válido foi encontrado no arquivo.");
+      let imported=0;
+      for(let i=0;i<entries.length;i+=100){
+        const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
+          "contacts_import_device",{contacts:entries.slice(i,i+100)});
+        imported+=result.imported||0;
+        setNotice("Importando contatos do celular: "+imported+" de "+entries.length);
+      }
+      setNotice(imported+" contato(s) importado(s) da agenda do celular."+
+        (normalized.size>2000?" Limite de 2.000 contatos por arquivo.":""));
+      setPage(0);
+      await refresh(search,0);
+      onSaved();
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível ler os contatos do arquivo VCF."));}
+    finally{
+      setBusy(false);
+      if(vcfInputRef.current)vcfInputRef.current.value="";
+    }
   };
   const save=async()=>{
     if(!canEdit || busy)return;
@@ -129,12 +182,22 @@ export function UnionWhatsAppContactsDialog({
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {canImport && <button type="button" disabled={busy} onClick={()=>void importContacts()}
-            title="Importar contatos do WhatsApp conectado"
-            className="flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/15 disabled:opacity-50">
-            {busy?<LoaderCircle size={15} className="animate-spin"/>:<Download size={15}/>}
-            Importar
-          </button>}
+          {canImport && <>
+            <input ref={vcfInputRef} type="file" accept=".vcf,text/vcard,text/x-vcard" className="hidden"
+              aria-label="Arquivo VCF da agenda do celular"
+              onChange={event=>{void importVCard(event.target.files?.[0]||null);}}/>
+            <button type="button" disabled={busy} onClick={()=>vcfInputRef.current?.click()}
+              title="Importar arquivo VCF exportado do celular"
+              className="rounded-lg border border-border px-2.5 py-2 text-xs font-semibold hover:bg-muted disabled:opacity-50">
+              Importar VCF
+            </button>
+            <button type="button" disabled={busy} onClick={()=>void importContacts()}
+              title="Importar contatos disponíveis no WhatsApp conectado"
+              className="flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/15 disabled:opacity-50">
+              {busy?<LoaderCircle size={15} className="animate-spin"/>:<Download size={15}/>}
+              WuzAPI
+            </button>
+          </>}
           <button type="button" onClick={onClose} title="Fechar" aria-label="Fechar"
             className="rounded-lg p-2 hover:bg-muted"><X size={19}/></button>
         </div>
@@ -218,6 +281,7 @@ export function UnionWhatsAppContactsDialog({
               </div>
             </div>}
             {!creating && selected && <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
+              <p><span className="text-muted-foreground">Nome importado do celular: </span>{selected.device_name||"Não importado"}</p>
               <p><span className="text-muted-foreground">Nome da agenda sincronizada: </span>{selected.imported_name||"Não disponibilizado"}</p>
               <p><span className="text-muted-foreground">Nome público do WhatsApp: </span>{selected.profile_name||"Não disponibilizado"}</p>
               <p className="text-muted-foreground">O nome salvo na Union tem prioridade. A importação não o sobrescreve.</p>
