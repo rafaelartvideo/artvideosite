@@ -12,7 +12,7 @@ const conditionLabel = (value?: string) =>
  * Recibo não fiscal de quitação, ligado ao número imutável da venda do PDV.
  * A impressão pelo navegador permite papel A4 ou "Salvar como PDF".
  */
-export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName: string) {
+export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName: string, options?: { general?: boolean; direction?: "received" | "paid"; number?: string; reference?: string }) {
   if (sale.status !== "completed") throw new Error("Venda cancelada não permite emitir recibo de quitação.");
   if (sale.payments.some(payment => payment.settlement_status === "reversed")) {
     throw new Error("Há pagamento estornado nesta venda; não é possível emitir recibo de quitação.");
@@ -22,7 +22,7 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
   if (!popup) throw new Error("O navegador bloqueou a janela do recibo.");
   try { popup.opener = null; } catch { /* Isola janela quando suportado. */ }
 
-  const number = "REC-" + String(sale.sale_number).padStart(6, "0");
+  const number = options?.number || ("REC-" + String(sale.sale_number).padStart(6, "0"));
   const date = new Date(sale.sold_at).toLocaleString("pt-BR");
   const companyName = sale.organization_name || fallbackOrganizationName || "Empresa";
   const organizationDocument = sale.organization_document;
@@ -31,7 +31,7 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
       <td>${index + 1}</td>
       <td>
         <strong>${html(item.product_name)}</strong>
-        <div class="minor">${html(conditionLabel(item.condition))}${item.is_manual ? " · Venda avulsa" : ""}${item.serial_number ? " · Série: " + html(item.serial_number) : ""}</div>
+        ${options?.general ? "" : `<div class="minor">${html(conditionLabel(item.condition))}${item.is_manual ? " · Venda avulsa" : ""}${item.serial_number ? " · Série: " + html(item.serial_number) : ""}</div>`}
         ${item.condition_notes ? '<div class="minor pre">' + html(item.condition_notes) + '</div>' : ""}
       </td>
       <td class="right">${html(item.quantity)} ${html(item.unit)}</td>
@@ -128,19 +128,19 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
     <div class="doc">
       <div class="doc-kind">RECIBO</div>
       <div class="doc-number">${html(number)}</div>
-      <div class="doc-sale">Venda #${html(sale.sale_number)}</div>
+      <div class="doc-sale">${html(options?.general ? options.reference || "Recibo financeiro avulso" : `Venda #${sale.sale_number}`)}</div>
     </div>
   </header>
   <section class="panel">
-    <h2 class="panel-title">Dados do recebimento</h2>
+    <h2 class="panel-title">${options?.general && options.direction === "paid" ? "Dados do pagamento" : "Dados do recebimento"}</h2>
     <div class="panel-content grid-info">
       <div class="info">
-        <span class="label">Recebemos de</span>
+        <span class="label">${options?.general && options.direction === "paid" ? "Pagamos a" : "Recebemos de"}</span>
         <strong>${html(sale.customer_name || "Consumidor não identificado")}</strong>
         ${sale.customer_document ? '<div class="muted">' + html(sale.customer_document) + '</div>' : ""}
       </div>
       <div class="info">
-        <span class="label">Data da venda</span>
+        <span class="label">${options?.general ? "Data do recibo" : "Data da venda"}</span>
         <strong>${html(date)}</strong>
       </div>
       <div class="info">
@@ -150,7 +150,7 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
     </div>
   </section>
   <section class="panel items-panel">
-    <h2 class="panel-title">Itens da venda</h2>
+    <h2 class="panel-title">${options?.general ? "Discriminação" : "Itens da venda"}</h2>
     <table class="items-table">
       <colgroup><col class="item-number"><col class="item-description"><col class="item-quantity"><col class="item-price"><col class="item-price"></colgroup>
       <thead><tr><th>#</th><th>Descrição</th><th class="right">Qtd.</th><th class="right">Unitário</th><th class="right">Total</th></tr></thead>
@@ -161,14 +161,14 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
     <div class="line"><span>Subtotal</span><strong>${html(formatCurrency(sale.subtotal))}</strong></div>
     ${Number(sale.discount_amount) ? '<div class="line"><span>Descontos</span><strong>- ' + html(formatCurrency(sale.discount_amount)) + '</strong></div>' : ""}
     ${Number(sale.surcharge_amount) ? '<div class="line"><span>Acréscimos</span><strong>+ ' + html(formatCurrency(sale.surcharge_amount)) + '</strong></div>' : ""}
-    <div class="grand"><span>RECEBIDO</span><span class="amount">${html(formatCurrency(sale.total_amount))}</span></div>
+    <div class="grand"><span>${options?.general && options.direction === "paid" ? "PAGO" : "RECEBIDO"}</span><span class="amount">${html(formatCurrency(sale.total_amount))}</span></div>
   </section>
   <section class="panel payment-panel">
     <h2 class="panel-title">Formas de pagamento</h2>
     <div class="panel-content">${payments}</div>
   </section>
   ${sale.notes ? '<section class="note"><strong>Observações:</strong> ' + html(sale.notes) + '</section>' : ""}
-  <aside class="disclaimer"><strong>DOCUMENTO NÃO FISCAL.</strong> Este recibo comprova o recebimento do valor referente à venda identificada. Não substitui NFC-e, NF-e ou outro documento fiscal exigido pela legislação. A indicação de produto usado não exclui a garantia legal nem os direitos do consumidor.</aside>
+  <aside class="disclaimer"><strong>DOCUMENTO NÃO FISCAL.</strong> ${options?.general ? "Este recibo registra a declaração de quitação do valor discriminado, conforme informado pelo emitente. Não substitui documentos fiscais exigidos pela legislação e não movimenta automaticamente o caixa ou o financeiro." : "Este recibo comprova o recebimento do valor referente à venda identificada. Não substitui NFC-e, NF-e ou outro documento fiscal exigido pela legislação. A indicação de produto usado não exclui a garantia legal nem os direitos do consumidor."}</aside>
   <footer class="footer"><div class="signature">${html(companyName)} ${organizationDocument ? " · " + html(organizationDocument) : ""}</div></footer>
 </main>
 <script>
@@ -179,4 +179,77 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
 </body>
 </html>`);
   popup.document.close();
+}
+
+/** Reutiliza integralmente o modelo A4, P&B, do recibo de venda para recibos financeiros avulsos. */
+export type GeneralReceiptA4 = {
+  id: string;
+  receipt_number: number;
+  direction: "received" | "paid";
+  counterpart_name: string;
+  counterpart_document: string | null;
+  description: string;
+  items: Array<{ description: string; quantity: number; unit_price: number }>;
+  total_amount: number;
+  payment_method_name: string | null;
+  notes: string | null;
+  issuer_name: string;
+  organization_name: string;
+  organization_document: string | null;
+  issued_at: string;
+  service_order_number?: string | null;
+};
+
+export function printGeneralFinancialReceipt(data: GeneralReceiptA4) {
+  const sale: PdvSaleDetail = {
+    id: data.id,
+    sale_number: data.receipt_number,
+    status: "completed",
+    customer_id: null,
+    customer_name: data.counterpart_name,
+    customer_document: data.counterpart_document,
+    organization_name: data.organization_name,
+    organization_document: data.organization_document,
+    sold_at: data.issued_at,
+    sold_by_name: data.issuer_name,
+    notes: data.notes,
+    cancelled_at: null,
+    cancelled_by_name: null,
+    cancellation_reason: null,
+    subtotal: Number(data.total_amount),
+    discount_amount: 0,
+    surcharge_amount: 0,
+    total_amount: Number(data.total_amount),
+    change_amount: 0,
+    items: data.items.map((item,index) => ({
+      id: `${data.id}-${index}`,
+      product_id: null,
+      product_name: item.description,
+      sku: null,
+      barcode: null,
+      quantity: Number(item.quantity),
+      unit: "un",
+      unit_price: Number(item.unit_price),
+      line_subtotal: Number(item.quantity)*Number(item.unit_price),
+      discount_amount: 0,
+      line_total: Number(item.quantity)*Number(item.unit_price),
+    })),
+    payments: [{
+      id: data.id,
+      payment_method_id: "",
+      payment_method_name: data.payment_method_name || "Forma não informada",
+      method_type: "other",
+      financial_account_name: "",
+      amount: Number(data.total_amount),
+      tendered_amount: null,
+      change_amount: 0,
+      fee_amount: 0,
+      settlement_status: "posted",
+    }],
+  };
+  printPdvA4Receipt(sale, data.organization_name, {
+    general: true, direction: data.direction,
+    number: `REC-FIN-${String(data.receipt_number).padStart(6,"0")}`,
+    reference: data.service_order_number ? `OS ${data.service_order_number}` : data.description,
+  });
 }
