@@ -229,7 +229,7 @@ Deno.serve(async request => {
     const isMedia=action==="send_media";
     const kind=String(body.media_type||"");
     const mime=String(body.media_mime||"");
-    const name=String(body.media_name||"").replace(/[\\/\\\\\\x00-\\x1f]/g,"").slice(0,160);
+    const name=String(body.media_name||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
     const base64=String(body.media_base64||"");
     const limits:Record<string,number>={image:1048576,audio:3145728,video:5242880,file:5242880};
     const mimeAllowed=isMedia && (
@@ -240,7 +240,7 @@ Deno.serve(async request => {
     );
     if(!uuid(clientId) || text.length>4000 ||
       (!isMedia && !text) || (isMedia && (!mimeAllowed || !name || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))) ||
-      !/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(thread.chat_jid)) {
+      !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(thread.chat_jid)) {
       return json({success:false,error:"Mensagem ou anexo inválido."},400);
     }
     let mediaBytes:Uint8Array<ArrayBuffer>|null=null;
