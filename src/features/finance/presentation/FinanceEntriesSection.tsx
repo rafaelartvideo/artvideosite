@@ -4,7 +4,7 @@ import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreHorizontal } from
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
-import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
@@ -13,6 +13,7 @@ import { useFinanceEntries } from "../application/useFinanceEntries";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
+import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
 import { formatFinancialDocument } from "./financeDisplay";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -74,7 +75,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [os, setOs] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [quickSettlementId, setQuickSettlementId] = useState<string | null>(null);
+  const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
   const [page, setPage] = useState(1);
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
@@ -190,8 +191,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               <DropdownMenu><DropdownMenuTrigger asChild>
                 <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border"><MoreHorizontal size={17}/></button>
               </DropdownMenuTrigger><DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => { setQuickSettlementId(null); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
-                {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setQuickSettlementId(entry.id); onSelectEntry(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
+                <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
+                {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(true); onSelectEntry(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
               </DropdownMenuContent></DropdownMenu>
             </div>
           </div>)}
@@ -222,8 +223,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-muted" onClick={event => event.stopPropagation()}><MoreHorizontal size={17} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
-                       <DropdownMenuItem onSelect={() => { setQuickSettlementId(null); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
-                       {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setQuickSettlementId(entry.id); onSelectEntry(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
+                       <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
+                       {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(true); onSelectEntry(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
                      </DropdownMenuContent>
                    </DropdownMenu></div></td>
               </FinanceTableRow>)}
@@ -238,13 +239,20 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
     {selectedEntryId && <AdminDialog
       open
-      onClose={() => { setQuickSettlementId(null); onSelectEntry(null); }}
+      onClose={() => { setSettlementDialogOpen(false); onSelectEntry(null); }}
       title={isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={finance.detailQuery.data?.description || "Extrato e movimentações da conta"}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
       className="h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"
       bodyClassName="overscroll-contain"
       bodyRef={receivableScrollRef}
+      footer={<div className="flex flex-wrap items-center justify-between gap-3">
+        <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); onSelectEntry(null); }}>Fechar</AdminButton>
+        {finance.detailQuery.data?.id === selectedEntryId && canSettle
+          && !["cancelled", "reversed"].includes(finance.detailQuery.data.approval_status)
+          && finance.detailQuery.data.installments.some(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001)
+          && <AdminButton onClick={() => setSettlementDialogOpen(true)}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
+      </div>}
     >
       {finance.detailQuery.isLoading
         ? <div className="py-10"><LoadingState text="Carregando extrato..." /></div>
@@ -253,7 +261,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           : finance.detailQuery.data
             ? <FinanceEntryDetail
               scrollContainerRef={receivableScrollRef}
-              initialSettlementOpen={quickSettlementId === selectedEntryId}
+              initialSettlementOpen={false}
               detail={finance.detailQuery.data}
               accounts={accounts}
               paymentMethods={paymentMethods}
@@ -282,6 +290,21 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             />
             : <p className="text-sm text-muted-foreground">Conta não encontrada.</p>}
     </AdminDialog>}
+
+    {selectedEntryId && finance.detailQuery.data?.id === selectedEntryId && (
+      <FinanceSettlementDialog
+        open={settlementDialogOpen}
+        detail={finance.detailQuery.data}
+        accounts={accounts}
+        paymentMethods={paymentMethods}
+        saving={finance.settlementMutation.isPending}
+        onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
+        onSave={async (draft: FinancialSettlementDraft) => {
+          await finance.settlementMutation.mutateAsync(draft);
+          notifyAdmin("Baixa de " + formatCurrency(draft.principal_amount) + " registrada com sucesso.", "success");
+        }}
+      />
+    )}
 
     <FinanceEntryEditorDialog
       open={editorOpen}
