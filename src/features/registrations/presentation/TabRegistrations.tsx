@@ -16,6 +16,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { normalizeSharedMapUrl } from "@/lib/address";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -757,8 +758,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     <AdminCard square className="overflow-hidden p-0">
       <div className="flex h-12 items-center justify-between gap-3 border-b border-white/10 md:h-11 admin-primary-bar px-4 text-white">
         <div className="flex min-w-0 items-center gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.10]"><Search size={14} className="shrink-0 text-white/90" /></span><span className="text-xs font-black uppercase tracking-[0.14em]">{platformUsersOnly ? "Buscar usuário" : "Buscar cadastro"}</span></div>
-        <div className="ml-auto flex max-w-full items-center justify-end">
-          {hasActiveFilters && <button type="button" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar filtros</button>}
+        <div className="ml-auto flex items-center gap-2">
+          {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
+          <AdminSearchSortMenu value={sortOrder} onChange={setSortOrder}
+            options={[{ value: "", label: "Ordenação padrão" }, { value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
         </div>
       </div>
       <div className="p-4 md:p-3">
@@ -767,7 +770,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
             <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-foreground shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-muted-foreground">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-muted-foreground" /></button></DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-muted-foreground"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
           </DropdownMenu>
-          <div className="flex min-w-0 items-start gap-2"><div className="min-w-0 flex-1">{renderMobileFilter()}</div>{sortMenu}</div>
+          <div className="min-w-0">{renderMobileFilter()}</div>
         </div>
 
         <div className={cn("hidden gap-2 md:grid md:grid-cols-2", platformUsersOnly ? "xl:grid-cols-3" : "xl:grid-cols-4")}>
