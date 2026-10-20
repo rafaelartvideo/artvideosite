@@ -1,6 +1,6 @@
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
-import { MapPin, MessageCircle, Package, Phone, Wrench } from "lucide-react";
+import { CheckCircle2, FileCheck2, MapPin, MessageCircle, Package, Phone, Printer, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import {
   AdminButton,
@@ -213,6 +213,45 @@ export function OrderCompletionModal({
     if (!saving) completion.setOpen(false);
   };
 
+  if (completion.completedSuccessfully) {
+    return <AdminDialog
+      open={completion.open} onClose={close}
+      title={"OS " + (detail.os_number || "") + " concluída"}
+      description="A ordem de serviço foi concluída com sucesso."
+      className="max-w-xl"
+      footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
+        <BtnSecondary onClick={close}>Fechar</BtnSecondary>
+        {completion.issuedCertificate ? <BtnPrimary onClick={() => void completion.printCertificate()}
+          disabled={completion.certificateBusy} loading={completion.certificateBusy} loadingText="Preparando...">
+          <Printer size={15} /> Imprimir certificado
+        </BtnPrimary> : <BtnPrimary onClick={() => void completion.retryCertificate()}
+          disabled={completion.certificateBusy} loading={completion.certificateBusy} loadingText="Gerando...">
+          <FileCheck2 size={15} /> Tentar gerar certificado
+        </BtnPrimary>}
+      </div>}
+    >
+      <div className="space-y-4 py-3">
+        <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-500/30 dark:bg-emerald-500/10">
+          <CheckCircle2 className="h-8 w-8 shrink-0 text-emerald-600" />
+          <div><p className="text-sm font-bold text-foreground">Ordem de serviço concluída</p>
+            <p className="text-xs text-muted-foreground">{customerName(customer)} · OS {detail.os_number}</p></div>
+        </div>
+        {completion.issuedCertificate ? <div className="rounded-xl border border-border p-4">
+          <p className="text-sm font-bold text-foreground">Certificado de garantia gerado automaticamente</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {completion.issuedCertificate.warranty_option_label} · {completion.issuedCertificate.warranty_days} dias ·
+            válido até {new Date(completion.issuedCertificate.expires_at + "T12:00:00").toLocaleDateString("pt-BR")}
+          </p>
+          <p className="mt-2 text-xs text-muted-foreground">Também ficará disponível na opção Imprimir dos detalhes da OS.</p>
+        </div> : <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-500/30 dark:bg-amber-500/10">
+          <p className="text-sm font-bold text-foreground">{completion.certificateBusy ? "Gerando certificado..." : "A OS foi concluída, mas o certificado não pôde ser emitido."}</p>
+          {completion.certificateError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{completion.certificateError}</p>}
+        </div>}
+        {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
+      </div>
+    </AdminDialog>;
+  }
+
   const completionBlocked = completion.discountExceedsMax
     || completion.discountExceedsServicePrice
     || Boolean(completion.servicePriceValidationMessage)
@@ -233,11 +272,6 @@ export function OrderCompletionModal({
     className="!max-w-6xl"
     footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
       <BtnSecondary onClick={close} disabled={saving}>Cancelar</BtnSecondary>
-      <AdminButton variant="secondary" onClick={() => void completion.submit(true)}
-        loading={saving} disabled={completionBlocked || completion.warrantyLoading || Boolean(completion.warrantyError)}
-        title="Concluir a OS e gerar o certificado de garantia">
-        Concluir e gerar certificado
-      </AdminButton>
       <BtnPrimary
         onClick={() => void completion.submit()}
         disabled={completionBlocked}
