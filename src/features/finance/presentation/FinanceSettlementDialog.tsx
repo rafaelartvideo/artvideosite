@@ -82,9 +82,19 @@ export function FinanceSettlementDialog({
   useEffect(() => {
     if (!open) return;
     const firstInstallment = openInstallments[0] || null;
-    const firstMethod = activeMethods[0] || null;
+    const planned = Array.isArray(detail.source_details?.payment_plan)
+      ? detail.source_details.payment_plan as Array<{payment_method_id:string;amount:number}> : [];
+    const nextPlanned = planned.find(part => {
+      const used = detail.settlements.filter(item => item.settlement_status !== "reversed" && item.payment_method_id === part.payment_method_id)
+        .reduce((sum,item)=>sum+Number(item.principal_amount||0),0);
+      return Number(part.amount) - used > 0.005;
+    });
+    const alreadyUsed = nextPlanned ? detail.settlements.filter(item => item.settlement_status !== "reversed" && item.payment_method_id === nextPlanned.payment_method_id)
+      .reduce((sum,item)=>sum+Number(item.principal_amount||0),0) : 0;
+    const plannedRemainder = nextPlanned ? Math.max(0,Number(nextPlanned.amount)-alreadyUsed) : 0;
+    const firstMethod = activeMethods.find(item => item.id === nextPlanned?.payment_method_id) || activeMethods[0] || null;
     setInstallmentId(firstInstallment?.id || "");
-    setPrincipal(firstInstallment ? String(Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount)) : "");
+    setPrincipal(firstInstallment ? String(Math.round(Math.min(Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount), plannedRemainder || Number(firstInstallment.original_amount) - Number(firstInstallment.settled_amount))*100)/100) : "");
     setInterest("0");
     setPenalty("0");
     setAdditions("0");
