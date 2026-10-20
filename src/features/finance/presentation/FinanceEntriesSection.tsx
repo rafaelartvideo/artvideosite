@@ -101,6 +101,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [counterpartySearch, setCounterpartySearch] = useState("");
   const debouncedName = useDebouncedValue(name);
   const debouncedDocument = useDebouncedValue(document);
+  const debouncedCnpj = useDebouncedValue(cnpj);
   const debouncedOs = useDebouncedValue(os);
   const debouncedCounterpartySearch = useDebouncedValue(counterpartySearch);
   const creatorsQuery = useQuery({
@@ -126,7 +127,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       sort,
       approvalStatus: "all",
       name: debouncedName,
-      document: entryType === "receivable" ? (debouncedDocument || cnpj) : debouncedDocument,
+      document: entryType === "receivable" ? (debouncedDocument || debouncedCnpj) : debouncedDocument,
       os: debouncedOs,
       createdBy: entryType === "receivable" ? creatorId : "",
       dateFrom,
