@@ -2,6 +2,18 @@
 -- No WuzAPI tokens or raw webhook payloads are exposed through public tables.
 begin;
 
+-- Dedicated tenant module; enable it only for companies that already
+-- registered their own WuzAPI channel. Other tenants remain unaffected.
+insert into public.system_modules(key,name,description,category,sort_order,is_active) values
+ ('whatsapp','Atendimento WhatsApp','Caixa de entrada própria via WuzAPI, independente do SAC Digital.','operation',345,true)
+on conflict (key) do update set name=excluded.name, description=excluded.description, is_active=true;
+
+insert into public.organization_modules (organization_id,module_key,is_enabled)
+select distinct organization_id,'whatsapp',true
+from public.whatsapp_channel_connections
+where provider='wuzapi'
+on conflict (organization_id,module_key) do nothing;
+
 insert into public.permissions (key,label,description,module_name,sort_order) values
  ('whatsapp.inbox.view','Visualizar conversas WhatsApp','Consultar os atendimentos da empresa pelo WhatsApp próprio.','Atendimento WhatsApp',5080),
  ('whatsapp.inbox.send','Enviar mensagens WhatsApp','Responder conversas pelo WhatsApp próprio.','Atendimento WhatsApp',5081),
