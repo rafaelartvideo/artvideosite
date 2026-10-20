@@ -39,6 +39,7 @@ import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/docum
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import { renderServiceOrderLabel } from "../domain/order-label-print";
+import { issueWarrantyCertificate, loadWarrantyCertificate, printWarrantyCertificate } from "../application/order-warranty";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
@@ -108,6 +109,7 @@ export function OrderDetailsPage(props: Props) {
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const [downloadingTemplateId, setDownloadingTemplateId] = useState<string | null>(null);
   const [printError, setPrintError] = useState("");
+  const [printingWarranty, setPrintingWarranty] = useState(false);
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const [solutionRecordsOpen, setSolutionRecordsOpen] = useState(false);
@@ -384,6 +386,32 @@ export function OrderDetailsPage(props: Props) {
     }
   };
 
+  const printWarranty = async () => {
+    if (!detail?.completed_at || printingWarranty || !canPrintDocuments) return;
+    setPrintError("");
+    // Pop-up reservado no clique para que a impressão não seja bloqueada após a consulta.
+    const popup = openPrintWindow();
+    if (!popup) {
+      const message = "Permita pop-ups para imprimir o certificado de garantia.";
+      setPrintError(message); notifyAdmin(message, "error"); return;
+    }
+    setPrintingWarranty(true);
+    try {
+      let certificate = await loadWarrantyCertificate(detail.organization_id, detail.id);
+      if (!certificate) {
+        if (!hasPermission("orders.complete")) {
+          throw new Error("Certificado ainda não emitido. Solicite a geração a um usuário com permissão para concluir OS.");
+        }
+        certificate = await issueWarrantyCertificate(detail.organization_id, detail.id, null);
+      }
+      await printWarrantyCertificate(certificate, popup);
+    } catch (error) {
+      popup.close();
+      const message = systemErrorMessage(error, "Não foi possível imprimir o certificado de garantia.");
+      setPrintError(message); notifyAdmin(message, "error");
+    } finally { setPrintingWarranty(false); }
+  };
+
   const printLabel = () => {
     setPrintError("");
     const showError = (message: string) => { setPrintError(message); notifyAdmin(message, "error"); };
@@ -490,7 +518,11 @@ export function OrderDetailsPage(props: Props) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getOrderStatusBadgeClass((detail.order_status as any)?.name)}`}>{(detail.order_status as any)?.name || "—"}</span>{(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={15} />OS solucionada</span>}</div>
           <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
-            {canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0"><span className="block truncate font-semibold">Etiqueta</span><span className="block text-[10px] text-[#5a6a82]">Elgin L-42 • 3 colunas • medidas ajustáveis</span></span></DropdownMenuItem>{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => {
+            {canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0"><span className="block truncate font-semibold">Etiqueta</span><span className="block text-[10px] text-[#5a6a82]">Elgin L-42 • 3 colunas • medidas ajustáveis</span></span></DropdownMenuItem>{detail.completed_at && <DropdownMenuItem onSelect={event => { event.preventDefault(); void printWarranty(); }}
+              disabled={printingWarranty} className="flex cursor-pointer items-center gap-3">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><FileText size={15}/></span>
+              <span className="min-w-0"><span className="block truncate font-semibold">{printingWarranty ? "Preparando certificado..." : "Certificado de garantia"}</span><span className="block text-[10px] text-[#5a6a82]">Imprimir ou salvar em PDF · OS concluída</span></span>
+            </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => {
               const printingThis = printingTemplateId === template.id;
               const downloadingThis = downloadingTemplateId === template.id;
               const busy = Boolean(printingTemplateId || downloadingTemplateId);
