@@ -13,7 +13,7 @@
 A interface e os metadados funcionam após migração e deploy da Edge Function. Os botões de preparação/conexão retornam mensagem clara de indisponibilidade até configurar `UNION_WUZAPI_BRIDGE_URL` e `UNION_WUZAPI_BRIDGE_SECRET`. Não exibir QR fictício.
 
 ## Configuração segura da ponte (VPS)
-Pré-requisitos: Node.js 20+, Nginx HTTPS com domínio escolhido, WuzAPI isolado rodando em `127.0.0.1:18080`, e token `WUZAPI_ADMIN_TOKEN` já existente no arquivo privado `/opt/union-wuzapi/.env`.
+Pré-requisitos: acesso para baixar Node.js 24 LTS oficial (o instalador o instala de forma isolada, sem alterar o Node do Zappro), Nginx HTTPS com domínio escolhido, WuzAPI isolado rodando em `127.0.0.1:18080`, e token `WUZAPI_ADMIN_TOKEN` já existente no arquivo privado `/opt/union-wuzapi/.env`.
 
 1. Execute o instalador revisado `services/union-wuzapi-bridge/install.sh` como root na VPS. Ele obtém a revisão fixada da ponte, verifica sintaxe com Node, instala um serviço systemd não privilegiado e não altera Nginx nem Docker/Zappro.
 2. Crie `/opt/union-wuzapi-bridge/sessions` com dono root e modo `0700`; não compartilhe nem suba ao GitHub.
@@ -48,12 +48,12 @@ A ponte **não recebe** a service_role do Supabase nem senhas do CRM. O Edge val
 Na VPS (shell Linux, não no PowerShell), a revisão do instalador pode ser baixada e executada assim:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/rafaelartvideo/artvideosite/cc8fc684d9e6f13f2bb94b688fb21d1b006480e8/services/union-wuzapi-bridge/install.sh -o /root/install-union-bridge.sh
+curl -fsSL https://raw.githubusercontent.com/rafaelartvideo/artvideosite/271017e38d2f6a25f48575e8f80198eb87dedfe9/services/union-wuzapi-bridge/install.sh -o /root/install-union-bridge.sh
 bash -n /root/install-union-bridge.sh
 bash /root/install-union-bridge.sh
 ```
 
-O script valida o HTTP 401 da API local, exige Node.js >= 20 acessível ao usuário de serviço, preserva segredos existentes em execução idempotente e executa `systemctl enable`/`restart` **somente** da nova unidade `union-wuzapi-bridge`. A porta de serviço é 127.0.0.1:19080. Nenhum container é recriado.
+O script valida o HTTP 401 da API local, obtém e verifica por SHA-256 o Node.js v24.22.0 LTS numa pasta exclusiva em /opt/union-wuzapi-bridge/runtime, preserva segredos existentes em execução idempotente e executa `systemctl enable`/`restart` **somente** da nova unidade `union-wuzapi-bridge`. A porta de serviço é 127.0.0.1:19080. Nenhum container é recriado.
 
 Para escolher o server HTTPS existente **sem imprimir segredos**:
 
@@ -62,3 +62,7 @@ nginx -T 2>/dev/null | grep -E '^[[:space:]]*server_name[[:space:]]+' | sort -u
 ```
 
 Não colar o arquivo de exemplo dentro do bloco `http {}` nem criar um server SSL novo sem conferir os certificados e `server_name`. Após configurar a rota, executar `nginx -t` e só então `systemctl reload nginx`. A URL não assinada deve retornar 401 do bridge. Testes de navegador e QR ocorrem somente depois de configurar os segredos no painel Supabase.
+
+## Instalação Node.js isolado (20/10/2026)
+
+A VPS Zappro usa seu próprio runtime Node.js/PM2. Um instalador antigo parava quando o Node estava em `/root` ou tinha versão inferior a 20. O novo instalador não altera o Node global: baixa o binário Node v24.22.0 LTS do site oficial, valida o SHA-256 divulgado pelo mesmo fornecedor e instala somente em `/opt/union-wuzapi-bridge/runtime/node-v24.22.0`. Não executa `apt upgrade`, `npm install`, `nvm alias default` ou reinício do Zappro.
