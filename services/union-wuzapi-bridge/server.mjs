@@ -119,13 +119,13 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const idText=String(clientMessageId||"");
     const kind=String(mediaType||"");
     const mime=String(mediaMime||"");
-    const name=String(mediaName||"").replace(/[\\/\\\\\\x00-\\x1f]/g,"").slice(0,160);
+    const name=String(mediaName||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
     const limits={image:1024*1024,audio:3*1024*1024,video:5*1024*1024,file:5*1024*1024};
     const acceptable=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
       : kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
       : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream"].includes(mime) : false;
-    if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid) || !uuid(idText)
+    if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid) || !uuid(idText)
       || !acceptable || caption.length>4000 || !name) throw new Error("bad_request");
     let fileUrl;
     try { fileUrl=new URL(String(mediaUrl||"")); } catch { throw new Error("bad_request"); }
@@ -158,7 +158,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const jid = String(chatJid || "");
     const body = typeof bodyText === "string" ? bodyText : "";
     const clientId = String(clientMessageId || "");
-    if (!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid)
+    if (!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid)
         || !body.trim() || body.length > 4000 || !uuid(clientId)) {
       throw new Error("bad_request");
     }
