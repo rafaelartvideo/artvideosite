@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
+import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -9,7 +10,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppMessages, operateUnionWhatsAppInbox,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
@@ -156,6 +157,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [historyOpen,setHistoryOpen] = useState(false);
   const [handoffs,setHandoffs] = useState<Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [contactsOpen,setContactsOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
   const [starting, setStarting] = useState(false);
@@ -227,6 +229,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setPending([]);
     setRoutingOpen(false);
     setNewConversationOpen(false);
+    setContactsOpen(false);
     setSettingsOpen(false);
     setDepartmentSettingsOpen(false);
     setOrdersOpen(false);
@@ -501,6 +504,27 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     } finally {
       setRunningAction(null);
     }
+  };
+
+  const openFromContact = (contact:UnionWhatsAppContact):boolean => {
+    const existing=conversations.find(item=>item.chat_jid===contact.chat_jid);
+    if(existing){
+      setDepartmentFilter("all");
+      setFilter(existing.status);
+      setSelectedId(existing.id);
+      setContactsOpen(false);
+      return true;
+    }
+    if(!canSend || !contact.contact_phone){
+      setError("Este contato não possui número verificável ou você não tem permissão para iniciar conversa.");
+      return false;
+    }
+    const display=contact.display_name||contact.imported_name||contact.profile_name||"";
+    setNewPhone(brazilPhoneMask(contact.contact_phone));
+    setNewName(display);
+    setNewConversationOpen(true);
+    setContactsOpen(false);
+    return true;
   };
 
   const startConversation = async () => {
@@ -795,10 +819,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           <div className="border-b border-border bg-muted/35 p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-base font-black text-foreground">Conversas</p>
-              {canSend && <button type="button" onClick={() => setNewConversationOpen(true)}
-                className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15">
-                <Plus size={15}/> Nova
-              </button>}
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={()=>setContactsOpen(true)} title="Contatos"
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
+                  <ContactRound size={15}/> Contatos
+                </button>
+                {canSend && <button type="button" onClick={() => setNewConversationOpen(true)}
+                  className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15">
+                  <Plus size={15}/> Nova
+                </button>}
+              </div>
             </div>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {scopedConversations.length} conversa(s) · {scopedConversations.filter(item => item.unread_count > 0).length} não lida(s)
@@ -1013,6 +1043,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </section>
       </div>
     </div>}
+    {contactsOpen && activeOrganizationId && <UnionWhatsAppContactsDialog
+      organizationId={activeOrganizationId} canImport={canManage}
+      canEdit={canSend || canManage}
+      onClose={()=>setContactsOpen(false)}
+      onSaved={()=>void refresh(true)}
+      onChoose={openFromContact}
+    />}
     {newConversationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event => { if (event.target === event.currentTarget) setNewConversationOpen(false); }}>
       <form onSubmit={event => {event.preventDefault(); void startConversation();}}
