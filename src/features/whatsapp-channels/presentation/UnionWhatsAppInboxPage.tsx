@@ -153,6 +153,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [departmentFilter,setDepartmentFilter] = useState("all");
   const [settingsOpen,setSettingsOpen] = useState(false);
   const [settingsModal,setSettingsModal] = useState<WhatsAppOperationsSection|null>(null);
+  const [settingsCreateRequest,setSettingsCreateRequest] = useState(0);
   const settingsMenuRef=useRef<HTMLDivElement|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
@@ -1222,8 +1223,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </div>}
     {settingsModal && <AdminDialog open={true} onClose={() => setSettingsModal(null)}
       title={settingsModal === "departments" ? "Departamentos e equipe" : settingsModal === "queues" ? "Configurar filas" : "Operadores"}
-      className="w-full max-w-4xl" bodyClassName="p-3 sm:p-5" minimizable={false}>
-      <WhatsAppOperationsSettings section={settingsModal}/>
+      className="w-full max-w-4xl" bodyClassName="p-3 sm:p-5" minimizable={false}
+      footer={settingsModal !== "operators" && canManage ? <div className="flex justify-end">
+        <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>
+      </div> : undefined}>
+      <WhatsAppOperationsSettings key={settingsModal} section={settingsModal} createRequest={settingsCreateRequest}/>
     </AdminDialog>}
     {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
