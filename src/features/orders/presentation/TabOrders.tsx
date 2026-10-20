@@ -717,7 +717,7 @@ export function TabOrders({
 
   return (
     <div className="space-y-5">
-      {toast && <Toast message={toast.msg} type={toast.type} persistent={toast.type === "error"} onClose={() => setToast(null)} />}
+      {toast && <Toast message={toast.msg} type={toast.type} persistent={toast.type === "error"} onRetry={toast.msg.startsWith("Erro ao carregar dados da OS") ? workspaceBase.retryLoadWorkspace : undefined} onClose={() => setToast(null)} />}
 
       {queueSettings && workspaceBase.organizationId && <QueueOsCodeDialog
         open={queueGateOpen}
