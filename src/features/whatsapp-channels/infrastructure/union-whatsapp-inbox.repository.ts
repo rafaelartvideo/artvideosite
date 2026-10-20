@@ -55,7 +55,7 @@ export async function listUnionWhatsAppMessages(
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
@@ -63,7 +63,7 @@ export async function operateUnionWhatsAppInbox(
   action: UnionWhatsAppInboxAction,
   extra: { text?: string; client_message_id?: string; target_user_id?: string;
     media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string } = {},
-): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; avatar_url?: string | null; channel_connected?: boolean; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}> }> {
+): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; avatar_url?: string | null; customer?: {id:string;name:string} | null; ambiguous?: boolean; channel_connected?: boolean; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}> }> {
   const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
     body: {
       action, organization_id: organizationId, conversation_id: conversationId, ...extra,
