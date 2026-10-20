@@ -24,6 +24,7 @@ export type FinanceEntryListFilters = {
   name?: string;
   document?: string;
   os?: string;
+  createdBy?: string;
   dateFrom?: string;
   dateTo?: string;
   operationalStatus?: string;
@@ -59,6 +60,7 @@ export function useFinanceEntries(
         name: filters.name,
         document: filters.document,
         os: filters.os,
+        createdBy: filters.createdBy,
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
         operationalStatus: filters.operationalStatus,
@@ -77,6 +79,7 @@ export function useFinanceEntries(
       name: filters.name,
       document: filters.document,
       os: filters.os,
+      createdBy: filters.createdBy,
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
       operationalStatus: filters.operationalStatus,
