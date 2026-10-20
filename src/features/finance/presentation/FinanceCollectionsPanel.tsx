@@ -7,6 +7,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { FinanceTableSurface } from "./FinanceTableSurface";
 import type { FinancialCollectionChannel, FinancialEntryDetail } from "../domain/finance.types";
 import { listFinancialCollectionLogs, registerFinancialCollectionLog } from "../infrastructure/finance-collections.repository";
 
@@ -114,7 +115,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
     </div>
 
     {errorText && !open && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
-    {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : <div className="overflow-hidden rounded-xl border border-border bg-card">
+    {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : <FinanceTableSurface>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[700px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
@@ -137,7 +138,7 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
           </tbody>
         </table>
       </div>
-    </div>}
+    </FinanceTableSurface>}
 
     {open && <AdminDialog open onClose={() => { if (!mutation.isPending) setOpen(false); }} title="Novo contato de cobrança" className="max-w-xl" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!mutation.isPending) setOpen(false); }} disabled={mutation.isPending}>Cancelar</AdminButton><AdminButton onClick={() => void submit()} loading={mutation.isPending} loadingText="Salvando...">Registrar contato</AdminButton></div>}><div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2"><FSelect label="Canal" value={channel} options={CHANNEL_OPTIONS} onChange={(event: any) => setChannel(event.target.value as FinancialCollectionChannel)} /><FSelect label="Parcela (opcional)" value={installmentId} options={[{ value: "", label: "Título geral" }, ...detail.installments.map(item => ({ value: item.id, label: `Parcela ${item.installment_number}/${item.total_installments}` }))]} onChange={(event: any) => setInstallmentId(event.target.value)} /></div>
