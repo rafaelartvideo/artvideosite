@@ -328,10 +328,23 @@ Deno.serve(async request => {
     if(insertError) throw insertError;
     // A fast provider webhook can insert the same message before this Edge
     // request finishes. Enrich it in place instead of creating another bubble.
-    if(!message && senderName) {
-      await admin.from("union_whatsapp_messages").update({sender_name:senderName})
-        .eq("channel_id",thread.channel_id).eq("provider_message_id",messageId)
-        .eq("organization_id",org).eq("direction","outgoing").is("sender_name",null);
+    if(!message && (senderName || mediaPath)) {
+      // WuzAPI can echo the outgoing event before this signed send request
+      // returns. It has the same provider ID; enrich the existing row instead
+      // of showing two separate bubbles or dropping the private attachment.
+      const patch:Record<string,unknown>={};
+      if(senderName) patch.sender_name=senderName;
+      if(mediaPath) {
+        patch.media_path=mediaPath;
+        patch.media_name=name;
+        patch.media_mime=mime;
+        patch.message_type=kind;
+        patch.delivery_status="sent";
+      }
+      if(Object.keys(patch).length)
+        await admin.from("union_whatsapp_messages").update(patch)
+          .eq("channel_id",thread.channel_id).eq("provider_message_id",messageId)
+          .eq("organization_id",org).eq("direction","outgoing");
     }
     if(!thread.last_message_at || new Date(now)>=new Date(thread.last_message_at)) {
       const {error:previewError}=await admin.from("union_whatsapp_conversations")
