@@ -92,6 +92,7 @@ async function operate({ action, connection_id: id, organization_id: org }) {
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
+  if (session.ready !== true) throw new Error("session_not_ready");
   if (action === "connect") {
     await wuzapi("/session/connect", session.token, "POST", {
       Subscribe: ["Message", "ReadReceipt", "HistorySync"], Immediate: true,
@@ -126,7 +127,7 @@ function verified(headers, raw) {
   if (received.length !== expected.length || !timingSafeEqual(received, expected)) return false;
   seenNonces.set(nonce, now);
   for (const [id, time] of seenNonces) if (now - time > 70_000) seenNonces.delete(id);
-  if (seenNonces.size > 15000) seenNonces.clear();
+  if (seenNonces.size > 15000) return false;
   return true;
 }
 
@@ -150,7 +151,7 @@ createServer(async (req, res) => {
     reply(res, 200, result);
   } catch (error) {
     const code = error?.message;
-    const status = code === "bad_request" ? 400 : code === "session_missing" ? 404 : code === "qr_unavailable" ? 409 : 502;
+    const status = code === "bad_request" ? 400 : code === "session_missing" ? 404 : ["qr_unavailable", "session_not_ready"].includes(code) ? 409 : 502;
     console.error("union-bridge:", status, code);
     reply(res, status, { ok: false, code: status === 502 ? "provider_unavailable" : code });
   }
