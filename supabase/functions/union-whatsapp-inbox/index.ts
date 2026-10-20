@@ -678,9 +678,9 @@ Deno.serve(async request => {
       return json({success:true,customer:{id:matches[0].customer_id,name:matches[0].customer_name}});
     }
     if(action==="contact_avatar") {
-      if(!(canManage || thread.assigned_to===actorId ||
-        (thread.status==="waiting" && !thread.assigned_to)))
-        return json({success:false,error:"Conversa não disponível para consulta."},403);
+      // At this point the caller passed the company, operator binding and
+      // whatsapp.inbox.view checks, and the conversation belongs to the org.
+      // A finished or returned thread must not lose its profile photo.
       try {
         const avatar=await signedBridge(
           {id:thread.channel_id,organization_id:org},"",thread.chat_jid,crypto.randomUUID(),
