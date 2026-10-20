@@ -90,8 +90,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (action!=="start" && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -112,12 +112,20 @@ Deno.serve(async request => {
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
     if (!canRead || (["members","transfer"].includes(action) && !canManage) ||
-      (["send_text","send_media","start"].includes(action) && !canSend) ||
+      (["send_text","send_media","start","prepare_media"].includes(action) && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
     }
 
+    if(action==="channel_status") {
+      const {data:channel,error}=await admin.from("whatsapp_channel_connections")
+        .select("id,state,webhook_ready").eq("organization_id",org)
+        .eq("provider","wuzapi").maybeSingle();
+      if(error) throw error;
+      return json({success:true,channel_connected:Boolean(channel &&
+        channel.state==="connected" && channel.webhook_ready)});
+    }
     if(action==="start") {
       const phone=String(body.phone||"").replace(/\D/g,"");
       const customerName=String(body.contact_name||"").trim().slice(0,120);
@@ -307,37 +315,74 @@ Deno.serve(async request => {
     if(thread.status !== "in_att" || (!owned && !canManage)) {
       return json({success:false,code:"not_assigned",error:"Assuma o atendimento antes de enviar mensagens."},409);
     }
+    if(action==="prepare_media") {
+      const id=String(body.client_message_id||"");
+      const kind=String(body.media_type||"");
+      const mime=String(body.media_mime||"");
+      const name=String(body.media_name||"").replace(/[^\\p{L}\\p{N}._() -]/gu,"").slice(0,160);
+      const fileSize=Number(body.media_size);
+      const caps:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
+      const accepted=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
+        :kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
+        :kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
+        :kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream",
+            "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(mime)
+        :false;
+      if(!uuid(id) || !accepted || !name || !Number.isSafeInteger(fileSize) ||
+        fileSize<1 || fileSize>caps[kind]) return json({success:false,
+        error:"Formato ou tamanho do arquivo não permitido para este canal."},413);
+      const ext=kind==="image"?(mime==="image/png"?"png":"jpg"):
+        kind==="audio"?"ogg":kind==="video"?"mp4":
+        (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
+      const path=org+"/"+thread.channel_id+"/"+thread.id+"/"+id+"."+ext;
+      const {data:upload,error:uploadError}=await admin.storage.from("union-whatsapp-media")
+        .createSignedUploadUrl(path,{upsert:false});
+      if(uploadError || !upload?.token) throw uploadError||Error("upload_url_unavailable");
+      return json({success:true,upload_path:path,upload_token:upload.token});
+    }
     const text=typeof body.text === "string" ? body.text.trim() : "";
     const clientId=String(body.client_message_id || "");
     const isMedia=action==="send_media";
     const kind=String(body.media_type||"");
     const mime=String(body.media_mime||"");
     const name=String(body.media_name||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
-    const base64=String(body.media_base64||"");
-    const limits:Record<string,number>={image:1048576,audio:3145728,video:5242880,file:5242880};
+    const limits:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
     const mimeAllowed=isMedia && (
       kind==="image" ? ["image/jpeg","image/png"].includes(mime)
       : kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
-      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream"].includes(mime) : false
+      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream",
+          "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(mime) : false
     );
-    if(!uuid(clientId) || text.length>4000 ||
-      (!isMedia && !text) || (isMedia && (!mimeAllowed || !name || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))) ||
-      !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(thread.chat_jid)) {
+    const fileSize=Number(body.media_size);
+    const mediaPath=isMedia ? String(body.media_path||"") : "";
+    const ext=isMedia ? kind==="image"?(mime==="image/png"?"png":"jpg"):
+      kind==="video"?"mp4":kind==="audio"?"ogg":
+      (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin" : "";
+    const expectedMediaPath=isMedia ? org+"/"+thread.channel_id+"/"+thread.id+"/"+clientId+"."+ext : "";
+    if(!uuid(clientId) || text.length>4000 || (!isMedia && !text) ||
+      (isMedia && (!mimeAllowed || !name || mediaPath!==expectedMediaPath ||
+        !Number.isSafeInteger(fileSize) || fileSize<1 || fileSize>limits[kind])) ||
+      !/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(thread.chat_jid))
       return json({success:false,error:"Mensagem ou anexo inválido."},400);
-    }
-    let mediaBytes:Uint8Array<ArrayBuffer>|null=null;
     if(isMedia) {
-      try {
-        const decoded=atob(base64);
-        if(!decoded.length || decoded.length>limits[kind]) return json({success:false,error:"Arquivo ultrapassa o limite permitido."},413);
-        mediaBytes=new Uint8Array(decoded.length);
-        for(let i=0;i<decoded.length;i++) mediaBytes[i]=decoded.charCodeAt(i);
-        if(mime==="image/png" && !(mediaBytes[0]===137 && mediaBytes[1]===80 && mediaBytes[2]===78 && mediaBytes[3]===71))
-          return json({success:false,error:"O arquivo PNG é inválido."},400);
-        if(mime==="image/jpeg" && !(mediaBytes[0]===255 && mediaBytes[1]===216))
-          return json({success:false,error:"O arquivo JPEG é inválido."},400);
-      } catch { return json({success:false,error:"Arquivo Base64 inválido."},400); }
+      // Never trust the client path alone. Read the private object's metadata
+      // using service role, validate that a completed upload really exists.
+      const parts=mediaPath.split("/");
+      const file=parts.pop()||"";
+      const dir=parts.join("/");
+      const {data:objects,error:listError}=await admin.storage.from("union-whatsapp-media")
+        .list(dir,{search:file,limit:10});
+      if(listError) throw listError;
+      const stored=(objects||[]).find(item=>item.name===file);
+      const storedSize=Number(stored?.metadata?.size||0);
+      if(!stored || storedSize!==fileSize ||
+        storedSize>limits[kind]) return json({success:false,
+          error:"O arquivo ainda não foi enviado ou seu tamanho não confere."},409);
     }
     const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
       .select("id,organization_id,state,webhook_ready").eq("id",thread.channel_id)
@@ -345,7 +390,7 @@ Deno.serve(async request => {
     if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready) {
       return json({success:false,code:"channel_offline",error:"O canal precisa estar conectado e com recebimento ativo."},409);
     }
-    const hash=isMedia && mediaBytes ? await sha256(text+":"+hex(await crypto.subtle.digest("SHA-256",mediaBytes))) : await sha256(text);
+    const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(text);
     const {data:attempt,error:attemptError}=await admin.from("union_whatsapp_send_attempts")
       .upsert({
         organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
@@ -367,17 +412,6 @@ Deno.serve(async request => {
     }
 
     let messageId="";
-    let mediaPath:string|null=null;
-    if(isMedia && mediaBytes) {
-      const ext=kind==="image" ? (mime==="image/png"?"png":"jpg") :
-        kind==="video"?"mp4" : kind==="audio"?"ogg" :
-        (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
-      mediaPath=org+"/"+thread.channel_id+"/"+thread.id+"/"+clientId+"."+ext;
-      const {error:uploadError}=await admin.storage.from("union-whatsapp-media").upload(
-        mediaPath,mediaBytes,{contentType:mime,upsert:false}
-      );
-      if(uploadError && !String(uploadError.message||"").includes("already exists")) throw uploadError;
-    }
     let signedMedia:{url:string;mime:string;name:string;type:string}|undefined;
     if(isMedia && mediaPath) {
       const {data:shortLink,error:shortError}=await admin.storage.from("union-whatsapp-media")
@@ -405,7 +439,7 @@ Deno.serve(async request => {
         organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
         body_text:text,sender_name:senderName,sent_at:now,delivery_status:"sent",
-        media_path:mediaPath,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
+        media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
       },{onConflict:"channel_id,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
     if(insertError) throw insertError;
