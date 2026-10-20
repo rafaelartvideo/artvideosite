@@ -25,10 +25,30 @@ const reply = (res, status, payload) => {
   res.end(JSON.stringify(payload));
 };
 const tokenFile = id => join(sessionsDir, `${id}.json`);
-const safeData = input => ({
-  connected: input?.data?.Connected === true || input?.data?.connected === true,
-  logged_in: input?.data?.LoggedIn === true || input?.data?.logged_in === true,
-});
+// WuzAPI 1.0.9 uses connected/loggedIn; older releases use
+// Connected/LoggedIn. An unknown response is NOT a disconnected session.
+const readBool = (input, keys) => {
+  for (const source of [input?.data, input]) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) continue;
+    for (const key of keys) {
+      if (typeof source[key] === "boolean") return source[key];
+    }
+  }
+  return null;
+};
+const safeData = input => {
+  const connected = readBool(input, ["connected", "Connected", "isConnected"]);
+  const logged_in = readBool(input, ["loggedIn", "LoggedIn", "logged_in", "isLoggedIn"]);
+  if (connected === null || logged_in === null) throw new Error("provider_status_invalid");
+  return { connected, logged_in };
+};
+const phoneFromJid = value => {
+  const jid = String(value || "");
+  // Never mistake a WhatsApp LID or group identifier for a phone number.
+  if (!/@s\.whatsapp\.net$/.test(jid)) return null;
+  const digits = jid.split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
+  return /^[0-9]{10,15}$/.test(digits) ? digits : null;
+};
 async function readSession(id, org) {
   let result;
   try { result = JSON.parse(await readFile(tokenFile(id), "utf8")); }
@@ -110,17 +130,22 @@ async function operate({ action, connection_id: id, organization_id: org }) {
     }
     return { ok: true, qr };
   }
-  const status = safeData(await wuzapi("/session/status", session.token));
+  const rawStatus = await wuzapi("/session/status", session.token);
+  const status = safeData(rawStatus);
   let phone = null;
   if (status.logged_in) {
-    try {
-      const users = await wuzapi("/admin/users", adminToken);
-      const rows = Array.isArray(users) ? users : (Array.isArray(users?.data) ? users.data : []);
-      const own = rows.find(user => user?.name === "union_" + id.replaceAll("-", ""));
-      const jid = String(own?.jid || "");
-      const digits = jid.split("@")[0].split(":")[0].replace(/[^0-9]/g, "");
-      if (/^[0-9]{10,15}$/.test(digits)) phone = digits;
-    } catch { /* Phone is non-essential; login status remains authoritative. */ }
+    // The live status JID is newer than /admin/users immediately after
+    // QR pairing, especially in Whatsmeow versions that use LID mapping.
+    phone = phoneFromJid(rawStatus?.data?.jid || rawStatus?.data?.Jid
+      || rawStatus?.jid || rawStatus?.Jid);
+    if (!phone) {
+      try {
+        const users = await wuzapi("/admin/users", adminToken);
+        const rows = Array.isArray(users) ? users : (Array.isArray(users?.data) ? users.data : []);
+        const own = rows.find(user => user?.name === "union_" + id.replaceAll("-", ""));
+        phone = phoneFromJid(own?.jid || own?.Jid);
+      } catch { /* Phone is optional; a valid login status remains authoritative. */ }
+    }
   }
   return { ok: true, ...status, phone };
 }
