@@ -66,14 +66,30 @@ Deno.serve(async request => {
     const { data: channel, error: channelError } = await admin
       .from("whatsapp_channel_connections").select("organization_id").eq("id", channelId).eq("provider", "wuzapi").maybeSingle();
     if (channelError || !channel) return json({ ok: false }, 404);
-    const eventType = str(get(payload, "type", "Type"), 60);
+    // Non-writing authenticated probe for verifying VPS-to-Supabase delivery.
+    // It NEVER inserts a conversation or stores a test message.
+    if (payload.type === "UnionProbe") return json({ ok: true, probe: "authenticated" });
+    const eventType = str(get(payload, "type", "Type", "event"), 60);
     if (eventType !== "Message" && eventType !== "events.Message") return json({ ok: true, ignored: "event_type" });
 
+    // WuzAPI versions expose either {type:"Message",event:{Info,Message}}
+    // or {event:"Message",data:{id,chat,message,...}}.
     const event = obj(get(payload, "event", "Event"));
-    const info = obj(get(event, "Info", "info"));
-    const message = obj(get(event, "Message", "message"));
+    const compact = obj(get(payload, "data", "Data"));
+    const info = Object.keys(compact).length > 0 ? compact : obj(get(event, "Info", "info"));
+    const message = Object.keys(compact).length > 0
+      ? obj(get(compact, "message", "Message"))
+      : obj(get(event, "Message", "message"));
     const providerMessageId = str(get(info, "ID", "Id", "id"), 180);
-    const chatJid = str(get(info, "Chat", "chat"), 160);
+    // Whatsmeow may serialize the JID either as a string or a {User,Server}
+    // object, and some WuzAPI versions use RemoteJid rather than Chat.
+    const chatValue = get(info, "Chat", "chat", "RemoteJid", "RemoteJID", "remoteJid", "remoteJID");
+    const chatObj = obj(chatValue);
+    const chatJid = str(chatValue, 160) || (
+      str(get(chatObj, "User", "user"), 30) && str(get(chatObj, "Server", "server"), 40)
+        ? str(get(chatObj, "User", "user"), 30) + "@" + str(get(chatObj, "Server", "server"), 40)
+        : ""
+    );
     // First stage is direct conversations only; do not misclassify groups,
     // statuses, broadcasts or WhatsApp newsletter traffic.
     if (!providerMessageId || !/^\d{5,20}@(s\.whatsapp\.net|lid)$/.test(chatJid)) {
