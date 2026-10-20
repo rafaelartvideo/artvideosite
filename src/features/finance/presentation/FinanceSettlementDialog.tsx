@@ -3,7 +3,8 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { ArrowLeft, CheckCircle2, ShieldCheck } from "lucide-react";
 import {
   paymentMethodFee,
   settlementCashAmount,
@@ -57,6 +58,7 @@ export function FinanceSettlementDialog({
   const [occurredAt, setOccurredAt] = useState(localDateTimeInput());
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
   const [confirmation, setConfirmation] = useState<FinancialSettlementDraft | null>(null);
+  const [step, setStep] = useState<"question" | "form" | "review">("question");
 
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
@@ -99,6 +101,7 @@ export function FinanceSettlementDialog({
     setOccurredAt(localDateTimeInput());
     setFieldErrors({});
     setConfirmation(null);
+    setStep("question");
   }, [open]);
 
   useEffect(() => {
@@ -138,6 +141,7 @@ export function FinanceSettlementDialog({
       financial_account_id: accountId,
       occurred_at: occurredAt,
     });
+    setStep("review");
   };
   const confirmSave = async () => {
     if (!confirmation) return;
@@ -150,22 +154,61 @@ export function FinanceSettlementDialog({
     }
   };
 
+
   if (!open) return null;
   const actionLabel = detail.entry_type === "receivable" ? "Receber" : "Pagar";
-  return <>
-  <AdminDialog
-    open
-    onClose={onClose}
-    title={`${actionLabel} lançamento`}
-    description="Registre baixa total ou parcial sem alterar o valor original do título."
-    minimizedDescription={[detail.counterpart_name_snapshot || detail.description, gross > 0 ? formatCurrency(gross) : null, selectedMethod?.name].filter(Boolean).join(" · ") || "Baixa em preenchimento"}
-    minimizable={!saving}
-    className="max-w-3xl"
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
-      <AdminButton onClick={save} loading={saving} loadingText="Registrando...">{actionLabel}</AdminButton>
-    </div>}
-  >
+  const confirmationTotal = confirmation ? settlementCashAmount({
+    principal: confirmation.principal_amount,
+    interest: confirmation.interest_amount,
+    penalty: confirmation.penalty_amount,
+    additions: confirmation.other_additions,
+    discount: confirmation.discount_amount,
+  }) : 0;
+
+  // Fluxo embutido no Extrato: nenhum segundo AdminDialog é montado.
+  return <section aria-label="Baixa financeira" className="min-w-0 space-y-5 animate-in fade-in-0 slide-in-from-right-2 duration-300">
+    {step === "question" ? <>
+      <div className="flex flex-col items-center gap-4 py-8 text-center">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={32} /></div>
+        <div className="max-w-md space-y-2">
+          <h3 className="text-xl font-bold text-foreground">Deseja dar baixa neste lançamento?</h3>
+          <p className="text-sm text-muted-foreground">Você poderá informar o valor, a forma de pagamento e a conta financeira antes de registrar.</p>
+        </div>
+        <div className="grid w-full max-w-md gap-3 rounded-xl border border-border bg-muted/30 p-4 text-left sm:grid-cols-2">
+          <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Lançamento</p><p className="font-semibold text-foreground">{detail.description}</p></div>
+          <div><p className="text-xs text-muted-foreground">Cliente / favorecido</p><p className="text-sm font-semibold">{detail.counterpart_name_snapshot || "—"}</p></div>
+          <div><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="text-sm font-bold text-primary">{formatCurrency(openInstallments.reduce((sum, item) => sum + Number(item.original_amount) - Number(item.settled_amount), 0))}</p></div>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <AdminButton variant="secondary" onClick={onClose}>Não, voltar</AdminButton>
+        <AdminButton onClick={() => setStep("form")}><CheckCircle2 size={16} /> Sim, continuar</AdminButton>
+      </div>
+    </> : step === "review" && confirmation ? <>
+      <div className="space-y-4 animate-in fade-in-0 slide-in-from-right-3 duration-300">
+        <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
+          <CheckCircle2 className="h-7 w-7 shrink-0 text-primary" />
+          <div><h3 className="text-base font-bold text-foreground">Confirmar baixa financeira</h3><p className="text-xs text-muted-foreground">Confira os dados antes de movimentar a conta.</p></div>
+        </div>
+        <div className="grid gap-4 rounded-xl border border-border p-5 text-sm sm:grid-cols-2">
+          <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Lançamento</p><p className="font-semibold">{detail.description}</p></div>
+          <div><p className="text-xs text-muted-foreground">Valor da baixa</p><p className="text-lg font-bold tabular-nums text-primary">{formatCurrency(confirmationTotal)}</p></div>
+          <div><p className="text-xs text-muted-foreground">Forma de pagamento</p><p className="font-semibold">{paymentMethods.find(item => item.id === confirmation.payment_method_id)?.name || "—"}</p></div>
+          <div><p className="text-xs text-muted-foreground">{detail.entry_type === "receivable" ? "Conta de destino" : "Conta de origem"}</p><p className="font-semibold">{accounts.find(item => item.id === confirmation.financial_account_id)?.name || "—"}</p></div>
+          <div><p className="text-xs text-muted-foreground">Data da baixa</p><p className="font-semibold">{confirmation.occurred_at ? new Date(confirmation.occurred_at).toLocaleString("pt-BR") : "—"}</p></div>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <AdminButton variant="secondary" disabled={saving} onClick={() => { setStep("form"); setConfirmation(null); }}><ArrowLeft size={15} /> Voltar</AdminButton>
+        <AdminButton loading={saving} loadingText="Registrando..." onClick={() => void confirmSave()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>
+      </div>
+    </> : <>
+      <div className="animate-in fade-in-0 slide-in-from-right-3 duration-300">
+        <div className="mb-4 flex items-start justify-between gap-3 border-b border-border pb-3">
+          <div><h3 className="text-base font-bold text-foreground">{actionLabel} lançamento</h3>
+            <p className="mt-1 text-xs text-muted-foreground">Informe os dados da baixa total ou parcial.</p></div>
+          <span className="shrink-0 rounded-lg bg-primary/10 px-3 py-2 text-xs font-bold text-primary">{formatCurrency(gross > 0 ? gross : 0)}</span>
+        </div>
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <FSelect label="Parcela" required error={fieldErrors.installment} value={installmentId} onChange={(event: any) => selectInstallment(event.target.value)} options={openInstallments.map(item => ({ value: item.id, label: `${item.installment_number}/${item.total_installments} · saldo ${formatCurrency(Number(item.original_amount) - Number(item.settled_amount))}` }))} />
@@ -188,12 +231,13 @@ export function FinanceSettlementDialog({
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Taxa</p><p className="mt-1 text-sm font-black">{formatCurrency(fee)}</p></div>
         <div><p className="text-[10px] font-bold uppercase text-[#5a6a82]">Líquido</p><p className="mt-1 text-sm font-black text-emerald-700">{formatCurrency(net)}</p></div>
       </div>
-      {selectedMethod && <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">Baixa imediata: ao confirmar, o lançamento é liquidado e a conta financeira é movimentada automaticamente.</p>}
     </div>
-  </AdminDialog>
-  {confirmation && <AdminDialog open onClose={() => { if(!saving) setConfirmation(null); }} title="Confirmar baixa financeira" description="Confira os dados antes de movimentar o financeiro." className="max-w-lg"
-    footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={saving} onClick={() => setConfirmation(null)}>Voltar</AdminButton><AdminButton loading={saving} loadingText="Registrando..." onClick={confirmSave}>Confirmar baixa</AdminButton></div>}>
-    <div className="space-y-2 text-sm"><p><strong>Conta:</strong> {detail.description}</p><p><strong>Valor:</strong> {formatCurrency(settlementCashAmount({principal:confirmation.principal_amount,interest:confirmation.interest_amount,penalty:confirmation.penalty_amount,additions:confirmation.other_additions,discount:confirmation.discount_amount}))}</p><p><strong>Forma:</strong> {paymentMethods.find(item=>item.id===confirmation.payment_method_id)?.name || "—"}</p><p><strong>Conta financeira:</strong> {accounts.find(item=>item.id===confirmation.financial_account_id)?.name || "—"}</p><p className="text-xs text-muted-foreground">A baixa será registrada na movimentação financeira e poderá exigir estorno para desfazer.</p></div>
-  </AdminDialog>}
-  </>;
+      </div>
+      <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+        <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Cancelar</AdminButton>
+        <AdminButton loading={saving} loadingText="Validando..." onClick={() => void save()}>Revisar baixa</AdminButton>
+      </div>
+    </>}
+  </section>;
+
 }
