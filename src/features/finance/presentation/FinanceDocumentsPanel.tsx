@@ -5,7 +5,7 @@ import { Archive, Eye, FileText, Upload } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import { FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 import {
@@ -109,26 +109,49 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
     }
   };
 
-  return <AdminCard>
-    <AdminCardHeader>
-      <div><h3 className="text-sm font-black text-[#0d1b2e]">Documentos</h3><p className="mt-1 text-xs text-[#5a6a82]">Notas fiscais, boletos, recibos e comprovantes vinculados ao lançamento.</p></div>
-    </AdminCardHeader>
-    <AdminCardContent className="space-y-4">
-      {canManage && <div className="grid gap-3 rounded-xl border border-[#0d1b2e]/8 bg-[#f8fafc] p-3 sm:grid-cols-[180px_1fr_auto] sm:items-end">
-        <FSelect label="Tipo" value={type} options={TYPE_OPTIONS} onChange={(event: any) => setType(event.target.value as FinancialAttachmentType)} />
-        <div><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Arquivo</label><input id={`finance-file-${entryId}`} type="file" onChange={event => setFile(event.target.files?.[0] || null)} className="block w-full text-xs text-[#5a6a82] file:mr-3 file:rounded-lg file:border-0 file:bg-[#0057e7]/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-[#0057e7]" /></div>
-        <AdminButton onClick={() => uploadMutation.mutate()} loading={uploadMutation.isPending} loadingText="Enviando..." disabled={!file}><Upload size={15} /> Enviar</AdminButton>
-      </div>}
+  return <div className="space-y-3">
+    {canManage && <div className="grid gap-3 border-b border-border bg-card pb-3 sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:items-end">
+      <FSelect label="Tipo" value={type} options={TYPE_OPTIONS} onChange={(event: any) => setType(event.target.value as FinancialAttachmentType)} />
+      <div className="min-w-0">
+        <label htmlFor={"finance-file-" + entryId} className="mb-1.5 block text-xs font-semibold text-muted-foreground">Arquivo</label>
+        <input id={"finance-file-" + entryId} type="file" onChange={event => setFile(event.target.files?.[0] || null)} className="block w-full min-w-0 text-xs text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
+      </div>
+      <AdminButton onClick={() => uploadMutation.mutate()} loading={uploadMutation.isPending} loadingText="Enviando..." disabled={!file}><Upload size={15} /> Enviar</AdminButton>
+    </div>}
 
-      {errorText && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
-      {query.isLoading ? <LoadingState text="Carregando documentos..." /> : attachments.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><FileText size={17} /> Nenhum documento anexado.</div> : <div className="space-y-2">
-        {attachments.map(item => <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0"><p className="truncate text-sm font-bold text-[#0d1b2e]">{item.file_name}</p><p className="mt-1 text-xs text-[#5a6a82]">{typeLabel(item.attachment_type)} · {formatSize(item.size_bytes)} · {new Date(item.created_at).toLocaleString("pt-BR")}</p></div>
-          <div className="flex gap-2"><AdminButton size="sm" variant="secondary" onClick={() => void view(item)}><Eye size={14} /> Abrir</AdminButton>{canManage && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setArchiveReasonError(""); }}><Archive size={14} /> Arquivar</AdminButton>}</div>
-        </div>)}
-      </div>}
-    </AdminCardContent>
+    {errorText && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
+    {query.isLoading ? <LoadingState text="Carregando documentos..." /> : <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[650px] text-sm">
+          <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-4 py-3 text-left">Documento</th>
+              <th scope="col" className="px-4 py-3 text-left">Tipo</th>
+              <th scope="col" className="px-4 py-3 text-left">Data</th>
+              <th scope="col" className="px-4 py-3 text-right">Tamanho</th>
+              <th scope="col" className="px-4 py-3 text-right">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {attachments.length === 0
+              ? <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground"><FileText size={19} className="mx-auto mb-2" />Nenhum documento anexado.</td></tr>
+              : attachments.map(item => <tr key={item.id} className="transition-colors hover:bg-muted/30">
+                <td className="max-w-[280px] truncate px-4 py-3 font-semibold text-foreground" title={item.file_name}>{item.file_name}</td>
+                <td className="px-4 py-3 text-muted-foreground">{typeLabel(item.attachment_type)}</td>
+                <td className="px-4 py-3 tabular-nums text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatSize(item.size_bytes)}</td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-end gap-2">
+                    <AdminButton size="sm" variant="secondary" onClick={() => void view(item)}><Eye size={14} /> Abrir</AdminButton>
+                    {canManage && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setArchiveReasonError(""); }}><Archive size={14} /> Arquivar</AdminButton>}
+                  </div>
+                </td>
+              </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </div>}
 
-    {archiveTarget && <AdminDialog open onClose={() => setArchiveTarget(null)} title="Arquivar documento" description={archiveTarget.file_name} className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => setArchiveTarget(null)} disabled={archiveMutation.isPending}>Cancelar</AdminButton><AdminButton variant="danger" onClick={() => void archive()} loading={archiveMutation.isPending} loadingText="Arquivando...">Arquivar</AdminButton></div>}><FTextarea label="Motivo" required error={archiveReasonError} value={archiveReason} onChange={(event: any) => { setArchiveReasonError(""); setArchiveReason(event.target.value); }} rows={3} /></AdminDialog>}
-  </AdminCard>;
+    {archiveTarget && <AdminDialog open onClose={() => { if (!archiveMutation.isPending) setArchiveTarget(null); }} title="Arquivar documento" description={archiveTarget.file_name} className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => setArchiveTarget(null)} disabled={archiveMutation.isPending}>Cancelar</AdminButton><AdminButton variant="danger" onClick={() => void archive()} loading={archiveMutation.isPending} loadingText="Arquivando...">Arquivar</AdminButton></div>}><FTextarea label="Motivo" required error={archiveReasonError} value={archiveReason} onChange={(event: any) => { setArchiveReasonError(""); setArchiveReason(event.target.value); }} rows={3} /></AdminDialog>}
+  </div>;
 }
