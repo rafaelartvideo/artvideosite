@@ -27,6 +27,9 @@ export function FinanceSettlementPanel({
   onReverse: (settlementId: string, reason: string) => Promise<void>;
 }) {
   const [reverseId, setReverseId] = useState<string | null>(null);
+  const originReference = detail.origin_type === "service_order"
+    ? (detail.source_details?.os_number ? "OS #" + detail.source_details.os_number : detail.origin_reference || "Ordem de Serviço")
+    : detail.origin_reference || (detail.origin_type === "manual" ? "Lançamento manual" : "Financeiro");
   const [reverseReason, setReverseReason] = useState("");
   const [reverseReasonError, setReverseReasonError] = useState("");
   useEffect(() => {
@@ -53,7 +56,7 @@ export function FinanceSettlementPanel({
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
               <th scope="col" className="px-4 py-3 text-left">Data / histórico</th>
-              <th scope="col" className="px-4 py-3 text-left">Forma / conta</th>
+              <th scope="col" className="px-4 py-3 text-left">Pagamento / origem do dinheiro</th>
               <th scope="col" className="px-4 py-3 text-right">Principal</th>
               <th scope="col" className="px-4 py-3 text-right">Valor da baixa</th>
               <th scope="col" className="px-4 py-3 text-left">Situação</th>
@@ -69,11 +72,18 @@ export function FinanceSettlementPanel({
                   <p className="mt-1 text-xs text-muted-foreground">
                     {item.settlement_status === "scheduled" ? "Previsão: " + formatDateTime(item.expected_settlement_at) : item.posted_at ? "Liquidada: " + formatDateTime(item.posted_at) : "Movimentação financeira"}
                   </p>
-                  {item.reversal_reason && <p className="mt-1 max-w-[220px] text-xs text-destructive">Estorno: {item.reversal_reason}</p>}
+                  <p className="mt-2 text-xs text-muted-foreground">Baixa registrada por</p>
+                  <p className="text-xs font-semibold text-foreground">{item.created_by ? detail.actor_names?.[item.created_by] || "Responsável não identificado" : "Integração automática"}</p>
+                  {item.reversal_reason && <p className="mt-1 max-w-[220px] text-xs text-destructive">Estorno: {item.reversal_reason}</p>
                 </td>
                 <td className="px-4 py-3">
-                  <p className="font-medium text-foreground">{item.payment_method_name_snapshot || "—"}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{item.financial_account_name_snapshot || "—"}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Forma de pagamento</p>
+                  <p className="font-semibold text-foreground">{item.payment_method_name_snapshot || "—"}</p>
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{detail.entry_type === "receivable" ? "Recebido de" : "Pago para"}</p>
+                  <p className="text-xs font-medium text-foreground">{detail.counterpart_name_snapshot || "Não informado"}</p>
+                  <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{detail.entry_type === "receivable" ? "Conta de destino" : "Conta de origem"}</p>
+                  <p className="text-xs font-semibold text-foreground">{item.financial_account_name_snapshot || "Não informada"}</p>
+                  <p className="mt-1 text-[11px] text-muted-foreground">Referência: {originReference}</p>
                 </td>
                 <td className="px-4 py-3 text-right font-medium tabular-nums text-foreground">{formatCurrency(item.principal_amount)}</td>
                 <td className="px-4 py-3 text-right">
