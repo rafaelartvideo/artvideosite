@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminDialog, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState, InlineLoading, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -208,29 +208,9 @@ export function TabCustomerRequests() {
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
 
     <AdminSearchPanel title="Buscar pedidos" headerActions={<>
-      {hasFilters && <button type="button" onClick={resetFilters} aria-label="Limpar filtros" title="Limpar filtros"
-        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-        <Eraser size={13} /> <span className="hidden sm:inline">Limpar filtros</span>
-      </button>}
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <button type="button" aria-label={`Ordenação: ${sort === "newest" ? "Mais recentes" : "Mais antigos"}`}
-            title={`Ordenar pedidos: ${sort === "newest" ? "Mais recentes" : "Mais antigos"}`}
-            className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white transition-colors hover:bg-white/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-            {sort === "newest" ? <ArrowDownWideNarrow size={15} /> : <ArrowUpNarrowWide size={15} />}
-          </button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-[185px]">
-          {([{ value: "newest", label: "Mais recentes", icon: ArrowDownWideNarrow }, { value: "oldest", label: "Mais antigos", icon: ArrowUpNarrowWide }] as const).map(option => {
-            const Icon = option.icon;
-            return <DropdownMenuItem key={option.value} onSelect={() => { setSort(option.value); setPage(1); }}
-              className={cn("cursor-pointer", sort === option.value && "bg-primary-soft font-bold text-primary")}>
-              <Icon size={15} /> <span>{option.label}</span>
-              {sort === option.value && <Check size={15} className="ml-auto text-primary" />}
-            </DropdownMenuItem>;
-          })}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
+      <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
+        options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
     </>}>
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {searchableLabel("Pedido", search, value => { setSearch(value); setPage(1); }, "Descreva o produto ou serviço")}
