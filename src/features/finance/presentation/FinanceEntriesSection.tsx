@@ -223,7 +223,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
     {selectedEntryId && <AdminDialog
       open
-      onClose={() => onSelectEntry(null)}
+      onClose={() => { setQuickSettlementId(null); onSelectEntry(null); }}
       title={isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={finance.detailQuery.data?.description || "Extrato e movimentações da conta"}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
@@ -277,6 +277,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       counterpartyLoading={finance.counterpartiesQuery.isFetching}
       onCounterpartySearchChange={setCounterpartySearch}
       categories={categories}
+      paymentMethods={paymentMethods}
       saving={finance.saveMutation.isPending}
       onClose={closeEditor}
       onSave={save}
