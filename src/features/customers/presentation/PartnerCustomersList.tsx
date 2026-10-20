@@ -3,7 +3,7 @@ import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, Eraser, Sea
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatDateOnly, formatPhone, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -104,12 +104,15 @@ export function PartnerCustomersList({
       subtitle={`${totalItems} cliente${totalItems !== 1 ? "s" : ""} cadastrado${totalItems !== 1 ? "s" : ""}`}
     />
 
-    <AdminSearchPanel title="Buscar clientes">
+    <AdminSearchPanel title="Buscar clientes" headerActions={<>
+      {hasFilters && <AdminSearchClearButton onClick={onClearFilters} />}
+      <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
+        options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "Nome crescente" }, { value: "desc", label: "Nome decrescente" }]} />
+    </>}>
       <AdminMobileSearchSwitch
         value={mobileSearchField}
         options={[{ value: "name", label: "Nome" }, { value: "document", label: "CPF / CNPJ" }]}
         onChange={setMobileSearchField}
-        actions={sortMenu}
       >
         {mobileSearchField === "name" ? <SearchField
           label=""
@@ -125,7 +128,7 @@ export function PartnerCustomersList({
         />}
       </AdminMobileSearchSwitch>
       <div className="hidden md:block">
-<div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_36px] md:gap-2">
+<div className="grid grid-cols-[minmax(0,1fr)_42px] gap-3 md:grid-cols-2 md:gap-2">
         <SearchField
           label="Nome"
           value={nameSearch}
@@ -141,7 +144,6 @@ export function PartnerCustomersList({
             inputMode="numeric"
           />
         </div>
-        <div className="flex items-end">{sortMenu}</div>
       </div>
       <div className="mt-3 md:hidden">
         <SearchField
@@ -154,11 +156,7 @@ export function PartnerCustomersList({
       </div>
       
       </div>
-      {hasFilters && <div className="mt-3 flex justify-end md:mt-2">
-        <AdminButton variant="secondary" size="sm" onClick={onClearFilters}>
-          <Eraser size={14} /> Limpar filtros
-        </AdminButton>
-      </div>}
+
     
     </AdminSearchPanel>
 
