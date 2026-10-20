@@ -370,8 +370,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
                   {canManage && !connected && channel.state!=="connecting" && <>
                     <AdminButton variant="secondary" size="sm" disabled={Boolean(action)}
                       loading={action==="connect"} onClick={()=>void openQr()}>
-                      <RefreshCw size={15}/> Reconectar</AdminButton>
-                    {lastNumberKnown && <AdminButton variant="secondary" size="sm"
+                      <RefreshCw size={15}/> {canResumeSameSession ? "Reconectar" : "Conectar"}</AdminButton>
+                    {canResumeSameSession && <AdminButton variant="secondary" size="sm"
                       disabled={Boolean(action)} onClick={()=>setConfirmSwitch(true)}>
                       Trocar número</AdminButton>}
                   </>}
