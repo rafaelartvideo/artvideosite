@@ -63,7 +63,6 @@ export function FinanceSettlementPanel({
   useEffect(() => {
     if (error) notifyAdmin(systemErrorMessage(error), "error");
   }, [error]);
-  const actionLabel = detail.entry_type === "receivable" ? "Receber" : "Pagar";
 
   const reverse = async () => {
     const reason = reverseReason.trim();
