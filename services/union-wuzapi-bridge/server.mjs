@@ -2,7 +2,7 @@
 // Run on the VPS behind HTTPS reverse proxy. Never publish WuzAPI 18080.
 // Requires Node.js 20+, UNION_WUZAPI_BRIDGE_SECRET, WUZAPI_ADMIN_TOKEN.
 // No Supabase secret key is required on the VPS.
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { randomBytes, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
@@ -20,6 +20,7 @@ await mkdir(sessionsDir, { recursive: true, mode: 0o700 });
 const seenNonces = new Map();
 const pendingProvision = new Map();
 const contactsCache = new Map();
+const avatarCache = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
 const reply = (res, status, payload) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -109,7 +110,7 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
@@ -144,6 +145,56 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(!base64 || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
       throw new Error("media_download_unavailable");
     return {ok:true,base64};
+  }
+  if (action === "contact_avatar") {
+    const jid=String(chatJid||"");
+    if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
+      throw new Error("bad_request");
+    const cacheKey=id+"|"+jid;
+    const existing=avatarCache.get(cacheKey);
+    if(existing && Date.now()-existing.at<1800000)
+      return {ok:true,avatar_url:existing.url};
+    // WuzAPI /user/avatar requires a JSON BODY even on GET. Node fetch()
+    // prohibits GET bodies, so call only our own loopback port using http.
+    const payload=JSON.stringify({Phone:jid,Preview:true});
+    const avatarResult=await new Promise(resolve=>{
+      const req=httpRequest("http://127.0.0.1:18080/user/avatar",{
+        method:"GET",
+        headers:{Token:session.token,"Content-Type":"application/json",
+          "Content-Length":Buffer.byteLength(payload)},
+        timeout:7000,
+      },res=>{
+        const chunks=[];let size=0;
+        res.on("data",chunk=>{
+          size+=chunk.length;
+          if(size>32768){req.destroy();return;}
+          chunks.push(chunk);
+        });
+        res.on("end",()=>{
+          if(res.statusCode!==200){resolve(null);return;}
+          try{resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));}
+          catch{resolve(null);}
+        });
+      });
+      req.on("timeout",()=>req.destroy());
+      req.on("error",()=>resolve(null));
+      req.end(payload);
+    });
+    const raw=avatarResult && typeof avatarResult==="object" &&
+      !Array.isArray(avatarResult) ? avatarResult : {};
+    const addr=String(raw.URL||raw.url||raw.data?.URL||"");
+    let valid="";
+    try{
+      const source=new URL(addr);
+      if(source.protocol==="https:" && !source.username && !source.password &&
+        (source.hostname==="pps.whatsapp.net" ||
+          source.hostname.endsWith(".whatsapp.net") ||
+          source.hostname==="fbcdn.net" || source.hostname.endsWith(".fbcdn.net")))
+        valid=addr;
+    }catch{}
+    avatarCache.set(cacheKey,{url:valid,at:Date.now()});
+    if(avatarCache.size>1000) avatarCache.delete(avatarCache.keys().next().value);
+    return {ok:true,avatar_url:valid||null};
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
