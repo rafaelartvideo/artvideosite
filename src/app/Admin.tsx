@@ -156,7 +156,7 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
-    if (tab === "integrations" && isPlatformOperatorOrganization) return hasPermission("sac_digital.settings.manage");
+    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage")) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
@@ -276,7 +276,7 @@ export function AdminDashboard({
     : navigateAdmin(parentAdminTab(tab) || "dashboard");
   const crmHub = <PlatformCrmHub onSelect={tab => navigateAdmin(tab, null, null, { crmMode: true })} />;
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => canAccessTab(item.id as AdminTab))} onSelect={id => navigateAdmin(id as AdminTab)} />;
-  const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
+  const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => (item.id === "integrations" ? canAccessTab("integrations") : hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule)))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
