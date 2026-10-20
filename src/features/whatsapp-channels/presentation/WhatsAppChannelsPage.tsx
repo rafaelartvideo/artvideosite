@@ -50,6 +50,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const [statusError, setStatusError] = useState("");
   const [qr, setQr] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [confirmSwitch, setConfirmSwitch] = useState(false);
   const statusInFlight = useRef(false);
   const qrInFlight = useRef(false);
 
@@ -97,14 +98,16 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setQrOpen(false);
     setStatusError("");
     setConfirmLogout(false);
+    setConfirmSwitch(false);
     void load();
   }, [load]);
 
-  // Keep the status fresh while this page is mounted, even after the QR modal
-  // closes. A single timeout follows each completed request: no overlapping
-  // intervals, no work in hidden tabs, and no constant polling elsewhere.
+  // Poll the provider only when connected or actively pairing. When the
+  // connection is paused or logged out, do not schedule ANY WuzAPI status
+  // checks; a user-initiated reconnect resumes the state machine.
   useEffect(() => {
-    if (!activeOrganizationId || !channel?.id || channel.state === "not_connected" || !canView) return;
+    if (!activeOrganizationId || !channel?.id || !canView ||
+      (channel.state!=="connected" && channel.state!=="connecting"))return;
     const org = activeOrganizationId;
     const connectionId = channel.id;
     let cancelled = false;
@@ -135,7 +138,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       } finally {
         statusInFlight.current = false;
         const currentState = channelRef.current?.state;
-        schedule(currentState === "connecting" ? 5000 : 30000);
+        if(currentState==="connected" || currentState==="connecting")
+          schedule(currentState === "connecting" ? 5000 : 30000);
       }
     };
     const onVisibilityChange = () => {
@@ -151,7 +155,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       if (timer !== undefined) window.clearTimeout(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [activeOrganizationId, channel?.id, canView, applyChannel]);
+  }, [activeOrganizationId, channel?.id, channel?.state, canView, applyChannel]);
 
   // Refresh the QR less often than the connection status. The QR can expire;
   // a failed QR retrieval must never stop the status poll.
@@ -187,7 +191,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [qrOpen, activeOrganizationId, channel?.id, canManage]);
 
-  const perform = useCallback(async (operation: "activate" | "status" | "qr" | "logout" | "webhook_setup") => {
+  const perform = useCallback(async (operation: "activate" | "status" | "qr" | "disconnect" | "logout" | "webhook_setup") => {
     if (!activeOrganizationId || (!canManage && operation !== "status") || action) return;
     setAction(operation);
     setError("");
@@ -198,11 +202,19 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       if (operation === "qr") setQr(result.qr || null);
       if (operation === "activate") { setNotice("WhatsApp ativado. Agora basta conectar seu número."); setSection("connections"); }
       if (operation === "webhook_setup") setNotice("Recebimento autenticado por HMAC configurado. Envie uma mensagem de outro número para testar a entrega.");
-      if (operation === "logout") {
+      if (operation === "disconnect") {
         setQr(null);
         setQrOpen(false);
         setConfirmLogout(false);
-        setNotice("WhatsApp desconectado da Union.");
+        setStatusError("");
+        setNotice("WhatsApp desconectado. Sessão preservada: use Reconectar para voltar sem QR Code.");
+      }
+      if (operation === "logout") {
+        setQr(null);
+        setQrOpen(false);
+        setConfirmSwitch(false);
+        setStatusError("");
+        setNotice("Sessão encerrada. Para conectar outro número, use Nova conexão e escaneie o QR Code.");
       }
       if (operation === "status") setStatusError("");
     } catch (e) {
@@ -225,9 +237,19 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       // already paired on the phone, status is authoritative: don't log out.
       const connection = await operateWhatsAppChannel(activeOrganizationId, "connect", channel.id);
       if (connection.channel) applyChannel(connection.channel);
-      if (connection.logged_in) return;
-      const code = await operateWhatsAppChannel(activeOrganizationId, "qr", channel.id);
-      setQr(code.qr || null);
+      if (connection.logged_in) {
+        setNotice("Sessão reconectada. O mesmo número e seus atendimentos foram recuperados.");
+        return;
+      }
+      try {
+        const code = await operateWhatsAppChannel(activeOrganizationId, "qr", channel.id);
+        setQr(code.qr || null);
+      } catch {
+        // A retained session can reconnect after /session/connect returns.
+        // Don't abort the entire flow on a temporary unavailable QR.
+        setQr(null);
+        setNotice("Conexão iniciada. Aguardando a sessão ou um QR Code válido.");
+      }
     } catch (e) {
       setError(systemErrorMessage(e, "Não foi possível iniciar o QR Code."));
       setQrOpen(false);
@@ -254,6 +276,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     channel?.state === "connecting" ? "Conectando" :
     channel?.state === "error" ? "Falha na conexão" : "Desconectado";
   const canStartConnection = canManage && enabled && !connected && !Boolean(action);
+  const lastNumberKnown = Boolean(channel?.phone && /^[0-9]{10,15}$/.test(channel.phone));
+  const canResumeSameSession = lastNumberKnown && channel?.webhook_ready===true;
 
   return <div className="space-y-5">
     <PageHeader title="Canais de Atendimento" subtitle="Configure o canal e gerencie os números conectados." />
@@ -343,7 +367,15 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
                   {canManage && connected && <AdminButton variant="danger" size="sm"
                     disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}>
                     <Unplug size={15}/> Desconectar</AdminButton>}
-                  {!connected && <span className="whitespace-nowrap text-xs text-muted-foreground">Aguardando conexão</span>}
+                  {canManage && !connected && channel.state!=="connecting" && <>
+                    <AdminButton variant="secondary" size="sm" disabled={Boolean(action)}
+                      loading={action==="connect"} onClick={()=>void openQr()}>
+                      <RefreshCw size={15}/> Reconectar</AdminButton>
+                    {lastNumberKnown && <AdminButton variant="secondary" size="sm"
+                      disabled={Boolean(action)} onClick={()=>setConfirmSwitch(true)}>
+                      Trocar número</AdminButton>}
+                  </>}
+                  {!connected && !canManage && <span className="whitespace-nowrap text-xs text-muted-foreground">Desconectado</span>}
                 </div></td>
               </tr> : <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
                 {enabled ? "Nenhuma conexão encontrada." : "Ative o canal na subseção Configuração do canal para conectar um número."}
@@ -365,8 +397,11 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       {section === "connections" && canManage && <AdminButton onClick={() => void openQr()}
         disabled={!canStartConnection} loading={action === "connect"}
         title={!enabled ? "Ative o canal primeiro" :
-          connected ? "Esta integração permite um número por empresa. Desconecte o atual antes de adicionar outro." : undefined}>
-        <Plus size={16}/> Nova conexão
+          connected ? "Desconecte o número atual antes de vincular outro." :
+          canResumeSameSession ? "Reutiliza a sessão preservada do mesmo número sem precisar de QR Code." :
+          "Conecta o número pela sessão ou solicita um novo QR Code."}>
+        {canResumeSameSession ? <RefreshCw size={16}/> : <Plus size={16}/>}
+        {canResumeSameSession ? "Reconectar" : "Nova conexão"}
       </AdminButton>}
     </AdminStickyToolbar>
     <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }}
@@ -388,10 +423,26 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     </AdminDialog>
 
     <AdminDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title="Desconectar WhatsApp?"
-      description="Isso encerra a sessão WhatsApp vinculada a esta empresa."
+      description="A conexão será pausada, mas a sessão e o número permanecerão vinculados."
       footer={<div className="flex gap-2"><AdminButton variant="secondary" onClick={() => setConfirmLogout(false)}>Cancelar</AdminButton>
-        <AdminButton variant="danger" loading={action === "logout"} onClick={() => void perform("logout")}>Desconectar</AdminButton></div>}>
-      <div className="flex items-center gap-3 p-5 text-sm text-muted-foreground"><CircleAlert size={22}/> Novos atendimentos deixarão de ser recebidos pela Union até uma nova conexão.</div>
+        <AdminButton variant="danger" loading={action === "disconnect"} disabled={Boolean(action)}
+          onClick={() => void perform("disconnect")}>Desconectar</AdminButton></div>}>
+      <div className="flex items-center gap-3 p-5 text-sm text-muted-foreground">
+        <CircleAlert size={22} className="shrink-0"/>
+        A Union deixará de receber mensagens até reconectar. A sessão será preservada para voltar sem QR Code, desde que o WhatsApp não a tenha revogado.
+      </div>
+    </AdminDialog>
+    <AdminDialog open={confirmSwitch} onClose={() => setConfirmSwitch(false)} title="Trocar o número do WhatsApp?"
+      description="Esta ação encerra a sessão anterior e exigirá um QR Code para conectar o próximo número."
+      footer={<div className="flex gap-2">
+        <AdminButton variant="secondary" onClick={() => setConfirmSwitch(false)}>Cancelar</AdminButton>
+        <AdminButton variant="danger" disabled={Boolean(action)} loading={action==="logout"}
+          onClick={() => void perform("logout")}>Encerrar sessão</AdminButton>
+      </div>}>
+      <div className="flex items-center gap-3 p-5 text-sm text-muted-foreground">
+        <CircleAlert size={22} className="shrink-0"/>
+        Os contatos e as conversas do número anterior permanecerão arquivados na Union. Depois, use Nova conexão para ler o QR Code do novo número.
+      </div>
     </AdminDialog>
   </div>;
 }
