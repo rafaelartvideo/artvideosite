@@ -74,7 +74,7 @@ export function FinanceSettlementPanel({
                   </p>
                   <p className="mt-2 text-xs text-muted-foreground">Baixa registrada por</p>
                   <p className="text-xs font-semibold text-foreground">{item.created_by ? detail.actor_names?.[item.created_by] || "Responsável não identificado" : "Integração automática"}</p>
-                  {item.reversal_reason && <p className="mt-1 max-w-[220px] text-xs text-destructive">Estorno: {item.reversal_reason}</p>
+                  {item.reversal_reason && <p className="mt-1 max-w-[220px] text-xs text-destructive">Estorno: {item.reversal_reason}</p>}
                 </td>
                 <td className="px-4 py-3">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Forma de pagamento</p>
