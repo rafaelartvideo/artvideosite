@@ -93,6 +93,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
+  const [lastSettledEntryId, setLastSettledEntryId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
@@ -332,14 +333,18 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
     {selectedEntryId && <AdminDialog
       open
-      onClose={() => { setSettlementDialogOpen(false); onSelectEntry(null); }}
-      title={isReceivable ? "Conta a receber" : "Conta a pagar"}
-      description={finance.detailQuery.data?.description || "Extrato e movimentações da conta"}
+      onClose={() => {
+        if (finance.settlementMutation.isPending) return;
+        if (settlementDialogOpen) setSettlementDialogOpen(false);
+        else { setLastSettledEntryId(null); onSelectEntry(null); }
+      }}
+      title={settlementDialogOpen ? "Dar baixa" : isReceivable ? "Conta a receber" : "Conta a pagar"}
+      description={settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
       className="h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"
       bodyClassName="overscroll-contain"
       bodyRef={receivableScrollRef}
-      footer={<div className="flex flex-wrap items-center justify-between gap-3">
+      footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); onSelectEntry(null); }}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canSettle
           && !["cancelled", "reversed"].includes(finance.detailQuery.data.approval_status)
@@ -347,14 +352,29 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           && <AdminButton onClick={() => setSettlementDialogOpen(true)}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
       </div>}
     >
-      {finance.detailQuery.isLoading
+      {settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
+        ? <FinanceSettlementDialog
+          open={settlementDialogOpen}
+          detail={finance.detailQuery.data}
+          accounts={accounts}
+          paymentMethods={paymentMethods}
+          saving={finance.settlementMutation.isPending}
+          onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
+          onSave={async (draft: FinancialSettlementDraft) => {
+            await finance.settlementMutation.mutateAsync(draft);
+            setLastSettledEntryId(selectedEntryId);
+            notifyAdmin("Baixa de " + formatCurrency(draft.principal_amount) + " registrada com sucesso.", "success");
+          }}
+        />
+        : finance.detailQuery.isLoading
         ? <div className="py-10"><LoadingState text="Carregando extrato..." /></div>
         : finance.detailQuery.error
           ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{finance.detailQuery.error instanceof Error ? finance.detailQuery.error.message : "Não foi possível carregar a conta."}</div>
           : finance.detailQuery.data
             ? <FinanceEntryDetail
+              key={selectedEntryId + (lastSettledEntryId === selectedEntryId ? "-baixas" : "-resumo")}
               scrollContainerRef={receivableScrollRef}
-              initialSettlementOpen={false}
+              initialSettlementOpen={lastSettledEntryId === selectedEntryId}
               detail={finance.detailQuery.data}
               accounts={accounts}
               paymentMethods={paymentMethods}
@@ -382,20 +402,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             : <p className="text-sm text-muted-foreground">Conta não encontrada.</p>}
     </AdminDialog>}
 
-    {selectedEntryId && finance.detailQuery.data?.id === selectedEntryId && (
-      <FinanceSettlementDialog
-        open={settlementDialogOpen}
-        detail={finance.detailQuery.data}
-        accounts={accounts}
-        paymentMethods={paymentMethods}
-        saving={finance.settlementMutation.isPending}
-        onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
-        onSave={async (draft: FinancialSettlementDraft) => {
-          await finance.settlementMutation.mutateAsync(draft);
-          notifyAdmin("Baixa de " + formatCurrency(draft.principal_amount) + " registrada com sucesso.", "success");
-        }}
-      />
-    )}
 
     <FinanceEntryEditorDialog
       open={editorOpen}
