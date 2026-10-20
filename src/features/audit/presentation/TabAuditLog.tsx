@@ -152,7 +152,6 @@ const ENTITY_LABELS: Record<string, string> = {
   service_sections: "Seção do serviço",
   service_type_situations: "SLA do tipo de atendimento",
   service_types: "Tipo de atendimento",
-  service_warranty_terms: "Garantia do serviço",
   service_variants: "Variação do serviço",
   services: "Serviço do site",
   site_page_sections: "Seção da página",
