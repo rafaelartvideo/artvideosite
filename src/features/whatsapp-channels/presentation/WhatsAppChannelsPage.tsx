@@ -310,11 +310,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
         </AdminCardContent>
       </AdminCard>
     }
-    <div className="flex gap-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">
-      <ShieldCheck className="shrink-0 text-blue-600" size={20}/>
-      <div>As credenciais de sessão são mantidas somente na VPS. Cada conexão pertence à empresa ativa e o acesso é controlado pelas permissões da Union. O WhatsApp por QR Code usa uma integração não oficial.</div>
-    </div>
-
     <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }} title="Conectar WhatsApp"
       description="No WhatsApp normal ou Business, abra Aparelhos conectados e escaneie o QR Code."
       footer={<div className="flex flex-wrap justify-end gap-2">
