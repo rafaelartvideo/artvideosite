@@ -187,7 +187,16 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     // WuzAPI expects a GET carrying JSON. Node's native fetch forbids a
     // GET body, so communicate with the trusted loopback provider directly.
     const payload=JSON.stringify({Phone:jid,Preview:true});
-    const avatarResult=await new Promise(resolve=>{
+    // Newer WuzAPI builds implement this endpoint as POST; older builds
+    // documented GET with a JSON body. Support both without exposing tokens.
+    let avatarResult;
+    try {
+      avatarResult = await wuzapi("/user/avatar",session.token,"POST",{
+        Phone:jid,Preview:true,
+      });
+    } catch {
+      avatarResult = await new Promise(resolve=>{
+
       let settled=false;
       const done=value=>{if(!settled){settled=true;resolve(value);}};
       const req=httpRequest("http://127.0.0.1:18080/user/avatar",{
@@ -211,7 +220,8 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       req.on("timeout",()=>{req.destroy();done(null);});
       req.on("error",()=>done(null));
       req.end(payload);
-    });
+      });
+    }
     const raw=avatarResult && typeof avatarResult==="object" &&
       !Array.isArray(avatarResult) ? avatarResult : {};
     const addr=String(raw.URL||raw.url||raw.data?.URL||"");
