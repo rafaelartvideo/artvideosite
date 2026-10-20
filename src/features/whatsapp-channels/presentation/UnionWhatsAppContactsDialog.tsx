@@ -21,7 +21,7 @@ const mask = (value:string) => {
 const initials=(name:string)=>name.trim().split(/\s+/).slice(0,2).map(p=>p[0]||"").join("").toUpperCase();
 
 export function UnionWhatsAppContactsDialog({
-  organizationId, canImport, canEdit, onClose, onSaved, onChoose,
+  organizationId, canImport, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
 }:{
   organizationId:string;
   canImport:boolean;
@@ -29,6 +29,8 @@ export function UnionWhatsAppContactsDialog({
   onClose:()=>void;
   onSaved:()=>void;
   onChoose:(contact:UnionWhatsAppContact)=>boolean;
+  initialContact?:UnionWhatsAppContact|null;
+  initialName?:string;
 }) {
   const [contacts,setContacts]=useState<UnionWhatsAppContact[]>([]);
   const [search,setSearch]=useState("");
@@ -38,10 +40,10 @@ export function UnionWhatsAppContactsDialog({
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   const [notice,setNotice]=useState("");
-  const [selected,setSelected]=useState<UnionWhatsAppContact|null>(null);
+  const [selected,setSelected]=useState<UnionWhatsAppContact|null>(initialContact||null);
   const [creating,setCreating]=useState(false);
-  const [name,setName]=useState("");
-  const [phone,setPhone]=useState("");
+  const [name,setName]=useState(initialName||"");
+  const [phone,setPhone]=useState(initialContact?.contact_phone?mask(initialContact.contact_phone):"");
   const [avatar,setAvatar]=useState<string|null>(null);
   const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
@@ -193,7 +195,7 @@ export function UnionWhatsAppContactsDialog({
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível salvar o contato."));}
     finally{setBusy(false);}
   };
-  const currentName=selected?labelFor(selected):name;
+  const currentName=selected?(name.trim()||labelFor(selected)):name;
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-2 sm:p-4"
     onClick={event=>{if(event.target===event.currentTarget)onClose();}}>
     <div role="dialog" aria-modal="true" aria-label="Gerenciar contatos WhatsApp"
