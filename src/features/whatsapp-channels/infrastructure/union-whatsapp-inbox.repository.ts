@@ -29,6 +29,7 @@ export type UnionWhatsAppMessage = {
   media_path?: string | null;
   media_name?: string | null;
   media_mime?: string | null;
+  media_available?: boolean;
 };
 
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
@@ -47,7 +48,7 @@ export async function listUnionWhatsAppMessages(
   organizationId: string, conversationId: string,
 ): Promise<UnionWhatsAppMessage[]> {
   const { data, error } = await supabase.from("union_whatsapp_messages")
-    .select("id,organization_id,conversation_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime")
+    .select("id,organization_id,conversation_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
     .eq("organization_id", organizationId).eq("conversation_id", conversationId)
     .order("sent_at", { ascending: false }).limit(120);
   raise(error);
