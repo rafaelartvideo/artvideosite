@@ -60,7 +60,6 @@ export function FinanceMovementsSection() {
     movementPageSize: pageSize,
     movementSearch: debouncedSearch,
     movementAccountId: accountFilter === "all" ? "" : accountFilter,
-    loadScheduledSettlements: false,
   });
 
   useEffect(() => {
