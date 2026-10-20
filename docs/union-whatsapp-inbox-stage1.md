@@ -34,3 +34,32 @@
 - O WuzAPI é uma integração não oficial, sem garantia de disponibilidade ou segurança de número.
 - O código do frontend foi publicado no repositório, mas a implantação em produção é separada.
 - Nenhum dado de sessão ou token administrativo deve ser copiado para o repositório, console de browser, URL de consulta ou suporte.
+
+## Correção de autenticação de eventos em 20/10
+
+O canal conectado recebia `401` para os webhooks automáticos do WuzAPI,
+apesar de a sonda manual `UnionProbe` com `token` responder `200`.
+O código anterior não distinguia a credencial de uma sonda manual da
+assinatura de um webhook real, e algumas variantes JSON do WuzAPI não incluem
+o token de usuário na carga enviada.
+
+Corrigido nos commits da ponte e da Edge:
+- `webhook_setup` na ponte configura `/session/hmac/config` com uma chave HMAC
+  derivada de `UNION_WUZAPI_BRIDGE_SECRET` e do UUID do canal; nunca
+  revela a chave nem altera a sessão WhatsApp.
+- `union-whatsapp-webhook` valida `x-hmac-signature` com HMAC-SHA256,
+  em JSON e em `application/x-www-form-urlencoded`; a assinatura incorreta
+  não cai no modo alternativo. Modo antigo de `token` permanece validado por
+  hash e somente para compatibilidade.
+- Para formulários, canonicalização usa o comportamento Go `net/url.Values.Encode`
+  e não o `URLSearchParams.toString()` do navegador.
+- `whatsapp-channels` exige confirmação `auth_mode: hmac-sha256` antes de
+  confirmar uma nova habilitação. A interface permite revalidar canais já
+  configurados.
+
+A implantação das Edge Functions pode ser imediata, mas a VPS precisa receber
+`server.mjs` atualizado e a sessão precisa ter sua chave HMAC configurada
+mediante `webhook_setup` autorizado ou usando diagnóstico administrativo
+local protegido. Não alterar `WEBHOOK_FORMAT` nem reiniciar WuzAPI para
+corrigir credenciais. Mensagens anteriores que falharam podem não ser
+entregues novamente; testar com uma nova mensagem após a configuração.
