@@ -155,6 +155,12 @@ Deno.serve(async request => {
     const extended = obj(get(message, "extendedTextMessage", "ExtendedTextMessage"));
     const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "documentMessage", "DocumentMessage"));
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
+    // WuzAPI can emit a sent/echo envelope without an actual message body.
+    // These blank "text" events previously created a phantom contact and
+    // made one incoming message look like two separate conversations.
+    if (typeHint === "text" && !body.trim()) {
+      return json({ ok: true, ignored: "empty_text_event" });
+    }
     const displayText = body || ({ image: "Imagem", video: "Vídeo", audio: "Áudio", file: "Documento", location: "Localização", contact: "Contato" }[typeHint] || "Mensagem");
     const name = str(get(info, "PushName", "pushName") || "", 160).trim();
     const phone = chatJid.endsWith("@s.whatsapp.net") ? chatJid.split("@")[0] : null;
