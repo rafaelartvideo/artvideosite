@@ -189,7 +189,9 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const cacheKey=id+"|"+jid;
     const existing=avatarCache.get(cacheKey);
     if(existing && Date.now()-existing.at < (existing.base64?600000:60000))
-      return {ok:true,avatar_base64:existing.base64||null,avatar_mime:existing.mime||null};
+      return {ok:true,avatar_base64:existing.base64||null,avatar_mime:existing.mime||null,
+        avatar_cdn_url:!existing.base64?existing.fallbackUrl||null:null,
+        avatar_status:existing.status||"no_public_photo"};
     // WuzAPI expects a GET carrying JSON. Node's native fetch forbids a
     // GET body, so communicate with the trusted loopback provider directly.
     const payload=JSON.stringify({Phone:jid,Preview:true});
@@ -228,10 +230,27 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       req.end(payload);
       });
     }
-    const raw=avatarResult && typeof avatarResult==="object" &&
-      !Array.isArray(avatarResult) ? avatarResult : {};
-    const addr=String(raw.URL||raw.url||raw.data?.URL||"");
-    let base64="",mime="";
+    // ProfilePictureInfo is nested in "data" on WuzAPI; some versions
+    // serialize the URL field as Url/url rather than URL.
+    const pictureUrl=value=>{
+      const records=[value,value?.data,value?.Data];
+      for(const item of records){
+        if(!item || typeof item!=="object" || Array.isArray(item))continue;
+        const url=item.URL||item.Url||item.url;
+        if(typeof url==="string" && url.trim())return url.trim();
+      }
+      return "";
+    };
+    let addr=pictureUrl(avatarResult);
+    // WhatsApp can have a full-size image but no preview thumbnail.
+    if(!addr){
+      try{
+        addr=pictureUrl(await wuzapi("/user/avatar",session.token,"POST",{
+          Phone:jid,Preview:false,
+        }));
+      }catch{/* No profile photo or privacy-restricted account. */}
+    }
+    let base64="",mime="",status="no_public_photo",fallbackUrl="";
     try {
       let source=new URL(addr);
       const trusted=url=>{
@@ -240,18 +259,23 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
           !url.port && (host==="pps.whatsapp.net" || host.endsWith(".whatsapp.net") ||
             host==="fbcdn.net" || host.endsWith(".fbcdn.net"));
       };
-      for(let redirects=0;redirects<3 && trusted(source);redirects++){
+      if(trusted(source))fallbackUrl=source.href;
+      // Bound retries and validate each redirect against the same CDN allowlist.
+      for(let redirects=0;redirects<5 && trusted(source);redirects++){
         const response=await fetch(source,{
           redirect:"manual",signal:AbortSignal.timeout(10000),
           headers:{Accept:"image/jpeg,image/png,image/webp"},
         });
         if([301,302,303,307,308].includes(response.status)){
           const location=response.headers.get("location");
-          if(!location)break;
-          source=new URL(location,source);
+          if(!location){status="cdn_redirect_missing";break;}
+          const redirect=new URL(location,source);
+          if(!trusted(redirect)){status="cdn_redirect_untrusted";fallbackUrl="";break;}
+          source=redirect;
+          fallbackUrl=redirect.href;
           continue;
         }
-        if(!response.ok)break;
+        if(!response.ok){status="cdn_http_"+response.status;break;}
         const declared=String(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
         const len=Number(response.headers.get("content-length")||0);
         if(len && len>200000)break;
@@ -263,13 +287,14 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
           bytes.toString("ascii",8,12)==="WEBP"?"image/webp":"";
         if(!detected || (declared && declared!=="application/octet-stream" &&
           declared!==detected))break;
-        mime=detected;base64=bytes.toString("base64");
+        mime=detected;base64=bytes.toString("base64");status="available";
         break;
       }
     }catch{/* Missing/private photos are expected and not an error. */}
-    avatarCache.set(cacheKey,{base64,mime,at:Date.now()});
+    avatarCache.set(cacheKey,{base64,mime,fallbackUrl,status,at:Date.now()});
     if(avatarCache.size>100) avatarCache.delete(avatarCache.keys().next().value);
-    return {ok:true,avatar_base64:base64||null,avatar_mime:mime||null};
+    return {ok:true,avatar_base64:base64||null,avatar_mime:mime||null,
+      avatar_cdn_url:!base64?fallbackUrl||null:null,avatar_status:status};
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
