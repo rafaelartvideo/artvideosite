@@ -22,6 +22,8 @@ export type EquipmentDraft = {
   technicalFields: Array<{ technical_field_id: string; required: boolean; sort_order: number }>;
   /** Undefined means links were not edited or loaded; never overwrite them. */
   serviceIds?: string[];
+  warrantyOptions?: Array<{ label: string; warranty_days: number; is_default: boolean }>;
+  warrantyEdited?: boolean;
   brands: EquipmentDraftBrand[];
 };
 
