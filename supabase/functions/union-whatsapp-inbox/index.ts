@@ -303,9 +303,15 @@ Deno.serve(async request => {
     }
     if(["contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
-        .select("id,state").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
+        .select("id,state,webhook_ready,phone").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
       if(channelError)throw channelError;
       if(!channel)return json({success:false,error:"Configure um canal WhatsApp primeiro."},409);
+      if(channel.state!=="connected" || !channel.webhook_ready ||
+        !/^[0-9]{10,15}$/.test(String(channel.phone||""))){
+        // A disconnected account must not load even the saved-contact list.
+        if(action==="contacts_list")return json({success:true,contacts:[],total:0});
+        return json({success:false,error:"Conecte o número de WhatsApp antes de consultar ou importar contatos."},409);
+      }
       // Importers update only their own name source; never erase a manually
       // saved name or another import source on an UPSERT conflict.
       const mergeContactRows=async(rows:Array<{
@@ -514,11 +520,13 @@ Deno.serve(async request => {
     }
     if(action==="channel_status") {
       const {data:channel,error}=await admin.from("whatsapp_channel_connections")
-        .select("id,state,webhook_ready").eq("organization_id",org)
+        .select("id,state,webhook_ready,phone").eq("organization_id",org)
         .eq("provider","wuzapi").maybeSingle();
       if(error) throw error;
-      return json({success:true,channel_connected:Boolean(channel &&
-        channel.state==="connected" && channel.webhook_ready)});
+      const ready=Boolean(channel && channel.state==="connected" &&
+        channel.webhook_ready && /^[0-9]{10,15}$/.test(String(channel.phone||"")));
+      return json({success:true,channel_connected:ready,
+        channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
     }
     if(action==="start") {
       const inputDigits=String(body.phone||"").replace(/\D/g,"");
