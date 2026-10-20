@@ -122,7 +122,6 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
 
     {errorText && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
     {query.isLoading ? <LoadingState text="Carregando documentos..." /> : <FinanceTableSurface>
-      <div className="overflow-x-auto">
         <table className="w-full min-w-[650px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -150,7 +149,6 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
               </tr>)}
           </tbody>
         </table>
-      </div>
     </FinanceTableSurface>}
 
     {archiveTarget && <AdminDialog open onClose={() => { if (!archiveMutation.isPending) setArchiveTarget(null); }} title="Arquivar documento" description={archiveTarget.file_name} className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => setArchiveTarget(null)} disabled={archiveMutation.isPending}>Cancelar</AdminButton><AdminButton variant="danger" onClick={() => void archive()} loading={archiveMutation.isPending} loadingText="Arquivando...">Arquivar</AdminButton></div>}><FTextarea label="Motivo" required error={archiveReasonError} value={archiveReason} onChange={(event: any) => { setArchiveReasonError(""); setArchiveReason(event.target.value); }} rows={3} /></AdminDialog>}
