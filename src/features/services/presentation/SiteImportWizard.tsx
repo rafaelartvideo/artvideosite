@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Check, ChevronDown, ChevronLeft, ExternalLink, FileSearch, Globe2, Loader2, Package, Search, ShieldAlert, Wrench, X } from "lucide-react";
+import { Check, ChevronDown, ExternalLink, FileSearch, Globe2, Loader2, Package, Search, ShieldAlert, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
@@ -496,7 +496,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
             Publicar no site após importar com sucesso
           </label>
           <p className="text-xs text-muted-foreground">{publishAfterImport ? "Os itens importados ficarão ativos e visíveis no catálogo." : "Padrão: salvar como rascunho para revisar antes de publicar."}</p></div>
-        <div className="flex gap-2"><BtnSecondary onClick={onClose} disabled={saving}><ChevronLeft size={15} /> Voltar</BtnSecondary>
+        <div className="flex gap-2"><BtnSecondary onClick={onClose} disabled={saving}>Voltar</BtnSecondary>
           <BtnPrimary onClick={() => void importSelected()} loading={saving} loadingText="Importando..." disabled={scanning || saving || !selected.length || unresolved.length > 0}>
             <Check size={16} /> Importar ({selected.length})
           </BtnPrimary></div>
