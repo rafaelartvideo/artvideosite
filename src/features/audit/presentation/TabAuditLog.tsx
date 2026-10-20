@@ -386,7 +386,6 @@ const FIELD_LABELS: Record<string, string> = {
   user_id: "Usuário",
   value_number: "Valor",
   value_text: "Valor",
-  version: "Versão",
   visible_to_customer: "Visível para o cliente",
   tendered_amount: "Valor recebido",
   total_amount: "Total da venda",
