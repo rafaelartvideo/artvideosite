@@ -32,6 +32,14 @@ function todayDate() {
   return `${year}-${month}-${day}`;
 }
 
+export type FinancialEntryCreator = { id: string; name: string };
+export async function listFinancialReceivableCreators(organizationId: string): Promise<FinancialEntryCreator[]> {
+  const org = requiredOrganizationId(organizationId);
+  const { data, error } = await supabase.rpc("list_financial_receivable_creators_v1", { p_organization_id: org });
+  if (error) throw error;
+  return (data || []) as FinancialEntryCreator[];
+}
+
 export type FinancialCounterparty = {
   id: string;
   name: string;
@@ -103,6 +111,7 @@ export type FinancialEntryListPageInput = {
   name?: string;
   document?: string;
   os?: string;
+  createdBy?: string;
   dateFrom?: string;
   dateTo?: string;
   operationalStatus?: string;
@@ -121,11 +130,11 @@ export async function listFinancialEntriesPage({
   pageSize,
   search = "",
   approvalStatus = "all",
-  name = "", document = "", os = "", dateFrom = "", dateTo = "", operationalStatus = "all", sort = "newest",
+  name = "", document = "", os = "", createdBy = "", dateFrom = "", dateTo = "", operationalStatus = "all", sort = "newest",
 }: FinancialEntryListPageInput): Promise<FinancialEntryListPage> {
   const org = requiredOrganizationId(organizationId);
   const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_financial_entry_page_ids_v3",
+    "search_financial_entry_page_ids_v4",
     {
       p_organization_id: org,
       p_entry_type: entryType,
@@ -136,6 +145,7 @@ export async function listFinancialEntriesPage({
       p_name: name,
       p_document: document,
       p_os: os,
+      p_created_by: createdBy || null,
       p_date_from: dateFrom || null,
       p_date_to: dateTo || null,
       p_operational_status: operationalStatus,
