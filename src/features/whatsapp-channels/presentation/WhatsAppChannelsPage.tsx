@@ -96,12 +96,28 @@ export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
   }, [qrOpen, channel?.id, activeOrganizationId, canManage]);
 
   const openQr = async () => {
+    if (!activeOrganizationId || !channel || !canManage || action) return;
     setQrOpen(true);
-    if (!channel) return;
-    if (channel.state === "not_connected" || channel.state === "disconnected" || channel.state === "error") {
-      await perform("connect");
+    setQr(null);
+    setError("");
+    setAction("connect");
+    try {
+      // A sessão preparada ainda não está conectada ao WhatsApp.
+      // É obrigatório chamar /session/connect antes de solicitar /session/qr.
+      const connection = await operateWhatsAppChannel(activeOrganizationId, "connect", channel.id);
+      if (connection.channel) setChannel(connection.channel);
+      if (connection.logged_in) {
+        setQrOpen(false);
+        setNotice("O WhatsApp já está conectado.");
+        return;
+      }
+      const code = await operateWhatsAppChannel(activeOrganizationId, "qr", channel.id);
+      setQr(code.qr || null);
+    } catch (e) {
+      setError(systemErrorMessage(e, "Não foi possível iniciar a conexão por QR Code."));
+    } finally {
+      setAction(null);
     }
-    await perform("qr");
   };
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
