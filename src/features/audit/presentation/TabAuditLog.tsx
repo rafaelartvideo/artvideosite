@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Eye, History, RotateCcw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminCard, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
@@ -580,6 +580,7 @@ export function TabAuditLog() {
   const { activeOrganizationId } = useAuth();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [actorUserId, setActorUserId] = useState("");
   const [moduleKey, setModuleKey] = useState("");
   const [operation, setOperation] = useState("");
@@ -599,7 +600,8 @@ export function TabAuditLog() {
     contextId: debouncedContextId,
     dateFrom,
     dateTo,
-  }), [page, pageSize, actorUserId, moduleKey, operation, debouncedContextId, dateFrom, dateTo]);
+    sort,
+  }), [page, pageSize, actorUserId, moduleKey, operation, debouncedContextId, dateFrom, dateTo, sort]);
 
   const logsQuery = useQuery({
     queryKey: ["audit-logs", activeOrganizationId, filters],
@@ -633,10 +635,11 @@ export function TabAuditLog() {
     setContextId("");
     setDateFrom("");
     setDateTo("");
+    setSort("newest");
     setPage(1);
   };
 
-  const hasFilters = Boolean(actorUserId || moduleKey || operation || contextId || dateFrom || dateTo);
+  const hasFilters = Boolean(actorUserId || moduleKey || operation || contextId || dateFrom || dateTo || sort !== "newest");
   const items = logsQuery.data?.items || [];
   const total = logsQuery.data?.total || 0;
 
@@ -647,7 +650,11 @@ export function TabAuditLog() {
         subtitle="Histórico de alterações realizadas nos dados do CRM."
       />
 
-      <AdminSearchPanel title="Buscar na auditoria">
+      <AdminSearchPanel title="Buscar na auditoria" headerActions={<>
+        {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
+        <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
+          options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
+      </>}>
         <AdminMobileSearchSwitch
           value={mobileSearchField}
           options={[
@@ -715,13 +722,7 @@ export function TabAuditLog() {
           />
         </div>
 
-        {hasFilters && (
-          <div className="mt-3 flex justify-end border-t border-border pt-3">
-            <AdminButton variant="secondary" size="sm" onClick={resetFilters}>
-              <RotateCcw size={14} /> Limpar filtros
-            </AdminButton>
-          </div>
-        )}
+
       </AdminSearchPanel>
 
       <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
