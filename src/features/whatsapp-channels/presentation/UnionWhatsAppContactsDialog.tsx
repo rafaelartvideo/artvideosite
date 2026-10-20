@@ -43,6 +43,8 @@ export function UnionWhatsAppContactsDialog({
   const [name,setName]=useState("");
   const [phone,setPhone]=useState("");
   const [avatar,setAvatar]=useState<string|null>(null);
+  const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
+  const avatarRequestsRef=useRef(new Set<string>());
   const vcfInputRef=useRef<HTMLInputElement|null>(null);
 
   const refresh=useCallback(async (value:string,index:number)=>{
@@ -70,10 +72,31 @@ export function UnionWhatsAppContactsDialog({
     void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_avatar",{
       chat_jid:selected.chat_jid,
     }).then(result=>{
-      if(!canceled)setAvatar(result.avatar_url||null);
+      if(!canceled){
+        setAvatar(result.avatar_url||null);
+        setListAvatars(old=>({...old,[selected!.chat_jid]:result.avatar_url||null}));
+      }
     }).catch(()=>{if(!canceled)setAvatar(null);});
     return()=>{canceled=true;};
   },[organizationId,selected?.chat_jid]);
+
+  // Load only a small visible-page preview set. Never block the contact
+  // list or import workflow on profile photos, which may be private.
+  const previewJids=contacts.slice(0,12).map(item=>item.chat_jid).join(",");
+  useEffect(()=>{
+    if(!previewJids || loading)return;
+    const toFetch=previewJids.split(",").filter(jid=>jid &&
+      !Object.prototype.hasOwnProperty.call(listAvatars,jid) &&
+      !avatarRequestsRef.current.has(jid)).slice(0,3);
+    for(const jid of toFetch){
+      avatarRequestsRef.current.add(jid);
+      void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
+        "contacts_avatar",{chat_jid:jid})
+        .then(result=>setListAvatars(old=>({...old,[jid]:result.avatar_url||null})))
+        .catch(()=>setListAvatars(old=>({...old,[jid]:null})))
+        .finally(()=>avatarRequestsRef.current.delete(jid));
+    }
+  },[organizationId,previewJids,listAvatars,loading]);
 
   const choose=(contact:UnionWhatsAppContact)=>{
     setSelected(contact);setCreating(false);
@@ -226,8 +249,12 @@ export function UnionWhatsAppContactsDialog({
               const display=labelFor(contact);
               return <button type="button" key={contact.id} onClick={()=>choose(contact)}
                 className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left hover:bg-muted ${selected?.id===contact.id?"bg-primary/10":""}`}>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                  {initials(display)}
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold text-muted-foreground">
+                  {listAvatars[contact.chat_jid]
+                    ? <img src={listAvatars[contact.chat_jid]!} alt="" loading="lazy"
+                        className="h-full w-full object-cover"
+                        onError={()=>setListAvatars(old=>({...old,[contact.chat_jid]:null}))}/>
+                    : initials(display)}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{display}</span>
