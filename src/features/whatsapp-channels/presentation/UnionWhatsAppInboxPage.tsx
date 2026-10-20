@@ -158,6 +158,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [handoffs,setHandoffs] = useState<Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [contactsOpen,setContactsOpen] = useState(false);
+  const [editContactId,setEditContactId]=useState<string|null>(null);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
   const [starting, setStarting] = useState(false);
@@ -230,6 +231,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setRoutingOpen(false);
     setNewConversationOpen(false);
     setContactsOpen(false);
+    setEditContactId(null);
     setSettingsOpen(false);
     setDepartmentSettingsOpen(false);
     setOrdersOpen(false);
@@ -845,7 +847,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="flex items-center justify-between gap-2">
               <p className="text-base font-black text-foreground">Conversas</p>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={()=>setContactsOpen(true)} title="Contatos"
+                <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
                   <ContactRound size={15}/> Contatos
                 </button>
@@ -921,7 +923,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  {avatars[selected.id] ? <img src={avatars[selected.id]!} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/> : initials(selected.contact_name)}
                </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-black text-foreground">{selected.contact_name}</p>
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
+                  {(canSend||canManage) && <button type="button"
+                    title="Salvar ou alterar o nome deste contato na Union"
+                    onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
+                    className="shrink-0 text-[11px] font-semibold text-primary hover:underline">
+                    Editar contato
+                  </button>}
+                </div>
                 <p className="text-xs text-muted-foreground">
                    {selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
@@ -1071,7 +1081,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     {contactsOpen && activeOrganizationId && <UnionWhatsAppContactsDialog
       organizationId={activeOrganizationId} canImport={canManage}
       canEdit={canSend || canManage}
-      onClose={()=>setContactsOpen(false)}
+      initialContact={editContactId?(()=>{
+        const thread=scopedConversations.find(item=>item.id===editContactId);
+        return thread?{id:thread.id,chat_jid:thread.chat_jid,
+          contact_phone:thread.contact_phone,display_name:null,device_name:null,
+          imported_name:null,profile_name:null,updated_at:""}:null;
+      })():null}
+      initialName={editContactId?scopedConversations.find(item=>item.id===editContactId)?.contact_name:""}
+      onClose={()=>{setContactsOpen(false);setEditContactId(null);}}
       onSaved={()=>void refresh(true)}
       onChoose={openFromContact}
     />}
