@@ -147,7 +147,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
-    if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid)) throw new Error("bad_request");
+    if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid)) throw new Error("bad_request");
     const now=Date.now();
     const cached=contactsCache.get(id);
     let contacts;
