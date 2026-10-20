@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
@@ -140,6 +140,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [routingOpen, setRoutingOpen] = useState(false);
+  const [routingMode,setRoutingMode] = useState<"operator"|"department">("operator");
+  const [targetDepartmentId,setTargetDepartmentId] = useState("");
+  const [departments,setDepartments] = useState<Array<{id:string;name:string;is_active:boolean}>>([]);
+  const [departmentFilter,setDepartmentFilter] = useState("all");
+  const [settingsOpen,setSettingsOpen] = useState(false);
+  const [departmentSettingsOpen,setDepartmentSettingsOpen] = useState(false);
+  const [newDepartmentName,setNewDepartmentName] = useState("");
+  const [savingDepartment,setSavingDepartment] = useState(false);
+  const [chosenDepartmentId,setChosenDepartmentId] = useState("");
+  const [departmentMembers,setDepartmentMembers] = useState<string[]>([]);
+  const [historyOpen,setHistoryOpen] = useState(false);
+  const [handoffs,setHandoffs] = useState<Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
@@ -212,6 +224,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
     setPending([]);
     setRoutingOpen(false);
     setNewConversationOpen(false);
+    setSettingsOpen(false);
+    setDepartmentSettingsOpen(false);
+    setDepartments([]);
+    setDepartmentFilter("all");
     setMembers([]);
     setError("");
     messageIdentity.current += 1;
@@ -354,9 +370,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
   }, [scopedConversations]);
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("pt-BR");
-    return scopedConversations.filter(item => item.status === filter && (!search ||
+    return scopedConversations.filter(item => item.status === filter && (departmentFilter === "all" || (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) && (!search ||
       [item.contact_name, item.contact_phone || "", item.chat_jid].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
-  }, [scopedConversations, filter, query]);
+  }, [scopedConversations, filter, query, departmentFilter]);
 
   useEffect(() => {
     if (!activeOrganizationId || !selected || selected.status !== "in_att"
@@ -368,6 +384,55 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
       .catch(() => undefined);
   }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id]);
 
+  const loadDepartments = async () => {
+    if(!activeOrganizationId) return [];
+    const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list");
+    const rows=result.departments||[];
+    setDepartments(rows);
+    return rows;
+  };
+  const saveDepartment = async () => {
+    if(!activeOrganizationId || !newDepartmentName.trim() || savingDepartment)return;
+    setSavingDepartment(true);setError("");
+    try{
+      await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"department_save",{name:newDepartmentName.trim()});
+      setNewDepartmentName("");
+      await loadDepartments();
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível salvar o departamento."));}
+    finally{setSavingDepartment(false);}
+  };
+  const manageDepartmentMembers = async (id:string) => {
+    if(!activeOrganizationId)return;
+    setChosenDepartmentId(id);setError("");
+    try{
+      const [staff,membership]=await Promise.all([
+        operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"members"),
+        operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"department_members",{department_id:id}),
+      ]);
+      setMembers(staff.members||[]);
+      setDepartmentMembers(membership.member_ids||[]);
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar a equipe."));}
+  };
+  const toggleDepartmentMember = async (id:string,enabled:boolean) => {
+    if(!activeOrganizationId || !chosenDepartmentId)return;
+    try{
+      const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"department_set_member",{
+        department_id:chosenDepartmentId,target_user_id:id,enabled,
+      });
+      setDepartmentMembers(result.member_ids||[]);
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível atualizar o departamento."));}
+  };
+  const openDepartmentSettings = async () => {
+    setSettingsOpen(false);setDepartmentSettingsOpen(true);
+    try{await loadDepartments();}catch(reason){setError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}
+  };
+  const viewHistory = async () => {
+    if(!selected || !activeOrganizationId)return;
+    try{
+      const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"handoff_history");
+      setHandoffs(result.history||[]);setHistoryOpen(true);
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar o histórico."));}
+  };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
   const canReply = Boolean(selected && canSend && selected.status === "in_att" && (isMine || canManage));
