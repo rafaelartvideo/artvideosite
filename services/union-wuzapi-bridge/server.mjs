@@ -19,6 +19,7 @@ if (secret.length < 32 || adminToken.length < 16 || !Number.isInteger(port) || p
 await mkdir(sessionsDir, { recursive: true, mode: 0o700 });
 const seenNonces = new Map();
 const pendingProvision = new Map();
+const contactsCache = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
 const reply = (res, status, payload) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -108,7 +109,7 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
@@ -143,6 +144,30 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(!base64 || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
       throw new Error("media_download_unavailable");
     return {ok:true,base64};
+  }
+  if (action === "contact_lookup") {
+    const jid=String(chatJid||"");
+    if(!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(jid)) throw new Error("bad_request");
+    const now=Date.now();
+    const cached=contactsCache.get(id);
+    let contacts;
+    if(cached && now-cached.at<300000) contacts=cached.contacts;
+    else {
+      const reply=await wuzapi("/user/contacts",session.token);
+      contacts=reply?.data && typeof reply.data==="object" && !Array.isArray(reply.data)
+        ? reply.data : {};
+      contactsCache.set(id,{contacts,at:now});
+    }
+    const entry=contacts[jid];
+    if(!entry || entry.Found===false) return {ok:true,name:null,source:null};
+    // An address-book name belongs to the exact recipient JID. WuzAPI
+    // message PushName from outgoing events belongs to our account instead.
+    const full=String(entry.FullName||"").trim().slice(0,160);
+    const first=String(entry.FirstName||"").trim().slice(0,160);
+    const business=String(entry.BusinessName||"").trim().slice(0,160);
+    const push=String(entry.PushName||"").trim().slice(0,160);
+    const name=full||first||business||push;
+    return {ok:true,name:name||null,source:full||first||business?"saved":"push"};
   }
   if (action === "send_media") {
     const jid=String(chatJid||"");
