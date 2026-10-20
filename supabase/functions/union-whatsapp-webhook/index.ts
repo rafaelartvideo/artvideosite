@@ -249,17 +249,18 @@ Deno.serve(async request => {
     // bridge. We never guess numbers from a public profile or an @lid value.
     const possibleJids=[chatJid,...(phoneJid && phoneJid!==chatJid?[phoneJid]:[])];
     const {data:storedNames,error:contactError}=await admin.from("union_whatsapp_contacts")
-      .select("chat_jid,display_name,device_name,imported_name,profile_name")
+      .select("chat_jid,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
       .eq("organization_id",org).eq("channel_id",channelId)
       .in("chat_jid",possibleJids);
     if(contactError)throw contactError;
     const orderedNames=[...(storedNames||[])].sort((a,b)=>{
-      const rank=(r:typeof a)=>(r.display_name?3:r.device_name?2:r.imported_name?1:0);
+      const rank=(r:typeof a)=>(r.display_name?3:r.device_name?2:r.wuzapi_verified_saved&&r.imported_name?1:0);
       return rank(b)-rank(a) || Number(b.chat_jid===chatJid)-Number(a.chat_jid===chatJid);
     });
     const savedContact=orderedNames[0];
     const preferredContactName=String(savedContact?.display_name ||
-      savedContact?.device_name || savedContact?.imported_name || "").trim();
+      savedContact?.device_name ||
+      (savedContact?.wuzapi_verified_saved?savedContact.imported_name:null) || "").trim();
     const timestamp = dateOf(get(info, "Timestamp", "timestamp"));
 
     const { error: ensureError } = await admin.from("union_whatsapp_conversations")
