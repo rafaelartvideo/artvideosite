@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { MessageCircle, ArrowRight, QrCode } from "lucide-react";
+import { MessageCircle, ArrowLeft, ArrowRight, QrCode } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { SacDigitalSettingsPage } from "@/features/sac-digital/presentation/SacDigitalSettingsPage";
 import { WhatsAppChannelsPage } from "@/features/whatsapp-channels/presentation/WhatsAppChannelsPage";
 
@@ -39,5 +39,8 @@ export function IntegrationsPage({ onBack }: { onBack: () => void }) {
       </button>}
     </div>
     {!canChannels && !canSac && <p className="text-sm text-muted-foreground">Você não possui permissão para gerenciar integrações.</p>}
+    <AdminStickyToolbar>
+      <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
+    </AdminStickyToolbar>
   </div>;
 }
