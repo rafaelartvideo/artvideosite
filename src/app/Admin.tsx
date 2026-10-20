@@ -368,7 +368,7 @@ export function AdminDashboard({
       ? canAccessWhatsAppTool
         ? <UnionWhatsAppInboxPage
           onBack={() => navigateAdmin("tools")}
-          onConfigure={() => navigate(`${adminPath("integrations")}?channels=1`)}
+          onConfigure={section => navigate(`${adminPath("integrations")}?channels=1${section ? `&section=${encodeURIComponent(section)}` : ""}`)}
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
             : undefined}
