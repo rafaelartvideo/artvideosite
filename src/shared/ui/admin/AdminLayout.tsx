@@ -52,8 +52,13 @@ export function AdminButton({
 }: AdminButtonProps) {
   const pageClose = React.useContext(AdminPageCloseContext);
   const inStickyToolbar = React.useContext(AdminStickyToolbarContext);
-  const mobileBackOnly = inStickyToolbar && typeof children === "string" && children.trim().toLocaleLowerCase("pt-BR").startsWith("voltar");
-  const renderedChildren = mobileBackOnly ? <><ArrowLeft size={18} className="sm:hidden" aria-hidden="true" /><span className="hidden sm:inline">{children}</span></> : children;
+  // UI centralizada para ações de retorno em todos os módulos do CRM.
+  // Botões com ícone próprio já possuem JSX como filhos e não recebem ícone duplicado.
+  const isBackAction = typeof children === "string" && /^voltar(?:\s|$)/i.test(children.trim());
+  const mobileBackOnly = inStickyToolbar && isBackAction;
+  const renderedChildren = isBackAction
+    ? <><ArrowLeft size={17} className="shrink-0" aria-hidden="true" /><span className={mobileBackOnly ? "hidden sm:inline" : undefined}>{children}</span></>
+    : children;
   const resolvedOnClick = pageClose && onClick && onClick === (pageClose.onClose as unknown as typeof onClick)
     ? (pageClose.requestClose as unknown as typeof onClick)
     : onClick;
