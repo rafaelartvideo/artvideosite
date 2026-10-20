@@ -32,7 +32,13 @@ Deno.serve(async request => {
   if (request.method !== "POST") return json({ ok: false }, 405);
   const channelId = new URL(request.url).searchParams.get("channel") || "";
   if (!uuid(channelId)) return json({ ok: false }, 404);
-  const adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  let adminKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (!adminKey) {
+    try {
+      const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+      adminKey = String(keys.default || Object.values(keys)[0] || "");
+    } catch { /* Leave unconfigured rather than trust an invalid key. */ }
+  }
   const url = Deno.env.get("SUPABASE_URL");
   if (!url || !adminKey) return json({ ok: false }, 503);
   const admin = createClient(url, adminKey, { auth: { persistSession: false, autoRefreshToken: false } });
