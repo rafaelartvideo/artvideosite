@@ -59,6 +59,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [draft, setDraft] = useState("");
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [mediaPreview, setMediaPreview] = useState<string | null>(null);
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
@@ -66,7 +69,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const followLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   type PendingEntry = { id: string; conversationId: string; organizationId: string; text: string;
-    status: "sending" | "unknown" | "failed"; error?: string; sentAt: string };
+    status: "sending" | "unknown" | "failed"; error?: string; sentAt: string; fileName?: string; mediaType?: string };
   const [pending, setPending] = useState<PendingEntry[]>([]);
   const sendingIds = useRef(new Set<string>());
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
@@ -118,6 +121,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setSelectedId(null);
     setFilter("waiting");
     setDraft("");
+    setAttachment(null);
+    setMediaPreview(null);
     setPending([]);
     setRoutingOpen(false);
     setMembers([]);
@@ -272,31 +277,69 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     }
   };
 
+  const onChooseMedia = (file: File | null) => {
+    if (!file) return;
+    const type = file.type;
+    const max = type.startsWith("image/") ? 1024 * 1024 :
+      type.startsWith("audio/") ? 3 * 1024 * 1024 : 5 * 1024 * 1024;
+    const allowed = type.startsWith("image/") ? ["image/jpeg","image/png"].includes(type)
+      : type.startsWith("audio/") ? ["audio/ogg","audio/opus"].includes(type)
+      : type.startsWith("video/") ? ["video/mp4","video/3gpp"].includes(type)
+      : ["application/pdf","text/plain","application/zip","application/octet-stream"].includes(type);
+    if (!allowed || file.size === 0 || file.size > max) {
+      setError("Tipo de arquivo não aceito ou limite excedido. Imagens: 1 MB; áudio Opus/Ogg: 3 MB; vídeo MP4/documentos: 5 MB.");
+      if (mediaInputRef.current) mediaInputRef.current.value = "";
+      return;
+    }
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    setMediaPreview(type.startsWith("image/") ? URL.createObjectURL(file) : null);
+    setAttachment(file);
+    setError("");
+    inputRef.current?.focus({ preventScroll:true });
+  };
+
   const sendText = () => {
-    if (!selected || !activeOrganizationId || !canReply || !draft.trim()) return;
+    if (!selected || !activeOrganizationId || !canReply || (!draft.trim() && !attachment)) return;
     const text = draft.trim();
+    const file = attachment;
+    const preview = mediaPreview;
+    const fileType = file ? file.type.startsWith("image/") ? "image" :
+      file.type.startsWith("audio/") ? "audio" : file.type.startsWith("video/") ? "video" : "file" : null;
     const threadId = selected.id;
     const organizationId = activeOrganizationId;
     const requestId = crypto.randomUUID();
     // Capture and clear the current draft before awaiting. The composer stays
     // interactive for subsequent messages, matching the SAC outbox UX.
     setDraft("");
+    setAttachment(null);
+    setMediaPreview(null);
+    if (mediaInputRef.current) mediaInputRef.current.value = "";
     setEmojiOpen(false);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
-      text, status: "sending", sentAt: new Date().toISOString(),
+      text, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name, mediaType:fileType || undefined,
     }]);
     scrollToLatest("smooth");
     inputRef.current?.focus({ preventScroll: true });
     sendingIds.current.add(requestId);
     void (async () => {
       try {
-        await operateUnionWhatsAppInbox(organizationId, threadId, "send_text", {
-          text, client_message_id: requestId,
-        });
+        let extra: {text:string;client_message_id:string;media_base64?:string;media_name?:string;media_mime?:string;media_type?:string} =
+          { text, client_message_id: requestId };
+        if (file && fileType) {
+          const bytes = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
+            reader.onerror = () => reject(new Error("Não foi possível ler o arquivo."));
+            reader.readAsDataURL(file);
+          });
+          extra = { ...extra, media_base64:bytes, media_name:file.name, media_mime:file.type, media_type:fileType };
+        }
+        await operateUnionWhatsAppInbox(organizationId, threadId, file ? "send_media" : "send_text", extra);
         if (organizationRef.current !== organizationId) return;
         await Promise.all([refreshMessages(threadId, true), refresh(true)]);
         setPending(current => current.filter(item => item.id !== requestId));
+        if (preview) URL.revokeObjectURL(preview);
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
         const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
@@ -426,7 +469,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 {pending.filter(item => item.conversationId === selected.id && item.organizationId === activeOrganizationId)
                   .map(item => <div key={item.id} className="mt-2 flex justify-end">
                     <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
-                      <p className="whitespace-pre-wrap break-words text-sm">{item.text}</p>
+                      {item.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{item.fileName}</p>}
+                      {item.text && <p className="whitespace-pre-wrap break-words text-sm">{item.text}</p>}
                       <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] opacity-70">
                         {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
                           : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
@@ -445,11 +489,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
             </div>
             <footer className="border-t border-border bg-card px-3 py-3">
               {canReply ? <div className="mx-auto max-w-4xl">
+                {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
+                  {mediaPreview && <img src={mediaPreview} alt="Prévia do anexo" className="h-10 w-10 rounded object-cover" />}
+                  <Paperclip size={15} className="shrink-0"/>
+                  <span className="min-w-0 flex-1 truncate">{attachment.name} · {(attachment.size/1048576).toFixed(2)} MB</span>
+                  <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) URL.revokeObjectURL(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
+                    aria-label="Remover anexo" className="rounded p-1 hover:bg-muted"><X size={17}/></button>
+                </div>}
                 <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
+                  <input ref={mediaInputRef} type="file" className="hidden"
+                    accept="image/jpeg,image/png,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,application/octet-stream"
+                    aria-label="Selecionar anexo" onChange={event => onChooseMedia(event.target.files?.[0] || null)}/>
                   <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
-                    title="Mídias em preparação" disabled
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground opacity-40">
+                    title="Anexar (imagens 1 MB; áudio 3 MB; vídeo/documentos 5 MB)"
+                    onClick={() => mediaInputRef.current?.click()}
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground hover:bg-muted">
                     <Paperclip size={22}/>
                   </button>
                   <div className="relative flex h-12 shrink-0">
@@ -461,7 +516,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                     {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
                   </div>
                   <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
-                    placeholder="Digite uma mensagem"
+                    placeholder={attachment ? "Legenda (opcional)" : "Digite uma mensagem"}
                     onChange={event => setDraft(event.target.value)}
                     onKeyDown={event => {
                       if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -470,7 +525,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                     }}
                     className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
                   />
-                  <button type="submit" disabled={!draft.trim()} aria-label="Enviar mensagem" title="Enviar mensagem"
+                  <button type="submit" disabled={!draft.trim() && !attachment} aria-label="Enviar mensagem" title="Enviar mensagem"
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45">
                     <Send size={22}/>
                   </button>
