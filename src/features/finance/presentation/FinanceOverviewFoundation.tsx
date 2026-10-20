@@ -7,7 +7,6 @@ import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceReports } from "../application/useFinanceReports";
 import type { FinancialEntryType, FinancialReportFilters } from "../domain/finance.types";
-import { FinancePendingApprovals } from "./FinancePendingApprovals";
 
 function dateValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
@@ -115,6 +114,5 @@ export function FinanceOverviewFoundation({ onSelectEntry }: {
       </AdminCardContent>
     </AdminCard>}
 
-    {visible?.approvals && <FinancePendingApprovals onSelectEntry={onSelectEntry} />}
   </div>;
 }
