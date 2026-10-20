@@ -47,7 +47,8 @@ export function UserPermissionOverridesPage({
 
   useEffect(() => {
     if (!access) return;
-    const serverSelected = access.individualPermissionIds.filter(id => !access.inheritedPermissionIds.includes(id));
+    const denied = new Set(access.deniedPermissionIds);
+    const serverSelected = Array.from(new Set([...access.inheritedPermissionIds, ...access.individualPermissionIds])).filter(id => !denied.has(id));
     if (syncedFor.current !== accessIdentity) {
       syncedFor.current = accessIdentity;
       setDirty(false);
@@ -66,14 +67,12 @@ export function UserPermissionOverridesPage({
   const byKey = useMemo(() => new Map(permissions.map(permission => [permission.key, permission])), [permissions]);
   const inherited = useMemo(() => new Set(access?.inheritedPermissionIds || []), [access?.inheritedPermissionIds]);
 
-  const isEffective = (permissionId: string) => inherited.has(permissionId) || selected.includes(permissionId);
-
   const addDependencies = (next: Set<string>, permissionKey: string, visited = new Set<string>()) => {
     if (visited.has(permissionKey)) return;
     visited.add(permissionKey);
     permissionDependencies(permissionKey).forEach(requiredKey => {
       const required = byKey.get(requiredKey);
-      if (!required || inherited.has(required.id)) return;
+      if (!required) return;
       next.add(required.id);
       addDependencies(next, required.key, visited);
     });
@@ -87,14 +86,14 @@ export function UserPermissionOverridesPage({
   };
 
   const toggle = (permission: PermissionRecord) => {
-    if (!canManage || inherited.has(permission.id)) return;
+    if (!canManage) return;
     setDirty(true);
     setSelected(current => {
       const next = new Set(current);
       if (next.has(permission.id)) {
         next.delete(permission.id);
         permissions.forEach(candidate => {
-          if (!inherited.has(candidate.id) && next.has(candidate.id) && dependsOn(candidate.key, permission.key)) {
+          if (next.has(candidate.id) && dependsOn(candidate.key, permission.key)) {
             next.delete(candidate.id);
           }
         });
@@ -108,10 +107,13 @@ export function UserPermissionOverridesPage({
 
   const save = async () => {
     if (!canManage || saving || !dirty || !access) return;
-    const requestedIds = [...selected];
+    const visible = new Set(permissions.map(item => item.id));
+    // Exclusões individuais prevalecem sobre a função; exceções fora do módulo visível são preservadas.
+    const requestedIds = [...new Set([...access.individualPermissionIds.filter(id => !visible.has(id)), ...selected.filter(id => !inherited.has(id))])];
+    const deniedIds = [...new Set([...access.deniedPermissionIds.filter(id => !visible.has(id)), ...access.inheritedPermissionIds.filter(id => !selected.includes(id))])];
     setSaving(true);
     try {
-      const { error } = await setUserPermissionOverrides(organizationId, userId, requestedIds);
+      const { error } = await setUserPermissionOverrides(organizationId, userId, requestedIds, deniedIds);
       if (error) throw error;
       // Mantém a seleção local até conferir a gravação, sem restaurar
       // valores antigos do cache durante a atualização.
@@ -119,10 +121,10 @@ export function UserPermissionOverridesPage({
       if (refreshed.error) throw refreshed.error;
       if (!refreshed.data) throw new Error("Não foi possível conferir as permissões salvas.");
       const visibleIds = new Set(refreshed.data.permissions.map(item => item.id));
-      const persisted = new Set(refreshed.data.individualPermissionIds);
-      const expected = new Set(requestedIds);
-      if ([...visibleIds].some(id =>
-        (persisted.has(id) && !refreshed.data!.inheritedPermissionIds.includes(id)) !== expected.has(id))) {
+      const persisted = new Set([...refreshed.data.inheritedPermissionIds, ...refreshed.data.individualPermissionIds]);
+      refreshed.data.deniedPermissionIds.forEach(id => persisted.delete(id));
+      const expected = new Set(selected);
+      if ([...visibleIds].some(id => persisted.has(id) !== expected.has(id))) {
         throw new Error("As permissões gravadas não correspondem à seleção. Recarregue e confira os acessos.");
       }
       setDirty(false);
@@ -141,7 +143,7 @@ export function UserPermissionOverridesPage({
     onClose={onClose}
     breadcrumb={`Cadastros > ${registrationName} > Acessos e Permissões`}
     title="Acessos e Permissões"
-    subtitle={`Permissões herdadas da função e acessos adicionais de ${registrationName}.`}
+    subtitle={`Personalize os acessos de ${registrationName}, incluindo permissões herdadas da função.`}
     maxW="max-w-6xl"
   >
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -156,9 +158,11 @@ export function UserPermissionOverridesPage({
       <Section title="Permissões efetivas">
         <PermissionMatrix
           permissions={permissions}
-          selectedIds={new Set([...access.inheritedPermissionIds, ...selected])}
+          selectedIds={new Set(selected)}
+          deniedIds={new Set(access.deniedPermissionIds)}
+          allowInheritedOverrides
           inheritedIds={inherited}
-          individualIds={new Set(selected)}
+          individualIds={new Set(selected.filter(id => !inherited.has(id)))}
           canManage={canManage}
           onToggle={toggle}
         />
