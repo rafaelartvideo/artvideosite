@@ -445,10 +445,25 @@ Deno.serve(async request => {
             updated_at:new Date().toISOString()});
         }
         if(!normalized.size)return json({success:false,error:"Nenhum telefone brasileiro válido encontrado no arquivo."},400);
+        if(action==="contacts_import_batch"){
+          // One atomic PostgreSQL upsert per batch, instead of multiple
+          // read-merge-write requests. SQL updates only device_name/phone,
+          // preserving manual overrides even if edited concurrently.
+          const {data:processed,error:batchError}=await admin.rpc(
+            "union_whatsapp_import_contacts_batch",{
+              p_organization:org,p_channel:channel.id,
+              p_contacts:[...normalized.values()].map(row=>({
+                name:row.device_name,phone:row.contact_phone,
+              })),
+            });
+          if(batchError)throw batchError;
+          if(Number(processed)!==normalized.size)
+            return json({success:false,error:"O lote não foi confirmado integralmente."},502);
+          return json({success:true,imported:normalized.size});
+        }
         await mergeContactRows([...normalized.values()]);
-        // For large imports, postpone the conversation-name sweep to a
-        // separate completion/pause call. Running it for every 250 contacts
-        // would make a 31k-row upload unnecessarily expensive.
+        // VCF maintains its existing behavior; bulk Excel/CSV syncs names
+        // only on completion or pause/cancellation.
         if(action==="contacts_import_device"){
           const {error:applyError}=await admin.rpc("union_whatsapp_apply_contact_names",{
             p_organization:org,p_channel:channel.id,
