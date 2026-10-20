@@ -25,9 +25,11 @@ const mask = (value:string) => {
 const initials=(name:string)=>name.trim().split(/\s+/).slice(0,2).map(p=>p[0]||"").join("").toUpperCase();
 
 export function UnionWhatsAppContactsDialog({
-  organizationId, canImport, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
+  organizationId, accountPhone,channelId,canImport, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
 }:{
   organizationId:string;
+  accountPhone:string;
+  channelId:string;
   canImport:boolean;
   canEdit:boolean;
   onClose:()=>void;
@@ -157,7 +159,7 @@ export function UnionWhatsAppContactsDialog({
     if(!canImport || busy)return;
     setBusy(true);setError("");setNotice("");
     try{
-      const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_import");
+      const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_import",{account_phone:accountPhone});
       setNotice(result.imported
         ? result.imported+" contato(s) salvos importado(s) do WuzAPI. Perfis públicos e participantes não salvos foram ignorados."+
           (result.truncated?" A importação atingiu o limite de 2.000 registros por execução.":"")
@@ -205,7 +207,7 @@ export function UnionWhatsAppContactsDialog({
       let imported=0;
       for(let i=0;i<entries.length;i+=100){
         const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
-          "contacts_import_device",{contacts:entries.slice(i,i+100)});
+          "contacts_import_device",{contacts:entries.slice(i,i+100),account_phone:accountPhone});
         imported+=result.imported||0;
         setNotice("Importando contatos do celular: "+imported+" de "+entries.length);
       }
@@ -231,7 +233,12 @@ export function UnionWhatsAppContactsDialog({
       const contents=await file.arrayBuffer();
       const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",contents)))
         .map(n=>n.toString(16).padStart(2,"0")).join("");
-      const key="union:contacts-import:v3:"+organizationId+":"+hash;
+      // Key only a salted digest of file AND account; do not persist numbers.
+      const identity=organizationId+":"+channelId+":"+accountPhone+":"+hash;
+      const identityBytes=new TextEncoder().encode(identity);
+      const identityHash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",identityBytes)))
+        .map(n=>n.toString(16).padStart(2,"0")).join("");
+      const key="union:contacts-import:v4:"+identityHash;
       let rows;
       if(/\\.xlsx$/i.test(file.name)){
         rows=await import("read-excel-file/browser")
@@ -283,7 +290,7 @@ export function UnionWhatsAppContactsDialog({
         for(let attempt=1;attempt<=3&&!control.intent;attempt++){
           try{
             const result=await operateUnionWhatsAppInbox(
-              organizationId,crypto.randomUUID(),"contacts_import_batch",{contacts:chunk},
+              organizationId,crypto.randomUUID(),"contacts_import_batch",{contacts:chunk,account_phone:accountPhone},
             );
             if(result.imported!==chunk.length){
               throw Error("O lote não foi confirmado integralmente pelo servidor.");
@@ -310,7 +317,7 @@ export function UnionWhatsAppContactsDialog({
       // on each of the approximately 124 batches for 31,000 contacts.
       if(completed>0){
         await operateUnionWhatsAppInbox(
-          organizationId,crypto.randomUUID(),"contacts_apply_names",
+          organizationId,crypto.randomUUID(),"contacts_apply_names",{account_phone:accountPhone},
         );
       }
       if(control.intent==="cancel"){
@@ -340,7 +347,7 @@ export function UnionWhatsAppContactsDialog({
       if(completed>0){
         try{
           await operateUnionWhatsAppInbox(
-            organizationId,crypto.randomUUID(),"contacts_apply_names",
+            organizationId,crypto.randomUUID(),"contacts_apply_names",{account_phone:accountPhone},
           );
           await refresh(search,0);
           onSaved();
@@ -379,8 +386,8 @@ export function UnionWhatsAppContactsDialog({
     setBusy(true);setError("");setNotice("");
     try{
       const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_save",
-        creating?{phone:"55"+number,display_name:name.trim()}:
-          {chat_jid:selected?.chat_jid,display_name:name.trim()});
+        creating?{phone:"55"+number,display_name:name.trim(),account_phone:accountPhone}:
+          {chat_jid:selected?.chat_jid,display_name:name.trim(),account_phone:accountPhone});
       const saved=result.contact;
       if(saved){
         setCreating(false);
