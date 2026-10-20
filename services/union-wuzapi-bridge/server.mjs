@@ -114,13 +114,23 @@ async function operate({ action, connection_id: id, organization_id: org }) {
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
   if (action === "webhook_setup") {
-    // No re-pairing or logout; modify only this Union WuzAPI user's webhook.
+    // WuzAPI JSON callbacks may omit the user token altogether. Authenticate
+    // with the provider's per-user HMAC signature instead (both JSON and form).
+    // Derived from the already shared bridge secret; no extra secret in URLs,
+    // Supabase DB, JavaScript bundle or WuzAPI response.
+    const webhookKey = createHmac("sha256", secret)
+      .update("union-whatsapp-webhook:v1:" + id).digest("hex");
+    await wuzapi("/session/hmac/config", session.token, "POST", {
+      hmac_key: webhookKey,
+    });
+    // Never reconnect/log out the paired device.
     const url = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook"
       + "?channel=" + encodeURIComponent(id);
     await wuzapi("/webhook", session.token, "POST", {
       webhookurl: url, events: ["Message", "ReadReceipt"],
     });
-    return { ok: true, token_sha256: createHash("sha256").update(session.token).digest("hex") };
+    return { ok: true, auth_mode: "hmac-sha256",
+      token_sha256: createHash("sha256").update(session.token).digest("hex") };
   }
   if (action === "connect") {
     await wuzapi("/session/connect", session.token, "POST", {
