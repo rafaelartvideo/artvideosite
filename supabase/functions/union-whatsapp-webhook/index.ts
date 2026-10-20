@@ -246,12 +246,12 @@ Deno.serve(async request => {
     const phone = /^[0-9]{10,15}$/.test(candidatePhone) ? candidatePhone : null;
     const org = channel.organization_id;
     const {data:savedContact,error:contactError}=await admin.from("union_whatsapp_contacts")
-      .select("display_name,imported_name,profile_name")
+      .select("display_name,device_name,imported_name,profile_name")
       .eq("organization_id",org).eq("channel_id",channelId)
       .eq("chat_jid",chatJid).maybeSingle();
     if(contactError)throw contactError;
     const preferredContactName=String(savedContact?.display_name ||
-      savedContact?.imported_name || "").trim();
+      savedContact?.device_name || savedContact?.imported_name || "").trim();
     const timestamp = dateOf(get(info, "Timestamp", "timestamp"));
 
     const { error: ensureError } = await admin.from("union_whatsapp_conversations")
