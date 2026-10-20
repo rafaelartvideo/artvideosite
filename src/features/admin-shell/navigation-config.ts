@@ -73,7 +73,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
   { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.details.view" },
   { id: "integrations", label: "Integrações", icon: Settings, description: "Configure conexões externas e credenciais dos módulos da empresa.", permissionKey: "settings.channels.view" },
-  { id: "terms", label: "Termos/Garantia", icon: ScrollText, description: "Gerencie termos obrigatórios e garantias vinculadas aos Serviços Gerais.", permissionKey: "terms.view" },
+  { id: "terms", label: "Termos/Garantia", icon: ScrollText, description: "Gerencie termos obrigatórios e personalize o certificado de garantia por equipamento.", permissionKey: "terms.view" },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
 export const utilityItems: AdminNavigationItem[] = [];
