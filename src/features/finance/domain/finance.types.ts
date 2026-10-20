@@ -346,6 +346,7 @@ export interface FinancialEntryDraft {
   notes?: string | null;
   installments: FinancialInstallmentDraft[];
   allocations: FinancialAllocationDraft[];
+  payment_plan?: Array<{ payment_method_id: string; amount: number }>;
 }
 
 export interface FinancialDecisionResult {
