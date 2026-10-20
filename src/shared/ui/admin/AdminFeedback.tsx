@@ -202,12 +202,13 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
   </div>;
 }
 
-export function Toast({ message, type = "success", onClose }: { message: unknown; type?: FeedbackType; onClose: () => void }) {
+export function Toast({ message, type = "success", onClose, persistent = false }: { message: unknown; type?: FeedbackType; onClose: () => void; persistent?: boolean }) {
   const displayMessage = type === "error" ? systemErrorMessage(message) : normalizeFeedbackMessage(message);
   useEffect(() => {
+    if (persistent) return;
     const timeout = setTimeout(onClose, type === "error" ? 6000 : type === "warning" ? 4500 : 3000);
     return () => clearTimeout(timeout);
-  }, [displayMessage, type]);
+  }, [displayMessage, type, persistent, onClose]);
 
   return <div className={cn(
     "fixed bottom-[calc(1rem+env(safe-area-inset-bottom,0px))] left-1/2 z-[300] flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-start gap-3 rounded-xl border px-4 py-3.5 text-left text-sm font-semibold shadow-[0_16px_40px_rgba(13,27,46,0.18)] md:bottom-auto md:left-auto md:right-6 md:top-6 md:w-auto md:min-w-[320px] md:max-w-md md:translate-x-0",
