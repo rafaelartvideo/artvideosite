@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, Plus, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, Plus, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -244,7 +244,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
   const enabled = Boolean(channel && channel.state !== "not_connected");
   const connected = channel?.state === "connected";
   const receiving = connected && channel?.webhook_ready === true;
-
 
   const connectionState = connected ? "Conectado" :
     channel?.state === "connecting" ? "Conectando" :
