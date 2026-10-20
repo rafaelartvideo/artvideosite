@@ -12,13 +12,13 @@ const conditionLabel = (value?: string) =>
  * Recibo não fiscal de quitação, ligado ao número imutável da venda do PDV.
  * A impressão pelo navegador permite papel A4 ou "Salvar como PDF".
  */
-export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName: string, options?: { general?: boolean; direction?: "received" | "paid"; number?: string; reference?: string }) {
+export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName: string, options?: { general?: boolean; direction?: "received" | "paid"; number?: string; reference?: string; popup?: Window | null }) {
   if (sale.status !== "completed") throw new Error("Venda cancelada não permite emitir recibo de quitação.");
   if (sale.payments.some(payment => payment.settlement_status === "reversed")) {
     throw new Error("Há pagamento estornado nesta venda; não é possível emitir recibo de quitação.");
   }
 
-  const popup = window.open("", "_blank", "width=960,height=830");
+  const popup = options?.popup || window.open("", "_blank", "width=960,height=830");
   if (!popup) throw new Error("O navegador bloqueou a janela do recibo.");
   try { popup.opener = null; } catch { /* Isola janela quando suportado. */ }
 
@@ -200,7 +200,7 @@ export type GeneralReceiptA4 = {
   service_order_number?: string | null;
 };
 
-export function printGeneralFinancialReceipt(data: GeneralReceiptA4) {
+export function printGeneralFinancialReceipt(data: GeneralReceiptA4, printWindow?: Window | null) {
   const sale: PdvSaleDetail = {
     id: data.id,
     sale_number: data.receipt_number,
@@ -248,7 +248,7 @@ export function printGeneralFinancialReceipt(data: GeneralReceiptA4) {
     }],
   };
   printPdvA4Receipt(sale, data.organization_name, {
-    general: true, direction: data.direction,
+    general: true, direction: data.direction, popup: printWindow,
     number: `REC-FIN-${String(data.receipt_number).padStart(6,"0")}`,
     reference: data.service_order_number ? `OS ${data.service_order_number}` : data.description,
   });
