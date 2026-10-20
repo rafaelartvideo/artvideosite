@@ -6,7 +6,7 @@ import { MessageCircle, Plus } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { useAuth } from "@/lib/auth";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialCollectionChannel, FinancialEntryDetail } from "../domain/finance.types";
 import { listFinancialCollectionLogs, registerFinancialCollectionLog } from "../infrastructure/finance-collections.repository";
 
@@ -79,13 +79,13 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
     },
   });
 
-  if (detail.entry_type !== "receivable" || !canView) return null;
   const logs = query.data || [];
   const error = query.error || mutation.error;
   const errorText = error ? systemErrorMessage(error) : "";
   useEffect(() => {
     if (error) notifyAdmin(systemErrorMessage(error), "error");
   }, [error]);
+  if (detail.entry_type !== "receivable" || !canView) return null;
 
   const submit = async () => {
     const nextErrors: typeof fieldErrors = {};
@@ -108,21 +108,36 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
     setContactedAt(localDateTimeInput());
   };
 
-  return <AdminCard>
-    <AdminCardHeader>
-      <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><h3 className="text-sm font-black text-[#0d1b2e]">Cobranças</h3><p className="mt-1 text-xs text-[#5a6a82]">Histórico de contatos e próximos retornos deste recebível.</p></div>
-        {canCreate && <AdminButton size="sm" onClick={openForm}><Plus size={14} /> Novo contato</AdminButton>}
+  return <div className="space-y-3">
+    <div className="sticky top-0 z-10 flex min-h-14 items-center justify-end border-b border-border bg-card py-2">
+      {canCreate && <AdminButton size="sm" onClick={openForm}><Plus size={15} /> Novo contato</AdminButton>}
+    </div>
+
+    {errorText && !open && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
+    {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : <div className="overflow-hidden rounded-xl border border-border bg-card">
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[700px] text-sm">
+          <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <tr>
+              <th scope="col" className="px-4 py-3 text-left">Contato</th>
+              <th scope="col" className="px-4 py-3 text-left">Data / hora</th>
+              <th scope="col" className="px-4 py-3 text-left">Registro</th>
+              <th scope="col" className="px-4 py-3 text-left">Próximo retorno</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {logs.length === 0
+              ? <tr><td colSpan={4} className="px-4 py-10 text-center text-muted-foreground"><MessageCircle size={19} className="mx-auto mb-2" />Nenhum contato de cobrança registrado.</td></tr>
+              : logs.map(item => <tr key={item.id} className="align-top transition-colors hover:bg-muted/30">
+                <td className="px-4 py-3 font-semibold text-foreground">{channelLabel(item.channel)}</td>
+                <td className="px-4 py-3 tabular-nums text-muted-foreground">{new Date(item.contacted_at).toLocaleString("pt-BR")}</td>
+                <td className="max-w-[360px] whitespace-pre-wrap break-words px-4 py-3 text-foreground">{item.note}</td>
+                <td className="px-4 py-3 font-medium tabular-nums text-primary">{item.next_follow_up_at ? new Date(item.next_follow_up_at).toLocaleString("pt-BR") : "—"}</td>
+              </tr>)}
+          </tbody>
+        </table>
       </div>
-    </AdminCardHeader>
-    <AdminCardContent className="space-y-3">
-      {errorText && !open && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorText}</div>}
-      {query.isLoading ? <LoadingState text="Carregando cobranças..." /> : logs.length === 0 ? <div className="flex items-center gap-2 rounded-xl border border-dashed border-[#0d1b2e]/15 p-4 text-sm text-[#5a6a82]"><MessageCircle size={17} /> Nenhum contato de cobrança registrado.</div> : logs.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/8 p-3">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between"><p className="text-sm font-black text-[#0d1b2e]">{channelLabel(item.channel)}</p><p className="text-xs font-semibold text-[#5a6a82]">{new Date(item.contacted_at).toLocaleString("pt-BR")}</p></div>
-        <p className="mt-2 whitespace-pre-wrap text-sm text-[#44546a]">{item.note}</p>
-        {item.next_follow_up_at && <p className="mt-2 text-xs font-bold text-[#0057e7]">Próximo retorno: {new Date(item.next_follow_up_at).toLocaleString("pt-BR")}</p>}
-      </div>)}
-    </AdminCardContent>
+    </div>}
 
     {open && <AdminDialog open onClose={() => { if (!mutation.isPending) setOpen(false); }} title="Novo contato de cobrança" className="max-w-xl" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!mutation.isPending) setOpen(false); }} disabled={mutation.isPending}>Cancelar</AdminButton><AdminButton onClick={() => void submit()} loading={mutation.isPending} loadingText="Salvando...">Registrar contato</AdminButton></div>}><div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2"><FSelect label="Canal" value={channel} options={CHANNEL_OPTIONS} onChange={(event: any) => setChannel(event.target.value as FinancialCollectionChannel)} /><FSelect label="Parcela (opcional)" value={installmentId} options={[{ value: "", label: "Título geral" }, ...detail.installments.map(item => ({ value: item.id, label: `Parcela ${item.installment_number}/${item.total_installments}` }))]} onChange={(event: any) => setInstallmentId(event.target.value)} /></div>
@@ -130,5 +145,5 @@ export function FinanceCollectionsPanel({ detail }: { detail: FinancialEntryDeta
       <FTextarea label="Observação" required error={fieldErrors.note} value={note} onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }} rows={4} />
       
     </div></AdminDialog>}
-  </AdminCard>;
+  </div>;
 }
