@@ -245,11 +245,19 @@ Deno.serve(async request => {
     const candidatePhone = phoneJid.split("@")[0];
     const phone = /^[0-9]{10,15}$/.test(candidatePhone) ? candidatePhone : null;
     const org = channel.organization_id;
-    const {data:savedContact,error:contactError}=await admin.from("union_whatsapp_contacts")
-      .select("display_name,device_name,imported_name,profile_name")
+    // A WuzAPI ChatAlt/SenderAlt phone JID is the only accepted PN↔LID
+    // bridge. We never guess numbers from a public profile or an @lid value.
+    const possibleJids=[chatJid,...(phoneJid && phoneJid!==chatJid?[phoneJid]:[])];
+    const {data:storedNames,error:contactError}=await admin.from("union_whatsapp_contacts")
+      .select("chat_jid,display_name,device_name,imported_name,profile_name")
       .eq("organization_id",org).eq("channel_id",channelId)
-      .eq("chat_jid",chatJid).maybeSingle();
+      .in("chat_jid",possibleJids);
     if(contactError)throw contactError;
+    const orderedNames=[...(storedNames||[])].sort((a,b)=>{
+      const rank=(r:typeof a)=>(r.display_name?3:r.device_name?2:r.imported_name?1:0);
+      return rank(b)-rank(a) || Number(b.chat_jid===chatJid)-Number(a.chat_jid===chatJid);
+    });
+    const savedContact=orderedNames[0];
     const preferredContactName=String(savedContact?.display_name ||
       savedContact?.device_name || savedContact?.imported_name || "").trim();
     const timestamp = dateOf(get(info, "Timestamp", "timestamp"));
@@ -266,6 +274,14 @@ Deno.serve(async request => {
       .select("id,last_message_at,unread_count,contact_name,status")
       .eq("channel_id", channelId).eq("organization_id", org).eq("chat_jid", chatJid).single();
     if (threadError || !thread) throw threadError || Error("conversation_missing");
+    // Backfill only Whatsmeow-verified phone aliases on existing LID
+    // conversations. This permits later VCF matching without merging chats.
+    if(chatJid.endsWith("@lid") && phone) {
+      const {error:phoneError}=await admin.from("union_whatsapp_conversations")
+        .update({contact_phone:phone}).eq("id",thread.id)
+        .eq("organization_id",org).is("contact_phone",null);
+      if(phoneError)throw phoneError;
+    }
 
     const { data: inserted, error: messageError } = await admin.from("union_whatsapp_messages")
       .upsert({
