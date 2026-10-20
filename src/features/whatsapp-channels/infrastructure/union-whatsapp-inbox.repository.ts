@@ -55,15 +55,15 @@ export async function listUnionWhatsAppMessages(
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { text?: string; client_message_id?: string; target_user_id?: string;
-    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string } = {},
-): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}> }> {
+    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string } = {},
+): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; channel_connected?: boolean; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}> }> {
   const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
     body: {
       action, organization_id: organizationId, conversation_id: conversationId, ...extra,
