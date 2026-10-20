@@ -372,6 +372,9 @@ export function AdminDashboard({
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
             : undefined}
+          onOpenOrder={hasPermission("orders.details.view")
+            ? orderId => openAuthenticatedAdminTab(adminPath("orders",orderId))
+            : undefined}
         />
         : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "sac-digital"
