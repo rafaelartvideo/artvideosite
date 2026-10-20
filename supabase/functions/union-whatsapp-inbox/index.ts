@@ -312,6 +312,11 @@ Deno.serve(async request => {
         if(action==="contacts_list")return json({success:true,contacts:[],total:0});
         return json({success:false,error:"Conecte o número de WhatsApp antes de consultar ou importar contatos."},409);
       }
+      // Reject stale batches from an earlier number, even if the same technical
+      // channel identifier is reused after reconnection.
+      if(["contacts_import_device","contacts_import_batch","contacts_apply_names"].includes(action) &&
+        typeof body.account_phone==="string" && body.account_phone!==channel.phone)
+        return json({success:false,error:"O número conectado mudou. Selecione novamente o arquivo para iniciar na conta correta."},409);
       // Importers update only their own name source; never erase a manually
       // saved name or another import source on an UPSERT conflict.
       const mergeContactRows=async(rows:Array<{
@@ -323,14 +328,14 @@ Deno.serve(async request => {
           const batch=rows.slice(offset,offset+100);
           const {data:old,error:oldError}=await admin.from("union_whatsapp_contacts")
             .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
-            .eq("organization_id",org).eq("channel_id",channel.id)
+            .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
             .in("chat_jid",batch.map(row=>row.chat_jid));
           if(oldError)throw oldError;
           const byJid=new Map((old||[]).map(row=>[row.chat_jid,row]));
           const updates=batch.map(row=>{
             const previous=byJid.get(row.chat_jid);
             return {
-              organization_id:org,channel_id:channel.id,chat_jid:row.chat_jid,
+              organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:row.chat_jid,
               contact_phone:row.contact_phone??previous?.contact_phone??null,
               display_name:row.display_name??previous?.display_name??null,
               device_name:row.device_name??previous?.device_name??null,
@@ -342,7 +347,7 @@ Deno.serve(async request => {
             };
           });
           const {error:saveError}=await admin.from("union_whatsapp_contacts")
-            .upsert(updates,{onConflict:"channel_id,chat_jid"});
+            .upsert(updates,{onConflict:"channel_id,account_phone,chat_jid"});
           if(saveError)throw saveError;
         }
       };
@@ -351,7 +356,7 @@ Deno.serve(async request => {
         if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
           return json({success:false,error:"Contato inválido."},400);
         const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
-          .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+          .select("id").eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
           .eq("chat_jid",jid).maybeSingle();
         if(knownError)throw knownError;
         if(!known){
@@ -359,7 +364,7 @@ Deno.serve(async request => {
           // the participant was never saved in the contact directory.
           const {data:thread,error:threadError}=await admin
             .from("union_whatsapp_conversations").select("id")
-            .eq("organization_id",org).eq("channel_id",channel.id)
+            .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
             .eq("chat_jid",jid).maybeSingle();
           if(threadError)throw threadError;
           if(!thread)return json({success:false,error:"Contato não encontrado neste canal."},404);
@@ -377,7 +382,7 @@ Deno.serve(async request => {
         const search=String(body.search||"").trim().replace(/[^\p{L}\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
-          .eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
           .or("display_name.not.is.null,device_name.not.is.null,wuzapi_verified_saved.eq.true");
         if(search){
           const term=search.replace(/[%,]/g,"");
@@ -401,11 +406,11 @@ Deno.serve(async request => {
           return json({success:false,error:"Informe um telefone com DDD válido."},400);
         if(raw){
           const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
-            .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+            .select("id").eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
             .eq("chat_jid",jid).maybeSingle();
           if(knownError)throw knownError;
           const {data:convo,error:convError}=await admin.from("union_whatsapp_conversations")
-            .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+            .select("id").eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
             .eq("chat_jid",jid).maybeSingle();
           if(convError)throw convError;
           if(!known && !convo)return json({success:false,error:"Contato não encontrado neste canal."},404);
@@ -416,12 +421,12 @@ Deno.serve(async request => {
         await mergeContactRows([{chat_jid:jid,contact_phone:number,display_name:displayName}]);
         const {data:saved,error:saveError}=await admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,display_name")
-          .eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
           .eq("chat_jid",jid).single();
         if(saveError)throw saveError;
         const {error:renameError}=await admin.from("union_whatsapp_conversations")
           .update({contact_name:displayName,updated_at:new Date().toISOString()})
-          .eq("organization_id",org).eq("channel_id",channel.id).eq("chat_jid",jid);
+          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone).eq("chat_jid",jid);
         if(renameError)throw renameError;
         return json({success:true,contact:saved});
       }
@@ -446,12 +451,14 @@ Deno.serve(async request => {
           if(!/^[1-9][0-9][0-9]{8,9}$/.test(national) ||
             deviceName.length<2)continue;
           const phone="55"+national,jid=phone+"@s.whatsapp.net";
-          normalized.set(jid,{organization_id:org,channel_id:channel.id,
+          normalized.set(jid,{organization_id:org,channel_id:channel.id,account_phone:channel.phone,
             chat_jid:jid,contact_phone:phone,device_name:deviceName,
             updated_at:new Date().toISOString()});
         }
         if(!normalized.size)return json({success:false,error:"Nenhum telefone brasileiro válido encontrado no arquivo."},400);
         if(action==="contacts_import_batch"){
+          if(body.account_phone!==channel.phone)
+            return json({success:false,error:"A planilha pertence a outra conexão do WhatsApp."},409);
           // One atomic PostgreSQL upsert per batch, instead of multiple
           // read-merge-write requests. SQL updates only device_name/phone,
           // preserving manual overrides even if edited concurrently.
@@ -459,7 +466,7 @@ Deno.serve(async request => {
             "union_whatsapp_import_contacts_batch",{
               p_organization:org,p_channel:channel.id,
               p_contacts:[...normalized.values()].map(row=>({
-                name:row.device_name,phone:row.contact_phone,
+                name:row.device_name,phone:row.contact_phone,account_phone:channel.phone,
               })),
             });
           if(batchError)throw batchError;
@@ -500,7 +507,7 @@ Deno.serve(async request => {
         // Public PushName and the business profile never count as saved.
         if(!safe(row.imported_name))return [];
         return [{
-          organization_id:org,channel_id:channel.id,chat_jid:jid,
+          organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
           contact_phone:jid.endsWith("@s.whatsapp.net")?jid.split("@")[0]:null,
           imported_name:safe(row.imported_name)||null,
           profile_name:safe(row.profile_name)||null,
@@ -538,14 +545,14 @@ Deno.serve(async request => {
       const phone="55"+national;
       const customerName=String(body.contact_name||"").trim().slice(0,120);
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
-        .select("id,state,webhook_ready").eq("organization_id",org)
+        .select("id,state,webhook_ready,phone").eq("organization_id",org)
         .eq("provider","wuzapi").maybeSingle();
-      if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready)
+      if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready || !/^[0-9]{10,15}$/.test(channel.phone||""))
         return json({success:false,error:"Conecte o canal WhatsApp antes de iniciar uma conversa."},409);
       const jid=phone+"@s.whatsapp.net";
       const {data:knownContact,error:knownError}=await admin.from("union_whatsapp_contacts")
         .select("display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
-        .eq("organization_id",org).eq("channel_id",channel.id)
+        .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
         .eq("chat_jid",jid).maybeSingle();
       if(knownError)throw knownError;
       const preferredName=customerName || knownContact?.display_name ||
@@ -555,25 +562,25 @@ Deno.serve(async request => {
       const persistManualName=async()=>{
         if(!customerName)return;
         const {error:contactError}=await admin.from("union_whatsapp_contacts").upsert({
-          organization_id:org,channel_id:channel.id,chat_jid:jid,
+          organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
           contact_phone:phone,display_name:customerName,
           device_name:knownContact?.device_name??null,
           imported_name:knownContact?.imported_name??null,
           profile_name:knownContact?.profile_name??null,
           wuzapi_verified_saved:knownContact?.wuzapi_verified_saved===true,
           updated_at:new Date().toISOString(),
-        },{onConflict:"channel_id,chat_jid"});
+        },{onConflict:"channel_id,account_phone,chat_jid"});
         if(contactError)throw contactError;
         const {error:renameError}=await admin.from("union_whatsapp_conversations")
           .update({contact_name:customerName})
-          .eq("organization_id",org).eq("channel_id",channel.id).eq("chat_jid",jid);
+          .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone).eq("chat_jid",jid);
         if(renameError)throw renameError;
       };
       const {data:created,error:createError}=await admin.from("union_whatsapp_conversations")
-        .upsert({organization_id:org,channel_id:channel.id,chat_jid:jid,
+        .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
           contact_name:preferredName,contact_phone:phone,
           status:"in_att",assigned_to:actorId,
-        },{onConflict:"channel_id,chat_jid",ignoreDuplicates:true})
+        },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true})
         .select("id").maybeSingle();
       if(createError) throw createError;
       if(created) {
@@ -585,7 +592,7 @@ Deno.serve(async request => {
       }
       const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
         .select("id,status,assigned_to").eq("organization_id",org)
-        .eq("channel_id",channel.id).eq("chat_jid",jid).single();
+        .eq("channel_id",channel.id).eq("account_phone",channel.phone).eq("chat_jid",jid).single();
       if(existingError) throw existingError;
       if(existing.status==="in_att" && existing.assigned_to===actorId) {
         await persistManualName();
@@ -610,7 +617,7 @@ Deno.serve(async request => {
       return json({success:true,conversation_id:claimed.id});
     }
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
-      .select("id,organization_id,channel_id,chat_jid,contact_phone,status,assigned_to,department_id,service_order_id,last_message_at")
+      .select("id,organization_id,channel_id,account_phone,chat_jid,contact_phone,status,assigned_to,department_id,service_order_id,last_message_at")
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
@@ -623,7 +630,8 @@ Deno.serve(async request => {
     if(activeChannelError)throw activeChannelError;
     if(!activeChannel || activeChannel.state!=="connected" ||
       !activeChannel.webhook_ready ||
-      !/^[0-9]{10,15}$/.test(String(activeChannel.phone||"")))
+      !/^[0-9]{10,15}$/.test(String(activeChannel.phone||"")) ||
+      thread.account_phone!==activeChannel.phone)
       return json({success:false,error:"Este canal WhatsApp não está conectado."},409);
     if(!canManage){
       const assigned=thread.assigned_to===actorId;
@@ -1082,11 +1090,11 @@ Deno.serve(async request => {
     const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR") + firstName.slice(1) : null;
     const {data:message,error:insertError}=await admin.from("union_whatsapp_messages")
       .upsert({
-        organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
+        organization_id:org,channel_id:thread.channel_id,account_phone:thread.account_phone,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
         body_text:text,sender_name:senderName,sent_at:now,delivery_status:"sent",
         media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
-      },{onConflict:"channel_id,provider_message_id",ignoreDuplicates:true})
+      },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
     if(insertError) throw insertError;
     // A fast provider webhook can insert the same message before this Edge
@@ -1106,7 +1114,7 @@ Deno.serve(async request => {
       }
       if(Object.keys(patch).length)
         await admin.from("union_whatsapp_messages").update(patch)
-          .eq("channel_id",thread.channel_id).eq("provider_message_id",messageId)
+          .eq("channel_id",thread.channel_id).eq("account_phone",thread.account_phone).eq("provider_message_id",messageId)
           .eq("organization_id",org).eq("direction","outgoing");
     }
     if(!thread.last_message_at || new Date(now)>=new Date(thread.last_message_at)) {
