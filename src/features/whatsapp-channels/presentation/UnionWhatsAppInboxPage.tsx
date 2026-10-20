@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { supabase } from "@/lib/supabase";
@@ -113,6 +113,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const [routingOpen, setRoutingOpen] = useState(false);
+  const [newConversationOpen, setNewConversationOpen] = useState(false);
+  const [newPhone, setNewPhone] = useState("");
+  const [newName, setNewName] = useState("");
+  const [starting, setStarting] = useState(false);
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -176,6 +180,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setMediaPreview(null);
     setPending([]);
     setRoutingOpen(false);
+    setNewConversationOpen(false);
     setMembers([]);
     setError("");
     messageIdentity.current += 1;
@@ -293,6 +298,33 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     } finally {
       setRunningAction(null);
     }
+  };
+
+  const startConversation = async () => {
+    if (!activeOrganizationId || !canSend || starting) return;
+    const digits = newPhone.replace(/\\D/g, "");
+    if (!/^[1-9][0-9]{9,14}$/.test(digits)) {
+      setError("Informe um telefone válido com DDI e DDD.");
+      return;
+    }
+    setStarting(true);
+    setError("");
+    try {
+      const result = await operateUnionWhatsAppInbox(
+        activeOrganizationId, crypto.randomUUID(), "start",
+        {phone:digits,contact_name:newName.trim()},
+      );
+      if (!result.conversation_id) throw new Error("A conversa não foi confirmada.");
+      await refresh(true);
+      setFilter("in_att");
+      setSelectedId(result.conversation_id);
+      setNewConversationOpen(false);
+      setNewPhone("");
+      setNewName("");
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } catch(reason) {
+      setError(systemErrorMessage(reason, "Não foi possível iniciar esta conversa."));
+    } finally { setStarting(false); }
   };
 
   const showRouting = async () => {
@@ -421,7 +453,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
         <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
           <div className="border-b border-border bg-muted/35 p-3">
-            <p className="text-base font-black text-foreground">Conversas</p>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-base font-black text-foreground">Conversas</p>
+              {canSend && <button type="button" onClick={() => setNewConversationOpen(true)}
+                className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15">
+                <Plus size={15}/> Nova
+              </button>}
+            </div>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {scopedConversations.length} conversa(s) · {scopedConversations.filter(item => item.unread_count > 0).length} não lida(s)
             </p>
@@ -594,6 +632,28 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
         </section>
       </div>
     </div>
+    {newConversationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      onClick={event => { if (event.target === event.currentTarget) setNewConversationOpen(false); }}>
+      <form onSubmit={event => {event.preventDefault(); void startConversation();}}
+        role="dialog" aria-modal="true" aria-label="Nova conversa WhatsApp"
+        className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <p className="font-black">Nova conversa</p>
+          <button type="button" aria-label="Fechar" onClick={() => setNewConversationOpen(false)} className="rounded p-1 hover:bg-muted"><X size={18}/></button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Abra um atendimento para um número com DDI e DDD, sem criar mensagem automática.</p>
+        <label className="mt-4 block text-xs font-semibold" htmlFor="union-new-phone">WhatsApp *</label>
+        <input id="union-new-phone" required autoFocus inputMode="tel" value={newPhone} onChange={event => setNewPhone(event.target.value)}
+          placeholder="5579999999999" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+        <label className="mt-3 block text-xs font-semibold" htmlFor="union-new-name">Nome do contato (opcional)</label>
+        <input id="union-new-name" value={newName} maxLength={120} onChange={event => setNewName(event.target.value)}
+          placeholder="Nome" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+        <div className="mt-5 flex justify-end gap-2">
+          <AdminButton variant="secondary" onClick={() => setNewConversationOpen(false)}>Cancelar</AdminButton>
+          <AdminButton disabled={starting || !newPhone.trim()} onClick={() => void startConversation()}>{starting ? "Abrindo..." : "Abrir conversa"}</AdminButton>
+        </div>
+      </form>
+    </div>}
     {routingOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3" role="presentation"
       onClick={event => { if (event.target === event.currentTarget) setRoutingOpen(false); }}>
       <div role="dialog" aria-modal="true" aria-label="Encaminhar atendimento" className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
