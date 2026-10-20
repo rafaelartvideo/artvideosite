@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { supabase } from "@/lib/supabase";
@@ -130,7 +130,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
   // Regenerating it automatically would risk sending the same message twice.
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [channelReady, setChannelReady] = useState<boolean | null>(null);
+  const [channelError, setChannelError] = useState("");
   const messageIdentity = useRef(0);
 
   const loadingList = useRef(false);
@@ -145,7 +146,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       const items = await listUnionWhatsAppConversations(activeOrganizationId);
       if (organizationRef.current !== activeOrganizationId) return;
       setConversations(items);
-      setLastUpdated(new Date().toISOString());
       setError("");
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as conversas."));
@@ -188,6 +188,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     void refresh();
   }, [refresh]);
 
+  const checkChannel = useCallback(async () => {
+    if (!activeOrganizationId || !canView) return;
+    try {
+      const response = await operateUnionWhatsAppInbox(
+        activeOrganizationId, crypto.randomUUID(), "channel_status",
+      );
+      if (organizationRef.current === activeOrganizationId) {
+        setChannelReady(Boolean(response.channel_connected)); setChannelError("");
+      }
+    } catch (reason) {
+      if (organizationRef.current === activeOrganizationId) {
+        setChannelReady(null);
+        setChannelError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
+      }
+    }
+  }, [activeOrganizationId, canView]);
+  useEffect(() => { setChannelReady(null); setChannelError(""); void checkChannel(); }, [checkChannel]);
+
   // Realtime only while the inbox page is open. A bounded foreground refresh
   // is kept as fallback when tenant replication is temporarily unavailable.
   useEffect(() => {
@@ -203,7 +221,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     const realtime = supabase.channel(`union-whatsapp-${activeOrganizationId}-${Math.random().toString(36).slice(2)}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "union_whatsapp_conversations",
         filter: `organization_id=eq.${activeOrganizationId}` }, schedule)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "union_whatsapp_messages",
+      .on("postgres_changes", { event: "*", schema: "public", table: "union_whatsapp_messages",
         filter: `organization_id=eq.${activeOrganizationId}` }, schedule)
       .subscribe();
     // Reconcile on returning to the tab, not an expensive 30-second poll.
@@ -212,6 +230,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       if (document.visibilityState !== "visible" || Date.now() - lastResume < 30000) return;
       lastResume = Date.now();
       schedule();
+      void checkChannel();
     };
     window.addEventListener("focus", onResume);
     document.addEventListener("visibilitychange", onResume);
@@ -221,7 +240,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       document.removeEventListener("visibilitychange", onResume);
       void supabase.removeChannel(realtime);
     };
-  }, [activeOrganizationId, canView, selectedId, refresh, refreshMessages]);
+  }, [activeOrganizationId, canView, selectedId, refresh, refreshMessages, checkChannel]);
 
   useEffect(() => {
     if (!selectedId) { setMessages([]); return; }
@@ -373,14 +392,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const onChooseMedia = (file: File | null) => {
     if (!file) return;
     const type = file.type;
-    const max = type.startsWith("image/") ? 1024 * 1024 :
-      type.startsWith("audio/") ? 3 * 1024 * 1024 : 5 * 1024 * 1024;
+    const max = type.startsWith("image/") ? 10 * 1048576 :
+      type.startsWith("audio/") ? 16 * 1048576 : 25 * 1048576;
     const allowed = type.startsWith("image/") ? ["image/jpeg","image/png"].includes(type)
       : type.startsWith("audio/") ? ["audio/ogg","audio/opus"].includes(type)
       : type.startsWith("video/") ? ["video/mp4","video/3gpp"].includes(type)
-      : ["application/pdf","text/plain","application/zip","application/octet-stream"].includes(type);
+      : ["application/pdf","text/plain","application/zip","application/octet-stream",
+          "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
     if (!allowed || file.size === 0 || file.size > max) {
-      setError("Tipo de arquivo não aceito ou limite excedido. Imagens: 1 MB; áudio Opus/Ogg: 3 MB; vídeo MP4/documentos: 5 MB.");
+      setError("Arquivo incompatível ou muito grande. Imagens: 10 MB; áudios: 16 MB; vídeos e documentos: 25 MB.");
       if (mediaInputRef.current) mediaInputRef.current.value = "";
       return;
     }
@@ -419,16 +441,19 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     sendingIds.current.add(requestId);
     void (async () => {
       try {
-        let extra: {text:string;client_message_id:string;media_base64?:string;media_name?:string;media_mime?:string;media_type?:string} =
+        let extra: {text:string;client_message_id:string;media_name?:string;media_mime?:string;
+          media_type?:string;media_size?:number;media_path?:string} =
           { text, client_message_id: requestId };
         if (file && fileType) {
-          const bytes = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(String(reader.result || "").split(",")[1] || "");
-            reader.onerror = () => reject(new Error("Não foi possível ler o arquivo."));
-            reader.readAsDataURL(file);
-          });
-          extra = { ...extra, media_base64:bytes, media_name:file.name, media_mime:file.type, media_type:fileType };
+          const base={media_name:file.name,media_mime:file.type,
+            media_type:fileType,media_size:file.size,client_message_id:requestId};
+          const upload=await operateUnionWhatsAppInbox(organizationId,threadId,"prepare_media",base);
+          if(!upload.upload_path || !upload.upload_token)
+            throw Error("O envio seguro do arquivo não foi autorizado.");
+          const {error:uploadError}=await supabase.storage.from("union-whatsapp-media")
+            .uploadToSignedUrl(upload.upload_path,upload.upload_token,file,{contentType:file.type});
+          if(uploadError) throw uploadError;
+          extra={...extra,...base,media_path:upload.upload_path};
         }
         await operateUnionWhatsAppInbox(organizationId, threadId, file ? "send_media" : "send_text", extra);
         if (organizationRef.current !== organizationId) return;
@@ -451,15 +476,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
   return <div className="space-y-5">
-    <PageHeader title="Atendimento WhatsApp" subtitle="Caixa de entrada própria da Union, com o mesmo padrão visual do SAC Digital."
-      actions={<div className="flex gap-2">
-        <AdminButton variant="secondary" onClick={() => void refresh()}><RefreshCw size={16}/> Atualizar</AdminButton>
+    <PageHeader title="Atendimento WhatsApp"
+      actions={<div className="flex items-center gap-2">
+        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
+          <AdminButton variant="secondary" onClick={onConfigure}><Settings2 size={16}/> Configurações</AdminButton>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
-    <div className="h-[min(76vh,850px)] min-h-[520px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
+    {channelError && <p role="alert" className="text-xs text-red-600">{channelError}</p>}
+    {channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
+      <MessageCircle size={36} className="text-muted-foreground"/>
+      <div className="space-y-2">
+        <p className="text-base font-bold">Nenhum canal WhatsApp conectado</p>
+        <p className="max-w-sm text-sm text-muted-foreground">Configure e conecte um canal para começar a receber e enviar mensagens.</p>
+      </div>
+      {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
+        <AdminButton onClick={onConfigure}><Settings2 size={16}/> Configurar canal</AdminButton>}
+    </div> : <div className="h-[min(76vh,850px)] min-h-[520px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
       <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
         <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
           <div className="border-b border-border bg-muted/35 p-3">
@@ -488,7 +523,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 className="w-full rounded-lg border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25"/>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [scrollbar-gutter:stable]">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {loading ? <div className="p-5"><LoadingState text="Carregando conversas..."/></div>
             : visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
               <MessageCircle size={26}/><p>Nenhuma conversa encontrada.</p>
@@ -498,7 +533,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
               const selected = item.id === selectedId;
               const name = item.contact_name || item.contact_phone || "Contato";
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
-                className={`flex w-full items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "bg-primary-soft" : item.unread_count > 0 ? "border-l-2 border-l-primary bg-primary-soft/45 hover:bg-primary-soft/65" : "bg-card hover:bg-muted/55"}`}>
+                className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-primary/50 bg-primary-soft/45 hover:bg-primary-soft/65" : "bg-card hover:bg-muted/55"}`}>
                 <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-xs font-black ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
                   {initials(name)}
                 </span>
@@ -542,7 +577,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 </>}
                 {selected.status === "finished" && canManage &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
-                <AdminButton variant="secondary" size="sm" onClick={() => void refreshMessages(selected.id)}><RefreshCw size={15}/><span className="hidden sm:inline">Atualizar</span></AdminButton>
               </div>
             </header>
             <div className="relative min-h-0 flex-1">
@@ -601,10 +635,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
                   onSubmit={event => { event.preventDefault(); sendText(); }}>
                   <input ref={mediaInputRef} type="file" className="hidden"
-                    accept="image/jpeg,image/png,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,application/octet-stream"
+                    accept="image/jpeg,image/png,audio/ogg,audio/opus,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => onChooseMedia(event.target.files?.[0] || null)}/>
                   <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
-                    title="Anexar (imagens 1 MB; áudio 3 MB; vídeo/documentos 5 MB)"
+                    title="Anexar (imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground hover:bg-muted">
                     <Paperclip size={22}/>
@@ -641,7 +675,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
           </>}
         </section>
       </div>
-    </div>
+    </div>}
     {newConversationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event => { if (event.target === event.currentTarget) setNewConversationOpen(false); }}>
       <form onSubmit={event => {event.preventDefault(); void startConversation();}}
