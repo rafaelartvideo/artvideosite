@@ -267,6 +267,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       [item.contact_name, item.contact_phone || "", item.chat_jid].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
   }, [scopedConversations, filter, query]);
 
+  useEffect(() => {
+    if (!activeOrganizationId || !selected || selected.status !== "in_att"
+      || selected.assigned_to !== user?.id || selected.unread_count <= 0) return;
+    const threadId=selected.id;
+    void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
+      .then(() => { setConversations(current => current.map(item =>
+        item.id === threadId ? {...item,unread_count:0} : item)); })
+      .catch(() => undefined);
+  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id]);
+
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
   const canReply = Boolean(selected && canSend && selected.status === "in_att" && (isMine || canManage));
