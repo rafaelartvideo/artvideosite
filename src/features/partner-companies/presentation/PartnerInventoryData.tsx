@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listInventoryItems, listInventoryMovementsPage } from "@/features/inventory/infrastructure/inventory.repository";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput } from "@/shared/ui/admin/AdminFormControls";
@@ -57,6 +57,7 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
   const [nameSearch, setNameSearch] = useState("");
   const [skuSearch, setSkuSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
+  const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc">("name_asc");
   const [mobileSearchField, setMobileSearchField] = useState<"name" | "sku" | "address">("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -82,19 +83,20 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
     if (skuSearch && !normalize(item.sku).includes(normalize(skuSearch))) return false;
     if (addressSearch && !normalize(`${storageAddress(item)} ${item.storage_shelf || ""} ${item.storage_level || ""} ${item.storage_compartment || ""}`).includes(normalize(addressSearch))) return false;
     return true;
-  }), [items, nameSearch, skuSearch, addressSearch]);
+  }).sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }) * (inventorySort === "name_desc" ? -1 : 1)), [items, nameSearch, skuSearch, addressSearch, inventorySort]);
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const paged = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
-  const hasFilters = Boolean(nameSearch || skuSearch || addressSearch);
+  const hasFilters = Boolean(nameSearch || skuSearch || addressSearch || inventorySort !== "name_asc");
 
-  useEffect(() => setPage(1), [nameSearch, skuSearch, addressSearch]);
+  useEffect(() => setPage(1), [nameSearch, skuSearch, addressSearch, inventorySort]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const clearFilters = () => {
     setNameSearch("");
     setSkuSearch("");
     setAddressSearch("");
+    setInventorySort("name_asc");
     setPage(1);
   };
 
@@ -147,7 +149,11 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader title="Estoque" subtitle={`${items.length} item${items.length !== 1 ? "s" : ""} cadastrado${items.length !== 1 ? "s" : ""}`} />
 
-    <AdminSearchPanel title="Buscar estoque">
+    <AdminSearchPanel title="Buscar estoque" headerActions={<>
+      {hasFilters && <AdminSearchClearButton onClick={clearFilters} />}
+      <AdminSearchSortMenu value={inventorySort} onChange={setInventorySort}
+        options={[{ value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }]} />
+    </>}>
       <AdminMobileSearchSwitch
         value={mobileSearchField}
         options={[{ value: "name", label: "Nome" }, { value: "sku", label: "SKU" }, { value: "address", label: "Endereço" }]}
@@ -162,7 +168,6 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
         <FInput label="SKU" className="md:h-9 md:py-1.5" value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
         <FInput label="Endereço" className="md:h-9 md:py-1.5" value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />
       </div>
-      {hasFilters && <div className="mt-3 flex justify-end md:mt-2"><AdminButton variant="danger" size="sm" onClick={clearFilters} className="bg-white text-red-600 hover:bg-red-50"><Eraser size={14} /> Limpar filtros</AdminButton></div>}
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
