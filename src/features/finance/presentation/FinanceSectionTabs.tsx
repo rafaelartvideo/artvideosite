@@ -41,8 +41,8 @@ export function FinanceSubsectionTabs<T extends string>({
   onSelect: (value: T) => void;
   ariaLabel?: string;
 }) {
-  return <nav className="mx-auto flex w-fit max-w-full justify-center overflow-x-auto" aria-label={ariaLabel}>
-    <div className="flex w-max items-center justify-center gap-1">
+  return <nav className="mr-auto flex w-fit max-w-full justify-start overflow-x-auto" aria-label={ariaLabel}>
+    <div className="flex w-max items-center justify-start gap-1">
       {items.map(item => (
         <button key={item.id} type="button" onClick={() => onSelect(item.id)} aria-current={item.id === value ? "page" : undefined}
           className={cn(tabClasses, item.id === value ? "text-primary after:scale-x-100" : "text-muted-foreground after:scale-x-0 hover:text-primary")}>
