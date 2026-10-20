@@ -193,7 +193,15 @@ Deno.serve(async request => {
       const later = !thread.last_message_at || new Date(timestamp) >= new Date(thread.last_message_at);
       const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (later) { patch.last_message = displayText; patch.last_message_at = timestamp; }
-      if (!isFromMe) patch.unread_count = Math.min(Number(thread.unread_count || 0) + 1, 2147483647);
+      if (!isFromMe) {
+        patch.unread_count = Math.min(Number(thread.unread_count || 0) + 1, 2147483647);
+        // A new customer reply automatically reopens a completed/abandoned
+        // conversation, matching the existing SAC queue behavior.
+        if (thread.status === "finished" || thread.status === "abandoned") {
+          patch.status = "waiting";
+          patch.assigned_to = null;
+        }
+      }
       if (name && thread.contact_name === (phone || "Contato WhatsApp")) patch.contact_name = name;
       const { error: updateError } = await admin.from("union_whatsapp_conversations")
         .update(patch).eq("id", thread.id).eq("organization_id", org);
