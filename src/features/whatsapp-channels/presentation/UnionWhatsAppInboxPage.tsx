@@ -433,6 +433,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
       setHandoffs(result.history||[]);setHistoryOpen(true);
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar o histórico."));}
   };
+  useEffect(()=>{
+    if(!activeOrganizationId || !canView || channelReady!==true)return;
+    let cancelled=false;const org=activeOrganizationId;
+    void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"departments_list")
+      .then(result=>{if(!cancelled && organizationRef.current===org) setDepartments(result.departments||[]);})
+      .catch(()=>undefined);
+    return()=>{cancelled=true;};
+  },[activeOrganizationId,canView,channelReady]);
+
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
   const canReply = Boolean(selected && canSend && selected.status === "in_att" && (isMine || canManage));
@@ -694,8 +703,26 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
   return <div className="space-y-5">
     <PageHeader title="Atendimento WhatsApp"
       actions={<div className="flex items-center gap-2">
-        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
-          <AdminButton variant="secondary" onClick={onConfigure}><Settings2 size={16}/> Configurações</AdminButton>}
+        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || canManage) &&
+          <div className="relative">
+            <button type="button" aria-label="Configurações do Atendimento WhatsApp"
+              aria-expanded={settingsOpen} title="Configurações"
+              onClick={()=>setSettingsOpen(value=>!value)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted">
+              <Settings2 size={17}/>
+            </button>
+            {settingsOpen && <div className="absolute right-0 top-11 z-40 w-60 rounded-lg border border-border bg-card p-1.5 shadow-xl">
+              {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage")) &&
+                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure();}}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                  <Settings2 size={15}/> Canais de Atendimento
+                </button>}
+              {canManage && <button type="button" onClick={()=>void openDepartmentSettings()}
+                className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                <Building2 size={15}/> Departamentos e equipe
+              </button>}
+            </div>}
+          </div>
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
@@ -732,6 +759,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
             </div>
+            {departments.length>0 && <select aria-label="Filtrar departamento" value={departmentFilter}
+              onChange={event=>setDepartmentFilter(event.target.value)}
+              className="mt-3 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
+              <option value="all">Todos os departamentos</option>
+              <option value="none">Sem departamento</option>
+              {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>}
             <div className="relative mt-3">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-blue-600"/>
               <input value={query} onChange={event => setQuery(event.target.value)} type="search" aria-label="Buscar conversa"
@@ -793,6 +827,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
                 {selected.status === "waiting" && (canSend || canManage) &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {selected.status === "in_att" && canOperateSelected && <>
+                  {canManage && <button type="button" title="Histórico do atendimento" aria-label="Histórico do atendimento"
+                    onClick={()=>void viewHistory()} className="flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted">
+                    <History size={15}/>
+                  </button>}
                   {canManage && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
                   </AdminButton>}
