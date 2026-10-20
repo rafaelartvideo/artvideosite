@@ -138,6 +138,7 @@ export async function listInventoryItems(organizationIdOverride?: string | null,
     .from("inventory_items")
     .select(columns)
     .eq("organization_id", organizationId)
+    .is("archived_at", null)
     .order("name");
   if (error) throw error;
 
