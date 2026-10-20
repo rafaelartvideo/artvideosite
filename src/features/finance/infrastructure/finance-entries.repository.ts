@@ -296,6 +296,7 @@ export async function saveFinancialEntry(organizationId: string, draft: Financia
     counterpart_name: String(draft.counterpart_name || "").trim() || null,
     counterpart_document: String(draft.counterpart_document || "").trim() || null,
     notes: String(draft.notes || "").trim() || null,
+    payment_plan: draft.payment_plan || [],
     installments: draft.installments.map(item => ({
       installment_number: item.installment_number,
       due_date: item.due_date,
