@@ -44,20 +44,13 @@ export type FinancialCounterparty = {
 async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Promise<FinancialEntry[]> {
   if (!rows.length) return [];
   const ids = rows.map(row => row.id);
-  const [installmentsResult, approvalsResult, settlementsResult] = await Promise.all([
+  const [installmentsResult, settlementsResult] = await Promise.all([
     supabase
       .from("financial_installments")
       .select(INSTALLMENT_COLUMNS)
       .eq("organization_id", organizationId)
       .in("financial_entry_id", ids)
       .order("due_date"),
-    supabase
-      .from("financial_approvals")
-      .select(APPROVAL_COLUMNS)
-      .eq("organization_id", organizationId)
-      .in("financial_entry_id", ids)
-      .eq("action", "approve")
-      .order("created_at"),
     supabase
       .from("financial_settlements")
       .select("financial_entry_id,payment_method_name_snapshot,principal_amount,settlement_status")
@@ -66,7 +59,6 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
       .neq("settlement_status", "reversed"),
   ]);
   if (installmentsResult.error) throw installmentsResult.error;
-  if (approvalsResult.error) throw approvalsResult.error;
   if (settlementsResult.error) throw settlementsResult.error;
 
   const installmentsByEntry = new Map<string, FinancialInstallment[]>();
@@ -74,13 +66,6 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
     const list = installmentsByEntry.get(installment.financial_entry_id) || [];
     list.push(installment);
     installmentsByEntry.set(installment.financial_entry_id, list);
-  }
-
-  const approvalsByEntry = new Map<string, FinancialApproval[]>();
-  for (const approval of (approvalsResult.data || []) as FinancialApproval[]) {
-    const list = approvalsByEntry.get(approval.financial_entry_id) || [];
-    list.push(approval);
-    approvalsByEntry.set(approval.financial_entry_id, list);
   }
 
   const methodsByEntry = new Map<string, Set<string>>();
@@ -93,14 +78,12 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
   return rows.map(entry => {
     const entryInstallments = installmentsByEntry.get(entry.id) || [];
     const pending = entryInstallments.filter(item => Number(item.settled_amount || 0) < Number(item.original_amount || 0));
-    const currentApprovals = (approvalsByEntry.get(entry.id) || []).filter(item => item.approval_cycle === entry.approval_cycle);
-    const approvalUsers = new Set(currentApprovals.map(item => item.approver_user_id));
     const settledAmount = entryInstallments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
     const methods = [...(methodsByEntry.get(entry.id) || [])];
     return {
       ...entry,
       source_details: entry.source_details || {},
-      approval_count: approvalUsers.size,
+      approval_count: 0,
       payment_method_summary: methods.length ? methods.join(", ") : null,
       settled_amount: settledAmount,
       remaining_amount: entryInstallments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount || 0) - Number(item.settled_amount || 0)), 0),
@@ -119,6 +102,12 @@ export type FinancialEntryListPageInput = {
   pageSize: number;
   search?: string;
   approvalStatus?: string;
+  name?: string;
+  document?: string;
+  os?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  operationalStatus?: string;
 };
 
 export type FinancialEntryListPage = {
@@ -133,10 +122,11 @@ export async function listFinancialEntriesPage({
   pageSize,
   search = "",
   approvalStatus = "all",
+  name = "", document = "", os = "", dateFrom = "", dateTo = "", operationalStatus = "all",
 }: FinancialEntryListPageInput): Promise<FinancialEntryListPage> {
   const org = requiredOrganizationId(organizationId);
   const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_financial_entry_page_ids_v1",
+    "search_financial_entry_page_ids_v2",
     {
       p_organization_id: org,
       p_entry_type: entryType,
@@ -144,6 +134,12 @@ export async function listFinancialEntriesPage({
       p_page_size: Math.max(1, pageSize),
       p_search: search,
       p_approval_status: approvalStatus,
+      p_name: name,
+      p_document: document,
+      p_os: os,
+      p_date_from: dateFrom || null,
+      p_date_to: dateTo || null,
+      p_operational_status: operationalStatus,
     },
   );
   if (pageIndexError) throw pageIndexError;
