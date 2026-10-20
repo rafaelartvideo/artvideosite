@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Wifi } from "lucide-react";
+import { CircleAlert, LoaderCircle, MessageCircle, QrCode, RefreshCw, ShieldCheck, Smartphone, Unplug, Wifi } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
