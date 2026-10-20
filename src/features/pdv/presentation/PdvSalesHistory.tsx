@@ -13,7 +13,7 @@ import {
   AdminIconButton,
   PageHeader,
 } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -65,6 +65,7 @@ export function PdvSalesHistory({
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search);
   const [status, setStatus] = useState<"" | "completed" | "cancelled">("");
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [mobileSearchField, setMobileSearchField] = useState<"query" | "status">("query");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -75,15 +76,16 @@ export function PdvSalesHistory({
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, status]);
+  }, [debouncedSearch, status, sort]);
 
   const salesQuery = useQuery({
-    queryKey: queryKeys.pdv.salesPage(organizationId || "none", page, pageSize, debouncedSearch, status),
+    queryKey: [...queryKeys.pdv.salesPage(organizationId || "none", page, pageSize, debouncedSearch, status), sort],
     queryFn: () => loadPdvSalesPage(organizationId, {
       page,
       pageSize,
       search: debouncedSearch,
       status,
+      sort,
     }),
     enabled: Boolean(organizationId),
   });
@@ -154,7 +156,13 @@ export function PdvSalesHistory({
       </div>}
     />
 
-    <AdminSearchPanel title="Buscar vendas">
+    <AdminSearchPanel title="Buscar vendas" headerActions={<>
+      {(search || status || sort !== "newest") && <AdminSearchClearButton onClick={() => {
+        setSearch(""); setStatus(""); setSort("newest"); setPage(1);
+      }} />}
+      <AdminSearchSortMenu value={sort} onChange={setSort}
+        options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigas" }]} />
+    </>}>
       <AdminMobileSearchSwitch
         value={mobileSearchField}
         options={[{ value: "query", label: "Venda / cliente / documento" }, { value: "status", label: "Situação" }]}
