@@ -248,7 +248,7 @@ Deno.serve(async request => {
     };
     const phone = String(remote.phone || "").trim();
     if (loggedIn && /^[0-9]{10,15}$/.test(phone)) patch.phone = phone;
-    if (loggedIn && previous !== "connected") patch.last_connected_at = new Date().toISOString();
+    if (loggedIn && (previous !== "connected" || (/^[0-9]{10,15}$/.test(phone) && phone!==channel.phone))) patch.last_connected_at = new Date().toISOString();
     const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
       .update(patch).eq("id", channel.id).eq("organization_id", org)
       .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
