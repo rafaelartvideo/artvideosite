@@ -38,8 +38,10 @@ export function AdminSearchSortMenu<T extends string>({
   label?: string;
 }) {
   const current = options.find(option => option.value === value);
-  const SortIcon = value === "asc" || value === "oldest" || value === "name_asc" ? ArrowUpNarrowWide
-    : value === "desc" || value === "newest" || value === "name_desc" ? ArrowDownWideNarrow : ArrowUpDown;
+  const getSortIcon = (sortValue: string) =>
+    sortValue === "asc" || sortValue === "oldest" || sortValue.endsWith("_asc") ? ArrowUpNarrowWide
+    : sortValue === "desc" || sortValue === "newest" || sortValue.endsWith("_desc") ? ArrowDownWideNarrow : ArrowUpDown;
+  const SortIcon = getSortIcon(value);
   return <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <button type="button" title={`${label}: ${current?.label || "Padrão"}`}
@@ -49,8 +51,8 @@ export function AdminSearchSortMenu<T extends string>({
       </button>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="min-w-[190px]">
-      {options.map((option, index) => {
-        const Icon = index === 0 ? ArrowUpDown : index === 1 ? ArrowUpNarrowWide : ArrowDownWideNarrow;
+      {options.map(option => {
+        const Icon = getSortIcon(option.value);
         const selected = option.value === value;
         return <DropdownMenuItem key={option.value || "default"} onSelect={() => onChange(option.value)}
           className={cn("cursor-pointer", selected && "bg-primary/10 font-bold text-primary")}>
