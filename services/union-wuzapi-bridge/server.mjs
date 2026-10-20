@@ -111,7 +111,7 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
@@ -157,55 +157,89 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(presenceSubscriptions.size>1000) presenceSubscriptions.delete(presenceSubscriptions.keys().next().value);
     return {ok:true};
   }
+  if(action==="contacts_export") {
+    const reply=await wuzapi("/user/contacts",session.token);
+    const entries=reply?.data && typeof reply.data==="object" &&
+      !Array.isArray(reply.data) ? reply.data : {};
+    const contacts=[];
+    for(const [jid,raw] of Object.entries(entries)) {
+      if(contacts.length>=5000)break;
+      if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))continue;
+      const entry=raw && typeof raw==="object" ? raw : {};
+      if(entry.Found===false)continue;
+      const clean=value=>String(value||"").replace(/[\\x00-\\x1f]/g," ").trim().slice(0,160);
+      contacts.push({
+        jid,
+        imported_name:clean(entry.FullName||entry.FirstName||entry.BusinessName),
+        profile_name:clean(entry.PushName),
+      });
+    }
+    return {ok:true,contacts};
+  }
   if (action === "contact_avatar") {
     const jid=String(chatJid||"");
     if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
       throw new Error("bad_request");
     const cacheKey=id+"|"+jid;
     const existing=avatarCache.get(cacheKey);
-    if(existing && Date.now()-existing.at<1800000)
-      return {ok:true,avatar_url:existing.url};
-    // WuzAPI /user/avatar requires a JSON BODY even on GET. Node fetch()
-    // prohibits GET bodies, so call only our own loopback port using http.
+    if(existing && Date.now()-existing.at < (existing.base64?600000:60000))
+      return {ok:true,avatar_base64:existing.base64||null,avatar_mime:existing.mime||null};
+    // WuzAPI expects a GET carrying JSON. Node's native fetch forbids a
+    // GET body, so communicate with the trusted loopback provider directly.
     const payload=JSON.stringify({Phone:jid,Preview:true});
     const avatarResult=await new Promise(resolve=>{
+      let settled=false;
+      const done=value=>{if(!settled){settled=true;resolve(value);}};
       const req=httpRequest("http://127.0.0.1:18080/user/avatar",{
         method:"GET",
         headers:{Token:session.token,"Content-Type":"application/json",
           "Content-Length":Buffer.byteLength(payload)},
-        timeout:7000,
+        timeout:8000,
       },res=>{
         const chunks=[];let size=0;
         res.on("data",chunk=>{
           size+=chunk.length;
-          if(size>32768){req.destroy();return;}
+          if(size>32768){req.destroy();done(null);return;}
           chunks.push(chunk);
         });
         res.on("end",()=>{
-          if(res.statusCode!==200){resolve(null);return;}
-          try{resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));}
-          catch{resolve(null);}
+          if(res.statusCode!==200){done(null);return;}
+          try{done(JSON.parse(Buffer.concat(chunks).toString("utf8")));}
+          catch{done(null);}
         });
       });
-      req.on("timeout",()=>req.destroy());
-      req.on("error",()=>resolve(null));
+      req.on("timeout",()=>{req.destroy();done(null);});
+      req.on("error",()=>done(null));
       req.end(payload);
     });
     const raw=avatarResult && typeof avatarResult==="object" &&
       !Array.isArray(avatarResult) ? avatarResult : {};
     const addr=String(raw.URL||raw.url||raw.data?.URL||"");
-    let valid="";
-    try{
+    let base64="",mime="";
+    try {
       const source=new URL(addr);
+      const host=source.hostname;
       if(source.protocol==="https:" && !source.username && !source.password &&
-        (source.hostname==="pps.whatsapp.net" ||
-          source.hostname.endsWith(".whatsapp.net") ||
-          source.hostname==="fbcdn.net" || source.hostname.endsWith(".fbcdn.net")))
-        valid=addr;
-    }catch{}
-    avatarCache.set(cacheKey,{url:valid,at:Date.now()});
-    if(avatarCache.size>1000) avatarCache.delete(avatarCache.keys().next().value);
-    return {ok:true,avatar_url:valid||null};
+        (host==="pps.whatsapp.net" || host.endsWith(".whatsapp.net") ||
+          host==="fbcdn.net" || host.endsWith(".fbcdn.net"))) {
+        const response=await fetch(source,{
+          redirect:"error",signal:AbortSignal.timeout(10000),
+          headers:{Accept:"image/jpeg,image/png,image/webp"},
+        });
+        const type=String(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
+        const len=Number(response.headers.get("content-length")||0);
+        if(response.ok && ["image/jpeg","image/png","image/webp"].includes(type) &&
+          (!len||len<=200000)) {
+          const bytes=Buffer.from(await response.arrayBuffer());
+          if(bytes.length>0 && bytes.length<=200000){
+            mime=type;base64=bytes.toString("base64");
+          }
+        }
+      }
+    }catch{/* Missing/private photos are expected and not an error. */}
+    avatarCache.set(cacheKey,{base64,mime,at:Date.now()});
+    if(avatarCache.size>100) avatarCache.delete(avatarCache.keys().next().value);
+    return {ok:true,avatar_base64:base64||null,avatar_mime:mime||null};
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
