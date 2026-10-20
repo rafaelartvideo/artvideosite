@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { supabase } from "@/lib/supabase";
@@ -59,6 +59,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [draft, setDraft] = useState("");
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [routingOpen, setRoutingOpen] = useState(false);
+  const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
+  const [targetUserId, setTargetUserId] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const followLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
@@ -116,6 +119,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setFilter("waiting");
     setDraft("");
     setPending([]);
+    setRoutingOpen(false);
+    setMembers([]);
     setError("");
     messageIdentity.current += 1;
     setLoading(true);
@@ -229,6 +234,39 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       }
     } catch (reason) {
       setError(systemErrorMessage(reason, "Não foi possível atualizar o atendimento."));
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const showRouting = async () => {
+    if (!selected || !activeOrganizationId || !canManage || runningAction) return;
+    setRunningAction("members");
+    setError("");
+    try {
+      const response = await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "members");
+      setMembers(response.members || []);
+      setTargetUserId("");
+      setRoutingOpen(true);
+    } catch (reason) {
+      setError(systemErrorMessage(reason, "Não foi possível carregar os atendentes."));
+    } finally {
+      setRunningAction(null);
+    }
+  };
+
+  const transfer = async () => {
+    if (!selected || !activeOrganizationId || !targetUserId || runningAction) return;
+    setRunningAction("transfer");
+    try {
+      await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "transfer", {
+        target_user_id: targetUserId,
+      });
+      setRoutingOpen(false);
+      setSelectedId(null);
+      await refresh(true);
+    } catch (reason) {
+      setError(systemErrorMessage(reason, "Não foi possível encaminhar o atendimento."));
     } finally {
       setRunningAction(null);
     }
@@ -352,6 +390,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 {selected.status === "waiting" && (canSend || canManage) &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {selected.status === "in_att" && canOperateSelected && <>
+                  {canManage && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
+                    <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
+                  </AdminButton>}
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>
                 </>}
@@ -372,7 +413,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                     {message.direction === "outgoing" && message.sender_name &&
                       <p className="mb-1 text-[11px] font-black">{message.sender_name}</p>}
                     <MessageBody message={message}/>
-                    <span className="mt-1 block text-right text-[10px] text-muted-foreground">{clock(message.sent_at)}</span>
+                    <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                      {clock(message.sent_at)}
+                      {message.direction === "outgoing" && (message.delivery_status === "read"
+                        ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada" />
+                        : message.delivery_status === "delivered"
+                          ? <CheckCheck size={13} aria-label="Entregue" />
+                          : <Check size={13} aria-label="Enviada" />)}
+                    </span>
                   </div>
                 </div>)}
                 {pending.filter(item => item.conversationId === selected.id && item.organizationId === activeOrganizationId)
@@ -437,5 +485,26 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
         </section>
       </div>
     </div>
+    {routingOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3" role="presentation"
+      onClick={event => { if (event.target === event.currentTarget) setRoutingOpen(false); }}>
+      <div role="dialog" aria-modal="true" aria-label="Encaminhar atendimento" className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between gap-3">
+          <p className="font-black text-foreground">Encaminhar atendimento</p>
+          <button type="button" onClick={() => setRoutingOpen(false)} aria-label="Fechar" className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">A conversa será atribuída a outro funcionário da mesma empresa.</p>
+        <label htmlFor="union-whatsapp-routing" className="mt-4 block text-xs font-semibold">Atendente *</label>
+        <select id="union-whatsapp-routing" value={targetUserId} onChange={event => setTargetUserId(event.target.value)}
+          className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm outline-none focus:border-primary">
+          <option value="">Selecione um atendente</option>
+          {members.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        {members.length === 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Nenhum atendente autorizado foi encontrado.</p>}
+        <div className="mt-5 flex justify-end gap-2">
+          <AdminButton variant="secondary" onClick={() => setRoutingOpen(false)}>Cancelar</AdminButton>
+          <AdminButton disabled={!targetUserId || Boolean(runningAction)} onClick={() => void transfer()}>Encaminhar</AdminButton>
+        </div>
+      </div>
+    </div>}
   </div>;
 }
