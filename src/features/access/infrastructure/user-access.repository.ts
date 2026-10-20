@@ -168,6 +168,7 @@ export type PermissionAccess = {
   }>;
   inheritedPermissionIds: string[];
   individualPermissionIds: string[];
+  deniedPermissionIds: string[];
 };
 
 export async function getUserPermissionAccess(organizationId: string, userId: string): Promise<PermissionAccess> {
@@ -185,7 +186,7 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
       p_organization_id: organizationId,
     }),
     supabase.from("user_permission_overrides")
-      .select("permission_id")
+      .select("permission_id,is_allowed")
       .eq("organization_id", organizationId)
       .eq("user_id", userId),
   ]);
@@ -217,6 +218,10 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
     // Preservar concessões antigas que não aparecem no filtro visual atual.
     // O salvamento de outra categoria não pode apagar IDs ocultos por módulo.
     individualPermissionIds: (overrides || [])
+      .filter((item: any) => item.is_allowed !== false)
+      .map((item: any) => String(item.permission_id)),
+    deniedPermissionIds: (overrides || [])
+      .filter((item: any) => item.is_allowed === false)
       .map((item: any) => String(item.permission_id)),
   };
 }
@@ -224,12 +229,14 @@ export async function getUserPermissionAccess(organizationId: string, userId: st
 export async function setUserPermissionOverrides(
   organizationId: string,
   userId: string,
-  permissionIds: string[],
+  grantedIds: string[],
+  deniedIds: string[] = [],
 ) {
-  const result = await supabase.rpc("set_user_permission_overrides", {
+  const result = await supabase.rpc("set_user_permission_overrides_v2", {
     p_organization_id: organizationId,
     p_user_id: userId,
-    p_permission_ids: Array.from(new Set(permissionIds)),
+    p_granted_ids: Array.from(new Set(grantedIds)),
+    p_denied_ids: Array.from(new Set(deniedIds)),
   });
   if (!result.error) {
     dispatchCompatibleEvent(PERMISSIONS_CHANGED_EVENT, LEGACY_PERMISSIONS_CHANGED_EVENT);
