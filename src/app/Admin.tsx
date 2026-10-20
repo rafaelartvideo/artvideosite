@@ -59,6 +59,7 @@ const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").the
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
+const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 const UnionCatalogAdminPage = lazy(() => import("@/features/segments/presentation/UnionCatalogAdminPage").then(({ UnionCatalogAdminPage }) => ({ default: UnionCatalogAdminPage })));
@@ -156,7 +157,7 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
-    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage")) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
+    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || hasPermission("whatsapp.inbox.view")) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
@@ -165,11 +166,12 @@ export function AdminDashboard({
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "operation") return !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
-    if (tab === "tools") return hasPermission("tools.view") && (
+    if (tab === "tools") return (hasPermission("tools.view") || hasPermission("whatsapp.inbox.view")) && (
       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
@@ -281,6 +283,7 @@ export function AdminDashboard({
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
   const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
+  const canAccessWhatsAppTool = (isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view");
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
@@ -292,6 +295,9 @@ export function AdminDashboard({
     ] : []),
     ...(canAccessSacDigitalTool ? [
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
+    ] : []),
+    ...(canAccessWhatsAppTool ? [
+      { id: "union-whatsapp", label: "Atendimento WhatsApp", icon: MessageSquare, description: "Caixa de entrada própria da Union com o visual do SAC Digital.", href: null },
     ] : []),
     ...(canAccessMarketplaceTool ? [
       { id: "marketplace", label: "Marketplace Union", icon: Store, description: isPlatformOperatorOrganization ? "Modere lojas, anúncios e categorias do marketplace." : "Configure sua loja e gerencie serviços e produtos publicados.", href: null },
@@ -334,6 +340,10 @@ export function AdminDashboard({
         navigateAdmin("tools", "sac-digital");
         return;
       }
+      if (id === "union-whatsapp" && canAccessWhatsAppTool) {
+        navigateAdmin("tools", "union-whatsapp");
+        return;
+      }
       if (id === "marketplace" && canAccessMarketplaceTool) {
         navigateAdmin("tools", "marketplace");
         return;
@@ -354,6 +364,10 @@ export function AdminDashboard({
     ? canManageQueueTool
       ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
+    : route.resourceId === "union-whatsapp"
+      ? canAccessWhatsAppTool
+        ? <UnionWhatsAppInboxPage onBack={() => navigateAdmin("tools")} onConfigure={() => navigateAdmin("integrations")} />
+        : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "sac-digital"
       ? canAccessSacDigitalTool
         ? <SacDigitalToolPage
