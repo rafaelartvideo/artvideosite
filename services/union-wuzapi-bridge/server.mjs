@@ -70,7 +70,7 @@ async function wuzapi(path, token, method = "GET", body) {
       ...(body ? { "Content-Type": "application/json" } : {}),
     },
     ...(body ? { body: JSON.stringify(body) } : {}),
-    signal: AbortSignal.timeout(9000),
+    signal: AbortSignal.timeout(path.startsWith("/chat/download") || path.startsWith("/chat/send/") ? 25000 : 9000),
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || result?.success === false) throw new Error("provider_error");
