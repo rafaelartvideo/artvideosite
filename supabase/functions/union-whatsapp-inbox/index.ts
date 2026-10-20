@@ -90,8 +90,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || !uuid(conversationId) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer"].includes(action)) {
+    if (!uuid(org) || (action!=="start" && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -112,12 +112,50 @@ Deno.serve(async request => {
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
     if (!canRead || (["members","transfer"].includes(action) && !canManage) ||
-      (["send_text","send_media"].includes(action) && !canSend) ||
+      (["send_text","send_media","start"].includes(action) && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
     }
 
+    if(action==="start") {
+      const phone=String(body.phone||"").replace(/\\D/g,"");
+      const customerName=String(body.contact_name||"").trim().slice(0,120);
+      if(!/^[1-9][0-9]{9,14}$/.test(phone))
+        return json({success:false,error:"Informe um número válido com DDI e DDD."},400);
+      const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
+        .select("id,state,webhook_ready").eq("organization_id",org)
+        .eq("provider","wuzapi").maybeSingle();
+      if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready)
+        return json({success:false,error:"Conecte o canal WhatsApp antes de iniciar uma conversa."},409);
+      const jid=phone+"@s.whatsapp.net";
+      const {data:created,error:createError}=await admin.from("union_whatsapp_conversations")
+        .upsert({organization_id:org,channel_id:channel.id,chat_jid:jid,
+          contact_name:customerName||phone,contact_phone:phone,
+          status:"in_att",assigned_to:actorId,
+        },{onConflict:"channel_id,chat_jid",ignoreDuplicates:true})
+        .select("id").maybeSingle();
+      if(createError) throw createError;
+      if(created) return json({success:true,conversation_id:created.id});
+      const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
+        .select("id,status,assigned_to").eq("organization_id",org)
+        .eq("channel_id",channel.id).eq("chat_jid",jid).single();
+      if(existingError) throw existingError;
+      if(existing.status==="in_att" && existing.assigned_to===actorId)
+        return json({success:true,conversation_id:existing.id,already_open:true});
+      if(existing.status==="in_att" && existing.assigned_to!==actorId)
+        return json({success:false,error:"Este cliente já está em atendimento com outro funcionário."},409);
+      if(existing.status==="finished" && !canManage)
+        return json({success:false,error:"Somente um gestor pode reabrir esta conversa."},403);
+      const {data:claimed,error:claimError}=await admin.from("union_whatsapp_conversations")
+        .update({status:"in_att",assigned_to:actorId,updated_at:new Date().toISOString()})
+        .eq("organization_id",org).eq("id",existing.id)
+        .eq("status",existing.status).is("assigned_to",null)
+        .select("id").maybeSingle();
+      if(claimError) throw claimError;
+      if(!claimed) return json({success:false,error:"A conversa foi assumida por outro funcionário."},409);
+      return json({success:true,conversation_id:claimed.id});
+    }
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
       .select("id,organization_id,channel_id,chat_jid,status,assigned_to,last_message_at")
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
