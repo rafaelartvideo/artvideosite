@@ -189,7 +189,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
       if (result.channel) applyChannel(result.channel);
       if (operation === "qr") setQr(result.qr || null);
       if (operation === "register") setNotice("Canal cadastrado para esta empresa.");
-      if (operation === "webhook_setup") setNotice("Recebimento de mensagens ativado. Abra a caixa de entrada para acompanhar os eventos.");
+      if (operation === "webhook_setup") setNotice("Recebimento autenticado por HMAC configurado. Envie uma mensagem de outro número para testar a entrega.");
       if (operation === "provision") setNotice("Sessão preparada na VPS. Você já pode conectar o WhatsApp.");
       if (operation === "logout") {
         setQr(null);
@@ -302,7 +302,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
               {canManage && channel.state !== "connected" && channel.state !== "not_connected" && <AdminButton disabled={Boolean(action)} onClick={() => void openQr()}><QrCode size={16}/> Conectar QR Code</AdminButton>}
               {canManage && channel.state === "connecting" && <AdminButton variant="tertiary" onClick={startSyncing}><LoaderCircle size={16}/> Acompanhar sincronização</AdminButton>}
               <AdminButton variant="secondary" disabled={Boolean(action)} loading={action === "status"} onClick={() => void perform("status")}><RefreshCw size={16}/> Atualizar estado</AdminButton>
-              {canManage && channel.state === "connected" && !channel.webhook_ready && <AdminButton loading={action === "webhook_setup"} disabled={Boolean(action)} onClick={() => void perform("webhook_setup")}><MessageCircle size={16}/> Ativar recebimento</AdminButton>}
+              {canManage && channel.state === "connected" && <AdminButton loading={action === "webhook_setup"} disabled={Boolean(action)} onClick={() => void perform("webhook_setup")}><MessageCircle size={16}/> {channel.webhook_ready ? "Revalidar recebimento" : "Ativar recebimento"}</AdminButton>}
               {onOpenInbox && channel.webhook_ready && <AdminButton disabled={Boolean(action)} onClick={onOpenInbox}><MessageCircle size={16}/> Abrir conversas</AdminButton>}
               {canManage && channel.state === "connected" && <AdminButton variant="danger" disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}><Unplug size={16}/> Desconectar</AdminButton>}
             </div>
