@@ -27,19 +27,69 @@ const compactDate = (value: string | null) => value && !Number.isNaN(new Date(va
   : "";
 const clock = (value: string) => new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-function MessageBody({ message }: { message: UnionWhatsAppMessage }) {
-  if (message.body_text) return <p className="whitespace-pre-wrap break-words text-[13px] leading-5">{message.body_text}</p>;
-  const fallback = {
-    image: { Icon: ImageIcon, text: "Imagem recebida — visualização de mídia em preparação" },
-    audio: { Icon: Volume2, text: "Áudio recebido — reprodução em preparação" },
-    video: { Icon: FileText, text: "Vídeo recebido — visualização em preparação" },
-    file: { Icon: FileText, text: "Documento recebido — download em preparação" },
-    location: { Icon: FileText, text: "Localização recebida" },
-    contact: { Icon: FileText, text: "Contato compartilhado" },
-    unknown: { Icon: MessageCircle, text: "Mensagem recebida" },
-    text: { Icon: MessageCircle, text: "Mensagem sem texto" },
-  }[message.message_type];
-  return <p className="flex items-center gap-2 text-xs"><fallback.Icon size={15} />{fallback.text}</p>;
+function MessageBody({ message, organizationId, onMediaLoad }: {
+  message: UnionWhatsAppMessage; organizationId: string; onMediaLoad?: () => void;
+}) {
+  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaError, setMediaError] = useState("");
+  const hasStoredMedia = Boolean(message.media_path);
+  const loadMedia = useCallback(async () => {
+    if (!hasStoredMedia || mediaLoading || !organizationId) return;
+    setMediaLoading(true);
+    setMediaError("");
+    try {
+      const data = await operateUnionWhatsAppInbox(organizationId, message.conversation_id, "media_view", {
+        message_id: message.id,
+      });
+      if (!data.url) throw new Error("Mídia não disponível.");
+      setMediaUrl(data.url);
+    } catch (reason) {
+      setMediaError(systemErrorMessage(reason, "Não foi possível abrir o arquivo."));
+    } finally {
+      setMediaLoading(false);
+    }
+  }, [message.id, message.conversation_id, organizationId, hasStoredMedia, mediaLoading]);
+
+  useEffect(() => {
+    setMediaUrl("");
+    setMediaError("");
+    if (hasStoredMedia && message.message_type === "image") void loadMedia();
+    // Avoid repeatedly fetching large files when switching conversation.
+  }, [message.id, hasStoredMedia, message.message_type, organizationId]);
+
+  if (message.message_type === "text" || message.message_type === "unknown") {
+    return <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text || "Mensagem"}</p>;
+  }
+  const mediaIcons = { image:ImageIcon, video:FileText, audio:Volume2, file:FileText,
+    location:FileText, contact:FileText };
+  const Icon = mediaIcons[message.message_type] || FileText;
+  const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
+    location:"Localização", contact:"Contato"} as Record<string,string>)[message.message_type] || "Mensagem";
+  return <div className="space-y-2">
+    {mediaUrl && message.message_type === "image" && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+      className="block overflow-hidden rounded-md"><img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
+        onLoad={onMediaLoad} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
+    {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
+      className="max-h-80 w-full rounded-md" />}
+    {mediaUrl && message.message_type === "audio" && <audio src={mediaUrl} controls preload="metadata"
+      className="w-full min-w-[240px] max-w-full" />}
+    {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
+      <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
+      <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
+    </div>}
+    {!mediaUrl && <div className="flex items-center gap-2 text-sm">
+      <Icon size={17}/>
+      <span className="font-semibold">{message.media_name || label}</span>
+      {hasStoredMedia && <button type="button" disabled={mediaLoading} onClick={() => void loadMedia()}
+        className="text-xs font-semibold text-primary underline-offset-2 hover:underline disabled:opacity-40">
+        {mediaLoading ? "Carregando..." : "Abrir"}
+      </button>}
+      {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
+    </div>}
+    {message.body_text && <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text}</p>}
+    {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
+  </div>;
 }
 
 export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => void; onConfigure: () => void }) {
@@ -455,7 +505,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                   <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
                     {message.direction === "outgoing" && message.sender_name &&
                       <p className="mb-1 text-[11px] font-black">{message.sender_name}</p>}
-                    <MessageBody message={message}/>
+                    <MessageBody message={message} organizationId={activeOrganizationId || ""} onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
                     <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                       {clock(message.sent_at)}
                       {message.direction === "outgoing" && (message.delivery_status === "read"
