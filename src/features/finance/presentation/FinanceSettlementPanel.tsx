@@ -21,12 +21,9 @@ export function FinanceSettlementPanel({
   detail, canReverse, reversePending, error, onReverse,
 }: {
   detail: FinancialEntryDetail;
-  canSettle: boolean;
   canReverse: boolean;
-  confirmPending: boolean;
   reversePending: boolean;
   error?: unknown;
-  onConfirm: (settlementId: string) => Promise<void>;
   onReverse: (settlementId: string, reason: string) => Promise<void>;
 }) {
   const [reverseId, setReverseId] = useState<string | null>(null);
