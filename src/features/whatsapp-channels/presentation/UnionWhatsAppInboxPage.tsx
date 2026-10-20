@@ -177,6 +177,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setError("");
     try {
       await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, action);
+      if (action === "assume") {
+        // Mark the newly claimed conversation as read without affecting other
+        // operators who have not claimed it.
+        await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "mark_read").catch(() => null);
+      }
       await refresh(true);
       if (action === "assume") {
         setFilter("in_att");
@@ -323,6 +328,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
               : <div className="flex flex-col gap-3">
                 {messages.map(message => <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "rounded-br-sm border border-emerald-500/15 bg-emerald-500/10 text-foreground" : "rounded-bl-sm border border-border bg-card text-foreground"}`}>
+                    {message.direction === "outgoing" && message.sender_name &&
+                      <p className="mb-1 text-[11px] font-black">{message.sender_name}</p>}
                     <MessageBody message={message}/>
                     <span className="mt-1 block text-right text-[10px] text-muted-foreground">{clock(message.sent_at)}</span>
                   </div>
