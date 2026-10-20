@@ -27,6 +27,7 @@ export type FinanceEntryListFilters = {
   dateFrom?: string;
   dateTo?: string;
   operationalStatus?: string;
+  sort?: "newest" | "oldest";
 };
 
 export function useFinanceEntries(
@@ -61,6 +62,7 @@ export function useFinanceEntries(
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
         operationalStatus: filters.operationalStatus,
+        sort: filters.sort,
       },
     ] as const,
     // Keep the paginated table mounted behind the receivable details modal.
