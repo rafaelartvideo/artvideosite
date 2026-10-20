@@ -4,6 +4,7 @@ export type UnionWhatsAppConversation = {
   id: string;
   organization_id: string;
   channel_id: string;
+  account_phone: string;
   chat_jid: string;
   contact_name: string;
   contact_phone: string | null;
@@ -49,10 +50,10 @@ export type UnionWhatsAppContact = {
 
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 
-export async function listUnionWhatsAppConversations(organizationId: string, channelId: string): Promise<UnionWhatsAppConversation[]> {
+export async function listUnionWhatsAppConversations(organizationId: string, channelId: string, accountPhone: string): Promise<UnionWhatsAppConversation[]> {
   const { data, error } = await supabase.from("union_whatsapp_conversations")
     .select("id,organization_id,channel_id,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at")
-    .eq("organization_id", organizationId).eq("channel_id", channelId)
+    .eq("organization_id", organizationId).eq("channel_id", channelId).eq("account_phone",accountPhone)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(150);
   raise(error);
@@ -60,11 +61,11 @@ export async function listUnionWhatsAppConversations(organizationId: string, cha
 }
 
 export async function listUnionWhatsAppMessages(
-  organizationId: string, conversationId: string, channelId: string,
+  organizationId: string, conversationId: string, channelId: string,accountPhone:string,
 ): Promise<UnionWhatsAppMessage[]> {
   const { data, error } = await supabase.from("union_whatsapp_messages")
     .select("id,organization_id,conversation_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
-    .eq("organization_id", organizationId).eq("channel_id",channelId)
+    .eq("organization_id", organizationId).eq("channel_id",channelId).eq("account_phone",accountPhone)
     .eq("conversation_id", conversationId)
     .order("sent_at", { ascending: false }).limit(120);
   raise(error);
@@ -78,7 +79,7 @@ export async function operateUnionWhatsAppInbox(
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { text?: string; client_message_id?: string; target_user_id?: string;
-    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; service_order_id?: string; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}> } = {},
+    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; service_order_id?: string; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string } = {},
 ): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; avatar_url?: string | null; contacts?: UnionWhatsAppContact[]; total?: number; imported?: number; truncated?: boolean; contact?: UnionWhatsAppContact; customer?: {id:string;name:string} | null; ambiguous?: boolean; channel_connected?: boolean; channel_id?: string|null; channel_phone?: string|null; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}>; departments?: Array<{id:string;name:string;is_active:boolean;is_default?:boolean}>; member_ids?: string[]; operators?: Array<{id:string;name:string;eligible:boolean;is_active:boolean;is_manager?:boolean}>;
   orders?: Array<{id:string;os_number:string;created_at:string}>; service_order_id?: string|null;
   history?: Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}> }> {
