@@ -293,6 +293,37 @@ Deno.serve(async request => {
         .select("id,state").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
       if(channelError)throw channelError;
       if(!channel)return json({success:false,error:"Configure um canal WhatsApp primeiro."},409);
+      // Importers update only their own name source; never erase a manually
+      // saved name or another import source on an UPSERT conflict.
+      const mergeContactRows=async(rows:Array<{
+        chat_jid:string;contact_phone?:string|null;display_name?:string|null;
+        device_name?:string|null;imported_name?:string|null;profile_name?:string|null;
+      }>)=>{
+        for(let offset=0;offset<rows.length;offset+=100){
+          const batch=rows.slice(offset,offset+100);
+          const {data:old,error:oldError}=await admin.from("union_whatsapp_contacts")
+            .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name")
+            .eq("organization_id",org).eq("channel_id",channel.id)
+            .in("chat_jid",batch.map(row=>row.chat_jid));
+          if(oldError)throw oldError;
+          const byJid=new Map((old||[]).map(row=>[row.chat_jid,row]));
+          const updates=batch.map(row=>{
+            const previous=byJid.get(row.chat_jid);
+            return {
+              organization_id:org,channel_id:channel.id,chat_jid:row.chat_jid,
+              contact_phone:row.contact_phone??previous?.contact_phone??null,
+              display_name:row.display_name??previous?.display_name??null,
+              device_name:row.device_name??previous?.device_name??null,
+              imported_name:row.imported_name??previous?.imported_name??null,
+              profile_name:row.profile_name??previous?.profile_name??null,
+              updated_at:new Date().toISOString(),
+            };
+          });
+          const {error:saveError}=await admin.from("union_whatsapp_contacts")
+            .upsert(updates,{onConflict:"channel_id,chat_jid"});
+          if(saveError)throw saveError;
+        }
+      };
       if(action==="contacts_avatar") {
         const jid=String(body.chat_jid||"");
         if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
@@ -348,10 +379,11 @@ Deno.serve(async request => {
         const displayName=String(body.display_name||"").trim().replace(/\s+/g," ").slice(0,160);
         if(displayName.length<2)return json({success:false,error:"Informe o nome que deseja salvar para o contato."},400);
         const number=jid.endsWith("@s.whatsapp.net")?jid.split("@")[0]:null;
+        await mergeContactRows([{chat_jid:jid,contact_phone:number,display_name:displayName}]);
         const {data:saved,error:saveError}=await admin.from("union_whatsapp_contacts")
-          .upsert({organization_id:org,channel_id:channel.id,chat_jid:jid,
-            contact_phone:number,display_name:displayName,updated_at:new Date().toISOString()},
-            {onConflict:"channel_id,chat_jid"}).select("id,chat_jid,display_name").single();
+          .select("id,chat_jid,display_name")
+          .eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("chat_jid",jid).single();
         if(saveError)throw saveError;
         const {error:renameError}=await admin.from("union_whatsapp_conversations")
           .update({contact_name:displayName,updated_at:new Date().toISOString()})
@@ -377,9 +409,7 @@ Deno.serve(async request => {
             updated_at:new Date().toISOString()});
         }
         if(!normalized.size)return json({success:false,error:"Nenhum telefone brasileiro válido encontrado no arquivo."},400);
-        const {error:deviceError}=await admin.from("union_whatsapp_contacts")
-          .upsert([...normalized.values()],{onConflict:"channel_id,chat_jid"});
-        if(deviceError)throw deviceError;
+        await mergeContactRows([...normalized.values()]);
         const {error:applyError}=await admin.rpc("union_whatsapp_apply_contact_names",{
           p_organization:org,p_channel:channel.id,
         });
@@ -409,11 +439,7 @@ Deno.serve(async request => {
         }];
       });
       const unique=[...new Map(mapped.map(row=>[row.chat_jid,row])).values()];
-      for(let i=0;i<unique.length;i+=100) {
-        const {error:importError}=await admin.from("union_whatsapp_contacts")
-          .upsert(unique.slice(i,i+100),{onConflict:"channel_id,chat_jid"});
-        if(importError)throw importError;
-      }
+      await mergeContactRows(unique);
       // Saved names always have higher priority. An imported address-book
       // name is used only for conversations without a manually-saved name.
       const {error:syncError}=await admin.rpc("union_whatsapp_apply_contact_names",{
@@ -456,7 +482,11 @@ Deno.serve(async request => {
         if(!customerName)return;
         const {error:contactError}=await admin.from("union_whatsapp_contacts").upsert({
           organization_id:org,channel_id:channel.id,chat_jid:jid,
-          contact_phone:phone,display_name:customerName,updated_at:new Date().toISOString(),
+          contact_phone:phone,display_name:customerName,
+          device_name:knownContact?.device_name??null,
+          imported_name:knownContact?.imported_name??null,
+          profile_name:knownContact?.profile_name??null,
+          updated_at:new Date().toISOString(),
         },{onConflict:"channel_id,chat_jid"});
         if(contactError)throw contactError;
         const {error:renameError}=await admin.from("union_whatsapp_conversations")
