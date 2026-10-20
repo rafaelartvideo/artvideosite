@@ -110,7 +110,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["start","channel_status"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -188,10 +188,28 @@ Deno.serve(async request => {
       return json({success:true,conversation_id:claimed.id});
     }
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
-      .select("id,organization_id,channel_id,chat_jid,status,assigned_to,last_message_at")
+      .select("id,organization_id,channel_id,chat_jid,contact_phone,status,assigned_to,last_message_at")
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(action==="customer_match") {
+      if(!permissions.has("customers.view")) return json({success:false,error:"Sem permissão para visualizar clientes."},403);
+      if(!(canManage || thread.assigned_to===actorId ||
+          (thread.status==="waiting" && !thread.assigned_to))) {
+        return json({success:false,error:"Conversa não disponível para consulta."},403);
+      }
+      // A LID is not a phone number. Never guess a customer from it.
+      const phone=String(thread.contact_phone||"").replace(/\D/g,"");
+      if(!/^[0-9]{10,15}$/.test(phone)) return json({success:true,customer:null});
+      const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+        p_organization:org,p_phone:phone,
+      });
+      if(matchError) throw matchError;
+      if(!Array.isArray(matches) || matches.length!==1) {
+        return json({success:true,customer:null,ambiguous:Array.isArray(matches)&&matches.length>1});
+      }
+      return json({success:true,customer:{id:matches[0].customer_id,name:matches[0].customer_name}});
+    }
     if(action==="contact_avatar") {
       if(!(canManage || thread.assigned_to===actorId ||
         (thread.status==="waiting" && !thread.assigned_to)))
