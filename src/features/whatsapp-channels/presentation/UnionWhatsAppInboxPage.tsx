@@ -111,7 +111,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
 }
 
 export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder }: {
-  onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
+  onBack: () => void; onConfigure: (section?: string) => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
@@ -754,14 +754,29 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
                   <Settings2 size={15}/> Canais de Atendimento
                 </button>}
-              {canManage && <button type="button" onClick={()=>void openDepartmentSettings()}
-                className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
-                <Building2 size={15}/> Departamentos e equipe
-              </button>}
+              {canManage && <>
+                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure("departments");}}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                  <Building2 size={16}/> Departamentos e equipe
+                </button>
+                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure("queues");}}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                  <MessageCircle size={16}/> Configurar filas
+                </button>
+                <button type="button" onClick={()=>{setSettingsOpen(false);onConfigure("operators");}}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                  <Users size={16}/> Operadores
+                </button>
+              </>}
             </div>}
           </div>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
+    <nav aria-label="Canais de atendimento" className="flex border-b border-border">
+      <span aria-current="page" className="relative inline-flex min-h-10 items-center px-4 text-xs font-black text-primary after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-primary">
+        WhatsApp
+      </span>
+    </nav>
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
