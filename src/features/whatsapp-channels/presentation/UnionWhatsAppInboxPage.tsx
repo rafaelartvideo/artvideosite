@@ -302,7 +302,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
 
   const startConversation = async () => {
     if (!activeOrganizationId || !canSend || starting) return;
-    const digits = newPhone.replace(/\\D/g, "");
+    const digits = newPhone.replace(/\D/g, "");
     if (!/^[1-9][0-9]{9,14}$/.test(digits)) {
       setError("Informe um telefone válido com DDI e DDD.");
       return;
