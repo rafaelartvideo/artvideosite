@@ -17,7 +17,7 @@ import {
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import { AdminButton, AdminCard, AdminPage, AdminStickyToolbar, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCnpj, formatCpf, formatPhone, formatCurrency, formatDateTime } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -258,22 +258,21 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
 
     {!routeResourceId && <>
       <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />
-      {canViewTable && <AdminSearchPanel title="Buscar orçamentos">
+      {canViewTable && <AdminSearchPanel title="Buscar orçamentos" headerActions={<>
+        {(hasMobileFilters || search) && <AdminSearchClearButton onClick={() => { clearMobileFilters(); setSearch(""); }} />}
+        <AdminSearchSortMenu value={orderSort} onChange={setOrderSort}
+          options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "Protocolo crescente" }, { value: "desc", label: "Protocolo decrescente" }]} />
+      </>}>
         <AdminMobileSearchSwitch
           value={mobileFilter}
           options={quoteMobileFilters}
           onChange={setMobileFilter}
         >
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">{renderMobileFilter()}</div>
-            {sortMenu(true)}
-          </div>
-          {hasMobileFilters && <div className="mt-3 flex justify-end"><button type="button" onClick={clearMobileFilters} aria-label="Limpar filtros" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button></div>}
+          {renderMobileFilter()}
         </AdminMobileSearchSwitch>
-        <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-[minmax(0,1fr)_220px_36px]">
+        <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-[minmax(0,1fr)_220px]">
           <SearchField value={search} onChange={setSearch} placeholder="Cliente, CPF/CNPJ, WhatsApp ou protocolo" />
           <AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs md:h-9 md:py-1.5" ariaLabel="Filtrar por status" />
-          {sortMenu()}
         </div>
       </AdminSearchPanel>}
 
