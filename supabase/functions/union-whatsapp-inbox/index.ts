@@ -495,12 +495,14 @@ Deno.serve(async request => {
         return json({success:false,error:"Conecte o canal WhatsApp antes de iniciar uma conversa."},409);
       const jid=phone+"@s.whatsapp.net";
       const {data:knownContact,error:knownError}=await admin.from("union_whatsapp_contacts")
-        .select("display_name,device_name,imported_name,profile_name")
+        .select("display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
         .eq("organization_id",org).eq("channel_id",channel.id)
         .eq("chat_jid",jid).maybeSingle();
       if(knownError)throw knownError;
       const preferredName=customerName || knownContact?.display_name ||
-        knownContact?.device_name || knownContact?.imported_name || knownContact?.profile_name || phone;
+        knownContact?.device_name ||
+        (knownContact?.wuzapi_verified_saved ? knownContact.imported_name : null) ||
+        knownContact?.profile_name || phone;
       const persistManualName=async()=>{
         if(!customerName)return;
         const {error:contactError}=await admin.from("union_whatsapp_contacts").upsert({
@@ -509,6 +511,7 @@ Deno.serve(async request => {
           device_name:knownContact?.device_name??null,
           imported_name:knownContact?.imported_name??null,
           profile_name:knownContact?.profile_name??null,
+          wuzapi_verified_saved:knownContact?.wuzapi_verified_saved===true,
           updated_at:new Date().toISOString(),
         },{onConflict:"channel_id,chat_jid"});
         if(contactError)throw contactError;
@@ -688,11 +691,12 @@ Deno.serve(async request => {
     }
     if(action==="resolve_contact") {
       const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
-        .select("display_name,device_name,imported_name,profile_name")
+        .select("display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
         .eq("organization_id",org).eq("channel_id",thread.channel_id)
         .eq("chat_jid",thread.chat_jid).maybeSingle();
       if(knownError)throw knownError;
-      const authoritative=String(known?.display_name||known?.device_name||known?.imported_name||"").trim();
+      const authoritative=String(known?.display_name||known?.device_name||
+        (known?.wuzapi_verified_saved?known.imported_name:null)||"").trim();
       const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
         .select("contact_name,contact_phone").eq("id",thread.id)
         .eq("organization_id",org).maybeSingle();
