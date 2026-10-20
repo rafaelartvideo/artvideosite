@@ -32,7 +32,7 @@ if [ "$api_status" != "401" ]; then
 fi
 
 echo "Baixando código da ponte no commit fixo..."
-TMP="$(mktemp)"
+TMP="$(mktemp --suffix=.mjs)"
 trap 'rm -f "$TMP"' EXIT
 curl --fail --location --silent --show-error --retry 2 "$URL" -o "$TMP"
 node --check "$TMP" >/dev/null
