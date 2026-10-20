@@ -58,21 +58,28 @@ async function wuzapi(path, token, method = "GET", body) {
 }
 
 async function provision(id, org) {
-  const existing = await readSession(id, org);
-  if (existing) return { ok: true, connected: false, logged_in: false };
   if (pendingProvision.has(id)) return pendingProvision.get(id);
   const attempt = (async () => {
-    const token = randomBytes(32).toString("hex");
-    const row = { organization_id: org, token };
-    // Persist first to support operator-assisted recovery if WuzAPI responds
-    // but the bridge process restarts before acknowledging the creation.
+    const existing = await readSession(id, org);
+    if (existing?.ready === true) return { ok: true, connected: false, logged_in: false };
+    const token = existing?.token || randomBytes(32).toString("hex");
+    const row = { organization_id: org, token, ready: false };
+    const name = "union_" + id.replaceAll("-", "");
+    // Commit the token locally before contacting WuzAPI. A retry reuses it;
+    // it never silently creates a new token for an existing WuzAPI user.
     await saveSession(id, row);
-    await wuzapi("/admin/users", adminToken, "POST", {
-      name: "union_" + id.replaceAll("-", ""),
-      token,
-      webhook: "",
-      events: "Message,ReadReceipt,HistorySync",
-    });
+    try {
+      await wuzapi("/admin/users", adminToken, "POST", {
+        name, token, webhook: "", events: "Message,ReadReceipt,HistorySync",
+      });
+    } catch (failure) {
+      // Recover only if WuzAPI already contains the exact user AND token.
+      // Do not treat a duplicate name using a different token as success.
+      const users = await wuzapi("/admin/users", adminToken);
+      const list = Array.isArray(users) ? users : (Array.isArray(users?.data) ? users.data : []);
+      if (!list.some(user => user?.name === name && user?.token === token)) throw failure;
+    }
+    await saveSession(id, { ...row, ready: true });
     return { ok: true, connected: false, logged_in: false };
   })().finally(() => pendingProvision.delete(id));
   pendingProvision.set(id, attempt);
