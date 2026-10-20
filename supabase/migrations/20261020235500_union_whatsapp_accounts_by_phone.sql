@@ -126,7 +126,15 @@ begin
   select c.phone into v_account from public.whatsapp_channel_connections c
   where c.id=p_channel and c.organization_id=p_organization
     and c.provider='wuzapi' and c.state='connected' and c.webhook_ready;
-  if v_account is null or v_account !~ '^[0-9]{10,15}
+  if v_account is null or v_account !~ '^[0-9]{10,15}$' then
+    raise exception 'channel_not_connected';
+  end if;
+  if exists (
+    select 1 from jsonb_array_elements(p_contacts) r
+    where r->>'account_phone' is distinct from v_account
+  ) then
+    raise exception 'account_mismatch';
+  end if;
 
   with valid as (
     select distinct on (x.phone)
@@ -144,34 +152,6 @@ begin
     valid.phone||'@s.whatsapp.net',valid.phone,valid.name,now()
   from valid
   on conflict (channel_id,account_phone,chat_jid) do update
-    set device_name=excluded.device_name,
-        contact_phone=coalesce(excluded.contact_phone,
-                               public.union_whatsapp_contacts.contact_phone),
-        updated_at=now();
-  get diagnostics processed=row_count;
-  return processed;
-end;
-$function$
- then
-    raise exception 'channel_not_connected';
-  end if;
-
-  with valid as (
-    select distinct on (x.phone)
-      x.phone as phone,
-      left(btrim(regexp_replace(x.name,'[[:space:]]+',' ','g')),160) as name
-    from jsonb_to_recordset(p_contacts) as x(name text,phone text)
-    where x.phone ~ '^55[1-9][0-9][0-9]{8,9}$'
-      and x.name is not null and length(btrim(x.name)) between 2 and 160
-    order by x.phone
-  )
-  insert into public.union_whatsapp_contacts(
-    organization_id,channel_id,chat_jid,contact_phone,device_name,updated_at
-  )
-  select p_organization,p_channel,
-    valid.phone||'@s.whatsapp.net',valid.phone,valid.name,now()
-  from valid
-  on conflict (channel_id,chat_jid) do update
     set device_name=excluded.device_name,
         contact_phone=coalesce(excluded.contact_phone,
                                public.union_whatsapp_contacts.contact_phone),
