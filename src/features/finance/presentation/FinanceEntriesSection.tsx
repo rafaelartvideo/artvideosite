@@ -1,6 +1,6 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useRef, useState } from "react";
-import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreHorizontal } from "lucide-react";
+import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreVertical } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
@@ -54,6 +54,15 @@ function originText(entry: FinancialEntry) {
   if (entry.origin_type === "inventory_purchase") return "Compra de estoque";
   if (entry.origin_type === "recurring") return "Recorrência";
   return "Outra origem";
+}
+
+function distinctOriginText(entry: FinancialEntry) {
+  const origin = originText(entry);
+  const description = (entry.description || "").trim().toLocaleLowerCase("pt-BR");
+  const normalizedOrigin = origin.trim().toLocaleLowerCase("pt-BR");
+  // Títulos automáticos como "OS #48" já identificam a origem.
+  if (description === normalizedOrigin || description.startsWith(normalizedOrigin + " ") || description.startsWith(normalizedOrigin + ":")) return null;
+  return origin;
 }
 
 function useDebouncedValue<T>(value: T, delay = 350) {
@@ -183,13 +192,13 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Saldo: <strong className="text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge tone="blue">{originText(entry)}</Badge>
+                {distinctOriginText(entry) && <Badge tone="blue">{distinctOriginText(entry)}</Badge>}
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>
               </div>
             </button>
             <div className="flex justify-end border-t border-border/60 px-4 pb-2 pt-2">
               <DropdownMenu><DropdownMenuTrigger asChild>
-                <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border"><MoreHorizontal size={17}/></button>
+                <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><MoreVertical size={18}/></button>
               </DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
                 {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(true); onSelectEntry(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
@@ -202,7 +211,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <FinanceTableSurface className="hidden md:block" pagination={pagination}>
           <table className="w-full min-w-[1160px]">
             <thead><tr>
-              <th className="text-left">Descrição / Origem</th>
+              <th className="text-left">Descrição</th>
               <th className="text-left">Cliente / Fornecedor</th>
               <th className="text-left">Forma de pagamento</th>
               <th className="text-left">Vencimento</th>
@@ -213,7 +222,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             </tr></thead>
             <tbody>{entries.map((entry: FinancialEntry) =>
               <FinanceTableRow key={entry.id} label={`Abrir ${entry.description}`} onOpen={() => onSelectEntry(entry.id)}>
-                <td><p className="font-bold text-foreground">{entry.description}</p><p className="text-[10px] font-semibold uppercase text-primary">{originText(entry)}</p></td>
+                <td><p className="font-bold text-foreground">{entry.description}</p>{distinctOriginText(entry) && <p className="text-[10px] font-semibold uppercase text-primary">{distinctOriginText(entry)}</p>}</td>
                 <td><p className="text-xs font-semibold text-foreground">{entry.counterpart_name_snapshot || "—"}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatFinancialDocument(entry.counterpart_document_snapshot)}</p></td>
                 <td className="text-xs text-muted-foreground">{entry.payment_method_summary || "A definir"}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
@@ -221,7 +230,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td className="text-right tabular-nums">{formatCurrency(entry.settled_amount || 0)}</td>
                 <td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td>
                 <td><div className="flex justify-end"><DropdownMenu>
-                     <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border hover:bg-muted" onClick={event => event.stopPropagation()}><MoreHorizontal size={17} /></button></DropdownMenuTrigger>
+                     <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
                        <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
                        {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(true); onSelectEntry(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
