@@ -106,13 +106,44 @@ async function provision(id, org) {
   return attempt;
 }
 
-async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType }) {
+async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
+  if (action === "download_media") {
+    const kind=String(mediaType||"");
+    const mime=String(mediaMime||"");
+    const allowed=["image","video","audio","file"].includes(kind);
+    const size=Number(fileLength);
+    if(!allowed || !Number.isInteger(size) || size<=0 || size>5242880 ||
+      !mime || mime.length>160 || typeof mediaKey!=="string" ||
+      typeof fileSHA256!=="string" || mediaKey.length>512 || fileSHA256.length>512 ||
+      !mediaKey || !fileSHA256) throw new Error("bad_request");
+    let source;
+    try { source=new URL(String(downloadUrl||"")); } catch { throw new Error("bad_request"); }
+    const host=source.hostname;
+    if(source.protocol!=="https:" ||
+      !(host==="whatsapp.net" || host.endsWith(".whatsapp.net") ||
+        host==="fbcdn.net" || host.endsWith(".fbcdn.net")) ||
+      source.username || source.password) throw new Error("bad_request");
+    const endpoints={image:"/chat/downloadimage",video:"/chat/downloadvideo",
+      audio:"/chat/downloadaudio",file:"/chat/downloaddocument"};
+    const result=await wuzapi(endpoints[kind],session.token,"POST",{
+      Url:source.href,MediaKey:mediaKey,Mimetype:mime,FileSHA256:fileSHA256,
+      FileEncSHA256:String(fileEncSHA256||""),FileLength:size,
+    });
+    const raw=result?.data;
+    const encoded=typeof raw==="string" ? raw
+      : String(raw?.Base64 || raw?.base64 || raw?.Image || raw?.Audio ||
+        raw?.Video || raw?.Document || raw?.Media || raw?.data || "");
+    const base64=encoded.replace(/^data:[^,]*,/, "");
+    if(!base64 || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
+      throw new Error("media_download_unavailable");
+    return {ok:true,base64};
+  }
   if (action === "send_media") {
     const jid=String(chatJid||"");
     const caption=typeof bodyText==="string" ? bodyText : "";
