@@ -1,5 +1,6 @@
 import { getStatusBadgeClass } from "@/shared/domain/status-tone";
 import { useEffect, useState, type FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
@@ -70,6 +71,16 @@ export function TabCustomerRequests() {
   const [version, setVersion] = useState(0);
   const [items, setItems] = useState<CustomerRequest[]>([]);
   const [total, setTotal] = useState(0);
+  const overallCountQuery = useQuery({
+    queryKey: ["customer-requests", "overall-count", activeOrganizationId, version],
+    enabled: Boolean(activeOrganizationId),
+    queryFn: () => listCustomerRequests({
+      organizationId: activeOrganizationId!, status: "all", kind: "all",
+      sort: "newest", page: 1, pageSize: 1, search: "", customerSearch: "",
+    }),
+    staleTime: 30_000,
+  });
+  const overallTotal = overallCountQuery.data?.total ?? total;
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [open, setOpen] = useState(false);
@@ -204,7 +215,7 @@ export function TabCustomerRequests() {
 
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Pedidos Avulsos"
-      subtitle={`${total} ${total === 1 ? "pedido registrado" : "pedidos registrados"}`}
+      subtitle={`${String(overallTotal).padStart(3, "0")} pedidos realizados`}
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
 
     <AdminSearchPanel title="Buscar pedidos" headerActions={<>
