@@ -21,6 +21,7 @@ const seenNonces = new Map();
 const pendingProvision = new Map();
 const contactsCache = new Map();
 const avatarCache = new Map();
+const presenceSubscriptions = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
 const reply = (res, status, payload) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
@@ -110,7 +111,7 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
@@ -145,6 +146,16 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(!base64 || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
       throw new Error("media_download_unavailable");
     return {ok:true,base64};
+  }
+  if (action === "presence_subscribe") {
+    const jid=String(chatJid||"");
+    if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid)) throw new Error("bad_request");
+    const key=id+"|"+jid;
+    if(Date.now()-(presenceSubscriptions.get(key)||0)<300000) return {ok:true};
+    await wuzapi("/user/presence/subscribe",session.token,"POST",{Phone:jid});
+    presenceSubscriptions.set(key,Date.now());
+    if(presenceSubscriptions.size>1000) presenceSubscriptions.delete(presenceSubscriptions.keys().next().value);
+    return {ok:true};
   }
   if (action === "contact_avatar") {
     const jid=String(chatJid||"");
@@ -294,7 +305,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const url = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook"
       + "?channel=" + encodeURIComponent(id);
     await wuzapi("/webhook", session.token, "POST", {
-      webhookurl: url, events: ["Message", "ReadReceipt"],
+      webhookurl: url, events: ["Message", "ReadReceipt", "Presence"],
     });
     return { ok: true, auth_mode: "hmac-sha256",
       token_sha256: createHash("sha256").update(session.token).digest("hex") };
