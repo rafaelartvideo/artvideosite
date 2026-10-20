@@ -89,8 +89,8 @@ AS $function$
   offset ((greatest(1, p_page) - 1) * greatest(1, least(p_page_size, 100)));
 $function$;
 
-REVOKE ALL ON FUNCTION public.search_financial_entry_page_ids_v3(uuid,text,integer,integer,text,text,text,text,text,date,date,text,text,uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.search_financial_entry_page_ids_v3(uuid,text,integer,integer,text,text,text,text,text,date,date,text,text) TO authenticated;
+REVOKE ALL ON FUNCTION public.search_financial_entry_page_ids_v4(uuid,text,integer,integer,text,text,text,text,text,date,date,text,text,uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.search_financial_entry_page_ids_v4(uuid,text,integer,integer,text,text,text,text,text,date,date,text,text,uuid) TO authenticated;
 
 
 CREATE OR REPLACE FUNCTION public.list_financial_receivable_creators_v1(p_organization_id uuid)
