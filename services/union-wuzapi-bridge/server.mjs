@@ -168,10 +168,16 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       const entry=raw && typeof raw==="object" ? raw : {};
       if(entry.Found===false)continue;
       const clean=value=>String(value||"").replace(/[\x00-\x1f]/g," ").trim().slice(0,160);
+      // The Whatsmeow contact cache contains group members and public
+      // profiles. PushName and BusinessName do NOT imply a saved contact.
+      // Require a locally saved FullName or FirstName to export this entry.
+      const savedName=clean(entry.FullName||entry.FirstName);
+      if(!savedName)continue;
       contacts.push({
         jid,
-        imported_name:clean(entry.FullName||entry.FirstName||entry.BusinessName),
+        imported_name:savedName,
         profile_name:clean(entry.PushName),
+        saved_in_address_book:true,
       });
     }
     return {ok:true,contacts};
