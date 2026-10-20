@@ -9,6 +9,7 @@ import type {
   FinancialEntryDraft,
   FinancialEntryType,
   FinancialInstallmentDraft,
+  FinancialPaymentMethod,
 } from "../domain/finance.types";
 import type { FinancialCounterparty } from "../infrastructure/finance-entries.repository";
 import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -30,6 +31,7 @@ export function FinanceEntryEditorDialog({
   counterpartyLoading,
   onCounterpartySearchChange,
   categories,
+  paymentMethods,
   saving,
   onClose,
   onSave,
@@ -42,6 +44,7 @@ export function FinanceEntryEditorDialog({
   counterpartyLoading: boolean;
   onCounterpartySearchChange: (value: string) => void;
   categories: FinancialCategory[];
+  paymentMethods: FinancialPaymentMethod[];
   saving: boolean;
   onClose: () => void;
   onSave: (draft: FinancialEntryDraft) => Promise<void>;
@@ -58,7 +61,8 @@ export function FinanceEntryEditorDialog({
   const [installmentCount, setInstallmentCount] = useState(1);
   const [firstDueDate, setFirstDueDate] = useState(today());
   const [categoryId, setCategoryId] = useState("");
-  const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; issueDate?: string; competenceDate?: string; installments?: string; allocations?: string }>({});
+  const [paymentPlan, setPaymentPlan] = useState<Array<{payment_method_id:string;amount:string}>>([]);
+  const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; issueDate?: string; competenceDate?: string; installments?: string; allocations?: string; paymentPlan?: string }>({});
 
   const numericAmount = Number(amount || 0);
   const title = entryType === "receivable" ? "Conta a receber" : "Conta a pagar";
@@ -88,6 +92,8 @@ export function FinanceEntryEditorDialog({
       setInstallmentCount(initial.installments.length || 1);
       setFirstDueDate(initial.installments[0]?.due_date || today());
       setCategoryId(initial.allocations[0]?.category_id || "");
+      const storedPlan = Array.isArray(initial.source_details?.payment_plan) ? initial.source_details.payment_plan as Array<{payment_method_id:string;amount:number}> : [];
+      setPaymentPlan(storedPlan.map(item => ({payment_method_id:item.payment_method_id,amount:String(item.amount)})));
     } else {
       const date = today();
       setDescription("");
@@ -102,6 +108,7 @@ export function FinanceEntryEditorDialog({
       setInstallmentCount(1);
       setFirstDueDate(date);
       setCategoryId("");
+      setPaymentPlan([]);
     }
     setFieldErrors({});
   }, [open, initial]);
@@ -148,6 +155,7 @@ export function FinanceEntryEditorDialog({
     if (!issueDate) nextErrors.issueDate = "Informe a data.";
     if (!competenceDate) nextErrors.competenceDate = "Informe a competência.";
     if (!categoryId) nextErrors.allocations = "Selecione uma categoria.";
+    if (paymentPlan.length && (paymentPlan.some(item => !item.payment_method_id || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0) || Math.round(paymentPlan.reduce((sum,item)=>sum+Number(item.amount),0)*100) !== Math.round(numericAmount*100))) nextErrors.paymentPlan = "Selecione as formas e distribua exatamente o valor total.";
     if (!firstDueDate || !installments.length) nextErrors.installments = "Informe o vencimento.";
     else if (Math.round(numericAmount * 100) < installmentCount) nextErrors.installments = "Reduza a quantidade de parcelas para evitar parcelas de valor zero.";
     setFieldErrors(nextErrors);
@@ -159,6 +167,7 @@ export function FinanceEntryEditorDialog({
         counterpart_entity_id: counterpartId || null,
         counterpart_name: counterpartName.trim() || null, counterpart_document: counterpartDocument.trim() || null,
         notes: notes.trim() || null, installments, allocations,
+        payment_plan: paymentPlan.map(item => ({payment_method_id:item.payment_method_id,amount:Number(item.amount)})),
       });
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, `Não foi possível salvar a ${title.toLocaleLowerCase("pt-BR")}.`), "error");
@@ -209,6 +218,18 @@ export function FinanceEntryEditorDialog({
         <FInput label="Número de parcelas" type="number" min="1" max="60" value={installmentCount} onChange={(event: any) => setInstallmentCount(Math.min(60, Math.max(1, Number(event.target.value || 1))))} />
       </div>
       {installmentCount > 1 && <p className="text-xs text-muted-foreground">As {installmentCount} parcelas serão distribuídas em vencimentos mensais automaticamente.</p>}
+      {entryType === "receivable" && <div className="space-y-3 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <div><h3 className="text-sm font-semibold text-foreground">Formas de pagamento previstas</h3><p className="text-xs text-muted-foreground">Você pode dividir o valor entre PIX, cartão, dinheiro e outras formas. A baixa será registrada depois.</p></div>
+          <AdminButton size="sm" variant="secondary" onClick={() => setPaymentPlan(current => [...current,{payment_method_id:"",amount:""}])} disabled={paymentPlan.length >= 10}>Adicionar forma</AdminButton>
+        </div>
+        {paymentPlan.map((item,index) => <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
+          <FSelect label={`Forma ${index+1}`} options={[{value:"",label:"Selecione"},...paymentMethods.filter(method => method.is_active || method.id === item.payment_method_id).map(method=>({value:method.id,label:method.name}))]} value={item.payment_method_id} onChange={(event:any)=>setPaymentPlan(current=>current.map((p,i)=>i===index?{...p,payment_method_id:event.target.value}:p))} />
+          <FCurrencyInput label="Valor previsto" value={item.amount} onChange={(event:any)=>setPaymentPlan(current=>current.map((p,i)=>i===index?{...p,amount:event.target.value}:p))} />
+          <AdminButton variant="secondary" size="sm" onClick={()=>setPaymentPlan(current=>current.filter((_,i)=>i!==index))}>Remover</AdminButton>
+        </div>)}
+        {fieldErrors.paymentPlan && <p className="text-xs font-semibold text-red-600">{fieldErrors.paymentPlan}</p>}
+      </div>}
       <div className="border-t border-border pt-4">
         <h3 className="mb-3 text-sm font-semibold text-foreground">{counterpartLabel} <span className="font-normal text-muted-foreground">(opcional)</span></h3>
         <div className="grid gap-3 sm:grid-cols-2">
