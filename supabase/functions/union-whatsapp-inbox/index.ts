@@ -111,8 +111,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -280,11 +280,26 @@ Deno.serve(async request => {
       if(error)throw error;
       return json({success:true,departments:departments||[]});
     }
-    if(["contacts_list","contacts_import","contacts_save"].includes(action)) {
+    if(["contacts_list","contacts_import","contacts_save","contacts_avatar"].includes(action)) {
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
       if(channelError)throw channelError;
       if(!channel)return json({success:false,error:"Configure um canal WhatsApp primeiro."},409);
+      if(action==="contacts_avatar") {
+        const jid=String(body.chat_jid||"");
+        if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
+          return json({success:false,error:"Contato inválido."},400);
+        const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
+          .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+          .eq("chat_jid",jid).maybeSingle();
+        if(knownError)throw knownError;
+        if(!known)return json({success:false,error:"Contato não encontrado neste canal."},404);
+        try{
+          const photo=await signedBridge({id:channel.id,organization_id:org},
+            "",jid,crypto.randomUUID(),undefined,undefined,false,true);
+          return json({success:true,avatar_url:photo||null});
+        }catch{return json({success:true,avatar_url:null});}
+      }
       if(action==="contacts_list") {
         const page=Math.min(40,Math.max(0,Number(body.page)||0));
         const search=String(body.search||"").trim().replace(/[^\\p{L}\\p{N} +().-]/gu,"").slice(0,60);
