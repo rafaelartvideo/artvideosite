@@ -428,6 +428,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>{cancelled=true;};
   },[onOpenCustomer,selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
 
+  useEffect(()=>{
+    if(!activeOrganizationId || !selectedId || channelReady!==true)return;
+    void operateUnionWhatsAppInbox(activeOrganizationId,selectedId,"presence_subscribe")
+      .catch(()=>undefined);
+  },[activeOrganizationId,selectedId,channelReady]);
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
     setShowJumpToLatest(false);
@@ -935,7 +940,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black text-foreground">{selected.contact_name}</p>
-                <p className="text-xs text-muted-foreground">{selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}</p>
+                <p className="text-xs text-muted-foreground">
+                   {selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}
+                   {selected.contact_presence==="online" && selected.contact_presence_at &&
+                     Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
+                     <span className="ml-2 font-semibold text-emerald-600">Online</span>}
+                 </p>
                  {onOpenCustomer && linkedCustomers[selected.id] && <button type="button"
                    onClick={()=>onOpenCustomer(linkedCustomers[selected.id]!.id)}
                    className="mt-0.5 max-w-full truncate text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
