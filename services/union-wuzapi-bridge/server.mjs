@@ -217,24 +217,38 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const addr=String(raw.URL||raw.url||raw.data?.URL||"");
     let base64="",mime="";
     try {
-      const source=new URL(addr);
-      const host=source.hostname;
-      if(source.protocol==="https:" && !source.username && !source.password &&
-        (host==="pps.whatsapp.net" || host.endsWith(".whatsapp.net") ||
-          host==="fbcdn.net" || host.endsWith(".fbcdn.net"))) {
+      let source=new URL(addr);
+      const trusted=url=>{
+        const host=url.hostname;
+        return url.protocol==="https:" && !url.username && !url.password &&
+          !url.port && (host==="pps.whatsapp.net" || host.endsWith(".whatsapp.net") ||
+            host==="fbcdn.net" || host.endsWith(".fbcdn.net"));
+      };
+      for(let redirects=0;redirects<3 && trusted(source);redirects++){
         const response=await fetch(source,{
-          redirect:"error",signal:AbortSignal.timeout(10000),
+          redirect:"manual",signal:AbortSignal.timeout(10000),
           headers:{Accept:"image/jpeg,image/png,image/webp"},
         });
-        const type=String(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
-        const len=Number(response.headers.get("content-length")||0);
-        if(response.ok && ["image/jpeg","image/png","image/webp"].includes(type) &&
-          (!len||len<=200000)) {
-          const bytes=Buffer.from(await response.arrayBuffer());
-          if(bytes.length>0 && bytes.length<=200000){
-            mime=type;base64=bytes.toString("base64");
-          }
+        if([301,302,303,307,308].includes(response.status)){
+          const location=response.headers.get("location");
+          if(!location)break;
+          source=new URL(location,source);
+          continue;
         }
+        if(!response.ok)break;
+        const declared=String(response.headers.get("content-type")||"").split(";")[0].toLowerCase();
+        const len=Number(response.headers.get("content-length")||0);
+        if(len && len>200000)break;
+        const bytes=Buffer.from(await response.arrayBuffer());
+        if(!bytes.length || bytes.length>200000)break;
+        const detected=bytes[0]===255 && bytes[1]===216?"image/jpeg":
+          bytes[0]===137 && bytes[1]===80 && bytes[2]===78?"image/png":
+          bytes.toString("ascii",0,4)==="RIFF" &&
+          bytes.toString("ascii",8,12)==="WEBP"?"image/webp":"";
+        if(!detected || (declared && declared!=="application/octet-stream" &&
+          declared!==detected))break;
+        mime=detected;base64=bytes.toString("base64");
+        break;
       }
     }catch{/* Missing/private photos are expected and not an error. */}
     avatarCache.set(cacheKey,{base64,mime,at:Date.now()});
