@@ -219,6 +219,8 @@ export function OrderCompletionModal({
     || Boolean(completion.financeValidationMessage)
     || completion.financeOptionsLoading
     || completion.commercialItemsLoading
+    || completion.warrantyLoading
+    || Boolean(completion.warrantyError)
     || (completion.commercialPricing && Boolean(completion.commercialItemsError));
 
   return <AdminDialog
