@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useSearchParams } from "react-router";
 import { MessageCircle, ArrowLeft, ArrowRight, QrCode } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { SacDigitalSettingsPage } from "@/features/sac-digital/presentation/SacDigitalSettingsPage";
 import { WhatsAppChannelsPage } from "@/features/whatsapp-channels/presentation/WhatsAppChannelsPage";
 
@@ -17,7 +17,8 @@ export function IntegrationsPage({ onBack }: { onBack: () => void }) {
   if (selected === "sac" && canSac) return <SacDigitalSettingsPage onBack={() => setSelected(null)} />;
   if (selected === "channels" && canChannels) return <WhatsAppChannelsPage onBack={() => setSelected(null)} />;
   return <div className="space-y-5">
-    <PageHeader title="Integrações" subtitle="Configure serviços conectados à empresa ativa. Cada provedor mantém suas credenciais separadas." />
+    <PageHeader title="Integrações" subtitle="Configure serviços conectados à empresa ativa. Cada provedor mantém suas credenciais separadas."
+      actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>} />
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
       {canChannels && <button type="button" onClick={() => setSelected("channels")}
         className="group flex min-h-[155px] items-start gap-4 rounded-xl border border-border bg-card p-5 text-left transition-all hover:border-blue-400 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-500">
@@ -39,8 +40,5 @@ export function IntegrationsPage({ onBack }: { onBack: () => void }) {
       </button>}
     </div>
     {!canChannels && !canSac && <p className="text-sm text-muted-foreground">Você não possui permissão para gerenciar integrações.</p>}
-    <AdminStickyToolbar>
-      <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
-    </AdminStickyToolbar>
   </div>;
 }
