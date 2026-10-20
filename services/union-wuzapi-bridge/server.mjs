@@ -229,9 +229,9 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const name=String(mediaName||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
     const limits={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
     const acceptable=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
-      : kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
+      : kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
-      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream",
+      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
         "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(mime) : false;
@@ -253,7 +253,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const fields={Phone:jid,Id:idText.replaceAll("-","").toUpperCase()};
     let resource,path;
     if(kind==="image"){path="/chat/send/image";resource={...fields,Image:dataUrl,Caption:caption};}
-    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl};}
+    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:mime,PTT:mime==="audio/ogg" || mime==="audio/opus"};}
     else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
     else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime};}
     const result=await wuzapi(path,session.token,"POST",resource);
