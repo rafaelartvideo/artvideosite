@@ -49,3 +49,31 @@ export async function listUnionWhatsAppMessages(
   raise(error);
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
+
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text";
+
+export async function operateUnionWhatsAppInbox(
+  organizationId: string,
+  conversationId: string,
+  action: UnionWhatsAppInboxAction,
+  extra: { text?: string; client_message_id?: string } = {},
+): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean }> {
+  const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
+    body: {
+      action, organization_id: organizationId, conversation_id: conversationId, ...extra,
+    },
+  });
+  if (error) {
+    // Supabase can return the Edge Function's JSON error in the Response
+    // carried by FunctionsHttpError; do not replace actionable feedback
+    // with a generic connection failure.
+    const response = (error as { context?: Response }).context;
+    if (response && typeof response.json === "function") {
+      const result = await response.json().catch(() => null);
+      if (result?.error) throw new Error(String(result.error));
+    }
+    throw new Error(error.message || "Não foi possível comunicar com o atendimento WhatsApp.");
+  }
+  if (!data?.success) throw new Error(String(data?.error || "Não foi possível concluir esta operação."));
+  return data;
+}
