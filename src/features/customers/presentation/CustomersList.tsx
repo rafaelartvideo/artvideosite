@@ -3,7 +3,7 @@ import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ChevronDown
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatDateOnly, formatPhone, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminFilterMultiSelect, type AdminFilterOption } from "@/shared/ui/admin/AdminFilterMultiSelect";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -104,7 +104,11 @@ export function CustomersList(props: Props) {
       actions={canCreate ? <AdminButton onClick={onCreate}><Plus size={13} /> Cadastrar</AdminButton> : undefined}
     />
 
-    <AdminSearchPanel title="Buscar clientes">
+    <AdminSearchPanel title="Buscar clientes" headerActions={<>
+      {hasFilters && <AdminSearchClearButton onClick={onClearFilters} />}
+      <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
+        options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "Nome crescente" }, { value: "desc", label: "Nome decrescente" }]} />
+    </>}>
       <div className="space-y-3 md:hidden">
         <div className="flex items-center gap-2">
           <DropdownMenu>
@@ -115,10 +119,8 @@ export function CustomersList(props: Props) {
               {mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7]")}><Search size={14} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
             </DropdownMenuContent>
           </DropdownMenu>
-          {sortMenu}
         </div>
         <div className="min-w-0">{renderMobileFilter()}</div>
-        {hasFilters && <div className="flex justify-end"><button type="button" onClick={onClearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button></div>}
       </div>
 
       <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
@@ -127,7 +129,6 @@ export function CustomersList(props: Props) {
         <AdminFilterMultiSelect label="Estado" options={stateOptions} selectedValues={selectedStates} onToggle={value => { onStateToggle(value); onPageChange(1); }} placeholder="Selecionar Estado" />
         <AdminFilterMultiSelect label="Cidade" options={cityOptions} selectedValues={selectedCities} onToggle={value => { onCityToggle(value); onPageChange(1); }} placeholder="Selecionar Cidade" disabled={selectedStates.length === 0} />
       </div>
-      <div className="mt-3 hidden items-center justify-between md:mt-2 md:flex"><div className="w-[220px]"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" className={cn("flex h-[42px] w-full items-center justify-between rounded-lg border bg-white px-3 text-xs md:h-9", orderSort ? "border-[#0057e7] text-[#0057e7]" : "border-[#0d1b2e]/15 text-[#5a6a82]")}><span className="flex items-center gap-2"><SortIcon size={15} />{sortLabel}</span><ChevronDown size={14} /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[220px]">{([["", "Ordenação padrão", ArrowUpDown], ["asc", "Nome crescente", ArrowUpNarrowWide], ["desc", "Nome decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)}><Icon size={15} />{label}{orderSort === value && <Check size={14} className="ml-auto" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>{hasFilters && <AdminButton variant="secondary" size="sm" onClick={onClearFilters}><Eraser size={14} /> Limpar filtros</AdminButton>}</div>
     </AdminSearchPanel>
 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
