@@ -11,7 +11,6 @@ import {
   saveFinancialEntry,
 } from "../infrastructure/finance-entries.repository";
 import {
-  confirmFinancialSettlement,
   registerFinancialSettlement,
   reverseFinancialSettlement,
 } from "../infrastructure/finance-movements.repository";
@@ -141,13 +140,6 @@ export function useFinanceEntries(
     onSuccess: (_result, draft) => invalidateEntry(draft.entry_id),
   });
 
-  const confirmSettlementMutation = useMutation({
-    mutationFn: ({ settlementId }: { settlementId: string }) => confirmFinancialSettlement(organizationId, settlementId),
-    onSuccess: () => {
-      if (selectedEntryId) invalidateEntry(selectedEntryId);
-    },
-  });
-
   const reverseSettlementMutation = useMutation({
     mutationFn: ({ settlementId, reason }: { settlementId: string; reason: string }) => reverseFinancialSettlement(organizationId, settlementId, reason),
     onSuccess: () => {
@@ -163,7 +155,6 @@ export function useFinanceEntries(
     saveMutation,
     decisionMutation,
     settlementMutation,
-    confirmSettlementMutation,
     reverseSettlementMutation,
   };
 }
