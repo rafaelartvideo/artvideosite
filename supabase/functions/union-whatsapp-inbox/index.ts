@@ -176,8 +176,9 @@ Deno.serve(async request => {
         return json({success:true,conversation_id:existing.id,already_open:true});
       if(existing.status==="in_att" && existing.assigned_to!==actorId)
         return json({success:false,error:"Este cliente já está em atendimento com outro funcionário."},409);
-      if(existing.status==="finished" && !canManage)
-        return json({success:false,error:"Somente um gestor pode reabrir esta conversa."},403);
+      // Starting a conversation with an existing closed number resumes
+      // the same conversation and preserves its history. This is an
+      // authorized send action; it must not leave the status finished.
       const {data:claimed,error:claimError}=await admin.from("union_whatsapp_conversations")
         .update({status:"in_att",assigned_to:actorId,updated_at:new Date().toISOString()})
         .eq("organization_id",org).eq("id",existing.id)
@@ -451,7 +452,7 @@ Deno.serve(async request => {
     if(!uuid(clientId) || text.length>4000 || (!isMedia && !text) ||
       (isMedia && (!mimeAllowed || !name || mediaPath!==expectedMediaPath ||
         !Number.isSafeInteger(fileSize) || fileSize<1 || fileSize>limits[kind])) ||
-      !/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(thread.chat_jid))
+      !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(thread.chat_jid))
       return json({success:false,error:"Mensagem ou anexo inválido."},400);
     if(isMedia) {
       // Never trust the client path alone. Read the private object's metadata
