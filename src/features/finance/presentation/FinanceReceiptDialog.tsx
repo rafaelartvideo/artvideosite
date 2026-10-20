@@ -101,6 +101,8 @@ export function FinanceReceiptDialog({ open, onClose }: {open:boolean; onClose:(
     if(items.some(item=>item.description.trim().length<2 || !Number.isFinite(Number(item.quantity)) || Number(item.quantity)<=0 || !Number.isFinite(Number(item.unit_price)) || Number(item.unit_price)<=0) || total<=0) {
       setError("Informe itens com descrição, quantidade e valores válidos.");return;
     }
+    // Reserva a janela no clique do usuário; abrir depois de aguardar o Supabase seria bloqueado pelo navegador.
+    const printWindow = window.open("", "_blank", "width=960,height=830");
     setSaving(true);
     try {
       const {data,error:rpcError}=await supabase.rpc("issue_financial_receipt_v1",{
@@ -119,11 +121,11 @@ export function FinanceReceiptDialog({ open, onClose }: {open:boolean; onClose:(
       setLastReceipt(receipt);
       void queryClient.invalidateQueries({queryKey:["finance","receipt","issued",organizationId]});
       notifyAdmin("Recibo emitido e registrado com sucesso.","success");
-      try {printGeneralFinancialReceipt(receipt);} catch (printError) {
+      try {printGeneralFinancialReceipt(receipt,printWindow);} catch (printError) {
         notifyAdmin(systemErrorMessage(printError,"Recibo emitido. Use Imprimir novamente."),"error");
       }
       reset();
-    } catch(err) {setError(systemErrorMessage(err,"Não foi possível emitir o recibo."));}
+    } catch(err) { try { printWindow?.close(); } catch { /* Ignora bloqueio do navegador */ } setError(systemErrorMessage(err,"Não foi possível emitir o recibo."));}
     finally {setSaving(false);}
   };
 
