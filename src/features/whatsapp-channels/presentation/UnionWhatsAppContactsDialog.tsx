@@ -3,7 +3,10 @@ import { Check, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle,
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
-import { parseContactTable, parseContactsCSV, type ContactImportSummary } from "../domain/contact-file-import";
+import {
+  CONTACT_IMPORT_BATCH_SIZE, parseContactTable, parseContactsCSV,
+  type ContactImportSummary,
+} from "../domain/contact-file-import";
 
 const labelFor = (contact: UnionWhatsAppContact) =>
   contact.display_name || contact.device_name || contact.imported_name || contact.profile_name ||
@@ -52,7 +55,21 @@ export function UnionWhatsAppContactsDialog({
   const [visibleAvatarJids,setVisibleAvatarJids]=useState<string[]>([]);
   const vcfInputRef=useRef<HTMLInputElement|null>(null);
   const spreadsheetInputRef=useRef<HTMLInputElement|null>(null);
-  const [pendingImport,setPendingImport]=useState<{filename:string;summary:ContactImportSummary}|null>(null);
+  const [pendingImport,setPendingImport]=useState<{
+    filename:string;summary:ContactImportSummary;checkpointKey:string;
+  }|null>(null);
+  type ImportStatus="ready"|"running"|"pausing"|"paused"|"failed"|"cancelling"|"completed";
+  const [importProgress,setImportProgress]=useState<{
+    status:ImportStatus;completed:number;retries:number;error:string|null;
+  }|null>(null);
+  const importControlRef=useRef<{running:boolean;intent:"pause"|"cancel"|null}>({
+    running:false,intent:null,
+  });
+  const importing=importProgress?.status==="running" ||
+    importProgress?.status==="pausing" || importProgress?.status==="cancelling";
+  // A tab closure pauses after the request in flight. Only the SHA-256 and
+  // acknowledged item count are persisted in sessionStorage, never contacts.
+  useEffect(()=>()=>{importControlRef.current.intent="pause";},[]);
 
   const refresh=useCallback(async (value:string,index:number)=>{
     setLoading(true);
@@ -195,46 +212,153 @@ export function UnionWhatsAppContactsDialog({
     }
   };
   const readSpreadsheet=async(file:File|null)=>{
-    if(!file||!canImport||busy)return;
-    if(!/\\.(xlsx|csv)$/i.test(file.name)||file.size>3*1048576){
-      setError("Selecione uma planilha .xlsx ou .csv de até 3 MB.");
+    if(!file||!canImport||busy||importing)return;
+    if(!/\\.(xlsx|csv)$/i.test(file.name)||file.size>20*1048576){
+      setError("Selecione uma planilha .xlsx ou .csv de até 20 MB.");
       return;
     }
     setError("");setNotice("");setBusy(true);
     try{
-      const rows=/\\.xlsx$/i.test(file.name)
-        ? await import("read-excel-file/browser").then(module=>module.readSheet(file))
-        : parseContactsCSV(await file.text());
+      const contents=await file.arrayBuffer();
+      const hash=Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",contents)))
+        .map(n=>n.toString(16).padStart(2,"0")).join("");
+      const key="union:contacts-import:v3:"+organizationId+":"+hash;
+      let rows;
+      if(/\\.xlsx$/i.test(file.name)){
+        rows=await import("read-excel-file/browser")
+          .then(module=>module.readSheet(file));
+      }else{
+        let source="";
+        try{source=new TextDecoder("utf-8",{fatal:true}).decode(contents);}
+        catch{source=new TextDecoder("windows-1252").decode(contents);}
+        rows=parseContactsCSV(source);
+      }
       const summary=parseContactTable(rows);
-      if(!summary.entries.length)throw Error("Não há contatos válidos para importar. Use as colunas Nome e Telefone.");
-      setPendingImport({filename:file.name,summary});
+      if(!summary.entries.length)
+        throw Error("Não há contatos brasileiros válidos para importar. Confira Nome, DDI e Número.");
+      let saved=0;
+      try{saved=Number(sessionStorage.getItem(key)||0)||0;}catch{/* Storage may be disabled. */}
+      const completed=Number.isInteger(saved)&&saved>=0&&saved<=summary.entries.length
+        ?saved:0;
+      setPendingImport({filename:file.name,summary,checkpointKey:key});
+      setImportProgress({status:completed?"paused":"ready",completed,retries:0,error:null});
     }catch(reason){
-      setError(systemErrorMessage(reason,"Não foi possível ler a planilha. Verifique as colunas Nome e Telefone."));
+      setError(systemErrorMessage(reason,
+        "Não foi possível ler a planilha. Confira Nome, Código do país e Número."));
     }finally{
       setBusy(false);
       if(spreadsheetInputRef.current)spreadsheetInputRef.current.value="";
     }
   };
-  const confirmSpreadsheetImport=async()=>{
-    if(!pendingImport||busy)return;
-    setBusy(true);setError("");setNotice("");
-    const entries=pendingImport.summary.entries;
+  const persistCheckpoint=(key:string,completed:number)=>{
+    try{sessionStorage.setItem(key,String(completed));}
+    catch{/* Checkpoints are best effort when browser storage is disabled. */}
+  };
+  const clearCheckpoint=(key:string)=>{
+    try{sessionStorage.removeItem(key);}catch{/* Storage may be disabled. */}
+  };
+  const runSpreadsheetImport=async()=>{
+    if(!pendingImport||importControlRef.current.running||busy)return;
+    const control=importControlRef.current;
+    control.running=true;control.intent=null;
+    const entries=pendingImport.summary.entries,key=pendingImport.checkpointKey;
+    const total=entries.length;
+    let completed=importProgress?.completed||0;
+    let retries=importProgress?.retries||0;
+    setImportProgress({status:"running",completed,retries,error:null});
+    setError("");setNotice("");
     try{
-      let imported=0;
-      for(let i=0;i<entries.length;i+=100){
-        const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
-          "contacts_import_device",{contacts:entries.slice(i,i+100)});
-        imported+=result.imported||0;
-        setNotice("Importando: "+imported+" de "+entries.length+" contatos...");
+      while(completed<total && !control.intent){
+        const chunk=entries.slice(completed,completed+CONTACT_IMPORT_BATCH_SIZE);
+        let acknowledged=false;
+        for(let attempt=1;attempt<=3&&!control.intent;attempt++){
+          try{
+            const result=await operateUnionWhatsAppInbox(
+              organizationId,crypto.randomUUID(),"contacts_import_batch",{contacts:chunk},
+            );
+            if(result.imported!==chunk.length){
+              throw Error("O lote não foi confirmado integralmente pelo servidor.");
+            }
+            acknowledged=true;break;
+          }catch(reason){
+            if(control.intent)break;
+            if(attempt===3)throw reason;
+            retries++;
+            setImportProgress({status:"running",completed,retries,error:null});
+            await new Promise<void>(resolve=>window.setTimeout(resolve,attempt*1000));
+          }
+        }
+        if(!acknowledged)break;
+        completed+=chunk.length;
+        // Crash-safe checkpoint only after receiving a successful server ack.
+        // A lost ack can resend one batch; server upsert is idempotent.
+        persistCheckpoint(key,completed);
+        setImportProgress({status:control.intent==="pause"?"pausing":
+          control.intent==="cancel"?"cancelling":"running",
+          completed,retries,error:null});
       }
-      setPendingImport(null);
-      setNotice(imported+" contato(s) processado(s) da planilha. Nomes salvos manualmente foram preservados.");
-      setPage(0);
-      await refresh(search,0);
-      onSaved();
+      // Run the expensive conversation-name synchronization only once, not
+      // on each of the approximately 124 batches for 31,000 contacts.
+      if(completed>0){
+        await operateUnionWhatsAppInbox(
+          organizationId,crypto.randomUUID(),"contacts_apply_names",
+        );
+      }
+      if(control.intent==="cancel"){
+        clearCheckpoint(key);
+        setImportProgress({status:"completed",completed,retries,error:null});
+        setPendingImport(null);
+        setNotice("Importação cancelada. "+completed+" contato(s) já confirmados permanecem salvos; "+
+          (total-completed)+" não foram enviados.");
+      }else if(control.intent==="pause"){
+        setImportProgress({status:"paused",completed,retries,error:null});
+      }else if(completed===total){
+        clearCheckpoint(key);
+        setImportProgress({status:"completed",completed,retries,error:null});
+        setNotice("Importação concluída: "+total+" contato(s) processados, com nomes personalizados preservados.");
+      }
+      if(completed>0){
+        setPage(0);
+        await refresh(search,0);
+        onSaved();
+      }
     }catch(reason){
-      setError(systemErrorMessage(reason,"Não foi possível concluir a importação. Contatos já enviados foram preservados."));
-    }finally{setBusy(false);}
+      const message=systemErrorMessage(reason,
+        "Um lote falhou. Os contatos já confirmados estão preservados; retome para continuar.");
+      setImportProgress({status:"failed",completed,retries,error:message});
+      // Earlier batches are durable. Sync their names even when a later
+      // network request fails; do not erase the stored checkpoint.
+      if(completed>0){
+        try{
+          await operateUnionWhatsAppInbox(
+            organizationId,crypto.randomUUID(),"contacts_apply_names",
+          );
+          await refresh(search,0);
+          onSaved();
+        }catch{/* Show the original failure; retry will reattempt syncing. */}
+      }
+    }finally{control.running=false;control.intent=null;}
+  };
+  const pauseSpreadsheetImport=()=>{
+    if(!importControlRef.current.running)return;
+    importControlRef.current.intent="pause";
+    setImportProgress(old=>old?{...old,status:"pausing"}:old);
+  };
+  const cancelSpreadsheetImport=()=>{
+    if(!pendingImport)return;
+    if(importControlRef.current.running){
+      importControlRef.current.intent="cancel";
+      setImportProgress(old=>old?{...old,status:"cancelling"}:old);
+      return;
+    }
+    const completed=importProgress?.completed||0;
+    clearCheckpoint(pendingImport.checkpointKey);
+    setPendingImport(null);setImportProgress(null);
+    setNotice("Importação cancelada. "+completed+" contatos já confirmados permanecem na agenda.");
+  };
+  const closeContacts=()=>{
+    if(importControlRef.current.running){pauseSpreadsheetImport();return;}
+    onClose();
   };
   const save=async()=>{
     if(!canEdit || busy)return;
