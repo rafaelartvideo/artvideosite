@@ -107,6 +107,71 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
     </div>}
     {message.body_text && <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text}</p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
+    {departmentSettingsOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setDepartmentSettingsOpen(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Departamentos WhatsApp"
+        className="flex max-h-[82vh] w-full max-w-xl flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4">
+          <p className="font-bold">Departamentos e equipe</p>
+          <button type="button" onClick={()=>setDepartmentSettingsOpen(false)} aria-label="Fechar"
+            className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
+        </div>
+        <div className="min-h-0 space-y-4 overflow-y-auto px-5 py-4">
+          <div className="flex items-stretch gap-2">
+            <input value={newDepartmentName} maxLength={80}
+              onChange={event=>setNewDepartmentName(event.target.value)}
+              placeholder="Novo departamento"
+              aria-label="Nome do novo departamento"
+              className="min-w-0 flex-1 rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
+            <AdminButton disabled={savingDepartment || newDepartmentName.trim().length<2}
+              onClick={()=>void saveDepartment()}><Plus size={15}/> Adicionar</AdminButton>
+          </div>
+          <div className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+            {departments.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Nenhum departamento cadastrado.</p>}
+            {departments.map(dept=><button key={dept.id} type="button" onClick={()=>void manageDepartmentMembers(dept.id)}
+              className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm hover:bg-muted ${chosenDepartmentId===dept.id?"bg-primary-soft":""}`}>
+              <span className="flex items-center gap-2"><Building2 size={16}/>{dept.name}</span>
+              <span className="text-[11px] text-muted-foreground">{dept.is_active?"Ativo":"Desativado"}</span>
+            </button>)}
+          </div>
+          {chosenDepartmentId && <div className="space-y-2">
+            <p className="text-sm font-bold">Funcionários autorizados</p>
+            <p className="text-xs text-muted-foreground">Selecione quem pode assumir conversas direcionadas a este departamento.</p>
+            {members.map(person=><label key={person.id} className="flex cursor-pointer items-center gap-3 rounded-lg border border-border px-3 py-2.5 text-sm">
+              <input type="checkbox" checked={departmentMembers.includes(person.id)}
+                onChange={event=>void toggleDepartmentMember(person.id,event.target.checked)}/>
+              <span>{person.name}</span>
+            </label>)}
+            {members.length===0 && <p className="text-xs text-muted-foreground">Nenhum funcionário autorizado.</p>}
+          </div>}
+        </div>
+        <div className="flex justify-end border-t border-border px-5 py-3">
+          <AdminButton variant="secondary" onClick={()=>setDepartmentSettingsOpen(false)}>Fechar</AdminButton>
+        </div>
+      </div>
+    </div>}
+    {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Histórico do atendimento"
+        className="flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-xl">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3">
+          <p className="font-bold">Histórico do atendimento</p>
+          <button aria-label="Fechar" type="button" onClick={()=>setHistoryOpen(false)}><X size={18}/></button>
+        </div>
+        <div className="min-h-0 space-y-2 overflow-y-auto p-4">
+          {handoffs.length===0 && <p className="text-xs text-muted-foreground">Nenhum encaminhamento registrado.</p>}
+          {handoffs.map(item=><div key={item.id} className="border-b border-border py-2 text-xs">
+            <p className="font-semibold">{({
+              assume:"Atendimento assumido",return_queue:"Devolvido à fila",
+              finish:"Finalizado",reopen:"Reaberto",
+              transfer_operator:"Encaminhado ao atendente",transfer_department:"Encaminhado ao departamento",
+              start:"Conversa iniciada",
+            } as Record<string,string>)[item.action]||item.action}</p>
+            <p className="text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</p>
+          </div>)}
+        </div>
+      </div>
+    </div>}
   </div>;
 }
 
@@ -994,17 +1059,38 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
           <p className="font-black text-foreground">Encaminhar atendimento</p>
           <button type="button" onClick={() => setRoutingOpen(false)} aria-label="Fechar" className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">A conversa será atribuída a outro funcionário da mesma empresa.</p>
-        <label htmlFor="union-whatsapp-routing" className="mt-4 block text-xs font-semibold">Atendente *</label>
-        <select id="union-whatsapp-routing" value={targetUserId} onChange={event => setTargetUserId(event.target.value)}
-          className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm outline-none focus:border-primary">
-          <option value="">Selecione um atendente</option>
-          {members.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select>
-        {members.length === 0 && <p className="mt-2 text-xs text-amber-700 dark:text-amber-300">Nenhum atendente autorizado foi encontrado.</p>}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button type="button" onClick={()=>setRoutingMode("operator")}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold ${routingMode==="operator"?"border-primary bg-primary/10 text-primary":"border-border"}`}>
+            Atendente
+          </button>
+          <button type="button" onClick={()=>setRoutingMode("department")}
+            className={`rounded-lg border px-3 py-2 text-xs font-semibold ${routingMode==="department"?"border-primary bg-primary/10 text-primary":"border-border"}`}>
+            Departamento
+          </button>
+        </div>
+        {routingMode==="operator" ? <>
+          <label htmlFor="union-whatsapp-routing" className="mt-4 block text-xs font-semibold">Atendente *</label>
+          <select id="union-whatsapp-routing" value={targetUserId} onChange={event => setTargetUserId(event.target.value)}
+            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm">
+            <option value="">Selecione um atendente</option>
+            {members.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+          {members.length===0 && <p className="mt-2 text-xs text-muted-foreground">Nenhum atendente autorizado.</p>}
+        </> : <>
+          <label htmlFor="union-whatsapp-department-target" className="mt-4 block text-xs font-semibold">Departamento *</label>
+          <select id="union-whatsapp-department-target" value={targetDepartmentId}
+            onChange={event=>setTargetDepartmentId(event.target.value)}
+            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm">
+            <option value="">Selecione o departamento</option>
+            {departments.filter(item=>item.is_active).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
+          </select>
+          {departments.filter(item=>item.is_active).length===0 &&
+            <p className="mt-2 text-xs text-muted-foreground">Cadastre um departamento nas configurações.</p>}
+        </>}
         <div className="mt-5 flex justify-end gap-2">
           <AdminButton variant="secondary" onClick={() => setRoutingOpen(false)}>Cancelar</AdminButton>
-          <AdminButton disabled={!targetUserId || Boolean(runningAction)} onClick={() => void transfer()}>Encaminhar</AdminButton>
+          <AdminButton disabled={!(routingMode==="department"?targetDepartmentId:targetUserId) || Boolean(runningAction)} onClick={() => void transfer()}>Encaminhar</AdminButton>
         </div>
       </div>
     </div>}
