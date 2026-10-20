@@ -26,9 +26,8 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
   const date = new Date(sale.sold_at).toLocaleString("pt-BR");
   const companyName = sale.organization_name || fallbackOrganizationName || "Empresa";
   const organizationDocument = sale.organization_document;
-  const rows = sale.items.map((item, index) => `
+  const rows = sale.items.map(item => `
     <tr>
-      <td>${index + 1}</td>
       <td>
         <strong>${html(item.product_name)}</strong>
         ${options?.general ? "" : `<div class="minor">${html(conditionLabel(item.condition))}${item.is_manual ? " · Venda avulsa" : ""}${item.serial_number ? " · Série: " + html(item.serial_number) : ""}</div>`}
@@ -51,69 +50,63 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
   <title>${html(number)} · ${html(companyName)}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
-    @page { size: A4; margin: 0; }
+    /* Formato A5 paisagem: mesma largura do A4 e metade de sua altura. */
+    @page { size: 210mm 148mm; margin: 8mm 11mm; }
     * { box-sizing: border-box; }
-    html { background: #fff; }
-    body { margin: 0; padding: 0; background: white; color: #111; font: 12px/1.45 Arial, Helvetica, sans-serif; }
-    .sheet { width: 210mm; min-height: 296mm; margin: 0 auto; padding: 17mm 16mm 14mm; display: flex; flex-direction: column; }
-    .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 18mm; padding-bottom: 9mm; border-bottom: 1.5px solid #242424; }
-    .issuer { min-width: 0; flex: 1; }
-    .company { font-size: 24px; line-height: 1.2; font-weight: 800; overflow-wrap: anywhere; }
-    .muted { margin-top: 4px; color: #555; font-size: 10.5px; line-height: 1.4; }
-    .doc { min-width: 47mm; max-width: 64mm; padding-left: 7mm; border-left: 1px solid #555; text-align: right; }
-    .doc-kind { font-size: 25px; line-height: 1.15; font-weight: 800; letter-spacing: .01em; }
-    .doc-number { margin-top: 4px; font-size: 12px; font-weight: 700; }
-    .doc-sale { margin-top: 4px; color: #444; font-size: 11px; }
-    .panel { margin-top: 8mm; border: .8px solid #555; border-radius: 5px; overflow: hidden; }
-    .panel-title { margin: 0; padding: 9px 12px; font-size: 12px; line-height: 1.4; font-weight: 800; text-transform: uppercase; letter-spacing: .025em; border-bottom: .8px solid #999; }
-    .panel-content { padding: 14px 13px; }
-    .grid-info { display: grid; grid-template-columns: 1.1fr 1.05fr .85fr; }
-    .info { min-width: 0; padding: 0 12px; border-left: .6px solid #b3b3b3; overflow-wrap: anywhere; }
-    .info:first-child { padding-left: 0; border-left: 0; }
-    .info:last-child { padding-right: 0; }
-    .label { display: block; margin-bottom: 6px; color: #555; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; }
-    .info strong { display: block; font-size: 12.5px; line-height: 1.4; color: #111; }
-    .info .muted { font-size: 11px; }
-    .items-panel { margin-top: 8mm; }
-    .items-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 11.5px; }
-    .items-table th { padding: 10px 10px; text-align: left; font-size: 10px; color: #444; font-weight: 700; border-bottom: .8px solid #999; }
-    .items-table td { padding: 12px 10px; border-top: .6px solid #d0d0d0; vertical-align: top; overflow-wrap: anywhere; }
-    .items-table td + td, .items-table th + th { border-left: .5px solid #d0d0d0; }
-    .items-table tbody tr:first-child td { border-top: 0; }
-    .items-table tbody tr { break-inside: avoid; page-break-inside: avoid; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #111; }
+    body { font: 10px/1.3 Arial, Helvetica, sans-serif; }
+    .sheet { width: 188mm; min-height: 0; margin: 0 auto; padding: 0; }
+    .head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10mm; padding: 0 0 3mm; border-bottom: 1px solid #111; }
+    .issuer { flex: 1; min-width: 0; }
+    .company { font-size: 15px; font-weight: 800; line-height: 1.22; overflow-wrap: anywhere; }
+    .muted { color: #505050; font-size: 9px; margin-top: 2px; }
+    .doc { flex-shrink: 0; min-width: 43mm; max-width: 75mm; text-align: right; }
+    .doc-kind { font-size: 18px; font-weight: 800; letter-spacing: .08em; line-height: 1.1; }
+    .doc-number { font-size: 10px; font-weight: 700; margin-top: 3px; }
+    .doc-sale { font-size: 9px; color: #555; margin-top: 2px; overflow-wrap: anywhere; }
+    .panel { margin: 3mm 0 0; padding: 0; border: 0; border-radius: 0; }
+    .panel-title { font-size: 9px; line-height: 1.2; font-weight: 800; letter-spacing: .09em; text-transform: uppercase; margin: 0 0 1.5mm; padding: 0; }
+    .panel-content { padding: 0; }
+    .grid-info { display: grid; grid-template-columns: minmax(0,1.55fr) minmax(0,1fr) minmax(0,.9fr); gap: 7mm; }
+    .info { padding: 0; min-width: 0; overflow-wrap: anywhere; }
+    .label { display: block; margin-bottom: 2px; color: #555; font-size: 8.5px; text-transform: uppercase; letter-spacing: .04em; }
+    .info strong { display: block; font-size: 10.5px; font-weight: 700; line-height: 1.24; }
+    .info .muted { font-size: 9px; }
+    .items-panel { margin-top: 3mm; }
+    .items-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 10px; }
     .items-table thead { display: table-header-group; }
-    .items-table strong { font-size: 11.5px; font-weight: 700; }
-    .item-number { width: 7%; }
-    .item-description { width: 45%; }
+    .items-table th { text-align: left; color: #444; font-size: 8.5px; font-weight: 700; padding: 1.5mm 1.5mm; border-top: 1px solid #111; border-bottom: 1px solid #aaa; }
+    .items-table td { padding: 1.5mm; border-bottom: .5px solid #d2d2d2; vertical-align: top; overflow-wrap: anywhere; }
+    .items-table tr { break-inside: avoid; page-break-inside: avoid; }
+    .items-table strong { font-size: 10px; font-weight: 700; }
+    .item-description { width: 52%; }
     .item-quantity { width: 12%; }
     .item-price { width: 18%; }
     .right { text-align: right !important; }
-    .minor { color: #555; font-size: 10px; line-height: 1.5; margin-top: 4px; }
+    .minor { color: #555; font-size: 8.5px; line-height: 1.3; margin-top: 2px; }
     .pre { white-space: pre-wrap; overflow-wrap: anywhere; }
     .money { white-space: nowrap; }
-    .totals { width: 76mm; max-width: 100%; margin: 7mm 0 0 auto; break-inside: avoid; page-break-inside: avoid; }
-    .totals > .line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 11.5px; }
-    .totals > .line strong { font-size: 12px; }
-    .grand { margin-top: 7px; padding: 12px; border: 1px solid #333; border-radius: 4px; display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 800; font-size: 16px; }
-    .grand .amount { font-size: 21px; padding-left: 12px; border-left: .8px solid #888; white-space: nowrap; }
-    .payment-panel { margin-top: 8mm; break-inside: avoid; page-break-inside: avoid; }
-    .payment-entry { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 5px 0; border-bottom: .5px solid #ddd; }
-    .payment-entry:first-child { padding-top: 0; }
-    .payment-entry:last-child { padding-bottom: 0; border-bottom: 0; }
-    .payment-entry strong { font-size: 12px; white-space: nowrap; }
-    .note { margin-top: 7mm; padding: 11px 13px; border: .7px solid #888; border-radius: 4px; overflow-wrap: anywhere; }
-    .disclaimer { margin-top: 8mm; border: .8px solid #777; border-radius: 4px; padding: 12px 14px; color: #333; font-size: 10.5px; line-height: 1.6; break-inside: avoid; page-break-inside: avoid; }
+    .totals { margin: 2.5mm 0 0 auto; width: 72mm; max-width: 100%; break-inside: avoid; page-break-inside: avoid; }
+    .totals > .line { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 1px 0; font-size: 9.5px; }
+    .totals > .line strong { font-weight: 700; }
+    .grand { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-top: 1.5mm; padding: 2mm 0 1mm; border-top: 1.4px solid #111; font-size: 11px; font-weight: 800; }
+    .grand .amount { font-size: 16px; white-space: nowrap; font-weight: 800; }
+    .payment-panel { margin-top: 2.5mm; break-inside: avoid; page-break-inside: avoid; }
+    .payment-panel .panel-content { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 0 8mm; }
+    .payment-entry { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; padding: 1.5px 0; }
+    .payment-entry strong { white-space: nowrap; font-size: 9.5px; }
+    .note { margin-top: 2.5mm; overflow-wrap: anywhere; font-size: 9.5px; }
+    .disclaimer { margin-top: 3mm; padding-top: 2mm; border-top: 1px solid #bbb; font-size: 8.5px; color: #444; line-height: 1.35; break-inside: avoid; page-break-inside: avoid; }
     .disclaimer strong { color: #111; }
-    .signature { margin: 16mm auto 0; width: 76mm; max-width: 100%; padding-top: 6px; border-top: .7px solid #777; text-align: center; color: #444; font-size: 10.5px; overflow-wrap: anywhere; break-inside: avoid; }
-    .footer { margin-top: auto; padding-top: 10mm; text-align: center; }
+    .footer { margin-top: 2mm; color: #555; font-size: 8px; text-align: left; }
     @media screen {
-      body { background: #eee; }
-      .sheet { background: #fff; box-shadow: 0 0 0 1px #d4d4d4, 0 8px 30px #0001; margin: 22px auto; }
+      html, body { background: #efefef; }
+      body { padding: 18px 12px; }
+      .sheet { width: 210mm; max-width: 100%; min-height: 148mm; padding: 8mm 11mm; margin: 0 auto; background: #fff; box-shadow: 0 3px 22px #00000020; }
     }
     @media print {
       html, body { background: #fff !important; }
-      .sheet { margin: 0; box-shadow: none; width: 210mm; }
-      .panel, .payment-panel, .disclaimer, .grand { background: #fff !important; }
+      .sheet { width: auto; min-height: 0; padding: 0; margin: 0; box-shadow: none; }
     }
   </style>
 </head>
@@ -123,7 +116,7 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
     <div class="issuer">
       <div class="company">${html(companyName)}</div>
       ${organizationDocument ? '<div class="muted">CNPJ/CPF: ' + html(organizationDocument) + '</div>' : ""}
-      <div class="muted">Comprovante emitido pela Union World</div>
+      
     </div>
     <div class="doc">
       <div class="doc-kind">RECIBO</div>
@@ -153,8 +146,8 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
   <section class="panel items-panel">
     <h2 class="panel-title">${options?.general ? "Discriminação" : "Itens da venda"}</h2>
     <table class="items-table">
-      <colgroup><col class="item-number"><col class="item-description"><col class="item-quantity"><col class="item-price"><col class="item-price"></colgroup>
-      <thead><tr><th>#</th><th>Descrição</th><th class="right">Qtd.</th><th class="right">Unitário</th><th class="right">Total</th></tr></thead>
+      <colgroup><col class="item-description"><col class="item-quantity"><col class="item-price"><col class="item-price"></colgroup>
+      <thead><tr><th>Descrição</th><th class="right">Qtd.</th><th class="right">Unitário</th><th class="right">Total</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>
   </section>
@@ -169,8 +162,8 @@ export function printPdvA4Receipt(sale: PdvSaleDetail, fallbackOrganizationName:
     <div class="panel-content">${payments}</div>
   </section>
   ${sale.notes ? '<section class="note"><strong>Observações:</strong> ' + html(sale.notes) + '</section>' : ""}
-  <aside class="disclaimer"><strong>DOCUMENTO NÃO FISCAL.</strong> ${options?.general ? "Este recibo registra a declaração de quitação do valor discriminado, conforme informado pelo emitente. Não substitui documentos fiscais exigidos pela legislação e não movimenta automaticamente o caixa ou o financeiro." : "Este recibo comprova o recebimento do valor referente à venda identificada. Não substitui NFC-e, NF-e ou outro documento fiscal exigido pela legislação. A indicação de produto usado não exclui a garantia legal nem os direitos do consumidor."}</aside>
-  <footer class="footer"><div class="signature">${html(companyName)} ${organizationDocument ? " · " + html(organizationDocument) : ""}</div></footer>
+  <aside class="disclaimer"><strong>Documento não fiscal.</strong> ${options?.general ? "Comprova a quitação do valor e da finalidade informados; não substitui documentação fiscal obrigatória." : "Comprova o recebimento da venda indicada; não substitui nota fiscal. Os direitos legais do consumidor permanecem preservados."}</aside>
+  <footer class="footer">Emitido por ${html(companyName)} ${organizationDocument ? " · " + html(organizationDocument) : ""}</footer>
 </main>
 <script>
   window.addEventListener("load", function () {
