@@ -91,7 +91,7 @@ Deno.serve(async request => {
     const org = String(input?.organization_id || "");
     const action = String(input?.action || "");
     if (!uuid(org)) return json({ success: false, error: "Empresa inválida." }, 400);
-    if (!["list", "register", "provision", "connect", "status", "qr", "logout", "webhook_setup"].includes(action)) {
+    if (!["list", "register", "activate", "provision", "connect", "status", "qr", "logout", "webhook_setup"].includes(action)) {
       return json({ success: false, error: "Operação inválida." }, 400);
     }
     const scoped = createClient(supabaseUrl, publicKey, {
@@ -141,6 +141,48 @@ Deno.serve(async request => {
       return json({ success: true, channel });
     }
 
+    // One-click activation: register metadata + provision a private WuzAPI session.
+    // Provision is idempotent in the bridge and does not connect or log out a phone.
+    if (action === "activate") {
+      const { data: existing, error: readError } = await query();
+      if (readError) throw readError;
+      let target = existing;
+      if (!target) {
+        const { error: insertError } = await privileged.from("whatsapp_channel_connections")
+          .upsert({
+            organization_id: org, provider: "wuzapi",
+            display_name: "WhatsApp", created_by: auth.user.id,
+          }, { onConflict: "organization_id,provider", ignoreDuplicates: true });
+        if (insertError) throw insertError;
+        const readBack = await query();
+        if (readBack.error) throw readBack.error;
+        target = readBack.data;
+      }
+      if (!target) return json({ success: false, error: "Não foi possível cadastrar o canal." }, 500);
+      if (input.connection_id && input.connection_id !== target.id) {
+        return json({ success: false, error: "Canal inválido para esta empresa." }, 403);
+      }
+      try {
+        await signedBridge("provision", target as ChannelRow);
+      } catch (err) {
+        const reason = String((err as Error)?.message || "");
+        return json({ success: false, code: "bridge_unavailable",
+          error: reason.includes("ainda não foi configurada.") ? reason :
+            "Não foi possível preparar o canal. Tente ativá-lo novamente." }, 503);
+      }
+      // Preserve existing linked phone and state. The new integration is
+      // configured, but must not claim the WhatsApp number is connected.
+      if (target.state === "not_connected") {
+        const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
+          .update({ state: "disconnected", updated_at: new Date().toISOString() })
+          .eq("id", target.id).eq("organization_id", org)
+          .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready").single();
+        if (updateError) throw updateError;
+        target = updated;
+      }
+      return json({ success: true, channel: target });
+    }
+
     const { data: channel, error } = await query();
     if (error) throw error;
     if (!channel) return json({ success: false, error: "Cadastre o canal primeiro." }, 404);
@@ -162,14 +204,13 @@ Deno.serve(async request => {
       }, 503);
     }
 
-    if (action === "webhook_setup") {
-      if (remote.auth_mode !== "hmac-sha256") {
-        return json({ success: false, code: "bridge_update_required",
-          error: "A ponte WhatsApp da VPS precisa ser atualizada antes de ativar o recebimento seguro." }, 409);
+    const persistWebhook = async (response: Record<string, unknown>) => {
+      if (response.auth_mode !== "hmac-sha256") {
+        throw new Error("A ponte WhatsApp precisa da versão com autenticação HMAC.");
       }
-      const hash = String(remote.token_sha256 || "");
+      const hash = String(response.token_sha256 || "");
       if (!/^[a-f0-9]{64}$/.test(hash)) {
-        return json({ success: false, error: "A configuração segura do webhook não foi confirmada." }, 502);
+        throw new Error("A configuração segura do recebimento não foi confirmada.");
       }
       const { error: keyError } = await privileged.from("union_whatsapp_webhook_keys")
         .upsert({ channel_id: channel.id, token_sha256: hash, configured_at: new Date().toISOString() }, { onConflict: "channel_id" });
@@ -179,7 +220,14 @@ Deno.serve(async request => {
         .eq("id", channel.id).eq("organization_id", org)
         .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready").single();
       if (updateError) throw updateError;
-      return json({ success: true, channel: updated });
+      return updated;
+    };
+    if (action === "webhook_setup") {
+      if (remote.auth_mode !== "hmac-sha256") {
+        return json({ success: false, code: "bridge_update_required",
+          error: "A ponte WhatsApp da VPS precisa ser atualizada antes de ativar o recebimento seguro." }, 409);
+      }
+      return json({ success: true, channel: await persistWebhook(remote) });
     }
     const previous = String(channel.state || "not_connected");
     if (action === "qr") {
@@ -206,6 +254,19 @@ Deno.serve(async request => {
       .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
       .single();
     if (updateError) throw updateError;
+    // Pairing a number automatically configures authenticated message delivery.
+    // Status checks retry only until ready; pairing still succeeds if the
+    // bridge cannot finish webhook setup, without claiming it is enabled.
+    if (loggedIn && !updated.webhook_ready) {
+      try {
+        const setup = await signedBridge("webhook_setup", updated as ChannelRow);
+        const ready = await persistWebhook(setup);
+        return json({ success: true, channel: ready, logged_in: true, connected });
+      } catch {
+        return json({ success: true, channel: updated, logged_in: true, connected,
+          webhook_pending: true });
+      }
+    }
     return json({ success: true, channel: updated, logged_in: loggedIn, connected });
   } catch (error) {
     console.error("whatsapp-channels:", (error as Error).name);
