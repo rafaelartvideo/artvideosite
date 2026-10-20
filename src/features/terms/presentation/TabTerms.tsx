@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
-import { Eye, Pencil, Search } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatDateTime } from "@/shared/domain/formatters";
 import {
   AdminCard,
   AdminCardHeader,
-  AdminCardToolbar,
   AdminIconButton,
   AdminPage,
   AdminStickyToolbar,
@@ -16,15 +15,19 @@ import {
   Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FIntegerInput, FTextarea, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import {
   listOrganizationTerms,
-  listServiceWarrantyTerms,
   saveOrganizationTerm,
-  saveServiceWarrantyTerm,
   type OrganizationTermType,
-  type ServiceWarrantyTermRow,
 } from "../infrastructure/terms.repository";
+import {
+  DEFAULT_WARRANTY_CERTIFICATE_TEMPLATE,
+  loadWarrantyCertificateTemplate,
+  saveWarrantyCertificateTemplate,
+  type WarrantyCertificateTemplate,
+} from "@/features/orders/application/warranty-certificate-template";
+import { WarrantyTemplateEditor } from "./WarrantyTemplateEditor";
 
 type Draft = {
   title: string;
@@ -34,17 +37,7 @@ type Draft = {
   updated_at?: string | null;
 };
 
-type WarrantyDraft = {
-  title: string;
-  content: string;
-  warranty_days: string;
-  is_active: boolean;
-};
-
-type EditorState =
-  | { kind: "term"; type: OrganizationTermType; draft: Draft }
-  | { kind: "warranty"; row: ServiceWarrantyTermRow; draft: WarrantyDraft }
-  | null;
+type EditorState = { kind: "term"; type: OrganizationTermType; draft: Draft } | null;
 
 const DEFAULTS: Record<OrganizationTermType, Draft> = {
   usage: {
@@ -74,25 +67,16 @@ const TERM_META: Record<OrganizationTermType, { name: string; audience: string; 
   },
 };
 
-function warrantyDraft(row: ServiceWarrantyTermRow): WarrantyDraft {
-  return {
-    title: row.title || `Termo de Garantia — ${row.service_name}`,
-    content: row.content || "",
-    warranty_days: String(row.warranty_days ?? 90),
-    is_active: Boolean(row.warranty_id && row.is_active),
-  };
-}
-
 export function TabTerms({ onBack }: { onBack: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("terms.view");
   const canManage = hasPermission("terms.manage");
   const [drafts, setDrafts] = useState<Record<OrganizationTermType, Draft>>(DEFAULTS);
-  const [warranties, setWarranties] = useState<ServiceWarrantyTermRow[]>([]);
+  const [certificateConfig, setCertificateConfig] = useState<WarrantyCertificateTemplate>({ ...DEFAULT_WARRANTY_CERTIFICATE_TEMPLATE });
+  const [certificateOpen, setCertificateOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [editor, setEditor] = useState<EditorState>(null);
-  const [warrantySearch, setWarrantySearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const load = async () => {
@@ -103,9 +87,9 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
 
     setLoading(true);
     try {
-      const [rows, warrantyRows] = await Promise.all([
+      const [rows, certificateTemplate] = await Promise.all([
         listOrganizationTerms(activeOrganizationId),
-        listServiceWarrantyTerms(activeOrganizationId),
+        loadWarrantyCertificateTemplate(activeOrganizationId),
       ]);
 
       const usage = rows.find(term => term.term_type === "usage");
@@ -127,7 +111,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
           updated_at: responsibility.updated_at,
         } : DEFAULTS.responsibility,
       });
-      setWarranties(warrantyRows);
+      setCertificateConfig(certificateTemplate);
     } catch (error) {
       setToast({ msg: systemErrorMessage(error, "Não foi possível carregar termos e garantias."), type: "error" });
     } finally {
@@ -139,21 +123,8 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     void load();
   }, [activeOrganizationId, canView]);
 
-  const filteredWarranties = useMemo(() => {
-    const search = warrantySearch.trim().toLocaleLowerCase("pt-BR");
-    if (!search) return warranties;
-    return warranties.filter(row =>
-      row.service_name.toLocaleLowerCase("pt-BR").includes(search)
-      || String(row.title || "").toLocaleLowerCase("pt-BR").includes(search),
-    );
-  }, [warranties, warrantySearch]);
-
   const openTerm = (type: OrganizationTermType) => {
     setEditor({ kind: "term", type, draft: { ...drafts[type] } });
-  };
-
-  const openWarranty = (row: ServiceWarrantyTermRow) => {
-    setEditor({ kind: "warranty", row, draft: warrantyDraft(row) });
   };
 
   const closeEditor = () => {
@@ -193,43 +164,20 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const saveWarranty = async () => {
-    if (!activeOrganizationId || !canManage || editor?.kind !== "warranty") return;
-    const { row, draft } = editor;
-    const days = Number(draft.warranty_days);
-
-    if (!draft.title.trim()) {
-      setToast({ msg: "Informe o título do termo de garantia.", type: "error" });
+  const saveCertificate = async (config: WarrantyCertificateTemplate) => {
+    if (!activeOrganizationId || !canManage) return;
+    if (!config.title.trim()) {
+      setToast({ msg: "Informe o título do certificado.", type: "error" });
       return;
     }
-    if (!Number.isInteger(days) || days < 0 || days > 3650) {
-      setToast({ msg: "Informe um prazo de garantia entre 0 e 3650 dias.", type: "error" });
-      return;
-    }
-    if (draft.is_active && days <= 0) {
-      setToast({ msg: "A garantia ativa precisa ter prazo maior que zero.", type: "error" });
-      return;
-    }
-    if (draft.is_active && !draft.content.trim()) {
-      setToast({ msg: "Informe o conteúdo do termo antes de ativar a garantia.", type: "error" });
-      return;
-    }
-
     setSaving(true);
     try {
-      await saveServiceWarrantyTerm({
-        organizationId: activeOrganizationId,
-        generalServiceId: row.general_service_id,
-        title: draft.title,
-        content: draft.content,
-        warrantyDays: days,
-        isActive: draft.is_active,
-      });
-      setToast({ msg: `Garantia de ${row.service_name} salva com sucesso.`, type: "success" });
-      setEditor(null);
+      await saveWarrantyCertificateTemplate(activeOrganizationId, config);
+      setCertificateOpen(false);
+      setToast({ msg: "Modelo do certificado atualizado.", type: "success" });
       await load();
     } catch (error) {
-      setToast({ msg: systemErrorMessage(error, "Não foi possível salvar a garantia do serviço."), type: "error" });
+      setToast({ msg: systemErrorMessage(error, "Não foi possível salvar o modelo do certificado."), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -237,12 +185,6 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
 
   const updateTermDraft = (patch: Partial<Draft>) => {
     setEditor(current => current?.kind === "term"
-      ? { ...current, draft: { ...current.draft, ...patch } }
-      : current);
-  };
-
-  const updateWarrantyDraft = (patch: Partial<WarrantyDraft>) => {
-    setEditor(current => current?.kind === "warranty"
       ? { ...current, draft: { ...current.draft, ...patch } }
       : current);
   };
@@ -255,7 +197,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
 
     <PageHeader
       title="Termos/Garantia"
-      subtitle="Gerencie os termos obrigatórios da empresa e as garantias vinculadas aos serviços."
+      subtitle="Gerencie os termos da empresa e personalize o certificado de garantia dos equipamentos."
     />
 
     <AdminCard>
@@ -313,73 +255,20 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
     <AdminCard>
       <AdminCardHeader>
         <div className="min-w-0">
-          <h2 className="text-sm font-black text-foreground">Garantias dos serviços</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Defina prazo e termo de garantia individualmente para cada Serviço Geral.</p>
+          <h2 className="text-sm font-black text-foreground">Certificado de garantia</h2>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Personalize o certificado das OS concluídas. Os prazos continuam vinculados ao tipo de equipamento.
+          </p>
         </div>
-        <span className="shrink-0 text-xs font-bold text-muted-foreground">{warranties.length} serviço{warranties.length === 1 ? "" : "s"}</span>
+        <AdminIconButton ariaLabel={canManage ? "Personalizar certificado" : "Visualizar modelo"}
+          title={canManage ? "Personalizar certificado" : "Visualizar modelo"} onClick={() => setCertificateOpen(true)}>
+          {canManage ? <Pencil size={14} /> : <Eye size={14} />}
+        </AdminIconButton>
       </AdminCardHeader>
-
-      <AdminCardToolbar>
-        <div className="relative w-full max-w-md">
-          <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input
-            value={warrantySearch}
-            onChange={event => setWarrantySearch(event.target.value)}
-            placeholder="Buscar serviço ou termo de garantia"
-            className={`${INPUT} h-9 pl-9 text-xs`}
-          />
-        </div>
-      </AdminCardToolbar>
-
-      {warranties.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhum Serviço Geral cadastrado para configurar garantia.</div>
-      ) : filteredWarranties.length === 0 ? (
-        <div className="px-5 py-10 text-center text-sm text-muted-foreground">Nenhum serviço encontrado para esta busca.</div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-[900px]">
-            <thead>
-              <tr>
-                <th className="text-left">Serviço</th>
-                <th className="text-left">Prazo</th>
-                <th className="text-left">Versão</th>
-                <th className="text-left">Status</th>
-                <th className="text-left">Atualização</th>
-                <th className="text-right">Ações</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredWarranties.map(row => <tr key={row.general_service_id}>
-                <td>
-                  <p className="font-bold text-foreground">{row.service_name}</p>
-                  {!row.service_is_active && <p className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Serviço inativo</p>}
-                </td>
-                <td className="text-xs font-semibold text-foreground">
-                  {row.warranty_id && row.warranty_days != null ? `${row.warranty_days} dia${row.warranty_days === 1 ? "" : "s"}` : "Não configurada"}
-                </td>
-                <td className="text-xs font-bold text-foreground">{row.version > 0 ? `v${row.version}` : "—"}</td>
-                <td>
-                  {row.warranty_id
-                    ? <StatusBadge status={row.is_active ? "Ativo" : "Inativo"} />
-                    : <span className="text-xs font-semibold text-muted-foreground">Não configurada</span>}
-                </td>
-                <td className="text-xs text-muted-foreground">{row.updated_at ? formatDateTime(row.updated_at, "—") : "—"}</td>
-                <td>
-                  <div className="flex justify-end">
-                    <AdminIconButton
-                      ariaLabel={canManage ? `Configurar garantia de ${row.service_name}` : `Visualizar garantia de ${row.service_name}`}
-                      title={canManage ? "Configurar garantia" : "Visualizar garantia"}
-                      onClick={() => openWarranty(row)}
-                    >
-                      {canManage ? <Pencil size={14} /> : <Eye size={14} />}
-                    </AdminIconButton>
-                  </div>
-                </td>
-              </tr>)}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <div className="px-5 py-4 text-sm text-foreground">
+        <strong>{certificateConfig.title}</strong>
+        <p className="mt-1 text-xs text-muted-foreground">Cabeçalho, serviços, produtos, coberturas, exclusões, assinaturas e rodapé.</p>
+      </div>
     </AdminCard>
 
     <AdminStickyToolbar>
@@ -437,74 +326,12 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
       </AdminStickyToolbar>
     </AdminPage>}
 
-    {editor?.kind === "warranty" && <AdminPage
-      open
-      onClose={closeEditor}
-      breadcrumb="Operação > Termos/Garantia"
-      title={`Garantia — ${editor.row.service_name}`}
-      subtitle="Prazo e condições de garantia aplicáveis a este serviço."
-      maxW="max-w-3xl"
-    >
-      <div className="space-y-5 p-4 sm:p-5">
-        <Section title="Serviço">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Serviço Geral</p>
-              <p className="mt-1 text-sm font-bold text-foreground">{editor.row.service_name}</p>
-            </div>
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Versão</p>
-              <p className="mt-1 text-sm font-bold text-foreground">{editor.row.version > 0 ? `v${editor.row.version}` : "Nova configuração"}</p>
-            </div>
-          </div>
-        </Section>
-
-        <Section title="Termo de garantia">
-          <div className="space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <FIntegerInput
-                label="Prazo da garantia (dias)"
-                value={editor.draft.warranty_days}
-                disabled={!canManage || saving}
-                onChange={(event: any) => updateWarrantyDraft({ warranty_days: event.target.value })}
-              />
-              <FInput
-                label="Título"
-                value={editor.draft.title}
-                disabled={!canManage || saving}
-                onChange={(event: any) => updateWarrantyDraft({ title: event.target.value })}
-              />
-            </div>
-            <div>
-              <FTextarea
-                label="Conteúdo do termo de garantia"
-                value={editor.draft.content}
-                disabled={!canManage || saving}
-                onChange={(event: any) => updateWarrantyDraft({ content: event.target.value })}
-                rows={16}
-                placeholder="Descreva cobertura, condições, exclusões e demais regras da garantia..."
-              />
-              <p className="mt-1 text-[10px] text-muted-foreground">Formatação disponível: # título · ## seção · **negrito** · - lista</p>
-            </div>
-            <FToggle
-              label="Garantia ativa"
-              description="Quando ativa, esta será a configuração vigente de garantia para o serviço."
-              checked={editor.draft.is_active}
-              disabled={!canManage || saving}
-              onChange={value => updateWarrantyDraft({ is_active: value })}
-            />
-          </div>
-        </Section>
-
-        <Section title="Versionamento">
-          <p className="text-sm text-muted-foreground">Alterações no prazo, título, conteúdo ou status criam uma nova versão da garantia. Isso preserva a rastreabilidade das condições vigentes ao longo do tempo.</p>
-        </Section>
-      </div>
-
-      <AdminStickyToolbar className="justify-end">
-        <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
-        {canManage && <BtnPrimary onClick={() => void saveWarranty()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
-      </AdminStickyToolbar>
-    </AdminPage>}
+    {certificateOpen && <WarrantyTemplateEditor
+      value={certificateConfig}
+      canManage={canManage}
+      saving={saving}
+      onClose={() => { if (!saving) setCertificateOpen(false); }}
+      onSave={config => void saveCertificate(config)}
+    />}
   </div>;
 }
