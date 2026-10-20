@@ -297,6 +297,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
   }, [activeOrganizationId, canView]);
   useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setChannelError(""); void checkChannel(); }, [checkChannel]);
+  // When disconnected, the conversation subscription is deliberately absent.
+  // Recheck identity on returning to the tab without continuously polling.
+  useEffect(()=>{
+    if(!activeOrganizationId||!canView)return;
+    let last=0;
+    const onResume=()=>{
+      if(document.visibilityState!=="visible"||Date.now()-last<30000)return;
+      last=Date.now();
+      void checkChannel();
+    };
+    window.addEventListener("focus",onResume);
+    document.addEventListener("visibilitychange",onResume);
+    return()=>{
+      window.removeEventListener("focus",onResume);
+      document.removeEventListener("visibilitychange",onResume);
+    };
+  },[activeOrganizationId,canView,checkChannel]);
 
   // Realtime only while the inbox page is open. A bounded foreground refresh
   // is kept as fallback when tenant replication is temporarily unavailable.
@@ -322,7 +339,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if (document.visibilityState !== "visible" || Date.now() - lastResume < 30000) return;
       lastResume = Date.now();
       schedule();
-      void checkChannel();
     };
     window.addEventListener("focus", onResume);
     document.addEventListener("visibilitychange", onResume);
@@ -851,7 +867,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
     {channelError && <p role="alert" className="text-xs text-red-600">{channelError}</p>}
-    {channelReady === null ? <div className="flex min-h-[440px] items-center justify-center text-sm text-muted-foreground">Verificando conexão do WhatsApp...</div> :
+    {channelReady === null ? <div className="flex min-h-[440px] items-center justify-center text-sm text-muted-foreground">{channelError?"Não foi possível verificar a conexão do WhatsApp.":"Verificando conexão do WhatsApp..."}</div> :
      channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
       <MessageCircle size={36} className="text-muted-foreground"/>
       <div className="space-y-2">
