@@ -39,6 +39,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
   const canManage = hasPermission("settings.channels.manage");
   const [section, setSection] = useState<ChannelSection>(initialSection);
+  const [settingsCreateRequest, setSettingsCreateRequest] = useState(0);
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
   const channelRef = useRef<WhatsAppChannel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -311,7 +312,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
             </div>}
         </AdminCardContent>
       </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
-      <WhatsAppOperationsSettings section={section}/> :
+      <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> :
       <AdminCard square>
         <div className="overflow-x-auto">
           <table className="min-w-[850px] w-full">
@@ -359,6 +360,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       </AdminCard>}
     <AdminStickyToolbar className="justify-between">
       <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
+      {(section === "departments" || section === "queues") && canManage &&
+        <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
       {section === "connections" && canManage && <AdminButton onClick={() => void openQr()}
         disabled={!canStartConnection} loading={action === "connect"}
         title={!enabled ? "Ative o canal primeiro" :
