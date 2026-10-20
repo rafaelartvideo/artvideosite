@@ -37,6 +37,7 @@ export function FinanceSettlementPanel({
   onRegister,
   onConfirm,
   onReverse,
+  initialOpen = false,
 }: {
   detail: FinancialEntryDetail;
   showIcon?: boolean;
@@ -51,13 +52,14 @@ export function FinanceSettlementPanel({
   onRegister: (draft: FinancialSettlementDraft) => Promise<void>;
   onConfirm: (settlementId: string) => Promise<void>;
   onReverse: (settlementId: string, reason: string) => Promise<void>;
+  initialOpen?: boolean;
 }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(initialOpen);
   const [reverseId, setReverseId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
   const [reverseReasonError, setReverseReasonError] = useState("");
   const openBalance = detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
-  const canRegister = detail.approval_status === "approved" && openBalance > 0.0001 && canSettle;
+  const canRegister = !["cancelled", "reversed"].includes(detail.approval_status) && openBalance > 0.0001 && canSettle;
   useEffect(() => {
     if (error) notifyAdmin(systemErrorMessage(error), "error");
   }, [error]);
@@ -82,16 +84,15 @@ export function FinanceSettlementPanel({
       <AdminCardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-2">{showIcon && <WalletCards size={18} className="text-[#0057e7]" />}<div><h3 className="text-sm font-black text-[#0d1b2e]">Baixas</h3><p className="text-xs text-[#5a6a82]">Saldo principal em aberto: {formatCurrency(openBalance)}</p></div></div>
-          {canRegister && <AdminButton onClick={() => setDialogOpen(true)}>{actionLabel}</AdminButton>}
+          {canRegister && <AdminButton onClick={() => setDialogOpen(true)}><CheckCircle2 size={15} /> Dar baixa</AdminButton>}
         </div>
       </AdminCardHeader>
       <AdminCardContent className="space-y-3">
-        {detail.approval_status !== "approved" && <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">As baixas ficam disponíveis somente após a aprovação financeira do lançamento.</div>}
         {detail.settlements.length === 0 ? <p className="text-sm text-[#5a6a82]">Nenhuma baixa registrada.</p> : <div className="space-y-2">
           {detail.settlements.map(item => <div key={item.id} className="rounded-xl border border-[#0d1b2e]/8 p-3">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className={`rounded-full border px-2 py-1 text-[10px] font-black uppercase ${STATUS_TONE_CLASSES[item.settlement_status === "posted" ? "success" : item.settlement_status === "scheduled" ? "waiting" : "danger"].badge}`}>{statusLabel(item.settlement_status)}</span><span className="text-xs font-semibold text-[#5a6a82]">{item.payment_method_name_snapshot} · {item.financial_account_name_snapshot}</span></div><p className="mt-2 text-sm font-black text-[#0d1b2e]">Principal {formatCurrency(item.principal_amount)} · Baixa {formatCurrency(item.gross_amount)}</p><p className="mt-1 text-xs text-[#5a6a82]">Juros {formatCurrency(item.interest_amount)} · Multa {formatCurrency(item.penalty_amount)} · Acréscimos {formatCurrency(item.other_additions)} · Desconto {formatCurrency(item.discount_amount)}</p>{Number(item.fee_amount) > 0 && <p className="mt-1 text-xs text-[#5a6a82]">Taxa {formatCurrency(item.fee_amount)} · Líquido {formatCurrency(item.net_amount)}</p>}<p className="mt-1 text-[11px] text-[#8a98aa]">Registrada em {formatDateTime(item.occurred_at)}{item.settlement_status === "scheduled" ? ` · previsão ${formatDateTime(item.expected_settlement_at)}` : item.posted_at ? ` · liquidada em ${formatDateTime(item.posted_at)}` : ""}</p>{item.reversal_reason && <p className="mt-1 text-xs font-semibold text-red-700">Estorno: {item.reversal_reason}</p>}</div>
-              <div className="flex shrink-0 flex-wrap gap-2">{item.settlement_status === "scheduled" && canSettle && <AdminButton size="sm" onClick={() => onConfirm(item.id)} loading={confirmPending} loadingText="Confirmando..."><CheckCircle2 size={14} /> Confirmar liquidação</AdminButton>}{item.settlement_status !== "reversed" && canReverse && <AdminButton size="sm" variant="danger" onClick={() => { setReverseId(item.id); setReverseReason(""); setReverseReasonError(""); }} disabled={reversePending}><RotateCcw size={14} /> Estornar</AdminButton>}</div>
+              <div className="flex shrink-0 flex-wrap gap-2">{item.settlement_status === "scheduled" && canSettle && <AdminButton size="sm" onClick={() => onConfirm(item.id)} loading={confirmPending} loadingText="Confirmando..."><CheckCircle2 size={14} /> Confirmar crédito na conta</AdminButton>}{item.settlement_status !== "reversed" && canReverse && <AdminButton size="sm" variant="danger" onClick={() => { setReverseId(item.id); setReverseReason(""); setReverseReasonError(""); }} disabled={reversePending}><RotateCcw size={14} /> Estornar</AdminButton>}</div>
             </div>
           </div>)}
         </div>}
@@ -100,7 +101,7 @@ export function FinanceSettlementPanel({
       </AdminCardContent>
     </AdminCard>
 
-    <FinanceSettlementDialog open={dialogOpen} detail={detail} accounts={accounts} paymentMethods={paymentMethods} saving={settlementPending} onClose={() => { if (!settlementPending) setDialogOpen(false); }} onSave={onRegister} />
+    <FinanceSettlementDialog open={dialogOpen} detail={detail} accounts={accounts} paymentMethods={paymentMethods} saving={settlementPending} onClose={() => { if (!settlementPending) setDialogOpen(false); }} onSave={async draft => { await onRegister(draft); notifyAdmin(`Baixa de ${formatCurrency(draft.principal_amount)} registrada com sucesso.`, "success"); }} />
 
     {reverseId && <AdminDialog open onClose={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }} title="Estornar baixa" description="O lançamento original será preservado e movimentos inversos serão criados." className="max-w-lg" footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><AdminButton variant="secondary" onClick={() => { if (!reversePending) { setReverseId(null); setReverseReason(""); setReverseReasonError(""); } }}>Cancelar</AdminButton><AdminButton variant="danger" onClick={reverse} loading={reversePending} loadingText="Estornando...">Confirmar estorno</AdminButton></div>}><FTextarea label="Motivo do estorno" required error={reverseReasonError} value={reverseReason} onChange={(event: any) => { setReverseReasonError(""); setReverseReason(event.target.value); }} /></AdminDialog>}
   </>;
