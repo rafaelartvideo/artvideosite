@@ -2,7 +2,6 @@ import { useState } from "react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import type { FinancialAccount, FinancialEntryDetail, FinancialPaymentMethod, FinancialSettlementDraft } from "../domain/finance.types";
-import { FinanceCollectionsPanel } from "./FinanceCollectionsPanel";
 import { FinanceDocumentsPanel } from "./FinanceDocumentsPanel";
 import { FinanceEntrySourceBlock } from "./FinanceEntrySourceBlock";
 import { FinanceSettlementPanel } from "./FinanceSettlementPanel";
@@ -30,7 +29,6 @@ function eventLabel(type: string) {
     settlement_reversed: "Baixa estornada",
     document_attached: "Documento anexado",
     document_archived: "Documento arquivado",
-    collection_recorded: "Contato de cobrança registrado",
     recurring_generated: "Ocorrência recorrente gerada",
   } as Record<string, string>)[type] || type;
 }
@@ -40,7 +38,7 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 
-type EntryTab = "overview" | "settlements" | "documents" | "collections";
+type EntryTab = "overview" | "settlements" | "documents";
 
 function EntryDetailContent({
   detail, accounts, paymentMethods, canEdit, canSettle, canReverseSettlement,
@@ -97,7 +95,6 @@ function EntryDetailContent({
         { id: "overview", label: "Resumo" },
         { id: "settlements", label: "Baixas" },
         { id: "documents", label: "Documentos" },
-        ...(isReceivable ? [{ id: "collections" as const, label: "Cobranças" }] : []),
       ]}
     />
 
@@ -157,7 +154,6 @@ function EntryDetailContent({
       error={settlementError} onReverse={onReverseSettlement}
     />}
     {tab === "documents" && <FinanceDocumentsPanel entryId={detail.id} />}
-    {tab === "collections" && <FinanceCollectionsPanel detail={detail} />}
   </div>;
 }
 
