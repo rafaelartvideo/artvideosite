@@ -390,7 +390,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   // Fetch photo previews for the first visible rows, in small batches so
   // scrolling and messaging never wait for WhatsApp profile requests.
-  const previewIds=visible.slice(0,12).map(item=>item.id).join(",");
+  // Always prioritize the open conversation, including those not in the
+  // first 12 visible rows or from a previously selected filter.
+  const previewIds=[...new Set([selectedId,...visible.slice(0,12).map(item=>item.id)]
+    .filter((id):id is string=>Boolean(id)))].join(",");
   const avatarRequestsRef=useRef(new Set<string>());
   useEffect(()=>{
     if(!activeOrganizationId || channelReady!==true || !previewIds)return;
