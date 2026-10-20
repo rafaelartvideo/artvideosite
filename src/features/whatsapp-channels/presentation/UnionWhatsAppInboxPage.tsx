@@ -203,16 +203,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     };
   }, [settingsOpen]);
 
-  const loadingList = useRef(false);
+  const loadingList = useRef<string|null>(null);
   const organizationRef = useRef(activeOrganizationId);
   organizationRef.current = activeOrganizationId;
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
 
   const refresh = useCallback(async (silent = false) => {
-    if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true ||
-      !canView || loadingList.current) return;
-    loadingList.current = true;
+    if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView)return;
+    const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
+    if(loadingList.current===identity)return;
+    loadingList.current=identity;
     if (!silent) setLoading(true);
     try {
       const items = await listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone);
@@ -222,8 +223,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as conversas."));
     } finally {
-      loadingList.current = false;
-      if (organizationRef.current === activeOrganizationId) setLoading(false);
+      if(loadingList.current===identity){
+        loadingList.current=null;
+        if (organizationRef.current === activeOrganizationId && accountRef.current===activeChannelPhone)
+          setLoading(false);
+      }
     }
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView]);
 
@@ -242,7 +246,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView]);
 
   useEffect(() => {
-    loadingList.current = false;
+    loadingList.current = null;
     setConversations([]);
     setMessages([]);
     setAvatars({});
@@ -267,17 +271,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     messageIdentity.current += 1;
     setLoading(false);
   }, [activeOrganizationId]);
+  const shownAccountRef=useRef<string|null>(null);
+  // Immediately clear the previous account on disconnect AND on number swap.
+  // Never display account A's preview while account B's list is loading.
   useEffect(()=>{
-    if(channelReady===true && activeChannelId && activeChannelPhone)void refresh();
-  },[channelReady,activeChannelId,activeChannelPhone,refresh]);
-  // Never keep chats or previews in memory after a disconnection.
-  useEffect(()=>{
-    if(channelReady===true && activeChannelId && activeChannelPhone)return;
+    const identity=channelReady===true && activeChannelId && activeChannelPhone
+      ? activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone:null;
+    if(shownAccountRef.current===identity)return;
+    shownAccountRef.current=identity;
     setConversations([]);setMessages([]);setSelectedId(null);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
     setLoading(false);
     messageIdentity.current+=1;
-  },[channelReady,activeChannelId,activeChannelPhone]);
+  },[activeOrganizationId,channelReady,activeChannelId,activeChannelPhone]);
+  useEffect(()=>{
+    if(channelReady===true && activeChannelId && activeChannelPhone)void refresh();
+  },[channelReady,activeChannelId,activeChannelPhone,refresh]);
 
   const checkChannel = useCallback(async () => {
     if (!activeOrganizationId || !canView) return;
