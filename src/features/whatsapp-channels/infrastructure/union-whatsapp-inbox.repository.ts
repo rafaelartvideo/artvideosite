@@ -26,6 +26,9 @@ export type UnionWhatsAppMessage = {
   sender_name: string | null;
   sent_at: string;
   delivery_status?: "sent" | "delivered" | "read" | null;
+  media_path?: string | null;
+  media_name?: string | null;
+  media_mime?: string | null;
 };
 
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
@@ -44,21 +47,22 @@ export async function listUnionWhatsAppMessages(
   organizationId: string, conversationId: string,
 ): Promise<UnionWhatsAppMessage[]> {
   const { data, error } = await supabase.from("union_whatsapp_messages")
-    .select("id,organization_id,conversation_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status")
+    .select("id,organization_id,conversation_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime")
     .eq("organization_id", organizationId).eq("conversation_id", conversationId)
     .order("sent_at", { ascending: false }).limit(120);
   raise(error);
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
   conversationId: string,
   action: UnionWhatsAppInboxAction,
-  extra: { text?: string; client_message_id?: string; target_user_id?: string } = {},
-): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; members?: Array<{id:string;name:string}> }> {
+  extra: { text?: string; client_message_id?: string; target_user_id?: string;
+    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string } = {},
+): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}> }> {
   const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
     body: {
       action, organization_id: organizationId, conversation_id: conversationId, ...extra,
