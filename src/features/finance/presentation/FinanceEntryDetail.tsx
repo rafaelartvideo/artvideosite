@@ -44,9 +44,9 @@ type EntryTab = "overview" | "settlements" | "documents" | "collections";
 
 function EntryDetailContent({
   detail, accounts, paymentMethods, canEdit, canSettle, canReverseSettlement,
-  settlementPending, confirmSettlementPending,
+  settlementPending,
   reverseSettlementPending, settlementError, onEdit,
-  onRegisterSettlement, onConfirmSettlement, onReverseSettlement, scrollContainerRef, initialSettlementOpen,
+  onRegisterSettlement, onReverseSettlement, scrollContainerRef, initialSettlementOpen,
 }: Parameters<typeof FinanceEntryDetail>[0]) {
   const [tab, setTab] = useState<EntryTab>(initialSettlementOpen ? "settlements" : "overview");
   const isReceivable = detail.entry_type === "receivable";
@@ -57,8 +57,6 @@ function EntryDetailContent({
   const plannedText = plannedMethods.map(item=>{const method=paymentMethods.find(m=>m.id===item.payment_method_id);return `${method?.name||"Forma cadastrada"}: ${formatCurrency(item.amount)}`;}).join(", ");
   const due = detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001).sort((a, b) => a.due_date.localeCompare(b.due_date))[0];
   const originLabel = detail.origin_type === "manual" ? "Cadastro manual" : detail.origin_type === "service_order" ? "Ordem de Serviço" : detail.origin_type === "inventory_purchase" ? "Compra de estoque" : detail.origin_type === "recurring" ? "Recorrência" : "Outros";
-  const postedEvent = detail.events.find(event => event.event_type === "settlement_posted" && event.created_by);
-  const concludedBy = postedEvent?.created_by ? detail.actor_names?.[postedEvent.created_by] : null;
   const editable = canEdit && ["draft", "pending", "rejected", "approved"].includes(detail.approval_status) && detail.origin_type === "manual" && detail.settlements.length === 0;
 
   return <div className="space-y-4">
@@ -120,7 +118,6 @@ function EntryDetailContent({
             <Info label="Cadastrado em" value={new Date(detail.created_at).toLocaleString("pt-BR")} />
             {detail.updated_by_name && <Info label="Última alteração por" value={detail.updated_by_name} />}
             {detail.last_settlement_by_name && <Info label="Última baixa registrada por" value={detail.last_settlement_by_name} />}
-            {concludedBy && <Info label="Liquidação confirmada por" value={concludedBy} />}
           </div>
           {detail.notes && <div className="mt-4 border-t border-border pt-4"><Info label="Observações" value={detail.notes} /></div>}
         </AdminCardContent>
@@ -155,9 +152,9 @@ function EntryDetailContent({
     </div>}
 
     {tab === "settlements" && <FinanceSettlementPanel
-      detail={detail} canSettle={canSettle} canReverse={canReverseSettlement}
-      confirmPending={confirmSettlementPending} reversePending={reverseSettlementPending}
-      error={settlementError} onConfirm={onConfirmSettlement} onReverse={onReverseSettlement}
+      detail={detail} canReverse={canReverseSettlement}
+      reversePending={reverseSettlementPending}
+      error={settlementError} onReverse={onReverseSettlement}
     />}
     {tab === "documents" && <FinanceDocumentsPanel entryId={detail.id} />}
     {tab === "collections" && <FinanceCollectionsPanel detail={detail} />}
@@ -201,7 +198,6 @@ export function FinanceEntryDetail({
   decisionPending: boolean;
   decisionError?: unknown;
   settlementPending: boolean;
-  confirmSettlementPending: boolean;
   reverseSettlementPending: boolean;
   settlementError?: unknown;
   onBack: () => void;
@@ -209,7 +205,6 @@ export function FinanceEntryDetail({
   onApprove: () => Promise<void>;
   onReject: (note: string) => Promise<void>;
   onRegisterSettlement: (draft: FinancialSettlementDraft) => Promise<void>;
-  onConfirmSettlement: (settlementId: string) => Promise<void>;
   onReverseSettlement: (settlementId: string, reason: string) => Promise<void>;
   initialSettlementOpen?: boolean;
 }) {
@@ -218,10 +213,10 @@ export function FinanceEntryDetail({
     scrollContainerRef={scrollContainerRef}
     canEdit={canEdit} canApprove={canApprove} canSettle={canSettle} canReverseSettlement={canReverseSettlement}
     currentUserId={currentUserId} decisionPending={decisionPending} decisionError={decisionError}
-    settlementPending={settlementPending} confirmSettlementPending={confirmSettlementPending}
+    settlementPending={settlementPending}
     reverseSettlementPending={reverseSettlementPending} settlementError={settlementError}
     onBack={onBack} onEdit={onEdit} onApprove={onApprove} onReject={onReject}
-    onRegisterSettlement={onRegisterSettlement} onConfirmSettlement={onConfirmSettlement}
+    onRegisterSettlement={onRegisterSettlement}
     onReverseSettlement={onReverseSettlement} initialSettlementOpen={initialSettlementOpen}
   />;
 }
