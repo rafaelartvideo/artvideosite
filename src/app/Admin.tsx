@@ -366,7 +366,13 @@ export function AdminDashboard({
       : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "union-whatsapp"
       ? canAccessWhatsAppTool
-        ? <UnionWhatsAppInboxPage onBack={() => navigateAdmin("tools")} onConfigure={() => navigate(`${adminPath("integrations")}?channels=1`)} />
+        ? <UnionWhatsAppInboxPage
+          onBack={() => navigateAdmin("tools")}
+          onConfigure={() => navigate(`${adminPath("integrations")}?channels=1`)}
+          onOpenCustomer={hasPermission("customers.view")
+            ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
+            : undefined}
+        />
         : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "sac-digital"
       ? canAccessSacDigitalTool
