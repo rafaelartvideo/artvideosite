@@ -52,7 +52,7 @@ const raise = (error: { message: string } | null) => { if (error) throw new Erro
 
 export async function listUnionWhatsAppConversations(organizationId: string, channelId: string, accountPhone: string): Promise<UnionWhatsAppConversation[]> {
   const { data, error } = await supabase.from("union_whatsapp_conversations")
-    .select("id,organization_id,channel_id,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at")
+    .select("id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at")
     .eq("organization_id", organizationId).eq("channel_id", channelId).eq("account_phone",accountPhone)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(150);
