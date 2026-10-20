@@ -510,6 +510,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
       const response = await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "members");
       setMembers(response.members || []);
       setTargetUserId("");
+      setTargetDepartmentId("");
+      setRoutingMode("operator");
+      await loadDepartments();
       setRoutingOpen(true);
     } catch (reason) {
       setError(systemErrorMessage(reason, "Não foi possível carregar os atendentes."));
@@ -519,12 +522,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
   };
 
   const transfer = async () => {
-    if (!selected || !activeOrganizationId || !targetUserId || runningAction) return;
+    if (!selected || !activeOrganizationId || !(routingMode==="department"?targetDepartmentId:targetUserId) || runningAction) return;
     setRunningAction("transfer");
     try {
-      await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "transfer", {
-        target_user_id: targetUserId,
-      });
+      await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,
+        routingMode==="department"?"transfer_department":"transfer",
+        routingMode==="department"?{department_id:targetDepartmentId}:{target_user_id:targetUserId});
       setRoutingOpen(false);
       setSelectedId(null);
       await refresh(true);
@@ -688,6 +691,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
         const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
+        if (/mensagem ou anexo inv[aá]lido|assuma o atendimento|conversa n[aã]o atribu[ií]da/i.test(detail)) {
+          if (!file) setDraft(current => current || text);
+          setPending(current => current.filter(item => item.id !== requestId));
+          setError(detail);
+          return;
+        }
         setPending(current => current.map(item => item.id === requestId
           ? { ...item, status: /confirm|pendente|verifique/i.test(detail) ? "unknown" : "failed", error: detail }
           : item));
@@ -873,10 +882,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
                         {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
                           : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
                       </div>
-                      {item.status === "failed" && <button type="button" className="mt-1 text-[10px] font-semibold underline"
-                        onClick={() => { setDraft(current => current || item.text); setPending(current => current.filter(x => x.id !== item.id)); inputRef.current?.focus(); }}>
-                        Editar mensagem
-                      </button>}
+                      {item.status !== "sending" && <p className="mt-1 text-[10px] opacity-70">
+                        Confira no WhatsApp antes de tentar outro envio.
+                      </p>
                     </div>
                   </div>)}
               </div>}
