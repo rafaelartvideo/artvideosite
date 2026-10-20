@@ -25,6 +25,7 @@ async function signedBridge(
   media?: {url:string;mime:string;name:string;type:string},
   download?: {url:string;key:string;sha:string;encSha:string;length:number;mime:string;type:string},
   lookup = false,
+  avatar = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -35,7 +36,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
@@ -60,6 +61,18 @@ async function signedBridge(
     });
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
+    if (avatar) {
+      const url=typeof result.avatar_url==="string" ? result.avatar_url.slice(0,2048) : "";
+      if(!url) return "";
+      let parsed:URL;
+      try{parsed=new URL(url);}catch{return "";}
+      if(parsed.protocol!=="https:" || parsed.username || parsed.password ||
+        !(parsed.hostname==="pps.whatsapp.net" ||
+          parsed.hostname.endsWith(".whatsapp.net") ||
+          parsed.hostname==="fbcdn.net" || parsed.hostname.endsWith(".fbcdn.net")))
+        return "";
+      return url;
+    }
     if (lookup) {
       const name=typeof result.name==="string" ? result.name.trim().slice(0,160) : "";
       const source=result.source==="saved" ? "saved" : "push";
@@ -97,7 +110,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["start","channel_status"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -179,6 +192,18 @@ Deno.serve(async request => {
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(action==="contact_avatar") {
+      if(!(canManage || thread.assigned_to===actorId ||
+        (thread.status==="waiting" && !thread.assigned_to)))
+        return json({success:false,error:"Conversa não disponível para consulta."},403);
+      try {
+        const avatar=await signedBridge(
+          {id:thread.channel_id,organization_id:org},"",thread.chat_jid,crypto.randomUUID(),
+          undefined,undefined,false,true
+        );
+        return json({success:true,avatar_url:avatar||null});
+      } catch {return json({success:true,avatar_url:null});}
+    }
     if(action==="resolve_contact") {
       if(!(canManage || thread.assigned_to===actorId ||
         (thread.status==="waiting" && !thread.assigned_to)))
