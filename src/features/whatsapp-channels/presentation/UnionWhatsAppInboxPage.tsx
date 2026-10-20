@@ -33,7 +33,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   const [mediaUrl, setMediaUrl] = useState("");
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaError, setMediaError] = useState("");
-  const hasStoredMedia = Boolean(message.media_path);
+  const hasStoredMedia = Boolean(message.media_path || message.media_available);
   const loadMedia = useCallback(async () => {
     if (!hasStoredMedia || mediaLoading || !organizationId) return;
     setMediaLoading(true);
