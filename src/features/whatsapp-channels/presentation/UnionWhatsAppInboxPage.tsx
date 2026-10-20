@@ -110,7 +110,9 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   </div>;
 }
 
-export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => void; onConfigure: () => void }) {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: {
+  onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void;
+}) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
   const canSend = hasPermission("whatsapp.inbox.send");
@@ -158,6 +160,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [channelError, setChannelError] = useState("");
   const [avatars, setAvatars] = useState<Record<string,string|null>>({});
+  const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
   const messageIdentity = useRef(0);
 
   const loadingList = useRef(false);
@@ -200,6 +203,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setConversations([]);
     setMessages([]);
     setAvatars({});
+    setLinkedCustomers({});
     setSelectedId(null);
     setFilter("waiting");
     setDraft("");
@@ -302,6 +306,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       }).catch(()=>{if(!cancelled) setAvatars(old=>({...old,[selectedId]:null}));});
     return()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,canView,channelReady,avatars]);
+  useEffect(() => {
+    if(!onOpenCustomer || !hasPermission("customers.view") || !selectedId ||
+       !activeOrganizationId || channelReady!==true ||
+       Object.prototype.hasOwnProperty.call(linkedCustomers,selectedId)) return;
+    let cancelled=false;
+    const org=activeOrganizationId;
+    void operateUnionWhatsAppInbox(org,selectedId,"customer_match")
+      .then(result=>{
+        if(cancelled || organizationRef.current!==org) return;
+        setLinkedCustomers(old=>({...old,[selectedId]:result.customer||null}));
+      }).catch(()=>{if(!cancelled)setLinkedCustomers(old=>({...old,[selectedId]:null}));});
+    return()=>{cancelled=true;};
+  },[onOpenCustomer,selectedId,activeOrganizationId,channelReady,hasPermission,linkedCustomers]);
+
   const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
     followLatestRef.current = true;
     setShowJumpToLatest(false);
@@ -699,6 +717,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-black text-foreground">{selected.contact_name}</p>
                 <p className="text-xs text-muted-foreground">{selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}</p>
+                 {onOpenCustomer && linkedCustomers[selected.id] && <button type="button"
+                   onClick={()=>onOpenCustomer(linkedCustomers[selected.id]!.id)}
+                   className="mt-0.5 max-w-full truncate text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                   title="Abrir cadastro do cliente vinculado pelo telefone">
+                   Cliente: {linkedCustomers[selected.id]!.name} · Abrir cadastro
+                 </button>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
                 {selected.status === "waiting" && (canSend || canManage) &&
