@@ -8,7 +8,7 @@ import {
   AdminStickyToolbar, BtnPrimary, BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, FInput, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -228,12 +228,12 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
   };
 
   return <div className="min-w-0 space-y-4">
-    <AdminSearchPanel title="Buscar áreas de entrega" headerActions={
-      <span className="text-xs font-semibold text-white/90">
-        {filtered.length} {filtered.length === 1 ? "regra" : "regras"}
-      </span>
-    }>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,220px)_auto] sm:items-end">
+    <AdminSearchPanel title="Buscar áreas de entrega" headerActions={<>
+      {(search || statusFilter !== "all" || sortOrder !== "asc") && <AdminSearchClearButton onClick={resetFilters} />}
+      <AdminSearchSortMenu value={sortOrder} onChange={value => { setSortOrder(value); setPage(1); }}
+        options={[{ value: "asc", label: "CEP crescente" }, { value: "desc", label: "CEP decrescente" }]} />
+    </>}>
+      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] sm:items-end">
         <div className="relative min-w-0">
           <label htmlFor="delivery-cep-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             Buscar
@@ -250,17 +250,6 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
           <AdminSelect ariaLabel="Filtrar situação" value={statusFilter}
             onValueChange={value => { setStatusFilter(value as StatusFilter); setPage(1); }}
             options={STATUS_OPTIONS} />
-        </div>
-        <div className="flex min-w-0 items-center gap-2">
-          <AdminIconButton ariaLabel={sortOrder === "asc" ? "Ordenar CEP do maior para o menor" : "Ordenar CEP do menor para o maior"}
-            title={sortOrder === "asc" ? "CEP crescente" : "CEP decrescente"}
-            onClick={() => { setSortOrder(previous => previous === "asc" ? "desc" : "asc"); setPage(1); }}
-            className="h-[42px] w-[42px] shrink-0">
-            {sortOrder === "asc" ? <ArrowDownWideNarrow size={17} /> : <ArrowUpNarrowWide size={17} />}
-          </AdminIconButton>
-          {(search || statusFilter !== "all" || sortOrder !== "asc") && <AdminIconButton
-            ariaLabel="Limpar filtros" title="Limpar filtros" onClick={resetFilters}
-            className="h-[42px] w-[42px] shrink-0"><Eraser size={17} /></AdminIconButton>}
         </div>
       </div>
     </AdminSearchPanel>
