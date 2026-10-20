@@ -72,7 +72,7 @@ export const operationItems: PermissionAwareHubItem[] = [
   { id: "roles", label: "Funções e Permissões", icon: ShieldCheck, description: "Configure funções e os acessos herdados pelos usuários da empresa.", permissionKey: "roles.view" },
   { id: "documents", label: "Documentos", icon: FileText, description: "Configure modelos de impressão e tipos de anexos das ordens de serviço.", permissionKey: "documents.view" },
   { id: "settings", label: "Dados da empresa", icon: Building2, description: "Gerencie os dados institucionais, endereço e identidade visual da empresa.", permissionKey: "settings.details.view" },
-  { id: "integrations", label: "Integrações", icon: Settings, description: "Configure conexões externas e credenciais dos módulos da empresa.", permissionKey: "sac_digital.settings.manage" },
+  { id: "integrations", label: "Integrações", icon: Settings, description: "Configure conexões externas e credenciais dos módulos da empresa.", permissionKey: "settings.channels.view" },
   { id: "terms", label: "Termos/Garantia", icon: ScrollText, description: "Gerencie termos obrigatórios e garantias vinculadas aos Serviços Gerais.", permissionKey: "terms.view" },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
@@ -110,7 +110,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   partnerCompanies: "organizations.view",
   audit: "organizations.audit.view",
   settings: "settings.details.view",
-  integrations: "sac_digital.settings.manage",
+  integrations: "settings.channels.view",
   planUsage: "settings.details.view",
   terms: "terms.view",
   siteSettings: "site_settings.view",
@@ -150,7 +150,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   partnerCompanies: null,
   audit: null,
   settings: "company_settings",
-  integrations: "sac_digital",
+  integrations: "company_settings",
   planUsage: null,
   terms: "company_settings",
   contact: "site_settings",
@@ -197,7 +197,8 @@ export function isAdminModuleEnabled(
   tab: AdminTab,
   hasModule: (moduleKey: string) => boolean,
 ) {
-  if (tab === "nfse") return false; // Etapa fiscal temporariamente suspensa.
+  if (tab === "nfse") return false;
+  if (tab === "integrations") return hasModule("company_settings") || hasModule("sac_digital"); // Etapa fiscal temporariamente suspensa.
   if (tab === "home" || tab === "crm" || tab === "announcements") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
