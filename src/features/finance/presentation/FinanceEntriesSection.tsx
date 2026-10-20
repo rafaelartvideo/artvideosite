@@ -1,9 +1,10 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
-import { useEffect, useRef, useState } from "react";
-import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreVertical } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreVertical, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, FInput, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
@@ -11,6 +12,8 @@ import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceEntries } from "../application/useFinanceEntries";
+import { listFinancialReceivableCreators } from "../infrastructure/finance-entries.repository";
+import { Popover, PopoverAnchor, PopoverContent } from "@/shared/ui/primitives/popover";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
@@ -76,13 +79,16 @@ function useDebouncedValue<T>(value: T, delay = 350) {
 }
 
 export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void }) {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, activeOrganizationId } = useAuth();
   const foundation = useFinanceFoundation();
   const [operationalFilter, setOperationalFilter] = useState("pending");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
   const [os, setOs] = useState("");
+  const [creatorId, setCreatorId] = useState("");
+  const [creatorSearch, setCreatorSearch] = useState("");
+  const [creatorOpen, setCreatorOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
@@ -96,6 +102,19 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const debouncedDocument = useDebouncedValue(document);
   const debouncedOs = useDebouncedValue(os);
   const debouncedCounterpartySearch = useDebouncedValue(counterpartySearch);
+  const creatorsQuery = useQuery({
+    queryKey: ["finance", activeOrganizationId || "none", "receivable-creators"],
+    enabled: Boolean(activeOrganizationId && entryType === "receivable"),
+    staleTime: 60_000,
+    queryFn: () => listFinancialReceivableCreators(String(activeOrganizationId)),
+  });
+  const filteredCreators = useMemo(() => {
+    const search = creatorSearch.trim().toLocaleLowerCase("pt-BR");
+    const choices = creatorsQuery.data || [];
+    return (search && !creatorId
+      ? choices.filter(item => item.name.toLocaleLowerCase("pt-BR").includes(search))
+      : choices).slice(0, 8);
+  }, [creatorsQuery.data, creatorSearch, creatorId]);
   const finance = useFinanceEntries(
     entryType,
     selectedEntryId,
@@ -108,6 +127,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       name: debouncedName,
       document: debouncedDocument,
       os: debouncedOs,
+      createdBy: entryType === "receivable" ? creatorId : "",
       dateFrom,
       dateTo,
       operationalStatus: operationalFilter,
@@ -119,7 +139,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   useEffect(() => {
     setPage(1);
-  }, [name, document, os, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
+  }, [name, document, os, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
   const canCreate = hasPermission(isReceivable ? "finance.receivables.create" : "finance.payables.create");
@@ -161,10 +181,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]}
   />;
 
-  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || dateFrom || dateTo || sort !== "newest");
+  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
   const resetFilters = () => {
     setOperationalFilter("pending");
-    setName(""); setDocument(""); setOs(""); setDateFrom(""); setDateTo("");
+    setName(""); setDocument(""); setOs(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
     setSort("newest"); setPage(1);
   };
 
@@ -187,6 +207,45 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <FInput label="Nome do cliente / favorecido" value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
         <FInput label="CPF / CNPJ" value={document} onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />
         <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />
+        {isReceivable && <div className="min-w-0 space-y-1">
+          <AdminFieldLabel label="Funcionário (Cadastrado por)" />
+          <Popover open={creatorOpen} onOpenChange={setCreatorOpen}>
+            <PopoverAnchor asChild>
+              <div className="relative">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input className={INPUT + " w-full pl-9 pr-9"} value={creatorSearch}
+                  placeholder="Digite ou selecione um funcionário"
+                  onFocus={() => setCreatorOpen(true)}
+                  onChange={event => { setCreatorSearch(event.target.value); setCreatorId(""); setCreatorOpen(true); }}
+                  aria-label="Filtrar pelo funcionário que cadastrou o lançamento" />
+                {creatorSearch && <button type="button" aria-label="Limpar funcionário" title="Limpar funcionário"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                  onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
+                  <X size={15} />
+                </button>}
+              </div>
+            </PopoverAnchor>
+            <PopoverContent align="start" side="bottom" sideOffset={4} collisionPadding={8}
+              onOpenAutoFocus={event => event.preventDefault()}
+              className="z-[230] w-[var(--radix-popover-trigger-width)] max-w-[calc(100vw-32px)] border-border bg-popover p-1 text-popover-foreground shadow-xl">
+              <div className="max-h-56 overflow-y-auto">
+                <button type="button" className="block w-full rounded-md px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
+                  onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
+                  Todos os funcionários
+                </button>
+                {filteredCreators.map(person => <button type="button" key={person.id}
+                  className="block w-full rounded-md px-3 py-2.5 text-left text-xs font-semibold hover:bg-muted"
+                  onClick={() => { setCreatorId(person.id); setCreatorSearch(person.name); setCreatorOpen(false); }}>
+                  {person.name}
+                </button>)}
+                {creatorsQuery.isLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Carregando funcionários...</p>}
+                {creatorsQuery.isError && <p className="px-3 py-2 text-xs text-red-600">Não foi possível carregar os funcionários.</p>}
+                {!creatorsQuery.isLoading && !creatorsQuery.isError && filteredCreators.length === 0 &&
+                  <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum funcionário encontrado.</p>}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>}
         <FInput label="Vencimento de" type="date" value={dateFrom} onChange={(event: any) => setDateFrom(event.target.value)} />
         <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
       </div>
