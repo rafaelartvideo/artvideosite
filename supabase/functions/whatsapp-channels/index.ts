@@ -32,6 +32,7 @@ type ChannelRow = {
   phone: string | null;
   last_checked_at: string | null;
   last_connected_at: string | null;
+  webhook_ready: boolean;
 };
 
 async function signedBridge(action: string, channel: ChannelRow) {
@@ -90,7 +91,7 @@ Deno.serve(async request => {
     const org = String(input?.organization_id || "");
     const action = String(input?.action || "");
     if (!uuid(org)) return json({ success: false, error: "Empresa inválida." }, 400);
-    if (!["list", "register", "provision", "connect", "status", "qr", "logout"].includes(action)) {
+    if (!["list", "register", "provision", "connect", "status", "qr", "logout", "webhook_setup"].includes(action)) {
       return json({ success: false, error: "Operação inválida." }, 400);
     }
     const scoped = createClient(supabaseUrl, publicKey, {
@@ -113,7 +114,7 @@ Deno.serve(async request => {
       return json({ success: false, error: "Sem permissão para gerenciar canais nesta empresa." }, 403);
     }
     const query = () => privileged.from("whatsapp_channel_connections")
-      .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at")
+      .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
       .eq("organization_id", org).eq("provider", "wuzapi").maybeSingle();
 
     if (action === "list") {
@@ -133,7 +134,7 @@ Deno.serve(async request => {
           organization_id: org, provider: "wuzapi",
           display_name: displayName, created_by: auth.user.id,
         }, { onConflict: "organization_id,provider", ignoreDuplicates: true })
-        .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at")
+        .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
         .maybeSingle();
       if (error) throw error;
       const channel = data || (await query()).data;
@@ -145,6 +146,9 @@ Deno.serve(async request => {
     if (!channel) return json({ success: false, error: "Cadastre o canal primeiro." }, 404);
     if (input.connection_id && input.connection_id !== channel.id) {
       return json({ success: false, error: "Canal inválido para esta empresa." }, 403);
+    }
+    if (action === "webhook_setup" && channel.state !== "connected") {
+      return json({ success: false, error: "Conecte o WhatsApp antes de ativar o recebimento." }, 409);
     }
     let remote: Record<string, unknown>;
     try {
@@ -158,6 +162,21 @@ Deno.serve(async request => {
       }, 503);
     }
 
+    if (action === "webhook_setup") {
+      const hash = String(remote.token_sha256 || "");
+      if (!/^[a-f0-9]{64}$/.test(hash)) {
+        return json({ success: false, error: "A configuração segura do webhook não foi confirmada." }, 502);
+      }
+      const { error: keyError } = await privileged.from("union_whatsapp_webhook_keys")
+        .upsert({ channel_id: channel.id, token_sha256: hash, configured_at: new Date().toISOString() }, { onConflict: "channel_id" });
+      if (keyError) throw keyError;
+      const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
+        .update({ webhook_ready: true, updated_at: new Date().toISOString() })
+        .eq("id", channel.id).eq("organization_id", org)
+        .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready").single();
+      if (updateError) throw updateError;
+      return json({ success: true, channel: updated });
+    }
     const previous = String(channel.state || "not_connected");
     if (action === "qr") {
       const qr = String(remote.qr || "");
@@ -180,7 +199,7 @@ Deno.serve(async request => {
     if (loggedIn && previous !== "connected") patch.last_connected_at = new Date().toISOString();
     const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
       .update(patch).eq("id", channel.id).eq("organization_id", org)
-      .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at")
+      .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
       .single();
     if (updateError) throw updateError;
     return json({ success: true, channel: updated, logged_in: loggedIn, connected });
