@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, FileText, Image as ImageIcon, MessageCircle, RefreshCw, Search, Send, ShieldCheck, RotateCcw, CheckCircle2, UserCheck, Volume2 } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, RefreshCw, Search, Send, Smile, RotateCcw, CheckCircle2, UserCheck, Volume2, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -54,16 +55,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const [loading, setLoading] = useState(true);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+
   const [draft, setDraft] = useState("");
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const followLatestRef = useRef(true);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  type PendingEntry = { id: string; conversationId: string; organizationId: string; text: string;
+    status: "sending" | "unknown" | "failed"; error?: string; sentAt: string };
+  const [pending, setPending] = useState<PendingEntry[]>([]);
+  const sendingIds = useRef(new Set<string>());
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
   // Regenerating it automatically would risk sending the same message twice.
-  const sendRequestIdRef = useRef<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const messageIdentity = useRef(0);
-  const messagesBottom = useRef<HTMLDivElement | null>(null);
+
   const loadingList = useRef(false);
   const organizationRef = useRef(activeOrganizationId);
   organizationRef.current = activeOrganizationId;
@@ -107,8 +115,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     setSelectedId(null);
     setFilter("waiting");
     setDraft("");
-    setNotice("");
-    sendRequestIdRef.current = null;
+    setPending([]);
     setError("");
     messageIdentity.current += 1;
     setLoading(true);
@@ -133,12 +140,19 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "union_whatsapp_messages",
         filter: `organization_id=eq.${activeOrganizationId}` }, schedule)
       .subscribe();
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") schedule();
-    }, 30000);
+    // Reconcile on returning to the tab, not an expensive 30-second poll.
+    let lastResume = 0;
+    const onResume = () => {
+      if (document.visibilityState !== "visible" || Date.now() - lastResume < 30000) return;
+      lastResume = Date.now();
+      schedule();
+    };
+    window.addEventListener("focus", onResume);
+    document.addEventListener("visibilitychange", onResume);
     return () => {
       if (debounce !== null) window.clearTimeout(debounce);
-      window.clearInterval(timer);
+      window.removeEventListener("focus", onResume);
+      document.removeEventListener("visibilitychange", onResume);
       void supabase.removeChannel(realtime);
     };
   }, [activeOrganizationId, canView, selectedId, refresh, refreshMessages]);
@@ -149,9 +163,30 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     void refreshMessages(selectedId);
   }, [selectedId, refreshMessages]);
 
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = "auto") => {
+    followLatestRef.current = true;
+    setShowJumpToLatest(false);
+    const box = scrollRef.current;
+    if (box) box.scrollTo({ top: box.scrollHeight, behavior });
+  }, []);
   useEffect(() => {
-    messagesBottom.current?.scrollIntoView({ block: "end" });
-  }, [selectedId, messages.length]);
+    followLatestRef.current = true;
+    setShowJumpToLatest(false);
+    const frame = requestAnimationFrame(() => scrollToLatest("auto"));
+    return () => cancelAnimationFrame(frame);
+  }, [selectedId, scrollToLatest]);
+  useEffect(() => {
+    if (!followLatestRef.current || messagesLoading) return;
+    const frame = requestAnimationFrame(() => scrollToLatest("auto"));
+    return () => cancelAnimationFrame(frame);
+  }, [messages.length, pending.length, messagesLoading, selectedId, scrollToLatest]);
+  const handleMessagesScroll = () => {
+    const box = scrollRef.current;
+    if (!box) return;
+    const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
+    followLatestRef.current = atBottom;
+    setShowJumpToLatest(!atBottom);
+  };
 
   const scopedConversations = conversations.filter(item => item.organization_id === activeOrganizationId);
   const selected = scopedConversations.find(item => item.id === selectedId) || null;
@@ -173,7 +208,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
   const operate = async (action: Exclude<UnionWhatsAppInboxAction, "send_text" | "mark_read">) => {
     if (!selected || !activeOrganizationId || runningAction) return;
     setRunningAction(action);
-    setNotice("");
     setError("");
     try {
       await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, action);
@@ -185,16 +219,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
       await refresh(true);
       if (action === "assume") {
         setFilter("in_att");
-        setNotice("Atendimento assumido. Agora você pode responder.");
-        window.setTimeout(() => inputRef.current?.focus(), 100);
+          window.setTimeout(() => inputRef.current?.focus(), 100);
       } else if (action === "reopen") {
         setFilter("waiting");
         setSelectedId(null);
-        setNotice("Conversa devolvida à fila Aguardando.");
       } else {
         setSelectedId(null);
         setFilter("waiting");
-        setNotice(action === "finish" ? "Atendimento finalizado." : "Atendimento devolvido à fila.");
       }
     } catch (reason) {
       setError(systemErrorMessage(reason, "Não foi possível atualizar o atendimento."));
@@ -203,28 +234,43 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
     }
   };
 
-  const sendText = async () => {
-    if (!selected || !activeOrganizationId || !canReply || runningAction || !draft.trim()) return;
-    const requestId = sendRequestIdRef.current || crypto.randomUUID();
-    sendRequestIdRef.current = requestId;
-    setRunningAction("send_text");
-    setError("");
-    setNotice("");
-    try {
-      await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "send_text", {
-        text: draft.trim(), client_message_id: requestId,
-      });
-      setDraft("");
-      sendRequestIdRef.current = null;
-      setNotice("Mensagem aceita pelo WhatsApp.");
-      await Promise.all([refreshMessages(selected.id, true), refresh(true)]);
-      inputRef.current?.focus();
-    } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível confirmar o envio. Verifique o WhatsApp antes de tentar novamente."));
-    } finally {
-      setRunningAction(null);
-    }
+  const sendText = () => {
+    if (!selected || !activeOrganizationId || !canReply || !draft.trim()) return;
+    const text = draft.trim();
+    const threadId = selected.id;
+    const organizationId = activeOrganizationId;
+    const requestId = crypto.randomUUID();
+    // Capture and clear the current draft before awaiting. The composer stays
+    // interactive for subsequent messages, matching the SAC outbox UX.
+    setDraft("");
+    setEmojiOpen(false);
+    setPending(current => [...current, {
+      id: requestId, conversationId: threadId, organizationId,
+      text, status: "sending", sentAt: new Date().toISOString(),
+    }]);
+    scrollToLatest("smooth");
+    inputRef.current?.focus({ preventScroll: true });
+    sendingIds.current.add(requestId);
+    void (async () => {
+      try {
+        await operateUnionWhatsAppInbox(organizationId, threadId, "send_text", {
+          text, client_message_id: requestId,
+        });
+        if (organizationRef.current !== organizationId) return;
+        await Promise.all([refreshMessages(threadId, true), refresh(true)]);
+        setPending(current => current.filter(item => item.id !== requestId));
+      } catch (reason) {
+        if (organizationRef.current !== organizationId) return;
+        const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
+        setPending(current => current.map(item => item.id === requestId
+          ? { ...item, status: /confirm|pendente|verifique/i.test(detail) ? "unknown" : "failed", error: detail }
+          : item));
+      } finally {
+        sendingIds.current.delete(requestId);
+      }
+    })();
   };
+
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
@@ -234,18 +280,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
         <AdminButton variant="secondary" onClick={() => void refresh()}><RefreshCw size={16}/> Atualizar</AdminButton>
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
-    {notice && <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 px-4 py-2 text-xs text-emerald-700 dark:text-emerald-300">{notice}</div>}
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
-    <div className="flex items-start gap-3 rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-xs text-muted-foreground">
-      <ShieldCheck size={18} className="shrink-0 text-blue-600"/>
-      <div>Atendimento independente do SAC Digital. As mensagens são restritas à empresa ativa.
-        O recebimento precisa ser ativado em <button type="button" onClick={onConfigure} className="font-bold text-blue-600 underline underline-offset-2">Canais de Atendimento</button>.
-        {lastUpdated && <span className="block pt-1">Atualizado em {compactDate(lastUpdated)}.</span>}
-      </div>
-    </div>
-    <div className="h-[680px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
+    <div className="h-[min(76vh,850px)] min-h-[520px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
       <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
         <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
           <div className="border-b border-border bg-muted/35 p-3">
@@ -322,51 +360,78 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                 <AdminButton variant="secondary" size="sm" onClick={() => void refreshMessages(selected.id)}><RefreshCw size={15}/><span className="hidden sm:inline">Atualizar</span></AdminButton>
               </div>
             </header>
-            <div className="min-h-0 flex-1 overflow-y-auto bg-muted/15 px-4 py-5">
+            <div className="relative min-h-0 flex-1">
+              <div ref={scrollRef} onScroll={handleMessagesScroll}
+                className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
+                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148,163,184,0.18) 1px, transparent 0)", backgroundSize: "22px 22px" }}>
               {messagesLoading ? <LoadingState text="Carregando mensagens..."/>
               : messages.length === 0 ? <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
-              : <div className="flex flex-col gap-3">
-                {messages.map(message => <div key={message.id} className={`flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] rounded-xl px-3.5 py-2.5 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "rounded-br-sm border border-emerald-500/15 bg-emerald-500/10 text-foreground" : "rounded-bl-sm border border-border bg-card text-foreground"}`}>
+              : <div className="mx-auto flex max-w-4xl flex-col gap-1">
+                {messages.map(message => <div key={message.id} className={`mt-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
                     {message.direction === "outgoing" && message.sender_name &&
                       <p className="mb-1 text-[11px] font-black">{message.sender_name}</p>}
                     <MessageBody message={message}/>
                     <span className="mt-1 block text-right text-[10px] text-muted-foreground">{clock(message.sent_at)}</span>
                   </div>
                 </div>)}
-                <div ref={messagesBottom}/>
+                {pending.filter(item => item.conversationId === selected.id && item.organizationId === activeOrganizationId)
+                  .map(item => <div key={item.id} className="mt-2 flex justify-end">
+                    <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
+                      <p className="whitespace-pre-wrap break-words text-sm">{item.text}</p>
+                      <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] opacity-70">
+                        {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
+                          : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
+                      </div>
+                      {item.status !== "sending" && <button type="button" className="mt-1 text-[10px] font-semibold underline"
+                        onClick={() => { setDraft(current => current || item.text); setPending(current => current.filter(x => x.id !== item.id)); inputRef.current?.focus(); }}>
+                        Editar mensagem
+                      </button>}
+                    </div>
+                  </div>)}
               </div>}
+              </div>
+              {showJumpToLatest && <button type="button" onClick={() => scrollToLatest("smooth")}
+                className="absolute bottom-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
+                aria-label="Ir para a última mensagem" title="Ir para a última mensagem"><ChevronDown size={19}/></button>}
             </div>
-            <footer className="border-t border-border bg-card px-3 py-3 sm:px-4">
-              {canReply ? <div className="flex items-end gap-2">
-                <textarea
-                  ref={inputRef}
-                  rows={2}
-                  value={draft}
-                  onChange={event => { setDraft(event.target.value); sendRequestIdRef.current = null; }}
-                  onKeyDown={event => {
-                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                      event.preventDefault();
-                      void sendText();
-                    }
-                  }}
-                  placeholder="Digite sua mensagem..."
-                  aria-label="Digite sua mensagem"
-                  maxLength={4000}
-                  disabled={Boolean(runningAction)}
-                  className="min-h-[46px] max-h-28 flex-1 resize-y rounded-lg border border-border bg-muted/25 px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 disabled:opacity-60"
-                />
-                <AdminButton disabled={!draft.trim() || Boolean(runningAction)} onClick={() => void sendText()}>
-                  <Send size={16}/>{runningAction === "send_text" ? "Enviando..." : "Enviar"}
-                </AdminButton>
+            <footer className="border-t border-border bg-card px-3 py-3">
+              {canReply ? <div className="mx-auto max-w-4xl">
+                <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"
+                  onSubmit={event => { event.preventDefault(); sendText(); }}>
+                  <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
+                    title="Mídias em preparação" disabled
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground opacity-40">
+                    <Paperclip size={22}/>
+                  </button>
+                  <div className="relative flex h-12 shrink-0">
+                    <button type="button" aria-label="Selecionar emoji" aria-expanded={emojiOpen}
+                      onClick={() => setEmojiOpen(v => !v)}
+                      className={`flex h-12 w-12 items-center justify-center border-r border-border text-foreground hover:bg-muted ${emojiOpen ? "bg-primary-soft text-primary" : ""}`}>
+                      <Smile size={22}/>
+                    </button>
+                    {emojiOpen && <SacEmojiPicker recentEmojis={[]} onSelect={emoji => { setDraft(current => current + emoji); inputRef.current?.focus(); setEmojiOpen(false); }}/>}
+                  </div>
+                  <textarea ref={inputRef} rows={1} aria-label="Mensagem" value={draft} maxLength={4000}
+                    placeholder="Digite uma mensagem"
+                    onChange={event => setDraft(event.target.value)}
+                    onKeyDown={event => {
+                      if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                        event.preventDefault(); sendText();
+                      }
+                    }}
+                    className="min-h-12 min-w-0 flex-1 resize-none bg-transparent px-3 py-3 text-sm leading-6 text-foreground outline-none placeholder:text-muted-foreground/65"
+                  />
+                  <button type="submit" disabled={!draft.trim()} aria-label="Enviar mensagem" title="Enviar mensagem"
+                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-r-[11px] border-l border-primary/20 bg-primary text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-45">
+                    <Send size={22}/>
+                  </button>
+                </form>
               </div> : <p className="py-2 text-center text-xs text-muted-foreground">
                 {selected.status === "waiting" ? "Assuma o atendimento para responder." :
                   selected.status === "finished" ? "Atendimento finalizado. Reabra para responder." :
                   "Esta conversa está atribuída a outro atendente."}
               </p>}
-              <p className="mt-2 text-center text-[10px] text-muted-foreground">
-                Envio pelo WuzAPI · Enter para enviar · Shift+Enter para nova linha
-              </p>
             </footer>
           </>}
         </section>
