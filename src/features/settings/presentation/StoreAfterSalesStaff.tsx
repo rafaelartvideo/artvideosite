@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ClipboardList, MessageSquareText, Plus, RotateCcw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { StoreReturnOperations, type StoreSoldLine } from "./StoreReturnOperations";
 
 type CaseStatus="open"|"in_review"|"approved"|"rejected"|"closed";
@@ -189,8 +190,7 @@ export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orde
                 onClick={()=>void update()} className="rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">
                 {busy?"Salvando...":"Salvar decisão"}
               </button>
-              <button type="button" disabled={busy} onClick={()=>setSelectedCase(null)}
-                className="rounded-md border border-border px-4 py-2 text-xs font-bold">Voltar</button>
+              <AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>setSelectedCase(null)}>Voltar</AdminButton>
             </div>
           </div>}
         </div>}
