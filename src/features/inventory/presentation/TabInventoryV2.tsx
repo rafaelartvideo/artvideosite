@@ -17,7 +17,7 @@ import {
 } from "../infrastructure/inventory.repository";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatDateTime, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -202,6 +202,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const [nameSearch, setNameSearch] = useState("");
   const [skuSearch, setSkuSearch] = useState("");
   const [addressSearch, setAddressSearch] = useState("");
+  const [inventorySort, setInventorySort] = useState<"asc" | "desc">("asc");
   const [mobileFilter, setMobileFilter] = useState<MobileFilter>("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -220,6 +221,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
         nameSearch: debouncedNameSearch,
         skuSearch: debouncedSkuSearch,
         addressSearch: debouncedAddressSearch,
+        sort: inventorySort,
       },
     ] as const,
     queryFn: () => listInventoryItemsPage({
@@ -239,7 +241,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedItems = items;
-  const hasFilters = Boolean(nameSearch || skuSearch || addressSearch);
+  const hasFilters = Boolean(nameSearch || skuSearch || addressSearch || inventorySort !== "asc");
 
   useEffect(() => {
     if (itemsQuery.error) setToast({ msg: `Erro ao carregar estoque: ${systemErrorMessage(itemsQuery.error)}`, type: "error" });
@@ -247,14 +249,14 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
 
   useEffect(() => {
     setPage(1);
-  }, [nameSearch, skuSearch, addressSearch, pageSize]);
+  }, [nameSearch, skuSearch, addressSearch, inventorySort, pageSize]);
 
   useEffect(() => {
     if (!itemsQuery.isFetching && page > totalPages) setPage(totalPages);
   }, [itemsQuery.isFetching, page, totalPages]);
 
   const refreshInventory = () => queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all });
-  const clearFilters = () => { setNameSearch(""); setSkuSearch(""); setAddressSearch(""); setPage(1); };
+  const clearFilters = () => { setNameSearch(""); setSkuSearch(""); setAddressSearch(""); setInventorySort("asc"); setPage(1); };
 
   const loadSuppliers = async (itemId: string) => {
     if (!canViewSuppliers) {
@@ -564,12 +566,15 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
     {!routeResourceId && <>
       <PageHeader title="Estoque" subtitle="Controle de itens, fornecedores, custos e movimentações do almoxarifado" actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null} />
 
-      {canViewTable && <AdminSearchPanel title="Buscar estoque">
+      {canViewTable && <AdminSearchPanel title="Buscar estoque" headerActions={<>
+        {hasFilters && <AdminSearchClearButton onClick={clearFilters} />}
+        <AdminSearchSortMenu value={inventorySort} onChange={setInventorySort}
+          options={[{ value: "asc", label: "Nome A–Z" }, { value: "desc", label: "Nome Z–A" }]} />
+      </>}>
         <AdminMobileSearchSwitch
           value={mobileFilter}
           options={[{ value: "name", label: "Nome" }, { value: "sku", label: "SKU" }, { value: "address", label: "Endereço" }]}
           onChange={setMobileFilter}
-          actions={hasFilters ? <button type="button" onClick={clearFilters} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50"><Eraser size={15} /></button> : null}
         >
           <div className="relative"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={mobileValue} onChange={event => setMobileValue(event.target.value)} placeholder={mobileFilter === "name" ? "Digite o nome da peça" : mobileFilter === "sku" ? "Digite o SKU" : "Estante, prateleira ou compartimento"} className={cn(INPUT, "h-[42px] w-full pl-9 text-sm")} /></div>
         </AdminMobileSearchSwitch>
@@ -577,7 +582,6 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
           <SearchField label="Nome" value={nameSearch} onChange={setNameSearch} placeholder="Digite o nome da peça" />
           <SearchField label="SKU" value={skuSearch} onChange={setSkuSearch} placeholder="Digite o SKU" />
           <SearchField label="Endereço" value={addressSearch} onChange={setAddressSearch} placeholder="Estante, prateleira ou compartimento" />
-          {hasFilters && <div className="flex justify-end md:col-span-3 md:mt-0"><AdminButton variant="secondary" size="sm" onClick={clearFilters}><Eraser size={14} /> Limpar filtros</AdminButton></div>}
         </div>
       </AdminSearchPanel>}
 
