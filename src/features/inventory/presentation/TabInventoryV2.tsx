@@ -232,6 +232,7 @@ export function TabInventory({ routeResourceId, routeSubpage, onRouteChange }: T
       nameSearch: debouncedNameSearch,
       skuSearch: debouncedSkuSearch,
       addressSearch: debouncedAddressSearch,
+      sort: inventorySort,
     }),
     enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewMovements || canCreateMovements)),
     placeholderData: previous => previous,
