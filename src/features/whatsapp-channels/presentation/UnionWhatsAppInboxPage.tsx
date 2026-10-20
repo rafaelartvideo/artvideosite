@@ -847,7 +847,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <Building2 size={15}/> Departamentos e equipe
               </button>}
             </div>}
-          </div>
+          </div>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>} />
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
