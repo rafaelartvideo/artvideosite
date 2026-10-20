@@ -1,9 +1,8 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, CalendarDays, Check, Search } from "lucide-react";
+import { CalendarDays, Search } from "lucide-react";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -75,8 +74,6 @@ export function TechnicianOrdersTable({
   const visible = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   useEffect(() => setPage(1), [search, filter, sort, dateFrom, dateTo]);
 
-  const sortLabel = sort === "asc" ? "OS crescente" : sort === "desc" ? "OS decrescente" : "Ordenação padrão";
-  const SortIcon = sort === "asc" ? ArrowUpNarrowWide : sort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const invalidPeriod = Boolean(draftFrom && draftTo && draftFrom > draftTo);
   const hasDateFilter = Boolean(dateFrom || dateTo);
   const dateFilterLabel = hasDateFilter ? `Agendamento: ${dateFrom || "sem início"} até ${dateTo || "sem limite"}` : "Filtrar por data do agendamento";
