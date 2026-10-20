@@ -6,13 +6,6 @@ import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog,
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 
-const stateLabels: Record<WhatsAppChannel["state"], string> = {
-  not_connected: "Não conectado",
-  connecting: "Aguardando conexão",
-  connected: "Conectado",
-  disconnected: "Desconectado",
-  error: "Falha de conexão",
-};
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
 
@@ -228,7 +221,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
 
   const enabled = Boolean(channel && channel.state !== "not_connected");
   const connected = channel?.state === "connected";
-  const receiving = connected && channel.webhook_ready;
+  const receiving = connected && channel?.webhook_ready === true;
 
   return <div className="space-y-5">
     <PageHeader title="Canais de Atendimento" subtitle="Ative o canal e gerencie os números conectados em áreas separadas."
