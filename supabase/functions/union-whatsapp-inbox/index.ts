@@ -316,8 +316,9 @@ Deno.serve(async request => {
           .eq("organization_id",org).eq("channel_id",channel.id);
         if(search){
           const term=search.replace(/[%,]/g,"");
-          q=q.or("display_name.ilike.%"+term+"%,imported_name.ilike.%"+term+
-            "%,profile_name.ilike.%"+term+"%,contact_phone.ilike.%"+term+"%");
+          q=q.or("display_name.ilike.%"+term+"%,device_name.ilike.%"+term+
+            "%,imported_name.ilike.%"+term+"%,profile_name.ilike.%"+term+
+            "%,contact_phone.ilike.%"+term+"%");
         }
         const {data,error,count}=await q.order("updated_at",{ascending:false})
           .range(page*100,page*100+99);
