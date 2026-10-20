@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminSelect, FInput, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -329,15 +330,11 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
           </span>
           <span className="text-xs font-black uppercase tracking-[0.14em]">Buscar OS</span>
         </div>
-        {hasActiveFilters && <button
-          type="button"
-          onClick={clearFilters}
-          aria-label="Limpar filtros"
-          title="Limpar filtros"
-          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
-        >
-          <Eraser size={13} /> Limpar filtros
-        </button>}
+        <div className="ml-auto flex items-center gap-2">
+          {hasActiveFilters && <AdminSearchClearButton onClick={clearFilters} />}
+          <AdminSearchSortMenu value={orderSort} onChange={value => { setOrderSort(value); setPage(1); }}
+            options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
+        </div>
       </div>
 
       <div className="p-4 md:p-3">
@@ -371,10 +368,7 @@ export function UnionOrderMonitor({ initialOrderId, routeSubpage, onOrderRouteCh
             </DropdownMenuContent>
           </DropdownMenu>
 
-          <div className="flex min-w-0 items-start gap-2">
-            <div className="min-w-0 flex-1">{renderMobileFilter()}</div>
-            {sortMenu()}
-          </div>
+          <div className="min-w-0">{renderMobileFilter()}</div>
         </div>
 
         <div className="hidden gap-2 md:grid md:grid-cols-2 xl:grid-cols-5">
