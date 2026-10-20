@@ -42,6 +42,7 @@ export type UnionWhatsAppContact = {
   contact_phone: string | null;
   display_name: string | null;
   imported_name: string | null;
+  device_name: string | null;
   profile_name: string | null;
   updated_at: string;
 };
@@ -69,14 +70,14 @@ export async function listUnionWhatsAppMessages(
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_set" | "queue_default" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_import" | "contacts_save";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_set" | "queue_default" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_import" | "contacts_save" | "contacts_import_device";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { text?: string; client_message_id?: string; target_user_id?: string;
-    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; service_order_id?: string; chat_jid?: string; display_name?: string; search?: string; page?: number } = {},
+    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; service_order_id?: string; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}> } = {},
 ): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; avatar_url?: string | null; contacts?: UnionWhatsAppContact[]; total?: number; imported?: number; truncated?: boolean; contact?: UnionWhatsAppContact; customer?: {id:string;name:string} | null; ambiguous?: boolean; channel_connected?: boolean; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}>; departments?: Array<{id:string;name:string;is_active:boolean;is_default?:boolean}>; member_ids?: string[]; operators?: Array<{id:string;name:string;eligible:boolean;is_active:boolean;is_manager?:boolean}>;
   orders?: Array<{id:string;os_number:string;created_at:string}>; service_order_id?: string|null;
   history?: Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}> }> {
