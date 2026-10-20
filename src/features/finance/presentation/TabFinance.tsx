@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { ReceiptText } from "lucide-react";
+import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { History, ReceiptText } from "lucide-react";
 import { financeRoute } from "../domain/finance-foundation.mjs";
 import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 import { FinanceAccountsSection } from "./FinanceAccountsSection";
@@ -12,6 +12,7 @@ import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
 import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { FinanceReportsSection } from "./FinanceReportsSection";
 import { FinanceReceiptDialog } from "./FinanceReceiptDialog";
+import { FinanceReceiptHistoryDialog } from "./FinanceReceiptHistoryDialog";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
 
 export function TabFinance({
@@ -25,7 +26,9 @@ export function TabFinance({
 }) {
   const { hasPermission } = useAuth();
   const [receiptOpen, setReceiptOpen] = useState(false);
+  const [receiptHistoryOpen, setReceiptHistoryOpen] = useState(false);
   const canIssueReceipt = hasPermission("finance.receivables.create") || hasPermission("finance.payables.create");
+  const canViewReceiptHistory = hasPermission("finance.receivables.view") || hasPermission("finance.payables.view");
   const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null; entryId?: string | null };
   const allowedSections = useMemo<FinanceSection[]>(() => {
     const sections: FinanceSection[] = [];
@@ -56,9 +59,21 @@ export function TabFinance({
   };
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa." actions={canIssueReceipt ? <AdminButton onClick={() => setReceiptOpen(true)}><ReceiptText size={16} /> Gerar recibo</AdminButton> : undefined} />
+    <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
+      actions={canIssueReceipt || canViewReceiptHistory ? <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border border-primary/30 admin-primary-gradient text-white">
+        {canIssueReceipt && <button type="button" onClick={() => setReceiptOpen(true)}
+          className="inline-flex min-h-10 items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          aria-label="Gerar recibo"><ReceiptText size={16} /> Gerar recibo</button>}
+        {canIssueReceipt && canViewReceiptHistory && <span className="h-6 w-px shrink-0 bg-white/30" aria-hidden="true" />}
+        {canViewReceiptHistory && <button type="button" onClick={() => setReceiptHistoryOpen(true)}
+          title="Histórico de recibos" aria-label="Histórico de recibos"
+          className="inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2.5 text-sm font-bold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
+          <History size={17} /><span className={canIssueReceipt ? "sr-only" : ""}>Histórico de recibos</span>
+        </button>}
+      </div> : undefined} />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
+    {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
     {section === "overview" && <FinanceOverviewFoundation onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
     {section === "receivables" && <FinanceEntriesSection entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
