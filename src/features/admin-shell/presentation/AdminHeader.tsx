@@ -30,7 +30,7 @@ import { FormattedTermContent } from "@/features/terms/presentation/TermsAccepta
 import { WorkItemsHeaderBadge, WorkItemsHeaderDialog, useWorkItemsHeader } from "@/features/work-items/presentation/WorkItemsHeaderShortcut";
 import type { OrganizationAccess } from "@/lib/organization.types";
 import type { AdminPageState } from "../domain/admin.types";
-import { useAdminSidebarLayout, useAdminTheme } from "./AdminLayout";
+import { useAdminTheme } from "./AdminLayout";
 import { useAdminNotifications } from "@/features/notifications/application/useAdminNotifications";
 import {
   AdminNotificationPanel,
@@ -92,13 +92,11 @@ function HeaderAction({
   active,
   children,
   onClick,
-  inverted = false,
 }: {
   label: string;
   active?: boolean;
   children: React.ReactNode;
   onClick?: () => void;
-  inverted?: boolean;
 }) {
   return <button
     type="button"
@@ -107,13 +105,9 @@ function HeaderAction({
     title={label}
     className={cn(
       "relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
-      inverted
-        ? active
-          ? "border-white/30 bg-white/20 text-white"
-          : "border-transparent text-white/85 hover:bg-white/15 hover:text-white"
-        : active
-          ? "border-primary/15 bg-primary/8 text-primary"
-          : "border-transparent text-[#7b899d] hover:text-primary",
+      active
+        ? "border-primary/15 bg-primary/8 text-primary"
+        : "border-transparent text-[#7b899d] hover:text-primary",
     )}
   >
     {children}
@@ -250,7 +244,6 @@ export function AdminHeader({
   onToggleSidebar,
 }: AdminHeaderProps) {
   const { theme, setTheme } = useAdminTheme();
-  const { collapsed, canCollapse, toggleCollapsed } = useAdminSidebarLayout();
   const navigate = useNavigate();
   const notifications = useAdminNotifications(activeOrganizationId, userId);
   const workItemsHeader = useWorkItemsHeader(activeOrganizationId, userId);
@@ -477,60 +470,6 @@ export function AdminHeader({
     onDismissAll={() => void notifications.dismissAll()}
   />;
 
-  const desktopUtilities = (
-    <div className="flex min-w-0 items-center gap-0.5">
-            <div className="relative">
-              <HeaderAction inverted={collapsed} label="Ajuda" active={openMenu === "help"} onClick={() => toggleMenu("help")}>
-                <CircleHelp size={17} strokeWidth={2} />
-              </HeaderAction>
-              {openMenu === "help" && <HeaderDropdown title="Ajuda" align={collapsed ? "right" : "left"}>
-                <div className="px-3.5 py-3">
-                  <p className="text-sm font-semibold text-[#0d1b2e]">Central de ajuda</p>
-                  <p className="mt-1 text-xs leading-5 text-[#718096]">Tutoriais e suporte da Union World ficarão disponíveis aqui.</p>
-                </div>
-              </HeaderDropdown>}
-            </div>
-
-            <div className="relative">
-              <HeaderAction inverted={collapsed} label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
-                <Bell size={17} strokeWidth={2} />
-                <NotificationBadge count={notifications.unreadCount} />
-              </HeaderAction>
-              {openMenu === "notifications" && <div className={cn("absolute top-[calc(100%+7px)] z-[80] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-xl", collapsed ? "right-0" : "left-0")}>
-                {notificationPanel}
-              </div>}
-            </div>
-
-            {workItemsHeader.canView && <div className="relative">
-              <HeaderAction inverted={collapsed} label="Compromissos e Tarefas" active={workItemsHeader.panelOpen}
-                onClick={() => { setOpenMenu(null); workItemsHeader.setPanelOpen(true); }}>
-                <ListTodo size={17} strokeWidth={2} />
-                <WorkItemsHeaderBadge count={workItemsHeader.count} tone={workItemsHeader.badgeTone} />
-              </HeaderAction>
-            </div>}
-
-            <div className="relative">
-              <HeaderAction inverted={collapsed} label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
-                <Settings size={17} strokeWidth={2} />
-              </HeaderAction>
-              {openMenu === "settings" && <HeaderDropdown title="Configurações" align={collapsed ? "right" : "left"} width="w-[245px]">
-                {settingsMenu}
-              </HeaderDropdown>}
-            </div>
-
-            <span className={cn("mx-1 h-5 w-px shrink-0", collapsed ? "bg-white/30" : "bg-border")} aria-hidden="true" />
-
-            {collapsed
-              ? <button type="button" aria-label={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
-                  title={theme === "dark" ? "Ativar tema claro" : "Ativar tema escuro"}
-                  onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white/85 transition-colors hover:bg-white/15 hover:text-white">
-                  {theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}
-                </button>
-              : <ThemeToggle theme={theme} onChange={setTheme} />}
-          </div>
-  );
-
   return (
     <>
       {openMenu && <button type="button" aria-label="Fechar menu do cabeçalho" className="fixed inset-0 z-[59] cursor-default bg-transparent" onClick={() => setOpenMenu(null)} />}
@@ -541,43 +480,70 @@ export function AdminHeader({
         onDismiss={notifications.dismissLiveNotification}
       />
 
-      <header className={cn(
-        "relative z-[60] shrink-0 border-b border-[#0d1b2e]/10 bg-white",
-        collapsed && "md:fixed md:left-0 md:top-0 md:w-full md:border-transparent md:bg-gradient-to-b md:from-[#173cff] md:to-[#0809c3] md:text-white md:shadow-[0_2px_9px_rgba(8,9,100,0.3)]",
-      )}>
-        <div className={cn("hidden min-w-0 items-center justify-between md:flex", collapsed ? "h-12 gap-2 px-2.5 sm:px-3" : "h-16 gap-4 px-4 lg:px-6")}>
-          <div className="flex min-w-0 flex-1 items-center gap-3">
-            {collapsed ? <>
-              <button type="button" onClick={toggleCollapsed} disabled={!canCollapse}
-                aria-label="Expandir menu lateral" title="Expandir menu"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white shadow-sm transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70">
-                <Menu size={19} />
-              </button>
-              <span className="min-w-0 max-w-[min(56vw,460px)] truncate rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-[11px] font-medium text-white"
-                title={"Olá " + userFirstName + ", seja bem-vindo a " + (activeOrganizationName || "sua empresa") + "!"}>
-                Olá <strong>{userFirstName}</strong>, seja bem-vindo a <strong>{activeOrganizationName || "sua empresa"}</strong>!
-              </span>
-            </> : desktopUtilities}
+      <header className="relative z-[60] shrink-0 border-b border-[#0d1b2e]/10 bg-white">
+        <div className="hidden h-16 min-w-0 items-center justify-between gap-4 px-4 md:flex lg:px-6">
+          <div className="flex min-w-0 items-center gap-0.5">
+            <div className="relative">
+              <HeaderAction label="Ajuda" active={openMenu === "help"} onClick={() => toggleMenu("help")}>
+                <CircleHelp size={17} strokeWidth={2} />
+              </HeaderAction>
+              {openMenu === "help" && <HeaderDropdown title="Ajuda">
+                <div className="px-3.5 py-3">
+                  <p className="text-sm font-semibold text-[#0d1b2e]">Central de ajuda</p>
+                  <p className="mt-1 text-xs leading-5 text-[#718096]">Tutoriais e suporte da Union World ficarão disponíveis aqui.</p>
+                </div>
+              </HeaderDropdown>}
+            </div>
+
+            <div className="relative">
+              <HeaderAction label="Notificações" active={openMenu === "notifications"} onClick={() => toggleMenu("notifications")}>
+                <Bell size={17} strokeWidth={2} />
+                <NotificationBadge count={notifications.unreadCount} />
+              </HeaderAction>
+              {openMenu === "notifications" && <div className="absolute left-0 top-[calc(100%+7px)] z-[80] w-[390px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-xl">
+                {notificationPanel}
+              </div>}
+            </div>
+
+            {workItemsHeader.canView && <div className="relative">
+              <HeaderAction label="Compromissos e Tarefas" active={workItemsHeader.panelOpen}
+                onClick={() => { setOpenMenu(null); workItemsHeader.setPanelOpen(true); }}>
+                <ListTodo size={17} strokeWidth={2} />
+                <WorkItemsHeaderBadge count={workItemsHeader.count} tone={workItemsHeader.badgeTone} />
+              </HeaderAction>
+            </div>}
+
+            <div className="relative">
+              <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
+                <Settings size={17} strokeWidth={2} />
+              </HeaderAction>
+              {openMenu === "settings" && <HeaderDropdown title="Configurações" width="w-[245px]">
+                {settingsMenu}
+              </HeaderDropdown>}
+            </div>
+
+            <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
+
+            <ThemeToggle theme={theme} onChange={setTheme} />
           </div>
 
           <div className="flex flex-1" />
 
-          <div className="relative flex shrink-0 items-center gap-1">
-            {collapsed && desktopUtilities}
+          <div className="relative flex shrink-0 items-center">
             <button
               type="button"
               onClick={() => toggleMenu("profile")}
               aria-expanded={openMenu === "profile"}
-              className={cn("flex min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left focus-visible:outline-none focus-visible:ring-2", collapsed ? "text-white hover:bg-white/10 focus-visible:ring-white/70" : "focus-visible:ring-primary/30")}
+              className="flex min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
-              {!collapsed && <div className="hidden min-w-0 text-right lg:block">
+              <div className="hidden min-w-0 text-right lg:block">
                 <p className="truncate text-[13px] leading-4 text-[#5f6f84]">{greeting()}, <strong className="font-bold text-[#0d1b2e]">{userFirstName}</strong></p>
                 <p className="mt-0.5 max-w-[190px] truncate text-[10px] font-semibold text-[#8a98aa]">{activeOrganizationName || roleName}</p>
-              </div>}
-              <div className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-black", collapsed ? "border-white/45 bg-white/20 text-white" : "border-primary/15 bg-[#eef5ff] text-primary")}>
+              </div>
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-[#eef5ff] text-xs font-black text-primary">
                 {userInitial}
               </div>
-              {!collapsed && <ChevronDown size={13} className={cn("text-[#8a98aa] transition-transform", openMenu === "profile" && "rotate-180")} />}
+              <ChevronDown size={13} className={cn("text-[#8a98aa] transition-transform", openMenu === "profile" && "rotate-180")} />
             </button>
             {openMenu === "profile" && <HeaderDropdown title="Minha conta" align="right" width="w-[270px]">{profileMenu}</HeaderDropdown>}
           </div>
