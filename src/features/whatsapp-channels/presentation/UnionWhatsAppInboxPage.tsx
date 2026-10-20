@@ -317,7 +317,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure }: { onBack: () => 
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>
                 </>}
-                {selected.status === "finished" && (canSend || canManage) &&
+                {selected.status === "finished" && canManage &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
                 <AdminButton variant="secondary" size="sm" onClick={() => void refreshMessages(selected.id)}><RefreshCw size={15}/><span className="hidden sm:inline">Atualizar</span></AdminButton>
               </div>
