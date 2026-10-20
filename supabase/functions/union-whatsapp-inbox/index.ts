@@ -110,7 +110,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -130,7 +130,7 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history"].includes(action) && !canManage) ||
+    if (!canRead || (["order_link","members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history"].includes(action) && !canManage) ||
       (["send_text","send_media","start","prepare_media"].includes(action) && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
@@ -245,7 +245,7 @@ Deno.serve(async request => {
       return json({success:true,conversation_id:claimed.id});
     }
     const {data:thread,error:threadError}=await admin.from("union_whatsapp_conversations")
-      .select("id,organization_id,channel_id,chat_jid,contact_phone,status,assigned_to,department_id,last_message_at")
+      .select("id,organization_id,channel_id,chat_jid,contact_phone,status,assigned_to,department_id,service_order_id,last_message_at")
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
@@ -279,6 +279,44 @@ Deno.serve(async request => {
         action:"transfer_department",to_department_id:targetId
       });
       return json({success:true});
+    }
+    if(action==="order_options" || action==="order_link") {
+      if(!permissions.has("orders.details.view"))
+        return json({success:false,error:"Sem permissão para visualizar ordens de serviço."},403);
+      if(!(canManage || thread.assigned_to===actorId ||
+        (thread.status==="waiting" && !thread.assigned_to)))
+        return json({success:false,error:"Conversa não atribuída a você."},403);
+      const phone=String(thread.contact_phone||"").replace(/\D/g,"");
+      if(!/^[0-9]{10,15}$/.test(phone))
+        return json({success:false,error:"Este contato não possui telefone verificado para vincular OS."},409);
+      const {data:matches,error:matchError}=await admin.rpc("union_whatsapp_find_customer_by_phone",{
+        p_organization:org,p_phone:phone,
+      });
+      if(matchError)throw matchError;
+      if(!Array.isArray(matches) || matches.length!==1)
+        return json({success:false,error:"Não existe um cliente único correspondente a este telefone."},409);
+      const customerId=matches[0].customer_id;
+      if(action==="order_options") {
+        const {data:orders,error:orderError}=await admin.from("service_orders")
+          .select("id,os_number,created_at").eq("organization_id",org)
+          .eq("customer_id",customerId).order("created_at",{ascending:false}).limit(50);
+        if(orderError)throw orderError;
+        return json({success:true,orders:orders||[],service_order_id:thread.service_order_id});
+      }
+      const target=String(body.service_order_id||"");
+      if(target && !uuid(target))return json({success:false,error:"Ordem de serviço inválida."},400);
+      if(target){
+        const {data:order,error:orderError}=await admin.from("service_orders")
+          .select("id").eq("id",target).eq("organization_id",org)
+          .eq("customer_id",customerId).maybeSingle();
+        if(orderError)throw orderError;
+        if(!order)return json({success:false,error:"Esta OS não pertence ao cliente verificado."},403);
+      }
+      const {error:saveError}=await admin.from("union_whatsapp_conversations")
+        .update({service_order_id:target||null,updated_at:new Date().toISOString()})
+        .eq("id",thread.id).eq("organization_id",org);
+      if(saveError)throw saveError;
+      return json({success:true,service_order_id:target||null});
     }
     if(action==="customer_match") {
       if(!permissions.has("customers.view")) return json({success:false,error:"Sem permissão para visualizar clientes."},403);
