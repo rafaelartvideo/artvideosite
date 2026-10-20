@@ -23,7 +23,7 @@ function formatDate(value?: string | null) {
   return `${day}/${month}/${year}`;
 }
 
-const operationLabels: Record<string, string> = { open: "A vencer", overdue: "Vencida", partial: "Parcial", settled: "Liquidada", cancelled: "Cancelada" };
+const operationLabels: Record<string, string> = { open: "Pendente", overdue: "Vencida", partial: "Parcialmente baixada", settled: "Baixada", cancelled: "Cancelada" };
 
 function Badge({ children, tone = "neutral" }: { children: React.ReactNode; tone?: "neutral" | "warning" | "danger" | "success" | "blue" }) {
   const tones = {
@@ -122,6 +122,12 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const categories = foundation.categoriesQuery.data || [];
   const accounts = foundation.accountsQuery.data || [];
   const paymentMethods = foundation.paymentMethodsQuery.data || [];
+  const displayPaymentMethods = (entry: FinancialEntry) => {
+    if (entry.payment_method_summary) return entry.payment_method_summary;
+    const planned = Array.isArray(entry.source_details?.payment_plan) ? entry.source_details.payment_plan as Array<{payment_method_id:string}> : [];
+    const names = planned.map(part => paymentMethods.find(method=>method.id===part.payment_method_id)?.name).filter(Boolean);
+    return names.length ? `${names.join(", ")} (previsto)` : "A definir";
+  };
 
   const closeEditor = () => {
     if (finance.saveMutation.isPending) return;
@@ -171,7 +177,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
-                <span>Pagamento: <strong className="text-foreground">{entry.payment_method_summary || "A definir"}</strong></span>
+                <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
                 <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-foreground">{formatCurrency(entry.settled_amount || 0)}</strong></span>
                 <span>Saldo: <strong className="text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
