@@ -200,7 +200,14 @@ Deno.serve(async request => {
         fileLength>0 && fileLength<=5242880 && Boolean(mediaKey && fileHash && mime);
     } catch { /* A media thumbnail alone is not a decryptable attachment. */ }
     const name = str(get(info, "PushName", "pushName") || "", 160).trim();
-    const phone = chatJid.endsWith("@s.whatsapp.net") ? chatJid.split("@")[0] : null;
+    // WhatsApp privacy JIDs (@lid) aren't phone numbers. Only fill a real
+    // number when Whatsmeow provides a verified alternate phone JID.
+    const altJid = str(get(info,"ChatAlt","chatAlt","chat_alt",
+      ...(!isFromMe ? ["SenderAlt","senderAlt"] : [])),160);
+    const phoneJid = chatJid.endsWith("@s.whatsapp.net") ? chatJid :
+      altJid.endsWith("@s.whatsapp.net") ? altJid : "";
+    const candidatePhone = phoneJid.split("@")[0];
+    const phone = /^[0-9]{10,15}$/.test(candidatePhone) ? candidatePhone : null;
     const org = channel.organization_id;
     const timestamp = dateOf(get(info, "Timestamp", "timestamp"));
 
