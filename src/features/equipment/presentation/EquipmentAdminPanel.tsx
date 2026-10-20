@@ -10,6 +10,7 @@ import type { EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow, TechnicalFi
 import { createEquipmentBrandForTypes, loadEquipmentBrandDirectory, loadEquipmentCatalog, loadEquipmentServiceSettings, saveEquipmentBrandGroup, saveEquipmentHierarchy, saveTechnicalField, setEquipmentBrandGroupActive, setEquipmentTypeActive } from "../infrastructure/equipment.repository";
 import type { EquipmentServiceSettings } from "../infrastructure/equipment.repository";
 import { createGeneralService } from "@/features/general-services/infrastructure/general-services.repository";
+import { listWarrantyOptions } from "@/features/orders/application/order-warranty";
 import { EquipmentServiceCreate, EquipmentServiceSelector } from "./EquipmentServiceSelector";
 import { brandKey, buildEquipmentBrandChoices, EquipmentBrandCreate, EquipmentBrandSelector, EquipmentBrandsDirectory, EquipmentModelCreate, EquipmentModelsSelector } from "./EquipmentBrands";
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
@@ -64,6 +65,12 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     queryKey: ["equipment", "service-settings", activeOrganizationId],
     queryFn: loadEquipmentServiceSettings,
     enabled: Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit)),
+    staleTime: REFERENCE_DATA_CACHE_TIME,
+  });
+  const warrantyOptionsQuery = useQuery({
+    queryKey: ["equipment", "warranty-options", activeOrganizationId],
+    queryFn: () => listWarrantyOptions(activeOrganizationId!),
+    enabled: Boolean(activeOrganizationId && canView && (canViewDetails || canCreate || canEdit)),
     staleTime: REFERENCE_DATA_CACHE_TIME,
   });
   const serviceSettings = equipmentServicesQuery.data;
@@ -136,6 +143,9 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     name: type?.name || "",
     is_active: type?.is_active ?? true,
     checklist_profile_id: type?.checklist_profile_id ?? null,
+    warrantyOptions: type ? (warrantyOptionsQuery.data ?? []).filter(option => option.equipment_type_id === type.id).map(option => ({ label: option.label, warranty_days: option.warranty_days, is_default: option.is_default }))
+      : [{ label: "Garantia do serviço", warranty_days: 90, is_default: true }],
+    warrantyEdited: !type,
     checklistItems: (catalog?.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type?.id).map(item => ({ ...item })),
     technicalFields: (catalog?.technicalFieldLinks ?? []).filter(link => link.equipment_type_id === type?.id).map(link => ({ technical_field_id: link.technical_field_id, required: link.required, sort_order: link.sort_order })),
     // A seleção usa os vínculos carregados, sem regravá-los até o usuário editar.
@@ -143,7 +153,8 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   });
 
   const openNew = () => { if (!canCreate) return; setServiceDraftIndex(null); setDrafts([makeDraft()]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setEditorSection("general"); setFormOpen(true); };
-  const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return; setServiceDraftIndex(null); setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setEditorSection("general"); setFormOpen(true); };
+  const openEdit = (type: EquipmentTypeRow) => { if (!(canViewDetails && canEdit)) return;
+    if (warrantyOptionsQuery.isPending || warrantyOptionsQuery.isError) { setToast({ msg: "Carregue as opções de garantia antes de editar o equipamento.", type: "error" }); return; } setServiceDraftIndex(null); setDrafts([makeDraft(type)]); setHierarchyErrors({}); setFieldFormOpen(false); setActiveArea("registered"); setEditorSection("general"); setFormOpen(true); };
   const updateDraft = (index: number, value: Partial<EquipmentDraft>) => setDrafts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...value } : item));
   const toggleDraftBrand = (ti: number, name: string, checked: boolean) => {
     setDrafts(current => current.map((type, index) => {
@@ -391,6 +402,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
 
   const save = async () => {
     if (saving) return;
+    if (warrantyOptionsQuery.isPending || warrantyOptionsQuery.isError) { setToast({ msg: "Não foi possível carregar as garantias. Tente novamente.", type: "error" }); return; }
     if (!catalog) {
       setToast({ msg: "Os equipamentos ainda não foram carregados. Tente novamente.", type: "error" });
       return;
@@ -437,6 +449,17 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         });
       });
 
+      const warrantyOptions = draft.warrantyOptions ?? [];
+      const warrantyNames = new Set<string>();
+      if (warrantyOptions.length > 10) nextErrors["warranty-"+ti] = "Cadastre no máximo 10 opções de garantia.";
+      if (warrantyOptions.length && warrantyOptions.filter(option => option.is_default).length !== 1)
+        nextErrors["warranty-"+ti] = "Selecione uma única garantia padrão.";
+      for (const option of warrantyOptions) {
+        const name = option.label.trim().toLocaleLowerCase("pt-BR");
+        if (name.length < 2 || name.length > 100 || warrantyNames.has(name) || !Number.isInteger(Number(option.warranty_days)) || Number(option.warranty_days) < 1 || Number(option.warranty_days) > 3650)
+          nextErrors["warranty-"+ti] = "Confira os nomes e os prazos (1 a 3650 dias), sem duplicações.";
+        warrantyNames.add(name);
+      }
       if (draft.checklistItems.length && !draft.checklist_profile_id) {
         nextErrors[`checklist-${ti}-profile`] = "Selecione um perfil de checklist antes de adicionar itens específicos.";
       }
@@ -451,7 +474,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     const validationKeys = Object.keys(nextErrors);
     if (validationKeys.length) {
       const firstErrorKey = validationKeys[0];
-      const section = firstErrorKey.startsWith("type-") ? "general"
+      const section = firstErrorKey.startsWith("type-") || firstErrorKey.startsWith("warranty-") ? "general"
         : firstErrorKey.startsWith("checklist-") ? "checklist" : "brands";
       setEditorSection(section);
       setToast({
@@ -463,6 +486,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     setSaving(true);
     try {
       await saveEquipmentHierarchy(drafts, catalog);
+      void queryClient.invalidateQueries({ queryKey: ["equipment", "warranty-options", activeOrganizationId] });
       setToast({ msg: "Equipamentos salvos com sucesso.", type: "success" });
       refresh();
       setActiveArea("registered");
@@ -520,6 +544,34 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
                   onClick={() => setDrafts(current => current.filter((_, i) => i !== ti))}
                   className="cursor-default rounded-lg p-2.5 text-red-500 hover:bg-red-50"><Trash2 size={16} /></button>}
               </div>
+            </div>
+          </Section>
+
+          <Section title="Opções de garantia" actions={(type.id ? canEdit : canCreate) ? <AdminButton size="sm" variant="secondary" disabled={saving || (type.warrantyOptions?.length ?? 0) >= 10}
+            onClick={() => updateDraft(ti, { warrantyOptions: [...(type.warrantyOptions ?? []), { label: "", warranty_days: 90, is_default: !(type.warrantyOptions?.length) }], warrantyEdited: true })}>
+            <Plus size={14} /> Adicionar prazo
+          </AdminButton> : undefined}>
+            <p className="mb-3 text-xs text-muted-foreground">Cadastre diferentes prazos para este equipamento. O prazo padrão será sugerido ao concluir uma OS.</p>
+            <div className="space-y-3">
+              {(type.warrantyOptions ?? []).map((option, wi) => <div key={wi} className="grid grid-cols-[minmax(0,1fr)_100px_auto] items-end gap-2 rounded-xl border border-border p-3 sm:grid-cols-[minmax(0,1fr)_120px_115px_42px]">
+                <FInput label="Nome da garantia" required value={option.label} placeholder="Ex.: Serviço executado"
+                  disabled={saving} onChange={(e:any) => updateDraft(ti, { warrantyOptions: type.warrantyOptions!.map((current, index) => index === wi ? { ...current, label: e.target.value } : current), warrantyEdited: true })}/>
+                <FInput label="Dias" required type="number" min="1" max="3650" step="1" value={option.warranty_days} disabled={saving}
+                  onChange={(e:any) => updateDraft(ti, { warrantyOptions: type.warrantyOptions!.map((current, index) => index === wi ? { ...current, warranty_days: e.target.value as any } : current), warrantyEdited: true })}/>
+                <label className="col-span-2 flex h-10 cursor-pointer items-center gap-2 text-xs font-semibold text-foreground sm:col-span-1">
+                  <input type="radio" name={"warranty-default-"+ti} checked={option.is_default} disabled={saving}
+                    onChange={() => updateDraft(ti, { warrantyOptions: type.warrantyOptions!.map((current, index) => ({ ...current, is_default: index === wi })), warrantyEdited: true })}/>
+                  Padrão
+                </label>
+                <button type="button" title="Excluir prazo" disabled={saving} onClick={() => {
+                    const remaining = type.warrantyOptions!.filter((_,index)=>index!==wi);
+                    if (option.is_default && remaining.length) remaining[0] = { ...remaining[0], is_default: true };
+                    updateDraft(ti, { warrantyOptions: remaining, warrantyEdited: true });
+                  }}
+                  className="flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 dark:border-red-500/40 dark:bg-red-500/10"><Trash2 size={15}/></button>
+              </div>)}
+              {!type.warrantyOptions?.length && <p className="text-xs text-muted-foreground">Nenhum prazo configurado. Ao concluir uma OS, será sugerido o prazo de 90 dias.</p>}
+              {hierarchyErrors["warranty-"+ti] && <p className="text-xs font-semibold text-red-600">{hierarchyErrors["warranty-"+ti]}</p>}
             </div>
           </Section>
 
