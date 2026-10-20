@@ -92,7 +92,13 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
+  const [settlementStep, setSettlementStep] = useState<"question" | "form" | "review">("question");
   const [lastSettledEntryId, setLastSettledEntryId] = useState<string | null>(null);
+  const openSettlement = (entryId?: string) => {
+    setSettlementStep("question");
+    if (entryId) onSelectEntry(entryId);
+    setSettlementDialogOpen(true);
+  };
   const [page, setPage] = useState(1);
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
@@ -288,7 +294,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><MoreVertical size={18}/></button>
               </DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
-                {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(true); onSelectEntry(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
+                {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
               </DropdownMenuContent></DropdownMenu>
             </div>
           </div>)}
@@ -320,7 +326,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
                        <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
-                       {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(true); onSelectEntry(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
+                       {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
                      </DropdownMenuContent>
                    </DropdownMenu></div></td>
               </FinanceTableRow>)}
@@ -343,15 +349,19 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       title={settlementDialogOpen ? "Dar baixa" : isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
-      className="h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"
-      bodyClassName="overscroll-contain"
+      className={settlementDialogOpen
+        ? `h-auto max-h-[calc(100dvh-1.5rem)] transition-[max-width,height] duration-300 ease-out ${
+            settlementStep === "form" ? "max-w-3xl" : settlementStep === "review" ? "max-w-2xl" : "max-w-xl"
+          }`
+        : "h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"}
+      bodyClassName={settlementDialogOpen ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
       footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
         {finance.detailQuery.data?.id === selectedEntryId && canSettle
           && !["cancelled", "reversed"].includes(finance.detailQuery.data.approval_status)
           && finance.detailQuery.data.installments.some(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001)
-          && <AdminButton onClick={() => setSettlementDialogOpen(true)}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
+          && <AdminButton onClick={() => openSettlement()}><CheckCircle2 size={16} /> Dar baixa</AdminButton>}
       </div>}
     >
       {settlementDialogOpen && finance.detailQuery.data?.id === selectedEntryId
@@ -361,6 +371,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           accounts={accounts}
           paymentMethods={paymentMethods}
           saving={finance.settlementMutation.isPending}
+          onStepChange={nextStep => { setSettlementStep(nextStep); if (receivableScrollRef.current) receivableScrollRef.current.scrollTop = 0; }}
           onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
           onSave={async (draft: FinancialSettlementDraft) => {
             await finance.settlementMutation.mutateAsync(draft);
