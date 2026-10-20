@@ -340,6 +340,12 @@ Deno.serve(async request => {
         }catch{return json({success:true,avatar_url:null});}
       }
       if(action==="contacts_list") {
+        // Populate the management view from existing conversations without
+        // changing any manually saved or previously imported contact.
+        const {error:seedError}=await admin.rpc("union_whatsapp_seed_contacts",{
+          p_organization:org,p_channel:channel.id,
+        });
+        if(seedError)throw seedError;
         const page=Math.min(40,Math.max(0,Number(body.page)||0));
         const search=String(body.search||"").trim().replace(/[^\p{L}\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
