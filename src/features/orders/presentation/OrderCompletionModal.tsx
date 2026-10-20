@@ -220,7 +220,7 @@ export function OrderCompletionModal({
       description="A ordem de serviço foi concluída com sucesso."
       className="max-w-xl"
       footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
-        <BtnSecondary onClick={close}>Fechar</BtnSecondary>
+        <BtnSecondary onClick={close} disabled={saving || completion.certificateBusy}>Fechar</BtnSecondary>
         {completion.issuedCertificate ? <BtnPrimary onClick={() => void completion.printCertificate()}
           disabled={completion.certificateBusy} loading={completion.certificateBusy} loadingText="Preparando...">
           <Printer size={15} /> Imprimir certificado
