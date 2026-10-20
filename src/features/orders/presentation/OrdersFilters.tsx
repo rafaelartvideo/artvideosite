@@ -1,8 +1,5 @@
 import { useRef, useState } from "react";
 import {
-  ArrowDownWideNarrow,
-  ArrowUpDown,
-  ArrowUpNarrowWide,
   Check,
   ChevronDown,
   Eraser,
@@ -11,6 +8,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminSelect, FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import {
   DropdownMenu,
@@ -184,40 +182,10 @@ export function OrdersFilters({
   const cityFilterOptions = cityOptions;
   const ibgeStatesLoading = statesLoading;
   const cityFiltersLoading = citiesLoading;
-  const orderLabel = orderSort === "asc" ? "OS crescente" : orderSort === "desc" ? "OS decrescente" : "Ordenar";
-  const OrderSortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
   const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
     osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || selectedServiceTypeId ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
-  );
-
-  const sortMenu = (mobile = false) => (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          aria-label={`Ordenação atual: ${orderLabel}`}
-          title={`Ordenação: ${orderLabel}`}
-          className={cn(
-            "inline-flex shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2",
-            mobile
-              ? "h-[42px] w-[42px] border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm focus-visible:ring-[#0057e7]/40"
-              : "h-7 w-7 border-white/10 bg-white/[0.10] text-white hover:bg-white/[0.14] focus-visible:ring-white/60",
-            mobile && orderSort && "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]",
-          )}
-        >
-          <OrderSortIcon size={mobile ? 17 : 15} className={cn("shrink-0", mobile ? "text-[#0057e7]" : "text-white/90")} />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="min-w-[190px]">
-        {([["", "Ordenação padrão", ArrowUpDown], ["asc", "OS crescente", ArrowUpNarrowWide], ["desc", "OS decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => (
-          <DropdownMenuItem key={value || "default"} onSelect={() => onOrderSortChange(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}>
-            <Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{label}</span>{orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
   );
 
   const renderMobileFilter = () => {
@@ -256,7 +224,8 @@ export function OrdersFilters({
         {selectedStates.length > 0 && <button type="button" onClick={onStatesClear} aria-label="Limpar Estados" title="Limpar Estados" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar Estados</button>}
         {selectedCities.length > 0 && <button type="button" onClick={onCitiesClear} aria-label="Limpar Cidades" title="Limpar Cidades" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar Cidades</button>}
         {hasActiveFilters && <button type="button" onClick={onClear} aria-label="Limpar filtros" title="Limpar filtros" className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-2.5 text-[11px] font-bold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70"><Eraser size={13} />Limpar filtros</button>}
-        {sortMenu()}
+        <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
+          options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
       </div>
     </div>
     <div className="p-4 md:p-3">
