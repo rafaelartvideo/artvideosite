@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
-import { Building2, Check, CircleAlert, Pencil, Plus, RefreshCw, UsersRound } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Building2, Check, CircleAlert, Pencil, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminCardToolbar, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
@@ -14,7 +14,9 @@ const channelRequest = (organizationId: string, action: Parameters<typeof operat
   extra?: Parameters<typeof operateUnionWhatsAppInbox>[3]) =>
   operateUnionWhatsAppInbox(organizationId, crypto.randomUUID(), action, extra);
 
-export function WhatsAppOperationsSettings({ section }: { section: WhatsAppOperationsSection }) {
+export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
+  section: WhatsAppOperationsSection; createRequest?: number;
+}) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canManage = hasPermission("whatsapp.inbox.manage");
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -28,6 +30,7 @@ export function WhatsAppOperationsSettings({ section }: { section: WhatsAppOpera
   const [active, setActive] = useState(true);
   const [teamDepartment, setTeamDepartment] = useState<Department | null>(null);
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const previousCreateRequest = useRef(createRequest);
 
   const reload = useCallback(async () => {
     if (!activeOrganizationId) return;
@@ -54,6 +57,17 @@ export function WhatsAppOperationsSettings({ section }: { section: WhatsAppOpera
     setActive(department === "new" ? true : department.is_active);
     setError("");
   };
+  // The "Novo" action belongs to the parent modal/page toolbar, not the table.
+  useEffect(() => {
+    if (previousCreateRequest.current === createRequest) return;
+    previousCreateRequest.current = createRequest;
+    if (section === "operators") return;
+    setEditing("new");
+    setName("");
+    setActive(true);
+    setError("");
+  }, [createRequest, section]);
+
   const saveDepartment = async () => {
     if (!activeOrganizationId || busy || name.trim().length < 2) return;
     setBusy("department");
@@ -121,19 +135,6 @@ export function WhatsAppOperationsSettings({ section }: { section: WhatsAppOpera
     {notice && <p role="status" className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {loading ? <LoadingState text="Carregando configuração..." /> :
       <AdminCard square>
-        <AdminCardToolbar>
-          <p className="min-w-0 flex-1 text-sm text-muted-foreground">
-            {section === "operators" ? "Vincule funcionários autorizados da empresa ao atendimento WhatsApp." :
-              section === "queues" ? "Distribua conversas recebidas por fila e escolha o destino padrão para novos contatos." :
-                "Organize a equipe em departamentos e defina quem atende cada fila."}
-          </p>
-          <div className="flex shrink-0 gap-2">
-            <AdminButton variant="secondary" size="sm" onClick={() => void reload()} disabled={Boolean(busy)} title="Atualizar">
-              <RefreshCw size={15}/></AdminButton>
-            {section !== "operators" && <AdminButton size="sm" disabled={Boolean(busy)} onClick={() => startEdit("new")}>
-              <Plus size={16}/> Novo</AdminButton>}
-          </div>
-        </AdminCardToolbar>
         {section === "operators" ? <div className="overflow-x-auto">
           <table className="min-w-[650px] w-full">
             <thead><tr><th className="text-left">Funcionário</th><th className="text-left">Permissão</th>
