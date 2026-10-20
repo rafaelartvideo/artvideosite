@@ -3,7 +3,7 @@
 // Requires Node.js 20+, UNION_WUZAPI_BRIDGE_SECRET, WUZAPI_ADMIN_TOKEN.
 // No Supabase secret key is required on the VPS.
 import { createServer } from "node:http";
-import { randomBytes, createHmac, timingSafeEqual } from "node:crypto";
+import { randomBytes, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -108,11 +108,20 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "status", "qr", "logout"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "status", "qr", "logout", "webhook_setup"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
+  if (action === "webhook_setup") {
+    // No re-pairing or logout; modify only this Union WuzAPI user's webhook.
+    const url = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook"
+      + "?channel=" + encodeURIComponent(id);
+    await wuzapi("/webhook", session.token, "POST", {
+      webhookurl: url, events: ["Message", "ReadReceipt"],
+    });
+    return { ok: true, token_sha256: createHash("sha256").update(session.token).digest("hex") };
+  }
   if (action === "connect") {
     await wuzapi("/session/connect", session.token, "POST", {
       Subscribe: ["Message", "ReadReceipt", "HistorySync"], Immediate: true,
