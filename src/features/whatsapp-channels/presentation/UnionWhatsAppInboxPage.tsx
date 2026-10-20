@@ -107,6 +107,29 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
     </div>}
     {message.body_text && <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text}</p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
+    {ordersOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
+      role="presentation" onClick={event=>{if(event.target===event.currentTarget)setOrdersOpen(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Vincular ordem de serviço"
+        className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
+        <div className="flex items-center justify-between">
+          <p className="font-bold">Vincular ordem de serviço</p>
+          <button type="button" aria-label="Fechar" onClick={()=>setOrdersOpen(false)}><X size={18}/></button>
+        </div>
+        <p className="mt-2 text-xs text-muted-foreground">Apenas OS do cadastro verificado por este telefone.</p>
+        <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
+          {possibleOrders.length===0 && <p className="py-4 text-center text-xs text-muted-foreground">Nenhuma OS encontrada para este cliente.</p>}
+          {possibleOrders.map(order=><button key={order.id} type="button" onClick={()=>void linkOrder(order.id)}
+            disabled={savingOrder} className="flex w-full items-center justify-between rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-muted">
+            <span>OS {order.os_number}</span>
+            {selected.service_order_id===order.id && <Check size={16} className="text-primary"/>}
+          </button>)}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          {selected.service_order_id && <AdminButton variant="secondary" disabled={savingOrder} onClick={()=>void linkOrder("")}>Desvincular</AdminButton>}
+          <AdminButton variant="secondary" onClick={()=>setOrdersOpen(false)}>Fechar</AdminButton>
+        </div>
+      </div>
+    </div>}
     {departmentSettingsOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       role="presentation" onClick={event=>{if(event.target===event.currentTarget)setDepartmentSettingsOpen(false);}}>
       <div role="dialog" aria-modal="true" aria-label="Departamentos WhatsApp"
@@ -175,8 +198,8 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   </div>;
 }
 
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: {
-  onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void;
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder }: {
+  onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
@@ -215,6 +238,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
   const [savingDepartment,setSavingDepartment] = useState(false);
   const [chosenDepartmentId,setChosenDepartmentId] = useState("");
   const [departmentMembers,setDepartmentMembers] = useState<string[]>([]);
+  const [ordersOpen,setOrdersOpen] = useState(false);
+  const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
+  const [savingOrder,setSavingOrder] = useState(false);
   const [historyOpen,setHistoryOpen] = useState(false);
   const [handoffs,setHandoffs] = useState<Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
@@ -291,6 +317,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
     setNewConversationOpen(false);
     setSettingsOpen(false);
     setDepartmentSettingsOpen(false);
+    setOrdersOpen(false);
     setDepartments([]);
     setDepartmentFilter("all");
     setMembers([]);
@@ -507,6 +534,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
     return()=>{cancelled=true;};
   },[activeOrganizationId,canView,channelReady]);
 
+  const showOrders = async () => {
+    if(!activeOrganizationId || !selected)return;
+    setError("");setSavingOrder(true);
+    try{
+      const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_options");
+      setPossibleOrders(result.orders||[]);setOrdersOpen(true);
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar as OS deste cliente."));}
+    finally{setSavingOrder(false);}
+  };
+  const linkOrder = async (id:string) => {
+    if(!activeOrganizationId || !selected)return;
+    setSavingOrder(true);
+    try{
+      await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_link",{service_order_id:id});
+      setConversations(old=>old.map(item=>item.id===selected.id?{...item,service_order_id:id||null}:item));
+      setOrdersOpen(false);
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível vincular a OS."));}
+    finally{setSavingOrder(false);}
+  };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
   const canReply = Boolean(selected && canSend && selected.status === "in_att" && (isMine || canManage));
@@ -901,6 +947,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer }: 
                 {selected.status === "waiting" && (canSend || canManage) &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {selected.status === "in_att" && canOperateSelected && <>
+                  {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
+                    onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
+                  {onOpenOrder && hasPermission("orders.details.view") && <button type="button" title="Vincular OS deste cliente"
+                    onClick={()=>void showOrders()} disabled={savingOrder}
+                    className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
                   {canManage && <button type="button" title="Histórico do atendimento" aria-label="Histórico do atendimento"
                     onClick={()=>void viewHistory()} className="flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted">
                     <History size={15}/>
