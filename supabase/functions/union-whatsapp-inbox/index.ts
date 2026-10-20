@@ -133,10 +133,14 @@ Deno.serve(async request => {
         channel.state==="connected" && channel.webhook_ready)});
     }
     if(action==="start") {
-      const phone=String(body.phone||"").replace(/\D/g,"");
+      const inputDigits=String(body.phone||"").replace(/\D/g,"");
+      const national=inputDigits.startsWith("55") && inputDigits.length>11
+        ? inputDigits.slice(2) : inputDigits;
+      if(!/^[1-9][0-9][0-9]{8,9}$/.test(national))
+        return json({success:false,error:"Informe um telefone brasileiro com DDD válido."},400);
+      // The Union inbox is Brazilian: normalize country code exactly once.
+      const phone="55"+national;
       const customerName=String(body.contact_name||"").trim().slice(0,120);
-      if(!/^[1-9][0-9]{9,14}$/.test(phone))
-        return json({success:false,error:"Informe um número válido com DDI e DDD."},400);
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready").eq("organization_id",org)
         .eq("provider","wuzapi").maybeSingle();
