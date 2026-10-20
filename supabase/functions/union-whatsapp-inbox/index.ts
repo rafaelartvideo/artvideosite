@@ -49,7 +49,7 @@ async function signedBridge(
   const signature = hex(await crypto.subtle.sign("HMAC", key,
     encoder.encode(timestamp + "." + nonce + "." + body)));
   const abort = new AbortController();
-  const timer = setTimeout(()=>abort.abort(), download ? 28000 : 14000);
+  const timer = setTimeout(()=>abort.abort(), download || media ? 29000 : 14000);
   try {
     const response = await fetch(url, {
       method:"POST",
