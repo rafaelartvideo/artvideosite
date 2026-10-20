@@ -96,28 +96,28 @@ export function UnionWhatsAppContactsDialog({
   };
   const importVCard=async(file:File|null)=>{
     if(!file || !canImport || busy)return;
-    if(file.size>2*1048576 || !/\\.vcf$/i.test(file.name)){
+    if(file.size>2*1048576 || !/\.vcf$/i.test(file.name)){
       setError("Selecione um arquivo .vcf de até 2 MB exportado da agenda do celular.");
       return;
     }
     setBusy(true);setError("");setNotice("");
     try{
       const raw=await file.text();
-      const unfolded=raw.replace(/\\r\\n/g,"\\n").replace(/\\n[ \\t]/g,"");
+      const unfolded=raw.replace(/\r\n/g,"\n").replace(/\n[ \t]/g,"");
       const blocks=unfolded.split(/BEGIN:VCARD/i).slice(1);
       const normalized=new Map<string,{name:string;phone:string}>();
       for(const block of blocks.slice(0,3000)){
         const content=block.split(/END:VCARD/i)[0]||"";
-        const lines=content.split("\\n");
+        const lines=content.split("\n");
         const value=(prefix:string)=>{
           const hit=lines.find(line=>new RegExp("^"+prefix+"(?:;[^:]*)?:","i").test(line));
-          return hit?hit.slice(hit.indexOf(":")+1).replace(/\\\\([,;\\\\nN])/g,(_,v)=>v==="n"||v==="N"?" ":v).trim():"";
+          return hit?hit.slice(hit.indexOf(":")+1).replace(/\\([,;\\nN])/g,(_,v)=>v==="n"||v==="N"?" ":v).trim():"";
         };
         const name=value("FN").slice(0,160);
         const candidates=lines.filter(line=>/^TEL(?:;[^:]*)?:/i.test(line));
         if(name.length<2)continue;
         for(const line of candidates){
-          const digits=line.slice(line.indexOf(":")+1).replace(/\\D/g,"");
+          const digits=line.slice(line.indexOf(":")+1).replace(/\D/g,"");
           const national=digits.startsWith("55")&&digits.length>11?digits.slice(2):digits;
           if(/^[1-9][0-9][0-9]{8,9}$/.test(national)){
             const phone="55"+national;
