@@ -111,13 +111,13 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
   };
 
   return <div className="space-y-3">
-    {canManage && <div className="grid gap-3 border-b border-border bg-card pb-3 sm:grid-cols-[150px_minmax(0,1fr)_auto] sm:items-end">
-      <FSelect label="Tipo" value={type} options={TYPE_OPTIONS} onChange={(event: any) => setType(event.target.value as FinancialAttachmentType)} />
-      <div className="min-w-0">
-        <label htmlFor={"finance-file-" + entryId} className="mb-1.5 block text-xs font-semibold text-muted-foreground">Arquivo</label>
-        <input id={"finance-file-" + entryId} type="file" onChange={event => setFile(event.target.files?.[0] || null)} className="block w-full min-w-0 text-xs text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
+    {canManage && <div className="grid w-full grid-cols-1 items-end gap-2 border-b border-border pb-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)_minmax(0,0.8fr)]">
+      <div className="w-full min-w-0"><FSelect label="Tipo" value={type} options={TYPE_OPTIONS} onChange={(event: any) => setType(event.target.value as FinancialAttachmentType)} /></div>
+      <div className="w-full min-w-0">
+        <label htmlFor={"finance-file-" + entryId} className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Arquivo</label>
+        <input id={"finance-file-" + entryId} type="file" onChange={event => setFile(event.target.files?.[0] || null)} className="block h-[42px] w-full min-w-0 cursor-pointer rounded-lg border border-border bg-muted/55 text-sm text-muted-foreground file:mr-3 file:h-full file:border-0 file:border-r file:border-border file:bg-muted file:px-3 file:text-xs file:font-bold file:text-foreground hover:border-primary/40" />
       </div>
-      <AdminButton onClick={() => uploadMutation.mutate()} loading={uploadMutation.isPending} loadingText="Enviando..." disabled={!file}><Upload size={15} /> Enviar</AdminButton>
+      <AdminButton className="h-[42px] w-full" onClick={() => uploadMutation.mutate()} loading={uploadMutation.isPending} loadingText="Enviando..." disabled={!file}><Upload size={15} /> Enviar</AdminButton>
     </div>}
 
     {errorText && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive">{errorText}</p>}
