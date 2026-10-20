@@ -36,6 +36,9 @@ const HIDDEN_LEGACY_PERMISSIONS = new Set([
   // O financeiro não utiliza mais etapas de aprovação; preserva as chaves somente como histórico.
   "finance.payables.approve",
   "finance.receivables.approve",
+  // Cobranças retiradas do extrato financeiro; permissões legadas ficam apenas no banco.
+  "finance.collections.view",
+  "finance.collections.create",
   "tools.sac_digital.use",
   "customers.requests.view",
   "customers.requests.create",
