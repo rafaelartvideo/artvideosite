@@ -1118,7 +1118,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       </div>
     </div>}
     {contactsOpen && activeOrganizationId && <UnionWhatsAppContactsDialog
-      organizationId={activeOrganizationId} canImport={canManage}
+      key={activeChannelPhone}
+      organizationId={activeOrganizationId} accountPhone={activeChannelPhone!} channelId={activeChannelId!}
+      canImport={canManage}
       canEdit={canSend || canManage}
       initialContact={editContactId?(()=>{
         const thread=scopedConversations.find(item=>item.id===editContactId);
