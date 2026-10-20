@@ -4,6 +4,7 @@ import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreVertical } from "
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
@@ -77,8 +78,8 @@ function useDebouncedValue<T>(value: T, delay = 350) {
 export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void }) {
   const { user, hasPermission } = useAuth();
   const foundation = useFinanceFoundation();
-  const [search, setSearch] = useState("");
   const [operationalFilter, setOperationalFilter] = useState("pending");
+  const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
   const [os, setOs] = useState("");
@@ -91,7 +92,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [editorOpen, setEditorOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const [counterpartySearch, setCounterpartySearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search);
   const debouncedName = useDebouncedValue(name);
   const debouncedDocument = useDebouncedValue(document);
   const debouncedOs = useDebouncedValue(os);
@@ -102,7 +102,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     {
       page,
       pageSize,
-      search: debouncedSearch,
+      search: "",
+      sort,
       approvalStatus: "all",
       name: debouncedName,
       document: debouncedDocument,
@@ -118,7 +119,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   useEffect(() => {
     setPage(1);
-  }, [search, name, document, os, dateFrom, dateTo, operationalFilter, pageSize, entryType]);
+  }, [name, document, os, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
   const canCreate = hasPermission(isReceivable ? "finance.receivables.create" : "finance.payables.create");
@@ -160,21 +161,37 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]}
   />;
 
+  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || dateFrom || dateTo || sort !== "newest");
+  const resetFilters = () => {
+    setOperationalFilter("pending");
+    setName(""); setDocument(""); setOs(""); setDateFrom(""); setDateTo("");
+    setSort("newest"); setPage(1);
+  };
+
   const Icon = isReceivable ? BanknoteArrowUp : BanknoteArrowDown;
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <p className="text-sm font-semibold text-muted-foreground">{totalItems} {totalItems === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
-
-    </div>
-    <div className="grid gap-3 border-b border-border pb-4 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="lg:col-span-2"><FInput label="Busca geral" value={search} onChange={(event: any) => setSearch(event.target.value)} placeholder="Descrição e referência" /></div>
-      <FSelect label="Situação" value={operationalFilter} options={[{ value: "pending", label: "Pendentes / parciais" }, { value: "all", label: "Todas" }, { value: "settled", label: "Baixadas" }]} onChange={(event: any) => setOperationalFilter(event.target.value)} />
-      <FInput label="Nome do cliente / favorecido" value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
-      <FInput label="CPF / CNPJ" value={document} onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />
-      <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />
-      <FInput label="Vencimento de" type="date" value={dateFrom} onChange={(event: any) => setDateFrom(event.target.value)} />
-      <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
-    </div>
+    <AdminSearchPanel
+      title={isReceivable ? "Buscar contas a receber" : "Buscar contas a pagar"}
+      headerActions={<>
+        {hasFilters && <AdminSearchClearButton onClick={resetFilters} />}
+        <AdminSearchSortMenu value={sort} onChange={setSort} label="Ordenação das contas"
+          options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigas" }]} />
+      </>}
+    >
+      <div className="grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-4">
+        <FSelect label="Situação" value={operationalFilter} options={[
+          { value: "pending", label: "Pendentes / parciais" },
+          { value: "all", label: "Todas" },
+          { value: "settled", label: "Baixadas" },
+        ]} onChange={(event: any) => setOperationalFilter(event.target.value)} />
+        <FInput label="Nome do cliente / favorecido" value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
+        <FInput label="CPF / CNPJ" value={document} onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />
+        <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />
+        <FInput label="Vencimento de" type="date" value={dateFrom} onChange={(event: any) => setDateFrom(event.target.value)} />
+        <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
+      </div>
+    </AdminSearchPanel>
+    <p className="text-sm font-semibold text-muted-foreground">{totalItems} {totalItems === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
       {finance.entriesQuery.isLoading ? <div className="p-10"><LoadingState /></div> : finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
         <div className="overflow-hidden rounded-xl border border-border bg-card md:hidden">
           <div className="divide-y divide-border">
