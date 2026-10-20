@@ -106,6 +106,7 @@ export type FinancialEntryListPageInput = {
   dateFrom?: string;
   dateTo?: string;
   operationalStatus?: string;
+  sort?: "newest" | "oldest";
 };
 
 export type FinancialEntryListPage = {
@@ -120,11 +121,11 @@ export async function listFinancialEntriesPage({
   pageSize,
   search = "",
   approvalStatus = "all",
-  name = "", document = "", os = "", dateFrom = "", dateTo = "", operationalStatus = "all",
+  name = "", document = "", os = "", dateFrom = "", dateTo = "", operationalStatus = "all", sort = "newest",
 }: FinancialEntryListPageInput): Promise<FinancialEntryListPage> {
   const org = requiredOrganizationId(organizationId);
   const { data: pageIndex, error: pageIndexError } = await supabase.rpc(
-    "search_financial_entry_page_ids_v2",
+    "search_financial_entry_page_ids_v3",
     {
       p_organization_id: org,
       p_entry_type: entryType,
@@ -138,6 +139,7 @@ export async function listFinancialEntriesPage({
       p_date_from: dateFrom || null,
       p_date_to: dateTo || null,
       p_operational_status: operationalStatus,
+      p_sort: sort,
     },
   );
   if (pageIndexError) throw pageIndexError;
