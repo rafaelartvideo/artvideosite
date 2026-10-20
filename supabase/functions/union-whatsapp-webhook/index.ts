@@ -114,8 +114,14 @@ Deno.serve(async request => {
     if (!authenticated) return json({ ok: false }, 401);
 
     const { data: channel, error: channelError } = await admin
-      .from("whatsapp_channel_connections").select("organization_id").eq("id", channelId).eq("provider", "wuzapi").maybeSingle();
+      .from("whatsapp_channel_connections").select("organization_id,phone,state,webhook_ready,last_connected_at").eq("id", channelId).eq("provider", "wuzapi").maybeSingle();
     if (channelError || !channel) return json({ ok: false }, 404);
+    // A technical WuzAPI channel can be paired with a different phone later.
+    // Do not accept callbacks while disconnected or without a verified account.
+    if(channel.state!=="connected" || !channel.webhook_ready ||
+      !/^[0-9]{10,15}$/.test(String(channel.phone||"")))
+      return json({ok:true,ignored:"inactive_channel"});
+    const accountPhone=channel.phone;
     // Non-writing authenticated probe for verifying VPS-to-Supabase delivery.
     // It NEVER inserts a conversation or stores a test message.
     if (payload.type === "UnionProbe") return json({ ok: true, probe: "authenticated" });
@@ -129,7 +135,7 @@ Deno.serve(async request => {
       const {error:presenceError}=await admin.from("union_whatsapp_conversations")
         .update({contact_presence:state,contact_presence_at:new Date().toISOString()})
         .eq("organization_id",channel.organization_id)
-        .eq("channel_id",channelId).eq("chat_jid",jid);
+        .eq("channel_id",channelId).eq("account_phone",accountPhone).eq("chat_jid",jid);
       if(presenceError)throw presenceError;
       return json({ok:true});
     }
@@ -162,12 +168,12 @@ Deno.serve(async request => {
         return json({ok:true,ignored:"invalid_receipt_chat"});
       const {data:conversation,error:conversationError}=await admin.from("union_whatsapp_conversations")
         .select("id").eq("organization_id",channel.organization_id)
-        .eq("channel_id",channelId).eq("chat_jid",chatJid).maybeSingle();
+        .eq("channel_id",channelId).eq("account_phone",accountPhone).eq("chat_jid",chatJid).maybeSingle();
       if(conversationError) throw conversationError;
       if(!conversation) return json({ok:true,ignored:"unknown_receipt_chat"});
       let query = admin.from("union_whatsapp_messages")
         .update({delivery_status:state==="read"?"read":"delivered"})
-        .eq("organization_id",channel.organization_id).eq("channel_id",channelId)
+        .eq("organization_id",channel.organization_id).eq("channel_id",channelId).eq("account_phone",accountPhone)
         .eq("conversation_id",conversation.id)
         .eq("direction","outgoing").in("provider_message_id",uniqueIds);
       if(state==="delivered") query=query.neq("delivery_status","read");
@@ -250,7 +256,7 @@ Deno.serve(async request => {
     const possibleJids=[chatJid,...(phoneJid && phoneJid!==chatJid?[phoneJid]:[])];
     const {data:storedNames,error:contactError}=await admin.from("union_whatsapp_contacts")
       .select("chat_jid,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
-      .eq("organization_id",org).eq("channel_id",channelId)
+      .eq("organization_id",org).eq("channel_id",channelId).eq("account_phone",accountPhone)
       .in("chat_jid",possibleJids);
     if(contactError)throw contactError;
     const orderedNames=[...(storedNames||[])].sort((a,b)=>{
@@ -265,15 +271,15 @@ Deno.serve(async request => {
 
     const { error: ensureError } = await admin.from("union_whatsapp_conversations")
       .upsert({
-        organization_id: org, channel_id: channelId, chat_jid: chatJid,
+        organization_id: org, channel_id: channelId, account_phone:accountPhone, chat_jid: chatJid,
         contact_name: preferredContactName || name || (phone || "Contato WhatsApp"),
         contact_phone: phone,
-      }, { onConflict: "channel_id,chat_jid", ignoreDuplicates: true });
+      }, { onConflict: "channel_id,account_phone,chat_jid", ignoreDuplicates: true });
     if (ensureError) throw ensureError;
 
     const { data: thread, error: threadError } = await admin.from("union_whatsapp_conversations")
       .select("id,last_message_at,unread_count,contact_name,status")
-      .eq("channel_id", channelId).eq("organization_id", org).eq("chat_jid", chatJid).single();
+      .eq("channel_id", channelId).eq("account_phone",accountPhone).eq("organization_id", org).eq("chat_jid", chatJid).single();
     if (threadError || !thread) throw threadError || Error("conversation_missing");
     // Backfill only Whatsmeow-verified phone aliases on existing LID
     // conversations. This permits later VCF matching without merging chats.
@@ -286,19 +292,19 @@ Deno.serve(async request => {
 
     const { data: inserted, error: messageError } = await admin.from("union_whatsapp_messages")
       .upsert({
-        organization_id: org, channel_id: channelId, conversation_id: thread.id,
+        organization_id: org, channel_id: channelId, account_phone:accountPhone, conversation_id: thread.id,
         provider_message_id: providerMessageId, direction: isFromMe ? "outgoing" : "incoming",
         message_type: typeHint, body_text: body, sender_name: name || null, sent_at: timestamp,
         delivery_status: isFromMe ? "sent" : null,
         media_name:mediaKind ? (originalName || null) : null,
         media_mime:mediaKind ? (mime || null) : null,
         media_available:validMedia,
-      }, { onConflict: "channel_id,provider_message_id", ignoreDuplicates: true })
+      }, { onConflict: "channel_id,account_phone,provider_message_id", ignoreDuplicates: true })
       .select("id").maybeSingle();
     if (messageError) throw messageError;
     if(validMedia && !isFromMe) {
       const existingId=inserted?.id || (await admin.from("union_whatsapp_messages")
-        .select("id").eq("channel_id",channelId).eq("provider_message_id",providerMessageId)
+        .select("id").eq("channel_id",channelId).eq("account_phone",accountPhone).eq("provider_message_id",providerMessageId)
         .maybeSingle()).data?.id;
       if(existingId) {
         const {error:descriptorError}=await admin.from("union_whatsapp_inbound_media_refs")
