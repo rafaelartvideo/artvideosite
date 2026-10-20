@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 type CaseType="cancellation"|"exchange"|"return";
 type CaseStatus="open"|"in_review"|"approved"|"rejected"|"closed";
@@ -201,8 +202,7 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
       </p>
       <div className="flex gap-2">
        <button type="submit" disabled={saving||!selectedLine} className="rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">{saving?"Salvando...":"Confirmar recebimento"}</button>
-       <button type="button" onClick={()=>setReceiving(false)} disabled={saving}
-        className="rounded-md border border-border px-4 py-2 text-xs font-bold">Voltar</button>
+       <AdminButton variant="secondary" size="sm" onClick={()=>setReceiving(false)} disabled={saving}>Voltar</AdminButton>
       </div>
      </form>}
     {caseStatus==="approved"&&receipts.some(r=>r.inspection_status==="pending")&&
@@ -273,8 +273,7 @@ export function StoreReturnOperations({caseId,caseType,caseStatus,items,canManag
         className="rounded-md bg-primary px-4 py-2 text-xs font-bold text-primary-foreground disabled:opacity-50">
          {saving?"Registrando...":"Salvar comprovante"}
        </button>
-       <button type="button" disabled={saving} onClick={()=>setRefundMode(false)}
-        className="rounded-md border border-border px-4 py-2 text-xs font-bold">Voltar</button>
+       <AdminButton variant="secondary" size="sm" disabled={saving} onClick={()=>setRefundMode(false)}>Voltar</AdminButton>
       </div>
      </form>}
    </section>
