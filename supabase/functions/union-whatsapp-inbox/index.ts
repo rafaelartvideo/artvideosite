@@ -27,6 +27,7 @@ async function signedBridge(
   lookup = false,
   avatar = false,
   presence = false,
+  exportContacts = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -37,7 +38,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
@@ -63,17 +64,16 @@ async function signedBridge(
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
     if (presence) return "";
+    if(exportContacts) {
+      if(!Array.isArray(result.contacts)) throw Error("contacts_export_invalid");
+      return JSON.stringify(result.contacts.slice(0,2000));
+    }
     if (avatar) {
-      const url=typeof result.avatar_url==="string" ? result.avatar_url.slice(0,2048) : "";
-      if(!url) return "";
-      let parsed:URL;
-      try{parsed=new URL(url);}catch{return "";}
-      if(parsed.protocol!=="https:" || parsed.username || parsed.password ||
-        !(parsed.hostname==="pps.whatsapp.net" ||
-          parsed.hostname.endsWith(".whatsapp.net") ||
-          parsed.hostname==="fbcdn.net" || parsed.hostname.endsWith(".fbcdn.net")))
-        return "";
-      return url;
+      const base64=typeof result.avatar_base64==="string" ? result.avatar_base64 : "";
+      const mime=typeof result.avatar_mime==="string" ? result.avatar_mime : "";
+      if(!["image/jpeg","image/png","image/webp"].includes(mime) ||
+        !base64 || base64.length>270000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64)) return "";
+      return "data:"+mime+";base64,"+base64;
     }
     if (lookup) {
       const name=typeof result.name==="string" ? result.name.trim().slice(0,160) : "";
@@ -111,8 +111,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default"].includes(action)) {
+    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_save"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -132,8 +132,8 @@ Deno.serve(async request => {
     const canRead=permissions.has("whatsapp.inbox.view");
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["order_link","members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
-      (["send_text","send_media","start","prepare_media"].includes(action) && !canSend) ||
+    if (!canRead || (["contacts_import","order_link","members","transfer","department_save","department_members","department_set_member","transfer_department","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
+      (["contacts_save","send_text","send_media","start","prepare_media"].includes(action) && !canSend && !canManage) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
@@ -279,6 +279,97 @@ Deno.serve(async request => {
         .select("id,name,is_active,is_default").eq("organization_id",org).order("name").limit(100);
       if(error)throw error;
       return json({success:true,departments:departments||[]});
+    }
+    if(["contacts_list","contacts_import","contacts_save"].includes(action)) {
+      const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
+        .select("id,state").eq("organization_id",org).eq("provider","wuzapi").maybeSingle();
+      if(channelError)throw channelError;
+      if(!channel)return json({success:false,error:"Configure um canal WhatsApp primeiro."},409);
+      if(action==="contacts_list") {
+        const page=Math.min(40,Math.max(0,Number(body.page)||0));
+        const search=String(body.search||"").trim().replace(/[^\\p{L}\\p{N} +().-]/gu,"").slice(0,60);
+        let q=admin.from("union_whatsapp_contacts")
+          .select("id,chat_jid,contact_phone,display_name,imported_name,profile_name,updated_at",{count:"exact"})
+          .eq("organization_id",org).eq("channel_id",channel.id);
+        if(search){
+          const term=search.replace(/[%,]/g,"");
+          q=q.or("display_name.ilike.%"+term+"%,imported_name.ilike.%"+term+
+            "%,profile_name.ilike.%"+term+"%,contact_phone.ilike.%"+term+"%");
+        }
+        const {data,error,count}=await q.order("updated_at",{ascending:false})
+          .range(page*100,page*100+99);
+        if(error)throw error;
+        return json({success:true,contacts:data||[],total:count||0});
+      }
+      if(action==="contacts_save") {
+        const raw=String(body.chat_jid||"");
+        const inputPhone=String(body.phone||"").replace(/\D/g,"");
+        const normalized=inputPhone.startsWith("55")&&inputPhone.length>11
+          ? inputPhone.slice(2):inputPhone;
+        const jid=raw || (/^[1-9][0-9][0-9]{8,9}$/.test(normalized)
+          ? "55"+normalized+"@s.whatsapp.net" : "");
+        if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))
+          return json({success:false,error:"Informe um telefone com DDD válido."},400);
+        if(raw){
+          const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
+            .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+            .eq("chat_jid",jid).maybeSingle();
+          if(knownError)throw knownError;
+          const {data:convo,error:convError}=await admin.from("union_whatsapp_conversations")
+            .select("id").eq("organization_id",org).eq("channel_id",channel.id)
+            .eq("chat_jid",jid).maybeSingle();
+          if(convError)throw convError;
+          if(!known && !convo)return json({success:false,error:"Contato não encontrado neste canal."},404);
+        }
+        const displayName=String(body.display_name||"").trim().replace(/\s+/g," ").slice(0,160);
+        if(displayName.length<2)return json({success:false,error:"Informe o nome que deseja salvar para o contato."},400);
+        const number=jid.endsWith("@s.whatsapp.net")?jid.split("@")[0]:null;
+        const {data:saved,error:saveError}=await admin.from("union_whatsapp_contacts")
+          .upsert({organization_id:org,channel_id:channel.id,chat_jid:jid,
+            contact_phone:number,display_name:displayName,updated_at:new Date().toISOString()},
+            {onConflict:"channel_id,chat_jid"}).select("id,chat_jid,display_name").single();
+        if(saveError)throw saveError;
+        const {error:renameError}=await admin.from("union_whatsapp_conversations")
+          .update({contact_name:displayName,updated_at:new Date().toISOString()})
+          .eq("organization_id",org).eq("channel_id",channel.id).eq("chat_jid",jid);
+        if(renameError)throw renameError;
+        return json({success:true,contact:saved});
+      }
+      if(channel.state!=="connected")
+        return json({success:false,error:"Conecte o canal para importar a agenda."},409);
+      let exported:unknown;
+      try{
+        const result=await signedBridge({id:channel.id,organization_id:org},"","",crypto.randomUUID(),
+          undefined,undefined,false,false,false,true);
+        exported=JSON.parse(result);
+      }catch{return json({success:false,error:"Não foi possível ler a agenda do WhatsApp. Confira se a ponte da VPS está atualizada."},502);}
+      if(!Array.isArray(exported))return json({success:false,error:"Formato de contatos não reconhecido."},502);
+      const mapped=exported.slice(0,2000).flatMap(item=>{
+        const row=item&&typeof item==="object"?item as Record<string,unknown>:{};
+        const jid=String(row.jid||"");
+        if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))return [];
+        const safe=(value:unknown)=>String(value||"").trim().slice(0,160);
+        return [{
+          organization_id:org,channel_id:channel.id,chat_jid:jid,
+          contact_phone:jid.endsWith("@s.whatsapp.net")?jid.split("@")[0]:null,
+          imported_name:safe(row.imported_name)||null,
+          profile_name:safe(row.profile_name)||null,
+          updated_at:new Date().toISOString(),
+        }];
+      });
+      const unique=[...new Map(mapped.map(row=>[row.chat_jid,row])).values()];
+      for(let i=0;i<unique.length;i+=100) {
+        const {error:importError}=await admin.from("union_whatsapp_contacts")
+          .upsert(unique.slice(i,i+100),{onConflict:"channel_id,chat_jid"});
+        if(importError)throw importError;
+      }
+      // Saved names always have higher priority. An imported address-book
+      // name is used only for conversations without a manually-saved name.
+      const {error:syncError}=await admin.rpc("union_whatsapp_apply_contact_names",{
+        p_organization:org,p_channel:channel.id,
+      });
+      if(syncError)throw syncError;
+      return json({success:true,imported:unique.length,truncated:exported.length>=2000});
     }
     if(action==="channel_status") {
       const {data:channel,error}=await admin.from("whatsapp_channel_connections")
