@@ -44,7 +44,7 @@ export function FinanceReceiptDialog({ open, onClose }: { open: boolean; onClose
   const [direction, setDirection] = useState<ReceiptDirection>("received");
   const [reason, setReason] = useState("");
   const [details, setDetails] = useState("");
-  const [items, setItems] = useState<ReceiptItem[]>(newItem);
+  const [items, setItems] = useState<ReceiptItem[]>(() => [newItem()]);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
@@ -208,8 +208,8 @@ export function FinanceReceiptDialog({ open, onClose }: { open: boolean; onClose
     } catch (error) {
       try { printWindow?.close(); } catch { /* Navegador pode bloquear o fechamento */ }
       const message = systemErrorMessage(error, "Não foi possível emitir o recibo.");
-      if (/cliente|cadastro|funcionário|pessoa/i.test(message)) setErrors(current => ({ ...current, registration: message }));
-      else if (/\bOS\b|ordem de serviço/i.test(message)) setErrors(current => ({ ...current, order: message }));
+      if (/\bOS\b|ordem de serviço/i.test(message)) setErrors(current => ({ ...current, order: message }));
+      else if (/cliente|cadastro|funcionário|pessoa/i.test(message)) setErrors(current => ({ ...current, registration: message }));
       else if (/motivo|descrição válida/i.test(message)) setErrors(current => ({ ...current, reason: message }));
       else if (/item|quantidade|valor/i.test(message)) setErrors(current => ({ ...current, items: message }));
       else setErrors(current => ({ ...current, general: message }));
