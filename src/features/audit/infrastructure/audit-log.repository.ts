@@ -42,6 +42,7 @@ export type AuditLogFilters = {
   contextId?: string;
   dateFrom?: string;
   dateTo?: string;
+  sort?: "newest" | "oldest";
 };
 
 function startOfLocalDayIso(value: string) {
@@ -64,7 +65,7 @@ export async function listAuditLogs(organizationId: string, filters: AuditLogFil
   const contextId = filters.contextId?.trim() || "";
 
   const { data, error } = await supabase.rpc(
-    "search_organization_audit_log_page_v1",
+    "search_organization_audit_log_page_v2",
     {
       p_organization_id: organizationId,
       p_page: page,
@@ -75,6 +76,7 @@ export async function listAuditLogs(organizationId: string, filters: AuditLogFil
       p_context_id: contextId,
       p_date_from: dateFrom,
       p_date_to: dateTo,
+      p_sort: filters.sort || "newest",
     },
   );
   if (error) throw error;
