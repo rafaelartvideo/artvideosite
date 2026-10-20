@@ -10,7 +10,7 @@ import {
   BtnSecondary,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
+import { FCurrencyInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { formatCnpj, formatCpf, formatNumber, formatPhone } from "@/shared/domain/formatters";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
@@ -231,6 +231,11 @@ export function OrderCompletionModal({
     className="!max-w-6xl"
     footer={<div className="flex min-w-0 flex-wrap justify-end gap-3">
       <BtnSecondary onClick={close} disabled={saving}>Cancelar</BtnSecondary>
+      <AdminButton variant="secondary" onClick={() => void completion.submit(true)}
+        loading={saving} disabled={completionBlocked || completion.warrantyLoading || Boolean(completion.warrantyError)}
+        title="Concluir a OS e gerar o certificado de garantia">
+        Concluir e gerar certificado
+      </AdminButton>
       <BtnPrimary
         onClick={() => void completion.submit()}
         disabled={completionBlocked}
@@ -413,6 +418,18 @@ export function OrderCompletionModal({
         </div>
       </Section>
 
+      <Section title="Certificado de garantia">
+        <div className="space-y-3">
+          <p className="text-xs text-muted-foreground">Escolha a garantia que será aplicada nesta OS. O certificado ficará disponível para imprimir novamente após a conclusão.</p>
+          <FSelect label="Prazo da garantia" value={completion.warrantyOptionId}
+            disabled={saving || completion.warrantyLoading}
+            options={completion.warrantyOptions.length ? completion.warrantyOptions.map(option => ({
+              value: option.id, label: option.label + " · " + option.warranty_days + " dias" + (option.is_default ? " (padrão)" : ""),
+            })) : [{ value: "", label: completion.warrantyLoading ? "Carregando..." : "Garantia padrão · 90 dias" }]}
+            onChange={(event:any) => completion.setWarrantyOptionId(event.target.value)} />
+          {completion.warrantyError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.warrantyError}</p>}
+        </div>
+      </Section>
       <Section title="Pagamento">
         <OrderCompletionPaymentSection completion={completion} saving={saving} formatCurrency={formatCurrency} />
       </Section>
