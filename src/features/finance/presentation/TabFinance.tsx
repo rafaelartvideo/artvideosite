@@ -1,6 +1,7 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { ReceiptText } from "lucide-react";
 import { financeRoute } from "../domain/finance-foundation.mjs";
 import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 import { FinanceAccountsSection } from "./FinanceAccountsSection";
@@ -10,6 +11,7 @@ import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
 import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
 import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { FinanceReportsSection } from "./FinanceReportsSection";
+import { FinanceReceiptDialog } from "./FinanceReceiptDialog";
 import { FinanceSectionTabs } from "./FinanceSectionTabs";
 
 export function TabFinance({
@@ -22,6 +24,8 @@ export function TabFinance({
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 }) {
   const { hasPermission } = useAuth();
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const canIssueReceipt = hasPermission("finance.receivables.create") || hasPermission("finance.payables.create");
   const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null; entryId?: string | null };
   const allowedSections = useMemo<FinanceSection[]>(() => {
     const sections: FinanceSection[] = [];
@@ -52,8 +56,9 @@ export function TabFinance({
   };
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa." />
+    <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa." actions={canIssueReceipt ? <AdminButton onClick={() => setReceiptOpen(true)}><ReceiptText size={16} /> Gerar recibo</AdminButton> : undefined} />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
+    {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
 
     {section === "overview" && <FinanceOverviewFoundation onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
     {section === "receivables" && <FinanceEntriesSection entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
