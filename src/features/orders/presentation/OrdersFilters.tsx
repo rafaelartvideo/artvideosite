@@ -38,7 +38,7 @@ const mobileFilterOptions: Array<{ value: MobileFilterKey; label: string }> = [
   { value: "osNumber", label: "Número da OS / Externa" },
   { value: "customerName", label: "Nome do cliente" },
   { value: "document", label: "CPF ou CNPJ" },
-  { value: "serialNumber", label: "Número de série" },
+  { value: "serialNumber", label: "Número de série / Equipamento" },
   { value: "responsible", label: "Responsável pela OS" },
   { value: "status", label: "Status" },
   { value: "situation", label: "Situação" },
@@ -195,7 +195,7 @@ export function OrdersFilters({
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
       case "serialNumber": return <>
         <div className="flex min-w-0 items-center gap-2">
-          <div className="min-w-0 flex-1"><MobileSearchField value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" ariaLabel="Buscar por número de série" /></div>
+          <div className="min-w-0 flex-1"><MobileSearchField value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Série, tipo, marca ou modelo" ariaLabel="Buscar por número de série ou equipamento" /></div>
           <AdminButton variant="secondary" onClick={() => serialScannerInput.current?.click()} aria-label="Escanear número de série" title="Escanear número de série" className="h-[42px] w-[42px] shrink-0 p-0"><ScanLine size={22} className="!h-[22px] !w-[22px] shrink-0" /></AdminButton>
         </div>
         <input ref={serialScannerInput} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => { const file = event.target.files?.[0]; event.currentTarget.value = ""; void readSerialCode(file); }} />
@@ -239,7 +239,7 @@ export function OrdersFilters({
           <SearchField label="Número da OS / Externa" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" />
           <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
-          <SearchField label="Número de série" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Digite o número de série" />
+          <SearchField label="Número de série / Equipamento" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Série, tipo, marca ou modelo" />
           <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por status" /></div>
           <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por situação" /></div>
           <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
