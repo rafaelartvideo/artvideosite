@@ -22,6 +22,7 @@ const envKey = (oldName: string, modernName: string) => {
 };
 async function signedBridge(
   channel: { id: string; organization_id: string }, bodyText: string, chatJid: string, clientId: string,
+  media?: {url:string;mime:string;name:string;type:string},
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -32,9 +33,10 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: "send_text",
+    action: media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
+    ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
   });
   const timestamp = String(Date.now());
   const nonce = crypto.randomUUID();
@@ -68,6 +70,8 @@ Deno.serve(async request => {
   const publicKey=envKey("SUPABASE_ANON_KEY","SUPABASE_PUBLISHABLE_KEYS");
   const privateKey=envKey("SUPABASE_SERVICE_ROLE_KEY","SUPABASE_SECRET_KEYS");
   const bearer=request.headers.get("Authorization") || "";
+  if(Number(request.headers.get("content-length")||"0")>8*1024*1024)
+    return json({success:false,error:"Arquivo maior que o limite permitido."},413);
   if (!baseUrl || !publicKey || !privateKey || !bearer.startsWith("Bearer ")) {
     return json({success:false,error:"Sessão indisponível."},401);
   }
@@ -78,7 +82,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || !uuid(conversationId) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","members","transfer"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -99,7 +103,7 @@ Deno.serve(async request => {
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
     if (!canRead || (["members","transfer"].includes(action) && !canManage) ||
-      (action==="send_text" && !canSend) ||
+      (["send_text","send_media"].includes(action) && !canSend) ||
       (action==="assume" && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
@@ -110,6 +114,26 @@ Deno.serve(async request => {
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(action==="media_view") {
+      const messageId=String(body.message_id||"");
+      if(!uuid(messageId)) return json({success:false,error:"Arquivo não encontrado."},404);
+      if(!(canManage || thread.assigned_to===actorId ||
+          (thread.status==="waiting" && !thread.assigned_to))) {
+        return json({success:false,error:"Sem acesso ao arquivo deste atendimento."},403);
+      }
+      const {data:mediaMessage,error:mediaError}=await admin.from("union_whatsapp_messages")
+        .select("media_path,media_name,media_mime")
+        .eq("id",messageId).eq("organization_id",org).eq("conversation_id",thread.id).maybeSingle();
+      if(mediaError) throw mediaError;
+      if(!mediaMessage?.media_path) return json({success:false,error:"Mídia não disponível para download."},404);
+      if(!mediaMessage.media_path.startsWith(org+"/"+thread.channel_id+"/"+thread.id+"/")) {
+        return json({success:false,error:"Arquivo inválido."},403);
+      }
+      const {data:link,error:linkError}=await admin.storage.from("union-whatsapp-media")
+        .createSignedUrl(mediaMessage.media_path,120);
+      if(linkError || !link?.signedUrl) throw linkError||Error("signed_url_unavailable");
+      return json({success:true,url:link.signedUrl,filename:mediaMessage.media_name,mime:mediaMessage.media_mime});
+    }
     if(action==="members" || action==="transfer") {
       // Same-company, active operators only. Never trust a client-provided
       // destination name, role or organization.
@@ -196,14 +220,41 @@ Deno.serve(async request => {
       if(!updated) return json({success:false,error:"Situação alterada por outro atendente."},409);
       return json({success:true});
     }
-    // From this point only send_text remains.
+    // From here only text or private attachment sending remains.
     if(thread.status !== "in_att" || (!owned && !canManage)) {
       return json({success:false,code:"not_assigned",error:"Assuma o atendimento antes de enviar mensagens."},409);
     }
     const text=typeof body.text === "string" ? body.text.trim() : "";
     const clientId=String(body.client_message_id || "");
-    if(!uuid(clientId) || !text || text.length>4000 || !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(thread.chat_jid)) {
-      return json({success:false,error:"Mensagem inválida."},400);
+    const isMedia=action==="send_media";
+    const kind=String(body.media_type||"");
+    const mime=String(body.media_mime||"");
+    const name=String(body.media_name||"").replace(/[\\/\\\\\\x00-\\x1f]/g,"").slice(0,160);
+    const base64=String(body.media_base64||"");
+    const limits:Record<string,number>={image:1048576,audio:3145728,video:5242880,file:5242880};
+    const mimeAllowed=isMedia && (
+      kind==="image" ? ["image/jpeg","image/png"].includes(mime)
+      : kind==="audio" ? ["audio/ogg","audio/opus"].includes(mime)
+      : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
+      : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream"].includes(mime) : false
+    );
+    if(!uuid(clientId) || text.length>4000 ||
+      (!isMedia && !text) || (isMedia && (!mimeAllowed || !name || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))) ||
+      !/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(thread.chat_jid)) {
+      return json({success:false,error:"Mensagem ou anexo inválido."},400);
+    }
+    let mediaBytes:Uint8Array<ArrayBuffer>|null=null;
+    if(isMedia) {
+      try {
+        const decoded=atob(base64);
+        if(!decoded.length || decoded.length>limits[kind]) return json({success:false,error:"Arquivo ultrapassa o limite permitido."},413);
+        mediaBytes=new Uint8Array(decoded.length);
+        for(let i=0;i<decoded.length;i++) mediaBytes[i]=decoded.charCodeAt(i);
+        if(mime==="image/png" && !(mediaBytes[0]===137 && mediaBytes[1]===80 && mediaBytes[2]===78 && mediaBytes[3]===71))
+          return json({success:false,error:"O arquivo PNG é inválido."},400);
+        if(mime==="image/jpeg" && !(mediaBytes[0]===255 && mediaBytes[1]===216))
+          return json({success:false,error:"O arquivo JPEG é inválido."},400);
+      } catch { return json({success:false,error:"Arquivo Base64 inválido."},400); }
     }
     const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
       .select("id,organization_id,state,webhook_ready").eq("id",thread.channel_id)
@@ -211,7 +262,7 @@ Deno.serve(async request => {
     if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready) {
       return json({success:false,code:"channel_offline",error:"O canal precisa estar conectado e com recebimento ativo."},409);
     }
-    const hash=await sha256(text);
+    const hash=isMedia && mediaBytes ? await sha256(text+":"+hex(await crypto.subtle.digest("SHA-256",mediaBytes))) : await sha256(text);
     const {data:attempt,error:attemptError}=await admin.from("union_whatsapp_send_attempts")
       .upsert({
         organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
@@ -233,13 +284,30 @@ Deno.serve(async request => {
     }
 
     let messageId="";
+    let mediaPath:string|null=null;
+    if(isMedia && mediaBytes) {
+      const ext=kind==="image" ? (mime==="image/png"?"png":"jpg") :
+        kind==="video"?"mp4" : kind==="audio"?"ogg" :
+        (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
+      mediaPath=org+"/"+thread.channel_id+"/"+thread.id+"/"+clientId+"."+ext;
+      const {error:uploadError}=await admin.storage.from("union-whatsapp-media").upload(
+        mediaPath,mediaBytes,{contentType:mime,upsert:false}
+      );
+      if(uploadError && !String(uploadError.message||"").includes("already exists")) throw uploadError;
+    }
+    let signedMedia:{url:string;mime:string;name:string;type:string}|undefined;
+    if(isMedia && mediaPath) {
+      const {data:shortLink,error:shortError}=await admin.storage.from("union-whatsapp-media")
+        .createSignedUrl(mediaPath,180);
+      if(shortError || !shortLink?.signedUrl) throw shortError||Error("signed_media_unavailable");
+      signedMedia={url:shortLink.signedUrl,mime,name,type:kind};
+    }
     try {
-      messageId=await signedBridge(channel,text,thread.chat_jid,clientId);
+      messageId=await signedBridge(channel,text,thread.chat_jid,clientId,signedMedia);
     } catch {
       await admin.from("union_whatsapp_send_attempts").update({
         status:"unknown",updated_at:new Date().toISOString(),
       }).eq("id",attempt.id);
-      // A timeout can happen AFTER the provider dispatches. Never replay it.
       return json({success:false,code:"delivery_unknown",
         error:"Não foi possível confirmar o envio. Verifique o WhatsApp antes de tentar novamente."},502);
     }
@@ -252,8 +320,9 @@ Deno.serve(async request => {
     const {data:message,error:insertError}=await admin.from("union_whatsapp_messages")
       .upsert({
         organization_id:org,channel_id:thread.channel_id,conversation_id:thread.id,
-        provider_message_id:messageId,direction:"outgoing",message_type:"text",
-        body_text:text,sender_name:senderName,sent_at:now,
+        provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
+        body_text:text,sender_name:senderName,sent_at:now,delivery_status:"sent",
+        media_path:mediaPath,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
       },{onConflict:"channel_id,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
     if(insertError) throw insertError;
@@ -266,7 +335,7 @@ Deno.serve(async request => {
     }
     if(!thread.last_message_at || new Date(now)>=new Date(thread.last_message_at)) {
       const {error:previewError}=await admin.from("union_whatsapp_conversations")
-        .update({last_message:text,last_message_at:now,updated_at:now})
+        .update({last_message:isMedia ? (text || ({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento"}[kind]||"Anexo")) : text,last_message_at:now,updated_at:now})
         .eq("id",thread.id).eq("organization_id",org);
       if(previewError) throw previewError;
     }
