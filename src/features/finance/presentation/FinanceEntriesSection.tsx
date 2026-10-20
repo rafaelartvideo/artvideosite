@@ -168,7 +168,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       {finance.entriesQuery.isLoading ? <div className="p-10"><LoadingState /></div> : finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
         <div className="overflow-hidden rounded-xl border border-border bg-card md:hidden">
           <div className="divide-y divide-border">
-            {entries.map(entry => <button key={entry.id} type="button" onClick={() => onSelectEntry(entry.id)}
+            {entries.map(entry => <div key={entry.id}><button type="button" onClick={() => onSelectEntry(entry.id)}
               className="block w-full p-4 text-left transition-colors hover:bg-muted/50">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{entry.description}</p>
@@ -185,7 +185,16 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <Badge tone="blue">{originText(entry)}</Badge>
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>
               </div>
-            </button>)}
+            </button>
+            <div className="flex justify-end border-t border-border/60 px-4 pb-2 pt-2">
+              <DropdownMenu><DropdownMenuTrigger asChild>
+                <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg border border-border"><MoreHorizontal size={17}/></button>
+              </DropdownMenuTrigger><DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => { setQuickSettlementId(null); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
+                {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { setQuickSettlementId(entry.id); onSelectEntry(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
+              </DropdownMenuContent></DropdownMenu>
+            </div>
+          </div>)}
           </div>
           {pagination}
         </div>
