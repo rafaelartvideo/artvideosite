@@ -268,6 +268,11 @@ Deno.serve(async request => {
       savedContact?.device_name ||
       (savedContact?.wuzapi_verified_saved?savedContact.imported_name:null) || "").trim();
     const timestamp = dateOf(get(info, "Timestamp", "timestamp"));
+    // Discard delayed/replayed messages from a pairing that ended before
+    // this number became the active account. Do not import old events into B.
+    const pairedAt=Date.parse(String(channel.last_connected_at||""));
+    if(Number.isFinite(pairedAt) && Date.parse(timestamp)+120_000<pairedAt)
+      return json({ok:true,ignored:"before_active_account_pairing"});
 
     const { error: ensureError } = await admin.from("union_whatsapp_conversations")
       .upsert({
