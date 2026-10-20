@@ -144,7 +144,7 @@ Deno.serve(async request => {
       const chatJid = str(jidValue,160) ||
         (str(get(jidObject,"User","user"),30) && str(get(jidObject,"Server","server"),40)
           ? str(get(jidObject,"User","user"),30)+"@"+str(get(jidObject,"Server","server"),40) : "");
-      if (!/^[0-9]{5,20}@(s\\.whatsapp\\.net|lid)$/.test(chatJid))
+      if (!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(chatJid))
         return json({ok:true,ignored:"invalid_receipt_chat"});
       const {data:conversation,error:conversationError}=await admin.from("union_whatsapp_conversations")
         .select("id").eq("organization_id",channel.organization_id)
