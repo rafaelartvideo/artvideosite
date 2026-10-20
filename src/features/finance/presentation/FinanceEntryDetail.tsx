@@ -66,8 +66,7 @@ function EntryDetailContent({
       <div className="border-b border-border bg-muted/30 px-5 py-5">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
           <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Extrato financeiro · Conta a {isReceivable ? "receber" : "pagar"}</p>
-            <h3 className="mt-2 break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
+            <h3 className="break-words text-lg font-bold leading-tight text-foreground">{detail.description}</h3>
             <p className="mt-1 text-sm text-muted-foreground">{detail.counterpart_name_snapshot || (isReceivable ? "Cliente não informado" : "Favorecido não informado")}</p>
             {detail.counterpart_document_snapshot && <p className="mt-1 text-xs tabular-nums text-muted-foreground">{formatFinancialDocument(detail.counterpart_document_snapshot)}</p>}
           </div>
