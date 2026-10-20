@@ -111,8 +111,10 @@ export function UnionWhatsAppContactsDialog({
     setBusy(true);setError("");setNotice("");
     try{
       const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_import");
-      setNotice((result.imported||0)+" contato(s) importado(s) do WuzAPI."+
-        (result.truncated?" A importação atingiu o limite de 2.000 registros por execução.":""));
+      setNotice(result.imported
+        ? result.imported+" contato(s) salvos importado(s) do WuzAPI. Perfis públicos e participantes não salvos foram ignorados."+
+          (result.truncated?" A importação atingiu o limite de 2.000 registros por execução.":"")
+        : "Nenhum contato salvo disponível no WuzAPI. Para trazer os nomes da agenda do celular, utilize Importar VCF.");
       setPage(0);
       await refresh(search,0);
       onSaved();
@@ -217,7 +219,7 @@ export function UnionWhatsAppContactsDialog({
               Importar VCF
             </button>
             <button type="button" disabled={busy} onClick={()=>void importContacts()}
-              title="Importar contatos disponíveis no WhatsApp conectado"
+              title="Importar somente os contatos salvos identificados pelo WhatsApp; não importar membros de grupos"
               className="flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/15 disabled:opacity-50">
               {busy?<LoaderCircle size={15} className="animate-spin"/>:<Download size={15}/>}
               WuzAPI
@@ -246,7 +248,7 @@ export function UnionWhatsAppContactsDialog({
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto">
             {loading && contacts.length===0 && <p className="p-4 text-center text-xs text-muted-foreground">Carregando contatos...</p>}
-            {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato encontrado. Você pode importar a agenda conectada ou cadastrar um novo contato.</p>}
+            {!loading && contacts.length===0 && <p className="p-5 text-center text-xs text-muted-foreground">Nenhum contato salvo encontrado. Importe a agenda do celular por VCF, sincronize os nomes salvos disponíveis no WuzAPI ou cadastre um contato. Participantes de grupos não entram automaticamente na agenda.</p>}
             {contacts.map(contact=>{
               const display=labelFor(contact);
               return <button type="button" key={contact.id} onClick={()=>choose(contact)}
