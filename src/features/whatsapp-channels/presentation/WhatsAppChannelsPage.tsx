@@ -5,6 +5,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
+import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
@@ -24,17 +25,20 @@ function formatPhone(value: string | null): string {
   return digits ? `+${digits}` : "—";
 }
 
-type ChannelSection = "configuration" | "connections";
+type ChannelSection = "configuration" | "connections" | "departments" | "queues" | "operators";
 const channelSections: Array<{ id: ChannelSection; label: string }> = [
   { id: "configuration", label: "Configuração do canal" },
   { id: "connections", label: "Conexões" },
+  { id: "departments", label: "Departamentos" },
+  { id: "queues", label: "Filas" },
+  { id: "operators", label: "Operadores" },
 ];
 
-export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => void; onOpenInbox?: () => void }) {
+export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration" }: { onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
   const canManage = hasPermission("settings.channels.manage");
-  const [section, setSection] = useState<ChannelSection>("configuration");
+  const [section, setSection] = useState<ChannelSection>(initialSection);
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
   const channelRef = useRef<WhatsAppChannel | null>(null);
   const [loading, setLoading] = useState(true);
@@ -263,7 +267,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
     </nav>
     {error && <div role="alert" className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-400">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-700 dark:text-emerald-400">{notice}</div>}
-    {loading ? <LoadingState text="Carregando canais..." /> : section === "configuration" ?
+    {loading && (section === "configuration" || section === "connections") ? <LoadingState text="Carregando canais..." /> : section === "configuration" ?
       <AdminCard>
         <AdminCardContent className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
@@ -306,7 +310,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => vo
               </AdminButton>
             </div>}
         </AdminCardContent>
-      </AdminCard> :
+      </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
+      <WhatsAppOperationsSettings section={section}/> :
       <AdminCard square>
         <div className="overflow-x-auto">
           <table className="min-w-[850px] w-full">
