@@ -1010,7 +1010,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       </div>
                       {item.status !== "sending" && <p className="mt-1 text-[10px] opacity-70">
                         Confira no WhatsApp antes de tentar outro envio.
-                      </p>
+                      </p>}
                     </div>
                   </div>)}
               </div>}
