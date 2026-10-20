@@ -8,6 +8,7 @@ export type WhatsAppChannel = {
   phone: string | null;
   last_checked_at: string | null;
   last_connected_at: string | null;
+  webhook_ready: boolean;
 };
 
 type ChannelResult = {
@@ -23,7 +24,7 @@ type ChannelResult = {
 
 export async function operateWhatsAppChannel(
   organizationId: string,
-  action: "list" | "register" | "provision" | "connect" | "status" | "qr" | "logout",
+  action: "list" | "register" | "provision" | "connect" | "status" | "qr" | "logout" | "webhook_setup",
   connectionId?: string,
 ): Promise<ChannelResult> {
   const { data, error } = await supabase.functions.invoke("whatsapp-channels", {
