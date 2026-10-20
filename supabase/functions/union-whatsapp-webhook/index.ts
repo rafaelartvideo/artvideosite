@@ -120,6 +120,19 @@ Deno.serve(async request => {
     // It NEVER inserts a conversation or stores a test message.
     if (payload.type === "UnionProbe") return json({ ok: true, probe: "authenticated" });
     const eventType = str(get(payload, "type", "Type", "event"), 60);
+    if(eventType==="Presence" || eventType==="events.Presence") {
+      const jid=str(get(payload,"from","From"),160);
+      const state=str(get(payload,"state","State"),30).toLowerCase();
+      if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid) ||
+        !["online","offline"].includes(state))
+        return json({ok:true,ignored:"unrecognized_presence"});
+      const {error:presenceError}=await admin.from("union_whatsapp_conversations")
+        .update({contact_presence:state,contact_presence_at:new Date().toISOString()})
+        .eq("organization_id",channel.organization_id)
+        .eq("channel_id",channelId).eq("chat_jid",jid);
+      if(presenceError)throw presenceError;
+      return json({ok:true});
+    }
     if (eventType === "ReadReceipt" || eventType === "events.ReadReceipt") {
       // WuzAPI serializes receipts as { type:"ReadReceipt", state:"Delivered"
       // | "Read" | "ReadSelf", event:{ MessageIDs, Chat, Sender, Type } }.
