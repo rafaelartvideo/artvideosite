@@ -37,7 +37,7 @@ import {
   Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { AdminSearchPanel } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -368,6 +368,7 @@ export function TabProducts({
   const [gtinSearch, setGtinSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [locationSearch, setLocationSearch] = useState("");
+  const [inventorySort, setInventorySort] = useState<"name_asc" | "name_desc" | "newest">("name_asc");
   const [mobileSearchField, setMobileSearchField] = useState<"name" | "gtin" | "category" | "location">("name");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
@@ -785,13 +786,15 @@ export function TabProducts({
     return matchesName && matchesGtin && matchesCategory && matchesLocation;
   });
 
-  filtered.sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }));
+  filtered.sort((a: any, b: any) => inventorySort === "newest"
+    ? String(b.created_at || "").localeCompare(String(a.created_at || ""))
+    : String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }) * (inventorySort === "name_desc" ? -1 : 1));
   const hasInventoryFilters = Boolean(nameSearch.trim() || gtinSearch.trim() || categoryFilter || locationSearch.trim());
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const pagedProducts = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  useEffect(() => { setPage(1); }, [nameSearch, gtinSearch, categoryFilter, locationSearch, activeOrganizationId]);
+  useEffect(() => { setPage(1); }, [nameSearch, gtinSearch, categoryFilter, locationSearch, inventorySort, activeOrganizationId]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const inventory = editItem?.inventory ?? null;
@@ -810,7 +813,14 @@ export function TabProducts({
         actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo item</AdminButton> : undefined}
       />
 
-      {canViewTable && <AdminSearchPanel title="Buscar no estoque">
+      {canViewTable && <AdminSearchPanel title="Buscar no estoque" headerActions={<>
+        {(hasInventoryFilters || inventorySort !== "name_asc") && <AdminSearchClearButton onClick={() => {
+          setNameSearch(""); setGtinSearch(""); setCategoryFilter(""); setLocationSearch("");
+          setInventorySort("name_asc"); setPage(1);
+        }} />}
+        <AdminSearchSortMenu value={inventorySort} onChange={setInventorySort}
+          options={[{ value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }]} />
+      </>}>
         <AdminMobileSearchSwitch
           value={mobileSearchField}
           options={[
@@ -871,22 +881,6 @@ export function TabProducts({
             placeholder="Estante, nível ou compartimento"
           />
         </div>
-        {hasInventoryFilters && <div className="mt-3 flex justify-end">
-          <AdminButton
-            variant="secondary"
-            size="sm"
-            onClick={() => {
-              setNameSearch("");
-              setGtinSearch("");
-              setCategoryFilter("");
-              setLocationSearch("");
-              setPage(1);
-            }}
-            className="bg-card"
-          >
-            <Eraser size={14} /> Limpar filtros
-          </AdminButton>
-        </div>}
       </AdminSearchPanel>}
 
       {canViewTable && <AdminCard>
