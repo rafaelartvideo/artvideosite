@@ -52,7 +52,6 @@ export function FinanceSettlementPanel({
 
   return <>
     <FinanceTableSurface>
-      <div className="overflow-x-auto">
         <table className="w-full min-w-[760px] text-sm">
           <thead className="border-b border-border bg-muted/50 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
             <tr>
@@ -98,7 +97,6 @@ export function FinanceSettlementPanel({
               </tr>)}
           </tbody>
         </table>
-      </div>
     </FinanceTableSurface>
 
     {detail.settlements.some(item => item.settlement_status === "scheduled") && <p className="flex items-start gap-2 text-xs text-muted-foreground"><Clock3 size={14} className="mt-0.5 shrink-0" />Baixas futuras reduzem o valor em aberto, mas só entram no saldo da conta quando a liquidação é confirmada.</p>}
