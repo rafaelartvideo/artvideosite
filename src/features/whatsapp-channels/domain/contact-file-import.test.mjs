@@ -59,7 +59,7 @@ test("CSV handles quoted names, accented names, commas, semicolons and line brea
 });
 
 test("Detects oversized datasets and protects the directory against partial guesses",()=>{
-  assert.throws(()=>parseContactTable([["Nome","DDI","Número"],["Rafael",55,"abc"]],5).entries.length===1,false);
+  assert.equal(parseContactTable([["Nome","DDI","Número"],["Rafael",55,"abc"]],5).invalidRows,1);
   const rows=[["Nome","Telefone"]];
   for(let i=0;i<20;i++)rows.push(["Contato "+i,"11"+String(900000000+i)]);
   const r=parseContactTable(rows,10);
