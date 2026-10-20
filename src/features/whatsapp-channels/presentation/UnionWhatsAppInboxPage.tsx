@@ -6,7 +6,7 @@ import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { WhatsAppOperationsSettings, type WhatsAppOperationsSection } from "./WhatsAppOperationsSettings";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
-import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -776,8 +776,27 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
   return <div className="space-y-5">
-    <PageHeader title="Atendimentos"
-      actions={<div className="flex items-center gap-2">
+    <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <h1 className="shrink-0 whitespace-nowrap text-lg font-black leading-tight text-foreground sm:text-2xl">Atendimentos</h1>
+        <span aria-hidden="true" className="h-8 w-px shrink-0 bg-border"/>
+        <nav aria-label="Canais de atendimento" className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
+
+      <button type="button" aria-current="page" aria-label="WhatsApp, canal selecionado"
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3.5 py-2 text-sm font-bold text-primary">
+        <WhatsAppIcon/> WhatsApp
+      </button>
+      <button type="button" disabled aria-label="Instagram, em breve" title="Instagram · Em breve"
+        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
+        <Instagram size={19}/> Instagram
+      </button>
+      <button type="button" disabled aria-label="Facebook, em breve" title="Facebook · Em breve"
+        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
+        <Facebook size={19}/> Facebook
+      </button>
+    </nav>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
         {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || canManage) &&
           <div ref={settingsMenuRef} className="relative">
             <button type="button" aria-label="Configurações dos atendimentos" aria-haspopup="menu"
@@ -809,21 +828,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>}
           </div>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
-      </div>} />
-    <nav aria-label="Canais de atendimento" className="flex flex-wrap items-center gap-2 border-b border-border pb-3">
-      <button type="button" aria-current="page" aria-label="WhatsApp, canal selecionado"
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary/35 bg-primary/10 px-3.5 py-2 text-sm font-bold text-primary">
-        <WhatsAppIcon/> WhatsApp
-      </button>
-      <button type="button" disabled aria-label="Instagram, em breve" title="Instagram · Em breve"
-        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
-        <Instagram size={19}/> Instagram
-      </button>
-      <button type="button" disabled aria-label="Facebook, em breve" title="Facebook · Em breve"
-        className="inline-flex min-h-10 cursor-not-allowed items-center gap-2 rounded-lg border border-border px-3.5 py-2 text-sm font-semibold text-muted-foreground opacity-65">
-        <Facebook size={19}/> Facebook
-      </button>
-    </nav>
+      </div>
+    </header>
     {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
