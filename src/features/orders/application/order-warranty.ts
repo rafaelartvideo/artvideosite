@@ -42,7 +42,7 @@ export async function printWarrantyCertificate(cert:WarrantyCertificate,popup?:W
   const exclusions='<ul><li>Danos novos não relacionados ao reparo, como mau uso, quedas, umidade, surtos elétricos ou desgaste natural, não integram a garantia contratual.</li><li>Intervenção de terceiros será avaliada quanto à relação com o defeito reclamado.</li><li>Os direitos previstos na legislação consumerista e as garantias legais permanecem preservados.</li></ul>';
   const body='<header>'+logo+'<div class="seal"><span>✦</span><b>GARANTIA</b><small>DO SERVIÇO</small><span>★ ★ ★</span></div></header>'+
    '<h1>CERTIFICADO DE GARANTIA</h1><p class="subtitle">Emitido após a conclusão da Ordem de Serviço</p>'+
-   '<div class="summary">'+info("Certificado",code)+info("OS vinculada",String(d.os_number||"—"))+info("Início",br(cert.starts_at))+info("Validade",br(cert.expires_at))+'</div>'+
+   '<div class="summary">'+info("Certificado",code)+info("OS vinculada",String(d.os_number||"—"))+info("Emissão",new Intl.DateTimeFormat("pt-BR",{timeZone:"America/Sao_Paulo"}).format(new Date(cert.issued_at)))+info("Validade",br(cert.expires_at))+'</div>'+
    '<div class="columns">'+panel("DADOS DO CLIENTE",client)+panel("DADOS DO EQUIPAMENTO",equipment)+'</div>'+
    panel("SERVIÇO EXECUTADO",'<p class="description">'+service+'</p>')+
    panel("MODALIDADE E PRAZO DA GARANTIA",warranty)+
