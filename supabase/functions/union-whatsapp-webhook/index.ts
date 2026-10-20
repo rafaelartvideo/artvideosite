@@ -120,6 +120,27 @@ Deno.serve(async request => {
     // It NEVER inserts a conversation or stores a test message.
     if (payload.type === "UnionProbe") return json({ ok: true, probe: "authenticated" });
     const eventType = str(get(payload, "type", "Type", "event"), 60);
+    if (eventType === "ReadReceipt" || eventType === "events.ReadReceipt") {
+      const receipt = obj(get(payload, "data", "Data") ?? get(payload, "event", "Event"));
+      const ids = get(receipt, "ids", "IDs", "messageIds", "MessageIDs");
+      if (!Array.isArray(ids)) return json({ok:true,ignored:"invalid_receipt"});
+      const uniqueIds = [...new Set(ids.filter(id => typeof id === "string" && id.length > 0 && id.length <= 180))].slice(0,100);
+      if (!uniqueIds.length) return json({ok:true,ignored:"empty_receipt"});
+      const kind = str(get(receipt, "type", "status", "Type", "Status"), 40).toLowerCase();
+      const read = ["", "read", "readreceipt", "read_receipt"].includes(kind);
+      const delivered = ["delivered", "delivery"].includes(kind);
+      if (read || delivered) {
+        let query = admin.from("union_whatsapp_messages")
+          .update({delivery_status:read ? "read" : "delivered"})
+          .eq("organization_id",channel.organization_id).eq("channel_id",channelId)
+          .eq("direction","outgoing").in("provider_message_id",uniqueIds);
+        // Never downgrade a read acknowledgement to delivered.
+        if (delivered) query = query.neq("delivery_status","read");
+        const {error:receiptError} = await query;
+        if (receiptError) throw receiptError;
+      }
+      return json({ok:true});
+    }
     if (eventType !== "Message" && eventType !== "events.Message") return json({ ok: true, ignored: "event_type" });
 
     // WuzAPI versions expose either {type:"Message",event:{Info,Message}}
@@ -185,6 +206,7 @@ Deno.serve(async request => {
         organization_id: org, channel_id: channelId, conversation_id: thread.id,
         provider_message_id: providerMessageId, direction: isFromMe ? "outgoing" : "incoming",
         message_type: typeHint, body_text: body, sender_name: name || null, sent_at: timestamp,
+        delivery_status: isFromMe ? "sent" : null,
       }, { onConflict: "channel_id,provider_message_id", ignoreDuplicates: true })
       .select("id").maybeSingle();
     if (messageError) throw messageError;
