@@ -297,7 +297,7 @@ export function AdminDashboard({
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
     ] : []),
     ...(canAccessWhatsAppTool ? [
-      { id: "union-whatsapp", label: "Atendimento WhatsApp", icon: MessageSquare, description: "Caixa de entrada própria da Union com o visual do SAC Digital.", href: null },
+      { id: "union-whatsapp", label: "Atendimentos", icon: MessageSquare, description: "Central de atendimento por canais, começando pelo WhatsApp.", href: null },
     ] : []),
     ...(canAccessMarketplaceTool ? [
       { id: "marketplace", label: "Marketplace Union", icon: Store, description: isPlatformOperatorOrganization ? "Modere lojas, anúncios e categorias do marketplace." : "Configure sua loja e gerencie serviços e produtos publicados.", href: null },
@@ -368,7 +368,7 @@ export function AdminDashboard({
       ? canAccessWhatsAppTool
         ? <UnionWhatsAppInboxPage
           onBack={() => navigateAdmin("tools")}
-          onConfigure={section => navigate(`${adminPath("integrations")}?channels=1${section ? `&section=${encodeURIComponent(section)}` : ""}`)}
+          onConfigure={() => navigate(`${adminPath("integrations")}?channels=1`)}
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
             : undefined}
