@@ -24,7 +24,7 @@ const initials = (text: string) => {
   return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || "?").slice(0, 2)).toUpperCase();
 };
 const brazilNumberDigits = (raw: string) => {
-  const digits=raw.replace(/\\D/g, "");
+  const digits=raw.replace(/\D/g, "");
   const national=digits.startsWith("55") && digits.length>11 ? digits.slice(2) : digits;
   return national.slice(0,11);
 };
