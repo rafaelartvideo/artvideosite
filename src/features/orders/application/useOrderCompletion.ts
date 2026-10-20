@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
+import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate, type WarrantyOption } from "./order-warranty";
 import {
   completeServiceOrderWithFinance,
   getOrderCompletionFinanceOptions,
@@ -140,6 +141,10 @@ export function useOrderCompletion({
   const [commercialItems, setCommercialItems] = useState<OrderCommercialItem[]>([]);
   const [commercialItemsLoading, setCommercialItemsLoading] = useState(false);
   const [commercialItemsError, setCommercialItemsError] = useState("");
+  const [warrantyOptions, setWarrantyOptions] = useState<WarrantyOption[]>([]);
+  const [warrantyOptionId, setWarrantyOptionId] = useState("");
+  const [warrantyLoading, setWarrantyLoading] = useState(false);
+  const [warrantyError, setWarrantyError] = useState("");
 
   const financeEnabled = financeOptions.finance_enabled;
   const commercialPricing = Boolean(detail?.commercial_pricing_enabled);
@@ -233,6 +238,20 @@ export function useOrderCompletion({
     }
   };
 
+  const loadWarrantyOptions = async (organizationId: string, equipmentTypeId?: string) => {
+    setWarrantyLoading(true);
+    setWarrantyError("");
+    setWarrantyOptions([]);
+    setWarrantyOptionId("");
+    try {
+      const all = await listWarrantyOptions(organizationId);
+      const matching = all.filter(option => option.equipment_type_id === equipmentTypeId);
+      setWarrantyOptions(matching);
+      setWarrantyOptionId((matching.find(option => option.is_default) || matching[0])?.id || "");
+    } catch (error) { setWarrantyError(formatError(error)); }
+    finally { setWarrantyLoading(false); }
+  };
+
   const loadFinanceOptions = async (organizationId: string) => {
     setFinanceOptionsLoading(true);
     setFinanceOptionsError("");
@@ -302,7 +321,10 @@ export function useOrderCompletion({
     const targetOrderId = target?.id || detail?.id;
     if (targetOrderId) void loadCommercialItems(String(targetOrderId));
     const organizationId = target?.organization_id || detail?.organization_id;
-    if (organizationId) void loadFinanceOptions(String(organizationId));
+    if (organizationId) {
+      void loadFinanceOptions(String(organizationId));
+      void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
+    }
   };
 
   const setDiscountMode = (mode: OrderCompletionDiscountMode) => {
@@ -379,7 +401,7 @@ export function useOrderCompletion({
     return { installments: installmentPayload, payments };
   };
 
-  const submit = async () => {
+  const submit = async (generateCertificate = false) => {
     if (!detail?.id || discountExceedsMax || discountExceedsServicePrice || Boolean(servicePriceValidationMessage) || financeOptionsLoading || commercialItemsLoading) return;
     if (commercialPricing && commercialItemsError) {
       showToast({ msg: `Não foi possível validar os Produtos e Serviços da OS: ${commercialItemsError}`, type: "error" });
@@ -390,6 +412,12 @@ export function useOrderCompletion({
       return;
     }
 
+    if (generateCertificate && (warrantyLoading || warrantyError)) {
+      showToast({ msg: warrantyError || "Carregando opções de garantia.", type: "error" });
+      return;
+    }
+    // Reserva janela durante o clique, antes da operação assíncrona.
+    const printWindow = generateCertificate ? window.open("", "_blank", "width=960,height=830") : null;
     setSaving(true);
     try {
       const priceOverride = commercialPricing ? null : priceAtCompletion ? servicePrice : null;
@@ -403,10 +431,23 @@ export function useOrderCompletion({
       setOrders(current => current.map(order => order.id === detail.id ? { ...order, ...financial } : order));
       setOpen(false);
       showToast({ msg: financeEnabled ? "OS concluída e integrada ao Financeiro com sucesso." : "OS concluída com sucesso.", type: "success" });
+      if (generateCertificate) {
+        try {
+          const certificate = await issueWarrantyCertificate(
+            String(detail.organization_id), String(detail.id), warrantyOptionId || null,
+          );
+          showToast({ msg: "Certificado de garantia gerado. Disponível em Imprimir > Certificado de garantia.", type: "success" });
+          if (printWindow) await printWarrantyCertificate(certificate, printWindow);
+        } catch (certificateError) {
+          printWindow?.close();
+          showToast({ msg: "A OS foi concluída, mas o certificado não pôde ser gerado: " + formatError(certificateError) + ". É possível tentar novamente em Imprimir.", type: "error" });
+        }
+      }
       void reloadOrders().catch(error => {
         console.warn("[OS] Falha ao atualizar a lista após conclusão:", error);
       });
     } catch (error) {
+      printWindow?.close();
       showToast({ msg: `Não foi possível concluir a OS: ${formatError(error)}`, type: "error" });
     } finally {
       setSaving(false);
@@ -422,6 +463,7 @@ export function useOrderCompletion({
     installmentTotal, installmentDifference, totalPaidNow, openAmount,
     financeOptions, financeOptionsLoading, financeOptionsError, financeValidationMessage,
     commercialItems, commercialItemsLoading, commercialItemsError,
+    warrantyOptions, warrantyOptionId, setWarrantyOptionId, warrantyLoading, warrantyError,
     reloadCommercialItems: () => detail?.id ? loadCommercialItems(String(detail.id)) : Promise.resolve(),
     openCompletion, submit,
   };
