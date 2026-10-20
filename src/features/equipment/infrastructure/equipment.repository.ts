@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import { slugify } from "@/shared/domain/formatters";
+import { saveWarrantyOptions } from "@/features/orders/application/order-warranty";
 import { saveEquipmentChecklistConfiguration } from "@/features/checklists/infrastructure/checklists.repository";
 import type { EquipmentCatalog, EquipmentDraft } from "../domain/equipment";
 
@@ -407,6 +408,9 @@ export async function saveEquipmentHierarchy(drafts: EquipmentDraft[], catalog: 
     // Unedited or unavailable catalog links must never be removed accidentally.
     if (type.serviceIds !== undefined) {
       await saveEquipmentServiceLinks(typeId, type.serviceIds, organizationId);
+    }
+    if (type.warrantyEdited && type.warrantyOptions !== undefined) {
+      await saveWarrantyOptions(organizationId, typeId, type.warrantyOptions);
     }
 
     const previousChecklistItems = (catalog.equipmentChecklistItems ?? []).filter(item => item.equipment_type_id === type.id);
