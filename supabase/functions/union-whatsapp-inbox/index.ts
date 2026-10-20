@@ -394,14 +394,34 @@ Deno.serve(async request => {
       if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready)
         return json({success:false,error:"Conecte o canal WhatsApp antes de iniciar uma conversa."},409);
       const jid=phone+"@s.whatsapp.net";
+      const {data:knownContact,error:knownError}=await admin.from("union_whatsapp_contacts")
+        .select("display_name,imported_name,profile_name")
+        .eq("organization_id",org).eq("channel_id",channel.id)
+        .eq("chat_jid",jid).maybeSingle();
+      if(knownError)throw knownError;
+      const preferredName=customerName || knownContact?.display_name ||
+        knownContact?.imported_name || knownContact?.profile_name || phone;
+      const persistManualName=async()=>{
+        if(!customerName)return;
+        const {error:contactError}=await admin.from("union_whatsapp_contacts").upsert({
+          organization_id:org,channel_id:channel.id,chat_jid:jid,
+          contact_phone:phone,display_name:customerName,updated_at:new Date().toISOString(),
+        },{onConflict:"channel_id,chat_jid"});
+        if(contactError)throw contactError;
+        const {error:renameError}=await admin.from("union_whatsapp_conversations")
+          .update({contact_name:customerName})
+          .eq("organization_id",org).eq("channel_id",channel.id).eq("chat_jid",jid);
+        if(renameError)throw renameError;
+      };
       const {data:created,error:createError}=await admin.from("union_whatsapp_conversations")
         .upsert({organization_id:org,channel_id:channel.id,chat_jid:jid,
-          contact_name:customerName||phone,contact_phone:phone,
+          contact_name:preferredName,contact_phone:phone,
           status:"in_att",assigned_to:actorId,
         },{onConflict:"channel_id,chat_jid",ignoreDuplicates:true})
         .select("id").maybeSingle();
       if(createError) throw createError;
       if(created) {
+        await persistManualName();
         await admin.from("union_whatsapp_handoffs").insert({
           organization_id:org,conversation_id:created.id,actor_id:actorId,action:"start"
         });
@@ -411,8 +431,10 @@ Deno.serve(async request => {
         .select("id,status,assigned_to").eq("organization_id",org)
         .eq("channel_id",channel.id).eq("chat_jid",jid).single();
       if(existingError) throw existingError;
-      if(existing.status==="in_att" && existing.assigned_to===actorId)
+      if(existing.status==="in_att" && existing.assigned_to===actorId) {
+        await persistManualName();
         return json({success:true,conversation_id:existing.id,already_open:true});
+      }
       if(existing.status==="in_att" && existing.assigned_to!==actorId)
         return json({success:false,error:"Este cliente já está em atendimento com outro funcionário."},409);
       // Starting a conversation with an existing closed number resumes
@@ -425,6 +447,7 @@ Deno.serve(async request => {
         .select("id").maybeSingle();
       if(claimError) throw claimError;
       if(!claimed) return json({success:false,error:"A conversa foi assumida por outro funcionário."},409);
+      await persistManualName();
       await admin.from("union_whatsapp_handoffs").insert({
         organization_id:org,conversation_id:claimed.id,actor_id:actorId,action:"start"
       });
@@ -560,35 +583,45 @@ Deno.serve(async request => {
       } catch {return json({success:true,avatar_url:null});}
     }
     if(action==="resolve_contact") {
-      if(!(canManage || thread.assigned_to===actorId ||
-        (thread.status==="waiting" && !thread.assigned_to)))
-        return json({success:false,error:"Conversa não disponível para consulta."},403);
-      try {
+      const {data:known,error:knownError}=await admin.from("union_whatsapp_contacts")
+        .select("display_name,imported_name,profile_name")
+        .eq("organization_id",org).eq("channel_id",thread.channel_id)
+        .eq("chat_jid",thread.chat_jid).maybeSingle();
+      if(knownError)throw knownError;
+      const authoritative=String(known?.display_name||known?.imported_name||"").trim();
+      const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
+        .select("contact_name,contact_phone").eq("id",thread.id)
+        .eq("organization_id",org).maybeSingle();
+      if(existingError)throw existingError;
+      const current=String(existing?.contact_name||"").trim();
+      const placeholder=!current || current==="Contato WhatsApp" ||
+        (existing?.contact_phone && current===existing.contact_phone) ||
+        (known?.profile_name && current===known.profile_name);
+      if(authoritative){
+        if(current!==authoritative && (known?.display_name || placeholder)){
+          const {error:writeError}=await admin.from("union_whatsapp_conversations")
+            .update({contact_name:authoritative})
+            .eq("id",thread.id).eq("organization_id",org);
+          if(writeError)throw writeError;
+        }
+        return json({success:true,contact_name:known?.display_name||(!placeholder?current:authoritative)});
+      }
+      if(!placeholder)return json({success:true,contact_name:current});
+      try{
         const value=await signedBridge(
           {id:thread.channel_id,organization_id:org},"",thread.chat_jid,crypto.randomUUID(),
           undefined,undefined,true
         );
-        const separator=value.indexOf(":");
-        const source=separator>=0?value.slice(0,separator):"";
-        const candidate=separator>=0?value.slice(separator+1).trim():"";
-        const {data:existing}=await admin.from("union_whatsapp_conversations")
-          .select("contact_name,contact_phone").eq("id",thread.id).eq("organization_id",org).maybeSingle();
-        const current=String(existing?.contact_name||"").trim();
-        const placeholder=!current || current==="Contato WhatsApp" ||
-          (existing?.contact_phone && current===existing.contact_phone);
-        // Phone owner-saved address-book names win over WuzAPI outgoing
-        // PushName. Public PushName only fills placeholder names.
-        if(candidate && candidate!==current && (source==="saved" || placeholder)) {
-          const {error:writeError}=await admin.from("union_whatsapp_conversations")
-            .update({contact_name:candidate,updated_at:new Date().toISOString()})
-            .eq("id",thread.id).eq("organization_id",org);
-          if(writeError) throw writeError;
+        const cut=value.indexOf(":");
+        const candidate=cut>=0?value.slice(cut+1).trim():"";
+        if(candidate && candidate!==current){
+          const {error}=await admin.from("union_whatsapp_conversations")
+            .update({contact_name:candidate}).eq("id",thread.id).eq("organization_id",org);
+          if(error)throw error;
           return json({success:true,contact_name:candidate});
         }
-        return json({success:true,contact_name:current});
-      } catch {
-        return json({success:true});
-      }
+      }catch{/* Directory unavailability cannot block the inbox. */}
+      return json({success:true,contact_name:current});
     }
     if(action==="media_view") {
       const messageId=String(body.message_id||"");
