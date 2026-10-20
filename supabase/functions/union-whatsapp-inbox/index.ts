@@ -24,6 +24,7 @@ async function signedBridge(
   channel: { id: string; organization_id: string }, bodyText: string, chatJid: string, clientId: string,
   media?: {url:string;mime:string;name:string;type:string},
   download?: {url:string;key:string;sha:string;encSha:string;length:number;mime:string;type:string},
+  lookup = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -34,7 +35,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: download ? "download_media" : media ? "send_media" : "send_text",
+    action: lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
@@ -59,6 +60,11 @@ async function signedBridge(
     });
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
+    if (lookup) {
+      const name=typeof result.name==="string" ? result.name.trim().slice(0,160) : "";
+      const source=result.source==="saved" ? "saved" : "push";
+      return source+":"+name;
+    }
     if (download) {
       if(typeof result.base64 !== "string" ||
         result.base64.length > 7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(result.base64))
@@ -91,7 +97,7 @@ Deno.serve(async request => {
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
     if (!uuid(org) || (!["start","channel_status"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media"].includes(action)) {
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -169,6 +175,37 @@ Deno.serve(async request => {
       .eq("id",conversationId).eq("organization_id",org).maybeSingle();
     if(threadError) throw threadError;
     if(!thread) return json({success:false,error:"Conversa não encontrada nesta empresa."},404);
+    if(action==="resolve_contact") {
+      if(!(canManage || thread.assigned_to===actorId ||
+        (thread.status==="waiting" && !thread.assigned_to)))
+        return json({success:false,error:"Conversa não disponível para consulta."},403);
+      try {
+        const value=await signedBridge(
+          {id:thread.channel_id,organization_id:org},"",thread.chat_jid,crypto.randomUUID(),
+          undefined,undefined,true
+        );
+        const separator=value.indexOf(":");
+        const source=separator>=0?value.slice(0,separator):"";
+        const candidate=separator>=0?value.slice(separator+1).trim():"";
+        const {data:existing}=await admin.from("union_whatsapp_conversations")
+          .select("contact_name,contact_phone").eq("id",thread.id).eq("organization_id",org).maybeSingle();
+        const current=String(existing?.contact_name||"").trim();
+        const placeholder=!current || current==="Contato WhatsApp" ||
+          (existing?.contact_phone && current===existing.contact_phone);
+        // Phone owner-saved address-book names win over WuzAPI outgoing
+        // PushName. Public PushName only fills placeholder names.
+        if(candidate && candidate!==current && (source==="saved" || placeholder)) {
+          const {error:writeError}=await admin.from("union_whatsapp_conversations")
+            .update({contact_name:candidate,updated_at:new Date().toISOString()})
+            .eq("id",thread.id).eq("organization_id",org);
+          if(writeError) throw writeError;
+          return json({success:true,contact_name:candidate});
+        }
+        return json({success:true,contact_name:current});
+      } catch {
+        return json({success:true});
+      }
+    }
     if(action==="media_view") {
       const messageId=String(body.message_id||"");
       if(!uuid(messageId)) return json({success:false,error:"Arquivo não encontrado."},404);
