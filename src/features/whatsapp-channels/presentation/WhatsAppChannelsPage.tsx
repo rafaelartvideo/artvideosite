@@ -16,7 +16,7 @@ const stateLabels: Record<WhatsAppChannel["state"], string> = {
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
 
-export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
+export function WhatsAppChannelsPage({ onBack, onOpenInbox }: { onBack: () => void; onOpenInbox?: () => void }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
   const canManage = hasPermission("settings.channels.manage");
@@ -179,7 +179,7 @@ export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
     return () => window.clearInterval(timer);
   }, [syncOpen]);
 
-  const perform = useCallback(async (operation: "register" | "provision" | "status" | "qr" | "logout") => {
+  const perform = useCallback(async (operation: "register" | "provision" | "status" | "qr" | "logout" | "webhook_setup") => {
     if (!activeOrganizationId || (!canManage && operation !== "status") || action) return;
     setAction(operation);
     setError("");
@@ -189,6 +189,7 @@ export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
       if (result.channel) applyChannel(result.channel);
       if (operation === "qr") setQr(result.qr || null);
       if (operation === "register") setNotice("Canal cadastrado para esta empresa.");
+      if (operation === "webhook_setup") setNotice("Recebimento de mensagens ativado. Abra a caixa de entrada para acompanhar os eventos.");
       if (operation === "provision") setNotice("Sessão preparada na VPS. Você já pode conectar o WhatsApp.");
       if (operation === "logout") {
         setQr(null);
@@ -292,11 +293,17 @@ export function WhatsAppChannelsPage({ onBack }: { onBack: () => void }) {
             {statusError && <div role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-xs text-red-600 dark:text-red-400">
               <CircleAlert size={16} className="shrink-0"/>{statusError}
             </div>}
+            {channel.state === "connected" && <div role="status" className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${channel.webhook_ready ? "border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-300" : "border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-300"}`}>
+              {channel.webhook_ready ? <ShieldCheck size={16}/> : <CircleAlert size={16}/>}
+              {channel.webhook_ready ? "Recebimento de mensagens ativo" : "Recebimento de mensagens ainda não configurado"}
+            </div>}
             <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
               {canManage && channel.state === "not_connected" && <AdminButton disabled={Boolean(action)} loading={action === "provision"} onClick={() => void perform("provision")}>Preparar sessão</AdminButton>}
               {canManage && channel.state !== "connected" && channel.state !== "not_connected" && <AdminButton disabled={Boolean(action)} onClick={() => void openQr()}><QrCode size={16}/> Conectar QR Code</AdminButton>}
               {canManage && channel.state === "connecting" && <AdminButton variant="tertiary" onClick={startSyncing}><LoaderCircle size={16}/> Acompanhar sincronização</AdminButton>}
               <AdminButton variant="secondary" disabled={Boolean(action)} loading={action === "status"} onClick={() => void perform("status")}><RefreshCw size={16}/> Atualizar estado</AdminButton>
+              {canManage && channel.state === "connected" && !channel.webhook_ready && <AdminButton loading={action === "webhook_setup"} disabled={Boolean(action)} onClick={() => void perform("webhook_setup")}><MessageCircle size={16}/> Ativar recebimento</AdminButton>}
+              {onOpenInbox && channel.webhook_ready && <AdminButton disabled={Boolean(action)} onClick={onOpenInbox}><MessageCircle size={16}/> Abrir conversas</AdminButton>}
               {canManage && channel.state === "connected" && <AdminButton variant="danger" disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}><Unplug size={16}/> Desconectar</AdminButton>}
             </div>
           </>}
