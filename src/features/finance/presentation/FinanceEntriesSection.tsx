@@ -358,9 +358,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               decisionPending={finance.decisionMutation.isPending}
               decisionError={finance.decisionMutation.error}
               settlementPending={finance.settlementMutation.isPending}
-              confirmSettlementPending={finance.confirmSettlementMutation.isPending}
               reverseSettlementPending={finance.reverseSettlementMutation.isPending}
-              settlementError={finance.settlementMutation.error || finance.confirmSettlementMutation.error || finance.reverseSettlementMutation.error}
+              settlementError={finance.settlementMutation.error || finance.reverseSettlementMutation.error}
               onBack={() => onSelectEntry(null)}
               onEdit={() => {
                 setCounterpartySearch("");
@@ -370,7 +369,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               onApprove={async () => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "approve" }); }}
               onReject={async note => { await finance.decisionMutation.mutateAsync({ id: finance.detailQuery.data!.id, action: "reject", note }); }}
               onRegisterSettlement={async (draft: FinancialSettlementDraft) => { await finance.settlementMutation.mutateAsync(draft); }}
-              onConfirmSettlement={async settlementId => { await finance.confirmSettlementMutation.mutateAsync({ settlementId }); }}
               onReverseSettlement={async (settlementId, reason) => { await finance.reverseSettlementMutation.mutateAsync({ settlementId, reason }); }}
             />
             : <p className="text-sm text-muted-foreground">Conta não encontrada.</p>}
