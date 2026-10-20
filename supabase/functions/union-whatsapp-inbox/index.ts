@@ -332,7 +332,16 @@ Deno.serve(async request => {
           .select("id").eq("organization_id",org).eq("channel_id",channel.id)
           .eq("chat_jid",jid).maybeSingle();
         if(knownError)throw knownError;
-        if(!known)return json({success:false,error:"Contato não encontrado neste canal."},404);
+        if(!known){
+          // Editing an existing conversation also needs its avatar, even if
+          // the participant was never saved in the contact directory.
+          const {data:thread,error:threadError}=await admin
+            .from("union_whatsapp_conversations").select("id")
+            .eq("organization_id",org).eq("channel_id",channel.id)
+            .eq("chat_jid",jid).maybeSingle();
+          if(threadError)throw threadError;
+          if(!thread)return json({success:false,error:"Contato não encontrado neste canal."},404);
+        }
         try{
           const photo=await signedBridge({id:channel.id,organization_id:org},
             "",jid,crypto.randomUUID(),undefined,undefined,false,true);
@@ -340,17 +349,14 @@ Deno.serve(async request => {
         }catch{return json({success:true,avatar_url:null});}
       }
       if(action==="contacts_list") {
-        // Populate the management view from existing conversations without
-        // changing any manually saved or previously imported contact.
-        const {error:seedError}=await admin.rpc("union_whatsapp_seed_contacts",{
-          p_organization:org,p_channel:channel.id,
-        });
-        if(seedError)throw seedError;
+        // Contacts is a saved directory, NOT every person encountered in
+        // conversations, group members, or the WhatsApp profile cache.
         const page=Math.min(40,Math.max(0,Number(body.page)||0));
         const search=String(body.search||"").trim().replace(/[^\p{L}\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
-          .eq("organization_id",org).eq("channel_id",channel.id);
+          .eq("organization_id",org).eq("channel_id",channel.id)
+          .or("display_name.not.is.null,device_name.not.is.null,imported_name.not.is.null");
         if(search){
           const term=search.replace(/[%,]/g,"");
           q=q.or("display_name.ilike.%"+term+"%,device_name.ilike.%"+term+
@@ -431,11 +437,18 @@ Deno.serve(async request => {
         exported=JSON.parse(result);
       }catch{return json({success:false,error:"Não foi possível ler a agenda do WhatsApp. Confira se a ponte da VPS está atualizada."},502);}
       if(!Array.isArray(exported))return json({success:false,error:"Formato de contatos não reconhecido."},502);
+      // Reject old bridge versions rather than import public names as saved.
+      // The bridge must only mark FullName/FirstName contacts as verified.
+      if(exported.some(item=>!item || typeof item!=="object" ||
+        (item as Record<string,unknown>).saved_in_address_book!==true))
+        return json({success:false,error:"Atualize a ponte WuzAPI da VPS antes de importar contatos. A versão anterior inclui pessoas de grupos."},409);
       const mapped=exported.slice(0,2000).flatMap(item=>{
         const row=item&&typeof item==="object"?item as Record<string,unknown>:{};
         const jid=String(row.jid||"");
         if(!/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(jid))return [];
         const safe=(value:unknown)=>String(value||"").trim().slice(0,160);
+        // Public PushName and the business profile never count as saved.
+        if(!safe(row.imported_name))return [];
         return [{
           organization_id:org,channel_id:channel.id,chat_jid:jid,
           contact_phone:jid.endsWith("@s.whatsapp.net")?jid.split("@")[0]:null,
