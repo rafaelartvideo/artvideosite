@@ -8,7 +8,7 @@ BASE=/opt/union-wuzapi-bridge
 SOURCE_ENV=/opt/union-wuzapi/.env
 UNIT=/etc/systemd/system/union-wuzapi-bridge.service
 # Pinned to a reviewed source commit, not the mutable main branch.
-COMMIT=6167071981599b07fbad0c85ffa530419ddfa7be
+COMMIT=4b0d52a49cd5d5992449bd79ed72ca07b7a19908
 URL="https://raw.githubusercontent.com/rafaelartvideo/artvideosite/${COMMIT}/services/union-wuzapi-bridge/server.mjs"
 
 if [ ! -r "$SOURCE_ENV" ]; then echo "Arquivo privado do WuzAPI não encontrado."; exit 1; fi
