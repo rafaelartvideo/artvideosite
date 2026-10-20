@@ -15,14 +15,25 @@ if [ ! -r "$SOURCE_ENV" ]; then echo "Arquivo privado do WuzAPI não encontrado.
 command -v curl >/dev/null
 command -v python3 >/dev/null
 command -v systemctl >/dev/null
-command -v node >/dev/null
-NODE_BIN="$(command -v node)"
-NODE_REAL="$(readlink -f "$NODE_BIN")"
-NODE_MAJOR="$(node -p 'Number(process.versions.node.split(".")[0])')"
-if [ "$NODE_MAJOR" -lt 20 ] || [[ "$NODE_REAL" == /root/* ]]; then
-  echo "É necessário Node.js 20+ instalado fora de /root, disponível para o serviço systemd."
-  exit 1
-fi
+command -v sha256sum >/dev/null
+command -v tar >/dev/null
+
+# Use an isolated Node.js LTS runtime. Do not modify /usr/bin/node, nvm,
+# npm, PM2, system PATH, or the Zappro service.
+NODE_VERSION="v24.22.0"
+case "$(uname -m)" in
+  x86_64|amd64) NODE_ARCH=x64 ;;
+  aarch64|arm64) NODE_ARCH=arm64 ;;
+  *) echo "Arquitetura Linux não suportada para o Node.js isolado."; exit 1 ;;
+esac
+NODE_FOLDER="$BASE/runtime/node-$NODE_VERSION"
+NODE_REAL="$NODE_FOLDER/bin/node"
+NODE_TARBALL="node-$NODE_VERSION-linux-$NODE_ARCH.tar.xz"
+NODE_DIST="https://nodejs.org/dist/$NODE_VERSION"
+
+# Abort if the live installation is not healthy before preparing dependencies.
+# This is a read-only preflight and does not restart any container.
+
 
 # Abort if WuzAPI is not reachable locally; do not start or restart it.
 api_status="$(curl --connect-timeout 3 --max-time 5 -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/admin/users || true)"
@@ -31,11 +42,46 @@ if [ "$api_status" != "401" ]; then
   exit 1
 fi
 
+echo "Preparando Node.js $NODE_VERSION LTS exclusivo da Union..."
+if [ ! -x "$NODE_REAL" ]; then
+  install -d -o root -g root -m 0755 "$BASE/runtime"
+  DOWNLOAD_TMP="$(mktemp -d "$BASE/runtime/.node-download.XXXXXXXX")"
+  trap 'rm -rf "$DOWNLOAD_TMP"' EXIT
+
+  curl --fail --location --silent --show-error --retry 2 \
+    "$NODE_DIST/SHASUMS256.txt" -o "$DOWNLOAD_TMP/SHASUMS256.txt"
+  curl --fail --location --silent --show-error --retry 2 \
+    "$NODE_DIST/$NODE_TARBALL" -o "$DOWNLOAD_TMP/$NODE_TARBALL"
+
+  ( cd "$DOWNLOAD_TMP"
+    grep -F "  $NODE_TARBALL" SHASUMS256.txt > expected.sha256
+    test "$(wc -l < expected.sha256)" -eq 1
+    sha256sum --check --status expected.sha256
+  )
+
+  install -d -o root -g root -m 0755 "$DOWNLOAD_TMP/extracted"
+  tar -xJf "$DOWNLOAD_TMP/$NODE_TARBALL" -C "$DOWNLOAD_TMP/extracted" --strip-components=1
+  test -x "$DOWNLOAD_TMP/extracted/bin/node"
+  test "$("$DOWNLOAD_TMP/extracted/bin/node" --version)" = "$NODE_VERSION"
+  if [ -e "$NODE_FOLDER" ]; then
+    echo "Diretório Node.js parcial já existe; não vou sobrescrevê-lo: $NODE_FOLDER"
+    exit 1
+  fi
+  mv "$DOWNLOAD_TMP/extracted" "$NODE_FOLDER"
+  rm -rf "$DOWNLOAD_TMP"
+  trap - EXIT
+fi
+if [ "$("$NODE_REAL" --version)" != "$NODE_VERSION" ]; then
+  echo "Runtime Node.js da Union inválido ou inesperado."
+  exit 1
+fi
+echo "Node.js isolado: $("$NODE_REAL" --version) ($NODE_ARCH)"
+
 echo "Baixando código da ponte no commit fixo..."
 TMP="$(mktemp --suffix=.mjs)"
 trap 'rm -f "$TMP"' EXIT
 curl --fail --location --silent --show-error --retry 2 "$URL" -o "$TMP"
-node --check "$TMP" >/dev/null
+"$NODE_REAL" --check "$TMP" >/dev/null
 
 if ! id -u unionbridge >/dev/null 2>&1; then
   useradd --system --user-group --home-dir "$BASE" --shell /usr/sbin/nologin unionbridge
