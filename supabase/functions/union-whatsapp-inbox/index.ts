@@ -1459,7 +1459,7 @@ Deno.serve(async request => {
       .upsert({
         organization_id:org,channel_id:thread.channel_id,account_phone:thread.account_phone,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
-        body_text:text,sender_name:senderName,sent_at:now,delivery_status:"sent",
+        body_text:text,sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
         media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
       },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
