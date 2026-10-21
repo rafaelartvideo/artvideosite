@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { WhatsAppOperationsSettings, type WhatsAppOperationsSection } from "./WhatsAppOperationsSettings";
+import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
@@ -123,8 +124,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
   const [staffRole,setStaffRole] = useState<"manager"|"operator"|"both"|null>(null);
-  const canSend = hasPermission("whatsapp.inbox.send") && (staffRole==="operator" || staffRole==="both");
-  const canManage = staffRole==="manager" || staffRole==="both";
+  const [capabilities,setCapabilities] = useState<Record<string,boolean>>({});
+  const canAction=(key:string)=>capabilities[key]===true;
+  const canSend=canAction("send");
+  const canManage=canAction("view_all");
   const [conversations, setConversations] = useState<UnionWhatsAppConversation[]>([]);
   const [messages, setMessages] = useState<UnionWhatsAppMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -153,7 +156,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [departments,setDepartments] = useState<Array<{id:string;name:string;is_active:boolean}>>([]);
   const [departmentFilter,setDepartmentFilter] = useState("all");
   const [settingsOpen,setSettingsOpen] = useState(false);
-  const [settingsModal,setSettingsModal] = useState<WhatsAppOperationsSection|null>(null);
+  const [settingsModal,setSettingsModal] = useState<WhatsAppOperationsSection|"permissions"|null>(null);
   const [settingsCreateRequest,setSettingsCreateRequest] = useState(0);
   const settingsMenuRef=useRef<HTMLDivElement|null>(null);
   const [ordersOpen,setOrdersOpen] = useState(false);
@@ -301,6 +304,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if (organizationRef.current === activeOrganizationId) {
         const ready=Boolean(response.channel_connected && response.channel_id);
         setStaffRole(response.staff_role || null);
+        setCapabilities(response.capabilities || {});
         setChannelReady(ready);
         setActiveChannelId(ready?response.channel_id||null:null);
         setActiveChannelPhone(ready?response.channel_phone||null:null);
@@ -310,11 +314,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if (organizationRef.current === activeOrganizationId) {
         setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null);
         setStaffRole(null);
+        setCapabilities({});
         setChannelError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
     }
   }, [activeOrganizationId, canView]);
-  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setStaffRole(null); setChannelError(""); void checkChannel(); }, [checkChannel]);
+  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setStaffRole(null); setCapabilities({}); setChannelError(""); void checkChannel(); }, [checkChannel]);
   // When disconnected, the conversation subscription is deliberately absent.
   // Recheck identity on returning to the tab without continuously polling.
   useEffect(()=>{
@@ -584,7 +589,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setContactsOpen(false);
       return true;
     }
-    if(!canSend || !contact.contact_phone){
+    if(!canAction("start") || !contact.contact_phone){
       setError("Este contato não possui número verificável ou você não tem permissão para iniciar conversa.");
       return false;
     }
@@ -613,7 +618,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const startConversation = async () => {
-    if (!activeOrganizationId || !canSend || starting) return;
+    if (!activeOrganizationId || !canAction("start") || starting) return;
     const digits = brazilNumberDigits(newPhone);
     if(!/^[1-9][0-9][0-9]{8,9}$/.test(digits)) {
       setError("Informe o DDD e um telefone brasileiro válido.");
@@ -642,7 +647,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const showRouting = async () => {
-    if (!selected || !activeOrganizationId || (!canSend && !canManage) || (!canManage && selected.assigned_to !== user?.id) || runningAction) return;
+    if (!selected || !activeOrganizationId || !canAction("transfer") || (!canManage && selected.assigned_to !== user?.id) || runningAction) return;
     setRunningAction("members");
     setError("");
     try {
@@ -877,7 +882,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </nav>
       </div>
       <div className="flex shrink-0 items-center gap-2">
-        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || canManage) &&
+        {(hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || canAction("manage_operators") || canAction("manage_queues")) &&
           <div ref={settingsMenuRef} className="relative">
             <button type="button" aria-label="Configurações dos atendimentos" aria-haspopup="menu"
               aria-expanded={settingsOpen} title="Configurações" onClick={() => setSettingsOpen(value => !value)}
@@ -891,19 +896,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
                   <Settings2 size={18}/> Canais de Atendimento
                 </button>}
-              {canManage && <>
-                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("departments");}}
+              {(canAction("manage_operators") || canAction("manage_queues")) && <>
+                {canAction("manage_queues") && <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("departments");}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
                   <Building2 size={18}/> Departamentos e equipe
-                </button>
-                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("queues");}}
+                </button>}
+                {canAction("manage_queues") && <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("queues");}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
                   <MessageCircle size={18}/> Configurar filas
-                </button>
-                <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("operators");}}
+                </button>}
+                {canAction("manage_operators") && <button role="menuitem" type="button" onClick={() => {setSettingsOpen(false);setSettingsModal("operators");}}
                   className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
                   <Users size={18}/> Operadores
-                </button>
+                </button>}
+                {canAction("manage_operators") && <button role="menuitem" type="button"
+                  onClick={() => {setSettingsOpen(false);setSettingsModal("permissions");}}
+                  className="flex w-full items-center gap-2 rounded-md px-3 py-2.5 text-left text-sm hover:bg-muted">
+                  <ShieldCheck size={18}/> Perfis e Permissões
+                </button>}
               </>}
             </div>}
           </div>}
@@ -937,11 +947,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="flex items-center justify-between gap-2">
               <p className="text-base font-black text-foreground">Conversas</p>
               <div className="flex items-center gap-2">
-                <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
+                {canAction("view_contacts") && <button type="button" onClick={()=>{setEditContactId(null);setContactsOpen(true);}} title="Contatos"
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
                   <ContactRound size={15}/> Contatos
-                </button>
-                {canSend && <button type="button" onClick={() => setNewConversationOpen(true)}
+                </button>}
+                {canAction("start") && <button type="button" onClick={() => setNewConversationOpen(true)}
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15">
                   <Plus size={15}/> Nova
                 </button>}
@@ -1015,7 +1025,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
-                  {(canSend||canManage) && <button type="button"
+                  {canAction("manage_contacts") && <button type="button"
                     title="Salvar ou alterar o nome deste contato na Union"
                     onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
                     className="shrink-0 text-[11px] font-semibold text-primary hover:underline">
@@ -1036,25 +1046,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  </button>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                {selected.status === "waiting" && canSend &&
+                {selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {selected.status === "in_att" && canOperateSelected && <>
                   {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
                     onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
-                  {onOpenOrder && hasPermission("orders.details.view") && <button type="button" title="Vincular OS deste cliente"
+                  {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
                     onClick={()=>void showOrders()} disabled={savingOrder}
                     className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
-                  {canManage && <button type="button" title="Histórico do atendimento" aria-label="Histórico do atendimento"
+                  {canAction("view_history") && <button type="button" title="Histórico do atendimento" aria-label="Histórico do atendimento"
                     onClick={()=>void viewHistory()} className="flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted">
                     <History size={15}/>
                   </button>}
-                  {(canSend || canManage) && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
+                  {canAction("transfer") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
                   </AdminButton>}
-                  <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>
-                  <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>
+                  {canAction("return_queue") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>}
+                  {canAction("finish") && <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>}
                 </>}
-                {selected.status === "finished" && canManage &&
+                {selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>
             </header>
@@ -1171,8 +1181,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     {contactsOpen && activeOrganizationId && <UnionWhatsAppContactsDialog
       key={activeChannelPhone}
       organizationId={activeOrganizationId} accountPhone={activeChannelPhone!} channelId={activeChannelId!}
-      canImport={canManage}
-      canEdit={canSend || canManage}
+      canImport={canAction("import_contacts")}
+      canEdit={canAction("manage_contacts")}
       initialContact={editContactId?(()=>{
         const thread=scopedConversations.find(item=>item.id===editContactId);
         return thread?{id:thread.id,chat_jid:thread.chat_jid,
@@ -1284,12 +1294,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       </div>
     </div>}
     {settingsModal && <AdminDialog open={true} onClose={() => setSettingsModal(null)}
-      title={settingsModal === "departments" ? "Departamentos e equipe" : settingsModal === "queues" ? "Configurar filas" : "Operadores"}
+      title={settingsModal === "departments" ? "Departamentos e equipe" : settingsModal === "queues" ? "Configurar filas" : settingsModal === "permissions" ? "Perfis e Permissões" : "Operadores"}
       className="w-full max-w-4xl" bodyClassName="p-3 sm:p-5" minimizable={false}
-      footer={settingsModal !== "operators" && canManage ? <div className="flex justify-end">
+      footer={(settingsModal === "departments" || settingsModal === "queues") && canAction("manage_queues") ? <div className="flex justify-end">
         <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>
       </div> : undefined}>
-      <WhatsAppOperationsSettings key={settingsModal} section={settingsModal} createRequest={settingsCreateRequest}/>
+      {settingsModal === "permissions"
+        ? <WhatsAppRolePermissions onSaved={() => void checkChannel()}/>
+        : <WhatsAppOperationsSettings key={settingsModal} section={settingsModal} createRequest={settingsCreateRequest}/>}
     </AdminDialog>}
     {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
