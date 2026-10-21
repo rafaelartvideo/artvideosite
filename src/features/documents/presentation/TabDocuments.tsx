@@ -98,7 +98,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const showAttachmentType = hasPermission("documents.table.attachment_type");
   const showActions = hasPermission("documents.table.actions");
   const documents = useDocuments();
-  const { templates, attachmentTypes, filteredTemplates, loading, attachmentTypesLoading, error, attachmentError, editorOpen, editorValue, editingTemplateId, openingEditor, saving, savingAttachmentType, openNew, openEditor, closeEditor, save, toggleActive, saveAttachmentType, toggleAttachmentType, removeAttachmentType } = documents;
+  const { templates, attachmentTypes, filteredTemplates, loading, attachmentTypesLoading, templatesLoadError, attachmentLoadError, editorOpen, editorValue, editingTemplateId, openingEditor, saving, savingAttachmentType, openNew, openEditor, closeEditor, save, toggleActive, saveAttachmentType, toggleAttachmentType, removeAttachmentType } = documents;
   const [section, setSection] = useState<DocumentsSection>(routeResourceId === "attachments" ? "attachments" : routeResourceId === "labels" ? "labels" : routeResourceId === "printers" ? "printers" : "printing");
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
@@ -107,8 +107,8 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const [templatePageSize, setTemplatePageSize] = useState(5);
   const [attachmentPage, setAttachmentPage] = useState(1);
   const [attachmentPageSize, setAttachmentPageSize] = useState(5);
-  const errorMessage = error ? systemErrorMessage(error) : "";
-  const attachmentErrorMessage = attachmentError ? systemErrorMessage(attachmentError) : "";
+  const errorMessage = templatesLoadError ? systemErrorMessage(templatesLoadError) : "";
+  const attachmentErrorMessage = attachmentLoadError ? systemErrorMessage(attachmentLoadError) : "";
   // Query failures use the same global feedback UI as mutation errors.
   useEffect(() => { if (errorMessage && !editorOpen) notifyAdmin(errorMessage, "error"); }, [errorMessage, editorOpen]);
   useEffect(() => { if (attachmentErrorMessage && !attachmentTypesLoading) notifyAdmin(attachmentErrorMessage, "error"); }, [attachmentErrorMessage, attachmentTypesLoading]);
@@ -241,7 +241,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     </>}
 
     {editorRouteActive && !editorOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    {editorOpen && canViewDetails && <AdminPage open onClose={closeDocumentEditor} breadcrumb="Documentos > Impressão" title={editorValue.id ? "Configurar modelo" : "Novo modelo"} subtitle="Configure os dados e a apresentação do modelo de impressão" maxW="max-w-[1600px]" fullPage><PrintTemplateEditor key={editorValue.id || "new-document"} initialValue={editorValue} onCancel={closeDocumentEditor} onSave={saveDocument} saving={saving} saveError={errorMessage} /></AdminPage>}
+    {editorOpen && canViewDetails && <AdminPage open onClose={closeDocumentEditor} breadcrumb="Documentos > Impressão" title={editorValue.id ? "Configurar modelo" : "Novo modelo"} subtitle="Configure os dados e a apresentação do modelo de impressão" maxW="max-w-[1600px]" fullPage><PrintTemplateEditor key={editorValue.id || "new-document"} initialValue={editorValue} onCancel={closeDocumentEditor} onSave={saveDocument} saving={saving} /></AdminPage>}
 
     {typeModalOpen && <AdminDialog
       open
