@@ -110,7 +110,6 @@ export function OrderDetailsPage(props: Props) {
   } = props;
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const [downloadingTemplateId, setDownloadingTemplateId] = useState<string | null>(null);
-  const [printError, setPrintError] = useState("");
   const [printingWarranty, setPrintingWarranty] = useState(false);
   const [emailingTemplateId, setEmailingTemplateId] = useState<string | null>(null);
   const [emailMessage, setEmailMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
@@ -384,10 +383,9 @@ export function OrderDetailsPage(props: Props) {
 
   const printTemplate = async (template: PrintTemplate) => {
     if (printingTemplateId) return;
-    setPrintError("");
     const popup = openPrintWindow();
     if (!popup) {
-      setPrintError("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.");
+      notifyAdmin("O navegador bloqueou a janela de impressão. Permita pop-ups para este site.", "error");
       return;
     }
 
@@ -397,7 +395,7 @@ export function OrderDetailsPage(props: Props) {
       renderOrderPrintDocument(popup, prepared.configuredTemplate, prepared.context);
     } catch (error) {
       popup.close();
-      setPrintError(systemErrorMessage(error, "Não foi possível preparar o documento."));
+      notifyAdmin(systemErrorMessage(error, "Não foi possível preparar o documento."), "error");
     } finally {
       setPrintingTemplateId(null);
     }
@@ -405,7 +403,6 @@ export function OrderDetailsPage(props: Props) {
 
   const downloadTemplate = async (template: PrintTemplate) => {
     if (downloadingTemplateId) return;
-    setPrintError("");
     setDownloadingTemplateId(template.id);
 
     try {
@@ -423,7 +420,7 @@ export function OrderDetailsPage(props: Props) {
       anchor.remove();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
     } catch (error) {
-      setPrintError(systemErrorMessage(error, "Não foi possível baixar o documento."));
+      notifyAdmin(systemErrorMessage(error, "Não foi possível baixar o documento."), "error");
     } finally {
       setDownloadingTemplateId(null);
     }
@@ -431,12 +428,11 @@ export function OrderDetailsPage(props: Props) {
 
   const printWarranty = async () => {
     if (!detail?.completed_at || printingWarranty || !canPrintDocuments) return;
-    setPrintError("");
     // Pop-up reservado no clique para que a impressão não seja bloqueada após a consulta.
     const popup = openPrintWindow();
     if (!popup) {
       const message = "Permita pop-ups para imprimir o certificado de garantia.";
-      setPrintError(message); notifyAdmin(message, "error"); return;
+      notifyAdmin(message, "error"); return;
     }
     setPrintingWarranty(true);
     try {
@@ -451,13 +447,12 @@ export function OrderDetailsPage(props: Props) {
     } catch (error) {
       popup.close();
       const message = systemErrorMessage(error, "Não foi possível imprimir o certificado de garantia.");
-      setPrintError(message); notifyAdmin(message, "error");
+      notifyAdmin(message, "error");
     } finally { setPrintingWarranty(false); }
   };
 
   const printLabel = () => {
-    setPrintError("");
-    const showError = (message: string) => { setPrintError(message); notifyAdmin(message, "error"); };
+    const showError = (message: string) => notifyAdmin(message, "error");
     if (!detail?.os_number) {
       showError("Não foi possível montar a etiqueta desta OS.");
       return;
@@ -597,7 +592,7 @@ export function OrderDetailsPage(props: Props) {
                 </button>
                 {(printingThis || downloadingThis) && <span className="sr-only" aria-live="polite">{printingThis ? "Preparando impressão" : "Preparando download"}</span>}
               </div>;
-            })}{printError && <DropdownMenuItem disabled className="max-w-72 whitespace-normal text-red-600">{printError}</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum outro modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
+            })}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum outro modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {ORDER_EMAIL_ACTION_VISIBLE && canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Mail size={14} /> Enviar e-mail <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72">{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => <DropdownMenuItem key={template.id} disabled={Boolean(emailingTemplateId)} onSelect={event => { event.preventDefault(); void emailTemplate(template); }} className="flex cursor-pointer items-center justify-between gap-4"><span className="min-w-0"><span className="block truncate font-semibold">{template.name}</span><span className="block text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span></span>{emailingTemplateId === template.id && <span className="shrink-0 text-[10px] font-bold text-[#0057e7]">Enviando...</span>}</DropdownMenuItem>)}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.length === 0 && <DropdownMenuItem disabled>Nenhum modelo ativo.</DropdownMenuItem>}</DropdownMenuContent></DropdownMenu>}
             {hasPermission("orders.section.checklists") && <OrderChecklistToolbarButton orderId={detail.id} onClick={() => onOpenSubpage("checklists")} />}
             {hasPermission("orders.section.parts") && quoteExecutionAllowed && <button type="button" onClick={() => onOpenSubpage("part-requests")} className="admin-action-blue-outline inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-colors"><PackagePlus size={14} /> Solicitações de peças{pendingPartRequests > 0 && <span title="Solicitações em aberto" className="inline-flex min-w-5 items-center justify-center rounded-full bg-amber-400 px-1.5 py-0.5 text-[10px] font-black text-amber-950">{pendingPartRequests}</span>}{completedPartRequests > 0 && <span title="Solicitações concluídas" className="inline-flex min-w-5 items-center justify-center rounded-full bg-emerald-500 px-1.5 py-0.5 text-[10px] font-black text-white">{completedPartRequests}</span>}</button>}
