@@ -33,6 +33,7 @@ import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
+import { OrderQuoteStatusBadge, type OrderQuoteStatus } from "./OrderQuoteStatusBadge";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
@@ -170,22 +171,26 @@ export function OrderDetailsPage(props: Props) {
     type.id === detail.service_type_id && type.quote_workflow_enabled === true));
   // A OS comum mantém suas ações. No fluxo de orçamento, só há execução
   // (solicitar peças / solucionar) quando a proposta vinculada for aprovada.
-  const [approvedQuoteOrderId, setApprovedQuoteOrderId] = useState<string | null>(null);
-  const [loadedApproval, setLoadedApproval] = useState<{ orderId: string; approved: boolean } | null>(null);
+  const [quoteState, setQuoteState] = useState<{ orderId: string; status: OrderQuoteStatus } | null>(null);
   useEffect(() => {
     let active = true;
-    setApprovedQuoteOrderId(null);
-    setLoadedApproval(null);
+    setQuoteState(null);
     if (!quoteWorkflowEnabled || !detail?.id || !detail?.organization_id || !visible) return;
     const orderId = detail.id;
     void readOrderQuote(detail.organization_id, orderId)
-      .then(quote => { if (active) setLoadedApproval({ orderId, approved: quote?.status === "approved" }); })
-      .catch(error => { if (active) notifyAdmin("Não foi possível verificar a aprovação do orçamento: " + systemErrorMessage(error), "error"); });
+      .then(quote => {
+        if (active) setQuoteState(current => current?.orderId === orderId ? current : {
+          orderId,
+          status: quote?.status || null,
+        });
+      })
+      .catch(error => {
+        if (active) notifyAdmin("Não foi possível verificar a situação do orçamento: " + systemErrorMessage(error), "error");
+      });
     return () => { active = false; };
   }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible]);
   const quoteExecutionAllowed = !quoteWorkflowEnabled ||
-    approvedQuoteOrderId === detail?.id ||
-    (loadedApproval?.orderId === detail?.id && loadedApproval.approved);
+    (quoteState?.orderId === detail?.id && quoteState.status === "approved");
 
 
   const effectiveRouteSubpage = routeSubpage;
@@ -554,7 +559,7 @@ export function OrderDetailsPage(props: Props) {
     {visible && !routedSubpageOpen && !solutionRecordsOpen && <AdminPage open onClose={closePage} smoothMotion={false} breadcrumb="Ordens de Serviço" title={detail.os_number || "OS"} titleVariant="order-number" maxW="max-w-[1440px]">
       <div className="space-y-5 p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getOrderStatusBadgeClass((detail.order_status as any)?.name)}`}>{(detail.order_status as any)?.name || "—"}</span>{(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={15} />OS solucionada</span>}</div>
+          <div className="flex flex-wrap items-center gap-2"><span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${getOrderStatusBadgeClass((detail.order_status as any)?.name)}`}>{(detail.order_status as any)?.name || "—"}</span>{(detail.situation as any)?.name && <StatusBadge status={(detail.situation as any).name} color={(detail.situation as any)?.color} />}{quoteWorkflowEnabled && quoteState?.orderId === detail.id && <OrderQuoteStatusBadge status={quoteState.status} />}{detail.completed_at ? <span className="inline-flex items-center rounded-full bg-emerald-600 px-2.5 py-1 text-[10px] font-bold uppercase text-white">✓ OS concluída</span> : detail.is_solved && <span className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={15} />OS solucionada</span>}</div>
           <div className="flex flex-wrap items-center gap-2 border-t border-[#0d1b2e]/10 pt-3 sm:border-l sm:border-t-0 sm:pl-3 sm:pt-0">
             {canPrintDocuments && <DropdownMenu><DropdownMenuTrigger asChild><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 py-2 text-xs font-bold text-[#0d1b2e] transition-colors hover:bg-[#f5f7fa]"><Printer size={14} /> Imprimir <ChevronDown size={13} /></button></DropdownMenuTrigger><DropdownMenuContent align="end" className="min-w-72"><DropdownMenuItem onSelect={event => { event.preventDefault(); printLabel(); }} className="flex cursor-pointer items-center gap-3"><span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><Tag size={15} /></span><span className="min-w-0"><span className="block truncate font-semibold">Etiqueta</span><span className="block text-[10px] text-[#5a6a82]">Elgin L-42 • 3 colunas • medidas ajustáveis</span></span></DropdownMenuItem>{detail.completed_at && <DropdownMenuItem onSelect={event => { event.preventDefault(); void printWarranty(); }}
               disabled={printingWarranty} className="flex cursor-pointer items-center gap-3">
@@ -607,7 +612,7 @@ export function OrderDetailsPage(props: Props) {
           canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
           footerHostId={"os-quote-toolbar-" + detail.id}
-          onApproved={() => setApprovedQuoteOrderId(detail.id)}
+          onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
         /> : detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
