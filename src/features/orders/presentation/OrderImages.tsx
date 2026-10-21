@@ -459,7 +459,7 @@ export function OrderImagesField({
   return embedded ? content : <Section title="Imagens da OS">{content}</Section>;
 }
 
-export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
+export function OrderImageLightbox({ image, onClose, context = "order" }: { image: OrderImage; onClose: () => void; context?: "order" | "quote" }) {
   const { url: mediaUrl } = useMediaUrl(image.mediaId);
   const url = image.url || mediaUrl;
   const [busyFormat, setBusyFormat] = useState<OrderImageDownloadFormat | null>(null);
@@ -484,8 +484,8 @@ export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onCl
     open
     onClose={onClose}
     title={image.name || "Visualizar imagem"}
-    description="Imagem vinculada à ordem de serviço."
-    minimizedDescription={image.name || "Imagem da OS"}
+    description={context === "quote" ? "Imagem vinculada ao orçamento." : "Imagem vinculada à ordem de serviço."}
+    minimizedDescription={image.name || (context === "quote" ? "Imagem do orçamento" : "Imagem da OS")}
     className="max-w-6xl"
     headerActions={
       <div
