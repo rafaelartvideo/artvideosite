@@ -630,8 +630,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(sequence!==numberCheckSequence.current)return;
       if(!result.phone)throw Error("A verificação não confirmou o telefone.");
       setNewPhone(brazilPhoneMask(result.phone));
-      setNumberNotice(result.adjusted ? "WhatsApp confirmado. Número ajustado automaticamente." :
-        "Número confirmado no WhatsApp.");
+      setNumberNotice(result.distinct_identities
+        ? "Número confirmado. A versão com/sem 9 aponta para outra conta; foi mantida a identidade consultada."
+        : result.adjusted ? "WhatsApp confirmado. Número canônico ajustado automaticamente pelo WhatsApp."
+        : "Número confirmado no WhatsApp.");
     }catch(err){
       if(sequence===numberCheckSequence.current)
         setNumberError(systemErrorMessage(err,"Não foi possível verificar este número."));
