@@ -9,7 +9,6 @@ import {
   formatNumber,
   formatPhone,
   normalizeDigits,
-  todayDateOnly,
 } from "@/shared/domain/formatters";
 import { PRINT_FIELD_REGISTRY, normalizePrintSelectedFields } from "./print-field-registry";
 import type { OrderChecklist } from "@/features/checklists/domain/checklist";
@@ -63,16 +62,6 @@ const formatForecastDays = (value: unknown) => {
   return `${formatNumber(rounded, { maximumFractionDigits: 0 })} ${rounded === 1 ? "dia" : "dias"}`;
 };
 const nameOf = (value: any) => value?.full_name || value?.name || value?.title || "—";
-
-function employeeSignatureName(context: PrintOrderContext) {
-  const order = context.order || {};
-  const technicians = (order.technician_links || []).map((item: any) => nameOf(item.employee)).filter((name: string) => name && name !== "—");
-  return order.assigned_to_profile?.full_name
-    || technicians.join(", ")
-    || (nameOf(order.technician) !== "—" ? nameOf(order.technician) : null)
-    || order.completed_by_profile?.full_name
-    || "—";
-}
 
 function addressOf(order: any) {
   if (order.order_type === "external" && (order.service_street || order.service_city)) {
