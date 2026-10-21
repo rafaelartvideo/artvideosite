@@ -22,7 +22,6 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
   section: WhatsAppOperationsSection; createRequest?: number;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
   const [capabilities, setCapabilities] = useState<Record<string,boolean>>({});
   const canView = hasPermission("whatsapp.inbox.view");
   const canManage = canView && Boolean(section === "operators"
@@ -50,9 +49,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
         channelRequest(activeOrganizationId, "departments_list"),
         channelRequest(activeOrganizationId, "channel_status"),
       ]);
-      const role = status.staff_role || null;
       const grants = status.capabilities || {};
-      setStaffRole(role);
       setCapabilities(grants);
       const permitted = canView && (grants.manage_operators || grants.manage_queues);
       const staff = permitted ? await channelRequest(activeOrganizationId, "operator_list") : null;
