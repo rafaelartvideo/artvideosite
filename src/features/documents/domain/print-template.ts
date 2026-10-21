@@ -9,6 +9,8 @@ export type PrintLayoutSettings = {
   section_style: "boxed" | "lines" | "table";
   show_section_borders: boolean;
   show_field_borders: boolean;
+  /** Optional 2/3-column overrides for document sections (stored with template). */
+  section_columns?: Record<string, 2 | 3>;
 };
 
 export type EmployeeSignatureSource = "responsible" | "technician" | "completed_by" | "manual";
