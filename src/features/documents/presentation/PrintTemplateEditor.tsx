@@ -30,7 +30,7 @@ function normalizeEditorValue(value: PrintTemplateEditorValue): PrintTemplateEdi
   return { ...value, layout: { ...value.layout }, selectedFields };
 }
 
-export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
+export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean }) {
   const [value, setValue] = useState<PrintTemplateEditorValue>(() => normalizeEditorValue(initialValue));
   const [expanded, setExpanded] = useState<Set<string>>(new Set(PRINT_FIELD_REGISTRY.slice(0, 3).map(section => section.key)));
 
