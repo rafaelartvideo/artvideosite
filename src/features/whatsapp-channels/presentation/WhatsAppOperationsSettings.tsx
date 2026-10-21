@@ -23,7 +23,8 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
-  const canManage = hasPermission("whatsapp.inbox.view") && (staffRole === "manager" || staffRole === "both");
+  const canView = hasPermission("whatsapp.inbox.view");
+  const canManage = canView && (staffRole === "manager" || staffRole === "both");
   const [selectedRoles, setSelectedRoles] = useState<Record<string,StaffRole>>({});
   const [departments, setDepartments] = useState<Department[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
@@ -49,7 +50,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
       ]);
       const role = status.staff_role || null;
       setStaffRole(role);
-      const permitted = hasPermission("whatsapp.inbox.view") && (role==="manager" || role==="both");
+      const permitted = canView && (role==="manager" || role==="both");
       const staff = permitted ? await channelRequest(activeOrganizationId, "operator_list") : null;
       setDepartments(dept.departments || []);
       setOperators(staff?.operators || []);
@@ -59,7 +60,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     } finally {
       setLoading(false);
     }
-  }, [activeOrganizationId, hasPermission]);
+  }, [activeOrganizationId, canView]);
   useEffect(() => { void reload(); }, [reload]);
 
   const startEdit = (department: Department | "new") => {
