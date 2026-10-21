@@ -263,7 +263,10 @@ Deno.serve(async request => {
     const displayText = body || ({ image: "Imagem", video: "Vídeo", audio: "Áudio", file: "Documento", location: "Localização", contact: "Contato", sticker:"Figurinha" }[typeHint] || "Mensagem");
     const mediaKind=["image","audio","video","file","sticker"].includes(typeHint);
     const mime=str(get(media,"mimetype","Mimetype","mimeType","MimeType"),160);
-    const originalName=str(get(media,"fileName","FileName","filename"),180).replace(/[^\\p{L}\\p{N}._() -]/gu,"");
+    // Preserve Unicode/Latin letters in attachment names. Previously
+    // double-escaped Unicode property classes stripped most characters.
+    const originalName=str(get(media,"fileName","FileName","filename"),180)
+      .replace(/[^\p{L}\p{N}._() -]/gu,"").trim().slice(0,160);
     const fileLength=Number(get(media,"fileLength","FileLength","fileSize","FileSize") || 0);
     const fileUrl=str(get(media,"URL","Url","url"),2000);
     const mediaKey=str(get(media,"mediaKey","MediaKey"),512);
