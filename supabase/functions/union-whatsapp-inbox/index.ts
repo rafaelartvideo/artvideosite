@@ -85,6 +85,11 @@ async function signedBridge(
     });
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) {
+      if(media) {
+        const reason=String(result.code||"");
+        if(["audio_encoder_unavailable","audio_conversion_failed","audio_conversion_timeout"].includes(reason))
+          throw Error(reason);
+      }
       if(numberCheck) {
         const providerCode=String(result.code||"").slice(0,60);
         const safeCode=/^[a-z_]{3,60}$/.test(providerCode)?providerCode:"unspecified";
@@ -1458,7 +1463,14 @@ Deno.serve(async request => {
     }
     try {
       messageId=await signedBridge(channel,text,thread.chat_jid,clientId,signedMedia);
-    } catch {
+    } catch (reason) {
+      const code=reason instanceof Error?reason.message:"";
+      if(code==="audio_encoder_unavailable")
+        return json({success:false,code:"audio_encoder_unavailable",
+          error:"O conversor de voz FFmpeg não está disponível na ponte WhatsApp da VPS."},503);
+      if(code==="audio_conversion_failed" || code==="audio_conversion_timeout")
+        return json({success:false,code,
+          error:"Não foi possível converter a gravação para Ogg/Opus. Grave novamente ou escolha outro áudio."},422);
       await admin.from("union_whatsapp_send_attempts").update({
         status:"unknown",updated_at:new Date().toISOString(),
       }).eq("id",attempt.id);
