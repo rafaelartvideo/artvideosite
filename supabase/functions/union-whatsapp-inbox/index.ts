@@ -95,7 +95,8 @@ async function signedBridge(
     if (numberCheck) {
       if(!Array.isArray(result.matches) || !["verified","not_registered"].includes(String(result.status||"")))
         throw Error("number_check_outdated_bridge");
-      return JSON.stringify({requested:result.requested,matches:result.matches,status:result.status});
+      return JSON.stringify({requested:result.requested,matches:result.matches,
+        status:result.status,distinct_identities:result.distinct_identities===true});
     }
     if (presence) return "";
     if(exportContacts) {
@@ -286,15 +287,22 @@ Deno.serve(async request => {
         const requested="55"+national;
         const available=(Array.isArray(reply.matches)?reply.matches:[]).filter(
           (r:Record<string,unknown>) => /^55[1-9][0-9][0-9]{8,9}$/.test(String(r.phone||""))
-        ) as Array<{phone:string;verified_name?:string}>;
+        ) as Array<{phone:string;query?:string;verified_name?:string}>;
         if(reply.status==="not_registered")
           return {error:"O WhatsApp confirmou que esse telefone não está cadastrado. Confira DDD e número.",status:422};
         if(reply.status!=="verified" || !available.length)
           return {error:"Consulta ao WhatsApp inconclusiva. Tente novamente antes de abrir uma conversa.",status:503};
-        // Prefer the confirmed number entered, otherwise the canonical verified JID.
-        const matched=available.find(r=>r.phone===requested)||available[0];
+        // A Brazilian number with and without 9 can refer to the same JID.
+        // If two DIFFERENT JIDs were confirmed, never silently choose an
+        // alias from the other query: the exact number typed has priority.
+        const distinct=reply.distinct_identities===true;
+        const matched=distinct
+          ? available.find(r=>r.query===requested)
+          : available.find(r=>r.query===requested)||available[0];
+        if(!matched)return {error:"A variante com ou sem 9 corresponde a outra conta WhatsApp. Informe o número exato para evitar envio errado.",status:409};
         return {channel,phone:matched.phone,alternatives:available,
-          adjusted:matched.phone!==requested,verified_name:matched.verified_name||""};
+          adjusted:matched.phone!==requested,verified_name:matched.verified_name||"",
+          distinct_identities:distinct};
       }catch(reason){
         const failure=String(reason instanceof Error?reason.message:reason);
         const label=failure.includes("number_check_outdated_bridge")
@@ -341,7 +349,8 @@ Deno.serve(async request => {
       const verified=await verifyWhatsAppNumber(String(body.phone||""));
       if("error" in verified)return json({success:false,error:verified.error,code:("code" in verified?verified.code:"verification_unavailable")},verified.status);
       return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
-        alternatives:verified.alternatives,verified_name:verified.verified_name});
+        alternatives:verified.alternatives,verified_name:verified.verified_name,
+        distinct_identities:verified.distinct_identities===true});
     }
 
     if(action==="operator_list" || action==="operator_set"){
