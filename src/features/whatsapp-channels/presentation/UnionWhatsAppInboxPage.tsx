@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
@@ -215,10 +215,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const messagesContentRef = useRef<HTMLDivElement | null>(null);
+  const chatScrollReadyRef = useRef(false);
+  const messageHistoryLoadedRef = useRef(false);
   const followLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
   type PendingEntry = { id: string; conversationId: string; organizationId: string; text: string;
-    status: "sending" | "unknown" | "failed"; error?: string; sentAt: string; fileName?: string; mediaType?: string };
+    status: "sending" | "sent" | "unknown" | "failed"; providerMessageId?: string;
+    error?: string; sentAt: string; fileName?: string; mediaType?: string };
   const [pending, setPending] = useState<PendingEntry[]>([]);
   const sendingIds = useRef(new Set<string>());
   const submitGateRef = useRef(false);
@@ -253,10 +257,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   organizationRef.current=activeOrganizationId;
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
-  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number}>({
+  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;viewerId?:string;canViewAll?:boolean}>({
     filter:"waiting",department:"all",search:"",page:0,
   });
-  listQueryRef.current={filter,department:departmentFilter,search:debouncedQuery,page:conversationPage};
+  listQueryRef.current={filter,department:departmentFilter,search:debouncedQuery,page:conversationPage,
+    viewerId:user?.id,canViewAll:canManage};
   const conversationLoadSeq=useRef(0);
   const lastListQueryRef=useRef("");
   const refresh=useCallback(async(silent=false)=>{
@@ -295,6 +300,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(identity!==messageIdentity.current ||
         organizationRef.current!==activeOrganizationId ||
         accountRef.current!==activeChannelPhone)return;
+      if(!silent)messageHistoryLoadedRef.current=true;
       setMessages(current=>{
         if(!silent)return page.items;
         const merged=new Map<string,UnionWhatsAppMessage>(current.map(item=>[item.id,item]));
@@ -539,11 +545,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     };
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, refresh, checkChannel]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     messageCursorRef.current=null;
+    messageHistoryLoadedRef.current=false;
+    chatScrollReadyRef.current=false;
+    followLatestRef.current=true;
+    setShowJumpToLatest(false);
     setMessagesHasMore(false);
     setMessagesOlderLoading(false);
-    if (!selectedId || channelReady!==true || !activeChannelId || !activeChannelPhone) { setMessages([]); return; }
+    if (!selectedId || channelReady!==true || !activeChannelId || !activeChannelPhone) {
+      setMessages([]);
+      return;
+    }
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
@@ -601,20 +614,26 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const box = scrollRef.current;
     if (box) box.scrollTo({ top: box.scrollHeight, behavior });
   }, []);
+  useLayoutEffect(() => {
+    if (!selectedId || messagesLoading || !messageHistoryLoadedRef.current) return;
+    if (!chatScrollReadyRef.current || followLatestRef.current) {
+      scrollToLatest("auto");
+      chatScrollReadyRef.current = true;
+    }
+  }, [selectedId, messages.length, pending.length, messagesLoading, scrollToLatest]);
   useEffect(() => {
-    followLatestRef.current = true;
-    setShowJumpToLatest(false);
-    const frame = requestAnimationFrame(() => scrollToLatest("auto"));
-    return () => cancelAnimationFrame(frame);
-  }, [selectedId, scrollToLatest]);
-  useEffect(() => {
-    if (!followLatestRef.current || messagesLoading) return;
-    const frame = requestAnimationFrame(() => scrollToLatest("auto"));
-    return () => cancelAnimationFrame(frame);
-  }, [messages.length, pending.length, messagesLoading, selectedId, scrollToLatest]);
+    const box=scrollRef.current;
+    const content=messagesContentRef.current;
+    if(!box || !content || !selectedId || typeof ResizeObserver==="undefined") return;
+    const observer=new ResizeObserver(() => {
+      if(chatScrollReadyRef.current && followLatestRef.current && !messagesLoading) scrollToLatest("auto");
+    });
+    observer.observe(content);
+    return ()=>observer.disconnect();
+  }, [selectedId,messagesLoading,scrollToLatest]);
   const handleMessagesScroll = () => {
     const box = scrollRef.current;
-    if (!box) return;
+    if (!box || !chatScrollReadyRef.current || !messageHistoryLoadedRef.current) return;
     const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 100;
     followLatestRef.current = atBottom;
     setShowJumpToLatest(!atBottom);
@@ -663,7 +682,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const label=sentByMe
       ? "Encaminhada para: "+(item.forwarded_to_name||"Departamento")
       : "Encaminhada por: "+(item.forwarded_by_name||"Atendente");
-    return <span className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+    return <span className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300">
       <ArrowRightLeft size={12} className="shrink-0"/>
       <span className="truncate">{label}</span>
     </span>;
@@ -698,14 +717,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[activeOrganizationId,channelReady,previewIds,avatars]);
 
   useEffect(() => {
-    if (!activeOrganizationId || !selected || selected.status !== "in_att"
-      || selected.assigned_to !== user?.id || selected.unread_count <= 0) return;
+    if (!activeOrganizationId || !selected || selected.unread_count <= 0 ||
+      (selected.assigned_to !== user?.id && !canManage && !(selected.status==="waiting" && canAction("view_queues")))) return;
     const threadId=selected.id;
+    setConversations(current => current.map(item =>
+      item.id === threadId ? {...item,unread_count:0} : item));
     void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
-      .then(() => { setConversations(current => current.map(item =>
-        item.id === threadId ? {...item,unread_count:0} : item)); })
-      .catch(() => undefined);
-  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id]);
+      .then(() => void refresh(true))
+      .catch(reason => reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida.")));
+  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id,canManage,capabilities,reportError,refresh]);
 
   const loadDepartments = async () => {
     if(!activeOrganizationId) return [];
@@ -1103,7 +1123,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       id: requestId, conversationId: threadId, organizationId,
       text, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name, mediaType:fileType || undefined,
     }]);
-    scrollToLatest("smooth");
+    scrollToLatest("auto");
     inputRef.current?.focus({ preventScroll: true });
     sendingIds.current.add(requestId);
     void (async () => {
@@ -1122,10 +1142,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           if(uploadError) throw uploadError;
           extra={...extra,...base,media_path:upload.upload_path};
         }
-        await operateUnionWhatsAppInbox(organizationId, threadId, file ? "send_media" : "send_text", extra);
+        const result=await operateUnionWhatsAppInbox(organizationId, threadId, file ? "send_media" : "send_text", extra);
         if (organizationRef.current !== organizationId) return;
-        await Promise.all([refreshMessages(threadId, true), refresh(true)]);
-        setPending(current => current.filter(item => item.id !== requestId));
+        setPending(current=>current.map(item=>item.id===requestId
+          ? {...item,status:"sent",providerMessageId:result.provider_message_id||undefined,error:undefined}
+          : item));
+        void Promise.allSettled([refreshMessages(threadId, true), refresh(true)]);
         if (preview) URL.revokeObjectURL(preview);
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
