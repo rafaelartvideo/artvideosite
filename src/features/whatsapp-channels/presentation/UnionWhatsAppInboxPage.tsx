@@ -174,6 +174,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [checkingNumber, setCheckingNumber] = useState(false);
   const [numberNotice, setNumberNotice] = useState("");
   const [numberError, setNumberError] = useState("");
+  const [verifiedContact,setVerifiedContact]=useState<{
+    phone:string;name:string;avatarUrl:string|null;nameSource:"agenda"|"conversa"|"whatsapp"|null;
+  }|null>(null);
   const numberCheckSequence=useRef(0);
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
@@ -604,6 +607,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
   };
 
+  useEffect(()=>{
+    if(newConversationOpen)return;
+    // Invalidate an in-flight verification when the dialog closes. No stale
+    // result should unlock a conversation after the operator opens it again.
+    numberCheckSequence.current+=1;
+    setVerifiedContact(null);setNumberNotice("");setNumberError("");
+    setCheckingNumber(false);setNewPhone("");setNewName("");
+  },[newConversationOpen]);
+
   const openFromContact = (contact:UnionWhatsAppContact):boolean => {
     const existing=conversations.find(item=>item.chat_jid===contact.chat_jid ||
       (contact.contact_phone && item.contact_phone===contact.contact_phone));
@@ -627,31 +639,47 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const checkNewNumber = async () => {
-    if(!activeOrganizationId || checkingNumber)return;
+    if(!activeOrganizationId || checkingNumber || starting)return;
     const sequence=++numberCheckSequence.current;
-    setNumberNotice("");setNumberError("");setCheckingNumber(true);
+    setVerifiedContact(null);setNumberNotice("");setNumberError("");setCheckingNumber(true);
     try {
       const phone=brazilNumberDigits(newPhone);
       if(!/^[1-9][0-9][0-9]{8,9}$/.test(phone))throw Error("Informe DDD e número válido.");
       const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),
         "check_number",{phone:"55"+phone});
-      // Ignore results from checks made before the operator edited the input.
       if(sequence!==numberCheckSequence.current)return;
-      if(!result.phone)throw Error("A verificação não confirmou o telefone.");
+      if(!result.phone)throw Error("O WhatsApp não confirmou este número.");
+      const displayName=String(result.contact_name||"").trim();
       setNewPhone(brazilPhoneMask(result.phone));
+      setNewName(old=>displayName||old);
+      setVerifiedContact({
+        phone:result.phone,name:displayName,avatarUrl:result.avatar_url??null,
+        nameSource:result.name_source??null,
+      });
       setNumberNotice(result.distinct_identities
-        ? "Número confirmado. A versão com/sem 9 aponta para outra conta; foi mantida a identidade consultada."
-        : result.adjusted ? "WhatsApp confirmado. Número canônico ajustado automaticamente pelo WhatsApp."
+        ? "Número confirmado. As variantes do nono dígito correspondem a contas diferentes."
+        : result.adjusted ? "Número confirmado e normalizado pelo WhatsApp."
         : "Número confirmado no WhatsApp.");
     }catch(err){
-      if(sequence===numberCheckSequence.current)
+      if(sequence===numberCheckSequence.current){
+        setVerifiedContact(null);
         setNumberError(systemErrorMessage(err,"Não foi possível verificar este número."));
-    }finally{setCheckingNumber(false);}
+      }
+    }finally{
+      if(sequence===numberCheckSequence.current)setCheckingNumber(false);
+    }
   };
 
   const startConversation = async () => {
-    if (!activeOrganizationId || !canAction("start") || starting) return;
+    if (!activeOrganizationId || !canAction("start") || starting || checkingNumber || !verifiedContact)return;
     const digits = brazilNumberDigits(newPhone);
+    // Client-side gate only. The server still checks the WhatsApp identity
+    // again before creating or reopening a conversation.
+    if("55"+digits!==verifiedContact.phone){
+      setVerifiedContact(null);
+      setNumberError("O telefone foi alterado. Verifique novamente antes de abrir.");
+      return;
+    }
     if(!/^[1-9][0-9][0-9]{8,9}$/.test(digits)) {
       setError("Informe o DDD e um telefone brasileiro válido.");
       return;
@@ -672,6 +700,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setNewName("");
       setNumberNotice("");
       setNumberError("");
+      setVerifiedContact(null);
       requestAnimationFrame(() => inputRef.current?.focus());
     } catch(reason) {
       setNumberError(systemErrorMessage(reason, "Não foi possível iniciar esta conversa."));
@@ -980,7 +1009,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 text-xs font-semibold text-foreground hover:bg-muted">
                   <ContactRound size={15}/> Contatos
                 </button>}
-                {canAction("start") && <button type="button" onClick={() => setNewConversationOpen(true)}
+                {canAction("start") && <button type="button" onClick={() => {
+                  numberCheckSequence.current+=1;
+                  setNewPhone("");setNewName("");setVerifiedContact(null);setNumberNotice("");setNumberError("");
+                  setNewConversationOpen(true);
+                }}
                   className="flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-bold text-primary hover:bg-primary/15">
                   <Plus size={15}/> Nova
                 </button>}
@@ -1247,6 +1280,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             value={newPhone} onChange={event => {
               numberCheckSequence.current+=1;
               setNewPhone(brazilPhoneMask(event.target.value));setNumberNotice("");setNumberError("");
+              setVerifiedContact(null);setNewName("");setCheckingNumber(false);
             }}
             maxLength={16} placeholder="(79) 98803-7605"
             className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none"/>
@@ -1255,18 +1289,47 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             aria-label="Verificar número no WhatsApp" title="Verificar número no WhatsApp"
             className="inline-flex shrink-0 items-center justify-center gap-2 border-l border-border px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50">
             {checkingNumber ? <LoaderCircle size={16} className="animate-spin"/> :
-              numberNotice ? <CheckCircle2 size={16}/> : <ShieldCheck size={16}/>}
+              verifiedContact ? <CheckCircle2 size={16}/> : <ShieldCheck size={16}/>}
             <span className="hidden sm:inline">{checkingNumber?"Verificando":"Verificar"}</span>
           </button>
         </div>
         {numberNotice && <p role="status" className="mt-2 text-xs font-medium text-emerald-600">{numberNotice}</p>}
         {numberError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{numberError}</p>}
-        <label className="mt-3 block text-xs font-semibold" htmlFor="union-new-name">Nome do contato (opcional)</label>
-        <input id="union-new-name" value={newName} maxLength={120} onChange={event => setNewName(event.target.value)}
-          placeholder="Nome" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+        {checkingNumber && <div role="status" className="mt-3 flex items-center gap-2 rounded-lg border border-border bg-muted/35 p-3 text-xs text-muted-foreground">
+          <LoaderCircle size={16} className="animate-spin"/> Verificando WhatsApp e buscando o contato...
+        </div>}
+        {verifiedContact && <div className="mt-3 space-y-3">
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-3">
+            <WhatsAppContactAvatar name={verifiedContact.name||newName||"Contato WhatsApp"}
+              src={verifiedContact.avatarUrl} size="list"
+              onError={()=>setVerifiedContact(current=>current?{...current,avatarUrl:null}:null)}/>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-bold text-foreground">{verifiedContact.name||newName||"Nome não disponível"}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{formatWhatsAppPhone(verifiedContact.phone)}</p>
+              <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 size={12} className="mr-1 inline"/>
+                {verifiedContact.nameSource==="agenda"?"Salvo na agenda da Union":
+                 verifiedContact.nameSource==="conversa"?"Nome do atendimento anterior":
+                 verifiedContact.nameSource==="whatsapp"?"Nome disponível no WhatsApp":
+                 "Conta confirmada no WhatsApp"}
+              </p>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold" htmlFor="union-new-name">Nome do contato (opcional)</label>
+            <input id="union-new-name" value={newName} maxLength={120} onChange={event => setNewName(event.target.value)}
+              placeholder="Informe um nome, se desejar"
+              className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
+            {!verifiedContact.name && <p className="mt-1 text-xs text-muted-foreground">
+              O WhatsApp não disponibilizou um nome público para este número.
+            </p>}
+          </div>
+        </div>}
         <div className="mt-5 flex justify-end gap-2">
           <AdminButton variant="secondary" onClick={() => setNewConversationOpen(false)}>Cancelar</AdminButton>
-          <AdminButton disabled={starting || !newPhone.trim()} onClick={() => void startConversation()}>{starting ? "Abrindo..." : "Abrir conversa"}</AdminButton>
+          {verifiedContact && <AdminButton disabled={starting || checkingNumber} onClick={() => void startConversation()}>
+            {starting ? "Abrindo..." : "Abrir conversa"}
+          </AdminButton>}
         </div>
       </form>
     </div>}
