@@ -143,11 +143,13 @@ export async function listUnionWhatsAppConversations(
   const search=options.search.trim().replace(/[,()%*\\"']/g," ").replace(/\s+/g," ").trim().slice(0,70);
   if(search){
     const term=search.replace(/\s+/g,"%");
+    const digits=options.search.replace(/\D/g,"").slice(0,15);
     const where=[
       `contact_name.ilike.%${term}%`,
       `contact_phone.ilike.%${term}%`,
       `chat_jid.ilike.%${term}%`,
     ];
+    if(digits.length>=5)where.push(`contact_phone.ilike.%${digits}%`);
     const protocol=search.match(/^(?:ATD[-\s]*)?(\d{1,12})$/i);
     if(protocol)where.push(`last_protocol_number.eq.${Number(protocol[1])}`);
     query=query.or(where.join(","));
