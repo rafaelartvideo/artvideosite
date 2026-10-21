@@ -354,7 +354,8 @@ Deno.serve(async request => {
     // mensagens, antes de termos o alias verificado. Reaproveitar a
     // conversa PN existente, nunca fundir duas conversas com histórico.
     const emptyLid=Boolean(exact && chatJid.endsWith("@lid") &&
-      !exact.last_message_at && !exact.assigned_to && exact.status==="waiting");
+      !exact.last_message_at && !exact.assigned_to &&
+      (exact.status==="waiting" || exact.status==="abandoned"));
     if((!thread||emptyLid)&&phone){
       const {data:byPhone,error:byPhoneError}=await scopedThreads()
         .eq("contact_phone",phone).order("last_message_at",{ascending:false}).limit(1);
