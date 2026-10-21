@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
+import { CircleAlert, ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
@@ -12,9 +12,9 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
+  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
   operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
@@ -141,6 +141,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("waiting");
   const [query, setQuery] = useState("");
+  const [debouncedQuery,setDebouncedQuery]=useState("");
+  const [conversationPage,setConversationPage]=useState(0);
+  const [conversationHasMore,setConversationHasMore]=useState(false);
+  const [conversationPageLoading,setConversationPageLoading]=useState(false);
+  const [conversationCounts,setConversationCounts]=useState<UnionWhatsAppConversationCounts>({
+    waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0,
+  });
+  useEffect(()=>{
+    const timer=window.setTimeout(()=>setDebouncedQuery(query.trim()),300);
+    return()=>window.clearTimeout(timer);
+  },[query]);
   const [readyAccount,setReadyAccount] = useState<string|null>(null);
   const [clockNow,setClockNow] = useState(()=>Date.now());
   const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
@@ -224,28 +235,38 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     };
   }, [settingsOpen]);
 
-  const loadingList = useRef<string|null>(null);
   const organizationRef = useRef(activeOrganizationId);
-  organizationRef.current = activeOrganizationId;
+  organizationRef.current=activeOrganizationId;
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
-
-  const refresh = useCallback(async (_silent = false) => {
-    if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView)return;
-    const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
-    if(loadingList.current===identity)return;
-    loadingList.current=identity;
-    try {
-      const items = await listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone);
-      if (organizationRef.current !== activeOrganizationId || accountRef.current!==activeChannelPhone) return;
-      setConversations(items);
+  const listQueryRef=useRef<{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number}>({
+    filter:"waiting",department:"all",search:"",page:0,
+  });
+  listQueryRef.current={filter,department:departmentFilter,search:debouncedQuery,page:conversationPage};
+  const conversationLoadSeq=useRef(0);
+  const refresh=useCallback(async(silent=false)=>{
+    if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
+    const sequence=++conversationLoadSeq.current;
+    const options={...listQueryRef.current};
+    if(!silent)setConversationPageLoading(true);
+    try{
+      const [page,counts]=await Promise.all([
+        listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone,options),
+        listUnionWhatsAppConversationCounts(activeOrganizationId,activeChannelId,activeChannelPhone),
+      ]);
+      if(sequence!==conversationLoadSeq.current ||
+        organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
+      setConversations(page.items);
+      setConversationHasMore(page.hasMore);
+      setConversationCounts(counts);
       setError("");
-    } catch (reason) {
-      if (organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as conversas."));
-    } finally {
-      if(loadingList.current===identity) loadingList.current=null;
+    }catch(reason){
+      if(sequence===conversationLoadSeq.current&&organizationRef.current===activeOrganizationId)
+        setError(systemErrorMessage(reason,"Não foi possível consultar as conversas."));
+    }finally{
+      if(sequence===conversationLoadSeq.current)setConversationPageLoading(false);
     }
-  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView]);
+  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView]);
 
   const refreshMessages = useCallback(async (conversationId: string, silent = false) => {
     if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView) return;
@@ -262,8 +283,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, protocolFilter?.id]);
 
   useEffect(() => {
-    loadingList.current = null;
+    conversationLoadSeq.current++;
     setConversations([]);
+    setConversationHasMore(false);
+    setConversationPage(0);
+    setQuery("");
+    setDebouncedQuery("");
+    setConversationCounts({waiting:0,in_att:0,forwarded:0,finished:0,total:0,unread:0});
     setMessages([]);
     setProtocolFilter(null);
     setProtocolsOpen(false);
@@ -298,7 +324,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       ? activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone:null;
     if(shownAccountRef.current===identity)return;
     shownAccountRef.current=identity;
-    setConversations([]);setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
+    conversationLoadSeq.current++;
+    setConversations([]);setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
+    setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setNewConversationOpen(false);
@@ -325,6 +353,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       accountRef.current===activeChannelPhone)setReadyAccount(identity);});
     return()=>{cancelled=true;};
   },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh]);
+
+  // Mudanças de aba, departamento ou pesquisa buscam diretamente uma página
+  // nova no servidor, sem remontar toda a interface nem recarregar canais.
+  useEffect(()=>{
+    if(channelReady!==true||!activeOrganizationId||!activeChannelId||!activeChannelPhone)return;
+    const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
+    if(readyAccount!==identity)return;
+    void refresh(true);
+  },[filter,departmentFilter,debouncedQuery,conversationPage,readyAccount,
+      activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
 
   const checkChannel = useCallback(async () => {
     if (!activeOrganizationId || !canView) return;
@@ -495,38 +533,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selected = scopedConversations.find(item => item.id === selectedId) || null;
-  const counts = useMemo(() => {
-    const result:Record<Filter,number>={waiting:0,in_att:0,forwarded:0,finished:0};
-    scopedConversations.forEach(item=>{
-      if(item.status==="finished")result.finished+=1;
-      else if(isForwardedFor(item,user?.id)||(canManage&&hasForwarding(item)))result.forwarded+=1;
-      else if(queueOnly(item))result.waiting+=1;
-      else if(item.status==="in_att")result.in_att+=1;
-    });
-    return result;
-  },[scopedConversations,user?.id,canManage]);
-  const visible = useMemo(() => {
-    const search = query.trim().toLocaleLowerCase("pt-BR");
-    const matches=scopedConversations.filter(item => {
-      const rightFilter=filter==="forwarded"?(isForwardedFor(item,user?.id)||(canManage&&hasForwarding(item))):
-        filter==="waiting"?queueOnly(item):filter==="in_att"?
-        item.status==="in_att"&&!hasForwarding(item):item.status==="finished";
-      return rightFilter && (departmentFilter === "all" ||
-        (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) &&
-        (!search || [item.contact_name,item.contact_phone || "",item.chat_jid,
-          item.last_protocol_number ? unionWhatsAppProtocolLabel(item.last_protocol_number) : ""]
-          .some(value=>value.toLocaleLowerCase("pt-BR").includes(search)));
-    });
-    if(filter!=="waiting")return matches;
-    return matches.sort((left,right)=>
-      Date.parse(left.queue_entered_at||left.created_at)-Date.parse(right.queue_entered_at||right.created_at));
-  }, [scopedConversations, filter, query, departmentFilter,user?.id,canManage]);
+  // Todos os filtros são executados no Supabase, não apenas na página atual.
+  const counts=conversationCounts;
+  const visible=scopedConversations;
   const queuePositions=useMemo(()=>{
-    const waiting=scopedConversations.filter(queueOnly)
-      .sort((a,b)=>Date.parse(a.queue_entered_at||a.created_at)-
-        Date.parse(b.queue_entered_at||b.created_at));
-    return new Map(waiting.map((item,index)=>[item.id,index+1]));
-  },[scopedConversations]);
+    return new Map(scopedConversations.filter(queueOnly).map((item,index)=>[
+      item.id,conversationPage*50+index+1,
+    ]));
+  },[scopedConversations,conversationPage]);
   const forwardedBadge=(item:UnionWhatsAppConversation)=>{
     if(!queueSettings.show_forward_badges || !hasForwarding(item))return null;
     const sentByMe=item.forwarded_by===user?.id;
@@ -1077,10 +1091,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </div>
             </div>
             <p className="mt-0.5 text-[10px] text-muted-foreground">
-              {scopedConversations.length} conversa(s) · {scopedConversations.filter(item => item.unread_count > 0).length} não lida(s)
+              {counts.total} conversa(s) · {counts.unread} não lida(s)
             </p>
             <div className="mt-3 grid grid-cols-2 gap-1.5">
-              {filters.map(item => <button key={item.value} type="button" onClick={() => setFilter(item.value)}
+              {filters.map(item => <button key={item.value} type="button" onClick={() => {setSelectedId(null);setConversationPage(0);setFilter(item.value);}}
                 aria-pressed={filter === item.value}
                 className={`flex min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 py-2 text-[10px] font-bold transition-colors ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
                 <span className="truncate">{item.label}</span>
@@ -1088,7 +1102,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </button>)}
             </div>
             {<select aria-label="Filtrar departamento" value={departmentFilter}
-              onChange={event=>setDepartmentFilter(event.target.value)}
+              onChange={event=>{setSelectedId(null);setConversationPage(0);setDepartmentFilter(event.target.value);}}
               className="mt-3 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
               <option value="all">Todos os departamentos</option>
               <option value="none">Sem departamento</option>
@@ -1096,15 +1110,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </select>}
             <div className="relative mt-3">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-              <input value={query} onChange={event => setQuery(event.target.value)} type="search" aria-label="Buscar conversa"
+              <input value={query} onChange={event => {setSelectedId(null);setConversationPage(0);setQuery(event.target.value);}} type="search" aria-label="Buscar conversa"
                 placeholder="Nome, telefone ou protocolo"
                 className="w-full rounded-lg border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25"/>
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+            {conversationPageLoading && <p role="status" className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
+              Atualizando conversas...
+            </p>}
             {visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
               <WhatsAppIcon size={30}/><p>Nenhuma conversa encontrada.</p>
-              {scopedConversations.length === 0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
+              {counts.total===0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
             : visible.map(item => {
               const selected = item.id === selectedId;
@@ -1133,6 +1150,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </button>;
             })}
           </div>
+          {(conversationPage>0||conversationHasMore) && <div className="flex shrink-0 items-center justify-between border-t border-border bg-card px-3 py-2">
+            <span className="text-xs text-muted-foreground">Página {conversationPage+1}</span>
+            <div className="flex items-center gap-2">
+              <button type="button" aria-label="Página anterior de conversas"
+                disabled={conversationPage===0||conversationPageLoading}
+                onClick={()=>{setSelectedId(null);setConversationPage(p=>Math.max(0,p-1));}}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted">
+                <ChevronLeft size={16}/>
+              </button>
+              <button type="button" aria-label="Próxima página de conversas"
+                disabled={!conversationHasMore||conversationPageLoading}
+                onClick={()=>{setSelectedId(null);setConversationPage(p=>p+1);}}
+                className="flex h-8 w-8 items-center justify-center rounded-md border border-border disabled:opacity-40 hover:bg-muted">
+                <ChevronRight size={16}/>
+              </button>
+            </div>
+          </div>}
         </aside>
         <section className="flex min-h-0 min-w-0 flex-col bg-card">
           {!selected ? <div role="status" className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
