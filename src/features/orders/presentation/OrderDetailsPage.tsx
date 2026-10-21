@@ -31,6 +31,7 @@ import { OrderUndoSolutionDialog } from "./OrderUndoSolutionDialog";
 import { OrderFinancialSummary } from "./OrderFinancialSummary";
 import { ServiceOrderSlaCards } from "./ServiceOrderSlaCards";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
+import { OrderQuoteWorkspace } from "./OrderQuoteWorkspace";
 import { OrderSacDigitalDialog } from "@/features/sac-digital/presentation/OrderSacDigitalDialog";
 import { getSacDigitalIntegrationStatus } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { adminPath } from "@/features/admin-shell/admin-routes";
@@ -165,6 +166,8 @@ export function OrderDetailsPage(props: Props) {
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
   const { statuses, situations } = workspace;
+  const quoteWorkflowEnabled = Boolean(detail?.service_type_id && workspace.serviceTypes.some((type: any) =>
+    type.id === detail.service_type_id && type.quote_workflow_enabled === true));
 
   const effectiveRouteSubpage = routeSubpage;
   const canOpenDocumentsPage = hasPermission("orders.section.images") || hasPermission("documents.signatures.view");
@@ -563,8 +566,12 @@ export function OrderDetailsPage(props: Props) {
           </div>
         </div>
         {ORDER_EMAIL_ACTION_VISIBLE && emailMessage && <div className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-semibold ${emailMessage.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}><span>{emailMessage.text}</span><button type="button" onClick={() => setEmailMessage(null)} aria-label="Fechar aviso">×</button></div>}
-        <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={itemBadge} />
-        {detailSection === "products-services" ? <OrderProductsServicesSection
+        <OrderDetailSectionTabs value={detailSection} onChange={setDetailSection} itemBadge={quoteWorkflowEnabled ? null : itemBadge} commercialLabel={quoteWorkflowEnabled ? "Orçamento" : "Produtos e Serviços"} />
+        {detailSection === "products-services" && quoteWorkflowEnabled ? <OrderQuoteWorkspace
+          order={detail}
+          canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
+          onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
+        /> : detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
           formatCurrency={formatCurrency}
