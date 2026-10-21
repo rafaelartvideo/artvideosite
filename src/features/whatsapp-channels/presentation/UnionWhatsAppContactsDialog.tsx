@@ -396,7 +396,9 @@ export function UnionWhatsAppContactsDialog({
       if(sequence!==phoneCheckSequence.current)return;
       if(!result.phone)throw Error("Não foi possível confirmar o número.");
       setPhone(mask(result.phone));
-      setPhoneCheckNotice(result.adjusted?"Número confirmado com ajuste do nono dígito.":"Número confirmado no WhatsApp.");
+      setPhoneCheckNotice(result.distinct_identities
+        ?"Número confirmado; a outra variante do nono dígito pertence a outra identidade WhatsApp."
+        : result.adjusted?"Número canônico confirmado com ajuste do nono dígito.":"Número confirmado no WhatsApp.");
     }catch(reason){
       if(sequence===phoneCheckSequence.current)
         setPhoneCheckError(systemErrorMessage(reason,"Não foi possível verificar o contato."));
