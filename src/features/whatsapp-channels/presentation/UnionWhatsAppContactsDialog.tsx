@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { WhatsAppContactAvatar, formatWhatsAppPhone } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
 import {
@@ -55,6 +56,8 @@ export function UnionWhatsAppContactsDialog({
   const [phoneCheckError,setPhoneCheckError]=useState("");
   const phoneCheckSequence=useRef(0);
   const [avatar,setAvatar]=useState<string|null>(null);
+  const [avatarLoading,setAvatarLoading]=useState(false);
+  const contactListRequestRef=useRef(0);
   const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
   const listScrollRef=useRef<HTMLDivElement|null>(null);
@@ -87,16 +90,21 @@ export function UnionWhatsAppContactsDialog({
   },[importing]);
 
   const refresh=useCallback(async (value:string,index:number)=>{
+    const requestId=++contactListRequestRef.current;
     setLoading(true);
     try{
       const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_list",{
         search:value,page:index,
       });
-      setContacts(result.contacts||[]);
+      if(requestId!==contactListRequestRef.current)return;
+      setContacts((result.contacts||[]).slice(0,100));
       setTotal(result.total||0);
+      setVisibleAvatarJids([]);
       setError("");
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível carregar os contatos."));}
-    finally{setLoading(false);}
+    }catch(reason){
+      if(requestId===contactListRequestRef.current)
+        setError(systemErrorMessage(reason,"Não foi possível carregar os contatos."));
+    }finally{if(requestId===contactListRequestRef.current)setLoading(false);}
   },[organizationId]);
 
   useEffect(()=>{
@@ -107,15 +115,17 @@ export function UnionWhatsAppContactsDialog({
   useEffect(()=>{
     let canceled=false;
     setAvatar(null);
+    setAvatarLoading(Boolean(selected));
     if(!selected)return;
     void operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_avatar",{
       chat_jid:selected.chat_jid,
     }).then(result=>{
       if(!canceled){
         setAvatar(result.avatar_url||null);
+        setAvatarLoading(false);
         setListAvatars(old=>({...old,[selected!.chat_jid]:result.avatar_url||null}));
       }
-    }).catch(()=>{if(!canceled)setAvatar(null);});
+    }).catch(()=>{if(!canceled){setAvatar(null);setAvatarLoading(false);}});
     return()=>{canceled=true;};
   },[organizationId,selected?.chat_jid]);
 
@@ -477,7 +487,7 @@ export function UnionWhatsAppContactsDialog({
         <div className="flex min-h-0 flex-col border-b border-border md:border-b-0 md:border-r">
           <div className="flex shrink-0 gap-2 p-3">
             <div className="relative min-w-0 flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-primary"/>
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input aria-label="Buscar contatos" value={search} onChange={event=>{setSearch(event.target.value);setPage(0);}}
                 placeholder="Nome ou telefone" className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
             </div>
@@ -494,17 +504,12 @@ export function UnionWhatsAppContactsDialog({
               const display=labelFor(contact);
               return <button type="button" key={contact.id} data-avatar-jid={contact.chat_jid} onClick={()=>choose(contact)}
                 className={`flex w-full items-center gap-3 border-b border-border px-3 py-2.5 text-left hover:bg-muted ${selected?.id===contact.id?"bg-primary/10":""}`}>
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold text-muted-foreground">
-                  {listAvatars[contact.chat_jid]
-                    ? <img src={listAvatars[contact.chat_jid]!} alt="" loading="lazy"
-                        referrerPolicy="no-referrer" className="h-full w-full object-cover"
-                        onError={()=>setListAvatars(old=>({...old,[contact.chat_jid]:null}))}/>
-                    : initials(display)}
-                </span>
+                <WhatsAppContactAvatar name={display} src={listAvatars[contact.chat_jid]}
+                  onError={()=>setListAvatars(old=>({...old,[contact.chat_jid]:null}))}/>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-semibold">{display}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">
-                    {contact.contact_phone ? "+"+contact.contact_phone : "Contato com identificador privado"}
+                    {contact.contact_phone ? formatWhatsAppPhone(contact.contact_phone) : "Contato com identificador privado"}
                   </span>
                 </span>
                 {contact.display_name && <Check size={15} className="shrink-0 text-primary"/>}
@@ -525,16 +530,14 @@ export function UnionWhatsAppContactsDialog({
           {!selected && !creating ? <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
             <ContactRound size={34}/>
             <p>Selecione um contato para editar o nome e o número.</p>
-            <p className="max-w-xs text-xs">A Union preserva o nome salvo aqui mesmo que o perfil público da pessoa seja diferente.</p>
           </div> : <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-lg font-bold">
-                {avatar?<img alt="" src={avatar} referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatar(null)}/>:initials(currentName)}
-              </span>
+              <WhatsAppContactAvatar size="detail" name={currentName}
+                src={avatarLoading?undefined:avatar} onError={()=>setAvatar(null)}/>
               <div className="min-w-0">
                 <p className="truncate text-base font-bold">{creating?"Novo contato":currentName}</p>
                 <p className="text-xs text-muted-foreground">{creating?"Salvar na agenda da Union":
-                  selected?.contact_phone?"+"+selected.contact_phone:"Número não disponibilizado pelo WhatsApp"}</p>
+                  selected?.contact_phone?formatWhatsAppPhone(selected.contact_phone):"Número não disponibilizado pelo WhatsApp"}</p>
               </div>
             </div>
             <div>
