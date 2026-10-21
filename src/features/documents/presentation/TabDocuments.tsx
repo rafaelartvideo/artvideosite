@@ -30,22 +30,20 @@ function DocumentsAreaHeader({ title, description, action }: { title: string; de
 
 function OrderLabelPrintSettings({ canEdit }: { canEdit: boolean }) {
   const [layout, setLayout] = useState<OrderLabelLayout>(() => readOrderLabelLayout());
-  const [error, setError] = useState("");
   const totalWidth = 3 * layout.width + 2 * layout.gap + 2 * layout.margin;
   const valid = isValidOrderLabelLayout(layout);
 
   const change = (key: keyof OrderLabelLayout, value: string) => {
-    setError("");
     setLayout(current => ({ ...current, [key]: Number(value) }));
   };
 
   const saveSettings = () => {
-    if (!valid) { setError("Confira as medidas. A largura total não pode ultrapassar 104 mm."); return; }
+    if (!valid) { notifyAdmin("Confira as medidas. A largura total não pode ultrapassar 104 mm.", "error"); return; }
     try {
       saveOrderLabelLayout(layout);
       notifyAdmin("Configuração das etiquetas salva neste navegador.", "success");
     } catch (saveError) {
-      setError(systemErrorMessage(saveError, "Não foi possível salvar as configurações das etiquetas."));
+      notifyAdmin(systemErrorMessage(saveError, "Não foi possível salvar as configurações das etiquetas."), "error");
     }
   };
 
@@ -75,9 +73,8 @@ function OrderLabelPrintSettings({ canEdit }: { canEdit: boolean }) {
         </div>)}
       </div>
     </div>
-    {error && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
     {canEdit && <div className="mt-4 flex justify-end gap-2">
-      <BtnSecondary onClick={() => { setLayout({ ...DEFAULT_LABEL_LAYOUT }); setError(""); }}>Restaurar padrão</BtnSecondary>
+      <BtnSecondary onClick={() => setLayout({ ...DEFAULT_LABEL_LAYOUT })}>Restaurar padrão</BtnSecondary>
       <BtnPrimary onClick={saveSettings} disabled={!valid}>Salvar</BtnPrimary>
     </div>}
     <p className="mt-2 text-[11px] text-muted-foreground">As alterações são salvas apenas ao clicar em Salvar e se aplicam neste navegador.</p>
@@ -106,13 +103,15 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
   const [typeModalOpen, setTypeModalOpen] = useState(false);
   const [editingType, setEditingType] = useState<AttachmentTypeRecord | null>(null);
   const [typeName, setTypeName] = useState("");
-  const [typeNameError, setTypeNameError] = useState("");
   const [templatePage, setTemplatePage] = useState(1);
   const [templatePageSize, setTemplatePageSize] = useState(5);
   const [attachmentPage, setAttachmentPage] = useState(1);
   const [attachmentPageSize, setAttachmentPageSize] = useState(5);
   const errorMessage = error ? systemErrorMessage(error) : "";
   const attachmentErrorMessage = attachmentError ? systemErrorMessage(attachmentError) : "";
+  // Query failures use the same global feedback UI as mutation errors.
+  useEffect(() => { if (errorMessage && !editorOpen) notifyAdmin(errorMessage, "error"); }, [errorMessage, editorOpen]);
+  useEffect(() => { if (attachmentErrorMessage && !attachmentTypesLoading) notifyAdmin(attachmentErrorMessage, "error"); }, [attachmentErrorMessage, attachmentTypesLoading]);
   const sortedTemplates = [...filteredTemplates].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const sortedAttachmentTypes = [...attachmentTypes].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const templateTotalPages = Math.max(1, Math.ceil(sortedTemplates.length / templatePageSize));
@@ -156,13 +155,13 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     if (!canEdit && editorValue.id) return;
     if (!canCreate && !editorValue.id) return;
     await save(value);
+    notifyAdmin(value.id ? "Modelo de impressão atualizado." : "Modelo de impressão criado.", "success");
     onRouteChange?.(null, null);
   };
   const openTypeModal = (type?: AttachmentTypeRecord) => {
     if (type ? !canEditAttachment : !canCreateAttachment) return;
     setEditingType(type || null);
     setTypeName(type?.name || "");
-    setTypeNameError("");
     setTypeModalOpen(true);
   };
   const closeTypeModal = () => {
@@ -170,19 +169,18 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
     setTypeModalOpen(false);
     setEditingType(null);
     setTypeName("");
-    setTypeNameError("");
   };
   const submitType = async () => {
     if (editingType ? !canEditAttachment : !canCreateAttachment) return;
     const name = typeName.trim();
-    if (!name) { setTypeNameError("Informe o nome do tipo de anexo."); return; }
+    if (!name) { notifyAdmin("Informe o nome do tipo de anexo.", "error"); return; }
     try {
       await saveAttachmentType(name, editingType?.id);
+      notifyAdmin(editingType ? "Tipo de anexo atualizado." : "Tipo de anexo cadastrado.", "success");
       setTypeModalOpen(false);
       setEditingType(null);
       setTypeName("");
-      setTypeNameError("");
-    } catch (saveError) {
+      } catch (saveError) {
       notifyAdmin(systemErrorMessage(saveError, "Não foi possível salvar."), "error");
     }
   };
@@ -218,9 +216,8 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
           description="Crie e configure os modelos disponíveis no menu Imprimir dos detalhes da OS."
         />
         <AdminCard>
-          {errorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{errorMessage}</div>}
           {loading ? <div className="p-8"><LoadingState /></div> : filteredTemplates.length === 0 ? <div className="p-8"><EmptyState icon={FileText} title="Nenhum modelo configurado" /></div> : <>
-            <div className="overflow-x-auto"><table className="min-w-[760px]"><thead><tr>{showModel && <th className="text-left">Modelo</th>}{showDocumentType && <th className="text-left">Tipo</th>}{showPaper && <th className="text-left">Papel</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedTemplates.map(template => <tr key={template.id}>{showModel && <td><p className="font-bold text-[#0d1b2e]">{template.name}</p><p className="text-xs text-[#5a6a82]">{template.description || "Sem descrição"}</p></td>}{showDocumentType && <td className="text-xs text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</td>}{showPaper && <td className="text-xs text-[#5a6a82]">{template.paper_size} · {template.orientation === "landscape" ? "Paisagem" : "Retrato"}</td>}{showStatus && <td><StatusBadge status={template.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar modelo" title="Editar" disabled={openingEditor} onClick={() => openTemplateEditor(template)}><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={template.is_active} entityLabel="modelo" onClick={() => void toggleActive(template)} />}</div></td>}</tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="min-w-[760px]"><thead><tr>{showModel && <th className="text-left">Modelo</th>}{showDocumentType && <th className="text-left">Tipo</th>}{showPaper && <th className="text-left">Papel</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedTemplates.map(template => <tr key={template.id}>{showModel && <td><p className="font-bold text-[#0d1b2e]">{template.name}</p><p className="text-xs text-[#5a6a82]">{template.description || "Sem descrição"}</p></td>}{showDocumentType && <td className="text-xs text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</td>}{showPaper && <td className="text-xs text-[#5a6a82]">{template.paper_size} · {template.orientation === "landscape" ? "Paisagem" : "Retrato"}</td>}{showStatus && <td><StatusBadge status={template.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar modelo" title="Editar" disabled={openingEditor} onClick={() => openTemplateEditor(template)}><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={template.is_active} entityLabel="modelo" onClick={() => { void toggleActive(template).then(() => notifyAdmin(template.is_active ? "Modelo desativado." : "Modelo ativado.", "success")).catch(error => notifyAdmin(systemErrorMessage(error, "Não foi possível alterar o modelo."), "error")); }} />}</div></td>}</tr>)}</tbody></table></div>
             <PaginationBar page={safeTemplatePage} pageSize={templatePageSize} totalItems={filteredTemplates.length} onPageChange={setTemplatePage} onPageSizeChange={size => { setTemplatePageSize(size); setTemplatePage(1); }} />
           </>}
         </AdminCard>
@@ -230,9 +227,8 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
           description="Cadastre os tipos exibidos ao adicionar arquivos aos documentos de uma OS."
         />
         <AdminCard>
-          {attachmentErrorMessage && <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{attachmentErrorMessage}</div>}
           {attachmentTypesLoading ? <div className="p-8"><LoadingState /></div> : attachmentTypes.length === 0 ? <div className="p-8"><EmptyState icon={Tag} title="Nenhum tipo de anexo" /></div> : <>
-            <div className="overflow-x-auto"><table className="min-w-[620px]"><thead><tr>{showAttachmentType && <th className="text-left">Tipo de anexo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedAttachmentTypes.map(type => <tr key={type.id}>{showAttachmentType && <td className="font-bold text-[#0d1b2e]">{type.name}</td>}{showStatus && <td><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canEditAttachment && <AdminIconButton ariaLabel="Editar tipo de anexo" title="Editar" onClick={() => openTypeModal(type)}><Edit2 size={14} /></AdminIconButton>}{canDeleteAttachment && <AdminIconButton ariaLabel="Excluir tipo de anexo" title="Excluir" variant="danger" onClick={() => deleteType(type)}><Trash2 size={14} /></AdminIconButton>}{canEditAttachment && <AdminActiveStateButton active={type.is_active} entityLabel="tipo de anexo" onClick={() => void toggleAttachmentType(type.id, !type.is_active)} />}</div></td>}</tr>)}</tbody></table></div>
+            <div className="overflow-x-auto"><table className="min-w-[620px]"><thead><tr>{showAttachmentType && <th className="text-left">Tipo de anexo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedAttachmentTypes.map(type => <tr key={type.id}>{showAttachmentType && <td className="font-bold text-[#0d1b2e]">{type.name}</td>}{showStatus && <td><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canEditAttachment && <AdminIconButton ariaLabel="Editar tipo de anexo" title="Editar" onClick={() => openTypeModal(type)}><Edit2 size={14} /></AdminIconButton>}{canDeleteAttachment && <AdminIconButton ariaLabel="Excluir tipo de anexo" title="Excluir" variant="danger" onClick={() => deleteType(type)}><Trash2 size={14} /></AdminIconButton>}{canEditAttachment && <AdminActiveStateButton active={type.is_active} entityLabel="tipo de anexo" onClick={() => { void toggleAttachmentType(type.id, !type.is_active).then(() => notifyAdmin(type.is_active ? "Tipo de anexo desativado." : "Tipo de anexo ativado.", "success")).catch(error => notifyAdmin(systemErrorMessage(error, "Não foi possível alterar o tipo de anexo."), "error")); }} />}</div></td>}</tr>)}</tbody></table></div>
             <PaginationBar page={safeAttachmentPage} pageSize={attachmentPageSize} totalItems={attachmentTypes.length} onPageChange={setAttachmentPage} onPageSizeChange={size => { setAttachmentPageSize(size); setAttachmentPage(1); }} />
           </>}
         </AdminCard>
@@ -254,7 +250,7 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
       className="max-w-md"
       footer={<div className="flex justify-end gap-2"><BtnSecondary onClick={closeTypeModal} disabled={savingAttachmentType}>Cancelar</BtnSecondary><BtnPrimary onClick={submitType} loading={savingAttachmentType} loadingText="Salvando...">Salvar</BtnPrimary></div>}
     >
-      <FInput label="Nome do tipo" required disabled={savingAttachmentType} error={typeNameError} value={typeName} onChange={(event: any) => { setTypeNameError(""); setTypeName(event.target.value); }} placeholder="Nome do tipo" />
+      <FInput label="Nome do tipo" required disabled={savingAttachmentType} value={typeName} onChange={(event: any) => setTypeName(event.target.value)} placeholder="Nome do tipo" />
     </AdminDialog>}
   </div>;
 }
