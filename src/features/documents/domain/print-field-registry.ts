@@ -126,6 +126,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     description: "Diagnóstico, solução proposta, valores e validade da proposta vinculada à OS.",
     defaultColumns: 2,
     fields: [
+      { key: "quote.problem_description", label: "Descrição do problema", description: "Preenchida pela OS, somente leitura. Não pode ser alterada no orçamento." },
       { key: "quote.diagnosis", label: "Diagnóstico" },
       { key: "quote.proposed_solution", label: "Solução proposta" },
       { key: "quote.valid_until", label: "Validade da proposta", kind: "date" },
