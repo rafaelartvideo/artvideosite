@@ -26,7 +26,7 @@ export type UnionWhatsAppMessage = {
   conversation_id: string;
   provider_message_id: string;
   direction: "incoming" | "outgoing";
-  message_type: "text" | "image" | "video" | "audio" | "file" | "location" | "contact" | "unknown";
+  message_type: "text" | "image" | "video" | "audio" | "file" | "sticker" | "location" | "contact" | "unknown";
   body_text: string;
   sender_name: string | null;
   sent_at: string;
