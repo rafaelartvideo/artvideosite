@@ -160,6 +160,19 @@ export async function listUnionWhatsAppConversations(
   return {items:entries.slice(0,INBOX_PAGE_SIZE),hasMore:entries.length>INBOX_PAGE_SIZE};
 }
 
+// Carrega pontualmente o atendimento aberto por um atalho, mesmo quando
+// não está entre os 50 registros da página atual. A RLS continua ativa.
+export async function getUnionWhatsAppConversation(
+  organizationId:string,conversationId:string,channelId:string,accountPhone:string,
+):Promise<UnionWhatsAppConversation|null>{
+  const {data,error}=await supabase.from("union_whatsapp_conversations")
+    .select(columns).eq("organization_id",organizationId)
+    .eq("channel_id",channelId).eq("account_phone",accountPhone)
+    .eq("id",conversationId).maybeSingle();
+  raise(error);
+  return data as UnionWhatsAppConversation|null;
+}
+
 export async function listUnionWhatsAppMessages(
   organizationId:string,conversationId:string,channelId:string,accountPhone:string,
   protocolId?:string|null,before?:UnionWhatsAppMessageCursor|null,
