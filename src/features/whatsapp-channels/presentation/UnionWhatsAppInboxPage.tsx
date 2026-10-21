@@ -161,6 +161,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[query]);
   const [readyAccount,setReadyAccount] = useState<string|null>(null);
   const [clockNow,setClockNow] = useState(()=>Date.now());
+  const [documentVisible,setDocumentVisible]=useState(()=>document.visibilityState==="visible");
+  useEffect(()=>{
+    const handle=()=>setDocumentVisible(document.visibilityState==="visible");
+    document.addEventListener("visibilitychange",handle);
+    return()=>document.removeEventListener("visibilitychange",handle);
+  },[]);
   const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
   const [routingLoading,setRoutingLoading]=useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
@@ -731,7 +737,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[activeOrganizationId,channelReady,previewIds,avatars]);
 
   useEffect(() => {
-    if (!activeOrganizationId || !selected || selected.unread_count <= 0 ||
+    if (!documentVisible || !activeOrganizationId || !selected || selected.unread_count <= 0 ||
       (selected.assigned_to !== user?.id && !canManage && !(selected.status==="waiting" && canAction("view_queues")))) return;
     const threadId=selected.id;
     setConversations(current => current.map(item =>
@@ -739,7 +745,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
       .then(() => void refresh(true))
       .catch(reason => reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida.")));
-  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id,canManage,capabilities,reportError,refresh]);
+  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id,canManage,capabilities,reportError,refresh,documentVisible]);
 
   const loadDepartments = async () => {
     if(!activeOrganizationId) return [];
