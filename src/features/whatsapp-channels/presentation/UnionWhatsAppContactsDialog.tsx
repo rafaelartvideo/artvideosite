@@ -561,7 +561,7 @@ export function UnionWhatsAppContactsDialog({
                 </button>
               </div>
               {phoneCheckNotice && <p role="status" className="mt-2 text-xs font-medium text-emerald-600">{phoneCheckNotice}</p>}
-              {phoneCheckError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{phoneCheckError}</p> 
+              {phoneCheckError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{phoneCheckError}</p>}
             </div>}
             {!creating && selected && <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
               <p><span className="text-muted-foreground">Nome importado por arquivo (VCF/Excel/CSV): </span>{selected.device_name||"Não importado"}</p>
