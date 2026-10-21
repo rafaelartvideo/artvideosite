@@ -927,7 +927,7 @@ Deno.serve(async request => {
           return json({success:false,error:"A mídia ultrapassa o limite de 5 MB."},413);
         const bytes=new Uint8Array(decoded.length);
         for(let i=0;i<decoded.length;i++) bytes[i]=decoded.charCodeAt(i);
-        const ext=ref.media_type==="image" ? (ref.mime_type==="image/png"?"png":"jpg") :
+        const ext=ref.media_type==="sticker"?"webp":ref.media_type==="image" ? (ref.mime_type==="image/png"?"png":"jpg") :
           ref.media_type==="video"?"mp4":ref.media_type==="audio"?"ogg":
           (String(ref.file_name||"").split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10)||"bin";
         mediaPath=org+"/"+thread.channel_id+"/"+thread.id+"/"+messageId+"."+ext;
@@ -1069,8 +1069,9 @@ Deno.serve(async request => {
       const mime=String(body.media_mime||"");
       const name=String(body.media_name||"").replace(/[^\\p{L}\\p{N}._() -]/gu,"").slice(0,160);
       const fileSize=Number(body.media_size);
-      const caps:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
-      const accepted=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
+      const caps:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576,sticker:1048576};
+      const accepted=kind==="sticker" ? mime==="image/webp" :
+        kind==="image" ? ["image/jpeg","image/png"].includes(mime)
         :kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
         :kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
         :kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
@@ -1081,7 +1082,7 @@ Deno.serve(async request => {
       if(!uuid(id) || !accepted || !name || !Number.isSafeInteger(fileSize) ||
         fileSize<1 || fileSize>caps[kind]) return json({success:false,
         error:"Formato ou tamanho do arquivo não permitido para este canal."},413);
-      const ext=kind==="image"?(mime==="image/png"?"png":"jpg"):
+      const ext=kind==="sticker"?"webp":kind==="image"?(mime==="image/png"?"png":"jpg"):
         kind==="audio"?(mime==="audio/mp4"?"m4a":mime==="audio/mpeg"?"mp3":"ogg"):kind==="video"?"mp4":
         (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
       const path=org+"/"+thread.channel_id+"/"+thread.id+"/"+id+"."+ext;
@@ -1096,9 +1097,10 @@ Deno.serve(async request => {
     const kind=String(body.media_type||"");
     const mime=String(body.media_mime||"");
     const name=String(body.media_name||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
-    const limits:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
+    const limits:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576,sticker:1048576};
     const mimeAllowed=isMedia && (
-      kind==="image" ? ["image/jpeg","image/png"].includes(mime)
+      kind==="sticker" ? mime==="image/webp"
+      : kind==="image" ? ["image/jpeg","image/png"].includes(mime)
       : kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
       : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
@@ -1108,11 +1110,12 @@ Deno.serve(async request => {
     );
     const fileSize=Number(body.media_size);
     const mediaPath=isMedia ? String(body.media_path||"") : "";
-    const ext=isMedia ? kind==="image"?(mime==="image/png"?"png":"jpg"):
+    const ext=isMedia ? kind==="sticker"?"webp":kind==="image"?(mime==="image/png"?"png":"jpg"):
       kind==="video"?"mp4":kind==="audio"?(mime==="audio/mp4"?"m4a":mime==="audio/mpeg"?"mp3":"ogg"):
       (name.split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin" : "";
     const expectedMediaPath=isMedia ? org+"/"+thread.channel_id+"/"+thread.id+"/"+clientId+"."+ext : "";
     if(!uuid(clientId) || text.length>4000 || (!isMedia && !text) ||
+      (kind==="sticker" && Boolean(text)) ||
       (isMedia && (!mimeAllowed || !name || mediaPath!==expectedMediaPath ||
         !Number.isSafeInteger(fileSize) || fileSize<1 || fileSize>limits[kind])) ||
       !/^[0-9]{5,20}@(s\.whatsapp\.net|lid)$/.test(thread.chat_jid))
