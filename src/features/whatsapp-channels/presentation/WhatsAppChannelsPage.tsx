@@ -296,9 +296,12 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setAction("register");
     try{
       const result=await operateWhatsAppChannel(activeOrganizationId,"register",undefined,label);
+      const activeConnection=channels.find(item=>item.state==="connected" || item.state==="connecting");
       if(result.channels)setChannels(result.channels);
-      if(result.channel){channelRef.current=result.channel;setChannel(result.channel);}
-      const hasOtherActive=channels.some(item=>item.state==="connected" || item.state==="connecting");
+      // Cadastrar uma sessão em espera não deve trocar a sessão ativa da tela
+      // nem interromper a verificação periódica do número já conectado.
+      if(result.channel && !activeConnection){channelRef.current=result.channel;setChannel(result.channel);}
+      const hasOtherActive=Boolean(activeConnection);
       setCreateConnectionOpen(false);
       setCreatingWhatsApp(false);
       setConnectionName("");
