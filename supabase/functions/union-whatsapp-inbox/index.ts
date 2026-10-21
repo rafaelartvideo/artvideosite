@@ -1470,7 +1470,7 @@ Deno.serve(async request => {
       // WuzAPI can echo the outgoing event before this signed send request
       // returns. It has the same provider ID; enrich the existing row instead
       // of showing two separate bubbles or dropping the private attachment.
-      const patch:Record<string,unknown>={};
+      const patch:Record<string,unknown>={origin:"union"};
       if(senderName) patch.sender_name=senderName;
       if(mediaPath) {
         patch.media_path=mediaPath;
