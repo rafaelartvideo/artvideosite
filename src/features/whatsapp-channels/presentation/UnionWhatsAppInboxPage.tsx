@@ -743,9 +743,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const threadId=selected.id;
     setConversations(current => current.map(item =>
       item.id === threadId ? {...item,unread_count:0} : item));
+    setConversationCounts(current=>({...current,unread:Math.max(0,current.unread-1)}));
     void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
       .then(() => void refresh(true))
-      .catch(reason => reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida.")));
+      .catch(reason => {
+        reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida."));
+        void refresh(true);
+      });
   }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id,canManage,capabilities,reportError,refresh,documentVisible]);
 
   const loadDepartments = async () => {
