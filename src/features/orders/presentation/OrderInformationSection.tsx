@@ -4,6 +4,7 @@ import { AdminSegmentedControl, Section } from "@/shared/ui/admin/AdminLayout";
 import { EmployeeMultiSelect } from "./OrderFormControls";
 import { OrderServiceScheduleDraftDialog, type ServiceScheduleDraft } from "./OrderServiceScheduleDraftDialog";
 import { useAuth } from "@/lib/auth";
+import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 
 function localOrderTimeToIso(value: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) return "";
@@ -193,7 +194,7 @@ export function OrderInformationSection({
                 </div>
               </div>
               <div className="mt-4 space-y-4">
-                <FTextarea label="Descrição do problema" required={!editingOS} value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
+                <FTextarea label="Descrição do problema" required={!editingOS} autoCapitalize="sentences" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", capitalizeSentenceStarts(e.target.value))} rows={4} />
                 <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
               </div>
             </Section>
