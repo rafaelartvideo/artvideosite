@@ -324,14 +324,14 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       let answered=false;
       for(const row of users){
         if(!row || typeof row!=="object")continue;
-        const query=String(row.Query ?? row.query ?? "").replace(/\\D/g,"");
+        const query=String(row.Query ?? row.query ?? "").replace(/\D/g,"");
         const jid=String(row.JID ?? row.Jid ?? row.jid ?? "");
-        const lookup=query || /^([0-9]+)@s\\.whatsapp\\.net$/.exec(jid)?.[1] || "";
+        const lookup=query || /^([0-9]+)@s\.whatsapp\.net$/.exec(jid)?.[1] || "";
         if(!sameBrazilianNumber(candidate,lookup) ||
           typeof (row.IsInWhatsapp ?? row.isInWhatsapp)!=="boolean")continue;
         answered=true;
         if((row.IsInWhatsapp ?? row.isInWhatsapp)!==true)continue;
-        const found=/^(55[1-9][0-9][0-9]{8,9})@s\\.whatsapp\\.net$/.exec(jid);
+        const found=/^(55[1-9][0-9][0-9]{8,9})@s\.whatsapp\.net$/.exec(jid);
         if(!found || !sameBrazilianNumber(candidate,found[1]))
           throw new Error("provider_check_unavailable");
         return {ok:true,requested:input,
