@@ -19,6 +19,7 @@ export type UnionWhatsAppConversation = {
   unread_count: number;
   created_at: string;
   last_protocol_number: number | null;
+  queue_entered_at: string | null;
 };
 
 export type UnionWhatsAppProtocol = {
@@ -70,13 +71,18 @@ export type UnionWhatsAppContact = {
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 
 export async function listUnionWhatsAppConversations(organizationId: string, channelId: string, accountPhone: string): Promise<UnionWhatsAppConversation[]> {
-  const { data, error } = await supabase.from("union_whatsapp_conversations")
-    .select("id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at,last_protocol_number")
-    .eq("organization_id", organizationId).eq("channel_id", channelId).eq("account_phone",accountPhone)
-    .order("last_message_at", { ascending: false, nullsFirst: false })
-    .limit(150);
-  raise(error);
-  return (data || []) as UnionWhatsAppConversation[];
+  const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at";
+  const scope=()=>supabase.from("union_whatsapp_conversations")
+    .select(columns).eq("organization_id",organizationId)
+    .eq("channel_id",channelId).eq("account_phone",accountPhone);
+  // A fila é buscada em ordem FIFO diretamente do banco. Buscar somente
+  // as últimas mensagens esconderia os clientes que aguardam há mais tempo.
+  const [waiting,other]=await Promise.all([
+    scope().eq("status","waiting").order("queue_entered_at",{ascending:true,nullsFirst:false}).limit(150),
+    scope().neq("status","waiting").order("last_message_at",{ascending:false,nullsFirst:false}).limit(150),
+  ]);
+  raise(waiting.error);raise(other.error);
+  return [...(waiting.data||[]),...(other.data||[])] as UnionWhatsAppConversation[];
 }
 
 export async function listUnionWhatsAppMessages(
