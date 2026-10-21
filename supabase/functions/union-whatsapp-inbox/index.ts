@@ -287,7 +287,8 @@ Deno.serve(async request => {
         const requested="55"+national;
         const available=(Array.isArray(reply.matches)?reply.matches:[]).filter(
           (r:Record<string,unknown>) => /^55[1-9][0-9][0-9]{8,9}$/.test(String(r.phone||""))
-        ) as Array<{phone:string;query?:string;verified_name?:string}>;
+          && /^(?:[0-9]{5,20}@lid|55[1-9][0-9][0-9]{8,9}@s\.whatsapp\.net)$/.test(String(r.jid||""))
+        ) as Array<{phone:string;jid:string;query?:string;verified_name?:string}>;
         if(reply.status==="not_registered")
           return {error:"O WhatsApp confirmou que esse telefone não está cadastrado. Confira DDD e número.",status:422};
         if(reply.status!=="verified" || !available.length)
@@ -299,9 +300,12 @@ Deno.serve(async request => {
         const matched=distinct
           ? available.find(r=>r.query===requested)
           : available.find(r=>r.query===requested)||available[0];
-        if(!matched)return {error:"A variante com ou sem 9 corresponde a outra conta WhatsApp. Informe o número exato para evitar envio errado.",status:409};
-        return {channel,phone:matched.phone,alternatives:available,
-          adjusted:matched.phone!==requested,verified_name:matched.verified_name||"",
+        if(!matched)return {error:"As variantes do nono dígito apontam para contas WhatsApp diferentes. Confirme o número exato.",status:409};
+        // The JID is the confirmed WhatsApp identity; a @lid is not a phone.
+        // With a LID, retain the typed phone only for display/search.
+        const canonicalPhone=matched.jid.endsWith("@lid")?requested:matched.phone;
+        return {channel,phone:canonicalPhone,jid:matched.jid,alternatives:available,
+          adjusted:canonicalPhone!==requested,verified_name:matched.verified_name||"",
           distinct_identities:distinct};
       }catch(reason){
         const failure=String(reason instanceof Error?reason.message:reason);
@@ -350,6 +354,7 @@ Deno.serve(async request => {
       if("error" in verified)return json({success:false,error:verified.error,code:("code" in verified?verified.code:"verification_unavailable")},verified.status);
       return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
         alternatives:verified.alternatives,verified_name:verified.verified_name,
+        identity_type:verified.jid?.endsWith("@lid")?"lid":"phone",
         distinct_identities:verified.distinct_identities===true});
     }
 
@@ -639,13 +644,15 @@ Deno.serve(async request => {
         if(submitted && submitted!==requested){
           const verified=await verifyWhatsAppNumber(submitted);
           if("error" in verified)return json({success:false,error:verified.error},verified.status);
-          newJid=verified.phone+"@s.whatsapp.net";
+          newJid=verified.jid;
         } else if(!raw){
           const verified=await verifyWhatsAppNumber(jid.split("@")[0]);
           if("error" in verified)return json({success:false,error:verified.error},verified.status);
-          newJid=verified.phone+"@s.whatsapp.net";
+          newJid=verified.jid;
         }
-        const number=newJid.endsWith("@s.whatsapp.net")?newJid.split("@")[0]:null;
+        const number=newJid.endsWith("@lid")
+          ? (submitted||String(body.phone||"").replace(/\D/g,"")||null)
+          : newJid.endsWith("@s.whatsapp.net")?newJid.split("@")[0]:null;
         await mergeContactRows([{chat_jid:newJid,contact_phone:number,display_name:displayName}]);
         if(newJid!==jid){
           // Keep historic messages unchanged: only move the saved contact.
@@ -787,7 +794,7 @@ Deno.serve(async request => {
         .eq("provider","wuzapi").eq("state","connected").maybeSingle();
       if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready || !/^[0-9]{10,15}$/.test(channel.phone||""))
         return json({success:false,error:"Conecte o canal WhatsApp antes de iniciar uma conversa."},409);
-      const jid=phone+"@s.whatsapp.net";
+      const jid=verified.jid;
       const {data:knownContact,error:knownError}=await admin.from("union_whatsapp_contacts")
         .select("display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
         .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone)
@@ -814,12 +821,14 @@ Deno.serve(async request => {
           .eq("organization_id",org).eq("channel_id",channel.id).eq("account_phone",channel.phone).eq("chat_jid",jid);
         if(renameError)throw renameError;
       };
-      const {data:phoneMatches,error:matchError}=await admin.from("union_whatsapp_conversations")
+      // Always look for the authoritative JID FIRST; never substitute another
+      // identity just because two contact_phone display values are similar.
+      const {data:knownThreads,error:matchError}=await admin.from("union_whatsapp_conversations")
         .select("id,status,assigned_to,chat_jid").eq("organization_id",org)
         .eq("channel_id",channel.id).eq("account_phone",channel.phone)
-        .eq("contact_phone",phone).order("last_message_at",{ascending:false}).limit(5);
+        .eq("chat_jid",jid).limit(1);
       if(matchError)throw matchError;
-      const previouslyKnown=phoneMatches?.[0];
+      const previouslyKnown=knownThreads?.[0];
       const {data:created,error:createError}=previouslyKnown ? {data:null,error:null} :
         await admin.from("union_whatsapp_conversations")
         .upsert({organization_id:org,channel_id:channel.id,account_phone:channel.phone,chat_jid:jid,
