@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
@@ -8,7 +8,7 @@ import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -164,7 +164,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
   const [routingLoading,setRoutingLoading]=useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
-  const [error, setError] = useState("");
+  const lastFeedbackRef = useRef<{message:string;at:number}|null>(null);
+  const reportError = useCallback((message:string) => {
+    if (!message) return;
+    const now = Date.now();
+    if (lastFeedbackRef.current?.message === message && now-lastFeedbackRef.current.at < 6000) return;
+    lastFeedbackRef.current = {message,at:now};
+    notifyAdmin(message,"error");
+  },[]);
 
   const [draft, setDraft] = useState("");
   const [runningAction, setRunningAction] = useState<UnionWhatsAppInboxAction | null>(null);
@@ -221,7 +228,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [channelReady, setChannelReady] = useState<boolean | null>(null);
   const [activeChannelId,setActiveChannelId]=useState<string|null>(null);
   const [activeChannelPhone,setActiveChannelPhone]=useState<string|null>(null);
-  const [channelError, setChannelError] = useState("");
+
   const [avatars, setAvatars] = useState<Record<string,string|null>>({});
   const [linkedCustomers,setLinkedCustomers] = useState<Record<string,{id:string;name:string}|null>>({});
   const messageIdentity = useRef(0);
@@ -269,14 +276,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
       setConversationCounts(counts);
-      setError("");
+      
     }catch(reason){
       if(sequence===conversationLoadSeq.current&&organizationRef.current===activeOrganizationId)
-        setError(systemErrorMessage(reason,"Não foi possível consultar as conversas."));
+        reportError(systemErrorMessage(reason,"Não foi possível consultar as conversas."));
     }finally{
       if(sequence===conversationLoadSeq.current)setConversationPageLoading(false);
     }
-  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView]);
+  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView,reportError]);
 
   const refreshMessages=useCallback(async(conversationId:string,silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
@@ -301,11 +308,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
     }catch(reason){
       if(identity===messageIdentity.current && organizationRef.current===activeOrganizationId)
-        setError(systemErrorMessage(reason,"Não foi possível consultar as mensagens."));
+        reportError(systemErrorMessage(reason,"Não foi possível consultar as mensagens."));
     }finally{
       if(identity===messageIdentity.current)setMessagesLoading(false);
     }
-  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView,protocolFilter?.id]);
+  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView,protocolFilter?.id,reportError]);
 
   const loadOlderMessages=async()=>{
     if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone ||
@@ -335,7 +342,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(area)area.scrollTop=area.scrollHeight-previousHeight+previousTop;
       });
     }catch(reason){
-      setError(systemErrorMessage(reason,"Não foi possível carregar mensagens anteriores."));
+      reportError(systemErrorMessage(reason,"Não foi possível carregar mensagens anteriores."));
     }finally{setMessagesOlderLoading(false);}
   };
 
@@ -373,7 +380,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setDepartmentFilter("all");
     setMembers([]);
-    setError("");
+    
     messageIdentity.current += 1;
   }, [activeOrganizationId]);
   const shownAccountRef=useRef<string|null>(null);
@@ -407,7 +414,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setDepartments(result.departments||[]);})
-        .catch(reason=>{if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
+        .catch(reason=>{if(!cancelled)reportError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
       operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"queue_settings_get")
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS);})
@@ -443,17 +450,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setChannelReady(ready);
         setActiveChannelId(ready?response.channel_id||null:null);
         setActiveChannelPhone(ready?response.channel_phone||null:null);
-        setChannelError("");
+        
       }
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) {
         setChannelReady(false);setActiveChannelId(null);setActiveChannelPhone(null);
         setCapabilities({});
-        setChannelError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
+        reportError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
     }
-  }, [activeOrganizationId, canView]);
-  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setCapabilities({}); setChannelError(""); void checkChannel(); }, [checkChannel]);
+  }, [activeOrganizationId, canView, reportError]);
+  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setCapabilities({});  void checkChannel(); }, [checkChannel]);
   // When disconnected, the conversation subscription is deliberately absent.
   // Recheck identity on returning to the tab without continuously polling.
   useEffect(()=>{
@@ -732,7 +739,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setProtocolsPage(0);
         setHandoffs(audit?.history||[]);
       }
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
     finally{setProtocolsLoading(false);}
   };
   const loadMoreProtocols=async()=>{
@@ -752,16 +759,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setProtocolsHasMore(result.hasMore);
       setProtocolsPage(next);
     }catch(reason){
-      setError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
+      reportError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
     }finally{setProtocolsMoreLoading(false);}
   };
   const showOrders = async () => {
     if(!activeOrganizationId || !selected)return;
-    setError("");setSavingOrder(true);
+    setSavingOrder(true);
     try{
       const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_options");
       setPossibleOrders(result.orders||[]);setOrdersOpen(true);
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar as OS deste cliente."));}
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar as OS deste cliente."));}
     finally{setSavingOrder(false);}
   };
   const linkOrder = async (id:string) => {
@@ -771,7 +778,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"order_link",{service_order_id:id});
       setConversations(old=>old.map(item=>item.id===selected.id?{...item,service_order_id:id||null}:item));
       setOrdersOpen(false);
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível vincular a OS."));}
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível vincular a OS."));}
     finally{setSavingOrder(false);}
   };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
@@ -781,27 +788,33 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const operate = async (action: Exclude<UnionWhatsAppInboxAction, "send_text" | "mark_read">) => {
     if (!selected || !activeOrganizationId || runningAction) return;
     setRunningAction(action);
-    setError("");
     try {
       await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, action);
       if (action === "assume") {
-        // Mark the newly claimed conversation as read without affecting other
-        // operators who have not claimed it.
+        // Only mark messages read after successfully claiming the conversation.
         await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "mark_read").catch(() => null);
       }
-      await refresh(true);
-      if (action === "assume") {
-        setFilter(hasForwarding(selected)?"forwarded":"in_att");
-          window.setTimeout(() => inputRef.current?.focus(), 100);
-      } else if (action === "reopen") {
-        setFilter("waiting");
-        setSelectedId(null);
+      const nextFilter:Filter = action==="assume"
+        ? (hasForwarding(selected) ? "forwarded" : "in_att") : "waiting";
+      if (action!=="assume") setSelectedId(null);
+      if (filter!==nextFilter) {
+        // Changing tabs triggers one background list query; do not block the chat
+        // waiting for an unnecessary refresh using the previous filter.
+        setConversationPage(0);
+        setFilter(nextFilter);
       } else {
-        setSelectedId(null);
-        setFilter("waiting");
+        void refresh(true);
       }
+      if (action==="assume") window.setTimeout(() => inputRef.current?.focus(), 100);
+      const successMessages:Partial<Record<typeof action,string>> = {
+        assume:"Atendimento assumido com sucesso.",
+        finish:"Atendimento finalizado com sucesso.",
+        return_queue:"Atendimento devolvido à fila.",
+        reopen:"Atendimento reaberto com sucesso.",
+      };
+      if (successMessages[action]) notifyAdmin(successMessages[action],"success");
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível atualizar o atendimento."));
+      reportError(systemErrorMessage(reason, "Não foi possível atualizar o atendimento."));
     } finally {
       setRunningAction(null);
     }
@@ -827,7 +840,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       return true;
     }
     if(!canAction("start") || !contact.contact_phone){
-      setError("Este contato não possui número verificável ou você não tem permissão para iniciar conversa.");
+      reportError("Este contato não possui número verificável ou você não tem permissão para iniciar conversa.");
       return false;
     }
     const display=contact.display_name||contact.imported_name||contact.profile_name||"";
@@ -881,11 +894,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       return;
     }
     if(!/^[1-9][0-9][0-9]{8,9}$/.test(digits)) {
-      setError("Informe o DDD e um telefone brasileiro válido.");
+      reportError("Informe o DDD e um telefone brasileiro válido.");
       return;
     }
     setStarting(true);
-    setError("");
+    
     try {
       const result = await operateUnionWhatsAppInbox(
         activeOrganizationId, crypto.randomUUID(), "start",
@@ -916,7 +929,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setTargetUserId("");
     setTargetDepartmentId("");
     setRoutingMode("operator");
-    setError("");
+    
     try {
       const [response]=await Promise.all([
         operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"members"),
@@ -924,7 +937,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       ]);
       setMembers(response.members||[]);
     }catch(reason){
-      setError(systemErrorMessage(reason,"Não foi possível carregar os destinos do encaminhamento."));
+      reportError(systemErrorMessage(reason,"Não foi possível carregar os destinos do encaminhamento."));
     }finally{setRoutingLoading(false);}
   };
 
@@ -936,10 +949,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         routingMode==="department"?"transfer_department":"transfer",
         routingMode==="department"?{department_id:targetDepartmentId}:{target_user_id:targetUserId});
       setRoutingOpen(false);
-      setFilter("forwarded");
-      await refresh(true);
+      if(filter!=="forwarded") {
+        setConversationPage(0);
+        setFilter("forwarded");
+      } else {
+        void refresh(true);
+      }
+      notifyAdmin("Atendimento encaminhado com sucesso.","success");
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível encaminhar o atendimento."));
+      reportError(systemErrorMessage(reason, "Não foi possível encaminhar o atendimento."));
     } finally {
       setRunningAction(null);
     }
@@ -958,13 +976,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const startRecording = async () => {
     if(!canReply || recording || imageOptimizing || attachment) return;
     if(!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder==="undefined") {
-      setError("Este navegador não permite gravar áudio. Use o anexo para enviar um arquivo.");return;
+      reportError("Este navegador não permite gravar áudio. Use o anexo para enviar um arquivo.");return;
     }
     const formats=["audio/ogg;codecs=opus","audio/mp4","audio/webm;codecs=opus","audio/webm"];
     const selectedFormat=formats.find(value=>MediaRecorder.isTypeSupported(value));
-    if(!selectedFormat) {setError("O navegador não oferece um formato de gravação compatível.");return;}
+    if(!selectedFormat) {reportError("O navegador não oferece um formato de gravação compatível.");return;}
+    let stream:MediaStream|null=null;
     try {
-      const stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
       const recorder=new MediaRecorder(stream,{mimeType:selectedFormat,audioBitsPerSecond:64000});
       micStreamRef.current=stream;
       recorderRef.current=recorder;
@@ -987,14 +1006,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       recorder.onerror=()=>{
         stream.getTracks().forEach(track=>track.stop());
         setRecording(false);
-        setError("A gravação de áudio foi interrompida.");
+        reportError("A gravação de áudio foi interrompida.");
       };
       recorder.start(500);
       setRecordingSeconds(0);
       setRecording(true);
-      setError("");
-    } catch {
-      setError("Não foi possível acessar o microfone. Verifique a permissão do navegador.");
+      
+    } catch (reason) {
+      stream?.getTracks().forEach(track=>track.stop());
+      const name=reason instanceof DOMException ? reason.name : "";
+      reportError(name==="NotAllowedError" || name==="PermissionDeniedError"
+        ? "Permita o acesso ao microfone nas configurações do navegador e tente novamente."
+        : name==="NotFoundError"
+          ? "Nenhum microfone foi encontrado neste dispositivo."
+          : name==="NotReadableError"
+            ? "Não foi possível usar o microfone. Verifique se outro aplicativo está utilizando-o."
+            : "Não foi possível acessar o microfone. Verifique a permissão do navegador.");
     }
   };
   useEffect(() => {
@@ -1022,18 +1049,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
     const sourceLimit=sticker ? 1048576 : image ? 25*1048576 : audio ? 16*1048576 : 25*1048576;
     if((!sticker && !image && !audio && !video && !doc) || !file.size || file.size>sourceLimit) {
-      setError("Formato não permitido ou arquivo maior que 25 MB. Áudios têm limite de 16 MB.");
+      reportError("Formato não permitido ou arquivo maior que 25 MB. Áudios têm limite de 16 MB.");
       if(mediaInputRef.current) mediaInputRef.current.value="";
       return;
     }
     setImageOptimizing(image);
-    setError("");
+    
     try {
       const prepared=image ? await prepareImageForUpload(file,"whatsapp-image") : file;
       if(seq!==optimizeSeq.current) return;
       const limit=sticker ? 1048576 : image ? 10*1048576 : audio ? 16*1048576 : 25*1048576;
       if(prepared.size>limit || (image && !["image/jpeg","image/png"].includes(prepared.type))) {
-        setError("Não foi possível otimizar a imagem para até 10 MB em JPEG ou PNG.");
+        reportError("Não foi possível otimizar a imagem para até 10 MB em JPEG ou PNG.");
         if(mediaInputRef.current) mediaInputRef.current.value="";
         return;
       }
@@ -1042,7 +1069,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setAttachment(prepared);
       inputRef.current?.focus({preventScroll:true});
     } catch(reason) {
-      if(seq===optimizeSeq.current) setError(systemErrorMessage(reason,"Falha ao preparar a imagem."));
+      if(seq===optimizeSeq.current) reportError(systemErrorMessage(reason,"Falha ao preparar a imagem."));
       if(mediaInputRef.current) mediaInputRef.current.value="";
     } finally {
       if(seq===optimizeSeq.current) setImageOptimizing(false);
@@ -1052,7 +1079,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const sendText = () => {
     if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || imageOptimizing || (!draft.trim() && !attachment)) return;
     if(attachment?.type==="image/webp" && draft.trim()){
-      setError("Figurinhas não aceitam legenda. Envie o texto em uma mensagem separada.");return;
+      reportError("Figurinhas não aceitam legenda. Envie o texto em uma mensagem separada.");return;
     }
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
@@ -1105,7 +1132,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if (/mensagem ou anexo inv[aá]lido|assuma o atendimento|conversa n[aã]o atribu[ií]da/i.test(detail)) {
           if (!file) setDraft(current => current || text);
           setPending(current => current.filter(item => item.id !== requestId));
-          setError(detail);
+          reportError(detail);
           return;
         }
         setPending(current => current.map(item => item.id === requestId
@@ -1180,10 +1207,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>
     </header>
-    {error && <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">
-      <CircleAlert size={17} className="mr-2 inline"/>{error}
-    </div>}
-    {channelError && <p role="alert" className="text-xs text-red-600">{channelError}</p>}
     {bootLoading ? <div className="flex min-h-[520px] items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
      channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
       <MessageCircle size={36} className="text-muted-foreground"/>
@@ -1247,10 +1270,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {conversationPageLoading && <p role="status" className="border-b border-border px-3 py-2 text-xs text-muted-foreground">
-              Atualizando conversas...
-            </p>}
-            {visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
+            {conversationPageLoading && visible.length===0 ?
+              <div role="status" aria-label="Carregando lista de conversas" className="space-y-1 px-3 py-2">
+                {[0,1,2].map(index=><div key={index} aria-hidden="true" className="flex items-center gap-3 rounded-md px-2 py-3">
+                  <span className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-muted"/>
+                  <span className="flex-1 space-y-2">
+                    <span className="block h-2.5 w-1/2 animate-pulse rounded bg-muted"/>
+                    <span className="block h-2 w-4/5 animate-pulse rounded bg-muted"/>
+                  </span>
+                </div>)}
+              </div>
+            : visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
               <WhatsAppIcon size={30}/><p>Nenhuma conversa encontrada.</p>
               {counts.total===0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
@@ -1361,7 +1391,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
                   </AdminButton>}
                   {canAction("return_queue") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>}
-                  {canAction("finish") && <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>}
+                  {canAction("finish") && <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}>
+                     {runningAction==="finish" ? <LoaderCircle size={15} className="animate-spin"/> : <CheckCircle2 size={15}/>}
+                     {runningAction==="finish" ? "Finalizando..." : "Finalizar"}
+                   </AdminButton>}
                 </>}
                 {!protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
