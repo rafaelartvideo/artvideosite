@@ -321,7 +321,7 @@ Deno.serve(async request => {
     };
     if(action==="check_number"){
       const verified=await verifyWhatsAppNumber(String(body.phone||""));
-      if("error" in verified)return json({success:false,error:verified.error,code:verified.code||"verification_unavailable"},verified.status);
+      if("error" in verified)return json({success:false,error:verified.error,code:("code" in verified?verified.code:"verification_unavailable")},verified.status);
       return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
         alternatives:verified.alternatives,verified_name:verified.verified_name});
     }
