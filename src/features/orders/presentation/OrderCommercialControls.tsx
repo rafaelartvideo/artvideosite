@@ -105,6 +105,7 @@ export function CatalogResults({
   unavailableLabel,
   onUnavailable,
   fourRows = false,
+  contained = false,
 }: {
   open: boolean;
   loading: boolean;
@@ -116,11 +117,13 @@ export function CatalogResults({
   unavailableLabel?: (option: OrderCatalogOption) => string;
   onUnavailable?: (option: OrderCatalogOption) => void;
   fourRows?: boolean;
+  contained?: boolean;
 }) {
   if (!open) return null;
 
   return <div role="listbox" aria-busy={loading} className={cn(
-    "absolute inset-x-0 top-[calc(100%+4px)] z-50 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover shadow-lg",
+    "z-50 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover shadow-lg",
+    contained ? "relative mt-2 w-full" : "absolute inset-x-0 top-[calc(100%+4px)]",
     fourRows ? "max-h-[224px]" : "max-h-56",
   )}>
     {loading && <div className="flex h-14 items-center justify-center" role="status" aria-label="Carregando resultados"><LoadingSpinner size="sm" /></div>}
