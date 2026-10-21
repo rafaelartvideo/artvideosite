@@ -635,6 +635,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(chatScrollReadyRef.current && followLatestRef.current && !messagesLoading) scrollToLatest("auto");
     });
     observer.observe(content);
+    observer.observe(box);
     return ()=>observer.disconnect();
   }, [selectedId,messagesLoading,scrollToLatest]);
   const handleMessagesScroll = () => {
