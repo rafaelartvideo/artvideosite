@@ -107,6 +107,8 @@ export function useDocuments() {
     attachmentTypesLoading: attachmentTypesQuery.isLoading,
     error: templatesQuery.error || openEditorMutation.error || saveMutation.error || activeMutation.error,
     attachmentError: attachmentTypesQuery.error || attachmentMutation.error || attachmentActiveMutation.error || attachmentDeleteMutation.error,
+    templatesLoadError: templatesQuery.error,
+    attachmentLoadError: attachmentTypesQuery.error,
     editorOpen,
     editorValue,
     editingTemplateId,
