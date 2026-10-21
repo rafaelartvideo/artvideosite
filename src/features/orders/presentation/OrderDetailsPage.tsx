@@ -4,6 +4,7 @@ import { resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository
 import { supabase } from "@/lib/supabase";
 import { listOrderCommercialItems } from "../infrastructure/order-commercial-items.repository";
 import { listOrderServiceTasks } from "../infrastructure/order-service-tasks.repository";
+import { readOrderQuote } from "../infrastructure/order-quote.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
@@ -168,6 +169,25 @@ export function OrderDetailsPage(props: Props) {
   const { statuses, situations } = workspace;
   const quoteWorkflowEnabled = Boolean(!monitorView && detail?.service_type_id && workspace.serviceTypes.some((type: any) =>
     type.id === detail.service_type_id && type.quote_workflow_enabled === true));
+  // A OS comum mantém suas ações. No fluxo de orçamento, só há execução
+  // (solicitar peças / solucionar) quando a proposta vinculada for aprovada.
+  const [approvedQuoteOrderId, setApprovedQuoteOrderId] = useState<string | null>(null);
+  const [loadedApproval, setLoadedApproval] = useState<{ orderId: string; approved: boolean } | null>(null);
+  useEffect(() => {
+    let active = true;
+    setApprovedQuoteOrderId(null);
+    setLoadedApproval(null);
+    if (!quoteWorkflowEnabled || !detail?.id || !detail?.organization_id || !visible) return;
+    const orderId = detail.id;
+    void readOrderQuote(detail.organization_id, orderId)
+      .then(quote => { if (active) setLoadedApproval({ orderId, approved: quote?.status === "approved" }); })
+      .catch(error => { if (active) notifyAdmin("Não foi possível verificar a aprovação do orçamento: " + systemErrorMessage(error), "error"); });
+    return () => { active = false; };
+  }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible]);
+  const quoteExecutionAllowed = !quoteWorkflowEnabled ||
+    approvedQuoteOrderId === detail?.id ||
+    (loadedApproval?.orderId === detail?.id && loadedApproval.approved);
+
 
   const effectiveRouteSubpage = routeSubpage;
   const canOpenDocumentsPage = hasPermission("orders.section.images") || hasPermission("documents.signatures.view");
@@ -572,6 +592,7 @@ export function OrderDetailsPage(props: Props) {
           canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
           footerHostId={"os-quote-toolbar-" + detail.id}
+          onApproved={() => setApprovedQuoteOrderId(detail.id)}
         /> : detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
@@ -616,9 +637,22 @@ export function OrderDetailsPage(props: Props) {
             <MessageCircle size={15} /> WhatsApp
           </BtnPrimary>}
         </div>
-      </AdminStickyToolbar> : quoteWorkflowEnabled && detailSection === "products-services"
-        ? <div id={"os-quote-toolbar-" + detail.id} />
-        : <OrderDetailsActions detail={detail} statuses={statuses} situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)} hasPermission={hasPermission} onClose={closePage} onStatusChange={statusId => updateOrderStatus(detail, statusId)} onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }} onRequestParts={openPartRequestModal} onResolve={() => openSolveOrder(detail)} onComplete={openCompletion} onEdit={() => { void openEdit(detail); }} />}
+      </AdminStickyToolbar> : <OrderDetailsActions
+        detail={detail}
+        statuses={statuses}
+        situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)}
+        hasPermission={hasPermission}
+        onClose={closePage}
+        onStatusChange={statusId => updateOrderStatus(detail, statusId)}
+        onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }}
+        onRequestParts={openPartRequestModal}
+        onResolve={() => openSolveOrder(detail)}
+        onComplete={openCompletion}
+        onEdit={() => { void openEdit(detail); }}
+        quoteMode={quoteWorkflowEnabled && detailSection === "products-services"}
+        quoteExecutionAllowed={quoteExecutionAllowed}
+        quoteFooterHostId={quoteWorkflowEnabled && detailSection === "products-services" ? "os-quote-toolbar-" + detail.id : undefined}
+      />}
     </AdminPage>}
   </>;
 }
