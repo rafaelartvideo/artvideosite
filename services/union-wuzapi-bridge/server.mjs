@@ -421,14 +421,14 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const url = "https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/union-whatsapp-webhook"
       + "?channel=" + encodeURIComponent(id);
     await wuzapi("/webhook", session.token, "POST", {
-      webhookurl: url, events: ["Message", "ReadReceipt", "Presence"],
+      webhookurl: url, events: ["Message", "ReadReceipt", "Receipt", "Presence"],
     });
     return { ok: true, auth_mode: "hmac-sha256",
       token_sha256: createHash("sha256").update(session.token).digest("hex") };
   }
   if (action === "connect") {
     await wuzapi("/session/connect", session.token, "POST", {
-      Subscribe: ["Message", "ReadReceipt", "HistorySync"], Immediate: true,
+      Subscribe: ["Message", "ReadReceipt", "Receipt", "HistorySync"], Immediate: true,
     });
   }
   if (action === "disconnect") {
