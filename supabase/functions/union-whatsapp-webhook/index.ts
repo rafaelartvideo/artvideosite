@@ -321,6 +321,23 @@ Deno.serve(async request => {
       if(phoneError)throw phoneError;
     }
 
+    // Uma nova mensagem após o encerramento inicia OUTRO protocolo, mantendo
+    // a mesma conversa e todo o histórico. Duplicatas nunca reabrem atendimento.
+    if(!isFromMe && (thread.status==="finished" || thread.status==="abandoned")){
+      const {data:alreadySaved,error:duplicateError}=await admin.from("union_whatsapp_messages")
+        .select("id").eq("channel_id",channelId).eq("account_phone",accountPhone)
+        .eq("provider_message_id",providerMessageId).maybeSingle();
+      if(duplicateError)throw duplicateError;
+      if(!alreadySaved){
+        const {data:reopened,error:reopenError}=await admin.from("union_whatsapp_conversations")
+          .update({status:"waiting",assigned_to:null,updated_at:new Date().toISOString()})
+          .eq("id",thread.id).eq("organization_id",org)
+          .in("status",["finished","abandoned"]).select("id").maybeSingle();
+        if(reopenError)throw reopenError;
+        if(reopened)thread={...thread,status:"waiting"};
+      }
+    }
+
     const { data: inserted, error: messageError } = await admin.from("union_whatsapp_messages")
       .upsert({
         organization_id: org, channel_id: channelId, account_phone:accountPhone, conversation_id: thread.id,
@@ -355,12 +372,6 @@ Deno.serve(async request => {
       if (later) { patch.last_message = displayText; patch.last_message_at = timestamp; }
       if (!isFromMe) {
         patch.unread_count = Math.min(Number(thread.unread_count || 0) + 1, 2147483647);
-        // A new customer reply automatically reopens a completed/abandoned
-        // conversation, matching the existing SAC queue behavior.
-        if (thread.status === "finished" || thread.status === "abandoned") {
-          patch.status = "waiting";
-          patch.assigned_to = null;
-        }
       }
       if(preferredContactName && thread.contact_name!==preferredContactName) {
         patch.contact_name=preferredContactName;
