@@ -1345,6 +1345,43 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       <WhatsAppOperationsSettings key={settingsModal} section={settingsModal}
         createRequest={settingsCreateRequest}/>
     </AdminDialog>}
+    <AdminDialog open={protocolsOpen} onClose={()=>setProtocolsOpen(false)}
+      title="Histórico de protocolos" className="w-full max-w-2xl"
+      footer={<div className="flex justify-end">
+        <AdminButton variant="secondary" onClick={()=>setProtocolsOpen(false)}>Fechar</AdminButton>
+      </div>}>
+      {protocolsLoading ? <LoadingState text="Consultando protocolos..."/> :
+        protocols.length ? <div className="space-y-2">
+          {protocols.map(protocol=>{
+            const label=unionWhatsAppProtocolLabel(protocol.protocol_number);
+            const duration=protocol.closed_at ? Math.max(0,Math.round(
+              (Date.parse(protocol.closed_at)-Date.parse(protocol.opened_at))/60000
+            )) : null;
+            return <button key={protocol.id} type="button" onClick={()=>{
+                setProtocolFilter({id:protocol.id,label});
+                setProtocolsOpen(false);
+              }}
+              className="flex w-full flex-col gap-2 rounded-lg border border-border px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/35">
+              <span className="flex w-full flex-wrap items-center justify-between gap-2">
+                <span className="text-sm font-bold text-foreground">{label}</span>
+                <span className="text-xs font-semibold text-muted-foreground">
+                  {filters.find(item=>item.value===protocol.status)?.label}
+                </span>
+              </span>
+              <span className="text-xs text-muted-foreground">
+                Abertura: {new Date(protocol.opened_at).toLocaleString("pt-BR")}
+                {protocol.closed_at ? ` · Encerramento: ${new Date(protocol.closed_at).toLocaleString("pt-BR")}` : " · Em aberto"}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {protocol.message_count} mensagem(ns)
+                {duration!==null ? ` · Duração: ${duration} min` : ""}
+                {protocol.first_reply_at ? ` · Primeira resposta: ${Math.max(0,Math.round((Date.parse(protocol.first_reply_at)-Date.parse(protocol.opened_at))/60000))} min` : ""}
+              </span>
+              <span className="text-xs font-semibold text-primary">Visualizar mensagens deste protocolo</span>
+            </button>;
+          })}
+        </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhum protocolo encontrado.</p>}
+    </AdminDialog>
     {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
       <div role="dialog" aria-modal="true" aria-label="Histórico do atendimento"
