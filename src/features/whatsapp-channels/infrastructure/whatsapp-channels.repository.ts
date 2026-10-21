@@ -16,6 +16,8 @@ type ChannelResult = {
   error?: string;
   code?: string;
   channel?: WhatsAppChannel | null;
+  channels?: WhatsAppChannel[];
+  max_connections?: number;
   can_manage?: boolean;
   qr?: string;
   connected?: boolean;
@@ -26,9 +28,11 @@ export async function operateWhatsAppChannel(
   organizationId: string,
   action: "list" | "activate" | "register" | "provision" | "connect" | "disconnect" | "status" | "qr" | "logout" | "webhook_setup",
   connectionId?: string,
+  displayName?: string,
 ): Promise<ChannelResult> {
   const { data, error } = await supabase.functions.invoke("whatsapp-channels", {
-    body: { organization_id: organizationId, action, ...(connectionId ? { connection_id: connectionId } : {}) },
+    body: { organization_id: organizationId, action, ...(connectionId ? { connection_id: connectionId } : {}),
+      ...(displayName ? { display_name: displayName } : {}) },
   });
   if (error) {
     const response = (error as { context?: Response }).context;
