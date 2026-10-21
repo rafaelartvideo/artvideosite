@@ -571,6 +571,7 @@ export function OrderDetailsPage(props: Props) {
           order={detail}
           canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
+          footerHostId={"os-quote-toolbar-" + detail.id}
         /> : detailSection === "products-services" ? <OrderProductsServicesSection
           order={detail}
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
@@ -615,7 +616,9 @@ export function OrderDetailsPage(props: Props) {
             <MessageCircle size={15} /> WhatsApp
           </BtnPrimary>}
         </div>
-      </AdminStickyToolbar> : <OrderDetailsActions detail={detail} statuses={statuses} situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)} hasPermission={hasPermission} onClose={closePage} onStatusChange={statusId => updateOrderStatus(detail, statusId)} onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }} onRequestParts={openPartRequestModal} onResolve={() => openSolveOrder(detail)} onComplete={openCompletion} onEdit={() => { void openEdit(detail); }} />}
+      </AdminStickyToolbar> : quoteWorkflowEnabled && detailSection === "products-services"
+        ? <div id={"os-quote-toolbar-" + detail.id} />
+        : <OrderDetailsActions detail={detail} statuses={statuses} situations={getSituationsForType(detail.service_type_id, detail.situation_id, detail.situation)} hasPermission={hasPermission} onClose={closePage} onStatusChange={statusId => updateOrderStatus(detail, statusId)} onSituationChange={situationId => { void updateOrderSituation(detail, situationId); }} onRequestParts={openPartRequestModal} onResolve={() => openSolveOrder(detail)} onComplete={openCompletion} onEdit={() => { void openEdit(detail); }} />}
     </AdminPage>}
   </>;
 }
