@@ -303,8 +303,9 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
         if(value && value!=="—")fields.push({label:field.label,value});
       }
       if(!fields.length)fields.push({label:"Equipamento",value:"Não informado"});
+      const equipmentColumns = Math.max(2,Math.min(3,template.layout.section_columns?.equipment ?? 2));
       return "<section class='equipment-section'><h2>"+escapeHtml(section.label)+
-        "</h2><div class='grid columns-2'>" +
+        "</h2><div class='grid columns-"+equipmentColumns+"'>" +
         fields.map(field=>"<div class='field'><span>"+escapeHtml(field.label)+"</span><strong>"+
           escapeHtml(field.value)+"</strong></div>").join("")+"</div></section>";
     }
@@ -337,7 +338,8 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
           (hasNotes ? "<th scope='col'>Observações</th>" : "") + "</tr></thead><tbody>" + (rows || "<tr><td colspan='2'>Nenhum item cadastrado.</td></tr>") + "</tbody></table></section>";
       }).join("");
     }
-    const columnCount = Math.max(2, Math.min(3, Math.min(section.fields.length, section.defaultColumns)));
+    const requestedColumns = template.layout.section_columns?.[section.key] ?? section.defaultColumns;
+    const columnCount = Math.max(2,Math.min(3,requestedColumns));
     if (section.key === "quote") {
       const quoteFields = new Map(section.fields.map(field=>[field.key,field]));
       const renderField=(key:string) => {
