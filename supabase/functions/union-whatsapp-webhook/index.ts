@@ -345,16 +345,21 @@ Deno.serve(async request => {
     // Prefer the existing thread for an EXACT, provider-verified phone.
     // PN and LID can be two identities for the same WhatsApp user.
     const scopedThreads=()=>admin.from("union_whatsapp_conversations")
-      .select("id,last_message_at,unread_count,contact_name,status,chat_jid,contact_phone")
+      .select("id,last_message_at,unread_count,contact_name,status,chat_jid,contact_phone,assigned_to")
       .eq("channel_id",channelId).eq("account_phone",accountPhone).eq("organization_id",org);
     const {data:exact,error:exactError}=await scopedThreads().eq("chat_jid",chatJid).maybeSingle();
     if(exactError)throw exactError;
     let thread=exact;
-    if(!thread && phone){
+    // Eventos LID antigos podem ter aberto uma conversa fantasma sem
+    // mensagens, antes de termos o alias verificado. Reaproveitar a
+    // conversa PN existente, nunca fundir duas conversas com histórico.
+    const emptyLid=Boolean(exact && chatJid.endsWith("@lid") &&
+      !exact.last_message_at && !exact.assigned_to && exact.status==="waiting");
+    if((!thread||emptyLid)&&phone){
       const {data:byPhone,error:byPhoneError}=await scopedThreads()
         .eq("contact_phone",phone).order("last_message_at",{ascending:false}).limit(1);
       if(byPhoneError)throw byPhoneError;
-      thread=byPhone?.[0]||null;
+      if(byPhone?.[0])thread=byPhone[0];
     }
     if(!thread){
       const {error:ensureError}=await admin.from("union_whatsapp_conversations")
