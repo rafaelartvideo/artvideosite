@@ -1293,15 +1293,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </div>
       </div>
     </div>}
-    {settingsModal && <AdminDialog open={true} onClose={() => setSettingsModal(null)}
-      title={settingsModal === "departments" ? "Departamentos e equipe" : settingsModal === "queues" ? "Configurar filas" : settingsModal === "permissions" ? "Perfis e Permissões" : "Operadores"}
-      className="w-full max-w-4xl" bodyClassName="p-3 sm:p-5" minimizable={false}
-      footer={(settingsModal === "departments" || settingsModal === "queues") && canAction("manage_queues") ? <div className="flex justify-end">
-        <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>
-      </div> : undefined}>
-      {settingsModal === "permissions"
-        ? <WhatsAppRolePermissions onSaved={() => void checkChannel()}/>
-        : <WhatsAppOperationsSettings key={settingsModal} section={settingsModal} createRequest={settingsCreateRequest}/>}
+    {settingsModal === "permissions" && <WhatsAppRolePermissions
+      onClose={() => setSettingsModal(null)}
+      onSaved={() => void checkChannel()}
+    />}
+    {settingsModal && settingsModal !== "permissions" && <AdminDialog open={true}
+      onClose={() => setSettingsModal(null)}
+      title={settingsModal === "departments" ? "Departamentos e equipe" :
+        settingsModal === "queues" ? "Configurar filas" : "Operadores"}
+      description={settingsModal === "operators" ? "Vincule funcionários e defina seus perfis de atendimento." :
+        settingsModal === "queues" ? "Defina a fila principal e gerencie os responsáveis por cada fila." :
+        "Organize os departamentos e as equipes de atendimento."}
+      className="w-full max-w-4xl"
+      footer={<div className="flex flex-wrap items-center justify-end gap-2">
+        <AdminButton variant="secondary" onClick={() => setSettingsModal(null)}>Fechar</AdminButton>
+        {(settingsModal === "departments" || settingsModal === "queues") && canAction("manage_queues") &&
+          <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
+      </div>}>
+      <WhatsAppOperationsSettings key={settingsModal} section={settingsModal}
+        createRequest={settingsCreateRequest}/>
     </AdminDialog>}
     {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
