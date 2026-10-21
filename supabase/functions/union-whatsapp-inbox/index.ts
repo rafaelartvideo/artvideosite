@@ -301,8 +301,12 @@ Deno.serve(async request => {
           ? "A ponte da VPS está desatualizada. Atualize o serviço union-wuzapi-bridge."
           : failure.includes("wuzapi_check_session_offline") || failure.includes("wuzapi_check_session_missing")
           ? "O motor WuzAPI não está com a sessão WhatsApp ativa. Confira a conexão real na VPS, sem executar logout."
+          : failure.includes("wuzapi_check_socket_closed")
+          ? "A conexão do motor WhatsApp foi encerrada. Verifique o estado real da sessão WuzAPI."
+          : failure.includes("wuzapi_check_timeout")
+          ? "A consulta aos servidores WhatsApp excedeu o tempo limite. Verifique a conexão de rede do WuzAPI."
           : failure.includes("wuzapi_check_lookup_failed")
-          ? "O WhatsApp recusou a consulta feita pelo motor. Confira os registros WuzAPI e a conexão com os servidores."
+          ? "O motor WhatsApp falhou ao consultar o cadastro do número. Consulte os logs do WuzAPI para identificar a causa."
           : failure.includes("wuzapi_check_auth_failed")
           ? "A ponte não conseguiu autenticar no WuzAPI. Verifique o token da sessão no servidor."
           : failure.includes("wuzapi_check_endpoint_missing")
