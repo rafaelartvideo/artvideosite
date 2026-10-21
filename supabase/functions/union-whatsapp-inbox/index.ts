@@ -353,7 +353,8 @@ Deno.serve(async request => {
       const verified=await verifyWhatsAppNumber(String(body.phone||""));
       if("error" in verified)return json({success:false,error:verified.error,code:("code" in verified?verified.code:"verification_unavailable")},verified.status);
       return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
-        alternatives:verified.alternatives,verified_name:verified.verified_name,
+        alternatives:verified.alternatives?.map(item=>({phone:item.phone,verified_name:item.verified_name})),
+        verified_name:verified.verified_name,
         identity_type:verified.jid?.endsWith("@lid")?"lid":"phone",
         distinct_identities:verified.distinct_identities===true});
     }
