@@ -164,8 +164,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [ordersOpen,setOrdersOpen] = useState(false);
   const [possibleOrders,setPossibleOrders] = useState<Array<{id:string;os_number:string;created_at:string}>>([]);
   const [savingOrder,setSavingOrder] = useState(false);
-  const [historyOpen,setHistoryOpen] = useState(false);
-  const [handoffs,setHandoffs] = useState<Array<{id:string;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
+  const [handoffs,setHandoffs] = useState<Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}>>([]);
   const [newConversationOpen, setNewConversationOpen] = useState(false);
   const [contactsOpen,setContactsOpen] = useState(false);
   const [editContactId,setEditContactId]=useState<string|null>(null);
@@ -392,7 +391,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
-  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);}, [selectedId]);
+  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setHandoffs([]);}, [selectedId]);
 
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
@@ -540,20 +539,19 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!selected || !activeOrganizationId || !activeChannelId || !activeChannelPhone || protocolsLoading)return;
     setProtocolsOpen(true);setProtocolsLoading(true);
     try{
-      const data=await listUnionWhatsAppProtocols(activeOrganizationId,selected.id,activeChannelId,activeChannelPhone);
-      if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone)setProtocols(data);
+      const [data,audit]=await Promise.all([
+        listUnionWhatsAppProtocols(activeOrganizationId,selected.id,activeChannelId,activeChannelPhone),
+        canAction("view_history")
+          ? operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"handoff_history").catch(()=>null)
+          : Promise.resolve(null),
+      ]);
+      if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone){
+        setProtocols(data);
+        setHandoffs(audit?.history||[]);
+      }
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
     finally{setProtocolsLoading(false);}
   };
-  const viewHistory = async () => {
-    if(!selected || !activeOrganizationId)return;
-    try{
-      const result=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"handoff_history");
-      setHandoffs(result.history||[]);setHistoryOpen(true);
-    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar o histórico."));}
-  };
-
-
   const showOrders = async () => {
     if(!activeOrganizationId || !selected)return;
     setError("");setSavingOrder(true);
@@ -1358,7 +1356,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         createRequest={settingsCreateRequest}/>
     </AdminDialog>}
     <AdminDialog open={protocolsOpen} onClose={()=>setProtocolsOpen(false)}
-      title="Histórico de protocolos" className="w-full max-w-2xl"
+      title="Histórico de atendimentos" className="w-full max-w-2xl"
       footer={<div className="flex justify-end">
         <AdminButton variant="secondary" onClick={()=>setProtocolsOpen(false)}>Fechar</AdminButton>
       </div>}>
@@ -1389,32 +1387,19 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 {duration!==null ? ` · Duração: ${duration} min` : ""}
                 {protocol.first_reply_at ? ` · Primeira resposta: ${Math.max(0,Math.round((Date.parse(protocol.first_reply_at)-Date.parse(protocol.opened_at))/60000))} min` : ""}
               </span>
+              {canAction("view_history") && handoffs.filter(event=>event.protocol_id===protocol.id).slice(0,6)
+                .map(event=><span key={event.id} className="text-[11px] text-muted-foreground">
+                  {({
+                    assume:"Assumido",return_queue:"Devolvido à fila",finish:"Finalizado",
+                    reopen:"Reaberto",transfer_operator:"Encaminhado ao atendente",
+                    transfer_department:"Encaminhado ao departamento",start:"Iniciado",
+                  } as Record<string,string>)[event.action]||event.action}
+                  {" · "}{new Date(event.created_at).toLocaleString("pt-BR")}
+                </span>)}
               <span className="text-xs font-semibold text-primary">Visualizar mensagens deste protocolo</span>
             </button>;
           })}
         </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhum protocolo encontrado.</p>}
     </AdminDialog>
-    {historyOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
-      onClick={event=>{if(event.target===event.currentTarget)setHistoryOpen(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Histórico do atendimento"
-        className="flex max-h-[70vh] w-full max-w-md flex-col rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <p className="font-bold">Histórico do atendimento</p>
-          <button aria-label="Fechar" type="button" onClick={()=>setHistoryOpen(false)}><X size={18}/></button>
-        </div>
-        <div className="min-h-0 space-y-2 overflow-y-auto p-4">
-          {handoffs.length===0 && <p className="text-xs text-muted-foreground">Nenhum encaminhamento registrado.</p>}
-          {handoffs.map(item=><div key={item.id} className="border-b border-border py-2 text-xs">
-            <p className="font-semibold">{({
-              assume:"Atendimento assumido",return_queue:"Devolvido à fila",
-              finish:"Finalizado",reopen:"Reaberto",
-              transfer_operator:"Encaminhado ao atendente",transfer_department:"Encaminhado ao departamento",
-              start:"Conversa iniciada",
-            } as Record<string,string>)[item.action]||item.action}</p>
-            <p className="text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</p>
-          </div>)}
-        </div>
-      </div>
-    </div>}
   </div>;
 }
