@@ -671,6 +671,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   // Todos os filtros são executados no Supabase, não apenas na página atual.
   const counts=conversationCounts;
   const visible=scopedConversations;
+  const timeline=useMemo(()=>{
+    const local=pending.filter(item=>item.conversationId===selectedId &&
+      item.organizationId===activeOrganizationId);
+    const acknowledged=new Set(local.map(item=>item.providerMessageId).filter(
+      (id):id is string=>Boolean(id)));
+    return [
+      ...messages.filter(message=>!acknowledged.has(message.provider_message_id))
+        .map(message=>({kind:"persisted" as const,id:message.id,sentAt:message.sent_at,message})),
+      ...local.map(item=>({kind:"optimistic" as const,id:item.id,sentAt:item.sentAt,pending:item})),
+    ].sort((a,b)=>Date.parse(a.sentAt)-Date.parse(b.sentAt)||a.id.localeCompare(b.id));
+  },[pending,messages,selectedId,activeOrganizationId]);
+  useEffect(()=>{
+    // The persisted history is authoritative when returning to a conversation.
+    // Keep only pending errors/in-flight sends for conversations no longer open.
+    setPending(current=>current.some(item=>item.status==="sent" && item.conversationId!==selectedId)
+      ? current.filter(item=>item.status!=="sent" || item.conversationId===selectedId) : current);
+  },[selectedId]);
   const queuePositions=useMemo(()=>{
     return new Map(scopedConversations.filter(queueOnly).map((item,index)=>[
       item.id,conversationPage*50+index+1,
@@ -678,10 +695,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[scopedConversations,conversationPage]);
   const forwardedBadge=(item:UnionWhatsAppConversation)=>{
     if(!queueSettings.show_forward_badges || !hasForwarding(item))return null;
-    const sentByMe=item.forwarded_by===user?.id;
-    const label=sentByMe
-      ? "Encaminhada para: "+(item.forwarded_to_name||"Departamento")
-      : "Encaminhada por: "+(item.forwarded_by_name||"Atendente");
+    const label="Encaminhada por: "+(item.forwarded_by_name||"Atendente");
     return <span className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-0.5 text-[10px] font-bold text-violet-700 dark:text-violet-300">
       <ArrowRightLeft size={12} className="shrink-0"/>
       <span className="truncate">{label}</span>
@@ -969,6 +983,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         routingMode==="department"?"transfer_department":"transfer",
         routingMode==="department"?{department_id:targetDepartmentId}:{target_user_id:targetUserId});
       setRoutingOpen(false);
+      setSelectedId(null);
+      setSelectedFallback(null);
       if(filter!=="forwarded") {
         setConversationPage(0);
         setFilter("forwarded");
@@ -1440,47 +1456,47 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {messagesOlderLoading?"Carregando mensagens anteriores...":"Carregar mensagens anteriores"}
                 </button>
               </div>}
-              {messagesLoading && messages.length === 0 && !pending.some(item=>item.conversationId===selected.id) ? <LoadingState text="Carregando mensagens..."/>
-              : messages.length === 0 && pending.filter(item => item.conversationId === selected.id).length === 0 ?
+              {messagesLoading && timeline.length === 0 ? <LoadingState text="Carregando mensagens..."/>
+              : timeline.length === 0 ?
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
-                {messages.filter(message=>!pending.some(item=>item.conversationId===selected.id &&
-                   item.providerMessageId && item.providerMessageId===message.provider_message_id)).map(message => <div key={message.id} className={`mt-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
-                    
-                    <MessageBody message={message} organizationId={activeOrganizationId || ""} onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
-                    <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
-                      {clock(message.sent_at)}
-                      {message.direction === "outgoing" && (message.delivery_status === "read"
-                        ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada" />
-                        : message.delivery_status === "delivered"
-                          ? <CheckCheck size={13} aria-label="Entregue" />
-                          : <Check size={13} aria-label="Enviada" />)}
-                    </span>
+                {timeline.map(entry => entry.kind==="persisted" ? (
+                  <div key={entry.id} className={`mt-2 flex ${entry.message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
+                    <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${entry.message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
+                      <MessageBody message={entry.message} organizationId={activeOrganizationId || ""} onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
+                      <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
+                        {clock(entry.message.sent_at)}
+                        {entry.message.direction === "outgoing" && (entry.message.delivery_status === "read"
+                          ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada"/>
+                          : entry.message.delivery_status === "delivered"
+                            ? <CheckCheck size={13} aria-label="Entregue"/>
+                            : <Check size={13} aria-label="Enviada"/>)}
+                      </span>
+                    </div>
                   </div>
-                </div>)}
-                {pending.filter(item => item.conversationId === selected.id && item.organizationId === activeOrganizationId)
-                  .map(item => <div key={item.id} className="mt-2 flex justify-end">
+                ) : (
+                  <div key={entry.id} className="mt-2 flex justify-end">
                     <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
-                      {item.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{item.fileName}</p>}
-                      {item.text && <p className="text-sm"><WhatsAppFormattedText text={item.text}/></p>}
+                      {entry.pending.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
+                      {entry.pending.text && <p className="text-sm"><WhatsAppFormattedText text={entry.pending.text}/></p>}
                       <div className="mt-1 flex min-h-4 items-center justify-end gap-1.5 text-[10px] opacity-70">
-                        {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
-                          : item.status === "sent" ? <>
-                            {messages.find(message=>message.provider_message_id===item.providerMessageId)?.delivery_status==="read"
+                        {entry.pending.status==="sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
+                          : entry.pending.status==="sent" ? <>
+                            {messages.find(message=>message.provider_message_id===entry.pending.providerMessageId)?.delivery_status==="read"
                               ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada"/>
-                              : messages.find(message=>message.provider_message_id===item.providerMessageId)?.delivery_status==="delivered"
+                              : messages.find(message=>message.provider_message_id===entry.pending.providerMessageId)?.delivery_status==="delivered"
                                 ? <CheckCheck size={13} aria-label="Entregue"/>
                                 : <Check size={13} aria-label="Enviada"/>}
-                            {clock(item.sentAt)}
+                            {clock(entry.pending.sentAt)}
                           </>
-                          : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
+                          : <span role="alert" className="text-red-700 dark:text-red-300">{entry.pending.error||"Envio não confirmado"}</span>}
                       </div>
-                      {(item.status === "unknown" || item.status === "failed") && <p className="mt-1 text-[10px] opacity-70">
+                      {(entry.pending.status==="unknown" || entry.pending.status==="failed") && <p className="mt-1 text-[10px] opacity-70">
                         Confira no WhatsApp antes de tentar outro envio.
                       </p>}
                     </div>
-                  </div>)}
+                  </div>
+                ))}
               </div>}
               </div>
               </div>
