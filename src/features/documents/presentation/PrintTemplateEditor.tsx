@@ -241,7 +241,9 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving }: 
                   />
                 </div>}
               </div>
-              {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{[...section.fields].sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})).map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} disabled={isRequiredSignatureField(value, field.key)} onChange={() => toggleField(field.key)} />)}</div>}
+              {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{[...section.fields].sort((a,b)=> section.key==="quote" ?
+              (a.key==="quote.problem_description" ? -1 : b.key==="quote.problem_description" ? 1 : a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"}))
+              : a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})).map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} disabled={isRequiredSignatureField(value, field.key)} onChange={() => toggleField(field.key)} />)}</div>}
             </div>;
           })}</div>
         </AdminCard>
