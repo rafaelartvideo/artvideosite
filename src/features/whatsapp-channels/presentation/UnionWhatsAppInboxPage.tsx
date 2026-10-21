@@ -173,6 +173,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [checkingNumber, setCheckingNumber] = useState(false);
   const [numberNotice, setNumberNotice] = useState("");
   const [numberError, setNumberError] = useState("");
+  const numberCheckSequence=useRef(0);
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -603,18 +604,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const checkNewNumber = async () => {
     if(!activeOrganizationId || checkingNumber)return;
+    const sequence=++numberCheckSequence.current;
     setNumberNotice("");setNumberError("");setCheckingNumber(true);
     try {
       const phone=brazilNumberDigits(newPhone);
       if(!/^[1-9][0-9][0-9]{8,9}$/.test(phone))throw Error("Informe DDD e número válido.");
       const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),
         "check_number",{phone:"55"+phone});
-      if(!result.phone)throw Error("O WhatsApp não confirmou este número.");
+      // Ignore results from checks made before the operator edited the input.
+      if(sequence!==numberCheckSequence.current)return;
+      if(!result.phone)throw Error("A verificação não confirmou o telefone.");
       setNewPhone(brazilPhoneMask(result.phone));
-      setNumberNotice(result.adjusted ? "Número confirmado pelo WhatsApp com ajuste do 9º dígito." :
+      setNumberNotice(result.adjusted ? "WhatsApp confirmado. Número ajustado automaticamente." :
         "Número confirmado no WhatsApp.");
-    }catch(err){setNumberError(systemErrorMessage(err,"Não foi possível verificar este número."));}
-    finally{setCheckingNumber(false);}
+    }catch(err){
+      if(sequence===numberCheckSequence.current)
+        setNumberError(systemErrorMessage(err,"Não foi possível verificar este número."));
+    }finally{setCheckingNumber(false);}
   };
 
   const startConversation = async () => {
@@ -1208,14 +1214,20 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <div className="mt-1 flex w-full items-stretch overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
           <span className="flex shrink-0 items-center border-r border-border bg-muted/45 px-3 text-sm font-semibold text-foreground">+55</span>
           <input id="union-new-phone" required autoFocus inputMode="tel" autoComplete="tel-national"
-            value={newPhone} onChange={event => {setNewPhone(brazilPhoneMask(event.target.value));setNumberNotice("");setNumberError("");}}
+            value={newPhone} onChange={event => {
+              numberCheckSequence.current+=1;
+              setNewPhone(brazilPhoneMask(event.target.value));setNumberNotice("");setNumberError("");
+            }}
             maxLength={16} placeholder="(79) 98803-7605"
             className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none"/>
-        </div>
-        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
-          <span className="text-xs text-muted-foreground">A verificação evita conversas com números inexistentes.</span>
-          <AdminButton variant="secondary" size="sm" disabled={checkingNumber || starting || !newPhone.trim()}
-            onClick={()=>void checkNewNumber()}>{checkingNumber?"Verificando...":"Verificar WhatsApp"}</AdminButton>
+          <button type="button" onClick={()=>void checkNewNumber()}
+            disabled={checkingNumber || starting || !newPhone.trim()}
+            aria-label="Verificar número no WhatsApp" title="Verificar número no WhatsApp"
+            className="inline-flex shrink-0 items-center justify-center gap-2 border-l border-border px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50">
+            {checkingNumber ? <LoaderCircle size={16} className="animate-spin"/> :
+              numberNotice ? <CheckCircle2 size={16}/> : <ShieldCheck size={16}/>}
+            <span className="hidden sm:inline">{checkingNumber?"Verificando":"Verificar"}</span>
+          </button>
         </div>
         {numberNotice && <p role="status" className="mt-2 text-xs font-medium text-emerald-600">{numberNotice}</p>}
         {numberError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{numberError}</p>}
