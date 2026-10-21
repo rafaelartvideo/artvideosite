@@ -1265,7 +1265,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     />}
     {newConversationOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       onClick={event => { if (event.target === event.currentTarget) setNewConversationOpen(false); }}>
-      <form onSubmit={event => {event.preventDefault(); void startConversation();}}
+      <form onSubmit={event => {
+          event.preventDefault();
+          if(verifiedContact)void startConversation();
+          else void checkNewNumber();
+        }}
         role="dialog" aria-modal="true" aria-label="Nova conversa WhatsApp"
         className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
         <div className="flex items-center justify-between">
