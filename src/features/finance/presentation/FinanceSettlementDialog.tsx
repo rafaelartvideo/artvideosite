@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
-import { ArrowLeft, CheckCircle2, ShieldCheck } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import {
   paymentMethodFee,
   settlementCashAmount,
@@ -32,7 +32,6 @@ export function FinanceSettlementDialog({
   saving,
   onClose,
   onSave,
-  onStepChange,
 }: {
   open: boolean;
   detail: FinancialEntryDetail;
@@ -41,7 +40,6 @@ export function FinanceSettlementDialog({
   saving: boolean;
   onClose: () => void;
   onSave: (draft: FinancialSettlementDraft) => Promise<void>;
-  onStepChange?: (step: "question" | "form" | "review") => void;
 }) {
   const openInstallments = useMemo(
     () => detail.installments.filter(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001),
@@ -59,13 +57,6 @@ export function FinanceSettlementDialog({
   const [accountId, setAccountId] = useState("");
   const [occurredAt, setOccurredAt] = useState(localDateTimeInput());
   const [fieldErrors, setFieldErrors] = useState<{ installment?: string; principal?: string; method?: string; account?: string }>({});
-  const [confirmation, setConfirmation] = useState<FinancialSettlementDraft | null>(null);
-  const [step, setStep] = useState<"question" | "form" | "review">("question");
-  const goToStep = (next: "question" | "form" | "review") => {
-    setStep(next);
-    onStepChange?.(next);
-  };
-
   const selectedInstallment = openInstallments.find(item => item.id === installmentId) || null;
   const selectedMethod = activeMethods.find(item => item.id === methodId) || null;
   const remaining = selectedInstallment ? Number(selectedInstallment.original_amount) - Number(selectedInstallment.settled_amount) : 0;
@@ -106,8 +97,6 @@ export function FinanceSettlementDialog({
     setAccountId(firstMethod?.default_financial_account_id || activeAccounts[0]?.id || "");
     setOccurredAt(localDateTimeInput());
     setFieldErrors({});
-    setConfirmation(null);
-    setStep("question");
   }, [open]);
 
   useEffect(() => {
@@ -135,7 +124,7 @@ export function FinanceSettlementDialog({
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     setFieldErrors({});
-    setConfirmation({
+    const draft: FinancialSettlementDraft = {
       entry_id: detail.id,
       installment_id: selectedInstallment.id,
       principal_amount: principalValue,
@@ -146,69 +135,20 @@ export function FinanceSettlementDialog({
       payment_method_id: selectedMethod.id,
       financial_account_id: accountId,
       occurred_at: occurredAt,
-    });
-    goToStep("review");
-  };
-  const confirmSave = async () => {
-    if (!confirmation) return;
+    };
     try {
-      await onSave(confirmation);
-      setConfirmation(null);
+      await onSave(draft);
       onClose();
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, "Não foi possível registrar a baixa."), "error");
     }
   };
 
-
   if (!open) return null;
   const actionLabel = detail.entry_type === "receivable" ? "Receber" : "Pagar";
-  const confirmationTotal = confirmation ? settlementCashAmount({
-    principal: confirmation.principal_amount,
-    interest: confirmation.interest_amount,
-    penalty: confirmation.penalty_amount,
-    additions: confirmation.other_additions,
-    discount: confirmation.discount_amount,
-  }) : 0;
 
   // Fluxo embutido no Extrato: nenhum segundo AdminDialog é montado.
   return <section aria-label="Baixa financeira" className="min-w-0 space-y-5 animate-in fade-in-0 slide-in-from-right-2 duration-300">
-    {step === "question" ? <>
-      <div className="flex flex-col items-center gap-4 py-3 text-center sm:py-5">
-        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary"><ShieldCheck size={32} /></div>
-        <div className="max-w-md space-y-2">
-          <h3 className="text-xl font-bold text-foreground">Deseja dar baixa neste lançamento?</h3>
-          <p className="text-sm text-muted-foreground">Você poderá informar o valor, a forma de pagamento e a conta financeira antes de registrar.</p>
-        </div>
-        <div className="grid w-full max-w-md gap-3 rounded-xl border border-border bg-muted/30 p-4 text-left sm:grid-cols-2">
-          <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Lançamento</p><p className="font-semibold text-foreground">{detail.description}</p></div>
-          <div><p className="text-xs text-muted-foreground">Cliente / favorecido</p><p className="text-sm font-semibold">{detail.counterpart_name_snapshot || "—"}</p></div>
-          <div><p className="text-xs text-muted-foreground">Saldo em aberto</p><p className="text-sm font-bold text-primary">{formatCurrency(openInstallments.reduce((sum, item) => sum + Number(item.original_amount) - Number(item.settled_amount), 0))}</p></div>
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <AdminButton variant="secondary" onClick={onClose}>Não, voltar</AdminButton>
-        <AdminButton onClick={() => goToStep("form")}>Sim, continuar</AdminButton>
-      </div>
-    </> : step === "review" && confirmation ? <>
-      <div className="space-y-4 animate-in fade-in-0 slide-in-from-right-3 duration-300">
-        <div className="flex items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-4">
-          <CheckCircle2 className="h-7 w-7 shrink-0 text-primary" />
-          <div><h3 className="text-base font-bold text-foreground">Confirmar baixa financeira</h3><p className="text-xs text-muted-foreground">Confira os dados antes de movimentar a conta.</p></div>
-        </div>
-        <div className="grid gap-4 rounded-xl border border-border p-5 text-sm sm:grid-cols-2">
-          <div className="sm:col-span-2"><p className="text-xs text-muted-foreground">Lançamento</p><p className="font-semibold">{detail.description}</p></div>
-          <div><p className="text-xs text-muted-foreground">Valor da baixa</p><p className="text-lg font-bold tabular-nums text-primary">{formatCurrency(confirmationTotal)}</p></div>
-          <div><p className="text-xs text-muted-foreground">Forma de pagamento</p><p className="font-semibold">{paymentMethods.find(item => item.id === confirmation.payment_method_id)?.name || "—"}</p></div>
-          <div><p className="text-xs text-muted-foreground">{detail.entry_type === "receivable" ? "Conta de destino" : "Conta de origem"}</p><p className="font-semibold">{accounts.find(item => item.id === confirmation.financial_account_id)?.name || "—"}</p></div>
-          <div><p className="text-xs text-muted-foreground">Data da baixa</p><p className="font-semibold">{confirmation.occurred_at ? new Date(confirmation.occurred_at).toLocaleString("pt-BR") : "—"}</p></div>
-        </div>
-      </div>
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
-        <AdminButton variant="secondary" disabled={saving} onClick={() => { goToStep("form"); setConfirmation(null); }}><ArrowLeft size={15} /> Voltar</AdminButton>
-        <AdminButton loading={saving} loadingText="Registrando..." onClick={() => void confirmSave()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>
-      </div>
-    </> : <>
       <div className="animate-in fade-in-0 slide-in-from-right-3 duration-300">
         <div className="mb-4 flex items-start justify-between gap-3 border-b border-border pb-3">
           <div><h3 className="text-base font-bold text-foreground">{actionLabel} lançamento</h3>
@@ -241,9 +181,8 @@ export function FinanceSettlementDialog({
       </div>
       <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-4">
         <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Cancelar</AdminButton>
-        <AdminButton loading={saving} loadingText="Validando..." onClick={() => void save()}>Revisar baixa</AdminButton>
+        <AdminButton loading={saving} loadingText="Registrando..." disabled={saving} onClick={() => void save()}><CheckCircle2 size={16} /> Confirmar baixa</AdminButton>
       </div>
-    </>}
   </section>;
 
 }
