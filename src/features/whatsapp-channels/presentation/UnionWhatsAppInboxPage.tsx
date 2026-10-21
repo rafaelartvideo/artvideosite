@@ -123,7 +123,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
-  const [staffRole,setStaffRole] = useState<"manager"|"operator"|"both"|null>(null);
   const [capabilities,setCapabilities] = useState<Record<string,boolean>>({});
   const canAction=(key:string)=>capabilities[key]===true;
   const canSend=canAction("send");
@@ -304,7 +303,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       );
       if (organizationRef.current === activeOrganizationId) {
         const ready=Boolean(response.channel_connected && response.channel_id);
-        setStaffRole(response.staff_role || null);
         setCapabilities(response.capabilities || {});
         setChannelReady(ready);
         setActiveChannelId(ready?response.channel_id||null:null);
@@ -314,13 +312,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) {
         setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null);
-        setStaffRole(null);
         setCapabilities({});
         setChannelError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
     }
   }, [activeOrganizationId, canView]);
-  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setStaffRole(null); setCapabilities({}); setChannelError(""); void checkChannel(); }, [checkChannel]);
+  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setCapabilities({}); setChannelError(""); void checkChannel(); }, [checkChannel]);
   // When disconnected, the conversation subscription is deliberately absent.
   // Recheck identity on returning to the tab without continuously polling.
   useEffect(()=>{
@@ -867,9 +864,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <h1 className="shrink-0 whitespace-nowrap text-lg font-black leading-tight text-foreground sm:text-2xl">Atendimentos</h1>
-        {staffRole && <span className="hidden shrink-0 rounded-md bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground lg:inline-flex">
-          {staffRole==="both" ? "Gestor + Operador" : staffRole==="manager" ? "Gestor" : "Operador"}
-        </span>}
         <span aria-hidden="true" className="h-8 w-px shrink-0 bg-border"/>
         <nav aria-label="Canais de atendimento" className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
 
