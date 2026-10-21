@@ -121,6 +121,8 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     <div className="space-y-4">
     <Section title="Diagnóstico e solução proposta">
       <div className="space-y-3">
+        <FTextarea rows={4} label="Descrição do problema" value={String(order.customer_notes || "")}
+          readOnly aria-readonly="true" className="bg-muted/35" placeholder="Não informada na OS" />
         <FTextarea rows={4} label="Diagnóstico" required value={draft.diagnosis} disabled={!editable}
           onChange={(e:any)=>setDraft(current=>({...current,diagnosis:e.target.value}))}/>
         <FTextarea rows={4} label="Solução proposta" required value={draft.proposed_solution} disabled={!editable}
