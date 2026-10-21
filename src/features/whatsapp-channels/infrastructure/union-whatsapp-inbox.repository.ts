@@ -132,7 +132,9 @@ export async function listUnionWhatsAppConversations(
   if(options.filter==="forwarded"){
     query=query.not("forwarded_at","is",null).neq("status","finished").neq("status","abandoned");
   }else{
-    query=query.eq("status",options.filter).is("forwarded_at",null);
+    query=query.eq("status",options.filter);
+    // Protocolos finalizados podem conservar o encaminhamento no histórico.
+    if(options.filter!=="finished")query=query.is("forwarded_at",null);
   }
   if(options.department==="none")query=query.is("department_id",null);
   else if(options.department!=="all")query=query.eq("department_id",options.department);
