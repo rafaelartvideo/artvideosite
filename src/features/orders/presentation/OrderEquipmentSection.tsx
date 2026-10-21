@@ -28,7 +28,6 @@ export function OrderEquipmentSection({
   canAddImages,
   canRemoveImages,
   showImages,
-  mode = "order",
 }: {
   form: any;
   equipmentTypes: any[];
@@ -49,7 +48,6 @@ export function OrderEquipmentSection({
   canAddImages: boolean;
   canRemoveImages: boolean | ((image: OrderImage) => boolean);
   showImages: boolean;
-  mode?: "order" | "quote";
 }) {
   const scannerInput = useRef<HTMLInputElement>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -96,7 +94,6 @@ export function OrderEquipmentSection({
   };
 
   const editingOS = editing;
-  const isQuote = mode === "quote";
   const hasPermission = (permission: string) => permission === "equipment.create" && canCreate;
   const setQuickEquipment = (open: boolean) => {
     if (open) onCreateEquipment();
@@ -296,8 +293,8 @@ export function OrderEquipmentSection({
                   <div className="flex min-w-0 items-start gap-2">
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
                     <div className="min-w-0">
-                      <p className="text-sm font-black text-[#0057e7]">Foto da etiqueta{!editingOS && !isQuote && <span className="ml-1 text-red-600">*</span>}</p>
-                      <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS ? "Priorize uma foto nítida da etiqueta de identificação do equipamento." : isQuote ? "Adicione uma foto nítida da identificação do equipamento." : "Obrigatória para criar a OS. Envie uma foto nítida da etiqueta de identificação do equipamento."}</p>
+                      <p className="text-sm font-black text-[#0057e7]">Foto da etiqueta{!editingOS && <span className="ml-1 text-red-600">*</span>}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS ? "Priorize uma foto nítida da etiqueta de identificação do equipamento." : "Obrigatória para criar a OS. Envie uma foto nítida da etiqueta de identificação do equipamento."}</p>
                     </div>
                   </div>
                   <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
@@ -337,7 +334,7 @@ export function OrderEquipmentSection({
           </div>
         )}
 
-        {!editingOS && !isQuote && <NewOrderEntryChecklist equipmentTypeId={form.equipment_type_id} />}
+        {!editingOS && <NewOrderEntryChecklist equipmentTypeId={form.equipment_type_id} />}
       </div>
     </Section>
   );
