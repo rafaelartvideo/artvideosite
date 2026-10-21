@@ -907,7 +907,7 @@ Deno.serve(async request => {
     }
     if(action==="handoff_history") {
       const {data:history,error}=await admin.from("union_whatsapp_handoffs")
-        .select("id,action,actor_id,to_user_id,to_department_id,created_at")
+        .select("id,protocol_id,action,actor_id,to_user_id,to_department_id,created_at")
         .eq("organization_id",org).eq("conversation_id",thread.id)
         .order("created_at",{ascending:false}).limit(50);
       if(error)throw error;
