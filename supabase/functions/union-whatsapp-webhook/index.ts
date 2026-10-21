@@ -170,11 +170,21 @@ Deno.serve(async request => {
         .select("id").eq("organization_id",channel.organization_id)
         .eq("channel_id",channelId).eq("account_phone",accountPhone).eq("chat_jid",chatJid).maybeSingle();
       if(conversationError) throw conversationError;
-      if(!conversation) return json({ok:true,ignored:"unknown_receipt_chat"});
+      let receiptThread=conversation;
+      // A PN receipt may arrive for a canonical LID thread (verified phone only).
+      if(!receiptThread && chatJid.endsWith("@s.whatsapp.net")){
+        const {data:byPhone,error:byPhoneError}=await admin.from("union_whatsapp_conversations")
+          .select("id").eq("organization_id",channel.organization_id)
+          .eq("channel_id",channelId).eq("account_phone",accountPhone)
+          .eq("contact_phone",chatJid.split("@")[0]).order("last_message_at",{ascending:false}).limit(1);
+        if(byPhoneError)throw byPhoneError;
+        receiptThread=byPhone?.[0]||null;
+      }
+      if(!receiptThread) return json({ok:true,ignored:"unknown_receipt_chat"});
       let query = admin.from("union_whatsapp_messages")
         .update({delivery_status:state==="read"?"read":"delivered"})
         .eq("organization_id",channel.organization_id).eq("channel_id",channelId).eq("account_phone",accountPhone)
-        .eq("conversation_id",conversation.id)
+        .eq("conversation_id",receiptThread.id)
         .eq("direction","outgoing").in("provider_message_id",uniqueIds);
       if(state==="delivered") query=query.neq("delivery_status","read");
       const {error:receiptError}=await query;
@@ -274,18 +284,32 @@ Deno.serve(async request => {
     if(Number.isFinite(pairedAt) && Date.parse(timestamp)+120_000<pairedAt)
       return json({ok:true,ignored:"before_active_account_pairing"});
 
-    const { error: ensureError } = await admin.from("union_whatsapp_conversations")
-      .upsert({
-        organization_id: org, channel_id: channelId, account_phone:accountPhone, chat_jid: chatJid,
-        contact_name: preferredContactName || name || (phone || "Contato WhatsApp"),
-        contact_phone: phone,
-      }, { onConflict: "channel_id,account_phone,chat_jid", ignoreDuplicates: true });
-    if (ensureError) throw ensureError;
-
-    const { data: thread, error: threadError } = await admin.from("union_whatsapp_conversations")
-      .select("id,last_message_at,unread_count,contact_name,status")
-      .eq("channel_id", channelId).eq("account_phone",accountPhone).eq("organization_id", org).eq("chat_jid", chatJid).single();
-    if (threadError || !thread) throw threadError || Error("conversation_missing");
+    // Prefer the existing thread for an EXACT, provider-verified phone.
+    // PN and LID can be two identities for the same WhatsApp user.
+    const scopedThreads=()=>admin.from("union_whatsapp_conversations")
+      .select("id,last_message_at,unread_count,contact_name,status,chat_jid,contact_phone")
+      .eq("channel_id",channelId).eq("account_phone",accountPhone).eq("organization_id",org);
+    const {data:exact,error:exactError}=await scopedThreads().eq("chat_jid",chatJid).maybeSingle();
+    if(exactError)throw exactError;
+    let thread=exact;
+    if(!thread && phone){
+      const {data:byPhone,error:byPhoneError}=await scopedThreads()
+        .eq("contact_phone",phone).order("last_message_at",{ascending:false}).limit(1);
+      if(byPhoneError)throw byPhoneError;
+      thread=byPhone?.[0]||null;
+    }
+    if(!thread){
+      const {error:ensureError}=await admin.from("union_whatsapp_conversations")
+        .upsert({
+          organization_id:org,channel_id:channelId,account_phone:accountPhone,chat_jid:chatJid,
+          contact_name:preferredContactName||name||(phone||"Contato WhatsApp"),
+          contact_phone:phone,
+        },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true});
+      if(ensureError)throw ensureError;
+      const {data:newThread,error:threadError}=await scopedThreads().eq("chat_jid",chatJid).single();
+      if(threadError || !newThread)throw threadError||Error("conversation_missing");
+      thread=newThread;
+    }
     // Backfill only Whatsmeow-verified phone aliases on existing LID
     // conversations. This permits later VCF matching without merging chats.
     if(chatJid.endsWith("@lid") && phone) {
