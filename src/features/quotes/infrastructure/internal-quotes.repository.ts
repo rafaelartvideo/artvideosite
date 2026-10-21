@@ -20,6 +20,10 @@ export type InternalQuoteDraft = {
   equipment_name: string;
   equipment_brand: string;
   equipment_model: string;
+  equipment_type_id: string;
+  equipment_brand_id: string;
+  equipment_model_id: string;
+  technical_values: Record<string, string>;
   serial_number: string;
   accessories: string;
   equipment_condition: string;
@@ -43,6 +47,8 @@ export type QuoteCatalogOption = {
   description: string | null;
   price: number;
   unit: string;
+  stock: number | null;
+  price_at_completion: boolean;
 };
 
 export function emptyInternalQuote(): InternalQuoteDraft {
@@ -55,6 +61,10 @@ export function emptyInternalQuote(): InternalQuoteDraft {
     equipment_name: "",
     equipment_brand: "",
     equipment_model: "",
+    equipment_type_id: "",
+    equipment_brand_id: "",
+    equipment_model_id: "",
+    technical_values: {},
     serial_number: "",
     accessories: "",
     equipment_condition: "",
@@ -90,22 +100,22 @@ export async function searchQuoteCatalog(
   if (value.length < 2) return [];
   if (category === "service") {
     const { data, error } = await supabase.from("general_services")
-      .select("id,name,price")
+      .select("id,name,price,price_at_completion")
       .eq("organization_id", organizationId).eq("is_active", true)
       .ilike("name", "%" + value + "%").order("name").limit(15);
     if (error) throw error;
     return (data || []).map(item => ({
-      id: item.id, name: item.name, description: null, price: Number(item.price || 0), unit: "un",
+      id: item.id, name: item.name, description: null, price: Number(item.price || 0), unit: "serviço", stock: null, price_at_completion: Boolean(item.price_at_completion),
     }));
   }
   const { data, error } = await supabase.from("inventory_items")
-    .select("id,name,description,sale_price,unit")
+    .select("id,name,description,sale_price,unit,quantity,sku,conversion_factor")
     .eq("organization_id", organizationId).eq("is_active", true).is("archived_at", null)
     .ilike("name", "%" + value + "%").order("name").limit(15);
   if (error) throw error;
   return (data || []).map(item => ({
     id: item.id, name: item.name, description: item.description, price: Number(item.sale_price || 0),
-    unit: item.unit || "un",
+    unit: item.unit || "un", stock: Number(item.quantity || 0), price_at_completion: false,
   }));
 }
 
