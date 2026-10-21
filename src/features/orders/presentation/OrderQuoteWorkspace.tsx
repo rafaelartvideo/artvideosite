@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, FileText, History, MessageCircle, RotateCcw, Send, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -167,7 +167,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId}
       </div>
     </Section>
     </div>
-    {footerHost && createPortal(<AdminStickyToolbar className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+    {footerHost && createPortal(<>
       {editable && <BtnPrimary disabled={busy} loading={busy}
         onClick={() => void act("submit")}><Send size={15}/> Enviar para aprovação</BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
@@ -185,7 +185,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId}
         <FileText size={15}/> Imprimir / PDF</AdminButton>}
       {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)}>
         Abrir produtos e serviços para execução</BtnPrimary>}
-    </AdminStickyToolbar>,footerHost)}
+    </>,footerHost)}
     <AdminDialog open={rejectDialogOpen} onClose={()=>{if(!busy)setRejectDialogOpen(false);}}
       title="Reprovar orçamento" description="Informe o motivo da reprovação da proposta.">
       <div className="space-y-4">
