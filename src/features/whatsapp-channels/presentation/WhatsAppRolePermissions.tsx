@@ -69,14 +69,15 @@ export function WhatsAppRolePermissions({ onSaved }: { onSaved?: () => void }) {
 
   const save = async () => {
     if (!activeOrganizationId || profile === "both" || saving || !changes[profile]) return;
+    const role: Role = profile;
     setSaving(true);
     setError("");
     setNotice("");
     try {
       const result = await operateUnionWhatsAppInbox(
         activeOrganizationId, crypto.randomUUID(), "role_permissions_save", {
-          staff_role: profile,
-          permissions: rows.map(item => ({ capability: item.key, enabled: draft[profile][item.key] })),
+          staff_role: role,
+          permissions: rows.map(item => ({ capability: item.key, enabled: draft[role][item.key] })),
         },
       );
       const updated = result.capability_definitions || [];
@@ -87,7 +88,10 @@ export function WhatsAppRolePermissions({ onSaved }: { onSaved?: () => void }) {
       }
       setRows(updated);
       setBaseline(next);
-      setDraft({ manager: { ...next.manager }, operator: { ...next.operator } });
+      setDraft(current => ({
+        manager: role === "manager" ? { ...next.manager } : { ...current.manager },
+        operator: role === "operator" ? { ...next.operator } : { ...current.operator },
+      }));
       setNotice("Permissões do perfil atualizadas com sucesso.");
       onSaved?.();
     } catch (reason) {
