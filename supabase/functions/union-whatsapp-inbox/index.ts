@@ -86,8 +86,9 @@ async function signedBridge(
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
     if (numberCheck) {
-      if(!Array.isArray(result.matches)) throw Error("number_check_invalid");
-      return JSON.stringify({requested:result.requested,matches:result.matches});
+      if(!Array.isArray(result.matches) || !["verified","not_registered"].includes(String(result.status||"")))
+        throw Error("number_check_outdated_bridge");
+      return JSON.stringify({requested:result.requested,matches:result.matches,status:result.status});
     }
     if (presence) return "";
     if(exportContacts) {
@@ -277,15 +278,18 @@ Deno.serve(async request => {
           false,false,false,false,true));
         const requested="55"+national;
         const available=(Array.isArray(reply.matches)?reply.matches:[]).filter(
-          (r:Record<string,unknown>) => /^[0-9]{12,13}$/.test(String(r.phone||""))
+          (r:Record<string,unknown>) => /^55[1-9][0-9][0-9]{8,9}$/.test(String(r.phone||""))
         ) as Array<{phone:string;verified_name?:string}>;
-        // Prefer the number typed when both representations are registered.
+        if(reply.status==="not_registered")
+          return {error:"O WhatsApp confirmou que esse telefone não está cadastrado. Confira DDD e número.",status:422};
+        if(reply.status!=="verified" || !available.length)
+          return {error:"Consulta ao WhatsApp inconclusiva. Tente novamente antes de abrir uma conversa.",status:503};
+        // Prefer the confirmed number entered, otherwise the canonical verified JID.
         const matched=available.find(r=>r.phone===requested)||available[0];
-        if(!matched)return {error:"Este número não foi encontrado no WhatsApp. Confira o DDD e o telefone.",status:422};
         return {channel,phone:matched.phone,alternatives:available,
           adjusted:matched.phone!==requested,verified_name:matched.verified_name||""};
       }catch{
-        return {error:"Não foi possível confirmar este número no WhatsApp. Nenhuma conversa foi criada.",status:503};
+        return {error:"Não foi possível verificar o número. Atualize a ponte WuzAPI da VPS e tente novamente; nenhuma conversa foi criada.",status:503};
       }
     };
     if(action==="check_number"){
