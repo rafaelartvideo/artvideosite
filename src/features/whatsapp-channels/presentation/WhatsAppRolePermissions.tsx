@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { AdminButton, AdminDialog, AdminSegmentedControl } from "@/shared/ui/admin/AdminLayout";
+import { Checkbox } from "@/shared/ui/primitives/checkbox";
+import { LoadingDots, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Role = "manager" | "operator";
+type Profile = Role | "both";
 type Permission = {
   key: string;
   label: string;
@@ -24,6 +26,7 @@ const notifySuccess=(message:string)=>{if(message)notifyAdmin(message,"success")
 
 export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => void; onClose?: () => void }) {
   const { activeOrganizationId } = useAuth();
+  const [profile, setProfile] = useState<Profile>("operator");
   const [rows, setRows] = useState<Permission[]>([]);
   const [baseline, setBaseline] = useState<Values>(emptyValues);
   const [draft, setDraft] = useState<Values>(emptyValues);
@@ -114,82 +117,60 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
     }
   };
 
-  const content = <div className="space-y-3">
-    {loading ? <LoadingState text="Carregando permissões dos perfis..."/> :
-      rows.length ? <AdminCard square>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] table-fixed text-sm">
-            <colgroup>
-              <col className="w-[46%]"/>
-              <col className="w-[17%]"/>
-              <col className="w-[17%]"/>
-              <col className="w-[20%]"/>
-            </colgroup>
-            <thead className="sticky top-0 z-10 bg-muted/70">
-              <tr>
-                <th scope="col" className="!text-left !text-xs !normal-case">Permissão</th>
-                <th scope="col" className="!text-center !text-xs !normal-case">Gestor</th>
-                <th scope="col" className="!text-center !text-xs !normal-case">Operador</th>
-                <th scope="col" className="!text-center !text-xs !normal-case">Gestor + Operador</th>
-              </tr>
-            </thead>
-            {categories.map(category => <tbody key={category}>
-              <tr className="bg-muted/35 hover:!bg-muted/35">
-                <th scope="rowgroup" colSpan={4} className="!px-4 !py-3 !text-left !text-xs !font-black !normal-case text-foreground">
-                  {category}
-                </th>
-              </tr>
-              {rows.filter(item => item.category === category).map(item =>
-                <tr key={item.key}>
-                  <th scope="row" className="!px-4 !py-3 !text-left !text-sm !font-medium !normal-case text-foreground">
-                    {item.label}
-                  </th>
-                  {roles.map(role => <td key={role} className="!px-3 !py-2 text-center">
-                    <label className="flex min-h-9 cursor-pointer items-center justify-center">
-                      <input type="checkbox" checked={Boolean(draft[role][item.key])}
-                        disabled={saving}
-                        onChange={event => toggle(role, item.key, event.target.checked)}
-                        aria-label={`${item.label} — ${role === "manager" ? "Gestor" : "Operador"}`}
-                        className="h-[18px] w-[18px] cursor-pointer accent-primary disabled:cursor-not-allowed"/>
-                    </label>
-                  </td>)}
-                  <td className="!px-3 !py-2 text-center">
-                    <div className="flex min-h-9 items-center justify-center">
-                      <input type="checkbox"
-                        checked={Boolean(draft.manager[item.key] || draft.operator[item.key])}
-                        disabled
-                        aria-label={`${item.label} — Gestor + Operador, combinação automática`}
-                        title="Combinação automática de Gestor e Operador"
-                        className="h-[18px] w-[18px] cursor-default accent-primary disabled:opacity-100"/>
-                    </div>
-                  </td>
-                </tr>)}
-            </tbody>)}
-          </table>
+  const selected = (key: string) => profile === "both"
+    ? Boolean(draft.manager[key] || draft.operator[key])
+    : Boolean(draft[profile][key]);
+
+  const content = <div className="space-y-5">
+    <AdminSegmentedControl<Profile>
+      value={profile}
+      className="grid-cols-3"
+      options={[
+        {value:"manager",label:"Gestor"},
+        {value:"operator",label:"Operador"},
+        {value:"both",label:"Gestor + Operador"},
+      ]}
+      onChange={setProfile}
+      disabled={saving || loading}
+    />
+    {loading ? <div className="flex min-h-36 items-center justify-center" role="status" aria-label="Carregando permissões">
+      <LoadingDots/>
+    </div> : rows.length ? <div className="divide-y divide-border border-y border-border">
+      {categories.map(category => <section key={category} aria-label={category} className="py-4 first:pt-3 last:pb-3">
+        <h3 className="mb-3 text-sm font-bold text-foreground">{category}</h3>
+        <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+          {rows.filter(item => item.category === category).map(item =>
+            <button key={item.key} type="button"
+              aria-pressed={selected(item.key)}
+              disabled={saving || profile === "both"}
+              onClick={() => { if(profile !== "both") toggle(profile,item.key,!selected(item.key)); }}
+              className="flex min-w-0 items-start gap-2.5 border-b border-border/40 py-3 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-default disabled:hover:text-inherit">
+              <Checkbox checked={selected(item.key)} disabled={saving || profile === "both"}
+                tabIndex={-1} aria-hidden="true"
+                className="mt-0.5 pointer-events-none"/>
+              <span className="min-w-0 flex-1 text-xs font-medium leading-relaxed text-foreground">
+                {item.label}
+              </span>
+            </button>)}
         </div>
-      </AdminCard> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma permissão cadastrada.</p>}
+      </section>)}
+    </div> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma permissão cadastrada.</p>}
   </div>;
 
-  const footer = <div className="flex flex-wrap items-center justify-between gap-3">
-    <p className="text-xs text-muted-foreground">
-      {loading ? "Carregando..." :
-        pendingCount ? `${pendingCount} alteração(ões) não salva(s).` : "Nenhuma alteração pendente."}
-    </p>
-    <div className="flex flex-wrap justify-end gap-2">
-      {onClose && <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Fechar</AdminButton>}
-      <AdminButton variant="secondary" disabled={!pendingCount || saving || loading} onClick={discard}>
-        Descartar
-      </AdminButton>
-      <AdminButton disabled={!pendingCount || saving || loading} loading={saving} onClick={() => void save()}>
-        Salvar permissões
-      </AdminButton>
-    </div>
+  const footer = <div className="flex flex-wrap items-center justify-end gap-2">
+    {onClose && <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Fechar</AdminButton>}
+    <AdminButton variant="secondary" disabled={!pendingCount || saving || loading} onClick={discard}>
+      Descartar
+    </AdminButton>
+    <AdminButton disabled={!pendingCount || saving || loading} loading={saving} onClick={() => void save()}>
+      Salvar permissões
+    </AdminButton>
   </div>;
 
   if (onClose) {
     return <AdminDialog open={true} onClose={() => { if (!saving) onClose(); }}
       title="Perfis e Permissões"
-      className="w-full max-w-5xl"
+      className="w-full max-w-4xl"
       bodyClassName="min-h-0"
       footer={footer}>
       {content}
