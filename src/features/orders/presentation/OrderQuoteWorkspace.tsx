@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, History, RotateCcw, Send, XCircle } from "lucide-react";
+import { AlertCircle, CheckCircle2, History, RotateCcw, Send, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -14,6 +15,29 @@ import {
 } from "../infrastructure/order-quote.repository";
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
+import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
+
+type QuoteAction = "submit" | "approve" | "reject" | "renegotiate";
+type ModalFeedback = { type: "success" | "error"; message: string };
+const MAX_TECHNICAL_CHARS = 400;
+const ACTION_TITLES: Record<QuoteAction,string> = {
+  submit: "Enviar orçamento para aprovação",
+  approve: "Aprovar orçamento",
+  reject: "Rejeitar orçamento",
+  renegotiate: "Reabrir negociação",
+};
+const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
+  submit: "Confirmar envio",
+  approve: "Confirmar aprovação",
+  reject: "Confirmar rejeição",
+  renegotiate: "Confirmar renegociação",
+};
+const ACTION_SUCCESS: Record<QuoteAction,string> = {
+  submit: "Orçamento enviado para aprovação. A proposta permanece aguardando uma decisão.",
+  approve: "Orçamento aprovado. Os itens foram incorporados à OS e a execução está liberada.",
+  reject: "Orçamento rejeitado. O motivo ficou registrado e a negociação poderá ser reaberta.",
+  renegotiate: "Negociação reaberta. Uma nova versão da proposta está pronta para edição.",
+};
 
 function snapshot(d:OrderQuoteProposal):OrderQuoteDraft {
   return {
@@ -47,8 +71,9 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
-  const [rejectDialogOpen,setRejectDialogOpen]=useState(false);
-  const [approvalDialogOpen,setApprovalDialogOpen]=useState(false);
+  const [confirmationAction,setConfirmationAction]=useState<QuoteAction|null>(null);
+  const [modalFeedback,setModalFeedback]=useState<ModalFeedback|null>(null);
+  const submissionLocked=useRef(false);
   const [showExecution,setShowExecution]=useState(false);
   const [selectedVersion,setSelectedVersion]=useState<Record<string,any>|null>(null);
 
@@ -57,8 +82,9 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   },[footerHostId,orderId]);
 
   useEffect(()=>{
-    setApprovalDialogOpen(false);
-    setRejectDialogOpen(false);
+    setConfirmationAction(null);
+    setModalFeedback(null);
+    submissionLocked.current=false;
   },[orderId]);
 
   useEffect(()=>{
@@ -80,35 +106,58 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     .sort((a,b)=>Number(b.version)-Number(a.version));
   const editable=canEdit&&!order.completed_at&&!order.cancelled_at&&
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
-  const act=async(action:"save"|"submit"|"approve"|"reject"|"renegotiate")=>{
-    if(busy||!canEdit || (action==="approve" && !approvalDialogOpen))return;
+  const openAction = (action: QuoteAction) => {
+    if(busy || submissionLocked.current)return;
+    setModalFeedback(null);
+    setConfirmationAction(action);
+  };
+  const closeAction = () => {
+    if(busy || submissionLocked.current)return;
+    setConfirmationAction(null);
+    setModalFeedback(null);
+  };
+  const act=async(action:QuoteAction)=>{
+    if(busy || submissionLocked.current || !canEdit || confirmationAction!==action ||
+      modalFeedback?.type==="success")return;
+    if(action==="submit" && (draft.diagnosis.length>MAX_TECHNICAL_CHARS ||
+      draft.proposed_solution.length>MAX_TECHNICAL_CHARS)){
+      setModalFeedback({type:"error",message:"Diagnóstico e solução proposta devem ter no máximo 400 caracteres cada."});
+      return;
+    }
+    if(action==="reject" && !reason.trim()){
+      setModalFeedback({type:"error",message:"Informe o motivo da rejeição antes de confirmar."});
+      return;
+    }
+    submissionLocked.current=true;
     setBusy(true);
+    setModalFeedback(null);
     try {
       let result:OrderQuoteProposal;
       if(action==="submit"){
         await changeOrderQuote(org,orderId,"save",draft as unknown as Record<string,unknown>);
         result=await changeOrderQuote(org,orderId,"submit");
       }else result=await changeOrderQuote(org,orderId,action,
-        action==="save"?draft as unknown as Record<string,unknown>:
         action==="reject"?{reason}:
         action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version}: {});
       setProposal(result);
       setDraft(snapshot(result));
       onStatusChange?.(result.status);
       if(action==="approve") {
-        setApprovalDialogOpen(false);
         try {
           const pricing=await readOrderPricingAfterApproval(org,orderId);
           onPricingChange(pricing);
         } catch (pricingError) {
-          console.warn("[ORDERS] Orçamento aprovado, atualização do resumo pendente.",pricingError);
+          console.warn("[ORDERS] Orçamento aprovado; o resumo financeiro será atualizado na próxima leitura.",pricingError);
         }
       }
-      if(action==="reject"){setReason("");setRejectDialogOpen(false);}
-      notifyAdmin(action==="save"?"Rascunho salvo.":action==="submit"?"Orçamento enviado para aprovação.":
-        action==="approve"?"Orçamento aprovado. A OS está liberada para execução.":
-        action==="reject"?"Proposta reprovada.":"Nova versão iniciada para renegociação.","success");
-    }catch(err){notifyAdmin(systemErrorMessage(err),"error");}finally{setBusy(false);}
+      if(action==="reject")setReason("");
+      setModalFeedback({type:"success",message:ACTION_SUCCESS[action]});
+    }catch(err){
+      setModalFeedback({type:"error",message:systemErrorMessage(err)});
+    }finally{
+      submissionLocked.current=false;
+      setBusy(false);
+    }
   };
   const sendComment=async()=>{
     if(!comment.trim()||!user?.id||busy)return;
@@ -130,12 +179,25 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     <div className="space-y-4">
     <Section title="Diagnóstico e solução proposta">
       <div className="space-y-3">
-        <FTextarea rows={4} label="Descrição do problema" value={String(order.customer_notes || "")}
-          readOnly aria-readonly="true" className="bg-muted/35" placeholder="Não informada na OS" />
-        <FTextarea rows={4} label="Diagnóstico" required value={draft.diagnosis} disabled={!editable}
-          onChange={(e:any)=>setDraft(current=>({...current,diagnosis:e.target.value}))}/>
-        <FTextarea rows={4} label="Solução proposta" required value={draft.proposed_solution} disabled={!editable}
-          onChange={(e:any)=>setDraft(current=>({...current,proposed_solution:e.target.value}))}/>
+        <FTextarea rows={4} label="Descrição do problema"
+          value={capitalizeSentenceStarts(String(order.customer_notes || ""))}
+          readOnly aria-readonly="true" placeholder="Não informada na OS" />
+        <div className="space-y-1">
+          <FTextarea rows={4} label="Diagnóstico" required autoCapitalize="sentences"
+            maxLength={MAX_TECHNICAL_CHARS} value={draft.diagnosis} disabled={!editable}
+            onChange={(e:any)=>setDraft(current=>({...current,diagnosis:capitalizeSentenceStarts(e.target.value).slice(0,MAX_TECHNICAL_CHARS)}))}/>
+          <p className="text-right text-[11px] tabular-nums text-muted-foreground" aria-live="off">
+            {draft.diagnosis.length}/{MAX_TECHNICAL_CHARS} caracteres
+          </p>
+        </div>
+        <div className="space-y-1">
+          <FTextarea rows={4} label="Solução proposta" required autoCapitalize="sentences"
+            maxLength={MAX_TECHNICAL_CHARS} value={draft.proposed_solution} disabled={!editable}
+            onChange={(e:any)=>setDraft(current=>({...current,proposed_solution:capitalizeSentenceStarts(e.target.value).slice(0,MAX_TECHNICAL_CHARS)}))}/>
+          <p className="text-right text-[11px] tabular-nums text-muted-foreground" aria-live="off">
+            {draft.proposed_solution.length}/{MAX_TECHNICAL_CHARS} caracteres
+          </p>
+        </div>
       </div>
     </Section>
     <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>
