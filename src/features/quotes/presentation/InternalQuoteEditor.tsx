@@ -295,7 +295,7 @@ export function InternalQuoteEditor({ organizationId, quote, onClose, onSaved }:
       }}
     />}
 
-    {images.viewImage && <OrderImageLightbox image={images.viewImage}
+    {images.viewImage && <OrderImageLightbox context="quote" image={images.viewImage}
       onClose={() => images.setViewImage(null)}/>}
   </AdminPage>;
 }
