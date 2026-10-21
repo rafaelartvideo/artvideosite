@@ -983,17 +983,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!selectedFormat) {reportError("O navegador não oferece um formato de gravação compatível.");return;}
     let stream:MediaStream|null=null;
     try {
-      stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
-      const recorder=new MediaRecorder(stream,{mimeType:selectedFormat,audioBitsPerSecond:64000});
-      micStreamRef.current=stream;
+      const acquiredStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+      stream=acquiredStream;
+      const recorder=new MediaRecorder(acquiredStream,{mimeType:selectedFormat,audioBitsPerSecond:64000});
+      micStreamRef.current=acquiredStream;
       recorderRef.current=recorder;
       discardRecordingRef.current=false;
       const pieces:Blob[]=[];
       recorder.ondataavailable=event=>{if(event.data.size) pieces.push(event.data);};
       recorder.onstop=()=>{
-        stream.getTracks().forEach(track=>track.stop());
+        acquiredStream.getTracks().forEach(track=>track.stop());
         if(recorderRef.current===recorder) recorderRef.current=null;
-        if(micStreamRef.current===stream) micStreamRef.current=null;
+        if(micStreamRef.current===acquiredStream) micStreamRef.current=null;
         setRecording(false);
         if(discardRecordingRef.current || !pieces.length)return;
         const realMime=recorder.mimeType.split(";")[0];
@@ -1004,7 +1005,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         void onChooseMedia(file);
       };
       recorder.onerror=()=>{
-        stream.getTracks().forEach(track=>track.stop());
+        acquiredStream.getTracks().forEach(track=>track.stop());
         setRecording(false);
         reportError("A gravação de áudio foi interrompida.");
       };
