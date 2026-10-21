@@ -501,7 +501,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const buffer=Buffer.from(await response.arrayBuffer());
     if(!buffer.length || buffer.length>limits[kind]) throw new Error("media_too_large");
     const audioBytes=kind==="audio" ? await toVoiceNote(buffer,mime) : null;
-    const outgoingMime=kind==="audio"?"audio/ogg; codecs=opus":mime;
+    const outgoingMime=kind==="audio"?"audio/ogg":mime; // WuzAPI data URL convention; Opus is enforced in the file and MimeType.
     const dataUrl="data:"+outgoingMime+";base64,"+(audioBytes||buffer).toString("base64");
     const fields={Phone:jid,Id:idText.replaceAll("-","").toUpperCase()};
     let resource,path;
