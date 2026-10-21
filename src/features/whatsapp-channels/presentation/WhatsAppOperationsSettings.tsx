@@ -4,6 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { WhatsAppQueueSettings } from "./WhatsAppQueueSettings";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Department = { id: string; name: string; is_active: boolean; is_default?: boolean };
@@ -224,6 +225,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
           </div>}
         </div>}
       </AdminCard>}
+    {!loading && canManage && section==="queues" && <WhatsAppQueueSettings/>}
     <AdminDialog open={Boolean(editing)} onClose={() => { if(!busy)setEditing(null); }}
       title={editing === "new" ? "Novo departamento" : "Editar departamento"}
       className="max-w-xl"
