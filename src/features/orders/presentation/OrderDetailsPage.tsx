@@ -564,7 +564,7 @@ export function OrderDetailsPage(props: Props) {
               const printingThis = printingTemplateId === template.id;
               const downloadingThis = downloadingTemplateId === template.id;
               const busy = Boolean(printingTemplateId || downloadingTemplateId);
-              return <div key={template.id} className="flex min-w-0 items-center gap-2 px-2 py-1.5 text-sm outline-none transition-colors hover:bg-accent">
+              return <div key={template.id} className="flex min-w-0 items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-popover-foreground outline-none transition-colors hover:bg-muted/75 focus-within:bg-muted/60 dark:hover:bg-muted/80 dark:focus-within:bg-muted/70">
                 <div className="min-w-0 flex-1 px-1">
                   <span className="block truncate font-semibold">{template.name}</span>
                   <span className="block truncate text-[10px] text-[#5a6a82]">{PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}</span>
