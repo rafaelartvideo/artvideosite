@@ -295,8 +295,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
   const enabled = Boolean(channel && channel.state !== "not_connected");
-  const connected = channel?.state === "connected";
-  const receiving = connected && channel?.webhook_ready === true;
+  const connected = channels.some(item=>item.state==="connected");
+  const receiving = channels.some(item=>item.state==="connected" && item.webhook_ready);
 
   const connectionState = connected ? "Conectado" :
     channel?.state === "connecting" ? "Conectando" :
@@ -375,32 +375,44 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
               <th className="text-right">Ações</th>
             </tr></thead>
             <tbody>
-              {enabled && channel ? <tr key={channel.id}>
-                <td><div className="flex items-center gap-2.5">
-                  <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><WhatsAppIcon/></span>
-                   <p className="font-semibold">WhatsApp</p>
-                </div></td>
-                <td className="whitespace-nowrap font-medium tabular-nums">{formatPhone(channel.phone)}</td>
-                <td><StatusBadge status={connectionState} /></td>
-                 <td><StatusBadge status={receiving ? "Ativo" : connected ? "Configurando" : "Inativo"} /></td>
-                <td className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(channel.last_connected_at)}</td>
-                <td><div className="flex justify-end gap-2">
-                  {connected && onOpenInbox && <AdminButton variant="secondary" size="sm"
-                    disabled={Boolean(action) || !receiving} onClick={onOpenInbox}>Abrir conversas</AdminButton>}
-                  {canManage && connected && <AdminButton variant="danger" size="sm"
-                    disabled={Boolean(action)} onClick={() => setConfirmLogout(true)}>
-                    <Unplug size={15}/> Desconectar</AdminButton>}
-                  {canManage && !connected && channel.state!=="connecting" && <>
-                    <AdminButton variant="secondary" size="sm" disabled={Boolean(action)}
-                      loading={action==="connect"} onClick={()=>void openQr()}>
-                      <RefreshCw size={15}/> {canResumeSameSession ? "Reconectar" : "Conectar"}</AdminButton>
-                    {canResumeSameSession && <AdminButton variant="secondary" size="sm"
-                      disabled={Boolean(action)} onClick={()=>setConfirmSwitch(true)}>
-                      Trocar número</AdminButton>}
-                  </>}
-                  {!connected && !canManage && <span className="whitespace-nowrap text-xs text-muted-foreground">Desconectado</span>}
-                </div></td>
-              </tr> : <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
+              {enabled && channels.length ? channels.map(item=>{
+                const connected=item.state==="connected";
+                const receiving=connected && item.webhook_ready;
+                const canResumeSameSession=Boolean(item.phone && item.webhook_ready);
+                const status=connected?"Conectado":item.state==="connecting"?"Conectando":
+                  item.state==="error"?"Falha na conexão":"Desconectado";
+                return <tr key={item.id}>
+                  <td><div className="flex items-center gap-2.5">
+                    <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><WhatsAppIcon/></span>
+                    <div className="min-w-0">
+                      <p className="font-semibold">{item.display_name||"WhatsApp"}</p>
+                      <p className="text-xs text-muted-foreground">{connected?"Conexão ativa":"Sessão armazenada"}</p>
+                    </div>
+                  </div></td>
+                  <td className="whitespace-nowrap font-medium tabular-nums">{formatPhone(item.phone)}</td>
+                  <td><StatusBadge status={status}/></td>
+                  <td><StatusBadge status={receiving?"Ativo":connected?"Configurando":"Inativo"}/></td>
+                  <td className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(item.last_connected_at)}</td>
+                  <td><div className="flex flex-wrap justify-end gap-2">
+                    {connected && onOpenInbox && <AdminButton variant="secondary" size="sm"
+                      disabled={Boolean(action)||!receiving} onClick={onOpenInbox}>Abrir conversas</AdminButton>}
+                    {canManage && connected && <AdminButton variant="danger" size="sm"
+                      disabled={Boolean(action)} onClick={()=>{
+                        channelRef.current=item;setChannel(item);setConfirmLogout(true);
+                      }}><Unplug size={15}/> Desconectar</AdminButton>}
+                    {canManage && !connected && item.state!=="connecting" &&
+                      <AdminButton variant="secondary" size="sm"
+                        disabled={Boolean(action)||anotherActive(item.id)}
+                        loading={action==="connect"} onClick={()=>void openQr(item)}
+                        title={anotherActive(item.id)?"Desconecte o número ativo antes.":"Conectar esta sessão"}>
+                        <RefreshCw size={15}/> {canResumeSameSession?"Reconectar":"Conectar"}
+                      </AdminButton>}
+                    {!connected && anotherActive(item.id) &&
+                      <span className="self-center text-[11px] text-muted-foreground">Em espera</span>}
+                    {!connected && !canManage && <span className="text-xs text-muted-foreground">Desconectado</span>}
+                  </div></td>
+                </tr>;
+              }) : <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
                 {enabled ? "Nenhuma conexão encontrada." : "Ative o canal na subseção Configuração do canal para conectar um número."}
               </td></tr>}
             </tbody>
