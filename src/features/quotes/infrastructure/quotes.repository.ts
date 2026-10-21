@@ -44,6 +44,7 @@ export async function listQuotesPage(organizationId: string, input: QuotePageInp
     .from("quote_requests")
     .select(QUOTE_FILTER_SELECT)
     .eq("organization_id", org)
+    .eq("origin", "site")
     .is("archived_at", null);
   if (indexError) throw indexError;
 
@@ -98,7 +99,7 @@ export async function listQuotesPage(organizationId: string, input: QuotePageInp
 
 export async function getQuote(organizationId: string, quoteId: string) {
   const org = requireOrganizationId(organizationId);
-  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).eq("organization_id", org).eq("id", quoteId).maybeSingle();
+  const { data, error } = await supabase.from("quote_requests").select(QUOTE_SELECT).eq("organization_id", org).eq("origin", "site").eq("id", quoteId).maybeSingle();
   if (error) throw error;
   return data ? { ...data, statusName: (data.request_status as any)?.name || "Sem status" } : null;
 }
