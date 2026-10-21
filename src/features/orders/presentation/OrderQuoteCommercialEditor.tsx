@@ -3,7 +3,8 @@ import { Plus, Search, Trash2 } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { AdminFieldLabel, RequiredFieldLabel, FCurrencyInput, FInput, FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCurrency } from "@/shared/domain/formatters";
-import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { searchOrderProducts, searchOrderServices, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
 import type { OrderQuoteDraft, OrderQuoteItem } from "../infrastructure/order-quote.repository";
 
@@ -28,11 +29,11 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
   useEffect(()=>{
     if(disabled||!open||selected){setOptions([]);setLoading(false);return;}
     let active=true;
+    setLoading(true);
     const timer=window.setTimeout(()=>{
-      setLoading(true);
       void (category==="product"?searchOrderProducts(orderId,search):searchOrderServices(orderId,search))
         .then(results=>{if(active)setOptions(results);})
-        .catch(()=>{if(active)setOptions([]);})
+        .catch(error=>{if(active){setOptions([]);notifyAdmin(systemErrorMessage(error),"error");}})
         .finally(()=>{if(active)setLoading(false);});
     },300);
     return ()=>{active=false;window.clearTimeout(timer);};
