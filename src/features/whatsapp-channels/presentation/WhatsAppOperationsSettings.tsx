@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Building2, Check, CircleAlert, Pencil, UsersRound } from "lucide-react";
+import { Building2, Check, Pencil, UsersRound } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Department = { id: string; name: string; is_active: boolean; is_default?: boolean };
@@ -13,6 +13,9 @@ const staffRoleLabels: Record<StaffRole,string> = {
   manager: "Gestor", operator: "Operador", both: "Gestor + Operador",
 };
 export type WhatsAppOperationsSection = "departments" | "queues" | "operators";
+
+const notifyError = (message: string) => { if (message) notifyAdmin(message,"error"); };
+const notifySuccess = (message: string) => { if (message) notifyAdmin(message,"success"); };
 
 const channelRequest = (organizationId: string, action: Parameters<typeof operateUnionWhatsAppInbox>[2],
   extra?: Parameters<typeof operateUnionWhatsAppInbox>[3]) =>
@@ -31,8 +34,6 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
   const [operators, setOperators] = useState<Operator[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<Department | "new" | null>(null);
   const [name, setName] = useState("");
   const [active, setActive] = useState(true);
@@ -43,7 +44,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
   const reload = useCallback(async () => {
     if (!activeOrganizationId) return;
     setLoading(true);
-    setError("");
+    
     try {
       const [dept, status] = await Promise.all([
         channelRequest(activeOrganizationId, "departments_list"),
@@ -57,7 +58,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
       setOperators(staff?.operators || []);
       setSelectedRoles(Object.fromEntries((staff?.operators || []).map(person => [person.id,person.staff_role])));
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível carregar as configurações de atendimento."));
+      notifyError(systemErrorMessage(reason, "Não foi possível carregar as configurações de atendimento."));
     } finally {
       setLoading(false);
     }
@@ -68,7 +69,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     setEditing(department);
     setName(department === "new" ? "" : department.name);
     setActive(department === "new" ? true : department.is_active);
-    setError("");
+    
   };
   // The "Novo" action belongs to the parent modal/page toolbar, not the table.
   useEffect(() => {
@@ -78,78 +79,77 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     setEditing("new");
     setName("");
     setActive(true);
-    setError("");
+    
   }, [createRequest, section]);
 
   const saveDepartment = async () => {
     if (!activeOrganizationId || busy || name.trim().length < 2) return;
     setBusy("department");
-    setError("");
+    
     try {
       await channelRequest(activeOrganizationId, "department_save", {
         department_id: editing && editing !== "new" ? editing.id : undefined,
         name: name.trim(), is_active: active,
       });
       setEditing(null);
-      setNotice("Departamento salvo. As filas e equipes foram atualizadas.");
+      notifySuccess("Departamento salvo. As filas e equipes foram atualizadas.");
       await reload();
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível salvar o departamento."));
+      notifyError(systemErrorMessage(reason, "Não foi possível salvar o departamento."));
     } finally { setBusy(""); }
   };
   const chooseDefault = async (id: string) => {
     if (!activeOrganizationId || busy) return;
-    setBusy(id); setError("");
+    setBusy(id); 
     try {
       await channelRequest(activeOrganizationId, "queue_default", { department_id: id });
-      setNotice(id ? "Fila principal configurada para novas conversas." : "Novas conversas serão encaminhadas para a fila geral.");
+      notifySuccess(id ? "Fila principal configurada para novas conversas." : "Novas conversas serão encaminhadas para a fila geral.");
       await reload();
-    } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível configurar a fila.")); }
+    } catch (reason) { notifyError(systemErrorMessage(reason, "Não foi possível configurar a fila.")); }
     finally { setBusy(""); }
   };
   const toggleOperator = async (person: Operator, enabled: boolean) => {
     if (!activeOrganizationId || busy || !person.eligible) return;
     const chosenRole=selectedRoles[person.id] || person.staff_role;
-    setBusy(person.id); setError("");
+    setBusy(person.id); 
     try {
       const result = await channelRequest(activeOrganizationId, "operator_set", {
         target_user_id: person.id, enabled, staff_role: chosenRole,
       });
       setOperators(result.operators || []);
       setSelectedRoles(Object.fromEntries((result.operators || []).map(item => [item.id,item.staff_role])));
-      setNotice(enabled
+      notifySuccess(enabled
         ? `Perfil ${staffRoleLabels[chosenRole]} salvo para este funcionário.`
         : "Vínculo de atendimento desativado.");
-    } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível atualizar o perfil do atendimento.")); }
+    } catch (reason) { notifyError(systemErrorMessage(reason, "Não foi possível atualizar o perfil do atendimento.")); }
     finally { setBusy(""); }
   };
   const openTeam = async (department: Department) => {
     if (!activeOrganizationId || busy) return;
-    setBusy("team"); setError("");
+    setBusy("team"); 
     try {
       const result = await channelRequest(activeOrganizationId, "department_members", { department_id: department.id });
       setMemberIds(result.member_ids || []);
       setTeamDepartment(department);
-    } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível carregar a equipe.")); }
+    } catch (reason) { notifyError(systemErrorMessage(reason, "Não foi possível carregar a equipe.")); }
     finally { setBusy(""); }
   };
   const toggleMembership = async (person: Operator, enabled: boolean) => {
     if (!activeOrganizationId || !teamDepartment || busy) return;
-    setBusy(person.id); setError("");
+    setBusy(person.id); 
     try {
       const result = await channelRequest(activeOrganizationId, "department_set_member", {
         department_id: teamDepartment.id, target_user_id: person.id, enabled,
       });
       setMemberIds(result.member_ids || []);
-    } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível alterar o acesso à fila.")); }
+      notifySuccess(enabled ? "Operador adicionado à equipe." : "Operador removido da equipe.");
+    } catch (reason) { notifyError(systemErrorMessage(reason, "Não foi possível alterar o acesso à fila.")); }
     finally { setBusy(""); }
   };
 
   if (!loading && !canManage) return <p className="text-sm text-muted-foreground">Seu perfil não possui a permissão necessária para gerenciar esta seção dos atendimentos.</p>;
 
   return <div className="space-y-4">
-    {error && <div role="alert" className="rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-sm text-red-600"><CircleAlert size={16} className="mr-2 inline"/>{error}</div>}
-    {notice && <p role="status" className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">{notice}</p>}
     {loading ? <LoadingState text="Carregando configuração..." /> :
       <AdminCard square>
         {section === "operators" ? <div className="overflow-x-auto">
