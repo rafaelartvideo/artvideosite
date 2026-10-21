@@ -84,6 +84,10 @@ async function wuzapi(path, token, method = "GET", body) {
       if(response.status===401 || response.status===403)throw new Error("wuzapi_check_auth_failed");
       if(response.status===404)throw new Error("wuzapi_check_endpoint_missing");
       if(reason.includes("no session"))throw new Error("wuzapi_check_session_missing");
+      if(reason.includes("frame socket is closed") || reason.includes("not connected"))
+        throw new Error("wuzapi_check_socket_closed");
+      if(reason.includes("deadline exceeded") || reason.includes("timed out") || reason.includes("timeout"))
+        throw new Error("wuzapi_check_timeout");
       if(reason.includes("failed to check if users are on whatsapp"))
         throw new Error("wuzapi_check_lookup_failed");
       if(response.status>=500)throw new Error("wuzapi_check_internal_error");
@@ -556,6 +560,7 @@ createServer(async (req, res) => {
     console.error("union-bridge:", status, code);
     const known=new Set(["wuzapi_check_session_offline","wuzapi_check_session_missing",
       "wuzapi_check_auth_failed","wuzapi_check_endpoint_missing","wuzapi_check_lookup_failed",
+      "wuzapi_check_socket_closed","wuzapi_check_timeout",
       "wuzapi_check_internal_error","wuzapi_check_request_rejected"]);
     reply(res, status, {ok:false,code:known.has(code)?code:status===502?"provider_unavailable":code});
   }
