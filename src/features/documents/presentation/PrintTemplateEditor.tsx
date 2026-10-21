@@ -83,8 +83,11 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
     if (!inRange(value.layout.line_height, 1.2, 2)) { notifyAdmin("A altura da linha deve estar entre 1,2 e 2.", "error"); return; }
     if (!inRange(value.layout.section_spacing, 0, 40, true)) { notifyAdmin("O espaço entre seções deve estar entre 0 e 40 px.", "error"); return; }
     if (!inRange(value.layout.field_spacing, 0, 30, true)) { notifyAdmin("O espaço entre campos deve estar entre 0 e 30 px.", "error"); return; }
-    notifyAdmin("");
-    await onSave(normalizeEditorValue(value));
+    try {
+      await onSave(normalizeEditorValue(value));
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível salvar o modelo de impressão."), "error");
+    }
   };
 
   return <div className="space-y-5">
