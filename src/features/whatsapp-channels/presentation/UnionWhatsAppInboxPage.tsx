@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck } from "lucide-react";
+import { CircleAlert, ChevronDown, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
@@ -24,10 +24,6 @@ const filters = [
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
 type Filter = UnionWhatsAppConversation["status"];
-const initials = (text: string) => {
-  const parts = text.trim().split(/\s+/).filter(Boolean);
-  return (parts.length > 1 ? parts[0][0] + parts[parts.length - 1][0] : (parts[0] || "?").slice(0, 2)).toUpperCase();
-};
 const brazilNumberDigits = (raw: string) => {
   const digits=raw.replace(/\D/g, "");
   const national=digits.startsWith("55") && digits.length>11 ? digits.slice(2) : digits;
@@ -80,7 +76,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   }, [message.id, hasStoredMedia, message.message_type, organizationId]);
 
   if (message.message_type === "text" || message.message_type === "unknown") {
-    return <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text || "Mensagem"}</p>;
+    return <p className="text-sm leading-5"><WhatsAppFormattedText text={message.body_text || "Mensagem"}/></p>;
   }
   const mediaIcons = { image:ImageIcon, video:FileText, audio:Volume2, file:FileText,
     location:FileText, contact:FileText, sticker:ImageIcon };
@@ -110,13 +106,13 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
       </button>}
       {!hasStoredMedia && <span className="text-[10px] opacity-60">(arquivo não sincronizado)</span>}
     </div>}
-    {message.body_text && <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text}</p>}
+    {message.body_text && <p className="text-sm leading-5"><WhatsAppFormattedText text={message.body_text}/></p>}
     {mediaError && <p role="alert" className="text-xs text-red-600">{mediaError}</p>}
   </div>;
 }
 
-function WhatsAppIcon() {
-  return <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+function WhatsAppIcon({size=19}:{size?:number}={}) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
@@ -1011,7 +1007,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               {departments.filter(d=>d.is_active).map(d=><option key={d.id} value={d.id}>{d.name}</option>)}
             </select>}
             <div className="relative mt-3">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-blue-600"/>
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
               <input value={query} onChange={event => setQuery(event.target.value)} type="search" aria-label="Buscar conversa"
                 placeholder="Nome, telefone ou protocolo"
                 className="w-full rounded-lg border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25"/>
@@ -1019,7 +1015,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
             {visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
-              <MessageCircle size={26}/><p>Nenhuma conversa encontrada.</p>
+              <WhatsAppIcon size={30}/><p>Nenhuma conversa encontrada.</p>
               {scopedConversations.length === 0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
             : visible.map(item => {
@@ -1027,19 +1023,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               const name = item.contact_name || item.contact_phone || "Contato";
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
                 className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-primary/50 bg-primary-soft/45 hover:bg-primary-soft/65" : "bg-card hover:bg-muted/55"}`}>
-                <span className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}>
-                  {avatars[item.id] ? <img src={avatars[item.id]!} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatars(old=>({...old,[item.id]:null}))}/> : initials(name)}
-                </span>
+                <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]} selected={selected}
+                  onError={()=>setAvatars(old=>({...old,[item.id]:null}))}/>
                 <span className="min-w-0 flex-1">
                   <span className="flex justify-between gap-2">
                     <span className="truncate text-sm font-black text-foreground">{name}</span>
                     <span className="shrink-0 text-[9px] text-muted-foreground">{compactDate(item.last_message_at)}</span>
                   </span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{item.contact_phone || "WhatsApp"}{item.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(item.last_protocol_number)}` : ""}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{formatWhatsAppPhone(item.contact_phone)}</span>
                   <span className="mt-1.5 flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground">{item.last_message || "Conversa recebida"}</span>
                     {item.unread_count > 0 && <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
+                  {item.status==="waiting" && <span className={`mt-1.5 inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-bold ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}>
+                    Na fila {waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}
+                  </span>}
                 </span>
               </button>;
             })}
@@ -1053,9 +1051,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div> : <>
             <header className="flex min-h-16 items-center gap-3 border-b border-border bg-muted/30 px-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-black">
-                 {avatars[selected.id] ? <img src={avatars[selected.id]!} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover" onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/> : initials(selected.contact_name)}
-               </span>
+              <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
+                src={avatars[selected.id]} onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/>
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
