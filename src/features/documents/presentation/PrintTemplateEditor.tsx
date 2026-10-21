@@ -7,6 +7,8 @@ import { AdminCard, AdminCardContent, AdminCardHeader, AdminStickyToolbar, BtnPr
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { PrintTemplatePreview } from "./PrintTemplatePreview";
 import type { EmployeeSignatureSource, PrintTemplateEditorValue } from "../domain/print-template";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 
 const inRange = (value: unknown, min: number, max: number, integer = false) => {
   const numeric = Number(value);
@@ -31,11 +33,9 @@ function normalizeEditorValue(value: PrintTemplateEditorValue): PrintTemplateEdi
 export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, saveError }: { initialValue: PrintTemplateEditorValue; onCancel: () => void; onSave: (value: PrintTemplateEditorValue) => Promise<unknown>; saving: boolean; saveError?: string }) {
   const [value, setValue] = useState<PrintTemplateEditorValue>(() => normalizeEditorValue(initialValue));
   const [expanded, setExpanded] = useState<Set<string>>(new Set(PRINT_FIELD_REGISTRY.slice(0, 3).map(section => section.key)));
-  const [validationError, setValidationError] = useState("");
 
   useEffect(() => {
     setValue(normalizeEditorValue(initialValue));
-    setValidationError("");
   }, [initialValue]);
 
   const selectedCount = value.selectedFields.size;
@@ -71,24 +71,23 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
   };
 
   const save = async () => {
-    if (!value.name.trim()) { setValidationError("Informe o nome do documento."); return; }
-    if (value.allow_online_signature && !value.require_external_signature && !value.require_employee_signature) { setValidationError("Selecione pelo menos uma assinatura obrigatória para o envio online."); return; }
-    if (value.allow_online_signature && !inRange(value.signature_link_ttl_hours, 1, 720, true)) { setValidationError("A validade do link deve ficar entre 1 e 720 horas."); return; }
-    if (value.allow_online_signature && value.require_employee_signature && !value.employee_signature_source) { setValidationError("Selecione de qual funcionário virá a assinatura automática."); return; }
-    if (!selectedCount) { setValidationError("Selecione pelo menos um campo para o documento."); return; }
-    if (![value.margin_top, value.margin_right, value.margin_bottom, value.margin_left].every(item => inRange(item, 6, 40, true))) { setValidationError("As margens devem ser números inteiros entre 6 e 40 mm."); return; }
-    if (!inRange(value.layout.body_font_size, 7, 18, true)) { setValidationError("O tamanho do texto deve estar entre 7 e 18 pt."); return; }
-    if (!inRange(value.layout.label_font_size, 6, 14, true)) { setValidationError("O tamanho dos rótulos deve estar entre 6 e 14 pt."); return; }
-    if (!inRange(value.layout.section_title_font_size, 8, 18, true)) { setValidationError("O título das seções deve estar entre 8 e 18 pt."); return; }
-    if (!inRange(value.layout.line_height, 1.2, 2)) { setValidationError("A altura da linha deve estar entre 1,2 e 2."); return; }
-    if (!inRange(value.layout.section_spacing, 0, 40, true)) { setValidationError("O espaço entre seções deve estar entre 0 e 40 px."); return; }
-    if (!inRange(value.layout.field_spacing, 0, 30, true)) { setValidationError("O espaço entre campos deve estar entre 0 e 30 px."); return; }
-    setValidationError("");
+    if (!value.name.trim()) { notifyAdmin("Informe o nome do documento.", "error"); return; }
+    if (value.allow_online_signature && !value.require_external_signature && !value.require_employee_signature) { notifyAdmin("Selecione pelo menos uma assinatura obrigatória para o envio online.", "error"); return; }
+    if (value.allow_online_signature && !inRange(value.signature_link_ttl_hours, 1, 720, true)) { notifyAdmin("A validade do link deve ficar entre 1 e 720 horas.", "error"); return; }
+    if (value.allow_online_signature && value.require_employee_signature && !value.employee_signature_source) { notifyAdmin("Selecione de qual funcionário virá a assinatura automática.", "error"); return; }
+    if (!selectedCount) { notifyAdmin("Selecione pelo menos um campo para o documento.", "error"); return; }
+    if (![value.margin_top, value.margin_right, value.margin_bottom, value.margin_left].every(item => Number.isFinite(Number(item)) && Number(item) >= 0)) { notifyAdmin("As margens devem ser números válidos, iguais ou maiores que zero.", "error"); return; }
+    if (!inRange(value.layout.body_font_size, 7, 18, true)) { notifyAdmin("O tamanho do texto deve estar entre 7 e 18 pt.", "error"); return; }
+    if (!inRange(value.layout.label_font_size, 6, 14, true)) { notifyAdmin("O tamanho dos rótulos deve estar entre 6 e 14 pt.", "error"); return; }
+    if (!inRange(value.layout.section_title_font_size, 8, 18, true)) { notifyAdmin("O título das seções deve estar entre 8 e 18 pt.", "error"); return; }
+    if (!inRange(value.layout.line_height, 1.2, 2)) { notifyAdmin("A altura da linha deve estar entre 1,2 e 2.", "error"); return; }
+    if (!inRange(value.layout.section_spacing, 0, 40, true)) { notifyAdmin("O espaço entre seções deve estar entre 0 e 40 px.", "error"); return; }
+    if (!inRange(value.layout.field_spacing, 0, 30, true)) { notifyAdmin("O espaço entre campos deve estar entre 0 e 30 px.", "error"); return; }
+    notifyAdmin("");
     await onSave(normalizeEditorValue(value));
   };
 
   return <div className="space-y-5">
-    {(validationError || saveError) && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{validationError || saveError}</div>}
 
     <div className="grid items-start gap-5 2xl:grid-cols-[minmax(0,1fr)_minmax(420px,520px)]">
       <div className="space-y-5">
@@ -103,7 +102,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
               <Field label="Papel"><AdminSelect value={value.paper_size} onValueChange={() => undefined} disabled ariaLabel="Papel" options={[{ value: "A4", label: "A4" }]} /></Field>
             </div>
 
-            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top", "margin_right", "margin_bottom", "margin_left"] as const).map((key, index) => <Field key={key} label={["Margem superior (mm)", "Direita (mm)", "Inferior (mm)", "Esquerda (mm)"][index]}><FIntegerInput value={String(value[key])} onChange={(e: any) => setValue(v => ({ ...v, [key]: Number(e.target.value || 0) }))} /></Field>)}</div>
+            <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">{(["margin_top", "margin_right", "margin_bottom", "margin_left"] as const).map((key, index) => <Field key={key} label={["Margem superior (mm)", "Direita (mm)", "Inferior (mm)", "Esquerda (mm)"][index]}><FDecimalInput decimalPlaces={2} value={String(value[key])} onChange={(e: any) => setValue(v => ({ ...v, [key]: Number(e.target.value || 0) }))} /></Field>)}</div>
 
             <div className="mt-4 grid gap-1 sm:grid-cols-2">{([['show_logo', 'Exibir logo'], ['show_company_info', 'Dados da empresa'], ['show_page_number', 'Número da página'], ['show_printed_at', 'Data da impressão'], ['is_active', 'Modelo ativo']] as const).map(([key, label]) => <CheckOption key={key} checked={value[key]} label={label} onChange={() => setValue(v => ({ ...v, [key]: !v[key] }))} />)}</div>
 
@@ -259,7 +258,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
       </aside>
     </div>
 
-    <AdminStickyToolbar className="w-full flex-col-reverse gap-2 border-x border-t sm:mx-auto sm:w-1/2 sm:flex-row sm:justify-end sm:rounded-t-xl sm:px-5">
+    <AdminStickyToolbar className="w-full flex-col-reverse gap-2 !rounded-none !border-x-0 border-t sm:mx-auto sm:w-1/2 sm:flex-row sm:justify-end sm:px-5">
       <BtnSecondary className="w-full sm:w-auto" onClick={onCancel} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary className="w-full sm:w-auto" onClick={() => { void save(); }} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
     </AdminStickyToolbar>
