@@ -304,10 +304,21 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const messageHistoryLoadedRef = useRef(false);
   const followLatestRef = useRef(true);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
-  type PendingEntry = { id: string; conversationId: string; organizationId: string; text: string;
+  type PendingEntry = { id: string; conversationId: string; organizationId: string; text: string; previewUrl?:string;
     status: "sending" | "sent" | "unknown" | "failed"; providerMessageId?: string;
     error?: string; sentAt: string; fileName?: string; mediaType?: string };
   const [pending, setPending] = useState<PendingEntry[]>([]);
+  const pendingAudioUrlsRef=useRef(new Set<string>());
+  useEffect(()=>{
+    const retained=new Set(pending.map(item=>item.previewUrl).filter((url):url is string=>Boolean(url)));
+    for(const url of pendingAudioUrlsRef.current){
+      if(!retained.has(url)){URL.revokeObjectURL(url);pendingAudioUrlsRef.current.delete(url);}
+    }
+  },[pending]);
+  useEffect(()=>()=>{
+    for(const url of pendingAudioUrlsRef.current)URL.revokeObjectURL(url);
+    pendingAudioUrlsRef.current.clear();
+  },[]);
   const sendingIds = useRef(new Set<string>());
   const submitGateRef = useRef(false);
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
@@ -1134,7 +1145,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setRecording(false);
         reportError("A gravação de áudio foi interrompida.");
       };
-      recorder.start(500);
+      // MP4/AAC timesliced chunks can contain independent fragment metadata.
+      // Produce one finalized recording blob to avoid a 1-second playable file.
+      recorder.start();
       setRecordingSeconds(0);
       setRecording(true);
       
@@ -1167,9 +1180,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const type=file.type;
     const sticker=type==="image/webp";
     const image=["image/jpeg","image/png"].includes(type);
-    const audio=["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(type);
+    const audio=["audio/ogg","audio/opus","audio/mp4","audio/mpeg","audio/webm"].includes(type);
     const video=["video/mp4","video/3gpp"].includes(type);
-    const doc=["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
+    const doc=["application/pdf","text/plain","application/zip","application/octet-stream",
       "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
@@ -1190,8 +1203,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(mediaInputRef.current) mediaInputRef.current.value="";
         return;
       }
-      if(mediaPreview) URL.revokeObjectURL(mediaPreview);
-      setMediaPreview(image || sticker ? URL.createObjectURL(prepared) : null);
+      if(mediaPreview && !pendingAudioUrlsRef.current.has(mediaPreview)) URL.revokeObjectURL(mediaPreview);
+      setMediaPreview(image || sticker || audio ? URL.createObjectURL(prepared) : null);
       setAttachment(prepared);
       inputRef.current?.focus({preventScroll:true});
     } catch(reason) {
@@ -1213,7 +1226,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const file = attachment;
     const preview = mediaPreview;
     const fileType = file ? file.type==="image/webp" ? "sticker" : file.type.startsWith("image/") ? "image" :
-      file.type.startsWith("audio/") && file.type!=="audio/webm" ? "audio" : file.type.startsWith("video/") ? "video" : "file" : null;
+      file.type.startsWith("audio/") ? "audio" : file.type.startsWith("video/") ? "video" : "file" : null;
     const threadId = selected.id;
     const organizationId = activeOrganizationId;
     const requestId = crypto.randomUUID();
@@ -1224,9 +1237,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMediaPreview(null);
     if (mediaInputRef.current) mediaInputRef.current.value = "";
     setEmojiOpen(false);
+    if(fileType==="audio" && preview) pendingAudioUrlsRef.current.add(preview);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
-      text, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name, mediaType:fileType || undefined,
+      text, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name,
+      mediaType:fileType || undefined, previewUrl:fileType==="audio" ? preview||undefined : undefined,
     }]);
     scrollToLatest("auto");
     inputRef.current?.focus({ preventScroll: true });
@@ -1253,7 +1268,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           ? {...item,status:"sent",providerMessageId:result.provider_message_id||undefined,error:undefined}
           : item));
         void Promise.allSettled([refreshMessages(threadId, true), refresh(true)]);
-        if (preview) URL.revokeObjectURL(preview);
+        if (preview && fileType!=="audio") URL.revokeObjectURL(preview);
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
         const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
@@ -1568,7 +1583,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 ) : (
                   <div key={entry.id} className="mt-2 flex justify-end">
                     <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
-                      {entry.pending.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
+                      {entry.pending.mediaType==="audio"
+                        ? <WhatsAppVoicePlayer src={entry.pending.previewUrl} compact/>
+                        : entry.pending.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{entry.pending.fileName}</p>}
                       {entry.pending.text && <p className="text-sm"><WhatsAppFormattedText text={entry.pending.text}/></p>}
                       <div className="mt-1 flex min-h-4 items-center justify-end gap-1.5 text-[10px] opacity-70">
                         {entry.pending.status==="sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
@@ -1611,9 +1628,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <button type="button" onClick={()=>stopRecording(false)} className="rounded-md bg-primary px-2 py-1 text-primary-foreground">Concluir</button>
                 </div>}
                 {attachment && <div className="mb-2 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs">
-                  {mediaPreview && <img src={mediaPreview} alt="Prévia do anexo" className="h-10 w-10 rounded object-cover" />}
-                  <Paperclip size={15} className="shrink-0"/>
-                  <span className="min-w-0 flex-1 truncate">{attachment.name} · {(attachment.size/1048576).toFixed(2)} MB</span>
+                  {mediaPreview && attachment.type.startsWith("image/") && <img src={mediaPreview} alt="Prévia do anexo" className="h-10 w-10 rounded object-cover" />}
+                  {attachment.type.startsWith("audio/") ?
+                    <WhatsAppVoicePlayer src={mediaPreview} compact/> :
+                    <><Paperclip size={15} className="shrink-0"/>
+                      <span className="min-w-0 flex-1 truncate">{attachment.name} · {(attachment.size/1048576).toFixed(2)} MB</span></>}
                   <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) URL.revokeObjectURL(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
                     aria-label="Remover anexo" className="rounded p-1 hover:bg-muted"><X size={17}/></button>
                 </div>}
