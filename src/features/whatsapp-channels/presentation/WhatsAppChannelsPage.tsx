@@ -347,9 +347,9 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
                 </p></div>
             </div>
           </div>}
-          {connected && channels.some(c=>c.state==="connected" && !c.webhook_ready) && canManage &&
+          {connected && canManage &&
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/25 p-3">
-              <p className="text-xs text-muted-foreground">Se o recebimento continuar pendente, confira a ponte de integração.</p>
+              <p className="text-xs text-muted-foreground">Sincronize os eventos de recebimento, entrega e leitura após atualizar a ponte da VPS.</p>
               <AdminButton variant="secondary" size="sm" disabled={Boolean(action)}
                 loading={action === "webhook_setup"} onClick={() => void perform("webhook_setup", channels.find(c=>c.state==="connected")?.id)}>
                 <RefreshCw size={15}/> Tentar novamente
