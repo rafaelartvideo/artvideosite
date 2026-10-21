@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, FileText, History, MessageCircle, Pencil, RotateCcw, Send, XCircle } from "lucide-react";
+import { createPortal } from "react-dom";
+import { CheckCircle2, FileText, History, MessageCircle, RotateCcw, Send, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { BtnPrimary, BtnSecondary, Section, AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   addOrderQuoteComment, changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
@@ -14,10 +15,6 @@ import {
 import { OrderQuoteCommercialEditor,quoteItemTotal } from "./OrderQuoteCommercialEditor";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 
-const STATUS_LABELS:Record<string,string>={
-  draft:"Rascunho",awaiting_approval:"Aguardando aprovação",approved:"Aprovado",
-  rejected:"Reprovado",renegotiation:"Renegociação",
-};
 function snapshot(d:OrderQuoteProposal):OrderQuoteDraft {
   return {
     diagnosis:d.diagnosis||"",proposed_solution:d.proposed_solution||"",
@@ -53,14 +50,12 @@ function printQuote(order:any,proposal:OrderQuoteProposal,draft:OrderQuoteDraft)
     '</p><h2>Produtos e serviços</h2><table><thead><tr><th>Descrição</th><th>Qtd.</th><th>Preço</th><th>Subtotal</th></tr></thead><tbody>'+
     rows+'</tbody></table><p>Subtotal: '+escapeHtml(formatCurrency(subtotal))+
     '<br>Desconto: '+escapeHtml(formatCurrency(disc))+'<br><strong>Total: '+
-    escapeHtml(formatCurrency(Math.max(0,subtotal-disc)))+'</strong></p><h2>Condições comerciais</h2><p>'+
-    escapeHtml(draft.commercial_conditions||"Não informadas")+
-    '</p><footer>Esta proposta depende de aprovação para execução dos serviços.</footer>'+
+    escapeHtml(formatCurrency(Math.max(0,subtotal-disc)))+'</strong></p><footer>Esta proposta depende de aprovação para execução dos serviços.</footer>'+
     '<button onclick="window.print()">Imprimir / Salvar em PDF</button></body></html>';
   win.document.open();win.document.write(html);win.document.close();win.focus();
 }
-export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
-  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;
+export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId}:{
+  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
 }) {
   const {user}=useAuth();
   const org=String(order?.organization_id||"");
@@ -72,20 +67,24 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
   const [reason,setReason]=useState("");
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
-  const [error,setError]=useState("");
-  const [success,setSuccess]=useState("");
+  const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
+  const [rejectDialogOpen,setRejectDialogOpen]=useState(false);
   const [showExecution,setShowExecution]=useState(false);
+
+  useEffect(()=>{
+    setFooterHost(document.getElementById(footerHostId));
+  },[footerHostId,orderId]);
 
   useEffect(()=>{
     if(!org||!orderId)return;
     let active=true;
-    setLoading(true);setError("");setShowExecution(false);
+    setLoading(true);setShowExecution(false);
     void Promise.all([readOrderQuote(org,orderId),listOrderQuoteComments(org,orderId)])
       .then(([next,notes])=>{
         if(!active)return;
         setProposal(next);setDraft(next?snapshot(next):emptyOrderQuoteDraft());setComments(notes);
       })
-      .catch(err=>{if(active)setError(systemErrorMessage(err));})
+      .catch(err=>{if(active)notifyAdmin(systemErrorMessage(err),"error");})
       .finally(()=>{if(active)setLoading(false);});
     return()=>{active=false;};
   },[org,orderId]);
@@ -94,7 +93,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
   const act=async(action:"save"|"submit"|"approve"|"reject"|"renegotiate")=>{
     if(busy||!canEdit)return;
-    setBusy(true);setError("");setSuccess("");
+    setBusy(true);
     try {
       let result:OrderQuoteProposal;
       if(action==="submit"){
@@ -113,20 +112,21 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
           console.warn("[ORDERS] Orçamento aprovado, atualização do resumo pendente.",pricingError);
         }
       }
-      if(action==="reject")setReason("");
-      setSuccess(action==="save"?"Rascunho salvo.":action==="submit"?"Orçamento enviado para aprovação.":
+      if(action==="reject"){setReason("");setRejectDialogOpen(false);}
+      notifyAdmin(action==="save"?"Rascunho salvo.":action==="submit"?"Orçamento enviado para aprovação.":
         action==="approve"?"Orçamento aprovado. A OS está liberada para execução.":
-        action==="reject"?"Proposta reprovada.":"Nova versão iniciada para renegociação.");
-    }catch(err){setError(systemErrorMessage(err));}finally{setBusy(false);}
+        action==="reject"?"Proposta reprovada.":"Nova versão iniciada para renegociação.","success");
+    }catch(err){notifyAdmin(systemErrorMessage(err),"error");}finally{setBusy(false);}
   };
   const sendComment=async()=>{
     if(!comment.trim()||!user?.id||busy)return;
-    setBusy(true);setError("");
+    setBusy(true);
     try{
       await addOrderQuoteComment(org,orderId,user.id,comment);
       setComment("");
       const notes=await listOrderQuoteComments(org,orderId);setComments(notes);
-    }catch(err){setError(systemErrorMessage(err));}
+      notifyAdmin("Comentário registrado.","success");
+    }catch(err){notifyAdmin(systemErrorMessage(err),"error");}
     finally{setBusy(false);}
   };
   if(loading)return <LoadingState text="Carregando orçamento da OS..."/>;
@@ -134,49 +134,17 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
     <BtnSecondary onClick={()=>setShowExecution(false)}>Voltar ao orçamento aprovado</BtnSecondary>
     <OrderProductsServicesSection order={order} canEdit={canEdit} formatCurrency={formatCurrency} onPricingChange={onPricingChange}/>
   </div>;
-  return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-bold text-primary">
-          {STATUS_LABELS[proposal?.status||"draft"]}
-        </span>
-        <span className="text-xs text-muted-foreground">Versão {proposal?.version||1} · OS #{order.os_number}</span>
-      </div>
-      {proposal?.status==="approved"&&<BtnPrimary onClick={()=>setShowExecution(true)}>Abrir produtos e serviços para execução</BtnPrimary>}
-      {proposal?.status==="awaiting_approval"&&<AdminButton variant="secondary" onClick={()=>{
-        try{printQuote(order,proposal,draft);}catch(e){setError(systemErrorMessage(e));}
-      }}><FileText size={15}/> Imprimir / PDF</AdminButton>}
-      {proposal?.status==="approved"&&<AdminButton variant="secondary" onClick={()=>{
-        try{printQuote(order,proposal,draft);}catch(e){setError(systemErrorMessage(e));}
-      }}><FileText size={15}/> Imprimir / PDF</AdminButton>}
-    </div>
-    {error&&<p role="alert" className="rounded-lg border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-600">{error}</p>}
-    {success&&<p role="status" className="rounded-lg border border-emerald-500/25 bg-emerald-500/10 p-3 text-sm text-emerald-700">{success}</p>}
+  return <>
+    <div className="space-y-4">
     <Section title="Diagnóstico e solução proposta">
       <div className="space-y-3">
-        <FTextarea rows={4} label="Diagnóstico" value={draft.diagnosis} disabled={!editable}
+        <FTextarea rows={4} label="Diagnóstico" required value={draft.diagnosis} disabled={!editable}
           onChange={(e:any)=>setDraft(current=>({...current,diagnosis:e.target.value}))}/>
-        <FTextarea rows={4} label="Solução proposta" value={draft.proposed_solution} disabled={!editable}
+        <FTextarea rows={4} label="Solução proposta" required value={draft.proposed_solution} disabled={!editable}
           onChange={(e:any)=>setDraft(current=>({...current,proposed_solution:e.target.value}))}/>
       </div>
     </Section>
     <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>
-    {canEdit&&!order.completed_at&&!order.cancelled_at&&<Section title="Ações do orçamento">
-      <div className="flex flex-wrap items-end gap-3">
-        {editable&&<><BtnSecondary disabled={busy} onClick={()=>void act("save")}><Pencil size={15}/> Salvar rascunho</BtnSecondary>
-          <BtnPrimary disabled={busy} onClick={()=>void act("submit")}><Send size={15}/> Enviar para aprovação</BtnPrimary></>}
-        {proposal?.status==="awaiting_approval"&&<>
-          <BtnPrimary disabled={busy} onClick={()=>void act("approve")}><CheckCircle2 size={15}/> Aprovar</BtnPrimary>
-          <BtnSecondary disabled={busy} onClick={()=>void act("renegotiate")}><RotateCcw size={15}/> Renegociar</BtnSecondary>
-        </>}
-        {proposal?.status==="awaiting_approval"&&<div className="flex flex-wrap items-end gap-2">
-          <FInput label="Motivo da reprovação" value={reason} disabled={busy} onChange={(e:any)=>setReason(e.target.value)}/>
-          <BtnSecondary disabled={busy||!reason.trim()} onClick={()=>void act("reject")}><XCircle size={15}/> Reprovar</BtnSecondary></div>}
-        {proposal?.status==="rejected"&&<BtnPrimary disabled={busy} onClick={()=>void act("renegotiate")}>
-          <RotateCcw size={15}/> Nova versão</BtnPrimary>}
-      </div>
-      <p className="mt-3 text-xs text-muted-foreground">A proposta é mantida separada dos itens executados da OS. Antes da aprovação, os itens não movimentam estoque nem geram cobrança.</p>
-    </Section>}
     {!!proposal?.versions?.length&&<Section title="Histórico de versões">
       <div className="space-y-3">{[...proposal.versions].reverse().map((version:any,i)=>
         <div className="rounded-lg border border-border p-3 text-xs" key={i}>
@@ -198,5 +166,36 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
             <p className="mt-2 whitespace-pre-wrap text-sm">{note.body}</p></article>)}
       </div>
     </Section>
-  </div>;
+    </div>
+    {footerHost && createPortal(<AdminStickyToolbar className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
+      {editable && <BtnPrimary disabled={busy} loading={busy}
+        onClick={() => void act("submit")}><Send size={15}/> Enviar para aprovação</BtnPrimary>}
+      {proposal?.status==="awaiting_approval" && <>
+        <AdminButton variant="secondary" disabled={busy} onClick={()=>void act("renegotiate")}>
+          <RotateCcw size={15}/> Renegociar</AdminButton>
+        <AdminButton variant="secondary" disabled={busy} onClick={()=>setRejectDialogOpen(true)}>
+          <XCircle size={15}/> Reprovar</AdminButton>
+        <BtnPrimary disabled={busy} loading={busy} onClick={()=>void act("approve")}>
+          <CheckCircle2 size={15}/> Aprovar</BtnPrimary>
+      </>}
+      {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy}
+        onClick={()=>void act("renegotiate")}><RotateCcw size={15}/> Nova versão</BtnPrimary>}
+      {(proposal?.status==="awaiting_approval" || proposal?.status==="approved") && <AdminButton variant="secondary" disabled={busy}
+        onClick={() => { if(proposal)try{printQuote(order,proposal,draft);}catch(e){notifyAdmin(systemErrorMessage(e),"error");} }}>
+        <FileText size={15}/> Imprimir / PDF</AdminButton>}
+      {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)}>
+        Abrir produtos e serviços para execução</BtnPrimary>}
+    </AdminStickyToolbar>,footerHost)}
+    <AdminDialog open={rejectDialogOpen} onClose={()=>{if(!busy)setRejectDialogOpen(false);}}
+      title="Reprovar orçamento" description="Informe o motivo da reprovação da proposta.">
+      <div className="space-y-4">
+        <FInput label="Motivo da reprovação" required value={reason} disabled={busy}
+          onChange={(e:any)=>setReason(e.target.value)}/>
+        <div className="flex justify-end gap-2">
+          <BtnSecondary disabled={busy} onClick={()=>setRejectDialogOpen(false)}>Voltar</BtnSecondary>
+          <BtnPrimary disabled={busy||!reason.trim()} loading={busy} onClick={()=>void act("reject")}>Confirmar reprovação</BtnPrimary>
+        </div>
+      </div>
+    </AdminDialog>
+  </>;
 }
