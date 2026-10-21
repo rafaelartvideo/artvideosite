@@ -850,7 +850,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <button type="button" aria-label="Configurações dos atendimentos" aria-haspopup="menu"
               aria-expanded={settingsOpen} title="Configurações" onClick={() => setSettingsOpen(value => !value)}
               className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-border bg-card text-foreground transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-              <Settings2 size={28} strokeWidth={2.2}/>
+              <Settings2 size={20} strokeWidth={2}/>
             </button>
             {settingsOpen && <div role="menu" aria-label="Configurações dos atendimentos"
               className="absolute right-0 top-full z-40 mt-2 w-64 rounded-lg border border-border bg-card p-1.5 shadow-xl">
