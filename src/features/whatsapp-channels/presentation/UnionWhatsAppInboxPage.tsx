@@ -175,7 +175,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [numberNotice, setNumberNotice] = useState("");
   const [numberError, setNumberError] = useState("");
   const [verifiedContact,setVerifiedContact]=useState<{
-    phone:string;name:string;avatarUrl:string|null;nameSource:"agenda"|"conversa"|"whatsapp"|null;
+    phone:string;name:string;avatarUrl:string|null;nameSource:"agenda"|"agenda_whatsapp"|"conversa"|"whatsapp"|null;
   }|null>(null);
   const numberCheckSequence=useRef(0);
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
