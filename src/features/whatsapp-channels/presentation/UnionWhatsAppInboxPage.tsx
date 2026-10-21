@@ -584,6 +584,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setDepartments(rows);
     return rows;
   };
+  const closeSettingsModal=()=>{
+    const closing=settingsModal;
+    setSettingsModal(null);
+    if(closing==="queues" && activeOrganizationId){
+      void operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"queue_settings_get")
+        .then(result=>setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS))
+        .catch(()=>undefined);
+    }
+  };
   const viewProtocols = async () => {
     if(!selected || !activeOrganizationId || !activeChannelId || !activeChannelPhone || protocolsLoading)return;
     setProtocolsOpen(true);setProtocolsLoading(true);
@@ -1142,7 +1151,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>
                 <p className="text-xs text-muted-foreground">
                    {formatWhatsAppPhone(selected.contact_phone)}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
-                   <span className={`ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
+                   <span className={`ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
                      {hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
                    </span>
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
@@ -1462,7 +1471,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       onSaved={() => void checkChannel()}
     />}
     {settingsModal && settingsModal !== "permissions" && <AdminDialog open={true}
-      onClose={() => setSettingsModal(null)}
+      onClose={closeSettingsModal}
       title={settingsModal === "departments" ? "Departamentos e equipe" :
         settingsModal === "queues" ? "Configurar filas" : "Operadores"}
       description={settingsModal === "operators" ? "Vincule funcionários e defina seus perfis de atendimento." :
@@ -1470,7 +1479,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         "Organize os departamentos e as equipes de atendimento."}
       className="w-full max-w-4xl"
       footer={<div className="flex flex-wrap items-center justify-end gap-2">
-        <AdminButton variant="secondary" onClick={() => setSettingsModal(null)}>Fechar</AdminButton>
+        <AdminButton variant="secondary" onClick={closeSettingsModal}>Fechar</AdminButton>
         {(settingsModal === "departments" || settingsModal === "queues") && canAction("manage_queues") &&
           <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
       </div>}>
