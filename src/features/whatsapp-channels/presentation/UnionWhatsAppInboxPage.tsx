@@ -1114,7 +1114,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder==="undefined") {
       reportError("Este navegador não permite gravar áudio. Use o anexo para enviar um arquivo.");return;
     }
-    const formats=["audio/ogg;codecs=opus","audio/mp4","audio/webm;codecs=opus","audio/webm"];
+    const formats=["audio/ogg;codecs=opus","audio/webm;codecs=opus","audio/webm","audio/mp4"];
     const selectedFormat=formats.find(value=>MediaRecorder.isTypeSupported(value));
     if(!selectedFormat) {reportError("O navegador não oferece um formato de gravação compatível.");return;}
     let stream:MediaStream|null=null;
