@@ -122,8 +122,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const canView = hasPermission("whatsapp.inbox.view");
-  const canSend = hasPermission("whatsapp.inbox.send");
-  const canManage = hasPermission("whatsapp.inbox.manage");
+  const [staffRole,setStaffRole] = useState<"manager"|"operator"|"both"|null>(null);
+  const canSend = hasPermission("whatsapp.inbox.send") && (staffRole==="operator" || staffRole==="both");
+  const canManage = staffRole==="manager" || staffRole==="both";
   const [conversations, setConversations] = useState<UnionWhatsAppConversation[]>([]);
   const [messages, setMessages] = useState<UnionWhatsAppMessage[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -299,6 +300,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       );
       if (organizationRef.current === activeOrganizationId) {
         const ready=Boolean(response.channel_connected && response.channel_id);
+        setStaffRole(response.staff_role || null);
         setChannelReady(ready);
         setActiveChannelId(ready?response.channel_id||null:null);
         setActiveChannelPhone(ready?response.channel_phone||null:null);
@@ -307,11 +309,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) {
         setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null);
+        setStaffRole(null);
         setChannelError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
     }
   }, [activeOrganizationId, canView]);
-  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setChannelError(""); void checkChannel(); }, [checkChannel]);
+  useEffect(() => { setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null); setStaffRole(null); setChannelError(""); void checkChannel(); }, [checkChannel]);
   // When disconnected, the conversation subscription is deliberately absent.
   // Recheck identity on returning to the tab without continuously polling.
   useEffect(()=>{
@@ -849,6 +852,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <h1 className="shrink-0 whitespace-nowrap text-lg font-black leading-tight text-foreground sm:text-2xl">Atendimentos</h1>
+        {staffRole && <span className="hidden shrink-0 rounded-md bg-muted px-2 py-1 text-[10px] font-bold text-muted-foreground lg:inline-flex">
+          {staffRole==="both" ? "Gestor + Operador" : staffRole==="manager" ? "Gestor" : "Operador"}
+        </span>}
         <span aria-hidden="true" className="h-8 w-px shrink-0 bg-border"/>
         <nav aria-label="Canais de atendimento" className="flex min-w-0 items-center gap-2 overflow-x-auto whitespace-nowrap">
 
@@ -1026,7 +1032,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  </button>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                {selected.status === "waiting" && (canSend || canManage) &&
+                {selected.status === "waiting" && canSend &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {selected.status === "in_att" && canOperateSelected && <>
                   {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
