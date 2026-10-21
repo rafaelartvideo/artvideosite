@@ -10,10 +10,12 @@ export function OrderDetailSectionTabs({
   value,
   onChange,
   itemBadge,
+  commercialLabel = "Produtos e Serviços",
 }: {
   value: OrderDetailTab;
   onChange: (next: OrderDetailTab) => void;
   itemBadge?: { label: string; style: string } | null;
+  commercialLabel?: string;
 }) {
   const indicatorId = useId();
   return <div className="border-b border-border">
@@ -30,7 +32,7 @@ export function OrderDetailSectionTabs({
       <button type="button" onClick={() => onChange("products-services")}
         aria-pressed={value === "products-services"}
         className={"relative flex shrink-0 items-center gap-2 border-b-2 border-transparent px-1 pb-3 pt-1 text-xs font-bold transition-colors " + (value === "products-services" ? "text-primary" : "text-muted-foreground hover:text-foreground")}>
-        <Package size={15} /> Produtos e Serviços
+        <Package size={15} /> {commercialLabel}
         {itemBadge && <span className={"inline-flex shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold " + itemBadge.style}>{itemBadge.label}</span>}
         {value === "products-services" && <motion.span aria-hidden="true"
           layoutId={indicatorId + "-underline"}
