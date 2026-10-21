@@ -7,7 +7,7 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  addOrderQuoteComment, changeOrderQuote, emptyOrderQuoteDraft,
+  addOrderQuoteComment, changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
   listOrderQuoteComments, readOrderQuote,
   type OrderQuoteDraft,type OrderQuoteProposal,
 } from "../infrastructure/order-quote.repository";
@@ -105,6 +105,14 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
         action==="reject"?{reason}: {});
       setProposal(result);
       setDraft(snapshot(result));
+      if(action==="approve") {
+        try {
+          const pricing=await readOrderPricingAfterApproval(org,orderId);
+          onPricingChange(pricing);
+        } catch (pricingError) {
+          console.warn("[ORDERS] Orçamento aprovado, atualização do resumo pendente.",pricingError);
+        }
+      }
       if(action==="reject")setReason("");
       setSuccess(action==="save"?"Rascunho salvo.":action==="submit"?"Orçamento enviado para aprovação.":
         action==="approve"?"Orçamento aprovado. A OS está liberada para execução.":
