@@ -11,8 +11,9 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppMessages, operateUnionWhatsAppInbox,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact,
+  listUnionWhatsAppConversations, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
+  operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
@@ -129,6 +130,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const canManage=canAction("view_all");
   const [conversations, setConversations] = useState<UnionWhatsAppConversation[]>([]);
   const [messages, setMessages] = useState<UnionWhatsAppMessage[]>([]);
+  const [protocolFilter,setProtocolFilter] = useState<{id:string;label:string}|null>(null);
+  const [protocolsOpen,setProtocolsOpen] = useState(false);
+  const [protocolsLoading,setProtocolsLoading] = useState(false);
+  const [protocols,setProtocols] = useState<UnionWhatsAppProtocol[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("waiting");
   const [query, setQuery] = useState("");
@@ -243,19 +248,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const identity = ++messageIdentity.current;
     if (!silent) setMessagesLoading(true);
     try {
-      const list = await listUnionWhatsAppMessages(activeOrganizationId, conversationId,activeChannelId,activeChannelPhone);
+      const list = await listUnionWhatsAppMessages(activeOrganizationId, conversationId,activeChannelId,activeChannelPhone,protocolFilter?.id);
       if (identity === messageIdentity.current && organizationRef.current === activeOrganizationId && accountRef.current===activeChannelPhone) setMessages(list);
     } catch (reason) {
       if (identity === messageIdentity.current && organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as mensagens."));
     } finally {
       if (identity === messageIdentity.current) setMessagesLoading(false);
     }
-  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView]);
+  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, protocolFilter?.id]);
 
   useEffect(() => {
     loadingList.current = null;
     setConversations([]);
     setMessages([]);
+    setProtocolFilter(null);
+    setProtocolsOpen(false);
+    setProtocols([]);
     setAvatars({});
     setLinkedCustomers({});
     setSelectedId(null);
@@ -286,7 +294,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       ? activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone:null;
     if(shownAccountRef.current===identity)return;
     shownAccountRef.current=identity;
-    setConversations([]);setMessages([]);setSelectedId(null);
+    setConversations([]);setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
     setLoading(false);
     messageIdentity.current+=1;
@@ -379,6 +387,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
+  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);}, [selectedId]);
 
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
@@ -461,7 +470,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("pt-BR");
     return scopedConversations.filter(item => item.status === filter && (departmentFilter === "all" || (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) && (!search ||
-      [item.contact_name, item.contact_phone || "", item.chat_jid].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
+      [item.contact_name,item.contact_phone || "",item.chat_jid,item.last_protocol_number ? unionWhatsAppProtocolLabel(item.last_protocol_number) : ""].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
   }, [scopedConversations, filter, query, departmentFilter]);
 
   // Fetch photo previews for the first visible rows, in small batches so
@@ -509,6 +518,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setDepartments(rows);
     return rows;
   };
+  const viewProtocols = async () => {
+    if(!selected || !activeOrganizationId || !activeChannelId || !activeChannelPhone || protocolsLoading)return;
+    setProtocolsOpen(true);setProtocolsLoading(true);
+    try{
+      const data=await listUnionWhatsAppProtocols(activeOrganizationId,selected.id,activeChannelId,activeChannelPhone);
+      if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone)setProtocols(data);
+    }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
+    finally{setProtocolsLoading(false);}
+  };
   const viewHistory = async () => {
     if(!selected || !activeOrganizationId)return;
     try{
@@ -546,7 +564,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
-  const canReply = Boolean(selected && canSend && selected.status === "in_att" && (isMine || canManage));
+  const canReply = Boolean(selected && !protocolFilter && canSend && selected.status === "in_att" && (isMine || canManage));
 
   const operate = async (action: Exclude<UnionWhatsAppInboxAction, "send_text" | "mark_read">) => {
     if (!selected || !activeOrganizationId || runningAction) return;
@@ -978,7 +996,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="relative mt-3">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-blue-600"/>
               <input value={query} onChange={event => setQuery(event.target.value)} type="search" aria-label="Buscar conversa"
-                placeholder="Nome, telefone ou contato"
+                placeholder="Nome, telefone ou protocolo"
                 className="w-full rounded-lg border border-border bg-card py-2.5 pl-9 pr-3 text-sm outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/25"/>
             </div>
           </div>
@@ -1001,7 +1019,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <span className="truncate text-sm font-black text-foreground">{name}</span>
                     <span className="shrink-0 text-[9px] text-muted-foreground">{compactDate(item.last_message_at)}</span>
                   </span>
-                  <span className="block truncate text-[11px] text-muted-foreground">{item.contact_phone || "WhatsApp"}</span>
+                  <span className="block truncate text-[11px] text-muted-foreground">{item.contact_phone || "WhatsApp"}{item.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(item.last_protocol_number)}` : ""}</span>
                   <span className="mt-1.5 flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground">{item.last_message || "Conversa recebida"}</span>
                     {item.unread_count > 0 && <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
@@ -1033,7 +1051,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   </button>}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                   {selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}
+                   {selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
                      Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
                      <span className="ml-2 font-semibold text-emerald-600">Online</span>}
@@ -1046,6 +1064,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  </button>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                <button type="button" onClick={()=>void viewProtocols()} title="Histórico de protocolos"
+                  aria-label="Histórico de protocolos" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
+                  <FileText size={15}/><span className="hidden xl:inline">Protocolos</span>
+                </button>
                 {selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {selected.status === "in_att" && canOperateSelected && <>
@@ -1068,6 +1090,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>
             </header>
+            {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
+              <span>Protocolo <strong>{protocolFilter.label}</strong></span>
+              <button type="button" onClick={()=>setProtocolFilter(null)} className="font-bold text-primary hover:underline">Ver conversa completa</button>
+            </div>}
             <div className="relative min-h-0 flex-1">
               <div ref={scrollRef} onScroll={handleMessagesScroll}
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
