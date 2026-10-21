@@ -9,6 +9,8 @@ export type OrderQuoteItem = {
   quantity: number;
   unit_price: number;
   additional_cost: number;
+  /** Price fixed by the current service or product catalog when added. */
+  catalog_price_fixed?: boolean;
 };
 export type OrderQuoteProposal = {
   id: string;
