@@ -473,23 +473,44 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     };
   },[activeOrganizationId,canView,channelReady,checkChannel]);
 
+  // A assinatura é estável por conta, sem reconectar o websocket
+  // a cada troca de conversa, protocolo ou filtro.
+  const selectedIdRef=useRef(selectedId);
+  selectedIdRef.current=selectedId;
+  const refreshMessagesRef=useRef(refreshMessages);
+  refreshMessagesRef.current=refreshMessages;
   // Realtime only while the inbox page is open. A bounded foreground refresh
   // is kept as fallback when tenant replication is temporarily unavailable.
   useEffect(() => {
     if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView) return;
-    let debounce: number | null = null;
-    const schedule = () => {
-      if (debounce !== null) window.clearTimeout(debounce);
-      debounce = window.setTimeout(() => {
+    let debounce:number|null=null;
+    let refreshSelected=false;
+    const schedule=(conversationId?:string)=>{
+      if(!conversationId || conversationId===selectedIdRef.current)refreshSelected=true;
+      if(debounce!==null)window.clearTimeout(debounce);
+      debounce=window.setTimeout(()=>{
+        debounce=null;
         void refresh(true);
-        if (selectedId) void refreshMessages(selectedId, true);
-      }, 250);
+        if(refreshSelected && selectedIdRef.current)
+          void refreshMessagesRef.current(selectedIdRef.current,true);
+        refreshSelected=false;
+      },350);
     };
-    const realtime = supabase.channel(`union-whatsapp-${activeOrganizationId}-${Math.random().toString(36).slice(2)}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "union_whatsapp_conversations",
-        filter: `account_phone=eq.${activeChannelPhone}` }, schedule)
-      .on("postgres_changes", { event: "*", schema: "public", table: "union_whatsapp_messages",
-        filter: `account_phone=eq.${activeChannelPhone}` }, schedule)
+    const changedConversation=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
+      const row=payload.new||payload.old||{};
+      if(row.organization_id && row.organization_id!==activeOrganizationId)return;
+      schedule(String(row.id||""));
+    };
+    const changedMessage=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
+      const row=payload.new||payload.old||{};
+      if(row.organization_id && row.organization_id!==activeOrganizationId)return;
+      schedule(String(row.conversation_id||""));
+    };
+    const realtime=supabase.channel(`union-whatsapp-${activeOrganizationId}-${activeChannelId}`)
+      .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_conversations",
+        filter:`account_phone=eq.${activeChannelPhone}`},changedConversation)
+      .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_messages",
+        filter:`account_phone=eq.${activeChannelPhone}`},changedMessage)
       .subscribe();
     // Reconcile on returning to the tab, not an expensive 30-second poll.
     let lastResume = 0;
@@ -506,7 +527,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       document.removeEventListener("visibilitychange", onResume);
       void supabase.removeChannel(realtime);
     };
-  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, selectedId, refresh, refreshMessages, checkChannel]);
+  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, refresh, checkChannel]);
 
   useEffect(() => {
     messageCursorRef.current=null;
