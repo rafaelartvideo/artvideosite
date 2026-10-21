@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, FileText, History, RotateCcw, Send, XCircle } from "lucide-react";
+import { CheckCircle2, History, RotateCcw, Send, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -24,35 +24,13 @@ function snapshot(d:OrderQuoteProposal):OrderQuoteDraft {
     discount_value:Number(d.discount_value||0),
   };
 }
-function escapeHtml(v:unknown):string {
-  return String(v??"").replace(/&/g,"&amp;").replace(/</g,"&lt;")
-    .replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
-}
-function printQuote(order:any,proposal:OrderQuoteProposal,draft:OrderQuoteDraft) {
-  const subtotal=draft.items.reduce((sum,item)=>sum+quoteItemTotal(item),0);
-  const disc=draft.discount_type==="percentage"?subtotal*draft.discount_value/100:draft.discount_value;
-  const win=window.open("","_blank","width=850,height=750");
-  if(!win)throw new Error("Permita janelas para imprimir ou salvar o orçamento em PDF.");
-  const rows=draft.items.map(item=>'<tr><td>'+escapeHtml(item.title_snapshot)+'</td><td>'+
-    escapeHtml(item.quantity)+'</td><td>'+escapeHtml(formatCurrency(item.unit_price))+
-    '</td><td>'+escapeHtml(formatCurrency(quoteItemTotal(item)))+'</td></tr>').join("");
-  const html='<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Orçamento OS '+
-    escapeHtml(order.os_number)+' - V'+proposal.version+'</title><style>'+
-    'body{font:13px Arial,sans-serif;margin:28px;color:#111}h1{font-size:20px;margin:0 0 6px}'+
-    'h2{font-size:13px;margin:24px 0 8px}table{width:100%;border-collapse:collapse;margin:12px 0}'+
-    'td,th{text-align:left;padding:9px 6px;border-bottom:1px solid #ddd}'+
-    'p{white-space:pre-wrap;line-height:1.5}footer{margin-top:24px;border-top:1px solid #ccc;padding-top:12px}'+
-    '@page{size:A4;margin:15mm}button{margin:14px 0;padding:8px 12px}@media print{button{display:none}}'+
-    '</style></head><body><h1>Orçamento técnico</h1><div>OS '+escapeHtml(order.os_number)+
-    ' · Versão '+proposal.version+'</div><div>Validade: '+escapeHtml(draft.valid_until||"Não definida")+
-    '</div><h2>Diagnóstico</h2><p>'+escapeHtml(draft.diagnosis)+
-    '</p><h2>Solução proposta</h2><p>'+escapeHtml(draft.proposed_solution)+
-    '</p><h2>Produtos e serviços</h2><table><thead><tr><th>Descrição</th><th>Qtd.</th><th>Preço</th><th>Subtotal</th></tr></thead><tbody>'+
-    rows+'</tbody></table><p>Subtotal: '+escapeHtml(formatCurrency(subtotal))+
-    '<br>Desconto: '+escapeHtml(formatCurrency(disc))+'<br><strong>Total: '+
-    escapeHtml(formatCurrency(Math.max(0,subtotal-disc)))+'</strong></p><footer>Esta proposta depende de aprovação para execução dos serviços.</footer>'+
-    '<button onclick="window.print()">Imprimir / Salvar em PDF</button></body></html>';
-  win.document.open();win.document.write(html);win.document.close();win.focus();
+function versionPricing(version: Record<string,any>) {
+  const items: any[] = Array.isArray(version.items) ? version.items : [];
+  const subtotal = items.reduce((sum,item) => sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0);
+  const discount = version.discount_type==="percentage"
+    ? subtotal*Number(version.discount_value||0)/100
+    : Number(version.discount_value||0);
+  return { subtotal, discount, total: Math.max(0,subtotal-discount) };
 }
 export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,onApproved}:{
   order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;onApproved?:()=>void;
@@ -70,6 +48,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
   const [rejectDialogOpen,setRejectDialogOpen]=useState(false);
   const [showExecution,setShowExecution]=useState(false);
+  const [selectedVersion,setSelectedVersion]=useState<Record<string,any>|null>(null);
 
   useEffect(()=>{
     setFooterHost(document.getElementById(footerHostId));
@@ -89,6 +68,9 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     return()=>{active=false;};
   },[org,orderId]);
 
+  const renegotiations = (proposal?.versions||[])
+    .filter(version=>Number(version.version)<Number(proposal?.version||1))
+    .sort((a,b)=>Number(b.version)-Number(a.version));
   const editable=canEdit&&!order.completed_at&&!order.cancelled_at&&
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
   const act=async(action:"save"|"submit"|"approve"|"reject"|"renegotiate")=>{
@@ -146,14 +128,40 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
       </div>
     </Section>
     <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>
-    {!!proposal?.versions?.length&&<Section title="Histórico de versões">
-      <div className="space-y-3">{[...proposal.versions].reverse().map((version:any,i)=>
-        <div className="rounded-lg border border-border p-3 text-xs" key={i}>
-          <div className="flex justify-between gap-3"><strong><History size={14} className="mr-1 inline"/>Versão {version.version}</strong>
-            <span className="text-muted-foreground">{version.submitted_at?new Date(version.submitted_at).toLocaleString("pt-BR"):""}</span>
-          </div>
-          <p className="mt-1 text-muted-foreground">{Array.isArray(version.items)?version.items.length:0} itens · {version.proposed_solution||"Sem solução"}</p>
-        </div>)}</div>
+    {!!renegotiations.length&&<Section title={<span className="inline-flex items-center gap-2"><History size={15}/> Histórico de renegociações</span>} flush>
+      <div className="hidden overflow-x-auto md:block">
+        <table className="w-full border-collapse text-left text-xs">
+          <thead><tr className="border-b border-border bg-muted/45 text-muted-foreground">
+            <th className="px-4 py-3">Proposta anterior</th>
+            <th className="px-4 py-3">Enviada em</th>
+            <th className="px-4 py-3">Itens</th>
+            <th className="px-4 py-3 text-right">Valor anterior</th>
+            <th className="px-4 py-3 text-right">Detalhes</th>
+          </tr></thead>
+          <tbody>{renegotiations.map((version,index)=><tr
+            key={String(version.version)+"-"+index}
+            className="border-b border-border last:border-b-0 hover:bg-muted/30">
+            <td className="px-4 py-3 font-semibold">Versão {version.version}</td>
+            <td className="px-4 py-3">{version.submitted_at?new Date(version.submitted_at).toLocaleString("pt-BR"):"—"}</td>
+            <td className="px-4 py-3">{Array.isArray(version.items)?version.items.length:0}</td>
+            <td className="px-4 py-3 text-right font-bold">{formatCurrency(versionPricing(version).total)}</td>
+            <td className="px-4 py-3 text-right"><BtnSecondary onClick={()=>setSelectedVersion(version)}>Visualizar</BtnSecondary></td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+      <div className="grid gap-3 p-3 md:hidden">{renegotiations.map((version,index)=>
+        <button type="button" key={String(version.version)+"-"+index}
+          onClick={()=>setSelectedVersion(version)}
+          className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/30">
+          <span className="flex items-center justify-between gap-2 text-sm font-bold">
+            <span>Versão {version.version}</span>
+            <span>{formatCurrency(versionPricing(version).total)}</span>
+          </span>
+          <span className="mt-2 block text-xs text-muted-foreground">
+            {version.submitted_at?new Date(version.submitted_at).toLocaleString("pt-BR"):"—"}
+            {" · "}{Array.isArray(version.items)?version.items.length:0} itens
+          </span>
+        </button>)}</div>
     </Section>}
     <Section title="Comentários do orçamento">
       <div className="space-y-3">
@@ -189,12 +197,58 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
       </>}
       {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy}
         onClick={()=>void act("renegotiate")}><RotateCcw size={15}/> Nova versão</BtnPrimary>}
-      {(proposal?.status==="awaiting_approval" || proposal?.status==="approved") && <AdminButton variant="secondary" disabled={busy}
-        onClick={() => { if(proposal)try{printQuote(order,proposal,draft);}catch(e){notifyAdmin(systemErrorMessage(e),"error");} }}>
-        <FileText size={15}/> Imprimir / PDF</AdminButton>}
       {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)}>
         Abrir produtos e serviços para execução</BtnPrimary>}
     </>,footerHost)}
+    <AdminDialog
+      open={Boolean(selectedVersion)}
+      onClose={()=>setSelectedVersion(null)}
+      title={selectedVersion?"Renegociação · Versão "+selectedVersion.version:"Renegociação"}
+      description="Registro preservado da proposta anterior, sem alterar o orçamento atual."
+      className="max-w-3xl"
+      footer={<div className="flex w-full justify-end"><BtnSecondary onClick={()=>setSelectedVersion(null)}>Fechar</BtnSecondary></div>}
+    >
+      {selectedVersion&&<div className="max-h-[65vh] space-y-4 overflow-y-auto">
+        <div className="grid gap-3 rounded-lg border border-border p-4 text-xs sm:grid-cols-3">
+          <div><span className="block text-muted-foreground">Enviado em</span>
+            <strong>{selectedVersion.submitted_at?new Date(selectedVersion.submitted_at).toLocaleString("pt-BR"):"—"}</strong></div>
+          <div><span className="block text-muted-foreground">Validade</span>
+            <strong>{selectedVersion.valid_until?new Date(String(selectedVersion.valid_until)+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</strong></div>
+          <div><span className="block text-muted-foreground">Valor negociado</span>
+            <strong>{formatCurrency(versionPricing(selectedVersion).total)}</strong></div>
+        </div>
+        <div className="space-y-2 text-sm">
+          <p><strong>Diagnóstico:</strong> {selectedVersion.diagnosis||"—"}</p>
+          <p><strong>Solução proposta:</strong> {selectedVersion.proposed_solution||"—"}</p>
+        </div>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[480px] text-left text-xs">
+            <thead className="bg-muted/50"><tr>
+              <th className="px-3 py-3">Produto / Serviço</th>
+              <th className="px-3 py-3 text-right">Qtd.</th>
+              <th className="px-3 py-3 text-right">Preço unitário</th>
+              <th className="px-3 py-3 text-right">Subtotal</th>
+            </tr></thead>
+            <tbody>{(selectedVersion.items||[]).map((item:any,index:number)=>
+              <tr key={index} className="border-t border-border">
+                <td className="px-3 py-3">{item.title_snapshot}</td>
+                <td className="px-3 py-3 text-right">{item.quantity}</td>
+                <td className="px-3 py-3 text-right">{formatCurrency(Number(item.unit_price||0))}</td>
+                <td className="px-3 py-3 text-right">
+                  {formatCurrency(Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0))}
+                </td>
+              </tr>)}</tbody>
+          </table>
+        </div>
+        <div className="ml-auto grid max-w-sm gap-2 text-xs">
+          <div className="flex justify-between"><span>Subtotal</span><strong>{formatCurrency(versionPricing(selectedVersion).subtotal)}</strong></div>
+          <div className="flex justify-between"><span>Desconto</span><strong>- {formatCurrency(versionPricing(selectedVersion).discount)}</strong></div>
+          <div className="flex justify-between border-t border-border pt-2 text-sm font-bold">
+            <span>Total anterior</span><span>{formatCurrency(versionPricing(selectedVersion).total)}</span>
+          </div>
+        </div>
+      </div>}
+    </AdminDialog>
     <AdminDialog open={rejectDialogOpen} onClose={()=>{if(!busy)setRejectDialogOpen(false);}}
       title="Reprovar orçamento" description="Informe o motivo da reprovação da proposta.">
       <div className="space-y-4">
