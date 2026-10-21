@@ -521,6 +521,23 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return matches.sort((left,right)=>
       Date.parse(left.queue_entered_at||left.created_at)-Date.parse(right.queue_entered_at||right.created_at));
   }, [scopedConversations, filter, query, departmentFilter,user?.id]);
+  const queuePositions=useMemo(()=>{
+    const waiting=scopedConversations.filter(queueOnly)
+      .sort((a,b)=>Date.parse(a.queue_entered_at||a.created_at)-
+        Date.parse(b.queue_entered_at||b.created_at));
+    return new Map(waiting.map((item,index)=>[item.id,index+1]));
+  },[scopedConversations]);
+  const forwardedBadge=(item:UnionWhatsAppConversation)=>{
+    if(!queueSettings.show_forward_badges || !hasForwarding(item))return null;
+    const sentByMe=item.forwarded_by===user?.id;
+    const label=sentByMe
+      ? "Encaminhada para: "+(item.forwarded_to_name||"Departamento")
+      : "Encaminhada por: "+(item.forwarded_by_name||"Atendente");
+    return <span className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-md border border-violet-500/25 bg-violet-500/10 px-2 py-1 text-[10px] font-bold text-violet-700 dark:text-violet-300">
+      <ArrowRightLeft size={12} className="shrink-0"/>
+      <span className="truncate">{label}</span>
+    </span>;
+  };
 
   // Fetch photo previews for the first visible rows, in small batches so
   // scrolling and messaging never wait for WhatsApp profile requests.
@@ -620,7 +637,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
       await refresh(true);
       if (action === "assume") {
-        setFilter("in_att");
+        setFilter(hasForwarding(selected)?"forwarded":"in_att");
           window.setTimeout(() => inputRef.current?.focus(), 100);
       } else if (action === "reopen") {
         setFilter("waiting");
@@ -1095,9 +1112,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground">{item.last_message || "Conversa recebida"}</span>
                     {item.unread_count > 0 && <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
-                  {item.status==="waiting" && <span className={`mt-1.5 inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-bold ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}>
-                    Na fila {waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}
-                  </span>}
+                  {queueOnly(item) && (queueSettings.show_wait_time||queueSettings.show_queue_position) &&
+                    <span className={`mt-1.5 inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-bold ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
+                      {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
+                      {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
+                    </span>}
+                  {forwardedBadge(item)}
                 </span>
               </button>;
             })}
@@ -1116,22 +1136,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <div className="min-w-0 flex-1">
                 <div className="flex min-w-0 items-center gap-2">
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
-                  {canAction("manage_contacts") && <button type="button"
-                    title="Salvar ou alterar o nome deste contato na Union"
-                    onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
-                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/10">
-                    <Pencil size={13}/> Editar
-                  </button>}
+
                 </div>
                 <p className="text-xs text-muted-foreground">
                    {formatWhatsAppPhone(selected.contact_phone)}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
                    <span className={`ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
-                     {filters.find(item=>item.value===selected.status)?.label}
+                     {hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
                    </span>
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
                      Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
                      <span className="ml-2 font-semibold text-emerald-600">Online</span>}
                  </p>
+                 {forwardedBadge(selected)}
+                 {(selected.contact_presence==="composing"||selected.contact_presence==="recording") &&
+                   selected.contact_presence_at &&
+                   clockNow-Date.parse(selected.contact_presence_at)<12000 && clockNow>=Date.parse(selected.contact_presence_at) &&
+                   <p role="status" className="mt-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                     {selected.contact_presence==="recording"?"Gravando áudio...":"Digitando..."}
+                   </p>}
                  {onOpenCustomer && linkedCustomers[selected.id] && <button type="button"
                    onClick={()=>onOpenCustomer(linkedCustomers[selected.id]!.id)}
                    className="mt-0.5 max-w-full truncate text-left text-[11px] font-semibold text-blue-600 hover:underline dark:text-blue-400"
@@ -1140,6 +1162,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  </button>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+                {canAction("manage_contacts") && <button type="button"
+                  title="Editar contato" aria-label="Editar contato"
+                  onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
+                  className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
+                  <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
+                </button>}
                 <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
                   aria-label="Histórico do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <History size={15}/><span className="hidden xl:inline">Histórico</span>
