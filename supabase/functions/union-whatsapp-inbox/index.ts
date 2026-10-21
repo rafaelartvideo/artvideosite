@@ -84,7 +84,14 @@ async function signedBridge(
       body, signal:abort.signal,
     });
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
-    if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
+    if (!response.ok || result.ok !== true) {
+      if(numberCheck) {
+        const providerCode=String(result.code||"").slice(0,60);
+        const safeCode=/^[a-z_]{3,60}$/.test(providerCode)?providerCode:"unspecified";
+        throw Error("number_check_bridge_http_"+response.status+"_"+safeCode);
+      }
+      throw Error("provider_unconfirmed");
+    }
     if (numberCheck) {
       if(!Array.isArray(result.matches) || !["verified","not_registered"].includes(String(result.status||"")))
         throw Error("number_check_outdated_bridge");
@@ -288,13 +295,33 @@ Deno.serve(async request => {
         const matched=available.find(r=>r.phone===requested)||available[0];
         return {channel,phone:matched.phone,alternatives:available,
           adjusted:matched.phone!==requested,verified_name:matched.verified_name||""};
-      }catch{
-        return {error:"Não foi possível verificar o número. Atualize a ponte WuzAPI da VPS e tente novamente; nenhuma conversa foi criada.",status:503};
+      }catch(reason){
+        const failure=String(reason instanceof Error?reason.message:reason);
+        const label=failure.includes("number_check_outdated_bridge")
+          ? "A ponte da VPS está desatualizada. Atualize o serviço union-wuzapi-bridge."
+          : failure.includes("number_check_bridge_http_401")
+          ? "Autenticação entre Supabase e VPS falhou. Confira o segredo da ponte."
+          : failure.includes("number_check_bridge_http_404")
+          ? "A sessão desta conexão não foi encontrada na VPS."
+          : failure.includes("number_check_bridge_http_409")
+          ? "A sessão WhatsApp ainda não está pronta para consultas."
+          : failure.includes("number_check_bridge_http_400")
+          ? "A VPS rejeitou a consulta. Confira se a ponte instalada possui a ação number_check."
+          : failure.includes("number_check_bridge_http_502")
+          ? "O WuzAPI não conseguiu concluir a consulta. Confira a conexão e os logs do motor."
+          : failure==="bridge_not_configured"
+          ? "A ponte WuzAPI ainda não está configurada no Supabase."
+          : "Não foi possível consultar a VPS. Confira se a ponte está ativa e atualizada.";
+        // Log only an error category: never log contact phone, tokens or signed envelopes.
+        const category=/^number_check_bridge_http_[0-9]{3}_[a-z_]{3,60}$/.test(failure)
+          ? failure : /^[a-z_]{3,80}$/.test(failure) ? failure : "bridge_network_or_runtime_failure";
+        console.error("whatsapp_number_check",category);
+        return {error:label+" Nenhuma conversa foi criada.",status:503,code:category};
       }
     };
     if(action==="check_number"){
       const verified=await verifyWhatsAppNumber(String(body.phone||""));
-      if("error" in verified)return json({success:false,error:verified.error},verified.status);
+      if("error" in verified)return json({success:false,error:verified.error,code:verified.code||"verification_unavailable"},verified.status);
       return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
         alternatives:verified.alternatives,verified_name:verified.verified_name});
     }
