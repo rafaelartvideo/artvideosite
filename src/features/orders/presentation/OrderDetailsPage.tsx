@@ -330,6 +330,20 @@ export function OrderDetailsPage(props: Props) {
     if (template.document_type==="ORCAMENTO" && (!quoteWorkflowEnabled || !quote || quote.status==="draft" || quote.status==="renegotiation"))
       throw new Error("Envie a proposta para aprovação antes de imprimir o orçamento.");
 
+    // Print only CPF under signature lines. Keep customer and technician personal data scoped to their OS.
+    let employeeCpf: string | null = null;
+    if (configuredTemplate.selectedFields.has("signatures.employee")) {
+      const employeeProfileId = detail.assigned_to
+        || detail.technician_links?.[0]?.employee?.profile_id
+        || detail.completed_by || null;
+      if (employeeProfileId) {
+        const { data: employeeRow } = await supabase.from("employees")
+          .select("cpf").eq("organization_id",detail.organization_id)
+          .eq("profile_id",employeeProfileId).maybeSingle();
+        employeeCpf = employeeRow?.cpf || null;
+      }
+      employeeCpf ||= detail.technician_links?.[0]?.employee?.cpf || null;
+    }
     const checklist = needsChecklist ? await getOrderChecklist(detail.id) : null;
     const checklistMedia = (checklist?.stages || [])
       .filter(stage => configuredTemplate.selectedFields.has("checklists." + stage.stage_type_snapshot))
@@ -352,6 +366,7 @@ export function OrderDetailsPage(props: Props) {
         partRequests: detailPartRequests,
         history: details.detailHistory,
         printedBy: profileName,
+        employeeCpf,
         company,
       },
     };
