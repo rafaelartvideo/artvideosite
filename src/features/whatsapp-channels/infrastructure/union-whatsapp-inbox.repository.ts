@@ -20,6 +20,12 @@ export type UnionWhatsAppConversation = {
   created_at: string;
   last_protocol_number: number | null;
   queue_entered_at: string | null;
+  forwarded_by: string | null;
+  forwarded_to: string | null;
+  forwarded_to_department: string | null;
+  forwarded_by_name: string | null;
+  forwarded_to_name: string | null;
+  forwarded_at: string | null;
 };
 
 export type UnionWhatsAppProtocol = {
@@ -57,6 +63,18 @@ export type UnionWhatsAppMessage = {
   media_available?: boolean;
 };
 
+export type UnionWhatsAppQueueSettings = {
+  warning_minutes:number;
+  critical_minutes:number;
+  show_wait_time:boolean;
+  show_queue_position:boolean;
+  show_forward_badges:boolean;
+};
+export const DEFAULT_WHATSAPP_QUEUE_SETTINGS:UnionWhatsAppQueueSettings = {
+  warning_minutes:5,critical_minutes:15,
+  show_wait_time:true,show_queue_position:true,show_forward_badges:true,
+};
+
 export type UnionWhatsAppContact = {
   id: string;
   chat_jid: string;
@@ -71,7 +89,7 @@ export type UnionWhatsAppContact = {
 const raise = (error: { message: string } | null) => { if (error) throw new Error(error.message); };
 
 export async function listUnionWhatsAppConversations(organizationId: string, channelId: string, accountPhone: string): Promise<UnionWhatsAppConversation[]> {
-  const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at";
+  const columns="id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at,last_protocol_number,queue_entered_at,forwarded_by,forwarded_to,forwarded_to_department,forwarded_by_name,forwarded_to_name,forwarded_at";
   const scope=()=>supabase.from("union_whatsapp_conversations")
     .select(columns).eq("organization_id",organizationId)
     .eq("channel_id",channelId).eq("account_phone",accountPhone);
@@ -111,15 +129,16 @@ export async function listUnionWhatsAppProtocols(
   return (data || []) as UnionWhatsAppProtocol[];
 }
 
-export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "check_number" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names";
+export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "check_number" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "queue_settings_get" | "queue_settings_save" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names";
 
 export async function operateUnionWhatsAppInbox(
   organizationId: string,
   conversationId: string,
   action: UnionWhatsAppInboxAction,
   extra: { text?: string; client_message_id?: string; target_user_id?: string;
-    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; permissions?: Array<{capability:string;enabled:boolean}>; staff_role?: "manager"|"operator"|"both"; service_order_id?: string; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string } = {},
+    media_base64?: string; media_name?: string; media_mime?: string; media_type?: string; message_id?: string; phone?: string; contact_name?: string; media_size?: number; media_path?: string; department_id?: string; name?: string; is_active?: boolean; enabled?: boolean; permissions?: Array<{capability:string;enabled:boolean}>; staff_role?: "manager"|"operator"|"both"; service_order_id?: string; chat_jid?: string; display_name?: string; search?: string; page?: number; contacts?: Array<{name:string;phone:string}>; account_phone?: string; warning_minutes?: number; critical_minutes?: number; show_wait_time?: boolean; show_queue_position?: boolean; show_forward_badges?: boolean } = {},
 ): Promise<{ success: true; already_sent?: boolean; provider_confirmed?: boolean; message_id?: string; conversation_id?: string; contact_name?: string; name_source?: "agenda"|"agenda_whatsapp"|"conversa"|"whatsapp"|null; avatar_url?: string | null; contacts?: UnionWhatsAppContact[]; total?: number; imported?: number; truncated?: boolean; contact?: UnionWhatsAppContact; phone?: string; adjusted?: boolean; distinct_identities?: boolean; verified_name?: string; alternatives?: Array<{phone:string;query?:string;verified_name?:string}>; customer?: {id:string;name:string} | null; ambiguous?: boolean; channel_connected?: boolean; channel_id?: string|null; channel_phone?: string|null; staff_role?: "manager"|"operator"|"both"|null; capabilities?: Record<string,boolean>; capability_definitions?: Array<{key:string;label:string;category:"Conversas"|"Administração";sort_order:number;manager:boolean;operator:boolean}>; upload_path?: string; upload_token?: string; url?: string; filename?: string; mime?: string; members?: Array<{id:string;name:string}>; departments?: Array<{id:string;name:string;is_active:boolean;is_default?:boolean}>; member_ids?: string[]; operators?: Array<{id:string;name:string;eligible:boolean;can_attend:boolean;is_active:boolean;staff_role:"manager"|"operator"|"both";is_manager?:boolean}>;
+  queue_settings?: UnionWhatsAppQueueSettings;
   orders?: Array<{id:string;os_number:string;created_at:string}>; service_order_id?: string|null;
   history?: Array<{id:string;protocol_id:string|null;action:string;actor_id:string;to_user_id:string|null;to_department_id:string|null;created_at:string}> }> {
   const { data, error } = await supabase.functions.invoke("union-whatsapp-inbox", {
