@@ -147,23 +147,20 @@ Deno.serve(async request => {
     if(permissionError) return json({success:false,error:"Acesso negado."},403);
     const permissions=new Set((Array.isArray(permissionRows)?permissionRows:[])
       .map((row:Record<string,unknown>)=>String(row.permission_key || "")));
-    const canRead=permissions.has("whatsapp.inbox.view");
-    const canSend=permissions.has("whatsapp.inbox.send");
-    const canManage=permissions.has("whatsapp.inbox.manage");
-    if (!canRead || (["contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
-      (["contacts_save","send_text","send_media","start","check_number","prepare_media"].includes(action) && !canSend && !canManage) ||
-      (["assume","members","transfer","transfer_department"].includes(action) && !canSend && !canManage) ||
-      (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
-      return json({success:false,error:"Você não possui permissão para esta ação."},403);
-    }
-
-    // CRM permissions and the explicit WhatsApp operator assignment are both
-    // required. Managers retain oversight of all queues.
-    if(!canManage){
-      const {data:operator,error:operatorError}=await admin.from("union_whatsapp_operator_bindings")
-        .select("is_active").eq("organization_id",org).eq("user_id",actorId).maybeSingle();
-      if(operatorError) throw operatorError;
-      if(!operator?.is_active) return json({success:false,error:"Seu usuário ainda não está vinculado como operador de atendimento. Solicite a ativação nas configurações."},403);
+    // O perfil é atribuído individualmente ao atendimento, não herdado do cargo do CRM.
+    // A permissão de visualização do módulo continua obrigatória.
+    const {data:myBinding,error:myBindingError}=await admin.from("union_whatsapp_operator_bindings")
+      .select("staff_role,is_active").eq("organization_id",org).eq("user_id",actorId).maybeSingle();
+    if(myBindingError)throw myBindingError;
+    const staffRole = myBinding?.is_active === true ? myBinding.staff_role : null;
+    const canRead=permissions.has("whatsapp.inbox.view") && Boolean(staffRole);
+    const canSend=canRead && permissions.has("whatsapp.inbox.send") && (staffRole==="operator" || staffRole==="both");
+    const canManage=canRead && (staffRole==="manager" || staffRole==="both");
+    if (!canRead ||
+      (["contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
+      (["send_text","send_media","start","check_number","prepare_media","assume"].includes(action) && !canSend) ||
+      (["contacts_save","members","transfer","transfer_department","return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
+      return json({success:false,error:"Seu perfil no atendimento não autoriza esta ação."},403);
     }
 
     // Validate before writing contacts or conversations; no phantom chats for invalid numbers.
@@ -209,50 +206,73 @@ Deno.serve(async request => {
       const userIds=(staff||[]).map(m=>m.user_id);
       const roleIds=[...new Set((staff||[]).map(m=>m.role_id).filter(Boolean))];
       const {data:perm,error:permError}=await admin.from("permissions")
-        .select("id").eq("key","whatsapp.inbox.send").maybeSingle();
-      if(permError||!perm) return json({success:false,error:"Permissão de atendimento não configurada."},503);
+        .select("id,key").in("key",["whatsapp.inbox.view","whatsapp.inbox.send"]);
+      if(permError || !perm || perm.length!==2) return json({success:false,error:"Permissões de atendimento não configuradas."},503);
+      const viewId=perm.find(p=>p.key==="whatsapp.inbox.view")?.id;
+      const sendId=perm.find(p=>p.key==="whatsapp.inbox.send")?.id;
       const {data:grants,error:grantsError}=roleIds.length
-        ? await admin.from("role_permissions").select("role_id").eq("permission_id",perm.id).in("role_id",roleIds)
+        ? await admin.from("role_permissions").select("role_id,permission_id")
+            .in("permission_id",[viewId,sendId]).in("role_id",roleIds)
         : {data:[],error:null};
       if(grantsError)throw grantsError;
-      const eligibleRoleIds=new Set((grants||[]).map(r=>r.role_id));
+      const viewRoles=new Set((grants||[]).filter(g=>g.permission_id===viewId).map(g=>g.role_id));
+      const sendRoles=new Set((grants||[]).filter(g=>g.permission_id===sendId).map(g=>g.role_id));
       const {data:profiles,error:profileError}=userIds.length
         ? await admin.from("profiles").select("id,full_name,username,is_active").in("id",userIds)
         : {data:[],error:null};
       if(profileError)throw profileError;
       const profileMap=new Map((profiles||[]).map(p=>[p.id,p]));
       const {data:bindings,error:bindingsError}=await admin.from("union_whatsapp_operator_bindings")
-        .select("user_id,is_active").eq("organization_id",org);
+        .select("user_id,is_active,staff_role").eq("organization_id",org);
       if(bindingsError)throw bindingsError;
-      const bindingMap=new Map((bindings||[]).map(b=>[b.user_id,b.is_active]));
+      const bindingMap=new Map((bindings||[]).map(b=>[b.user_id,b]));
       if(action==="operator_set"){
         const targetId=String(body.target_user_id||"");
         const staffMember=(staff||[]).find(m=>m.user_id===targetId);
         if(!uuid(targetId)||!staffMember||!profileMap.get(targetId)?.is_active)
           return json({success:false,error:"Funcionário inativo ou fora desta empresa."},403);
-        if(!staffMember.is_owner && !eligibleRoleIds.has(staffMember.role_id))
-          return json({success:false,error:"Conceda a permissão de envio WhatsApp à função deste funcionário antes de vinculá-lo."},409);
         const enabled=body.enabled===true;
-        if(!enabled){
+        const nextRole=String(body.staff_role||bindingMap.get(targetId)?.staff_role||"operator");
+        if(!["manager","operator","both"].includes(nextRole))
+          return json({success:false,error:"Selecione Gestor, Operador ou Gestor + Operador."},400);
+        if(enabled && !staffMember.is_owner && !viewRoles.has(staffMember.role_id))
+          return json({success:false,error:"Conceda a permissão de visualizar o módulo de atendimentos à função deste funcionário."},409);
+        if(enabled && (nextRole==="operator" || nextRole==="both") &&
+          !staffMember.is_owner && !sendRoles.has(staffMember.role_id))
+          return json({success:false,error:"Conceda a permissão de envio WhatsApp à função deste funcionário para atuar como operador."},409);
+
+        const current=bindingMap.get(targetId);
+        if(current?.is_active && (current.staff_role==="operator"||current.staff_role==="both") &&
+          (!enabled || nextRole==="manager")){
           const {count,error:activeError}=await admin.from("union_whatsapp_conversations")
             .select("id",{count:"exact",head:true})
             .eq("organization_id",org).eq("assigned_to",targetId).eq("status","in_att");
           if(activeError)throw activeError;
           if((count||0)>0) return json({success:false,error:
-            "Este operador possui atendimentos em andamento. Encaminhe ou devolva as conversas antes de desvinculá-lo."},409);
+            "Este operador possui atendimentos em andamento. Encaminhe ou devolva as conversas antes de remover o perfil de Operador."},409);
+        }
+        if(current?.is_active && ["manager","both"].includes(current.staff_role) &&
+          (!enabled || nextRole==="operator")){
+          const remaining=(bindings||[]).filter(b=>b.is_active && b.user_id!==targetId &&
+            (b.staff_role==="manager"||b.staff_role==="both"));
+          if(!remaining.length)return json({success:false,error:
+            "É necessário manter ao menos um gestor ativo no atendimento. Defina outro gestor antes de retirar este perfil."},409);
         }
         const {error:saveError}=await admin.from("union_whatsapp_operator_bindings")
-          .upsert({organization_id:org,user_id:targetId,is_active:enabled,updated_at:new Date().toISOString()},
+          .upsert({organization_id:org,user_id:targetId,is_active:enabled,staff_role:nextRole,updated_at:new Date().toISOString()},
             {onConflict:"organization_id,user_id"});
         if(saveError)throw saveError;
-        bindingMap.set(targetId,enabled);
+        bindingMap.set(targetId,{user_id:targetId,is_active:enabled,staff_role:nextRole});
       }
       const operators=(staff||[]).filter(m=>profileMap.get(m.user_id)?.is_active)
         .map(m=>({id:m.user_id,name:profileMap.get(m.user_id)?.full_name||
             profileMap.get(m.user_id)?.username||"Funcionário",
-          eligible:Boolean(m.is_owner||eligibleRoleIds.has(m.role_id)),
-          is_active:bindingMap.get(m.user_id)===true,
-          is_manager:Boolean(m.is_owner)}))
+          eligible:Boolean(m.is_owner||viewRoles.has(m.role_id)),
+          can_attend:Boolean(m.is_owner||sendRoles.has(m.role_id)),
+          is_active:bindingMap.get(m.user_id)?.is_active===true,
+          staff_role:bindingMap.get(m.user_id)?.staff_role||"operator",
+          is_manager:Boolean(bindingMap.get(m.user_id)?.is_active &&
+            ["manager","both"].includes(bindingMap.get(m.user_id)?.staff_role))}))
         .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"));
       return json({success:true,operators});
     }
@@ -318,9 +338,9 @@ Deno.serve(async request => {
           if(!member)return json({success:false,error:"Funcionário não pertence à empresa."},403);
           if(body.enabled===true){
             const {data:binding,error:bindingError}=await admin.from("union_whatsapp_operator_bindings")
-              .select("is_active").eq("organization_id",org).eq("user_id",target).maybeSingle();
+              .select("is_active,staff_role").eq("organization_id",org).eq("user_id",target).maybeSingle();
             if(bindingError)throw bindingError;
-            if(!binding?.is_active) return json({success:false,error:"Ative o funcionário como operador antes de adicioná-lo à fila."},409);
+            if(!binding?.is_active || !["operator","both"].includes(binding.staff_role)) return json({success:false,error:"O funcionário precisa ter o perfil de Operador para participar da fila."},409);
             const {error}=await admin.from("union_whatsapp_department_members")
               .upsert({department_id:departmentId,organization_id:org,user_id:target},
                 {onConflict:"department_id,user_id",ignoreDuplicates:true});
@@ -592,7 +612,7 @@ Deno.serve(async request => {
       if(error) throw error;
       const ready=Boolean(channel && channel.state==="connected" &&
         channel.webhook_ready && /^[0-9]{10,15}$/.test(String(channel.phone||"")));
-      return json({success:true,channel_connected:ready,
+      return json({success:true,channel_connected:ready,staff_role:staffRole,
         channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
     }
     if(action==="start") {
@@ -945,7 +965,8 @@ Deno.serve(async request => {
       if(grantsError) throw grantsError;
       const eligibleRoles=new Set((grants||[]).map(r=>r.role_id));
       const {data:activeBindings,error:activeBindingsError}=await admin.from("union_whatsapp_operator_bindings")
-        .select("user_id").eq("organization_id",org).eq("is_active",true);
+        .select("user_id,staff_role").eq("organization_id",org).eq("is_active",true)
+        .in("staff_role",["operator","both"]);
       if(activeBindingsError)throw activeBindingsError;
       const activeOperators=new Set((activeBindings||[]).map(b=>b.user_id));
       const eligible=(members||[]).filter(m=>
