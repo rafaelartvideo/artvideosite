@@ -684,11 +684,33 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           : Promise.resolve(null),
       ]);
       if(organizationRef.current===activeOrganizationId && accountRef.current===activeChannelPhone){
-        setProtocols(data);
+        setProtocols(data.items);
+        setProtocolsHasMore(data.hasMore);
+        setProtocolsPage(0);
         setHandoffs(audit?.history||[]);
       }
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar os protocolos."));}
     finally{setProtocolsLoading(false);}
+  };
+  const loadMoreProtocols=async()=>{
+    if(!selected||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
+      protocolsLoading||!protocolsHasMore)return;
+    const next=protocolsPage+1;
+    setProtocolsLoading(true);
+    try{
+      const result=await listUnionWhatsAppProtocols(activeOrganizationId,selected.id,
+        activeChannelId,activeChannelPhone,next);
+      if(organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
+      setProtocols(old=>{
+        const unique=new Map(old.map(item=>[item.id,item]));
+        for(const item of result.items)unique.set(item.id,item);
+        return [...unique.values()];
+      });
+      setProtocolsHasMore(result.hasMore);
+      setProtocolsPage(next);
+    }catch(reason){
+      setError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
+    }finally{setProtocolsLoading(false);}
   };
   const showOrders = async () => {
     if(!activeOrganizationId || !selected)return;
@@ -1310,6 +1332,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <div ref={scrollRef} onScroll={handleMessagesScroll}
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
                 style={{ backgroundImage: "url('/assets/crm/whatsapp-chat-pattern.svg')", backgroundRepeat:"repeat", backgroundSize:"270px 270px" }}>
+              {messagesHasMore && <div className="mb-3 flex justify-center">
+                <button type="button" disabled={messagesOlderLoading}
+                  onClick={()=>void loadOlderMessages()}
+                  className="rounded-full border border-border bg-card px-4 py-2 text-xs font-semibold shadow-sm hover:bg-muted disabled:opacity-50">
+                  {messagesOlderLoading?"Carregando mensagens anteriores...":"Carregar mensagens anteriores"}
+                </button>
+              </div>}
               {messagesLoading && messages.length === 0 ? <LoadingState text="Carregando mensagens..."/>
               : messages.length === 0 && pending.filter(item => item.conversationId === selected.id).length === 0 ?
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
@@ -1630,6 +1659,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <span className="text-xs font-semibold text-primary">Visualizar mensagens deste protocolo</span>
             </button>;
           })}
+          {protocolsHasMore && <div className="pt-3 text-center">
+            <AdminButton variant="secondary" loading={protocolsLoading}
+              disabled={protocolsLoading} onClick={()=>void loadMoreProtocols()}>
+              Carregar protocolos anteriores
+            </AdminButton>
+          </div>}
         </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhum protocolo encontrado.</p>}
     </AdminDialog>
   </div>;
