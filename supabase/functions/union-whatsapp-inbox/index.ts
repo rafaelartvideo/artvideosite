@@ -208,7 +208,8 @@ Deno.serve(async request => {
       return_queue:"return_queue",finish:"finish",reopen:"reopen",
       handoff_history:"view_history",order_options:"link_orders",order_link:"link_orders",
     };
-    if(required[action] && !allowed(required[action])){
+    if(required[action] && !allowed(required[action]) &&
+      !(action==="operator_list" && allowed("manage_queues"))){
       return json({success:false,error:"Seu perfil não possui permissão para esta operação."},403);
     }
 
