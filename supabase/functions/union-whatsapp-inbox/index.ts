@@ -399,15 +399,20 @@ Deno.serve(async request => {
       const [avatar,profile]=await Promise.allSettled([
         signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
           crypto.randomUUID(),undefined,undefined,false,true),
-        contactName ? Promise.resolve("") :
-          signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
-            crypto.randomUUID(),undefined,undefined,true),
+        signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
+          crypto.randomUUID(),undefined,undefined,true),
       ]);
-      if(!contactName){
+      const fromBridge=profile.status==="fulfilled" ? profile.value : "";
+      const cut=fromBridge.indexOf(":");
+      const profileName=(cut>=0?fromBridge.slice(cut+1):"").trim().slice(0,120);
+      const savedInWhatsApp=fromBridge.startsWith("saved:") && Boolean(profileName);
+      // A real address-book name wins over a previous chat's public push name.
+      // Do not overwrite a manual name saved directly in Union World.
+      if(!savedName && savedInWhatsApp){
+        contactName=profileName;
+        nameSource="agenda_whatsapp";
+      }else if(!contactName){
         const cached=String(saved?.profile_name||"").trim().slice(0,120);
-        const fromBridge=profile.status==="fulfilled" ? profile.value : "";
-        const cut=fromBridge.indexOf(":");
-        const profileName=(cut>=0?fromBridge.slice(cut+1):"").trim().slice(0,120);
         contactName=cached||profileName||String(verified.verified_name||"").trim().slice(0,120);
         if(contactName)nameSource="whatsapp";
       }
