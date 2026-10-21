@@ -143,6 +143,14 @@ async function wuzapi(path, token, method = "GET", body) {
       if(response.status>=500)throw new Error("wuzapi_check_internal_error");
       throw new Error("wuzapi_check_request_rejected");
     }
+    // Distinguish absent media URL from transport/authorization failures.
+    // Never log raw provider errors: they can include phone numbers or tokens.
+    if(path.startsWith("/chat/download")){
+      const reason=String(result?.error||result?.data?.error||"").toLowerCase();
+      if(reason.includes("no url present"))throw new Error("media_provider_missing_url");
+      if(response.status===401||response.status===403)throw new Error("media_provider_auth_failed");
+      throw new Error("media_provider_download_failed");
+    }
     throw new Error("provider_error");
   }
   return result;
@@ -258,48 +266,18 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       throw new Error("bad_request");
     const cacheKey=id+"|"+jid;
     const existing=avatarCache.get(cacheKey);
-    if(existing && Date.now()-existing.at < (existing.base64?600000:60000))
+    if(existing && Date.now()-existing.at < (existing.base64?3600000:86400000))
       return {ok:true,avatar_base64:existing.base64||null,avatar_mime:existing.mime||null,
         avatar_cdn_url:!existing.base64?existing.fallbackUrl||null:null,
         avatar_status:existing.status||"no_public_photo"};
-    // WuzAPI expects a GET carrying JSON. Node's native fetch forbids a
-    // GET body, so communicate with the trusted loopback provider directly.
-    const payload=JSON.stringify({Phone:jid,Preview:true});
-    // Newer WuzAPI builds implement this endpoint as POST; older builds
-    // documented GET with a JSON body. Support both without exposing tokens.
-    let avatarResult;
+    // One request per contact. Missing/private photos are expected.
+    // Avoid legacy GET fallback and full-size retry after a provider 500.
+    let avatarResult=null;
     try {
-      avatarResult = await wuzapi("/user/avatar",session.token,"POST",{
+      avatarResult=await wuzapi("/user/avatar",session.token,"POST",{
         Phone:jid,Preview:true,
       });
-    } catch {
-      avatarResult = await new Promise(resolve=>{
-
-      let settled=false;
-      const done=value=>{if(!settled){settled=true;resolve(value);}};
-      const req=httpRequest("http://127.0.0.1:18080/user/avatar",{
-        method:"GET",
-        headers:{Token:session.token,"Content-Type":"application/json",
-          "Content-Length":Buffer.byteLength(payload)},
-        timeout:8000,
-      },res=>{
-        const chunks=[];let size=0;
-        res.on("data",chunk=>{
-          size+=chunk.length;
-          if(size>32768){req.destroy();done(null);return;}
-          chunks.push(chunk);
-        });
-        res.on("end",()=>{
-          if(res.statusCode!==200){done(null);return;}
-          try{done(JSON.parse(Buffer.concat(chunks).toString("utf8")));}
-          catch{done(null);}
-        });
-      });
-      req.on("timeout",()=>{req.destroy();done(null);});
-      req.on("error",()=>done(null));
-      req.end(payload);
-      });
-    }
+    }catch{/* Expected when a contact has no visible photo. */}
     // ProfilePictureInfo is nested in "data" on WuzAPI; some versions
     // serialize the URL field as Url/url rather than URL.
     const pictureUrl=value=>{
@@ -312,14 +290,6 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       return "";
     };
     let addr=pictureUrl(avatarResult);
-    // WhatsApp can have a full-size image but no preview thumbnail.
-    if(!addr){
-      try{
-        addr=pictureUrl(await wuzapi("/user/avatar",session.token,"POST",{
-          Phone:jid,Preview:false,
-        }));
-      }catch{/* No profile photo or privacy-restricted account. */}
-    }
     let base64="",mime="",status="no_public_photo",fallbackUrl="";
     try {
       let source=new URL(addr);
@@ -362,7 +332,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       }
     }catch{/* Missing/private photos are expected and not an error. */}
     avatarCache.set(cacheKey,{base64,mime,fallbackUrl,status,at:Date.now()});
-    if(avatarCache.size>100) avatarCache.delete(avatarCache.keys().next().value);
+    if(avatarCache.size>2000) avatarCache.delete(avatarCache.keys().next().value);
     return {ok:true,avatar_base64:base64||null,avatar_mime:mime||null,
       avatar_cdn_url:!base64?fallbackUrl||null:null,avatar_status:status};
   }
@@ -637,7 +607,7 @@ createServer(async (req, res) => {
     const status = code === "bad_request" ? 400 : code === "session_missing" ? 404 :
       ["qr_unavailable", "session_not_ready", "wuzapi_check_session_offline", "wuzapi_check_session_missing"].includes(code) ? 409 : 502;
     console.error("union-bridge:", status, code);
-    const known=new Set(["audio_encoder_unavailable","audio_conversion_failed","audio_conversion_timeout",
+    const known=new Set(["audio_encoder_unavailable","audio_conversion_failed","audio_conversion_timeout","media_provider_missing_url","media_provider_auth_failed","media_provider_download_failed",
       "wuzapi_check_session_offline","wuzapi_check_session_missing",
       "wuzapi_check_auth_failed","wuzapi_check_endpoint_missing","wuzapi_check_lookup_failed",
       "wuzapi_check_socket_closed","wuzapi_check_timeout","wuzapi_check_unreachable",
