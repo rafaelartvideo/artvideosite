@@ -119,7 +119,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
   if (action === "download_media") {
     const kind=String(mediaType||"");
     const mime=String(mediaMime||"");
-    const allowed=["image","video","audio","file"].includes(kind);
+    const allowed=["image","video","audio","file","sticker"].includes(kind);
     const size=Number(fileLength);
     if(!allowed || !Number.isInteger(size) || size<=0 || size>5242880 ||
       !mime || mime.length>160 || typeof mediaKey!=="string" ||
@@ -133,7 +133,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         host==="fbcdn.net" || host.endsWith(".fbcdn.net")) ||
       source.username || source.password) throw new Error("bad_request");
     const endpoints={image:"/chat/downloadimage",video:"/chat/downloadvideo",
-      audio:"/chat/downloadaudio",file:"/chat/downloaddocument"};
+      audio:"/chat/downloadaudio",file:"/chat/downloaddocument",sticker:"/chat/downloadimage"};
     const result=await wuzapi(endpoints[kind],session.token,"POST",{
       Url:source.href,MediaKey:mediaKey,Mimetype:mime,FileSHA256:fileSHA256,
       FileEncSHA256:String(fileEncSHA256||""),FileLength:size,
@@ -352,8 +352,9 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const kind=String(mediaType||"");
     const mime=String(mediaMime||"");
     const name=String(mediaName||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
-    const limits={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576};
-    const acceptable=kind==="image" ? ["image/jpeg","image/png"].includes(mime)
+    const limits={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576,sticker:1048576};
+    const acceptable=kind==="sticker" ? mime==="image/webp" 
+      : kind==="image" ? ["image/jpeg","image/png"].includes(mime)
       : kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
       : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
@@ -380,6 +381,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(kind==="image"){path="/chat/send/image";resource={...fields,Image:dataUrl,Caption:caption};}
     else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:mime,PTT:mime==="audio/ogg" || mime==="audio/opus"};}
     else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
+    else if(kind==="sticker"){if(caption.trim())throw new Error("sticker_caption_unsupported");path="/chat/send/sticker";resource={...fields,Sticker:dataUrl};}
     else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime};}
     const result=await wuzapi(path,session.token,"POST",resource);
     const resultId=String(result?.data?.Id||result?.data?.id||"");
