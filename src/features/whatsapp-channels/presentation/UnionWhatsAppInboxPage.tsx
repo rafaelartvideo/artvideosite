@@ -1059,12 +1059,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {canAction("manage_contacts") && <button type="button"
                     title="Salvar ou alterar o nome deste contato na Union"
                     onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
-                    className="shrink-0 text-[11px] font-semibold text-primary hover:underline">
-                    Editar contato
+                    className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-1.5 text-[11px] font-bold text-primary hover:bg-primary/10">
+                    <Pencil size={13}/> Editar
                   </button>}
                 </div>
                 <p className="text-xs text-muted-foreground">
-                   {selected.contact_phone || "Contato WhatsApp"} · {filters.find(item => item.value === selected.status)?.label}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
+                   {formatWhatsAppPhone(selected.contact_phone)}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
+                   <span className={`ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
+                     {filters.find(item=>item.value===selected.status)?.label}
+                   </span>
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
                      Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
                      <span className="ml-2 font-semibold text-emerald-600">Online</span>}
@@ -1077,9 +1080,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                  </button>}
               </div>
               <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
-                <button type="button" onClick={()=>void viewProtocols()} title="Histórico de protocolos"
-                  aria-label="Histórico de protocolos" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
-                  <FileText size={15}/><span className="hidden xl:inline">Protocolos</span>
+                <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
+                  aria-label="Histórico do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
+                  <History size={15}/><span className="hidden xl:inline">Histórico</span>
                 </button>
                 {!protocolFilter && selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
@@ -1089,10 +1092,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
                     onClick={()=>void showOrders()} disabled={savingOrder}
                     className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">Vincular OS</button>}
-                  {canAction("view_history") && <button type="button" title="Histórico do atendimento" aria-label="Histórico do atendimento"
-                    onClick={()=>void viewHistory()} className="flex h-8 w-8 items-center justify-center rounded-md border border-border hover:bg-muted">
-                    <History size={15}/>
-                  </button>}
+                  
                   {canAction("transfer") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void showRouting()}>
                     <ArrowRightLeft size={15}/> <span className="hidden sm:inline">Encaminhar</span>
                   </AdminButton>}
@@ -1110,15 +1110,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="relative min-h-0 flex-1">
               <div ref={scrollRef} onScroll={handleMessagesScroll}
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
-                style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(148,163,184,0.18) 1px, transparent 0)", backgroundSize: "22px 22px" }}>
+                style={{ backgroundImage: "url('/assets/crm/whatsapp-chat-pattern.svg')", backgroundRepeat:"repeat", backgroundSize:"270px 270px" }}>
               {messagesLoading && messages.length === 0 ? <LoadingState text="Carregando mensagens..."/>
               : messages.length === 0 && pending.filter(item => item.conversationId === selected.id).length === 0 ?
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
                 {messages.map(message => <div key={message.id} className={`mt-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
-                    {message.direction === "outgoing" && message.sender_name &&
-                      <p className="mb-1 text-[11px] font-black">{message.sender_name}</p>}
+                    
                     <MessageBody message={message} organizationId={activeOrganizationId || ""} onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
                     <span className="mt-1 flex items-center justify-end gap-1 text-[10px] text-muted-foreground">
                       {clock(message.sent_at)}
@@ -1134,7 +1133,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   .map(item => <div key={item.id} className="mt-2 flex justify-end">
                     <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
                       {item.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{item.fileName}</p>}
-                      {item.text && <p className="whitespace-pre-wrap break-words text-sm">{item.text}</p>}
+                      {item.text && <p className="text-sm"><WhatsAppFormattedText text={item.text}/></p>}
                       <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] opacity-70">
                         {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
                           : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
