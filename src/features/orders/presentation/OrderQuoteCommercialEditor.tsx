@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { AdminFieldLabel, RequiredFieldLabel, FCurrencyInput, FInput, FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -19,6 +19,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
   onAdd: (option: OrderCatalogOption,quantity:number,unitPrice:number) => void;
   disabled: boolean;
 }) {
+  const searchInputId=useId();
   const [search,setSearch]=useState("");
   const [options,setOptions]=useState<OrderCatalogOption[]>([]);
   const [selected,setSelected]=useState<OrderCatalogOption|null>(null);
@@ -45,10 +46,10 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
   };
   return <div className="space-y-3">
     <div>
-      <AdminFieldLabel label={category==="product"?"Produto":"Serviço"} />
+      <AdminFieldLabel htmlFor={searchInputId} label={category==="product"?"Produto":"Serviço"} />
       <div className="relative">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-        <input className={cn(INPUT,"pl-9 pr-9")} value={search} disabled={disabled}
+        <input id={searchInputId} aria-expanded={open&&!selected} aria-autocomplete="list" className={cn(INPUT,"pl-9 pr-9")} value={search} disabled={disabled}
           placeholder={category==="product"?"Busque no estoque por nome ou SKU":"Busque no catálogo de serviços"}
           onFocus={()=>setOpen(true)} onBlur={()=>window.setTimeout(()=>setOpen(false),120)}
           onChange={event=>{setSearch(event.target.value);setSelected(null);setOpen(true);}}/>
@@ -103,8 +104,8 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}:{
   const discount=draft.discount_type==="percentage"?subtotal*money(draft.discount_value)/100:money(draft.discount_value);
   return <div className="space-y-4">
     <div className="grid gap-4 lg:grid-cols-2">
-      <Section title="Incluir produto" className="relative z-20 !overflow-visible"><QuoteItemPicker orderId={orderId} category="product" onAdd={(o,q,p)=>add("product",o,q,p)} disabled={disabled}/></Section>
-      <Section title="Incluir serviço" className="relative z-20 !overflow-visible">
+      <Section title="Incluir produto" className="relative z-0 !overflow-visible focus-within:z-30"><QuoteItemPicker orderId={orderId} category="product" onAdd={(o,q,p)=>add("product",o,q,p)} disabled={disabled}/></Section>
+      <Section title="Incluir serviço" className="relative z-0 !overflow-visible focus-within:z-30">
         <QuoteItemPicker orderId={orderId} category="service" onAdd={(o,q,p)=>add("service",o,q,p)} disabled={disabled}/>
         {!disabled&&<div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><p className="text-xs text-muted-foreground">Serviços sem preço e avulsos são permitidos.</p>
           <AdminButton variant="secondary" onClick={()=>setCustomOpen(true)}><Plus size={15}/> Avulso</AdminButton></div>}
