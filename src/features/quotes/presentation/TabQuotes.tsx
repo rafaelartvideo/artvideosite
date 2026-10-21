@@ -189,6 +189,11 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const updateStatus = async (id: string, statusId: string) => {
     if (!canChangeStatus) return;
     const selectedStatus = statuses.find(status => status.id === statusId);
+    const currentQuote = detail?.id === id ? detail : quotes.find(quote => quote.id === id);
+    if (currentQuote?.origin === "internal" && selectedStatus?.slug === "APROVADO") {
+      setToast({ msg: "A aprovação final do orçamento interno será liberada junto com a conversão segura em OS.", type: "error" });
+      return;
+    }
     const { error: updateError } = await updateQuoteStatus(organizationId, id, statusId);
     if (updateError) {
       setToast({ msg: `Erro ao atualizar status: ${systemErrorMessage(updateError)}`, type: "error" });
@@ -260,7 +265,11 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const mapsUrl=displayAddress?"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(displayAddress):"";
   const quoteWhatsapp=String(detail?.customer?.whatsapp||detail?.customer?.phone||"").replace(/\D/g,"");
   const canMessageQuote=hasPermission("sac_digital.messages.send") && Boolean(detail?.customer_id && quoteWhatsapp && organizationId);
-  const canConvertApprovedQuote = canConvertToOrder && detail?.request_status?.slug === "APROVADO";
+  // A conversão do novo orçamento interno só será habilitada com a transação
+  // que preserva integralmente itens e preços aprovados na OS.
+  const canConvertApprovedQuote = canConvertToOrder
+    && detail?.origin !== "internal"
+    && detail?.request_status?.slug === "APROVADO";
   const canEditThisQuote = canEditQuote && detail?.origin === "internal"
     && ["RASCUNHO", "PENDENTE", "EM_ANALISE", "RENEGOCIACAO"].includes(detail?.request_status?.slug);
   return <div className="min-w-0 space-y-5">
