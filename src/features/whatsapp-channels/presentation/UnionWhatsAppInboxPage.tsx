@@ -290,7 +290,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         accountRef.current!==activeChannelPhone)return;
       setMessages(current=>{
         if(!silent)return page.items;
-        const merged=new Map(current.map(item=>[item.id,item]));
+        const merged=new Map<string,UnionWhatsAppMessage>(current.map(item=>[item.id,item]));
         for(const item of page.items)merged.set(item.id,item);
         return [...merged.values()].sort((a,b)=>
           Date.parse(a.sent_at)-Date.parse(b.sent_at)||a.id.localeCompare(b.id));
