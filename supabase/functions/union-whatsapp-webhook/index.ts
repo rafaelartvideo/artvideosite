@@ -284,10 +284,33 @@ Deno.serve(async request => {
     // number when Whatsmeow provides a verified alternate phone JID.
     const altJid = str(get(info,"ChatAlt","chatAlt","chat_alt",
       ...(!isFromMe ? ["SenderAlt","senderAlt"] : [])),160);
-    const phoneJid = chatJid.endsWith("@s.whatsapp.net") ? chatJid :
-      altJid.endsWith("@s.whatsapp.net") ? altJid : "";
-    const candidatePhone = phoneJid.split("@")[0];
-    const phone = /^[0-9]{10,15}$/.test(candidatePhone) ? candidatePhone : null;
+    const validPN=(jid:string)=>/^[0-9]{10,15}@s\.whatsapp\.net$/.test(jid);
+    const validLID=(jid:string)=>/^[0-9]{5,20}@lid$/.test(jid);
+    const verifiedLid=validLID(chatJid)&&validPN(altJid)?chatJid:
+      validPN(chatJid)&&validLID(altJid)?altJid:"";
+    const verifiedPN=validLID(chatJid)&&validPN(altJid)?altJid:
+      validPN(chatJid)&&validLID(altJid)?chatJid:"";
+    let savedVerifiedPhone="";
+    if(verifiedLid&&verifiedPN){
+      // Só pares PN/LID confirmados no mesmo evento autenticado.
+      const {error:aliasError}=await admin.from("union_whatsapp_verified_jid_aliases")
+        .upsert({organization_id:channel.organization_id,channel_id:channelId,
+          account_phone:accountPhone,lid_jid:verifiedLid,phone_jid:verifiedPN,
+          last_verified_at:new Date().toISOString()},
+          {onConflict:"channel_id,account_phone,lid_jid"});
+      if(aliasError)throw aliasError;
+      savedVerifiedPhone=verifiedPN;
+    }else if(validLID(chatJid)){
+      const {data:alias,error:aliasError}=await admin.from("union_whatsapp_verified_jid_aliases")
+        .select("phone_jid").eq("organization_id",channel.organization_id)
+        .eq("channel_id",channelId).eq("account_phone",accountPhone)
+        .eq("lid_jid",chatJid).maybeSingle();
+      if(aliasError)throw aliasError;
+      savedVerifiedPhone=validPN(String(alias?.phone_jid||""))?String(alias.phone_jid):"";
+    }
+    const phoneJid=validPN(chatJid)?chatJid:validPN(altJid)?altJid:savedVerifiedPhone;
+    const candidatePhone=phoneJid.split("@")[0];
+    const phone=/^[0-9]{10,15}$/.test(candidatePhone)?candidatePhone:null;
     const org = channel.organization_id;
     // A WuzAPI ChatAlt/SenderAlt phone JID is the only accepted PN↔LID
     // bridge. We never guess numbers from a public profile or an @lid value.
@@ -312,6 +335,13 @@ Deno.serve(async request => {
     if(Number.isFinite(pairedAt) && Date.parse(timestamp)+120_000<pairedAt)
       return json({ok:true,ignored:"before_active_account_pairing"});
 
+    // Callback repetido sob outro JID nunca abre uma conversa vazia.
+    const {data:existingMessage,error:messageLookupError}=await admin.from("union_whatsapp_messages")
+      .select("id").eq("channel_id",channelId).eq("account_phone",accountPhone)
+      .eq("provider_message_id",providerMessageId).maybeSingle();
+    if(messageLookupError)throw messageLookupError;
+    if(existingMessage)return json({ok:true,ignored:"already_synced"});
+
     // Prefer the existing thread for an EXACT, provider-verified phone.
     // PN and LID can be two identities for the same WhatsApp user.
     const scopedThreads=()=>admin.from("union_whatsapp_conversations")
@@ -332,6 +362,8 @@ Deno.serve(async request => {
           organization_id:org,channel_id:channelId,account_phone:accountPhone,chat_jid:chatJid,
           contact_name:preferredContactName||name||(phone||"Contato WhatsApp"),
           contact_phone:phone,
+          // Envio pelo aparelho: armazenar histórico sem gerar fila.
+          status:isFromMe?"finished":"waiting",
         },{onConflict:"channel_id,account_phone,chat_jid",ignoreDuplicates:true});
       if(ensureError)throw ensureError;
       const {data:newThread,error:threadError}=await scopedThreads().eq("chat_jid",chatJid).single();
@@ -370,6 +402,7 @@ Deno.serve(async request => {
         provider_message_id: providerMessageId, direction: isFromMe ? "outgoing" : "incoming",
         message_type: typeHint, body_text: body, sender_name: name || null, sent_at: timestamp,
         delivery_status: isFromMe ? "sent" : null,
+        origin:isFromMe?"whatsapp_device":"whatsapp_contact",
         media_name:mediaKind ? (originalName || null) : null,
         media_mime:mediaKind ? (mime || null) : null,
         media_available:validMedia,
