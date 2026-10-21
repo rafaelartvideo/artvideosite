@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, MessageCircle, Plus, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 
@@ -23,6 +23,12 @@ function formatPhone(value: string | null): string {
     return `+55 (${ddd}) ${subscriber.slice(0, -4)}-${subscriber.slice(-4)}`;
   }
   return digits ? `+${digits}` : "—";
+}
+
+function WhatsAppIcon() {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
+  </svg>;
 }
 
 type ChannelSection = "configuration" | "connections" | "departments" | "queues" | "operators";
@@ -47,6 +53,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
+  const [createConnectionOpen, setCreateConnectionOpen] = useState(false);
   const [statusError, setStatusError] = useState("");
   const [qr, setQr] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -96,6 +103,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setChannel(null);
     setQr(null);
     setQrOpen(false);
+    setCreateConnectionOpen(false);
     setStatusError("");
     setConfirmLogout(false);
     setConfirmSwitch(false);
@@ -258,14 +266,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     }
   };
 
-  const statusClass = channel?.state === "connected"
-    ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-    : channel?.state === "connecting"
-      ? "bg-amber-500/10 text-amber-600 dark:text-amber-400"
-      : channel?.state === "error"
-        ? "bg-red-500/10 text-red-600 dark:text-red-400"
-        : "bg-muted text-muted-foreground";
-
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
   const enabled = Boolean(channel && channel.state !== "not_connected");
@@ -302,9 +302,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
                 Ative o canal uma única vez. A Union prepara a integração e configura o recebimento automaticamente quando um número é conectado.
               </p>
             </div>
-            <span className={`rounded-lg px-2.5 py-1 text-xs font-semibold ${enabled ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground"}`}>
-              {enabled ? "Ativado" : "Desativado"}
-            </span>
+            <StatusBadge status={enabled ? "Ativo" : "Desativado"} />
           </div>
           {!enabled && canManage && <AdminButton disabled={Boolean(action)} loading={action === "activate"}
             onClick={() => void perform("activate")}>Ativar WhatsApp</AdminButton>}
@@ -351,15 +349,12 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
             <tbody>
               {enabled && channel ? <tr key={channel.id}>
                 <td><div className="flex items-center gap-2.5">
-                  <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><MessageCircle size={17}/></span>
-                  <div><p className="font-semibold">{channel.display_name || "WhatsApp"}</p>
-                    <p className="text-xs text-muted-foreground">WhatsApp normal ou Business</p></div>
+                  <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><WhatsAppIcon/></span>
+                   <p className="font-semibold">WhatsApp</p>
                 </div></td>
                 <td className="whitespace-nowrap font-medium tabular-nums">{formatPhone(channel.phone)}</td>
-                <td><span className={`inline-flex whitespace-nowrap rounded-lg px-2.5 py-1 text-xs font-semibold ${statusClass}`}>
-                  {connectionState}</span></td>
-                <td><span className={`text-xs font-semibold ${receiving ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}>
-                  {receiving ? "Ativo" : connected ? "Configurando" : "Inativo"}</span></td>
+                <td><StatusBadge status={connectionState} /></td>
+                 <td><StatusBadge status={receiving ? "Ativo" : connected ? "Configurando" : "Inativo"} /></td>
                 <td className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(channel.last_connected_at)}</td>
                 <td><div className="flex justify-end gap-2">
                   {connected && onOpenInbox && <AdminButton variant="secondary" size="sm"
@@ -394,7 +389,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
       {(section === "departments" || section === "queues") && canManage &&
         <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
-      {section === "connections" && canManage && <AdminButton onClick={() => void openQr()}
+      {section === "connections" && canManage && <AdminButton onClick={() => { if (canResumeSameSession) void openQr(); else setCreateConnectionOpen(true); }}
         disabled={!canStartConnection} loading={action === "connect"}
         title={!enabled ? "Ative o canal primeiro" :
           connected ? "Desconecte o número atual antes de vincular outro." :
@@ -404,6 +399,32 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         {canResumeSameSession ? "Reconectar" : "Nova conexão"}
       </AdminButton>}
     </AdminStickyToolbar>
+
+    <AdminDialog open={createConnectionOpen} onClose={() => setCreateConnectionOpen(false)}
+      title="Nova conexão" description="Selecione a rede social que deseja conectar."
+      footer={<AdminButton variant="secondary" onClick={() => setCreateConnectionOpen(false)}>Cancelar</AdminButton>}>
+      <div className="grid gap-3 p-5 sm:grid-cols-3">
+        <button type="button" disabled={!canStartConnection}
+          onClick={() => { setCreateConnectionOpen(false); void openQr(); }}
+          className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 py-5 text-primary transition-colors hover:border-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50">
+          <WhatsAppIcon/>
+          <span className="text-sm font-bold">WhatsApp</span>
+          <span className="text-xs font-medium">Disponível</span>
+        </button>
+        <button type="button" disabled title="Instagram · Em breve"
+          className="flex min-h-32 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 px-4 py-5 text-muted-foreground opacity-65">
+          <Instagram size={19}/>
+          <span className="text-sm font-semibold">Instagram</span>
+          <span className="text-xs">Em breve</span>
+        </button>
+        <button type="button" disabled title="Facebook · Em breve"
+          className="flex min-h-32 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 px-4 py-5 text-muted-foreground opacity-65">
+          <Facebook size={19}/>
+          <span className="text-sm font-semibold">Facebook</span>
+          <span className="text-xs">Em breve</span>
+        </button>
+      </div>
+    </AdminDialog>
     <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }}
       title="Conectar número" description="No WhatsApp, acesse Aparelhos conectados e leia o QR Code."
       footer={<AdminButton variant="secondary" onClick={() => { setQrOpen(false); setQr(null); }}>Fechar</AdminButton>}>
