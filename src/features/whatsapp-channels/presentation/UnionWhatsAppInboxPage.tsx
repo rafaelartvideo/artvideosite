@@ -14,7 +14,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
   operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
@@ -134,10 +134,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const canManage=canAction("view_all");
   const [conversations, setConversations] = useState<UnionWhatsAppConversation[]>([]);
   const [messages, setMessages] = useState<UnionWhatsAppMessage[]>([]);
+  const [messagesHasMore,setMessagesHasMore]=useState(false);
+  const [messagesOlderLoading,setMessagesOlderLoading]=useState(false);
+  const messageCursorRef=useRef<UnionWhatsAppMessageCursor|null>(null);
   const [protocolFilter,setProtocolFilter] = useState<{id:string;label:string}|null>(null);
   const [protocolsOpen,setProtocolsOpen] = useState(false);
   const [protocolsLoading,setProtocolsLoading] = useState(false);
   const [protocols,setProtocols] = useState<UnionWhatsAppProtocol[]>([]);
+  const [protocolsHasMore,setProtocolsHasMore]=useState(false);
+  const [protocolsPage,setProtocolsPage]=useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("waiting");
   const [query, setQuery] = useState("");
@@ -244,10 +249,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   });
   listQueryRef.current={filter,department:departmentFilter,search:debouncedQuery,page:conversationPage};
   const conversationLoadSeq=useRef(0);
+  const lastListQueryRef=useRef("");
   const refresh=useCallback(async(silent=false)=>{
     if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
     const sequence=++conversationLoadSeq.current;
     const options={...listQueryRef.current};
+    const queryKey=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,options]);
     if(!silent)setConversationPageLoading(true);
     try{
       const [page,counts]=await Promise.all([
@@ -257,6 +264,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(sequence!==conversationLoadSeq.current ||
         organizationRef.current!==activeOrganizationId||accountRef.current!==activeChannelPhone)return;
       setConversations(page.items);
+      lastListQueryRef.current=queryKey;
       setConversationHasMore(page.hasMore);
       setConversationCounts(counts);
       setError("");
@@ -268,23 +276,72 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
   },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView]);
 
-  const refreshMessages = useCallback(async (conversationId: string, silent = false) => {
-    if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView) return;
-    const identity = ++messageIdentity.current;
-    if (!silent) setMessagesLoading(true);
-    try {
-      const list = await listUnionWhatsAppMessages(activeOrganizationId, conversationId,activeChannelId,activeChannelPhone,protocolFilter?.id);
-      if (identity === messageIdentity.current && organizationRef.current === activeOrganizationId && accountRef.current===activeChannelPhone) setMessages(list);
-    } catch (reason) {
-      if (identity === messageIdentity.current && organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as mensagens."));
-    } finally {
-      if (identity === messageIdentity.current) setMessagesLoading(false);
+  const refreshMessages=useCallback(async(conversationId:string,silent=false)=>{
+    if(!activeOrganizationId||!activeChannelId||!activeChannelPhone||channelReady!==true||!canView)return;
+    const identity=++messageIdentity.current;
+    if(!silent)setMessagesLoading(true);
+    try{
+      const page=await listUnionWhatsAppMessages(activeOrganizationId,conversationId,
+        activeChannelId,activeChannelPhone,protocolFilter?.id);
+      if(identity!==messageIdentity.current ||
+        organizationRef.current!==activeOrganizationId ||
+        accountRef.current!==activeChannelPhone)return;
+      setMessages(current=>{
+        if(!silent)return page.items;
+        const merged=new Map(current.map(item=>[item.id,item]));
+        for(const item of page.items)merged.set(item.id,item);
+        return [...merged.values()].sort((a,b)=>
+          Date.parse(a.sent_at)-Date.parse(b.sent_at)||a.id.localeCompare(b.id));
+      });
+      if(!silent||!messageCursorRef.current){
+        messageCursorRef.current=page.nextCursor;
+        setMessagesHasMore(page.hasMore);
+      }
+    }catch(reason){
+      if(identity===messageIdentity.current && organizationRef.current===activeOrganizationId)
+        setError(systemErrorMessage(reason,"Não foi possível consultar as mensagens."));
+    }finally{
+      if(identity===messageIdentity.current)setMessagesLoading(false);
     }
-  }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, protocolFilter?.id]);
+  },[activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,canView,protocolFilter?.id]);
+
+  const loadOlderMessages=async()=>{
+    if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone ||
+      !messagesHasMore||messagesOlderLoading||!messageCursorRef.current)return;
+    const cursor={...messageCursorRef.current};
+    const threadId=selectedId;
+    const identity=messageIdentity.current;
+    const scroll=scrollRef.current;
+    const previousHeight=scroll?.scrollHeight||0;
+    const previousTop=scroll?.scrollTop||0;
+    followLatestRef.current=false;
+    setMessagesOlderLoading(true);
+    try{
+      const page=await listUnionWhatsAppMessages(activeOrganizationId,threadId,
+        activeChannelId,activeChannelPhone,protocolFilter?.id,cursor);
+      if(identity!==messageIdentity.current||accountRef.current!==activeChannelPhone)return;
+      setMessages(current=>{
+        const joined=new Map<string,UnionWhatsAppMessage>();
+        for(const item of [...page.items,...current])joined.set(item.id,item);
+        return [...joined.values()].sort((a,b)=>
+          Date.parse(a.sent_at)-Date.parse(b.sent_at)||a.id.localeCompare(b.id));
+      });
+      messageCursorRef.current=page.nextCursor;
+      setMessagesHasMore(page.hasMore);
+      requestAnimationFrame(()=>{
+        const area=scrollRef.current;
+        if(area)area.scrollTop=area.scrollHeight-previousHeight+previousTop;
+      });
+    }catch(reason){
+      setError(systemErrorMessage(reason,"Não foi possível carregar mensagens anteriores."));
+    }finally{setMessagesOlderLoading(false);}
+  };
 
   useEffect(() => {
     conversationLoadSeq.current++;
+    lastListQueryRef.current="";
     setConversations([]);
+    setMessagesHasMore(false);messageCursorRef.current=null;setMessagesOlderLoading(false);
     setConversationHasMore(false);
     setConversationPage(0);
     setQuery("");
@@ -325,7 +382,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(shownAccountRef.current===identity)return;
     shownAccountRef.current=identity;
     conversationLoadSeq.current++;
-    setConversations([]);setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
+    lastListQueryRef.current="";
+    setConversations([]);setMessagesHasMore(false);messageCursorRef.current=null;
+    setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
     setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
@@ -360,6 +419,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(channelReady!==true||!activeOrganizationId||!activeChannelId||!activeChannelPhone)return;
     const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
     if(readyAccount!==identity)return;
+    const key=JSON.stringify([activeOrganizationId,activeChannelId,activeChannelPhone,listQueryRef.current]);
+    if(lastListQueryRef.current===key)return;
+    setConversationPageLoading(true);
+    setConversations([]);
     void refresh(true);
   },[filter,departmentFilter,debouncedQuery,conversationPage,readyAccount,
       activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
@@ -444,11 +507,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView, selectedId, refresh, refreshMessages, checkChannel]);
 
   useEffect(() => {
+    messageCursorRef.current=null;
+    setMessagesHasMore(false);
+    setMessagesOlderLoading(false);
     if (!selectedId || channelReady!==true || !activeChannelId || !activeChannelPhone) { setMessages([]); return; }
     setMessages([]);
     void refreshMessages(selectedId);
   }, [selectedId, channelReady,activeChannelId,activeChannelPhone, refreshMessages]);
-  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setHandoffs([]);}, [selectedId]);
+  useEffect(() => {setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);setProtocolsHasMore(false);setProtocolsPage(0);setHandoffs([]);}, [selectedId]);
 
   // Reconcile WhatsApp address-book names by exact recipient JID, never
   // from the sender PushName of an outgoing mobile message.
