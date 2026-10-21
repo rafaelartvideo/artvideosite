@@ -42,6 +42,8 @@ export function InternalQuoteEditor({ organizationId, quote, onClose, onSaved }:
   const [selectedServiceAddress, setSelectedServiceAddress] = useState<any>(null);
   const originalImages = useRef<Set<string>>(new Set());
   const quoteId = quote?.id || null;
+  const savedIdRef = useRef<string | null>(quoteId);
+  const uploadedImageKeys = useRef<Set<string>>(new Set());
   const editable = !quote || ["RASCUNHO", "PENDENTE", "EM_ANALISE", "RENEGOCIACAO"]
     .includes(quote.request_status?.slug);
   const showToast = useCallback((feedback: {msg: string; type: "success" | "error"}) =>
@@ -153,18 +155,27 @@ export function InternalQuoteEditor({ organizationId, quote, onClose, onSaved }:
     }
     setSaving(true);
     try {
-      const id = await saveInternalQuote({ organizationId, quoteId, draft, items, comment });
+      const id = await saveInternalQuote({ organizationId, quoteId: savedIdRef.current, draft, items, comment });
+      savedIdRef.current = id;
+      setComment("");
       for (const image of images.orderImages) {
-        if (image.file) await uploadQuoteEquipmentImage(organizationId,id,image);
+        if (image.file && !uploadedImageKeys.current.has(image.key)) {
+          await uploadQuoteEquipmentImage(organizationId,id,image);
+          uploadedImageKeys.current.add(image.key);
+        }
       }
-      for (const imageId of originalImages.current) {
+      for (const imageId of Array.from(originalImages.current)) {
         if (!images.orderImages.some(image => image.key === imageId)) {
           await deleteQuoteEquipmentImage(organizationId,id,imageId);
+          originalImages.current.delete(imageId);
         }
       }
       onSaved(id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar o orçamento.");
+      const message = err instanceof Error ? err.message : "Não foi possível salvar o orçamento.";
+      setError(savedIdRef.current
+        ? "Os dados do orçamento foram salvos. Não foi possível finalizar todas as imagens: " + message + ". Salve novamente para tentar concluir."
+        : message);
     } finally {
       setSaving(false);
     }
