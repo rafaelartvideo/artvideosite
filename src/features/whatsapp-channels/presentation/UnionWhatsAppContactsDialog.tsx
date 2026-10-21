@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Check, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, X } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, ContactRound, Download, LoaderCircle, Pencil, Plus, Search, ShieldCheck, X } from "lucide-react";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { operateUnionWhatsAppInbox, type UnionWhatsAppContact } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -50,6 +50,10 @@ export function UnionWhatsAppContactsDialog({
   const [creating,setCreating]=useState(false);
   const [name,setName]=useState(initialName||"");
   const [phone,setPhone]=useState(initialContact?.contact_phone?mask(initialContact.contact_phone):"");
+  const [phoneChecking,setPhoneChecking]=useState(false);
+  const [phoneCheckNotice,setPhoneCheckNotice]=useState("");
+  const [phoneCheckError,setPhoneCheckError]=useState("");
+  const phoneCheckSequence=useRef(0);
   const [avatar,setAvatar]=useState<string|null>(null);
   const [listAvatars,setListAvatars]=useState<Record<string,string|null>>({});
   const avatarRequestsRef=useRef(new Set<string>());
@@ -150,6 +154,7 @@ export function UnionWhatsAppContactsDialog({
   },[organizationId,previewJids,listAvatars,loading]);
 
   const choose=(contact:UnionWhatsAppContact)=>{
+    phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
     setSelected(contact);setCreating(false);
     setName(contact.display_name||contact.device_name||contact.imported_name||contact.profile_name||"");
     setPhone(contact.contact_phone ? mask(contact.contact_phone) : "");
@@ -376,6 +381,28 @@ export function UnionWhatsAppContactsDialog({
     if(importControlRef.current.running){pauseSpreadsheetImport();return;}
     onClose();
   };
+  const checkContactPhone=async()=>{
+    if(!canEdit || phoneChecking || busy)return;
+    const sequence=++phoneCheckSequence.current;
+    setPhoneCheckNotice("");setPhoneCheckError("");
+    const number=normalizePhone(phone);
+    if(!/^[1-9][0-9][0-9]{8,9}$/.test(number)){
+      setPhoneCheckError("Informe DDD e telefone válido.");return;
+    }
+    setPhoneChecking(true);
+    try {
+      const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),
+        "check_number",{phone:"55"+number,account_phone:accountPhone});
+      if(sequence!==phoneCheckSequence.current)return;
+      if(!result.phone)throw Error("Não foi possível confirmar o número.");
+      setPhone(mask(result.phone));
+      setPhoneCheckNotice(result.adjusted?"Número confirmado com ajuste do nono dígito.":"Número confirmado no WhatsApp.");
+    }catch(reason){
+      if(sequence===phoneCheckSequence.current)
+        setPhoneCheckError(systemErrorMessage(reason,"Não foi possível verificar o contato."));
+    }finally{setPhoneChecking(false);}
+  };
+
   const save=async()=>{
     if(!canEdit || busy)return;
     if(name.trim().length<2){setError("Informe um nome com pelo menos dois caracteres.");return;}
@@ -394,7 +421,7 @@ export function UnionWhatsAppContactsDialog({
         setSelected(old=>old?{...old,...saved,display_name:name.trim()}:
           {...saved,contact_phone:saved.contact_phone||"55"+number,imported_name:null,profile_name:null,updated_at:new Date().toISOString()});
       }
-      setNotice("Contato salvo na agenda da Union com número verificado.");
+      setNotice("Contato salvo na agenda da Union.");setPhoneCheckNotice("");setPhoneCheckError("");
       await refresh(search,page);
       onSaved();
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível salvar o contato."));}
@@ -453,7 +480,7 @@ export function UnionWhatsAppContactsDialog({
                 placeholder="Nome ou telefone" className="w-full rounded-lg border border-border bg-background py-2 pl-9 pr-2 text-sm outline-none focus:border-primary"/>
             </div>
             {canEdit && <button type="button" aria-label="Adicionar contato" title="Novo contato"
-              onClick={()=>{setCreating(true);setSelected(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
+              onClick={()=>{phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");setCreating(true);setSelected(null);setName("");setPhone("");setAvatar(null);setNotice("");}}
               className="flex h-10 w-10 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary hover:bg-primary/15">
               <Plus size={18}/>
             </button>}
@@ -516,12 +543,25 @@ export function UnionWhatsAppContactsDialog({
             </div>
             {(creating || selected) && <div>
               <label htmlFor="union-contact-phone" className="block text-xs font-semibold">WhatsApp *</label>
-              <div className="mt-1 flex overflow-hidden rounded-lg border border-border">
+              <div className="mt-1 flex overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
                 <span className="border-r border-border bg-muted px-3 py-2.5 text-sm font-semibold">+55</span>
-                <input id="union-contact-phone" inputMode="tel" value={phone}
-                  onChange={event=>setPhone(mask(event.target.value))} placeholder="(79) 98803-7605"
-                  className="min-w-0 flex-1 bg-background px-3 py-2.5 text-sm outline-none"/>
+                <input id="union-contact-phone" inputMode="tel" value={phone} disabled={!canEdit}
+                  onChange={event=>{
+                    phoneCheckSequence.current+=1;setPhoneCheckNotice("");setPhoneCheckError("");
+                    setPhone(mask(event.target.value));
+                  }} placeholder="(79) 98803-7605"
+                  className="min-w-0 flex-1 bg-background px-3 py-2.5 text-sm outline-none disabled:opacity-60"/>
+                <button type="button" aria-label="Verificar número no WhatsApp" title="Verificar número no WhatsApp"
+                  disabled={!canEdit || busy || phoneChecking || !phone.trim()}
+                  onClick={()=>void checkContactPhone()}
+                  className="inline-flex shrink-0 items-center justify-center gap-2 border-l border-border px-3 text-xs font-semibold text-primary transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:opacity-40">
+                  {phoneChecking?<LoaderCircle size={16} className="animate-spin"/>:
+                    phoneCheckNotice?<CheckCircle2 size={16}/>:<ShieldCheck size={16}/>}
+                  <span className="hidden sm:inline">{phoneChecking?"Verificando":"Verificar"}</span>
+                </button>
               </div>
+              {phoneCheckNotice && <p role="status" className="mt-2 text-xs font-medium text-emerald-600">{phoneCheckNotice}</p>}
+              {phoneCheckError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{phoneCheckError}</p> 
             </div>}
             {!creating && selected && <div className="space-y-2 rounded-lg border border-border p-3 text-xs">
               <p><span className="text-muted-foreground">Nome importado por arquivo (VCF/Excel/CSV): </span>{selected.device_name||"Não importado"}</p>
