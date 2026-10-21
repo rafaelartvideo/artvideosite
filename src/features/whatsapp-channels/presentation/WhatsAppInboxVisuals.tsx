@@ -52,7 +52,7 @@ function formattedInline(source: string): ReactNode[] {
   const items: ReactNode[]=[];
   let index=0;
   for(const match of source.matchAll(tokens)){
-    const start=match.index;
+    const start=match.index ?? index;
     if(start>index)items.push(source.slice(index,start));
     const token=match[0];
     const content=token.startsWith("```")?token.slice(3,-3):token.slice(1,-1);
