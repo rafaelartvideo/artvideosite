@@ -139,7 +139,7 @@ Deno.serve(async request => {
       if(presenceError)throw presenceError;
       return json({ok:true});
     }
-    if (eventType === "ReadReceipt" || eventType === "events.ReadReceipt") {
+    if (["ReadReceipt","events.ReadReceipt","Receipt","events.Receipt"].includes(eventType)) {
       // WuzAPI serializes receipts as { type:"ReadReceipt", state:"Delivered"
       // | "Read" | "ReadSelf", event:{ MessageIDs, Chat, Sender, Type } }.
       // The mere event name is NEVER proof that the recipient read a
@@ -147,7 +147,8 @@ Deno.serve(async request => {
       const rawEvent = obj(get(payload, "event", "Event"));
       const compact = obj(get(payload, "data", "Data"));
       const state = str(get(payload,"state","State") ??
-        get(compact,"state","State") ?? get(rawEvent,"state","State"), 40).toLowerCase();
+        get(compact,"state","State","type","Type") ??
+        get(rawEvent,"state","State","type","Type"), 40).toLowerCase();
       if (state !== "delivered" && state !== "read")
         return json({ok:true,ignored:"unconfirmed_receipt_state"});
       const ids = get(rawEvent,"MessageIDs","messageIDs","messageIds","ids","IDs") ??
@@ -217,14 +218,15 @@ Deno.serve(async request => {
       return json({ ok: true, ignored: "unsupported_chat" });
     }
     const isFromMe = get(info, "IsFromMe", "isFromMe", "fromMe") === true;
-    const typeHint = message.imageMessage || message.ImageMessage ? "image"
+    const typeHint = message.stickerMessage || message.StickerMessage ? "sticker"
+      : message.imageMessage || message.ImageMessage ? "image"
       : message.videoMessage || message.VideoMessage ? "video"
       : message.audioMessage || message.AudioMessage ? "audio"
       : message.documentMessage || message.DocumentMessage ? "file"
       : message.locationMessage || message.LocationMessage ? "location"
       : message.contactMessage || message.ContactMessage ? "contact" : "text";
     const extended = obj(get(message, "extendedTextMessage", "ExtendedTextMessage"));
-    const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "audioMessage", "AudioMessage", "documentMessage", "DocumentMessage"));
+    const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "audioMessage", "AudioMessage", "documentMessage", "DocumentMessage", "stickerMessage", "StickerMessage"));
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
     // WuzAPI can emit a sent/echo envelope without an actual message body.
     // These blank "text" events previously created a phantom contact and
@@ -232,8 +234,8 @@ Deno.serve(async request => {
     if (typeHint === "text" && !body.trim()) {
       return json({ ok: true, ignored: "empty_text_event" });
     }
-    const displayText = body || ({ image: "Imagem", video: "Vídeo", audio: "Áudio", file: "Documento", location: "Localização", contact: "Contato" }[typeHint] || "Mensagem");
-    const mediaKind=typeHint==="image" || typeHint==="audio" || typeHint==="video" || typeHint==="file";
+    const displayText = body || ({ image: "Imagem", video: "Vídeo", audio: "Áudio", file: "Documento", location: "Localização", contact: "Contato", sticker:"Figurinha" }[typeHint] || "Mensagem");
+    const mediaKind=["image","audio","video","file","sticker"].includes(typeHint);
     const mime=str(get(media,"mimetype","Mimetype","mimeType","MimeType"),160);
     const originalName=str(get(media,"fileName","FileName","filename"),180).replace(/[^\\p{L}\\p{N}._() -]/gu,"");
     const fileLength=Number(get(media,"fileLength","FileLength","fileSize","FileSize") || 0);
