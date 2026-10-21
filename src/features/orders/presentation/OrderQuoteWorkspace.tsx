@@ -259,17 +259,17 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     </div>
     {footerHost && createPortal(<>
       {editable && <BtnPrimary disabled={busy} loading={busy}
-        onClick={() => void act("submit")}><Send size={15}/> Enviar para aprovação</BtnPrimary>}
+        onClick={() => openAction("submit")}><Send size={15}/> Enviar para aprovação</BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
-        <AdminButton variant="secondary" disabled={busy} onClick={()=>void act("renegotiate")}>
-          <RotateCcw size={15}/> Renegociar</AdminButton>
-        <AdminButton variant="secondary" disabled={busy} onClick={()=>setRejectDialogOpen(true)}>
-          <XCircle size={15}/> Reprovar</AdminButton>
-        <BtnPrimary disabled={busy} loading={busy} onClick={()=>setApprovalDialogOpen(true)}>
+        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("renegotiate")}>
+          <RotateCcw size={15}/> Reabrir negociação</AdminButton>
+        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("reject")}>
+          <XCircle size={15}/> Rejeitar</AdminButton>
+        <BtnPrimary disabled={busy} loading={busy} onClick={()=>openAction("approve")}>
           <CheckCircle2 size={15}/> Aprovar</BtnPrimary>
       </>}
       {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy}
-        onClick={()=>void act("renegotiate")}><RotateCcw size={15}/> Nova versão</BtnPrimary>}
+        onClick={()=>openAction("renegotiate")}><RotateCcw size={15}/> Reabrir negociação</BtnPrimary>}
       {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)}>
         Abrir produtos e serviços para execução</BtnPrimary>}
     </>,footerHost)}
@@ -322,41 +322,93 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
         </div>
       </div>}
     </AdminDialog>
-    <AdminDialog open={approvalDialogOpen} onClose={()=>{if(!busy)setApprovalDialogOpen(false);}}
-      title="Confirmar aprovação do orçamento"
-      description="Esta ação não é automática. Confirme para aplicar os serviços e produtos aprovados à mesma OS."
+    <AdminDialog
+      open={Boolean(confirmationAction)}
+      onClose={closeAction}
+      title={confirmationAction ? ACTION_TITLES[confirmationAction] : "Confirmar ação"}
+      description={confirmationAction==="submit"
+        ? "Confira a proposta antes de encaminhá-la para aprovação."
+        : confirmationAction==="approve"
+          ? "Confirme a autorização para incluir os itens na execução da OS."
+          : confirmationAction==="reject"
+            ? "A proposta ficará rejeitada e poderá ser renegociada posteriormente."
+            : "Será iniciada uma nova versão, preservando o histórico anterior."}
       footer={<div className="flex w-full flex-wrap justify-end gap-2">
-        <BtnSecondary disabled={busy} onClick={()=>setApprovalDialogOpen(false)}>Voltar</BtnSecondary>
-        <BtnPrimary disabled={busy||proposal?.status!=="awaiting_approval"}
-          loading={busy} onClick={()=>void act("approve")}>
-          <CheckCircle2 size={15}/> Confirmar aprovação
-        </BtnPrimary>
+        {modalFeedback?.type==="success"
+          ? <BtnPrimary onClick={closeAction}>Concluir</BtnPrimary>
+          : <>
+            <BtnSecondary disabled={busy} onClick={closeAction}>Voltar</BtnSecondary>
+            <BtnPrimary
+              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim())}
+              loading={busy}
+              loadingText="Processando..."
+              onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
+              {confirmationAction ? ACTION_BUTTON_LABELS[confirmationAction] : "Confirmar"}
+            </BtnPrimary>
+          </>}
       </div>}>
-      <div className="space-y-3">
-        <p className="text-sm text-foreground">Deseja realmente aprovar o orçamento desta OS?</p>
-        <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
-          <div className="flex items-center justify-between gap-3">
-            <span>Proposta · Versão {proposal?.version||1}</span>
-            <strong>{formatCurrency((draft.items||[]).reduce((sum,item)=>
-              sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0)-
-              (draft.discount_type==="percentage"
-                ? (draft.items||[]).reduce((sum,item)=>sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0)*Number(draft.discount_value||0)/100
-                : Number(draft.discount_value||0)))}</strong>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground">{draft.items.length} item(ns) · A aprovação libera a execução da OS.</p>
-        </div>
-        <p className="text-xs text-muted-foreground">O envio para aprovação não autoriza o orçamento. Somente o botão Confirmar aprovação realiza essa alteração.</p>
-      </div>
-    </AdminDialog>
-    <AdminDialog open={rejectDialogOpen} onClose={()=>{if(!busy)setRejectDialogOpen(false);}}
-      title="Reprovar orçamento" description="Informe o motivo da reprovação da proposta.">
-      <div className="space-y-4">
-        <FInput label="Motivo da reprovação" required value={reason} disabled={busy}
-          onChange={(e:any)=>setReason(e.target.value)}/>
-        <div className="flex justify-end gap-2">
-          <BtnSecondary disabled={busy} onClick={()=>setRejectDialogOpen(false)}>Voltar</BtnSecondary>
-          <BtnPrimary disabled={busy||!reason.trim()} loading={busy} onClick={()=>void act("reject")}>Confirmar reprovação</BtnPrimary>
-        </div>
+      <div className="min-h-[126px] space-y-4">
+        <AnimatePresence mode="wait">
+          {busy
+            ? <motion.div key="processing"
+                initial={{opacity:0,y:7}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-7}}
+                className="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
+                <div className="flex items-center gap-1 text-2xl font-black text-primary" role="status" aria-label="Processando solicitação">
+                  {[0,1,2].map(i=><span key={i} className="inline-block animate-bounce" style={{animationDelay:`${i*140}ms`}}>·</span>)}
+                </div>
+                <p className="text-sm font-medium text-muted-foreground">Processando orçamento...</p>
+              </motion.div>
+            : modalFeedback
+              ? <motion.div
+                  key={modalFeedback.type}
+                  initial={{opacity:0,y:12,scale:0.95}}
+                  animate={{opacity:1,y:0,scale:1}}
+                  exit={{opacity:0,y:-8,scale:0.98}}
+                  transition={{type:"spring",stiffness:360,damping:25}}
+                  role={modalFeedback.type==="error"?"alert":"status"}
+                  className="flex min-h-32 flex-col items-center justify-center gap-3 text-center">
+                  <motion.div initial={{scale:0.4,rotate:-18}} animate={{scale:1,rotate:0}}
+                    transition={{type:"spring",stiffness:280,damping:17}}
+                    className={`flex h-14 w-14 items-center justify-center rounded-full border ${modalFeedback.type==="success"
+                      ?"border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                      :"border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300"}`}>
+                    {modalFeedback.type==="success"?<CheckCircle2 size={29}/>:<AlertCircle size={29}/>}
+                  </motion.div>
+                  <strong className="text-base font-bold text-foreground">
+                    {modalFeedback.type==="success"?"Operação realizada com sucesso":"Não foi possível concluir"}
+                  </strong>
+                  <p className="max-w-sm text-sm leading-relaxed text-muted-foreground">{modalFeedback.message}</p>
+                </motion.div>
+              : <motion.div key="confirm"
+                  initial={{opacity:0,y:6}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-6}}
+                  className="space-y-3">
+                  <p className="text-sm text-foreground">
+                    {confirmationAction==="submit" ? "Deseja enviar este orçamento para aprovação?"
+                      : confirmationAction==="approve" ? "Deseja realmente aprovar esta proposta?"
+                      : confirmationAction==="reject" ? "Deseja rejeitar este orçamento?"
+                      : "Deseja reabrir a negociação e elaborar uma nova versão?"}
+                  </p>
+                  {confirmationAction==="reject" && <FInput label="Motivo da rejeição"
+                    required maxLength={2000} value={reason} disabled={busy}
+                    onChange={(e:any)=>setReason(e.target.value)} placeholder="Informe o motivo da rejeição"/>}
+                  <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Proposta · Versão {proposal?.version||1}</span>
+                      <strong>{formatCurrency(versionPricing(draft as Record<string,any>).total)}</strong>
+                    </div>
+                    <p className="mt-1 text-xs text-muted-foreground">{draft.items.length} item(ns) no orçamento</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {confirmationAction==="submit"
+                      ? "Enviar para aprovação não aprova o orçamento automaticamente."
+                      : confirmationAction==="approve"
+                        ? "Após a confirmação, os itens serão aplicados à mesma OS."
+                        : confirmationAction==="reject"
+                          ? "O motivo da rejeição ficará registrado."
+                          : "A proposta anterior será preservada no histórico de renegociações."}
+                  </p>
+                </motion.div>}
+        </AnimatePresence>
       </div>
     </AdminDialog>
   </>;
