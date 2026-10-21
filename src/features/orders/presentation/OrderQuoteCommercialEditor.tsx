@@ -104,6 +104,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
           {isService && searching && searchOpen && !selected && <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2">
             <LoadingSpinner size="sm"/></span>}
           <CatalogResults
+            contained
             open={searchOpen && !selected}
             fourRows={isService}
             loading={searching}
@@ -280,9 +281,11 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
           </div>
         </div>
       </div>
-      <div className="mt-4"><FInput type="date" label="Validade da proposta"
+      <div className="mt-4 space-y-1.5"><FInput type="date" label="Validade da proposta"
         value={draft.valid_until||""} disabled={disabled}
-        onChange={(e:any)=>patch({valid_until:e.target.value||null})}/></div>
+        onChange={(e:any)=>patch({valid_until:e.target.value||null})}/>
+        <p className="text-xs text-muted-foreground">Prazo máximo estimado para análise e aprovação: 3 dias.</p>
+      </div>
     </Section>
 
     <AdminDialog open={customOpen}
