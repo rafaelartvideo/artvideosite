@@ -1068,9 +1068,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   aria-label="Histórico de protocolos" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <FileText size={15}/><span className="hidden xl:inline">Protocolos</span>
                 </button>
-                {selected.status === "waiting" && canAction("assume") &&
+                {!protocolFilter && selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
-                {selected.status === "in_att" && canOperateSelected && <>
+                {!protocolFilter && selected.status === "in_att" && canOperateSelected && <>
                   {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
                     onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
                   {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
@@ -1086,7 +1086,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {canAction("return_queue") && <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("return_queue")}><RotateCcw size={15}/> <span className="hidden sm:inline">Devolver</span></AdminButton>}
                   {canAction("finish") && <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("finish")}><CheckCircle2 size={15}/> Finalizar</AdminButton>}
                 </>}
-                {selected.status === "finished" && canAction("reopen") &&
+                {!protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
               </div>
             </header>
