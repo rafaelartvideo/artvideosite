@@ -32,8 +32,9 @@ function versionPricing(version: Record<string,any>) {
     : Number(version.discount_value||0);
   return { subtotal, discount, total: Math.max(0,subtotal-discount) };
 }
-export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,onApproved}:{
-  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;onApproved?:()=>void;
+export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,onStatusChange}:{
+  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
+  onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
 }) {
   const {user}=useAuth();
   const org=String(order?.organization_id||"");
@@ -47,12 +48,18 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   const [busy,setBusy]=useState(false);
   const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
   const [rejectDialogOpen,setRejectDialogOpen]=useState(false);
+  const [approvalDialogOpen,setApprovalDialogOpen]=useState(false);
   const [showExecution,setShowExecution]=useState(false);
   const [selectedVersion,setSelectedVersion]=useState<Record<string,any>|null>(null);
 
   useEffect(()=>{
     setFooterHost(document.getElementById(footerHostId));
   },[footerHostId,orderId]);
+
+  useEffect(()=>{
+    setApprovalDialogOpen(false);
+    setRejectDialogOpen(false);
+  },[orderId]);
 
   useEffect(()=>{
     if(!org||!orderId)return;
@@ -74,7 +81,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   const editable=canEdit&&!order.completed_at&&!order.cancelled_at&&
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
   const act=async(action:"save"|"submit"|"approve"|"reject"|"renegotiate")=>{
-    if(busy||!canEdit)return;
+    if(busy||!canEdit || (action==="approve" && !approvalDialogOpen))return;
     setBusy(true);
     try {
       let result:OrderQuoteProposal;
@@ -83,11 +90,13 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
         result=await changeOrderQuote(org,orderId,"submit");
       }else result=await changeOrderQuote(org,orderId,action,
         action==="save"?draft as unknown as Record<string,unknown>:
-        action==="reject"?{reason}: {});
+        action==="reject"?{reason}:
+        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version}: {});
       setProposal(result);
       setDraft(snapshot(result));
+      onStatusChange?.(result.status);
       if(action==="approve") {
-        onApproved?.();
+        setApprovalDialogOpen(false);
         try {
           const pricing=await readOrderPricingAfterApproval(org,orderId);
           onPricingChange(pricing);
@@ -194,7 +203,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
           <RotateCcw size={15}/> Renegociar</AdminButton>
         <AdminButton variant="secondary" disabled={busy} onClick={()=>setRejectDialogOpen(true)}>
           <XCircle size={15}/> Reprovar</AdminButton>
-        <BtnPrimary disabled={busy} loading={busy} onClick={()=>void act("approve")}>
+        <BtnPrimary disabled={busy} loading={busy} onClick={()=>setApprovalDialogOpen(true)}>
           <CheckCircle2 size={15}/> Aprovar</BtnPrimary>
       </>}
       {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy}
@@ -250,6 +259,32 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
           </div>
         </div>
       </div>}
+    </AdminDialog>
+    <AdminDialog open={approvalDialogOpen} onClose={()=>{if(!busy)setApprovalDialogOpen(false);}}
+      title="Confirmar aprovação do orçamento"
+      description="Esta ação não é automática. Confirme para aplicar os serviços e produtos aprovados à mesma OS."
+      footer={<div className="flex w-full flex-wrap justify-end gap-2">
+        <BtnSecondary disabled={busy} onClick={()=>setApprovalDialogOpen(false)}>Voltar</BtnSecondary>
+        <BtnPrimary disabled={busy||proposal?.status!=="awaiting_approval"}
+          loading={busy} onClick={()=>void act("approve")}>
+          <CheckCircle2 size={15}/> Confirmar aprovação
+        </BtnPrimary>
+      </div>}>
+      <div className="space-y-3">
+        <p className="text-sm text-foreground">Deseja realmente aprovar o orçamento desta OS?</p>
+        <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
+          <div className="flex items-center justify-between gap-3">
+            <span>Proposta · Versão {proposal?.version||1}</span>
+            <strong>{formatCurrency((draft.items||[]).reduce((sum,item)=>
+              sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0)-
+              (draft.discount_type==="percentage"
+                ? (draft.items||[]).reduce((sum,item)=>sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0)*Number(draft.discount_value||0)/100
+                : Number(draft.discount_value||0)))}</strong>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{draft.items.length} item(ns) · A aprovação libera a execução da OS.</p>
+        </div>
+        <p className="text-xs text-muted-foreground">O envio para aprovação não autoriza o orçamento. Somente o botão Confirmar aprovação realiza essa alteração.</p>
+      </div>
     </AdminDialog>
     <AdminDialog open={rejectDialogOpen} onClose={()=>{if(!busy)setRejectDialogOpen(false);}}
       title="Reprovar orçamento" description="Informe o motivo da reprovação da proposta.">
