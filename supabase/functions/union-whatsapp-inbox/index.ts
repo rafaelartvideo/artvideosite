@@ -299,6 +299,18 @@ Deno.serve(async request => {
         const failure=String(reason instanceof Error?reason.message:reason);
         const label=failure.includes("number_check_outdated_bridge")
           ? "A ponte da VPS está desatualizada. Atualize o serviço union-wuzapi-bridge."
+          : failure.includes("wuzapi_check_session_offline") || failure.includes("wuzapi_check_session_missing")
+          ? "O motor WuzAPI não está com a sessão WhatsApp ativa. Confira a conexão real na VPS, sem executar logout."
+          : failure.includes("wuzapi_check_lookup_failed")
+          ? "O WhatsApp recusou a consulta feita pelo motor. Confira os registros WuzAPI e a conexão com os servidores."
+          : failure.includes("wuzapi_check_auth_failed")
+          ? "A ponte não conseguiu autenticar no WuzAPI. Verifique o token da sessão no servidor."
+          : failure.includes("wuzapi_check_endpoint_missing")
+          ? "O motor WuzAPI instalado não possui o endpoint de verificação."
+          : failure.includes("wuzapi_check_internal_error")
+          ? "O motor WuzAPI retornou um erro interno ao consultar o número. Confira os logs do contêiner."
+          : failure.includes("wuzapi_check_request_rejected")
+          ? "A consulta foi rejeitada pelo WuzAPI. Confira sua versão e os logs do motor."
           : failure.includes("number_check_bridge_http_401")
           ? "Autenticação entre Supabase e VPS falhou. Confira o segredo da ponte."
           : failure.includes("number_check_bridge_http_404")
