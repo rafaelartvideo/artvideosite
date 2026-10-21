@@ -13,17 +13,24 @@ import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, wait
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
-  operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol,
+  operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
   { value: "waiting", label: "Aguardando", tone: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" },
   { value: "in_att", label: "Em atendimento", tone: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" },
-  { value: "abandoned", label: "Abandonados", tone: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" },
+  { value: "forwarded", label: "Encaminhadas", tone: "bg-violet-100 text-violet-800 dark:bg-violet-950 dark:text-violet-300" },
   { value: "finished", label: "Finalizados", tone: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" },
 ] as const;
-type Filter = UnionWhatsAppConversation["status"];
+type Filter = "waiting" | "in_att" | "forwarded" | "finished";
+const hasForwarding=(item:UnionWhatsAppConversation)=>
+  Boolean(item.forwarded_at && item.status!=="finished" && item.status!=="abandoned");
+const queueOnly=(item:UnionWhatsAppConversation)=>item.status==="waiting" && !hasForwarding(item);
+const isForwardedFor=(item:UnionWhatsAppConversation,userId:string|undefined)=>
+  hasForwarding(item) && (!userId || item.forwarded_by===userId ||
+    item.forwarded_to===userId || item.status==="waiting");
+
 const brazilNumberDigits = (raw: string) => {
   const digits=raw.replace(/\D/g, "");
   const national=digits.startsWith("55") && digits.length>11 ? digits.slice(2) : digits;
@@ -136,6 +143,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [query, setQuery] = useState("");
   const [readyAccount,setReadyAccount] = useState<string|null>(null);
   const [clockNow,setClockNow] = useState(()=>Date.now());
+  const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
+  const [routingLoading,setRoutingLoading]=useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -275,6 +284,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setSettingsModal(null);
     setOrdersOpen(false);
     setDepartments([]);
+    setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setDepartmentFilter("all");
     setMembers([]);
     setError("");
@@ -290,6 +300,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     shownAccountRef.current=identity;
     setConversations([]);setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
+    setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setNewConversationOpen(false);
     messageIdentity.current+=1;
   },[activeOrganizationId,channelReady,activeChannelId,activeChannelPhone]);
@@ -306,6 +317,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
           setDepartments(result.departments||[]);})
         .catch(reason=>{if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
+      operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"queue_settings_get")
+        .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
+          setQueueSettings(result.queue_settings||DEFAULT_WHATSAPP_QUEUE_SETTINGS);})
+        .catch(()=>undefined),
     ]).then(()=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
       accountRef.current===activeChannelPhone)setReadyAccount(identity);});
     return()=>{cancelled=true;};
@@ -472,27 +487,40 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     ? activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone:null;
   const bootLoading=channelReady===null || (channelReady===true && readyAccount!==accountIdentity);
   useEffect(()=>{
-    if(filter!=="waiting" || bootLoading)return;
+    if(bootLoading || (filter!=="waiting" && !selectedId))return;
     setClockNow(Date.now());
-    const id=window.setInterval(()=>setClockNow(Date.now()),30000);
+    const id=window.setInterval(()=>setClockNow(Date.now()),selectedId?4000:30000);
     return()=>window.clearInterval(id);
-  },[filter,bootLoading]);
+  },[filter,bootLoading,selectedId]);
 
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selected = scopedConversations.find(item => item.id === selectedId) || null;
   const counts = useMemo(() => {
-    const result: Record<Filter, number> = { waiting: 0, in_att: 0, abandoned: 0, finished: 0 };
-    scopedConversations.forEach(item => { result[item.status] = (result[item.status] || 0) + 1; });
+    const result:Record<Filter,number>={waiting:0,in_att:0,forwarded:0,finished:0};
+    scopedConversations.forEach(item=>{
+      if(item.status==="finished")result.finished+=1;
+      else if(isForwardedFor(item,user?.id))result.forwarded+=1;
+      else if(queueOnly(item))result.waiting+=1;
+      else if(item.status==="in_att")result.in_att+=1;
+    });
     return result;
-  }, [scopedConversations]);
+  },[scopedConversations,user?.id]);
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("pt-BR");
-    const matches=scopedConversations.filter(item => item.status === filter && (departmentFilter === "all" || (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) && (!search ||
-      [item.contact_name,item.contact_phone || "",item.chat_jid,item.last_protocol_number ? unionWhatsAppProtocolLabel(item.last_protocol_number) : ""].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
+    const matches=scopedConversations.filter(item => {
+      const rightFilter=filter==="forwarded"?isForwardedFor(item,user?.id):
+        filter==="waiting"?queueOnly(item):filter==="in_att"?
+        item.status==="in_att"&&!hasForwarding(item):item.status==="finished";
+      return rightFilter && (departmentFilter === "all" ||
+        (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) &&
+        (!search || [item.contact_name,item.contact_phone || "",item.chat_jid,
+          item.last_protocol_number ? unionWhatsAppProtocolLabel(item.last_protocol_number) : ""]
+          .some(value=>value.toLocaleLowerCase("pt-BR").includes(search)));
+    });
     if(filter!=="waiting")return matches;
     return matches.sort((left,right)=>
       Date.parse(left.queue_entered_at||left.created_at)-Date.parse(right.queue_entered_at||right.created_at));
-  }, [scopedConversations, filter, query, departmentFilter]);
+  }, [scopedConversations, filter, query, departmentFilter,user?.id]);
 
   // Fetch photo previews for the first visible rows, in small batches so
   // scrolling and messaging never wait for WhatsApp profile requests.
