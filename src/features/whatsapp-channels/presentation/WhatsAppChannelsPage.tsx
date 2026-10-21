@@ -47,6 +47,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const [section, setSection] = useState<ChannelSection>(initialSection);
   const [settingsCreateRequest, setSettingsCreateRequest] = useState(0);
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
+  const [channels, setChannels] = useState<WhatsAppChannel[]>([]);
   const channelRef = useRef<WhatsAppChannel | null>(null);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
@@ -67,6 +68,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     const previous = channelRef.current;
     channelRef.current = next;
     setChannel(next);
+    setChannels(prev=>prev.some(item=>item.id===next.id)
+      ?prev.map(item=>item.id===next.id?next:item):[...prev,next]);
     if (next.state === "connected") {
       setQrOpen(false);
       setQr(null);
@@ -82,6 +85,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     if (!activeOrganizationId || !canView) {
       channelRef.current = null;
       setChannel(null);
+      setChannels([]);
       setLoading(false);
       return;
     }
@@ -89,6 +93,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setError("");
     try {
       const result = await operateWhatsAppChannel(activeOrganizationId, "list");
+      const all=result.channels||(result.channel?[result.channel]:[]);
+      setChannels(all);
       channelRef.current = result.channel ?? null;
       setChannel(result.channel ?? null);
     } catch (e) {
@@ -101,6 +107,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   useEffect(() => {
     channelRef.current = null;
     setChannel(null);
+    setChannels([]);
     setQr(null);
     setQrOpen(false);
     setCreateConnectionOpen(false);
@@ -199,13 +206,13 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     return () => { cancelled = true; window.clearInterval(interval); };
   }, [qrOpen, activeOrganizationId, channel?.id, canManage]);
 
-  const perform = useCallback(async (operation: "activate" | "status" | "qr" | "disconnect" | "logout" | "webhook_setup") => {
+  const perform = useCallback(async (operation: "activate" | "status" | "qr" | "disconnect" | "logout" | "webhook_setup", connectionId?:string) => {
     if (!activeOrganizationId || (!canManage && operation !== "status") || action) return;
     setAction(operation);
     setError("");
     if (operation !== "status") setNotice("");
     try {
-      const result = await operateWhatsAppChannel(activeOrganizationId, operation, channelRef.current?.id);
+      const result = await operateWhatsAppChannel(activeOrganizationId, operation, connectionId || channelRef.current?.id);
       if (result.channel) applyChannel(result.channel);
       if (operation === "qr") setQr(result.qr || null);
       if (operation === "activate") { setNotice("WhatsApp ativado. Agora basta conectar seu número."); setSection("connections"); }
@@ -232,8 +239,11 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     }
   }, [activeOrganizationId, action, canManage, applyChannel]);
 
-  const openQr = async () => {
-    if (!activeOrganizationId || !channel || !canManage || action) return;
+  const openQr = async (target?:WhatsAppChannel) => {
+    const chosen=target||channelRef.current;
+    if (!activeOrganizationId || !chosen || !canManage || action) return;
+    channelRef.current=chosen;
+    setChannel(chosen);
     setError("");
     setStatusError("");
     setNotice("");
@@ -243,14 +253,14 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     try {
       // Explicitly connect before fetching /session/qr. If the session was
       // already paired on the phone, status is authoritative: don't log out.
-      const connection = await operateWhatsAppChannel(activeOrganizationId, "connect", channel.id);
+      const connection = await operateWhatsAppChannel(activeOrganizationId, "connect", chosen.id);
       if (connection.channel) applyChannel(connection.channel);
       if (connection.logged_in) {
         setNotice("Sessão reconectada. O mesmo número e seus atendimentos foram recuperados.");
         return;
       }
       try {
-        const code = await operateWhatsAppChannel(activeOrganizationId, "qr", channel.id);
+        const code = await operateWhatsAppChannel(activeOrganizationId, "qr", chosen.id);
         setQr(code.qr || null);
       } catch {
         // A retained session can reconnect after /session/connect returns.
@@ -266,6 +276,22 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     }
   };
 
+  const addConnection = async () => {
+    if(!activeOrganizationId || !canManage || action || channels.length>=3)return;
+    setCreateConnectionOpen(false);
+    setAction("register");setError("");setNotice("");
+    try{
+      const result=await operateWhatsAppChannel(activeOrganizationId,"register",undefined,
+        "WhatsApp "+(channels.length+1));
+      if(result.channels)setChannels(result.channels);
+      if(result.channel){channelRef.current=result.channel;setChannel(result.channel);}
+      setSection("connections");
+      setNotice("Conexão cadastrada. Desconecte o número atual para conectar outro. Sessões anteriores preservadas.");
+    }catch(e){
+      setError(systemErrorMessage(e,"Não foi possível cadastrar a conexão."));
+      void load();
+    }finally{setAction(null);}
+  };
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
   const enabled = Boolean(channel && channel.state !== "not_connected");
@@ -275,7 +301,9 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const connectionState = connected ? "Conectado" :
     channel?.state === "connecting" ? "Conectando" :
     channel?.state === "error" ? "Falha na conexão" : "Desconectado";
-  const canStartConnection = canManage && enabled && !connected && !Boolean(action);
+  const canStartConnection = canManage && enabled && channels.length<3 && !Boolean(action);
+  const anotherActive=(id:string)=>channels.some(c=>c.id!==id &&
+    (c.state==="connected" || c.state==="connecting"));
   const lastNumberKnown = Boolean(channel?.phone && /^[0-9]{10,15}$/.test(channel.phone));
   const canResumeSameSession = lastNumberKnown && channel?.webhook_ready===true;
 
@@ -389,14 +417,12 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
       {(section === "departments" || section === "queues") && canManage &&
         <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
-      {section === "connections" && canManage && <AdminButton onClick={() => { if (canResumeSameSession) void openQr(); else setCreateConnectionOpen(true); }}
+      {section === "connections" && canManage && <AdminButton onClick={() => setCreateConnectionOpen(true)}
         disabled={!canStartConnection} loading={action === "connect"}
         title={!enabled ? "Ative o canal primeiro" :
-          connected ? "Desconecte o número atual antes de vincular outro." :
-          canResumeSameSession ? "Reutiliza a sessão preservada do mesmo número sem precisar de QR Code." :
-          "Conecta o número pela sessão ou solicita um novo QR Code."}>
-        {canResumeSameSession ? <RefreshCw size={16}/> : <Plus size={16}/>}
-        {canResumeSameSession ? "Reconectar" : "Nova conexão"}
+          channels.length>=3 ? "Limite de 3 conexões cadastradas." :
+          "Cadastre até três números, com apenas um ativo por empresa."}>
+        <Plus size={16}/> Nova conexão
       </AdminButton>}
     </AdminStickyToolbar>
 
@@ -405,7 +431,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       footer={<AdminButton variant="secondary" onClick={() => setCreateConnectionOpen(false)}>Cancelar</AdminButton>}>
       <div className="grid gap-3 p-5 sm:grid-cols-3">
         <button type="button" disabled={!canStartConnection}
-          onClick={() => { setCreateConnectionOpen(false); void openQr(); }}
+          onClick={() => void addConnection()}
           className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 py-5 text-primary transition-colors hover:border-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50">
           <WhatsAppIcon/>
           <span className="text-sm font-bold">WhatsApp</span>
