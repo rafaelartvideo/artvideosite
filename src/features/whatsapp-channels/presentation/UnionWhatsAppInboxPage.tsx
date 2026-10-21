@@ -72,7 +72,7 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   useEffect(() => {
     setMediaUrl("");
     setMediaError("");
-    if (hasStoredMedia && message.message_type === "image") void loadMedia();
+    if (hasStoredMedia && ["image","sticker"].includes(message.message_type)) void loadMedia();
     // Avoid repeatedly fetching large files when switching conversation.
   }, [message.id, hasStoredMedia, message.message_type, organizationId]);
 
@@ -80,12 +80,12 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
     return <p className="whitespace-pre-wrap break-words text-sm leading-5">{message.body_text || "Mensagem"}</p>;
   }
   const mediaIcons = { image:ImageIcon, video:FileText, audio:Volume2, file:FileText,
-    location:FileText, contact:FileText };
+    location:FileText, contact:FileText, sticker:ImageIcon };
   const Icon = (mediaIcons as Record<string, typeof FileText>)[message.message_type] || FileText;
   const label = ({image:"Imagem", video:"Vídeo", audio:"Áudio", file:"Documento",
-    location:"Localização", contact:"Contato"} as Record<string,string>)[message.message_type] || "Mensagem";
+    location:"Localização", contact:"Contato",sticker:"Figurinha"} as Record<string,string>)[message.message_type] || "Mensagem";
   return <div className="space-y-2">
-    {mediaUrl && message.message_type === "image" && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
+    {mediaUrl && ["image","sticker"].includes(message.message_type) && <a href={mediaUrl} target="_blank" rel="noopener noreferrer"
       className="block overflow-hidden rounded-md"><img src={mediaUrl} alt={message.media_name || "Imagem do WhatsApp"}
         onLoad={onMediaLoad} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
@@ -744,15 +744,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(!file) return;
     const seq=++optimizeSeq.current;
     const type=file.type;
-    const image=["image/jpeg","image/png","image/webp"].includes(type);
+    const sticker=type==="image/webp";
+    const image=["image/jpeg","image/png"].includes(type);
     const audio=["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(type);
     const video=["video/mp4","video/3gpp"].includes(type);
     const doc=["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
       "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       "application/vnd.ms-excel","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "application/vnd.ms-powerpoint","application/vnd.openxmlformats-officedocument.presentationml.presentation"].includes(type);
-    const sourceLimit=image ? 25*1048576 : audio ? 16*1048576 : 25*1048576;
-    if((!image && !audio && !video && !doc) || !file.size || file.size>sourceLimit) {
+    const sourceLimit=sticker ? 1048576 : image ? 25*1048576 : audio ? 16*1048576 : 25*1048576;
+    if((!sticker && !image && !audio && !video && !doc) || !file.size || file.size>sourceLimit) {
       setError("Formato não permitido ou arquivo maior que 25 MB. Áudios têm limite de 16 MB.");
       if(mediaInputRef.current) mediaInputRef.current.value="";
       return;
@@ -762,14 +763,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     try {
       const prepared=image ? await prepareImageForUpload(file,"whatsapp-image") : file;
       if(seq!==optimizeSeq.current) return;
-      const limit=image ? 10*1048576 : audio ? 16*1048576 : 25*1048576;
+      const limit=sticker ? 1048576 : image ? 10*1048576 : audio ? 16*1048576 : 25*1048576;
       if(prepared.size>limit || (image && !["image/jpeg","image/png"].includes(prepared.type))) {
         setError("Não foi possível otimizar a imagem para até 10 MB em JPEG ou PNG.");
         if(mediaInputRef.current) mediaInputRef.current.value="";
         return;
       }
       if(mediaPreview) URL.revokeObjectURL(mediaPreview);
-      setMediaPreview(image ? URL.createObjectURL(prepared) : null);
+      setMediaPreview(image || sticker ? URL.createObjectURL(prepared) : null);
       setAttachment(prepared);
       inputRef.current?.focus({preventScroll:true});
     } catch(reason) {
@@ -782,12 +783,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   const sendText = () => {
     if (!selected || !activeOrganizationId || !canReply || submitGateRef.current || imageOptimizing || (!draft.trim() && !attachment)) return;
+    if(attachment?.type==="image/webp" && draft.trim()){
+      setError("Figurinhas não aceitam legenda. Envie o texto em uma mensagem separada.");return;
+    }
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
     const text = draft.trim();
     const file = attachment;
     const preview = mediaPreview;
-    const fileType = file ? file.type.startsWith("image/") ? "image" :
+    const fileType = file ? file.type==="image/webp" ? "sticker" : file.type.startsWith("image/") ? "image" :
       file.type.startsWith("audio/") && file.type!=="audio/webm" ? "audio" : file.type.startsWith("video/") ? "video" : "file" : null;
     const threadId = selected.id;
     const organizationId = activeOrganizationId;
@@ -1121,7 +1125,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     accept="image/jpeg,image/png,image/webp,audio/ogg,audio/opus,audio/mp4,audio/mpeg,audio/webm,video/mp4,video/3gpp,application/pdf,text/plain,application/zip,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                     aria-label="Selecionar anexo" onChange={event => { void onChooseMedia(event.target.files?.[0] || null); }}/>
                   <button type="button" aria-label="Anexar imagem, áudio, vídeo ou arquivo"
-                    title="Anexar (imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
+                    title="Anexar (figurinhas WebP até 1 MB; imagens 10 MB; áudio 16 MB; vídeo/documentos 25 MB)"
                     onClick={() => mediaInputRef.current?.click()}
                     className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground hover:bg-muted">
                     <Paperclip size={22}/>
