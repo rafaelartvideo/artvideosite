@@ -12,7 +12,7 @@ import {
   listOrderQuoteComments, readOrderQuote,
   type OrderQuoteDraft,type OrderQuoteProposal,
 } from "../infrastructure/order-quote.repository";
-import { OrderQuoteCommercialEditor,quoteItemTotal } from "./OrderQuoteCommercialEditor";
+import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 
 function snapshot(d:OrderQuoteProposal):OrderQuoteDraft {
