@@ -23,7 +23,6 @@ const mask = (value:string) => {
   const local=digits.slice(2), mid=local.startsWith("9")?5:4;
   return "("+digits.slice(0,2)+") "+local.slice(0,mid)+(local.length>mid?"-"+local.slice(mid):"");
 };
-const initials=(name:string)=>name.trim().split(/\s+/).slice(0,2).map(p=>p[0]||"").join("").toUpperCase();
 
 export function UnionWhatsAppContactsDialog({
   organizationId, accountPhone,channelId,canImport, canEdit, onClose, onSaved, onChoose, initialContact, initialName,
