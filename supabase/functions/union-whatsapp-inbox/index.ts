@@ -237,6 +237,12 @@ Deno.serve(async request => {
           (proposed.get("operator:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[1]);
         if(!keepManagement)return json({success:false,error:
           "Mantenha Gerenciar operadores e perfis habilitado em pelo menos um perfil para evitar bloqueio das configurações."},409);
+        const selfCanStillManage=(staffRole!=="operator" &&
+          (proposed.get("manager:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[0])) ||
+          (staffRole!=="manager" &&
+          (proposed.get("operator:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[1]));
+        if(!selfCanStillManage)return json({success:false,error:
+          "Você não pode retirar seu próprio acesso à administração de perfis. Peça a outro gestor autorizado para realizar essa alteração."},409);
         const {error:saveError}=await admin.from("union_whatsapp_role_permissions").upsert(
           edits.map((item:{capability:string;enabled:boolean})=>({
             organization_id:org,staff_role:role,capability:item.capability,enabled:item.enabled,
