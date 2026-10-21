@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { CheckCircle2, FileText, History, MessageCircle, RotateCcw, Send, XCircle } from "lucide-react";
+import { CheckCircle2, FileText, History, RotateCcw, Send, XCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -54,8 +54,8 @@ function printQuote(order:any,proposal:OrderQuoteProposal,draft:OrderQuoteDraft)
     '<button onclick="window.print()">Imprimir / Salvar em PDF</button></body></html>';
   win.document.open();win.document.write(html);win.document.close();win.focus();
 }
-export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId}:{
-  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
+export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,onApproved}:{
+  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;onApproved?:()=>void;
 }) {
   const {user}=useAuth();
   const org=String(order?.organization_id||"");
@@ -105,6 +105,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId}
       setProposal(result);
       setDraft(snapshot(result));
       if(action==="approve") {
+        onApproved?.();
         try {
           const pricing=await readOrderPricingAfterApproval(org,orderId);
           onPricingChange(pricing);
@@ -154,11 +155,19 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId}
           <p className="mt-1 text-muted-foreground">{Array.isArray(version.items)?version.items.length:0} itens · {version.proposed_solution||"Sem solução"}</p>
         </div>)}</div>
     </Section>}
-    <Section title={<span className="inline-flex items-center gap-2"><MessageCircle size={16}/> Comentários do orçamento</span>}>
+    <Section title="Comentários do orçamento">
       <div className="space-y-3">
-        {canEdit&&<div className="space-y-2"><FTextarea rows={3} value={comment} disabled={busy}
-          onChange={(e:any)=>setComment(e.target.value)} placeholder="Registrar comentário da análise ou negociação..."/>
-          <BtnPrimary disabled={busy||!comment.trim()} onClick={()=>void sendComment()}>Adicionar comentário</BtnPrimary></div>}
+        {canEdit&&<div className="flex min-w-0 items-stretch gap-2 sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <FInput value={comment} disabled={busy} className="h-[42px]"
+              onChange={(e:any)=>setComment(e.target.value)}
+              onKeyDown={(event:any)=>{if(event.key==="Enter"&&!event.shiftKey){event.preventDefault();void sendComment();}}}
+              placeholder="Registrar comentário da análise ou negociação..."/>
+          </div>
+          <BtnPrimary className="h-[42px] shrink-0 self-start px-3 sm:px-4"
+            disabled={busy||!comment.trim()} loading={busy} onClick={()=>void sendComment()}>
+            Adicionar comentário</BtnPrimary>
+        </div>}
         {!comments.length?<p className="text-xs text-muted-foreground">Nenhum comentário registrado.</p>:
           comments.map(note=><article key={note.id} className="rounded-lg border border-border p-3">
             <div className="flex justify-between gap-2 text-xs"><strong>{(note.author as any)?.full_name||"Usuário"}</strong>
