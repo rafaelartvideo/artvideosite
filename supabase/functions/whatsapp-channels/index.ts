@@ -231,7 +231,7 @@ Deno.serve(async request => {
     const connected = remote.connected === true;
     const state = action === "disconnect" || action === "logout" ? "disconnected" :
       loggedIn ? "connected" :
-      action === "provision" || action === "connect" || connected ? "connecting" :
+      action === "connect" || connected ? "connecting" :
       action === "status" ? "disconnected" : previous;
     const patch: Record<string, unknown> = {
       state, last_checked_at: new Date().toISOString(), updated_at: new Date().toISOString(),
