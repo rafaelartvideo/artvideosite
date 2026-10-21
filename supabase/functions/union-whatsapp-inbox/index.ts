@@ -305,6 +305,8 @@ Deno.serve(async request => {
           ? "A conexão do motor WhatsApp foi encerrada. Verifique o estado real da sessão WuzAPI."
           : failure.includes("wuzapi_check_timeout")
           ? "A consulta aos servidores WhatsApp excedeu o tempo limite. Verifique a conexão de rede do WuzAPI."
+          : failure.includes("wuzapi_check_unreachable")
+          ? "A ponte da Union não conseguiu acessar o motor WuzAPI na VPS. Confira se ele está ativo na porta interna.";
           : failure.includes("wuzapi_check_lookup_failed")
           ? "O motor WhatsApp falhou ao consultar o cadastro do número. Consulte os logs do WuzAPI para identificar a causa."
           : failure.includes("wuzapi_check_auth_failed")
