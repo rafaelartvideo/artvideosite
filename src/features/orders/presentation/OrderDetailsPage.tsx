@@ -166,7 +166,7 @@ export function OrderDetailsPage(props: Props) {
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
   const { statuses, situations } = workspace;
-  const quoteWorkflowEnabled = Boolean(detail?.service_type_id && workspace.serviceTypes.some((type: any) =>
+  const quoteWorkflowEnabled = Boolean(!monitorView && detail?.service_type_id && workspace.serviceTypes.some((type: any) =>
     type.id === detail.service_type_id && type.quote_workflow_enabled === true));
 
   const effectiveRouteSubpage = routeSubpage;
