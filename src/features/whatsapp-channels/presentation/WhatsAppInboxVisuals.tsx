@@ -21,9 +21,9 @@ export function waitingLabel(minutes: number): string {
   const hours=Math.floor(minutes/60);
   return `há ${hours} h${minutes%60 ? ` ${minutes%60} min`:""}`;
 }
-export function waitingClasses(minutes: number): string {
-  if (minutes>=15) return "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300";
-  if (minutes>=5) return "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300";
+export function waitingClasses(minutes: number,warning=5,critical=15): string {
+  if (minutes>=critical) return "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300";
+  if (minutes>=warning) return "border-orange-500/40 bg-orange-500/10 text-orange-700 dark:text-orange-300";
   return "border-amber-500/35 bg-amber-500/10 text-amber-700 dark:text-amber-300";
 }
 
