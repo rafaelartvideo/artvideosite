@@ -184,6 +184,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
           <AdminCardContent>
             <h3 className="font-black text-[#0d1b2e]">Aparência da impressão</h3>
             <p className="mt-1 text-xs text-[#5a6a82]">Estas configurações são aplicadas igualmente na pré-visualização e no documento impresso.</p>
+            {value.document_type==="ORCAMENTO" && <p className="mt-2 text-xs text-[#5a6a82]">No orçamento, diagnóstico e solução ficam em 2 colunas; os 3 totais intermediários ficam em 3 colunas; desconto e total final em 2 colunas. Os campos podem ser selecionados abaixo.</p>}
             <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               <Field label="Fonte"><AdminSelect value={value.layout.font_family} onValueChange={font_family => setValue(v => ({ ...v, layout: { ...v.layout, font_family: font_family as typeof v.layout.font_family } }))} ariaLabel="Fonte" options={[{ value: "Arial", label: "Arial" }, { value: "Inter", label: "Inter" }, { value: "Times New Roman", label: "Times New Roman" }, { value: "Courier New", label: "Courier New" }]} /></Field>
               <Field label="Estilo das informações"><AdminSelect value={value.layout.section_style} onValueChange={section_style => setValue(v => ({ ...v, layout: { ...v.layout, section_style: section_style as typeof v.layout.section_style } }))} ariaLabel="Estilo das informações" options={[{ value: "lines", label: "Linhas" }, { value: "boxed", label: "Blocos" }, { value: "table", label: "Tabela" }]} /></Field>
@@ -219,6 +220,24 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
                   <span className="min-w-0"><span className="font-bold text-[#0d1b2e]">{section.label}</span><span className="ml-2 text-xs text-[#7a889c]">{count}/{section.fields.length}</span></span>
                   {open ? <ChevronDown size={16} className="shrink-0 text-[#5a6a82]" /> : <ChevronRight size={16} className="shrink-0 text-[#5a6a82]" />}
                 </button>
+                {section.key !== "quote" && section.key !== "quote_items" && section.key !== "signatures" && <div className="w-[108px] shrink-0">
+                  <AdminSelect
+                    ariaLabel={`Colunas em ${section.label}`}
+                    value={String(value.layout.section_columns?.[section.key] ?? Math.max(2,section.defaultColumns))}
+                    onValueChange={columns=>setValue(current=>({
+                      ...current,
+                      layout:{
+                        ...current.layout,
+                        section_columns:{
+                          ...(current.layout.section_columns||{}),
+                          [section.key]:columns==="3"?3:2,
+                        },
+                      },
+                    }))}
+                    options={[{value:"2",label:"2 colunas"},{value:"3",label:"3 colunas"}]}
+                    className="h-8 !min-h-8 text-xs"
+                  />
+                </div>}
               </div>
               {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{[...section.fields].sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})).map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} disabled={isRequiredSignatureField(value, field.key)} onChange={() => toggleField(field.key)} />)}</div>}
             </div>;
