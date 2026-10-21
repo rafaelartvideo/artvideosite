@@ -23,8 +23,10 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
+  const [capabilities, setCapabilities] = useState<Record<string,boolean>>({});
   const canView = hasPermission("whatsapp.inbox.view");
-  const canManage = canView && (staffRole === "manager" || staffRole === "both");
+  const canManage = canView && Boolean(section === "operators"
+    ? capabilities.manage_operators : capabilities.manage_queues);
   const [selectedRoles, setSelectedRoles] = useState<Record<string,StaffRole>>({});
   const [departments, setDepartments] = useState<Department[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
@@ -49,8 +51,10 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
         channelRequest(activeOrganizationId, "channel_status"),
       ]);
       const role = status.staff_role || null;
+      const grants = status.capabilities || {};
       setStaffRole(role);
-      const permitted = canView && (role==="manager" || role==="both");
+      setCapabilities(grants);
+      const permitted = canView && (grants.manage_operators || grants.manage_queues);
       const staff = permitted ? await channelRequest(activeOrganizationId, "operator_list") : null;
       setDepartments(dept.departments || []);
       setOperators(staff?.operators || []);
@@ -144,7 +148,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     finally { setBusy(""); }
   };
 
-  if (!loading && !canManage) return <p className="text-sm text-muted-foreground">Somente funcionários com o perfil Gestor ou Gestor + Operador podem configurar equipes, filas e perfis de atendimento.</p>;
+  if (!loading && !canManage) return <p className="text-sm text-muted-foreground">Seu perfil não possui a permissão necessária para gerenciar esta seção dos atendimentos.</p>;
 
   return <div className="space-y-4">
     {error && <div role="alert" className="rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-sm text-red-600"><CircleAlert size={16} className="mr-2 inline"/>{error}</div>}
