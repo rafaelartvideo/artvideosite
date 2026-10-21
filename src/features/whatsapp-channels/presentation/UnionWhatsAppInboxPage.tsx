@@ -9,6 +9,7 @@ import { prepareImageForUpload } from "@/shared/application/upload-file-optimize
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
@@ -137,7 +138,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("waiting");
   const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [readyAccount,setReadyAccount] = useState<string|null>(null);
+  const [clockNow,setClockNow] = useState(()=>Date.now());
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -221,12 +223,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const accountRef=useRef(activeChannelPhone);
   accountRef.current=activeChannelPhone;
 
-  const refresh = useCallback(async (silent = false) => {
+  const refresh = useCallback(async (_silent = false) => {
     if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView)return;
     const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
     if(loadingList.current===identity)return;
     loadingList.current=identity;
-    if (!silent) setLoading(true);
     try {
       const items = await listUnionWhatsAppConversations(activeOrganizationId,activeChannelId,activeChannelPhone);
       if (organizationRef.current !== activeOrganizationId || accountRef.current!==activeChannelPhone) return;
@@ -235,11 +236,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) setError(systemErrorMessage(reason, "Não foi possível consultar as conversas."));
     } finally {
-      if(loadingList.current===identity){
-        loadingList.current=null;
-        if (organizationRef.current === activeOrganizationId && accountRef.current===activeChannelPhone)
-          setLoading(false);
-      }
+      if(loadingList.current===identity) loadingList.current=null;
     }
   }, [activeOrganizationId, activeChannelId, activeChannelPhone, channelReady, canView]);
 
@@ -284,7 +281,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setMembers([]);
     setError("");
     messageIdentity.current += 1;
-    setLoading(false);
   }, [activeOrganizationId]);
   const shownAccountRef=useRef<string|null>(null);
   // Immediately clear the previous account on disconnect AND on number swap.
@@ -296,12 +292,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     shownAccountRef.current=identity;
     setConversations([]);setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
-    setLoading(false);
     messageIdentity.current+=1;
   },[activeOrganizationId,channelReady,activeChannelId,activeChannelPhone]);
+  // Não liberar os painéis até lista e departamentos terminarem de carregar.
   useEffect(()=>{
-    if(channelReady===true && activeChannelId && activeChannelPhone)void refresh();
-  },[channelReady,activeChannelId,activeChannelPhone,refresh]);
+    if(channelReady!==true || !activeOrganizationId || !activeChannelId || !activeChannelPhone){
+      setReadyAccount(null);return;
+    }
+    const identity=activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone;
+    let cancelled=false;
+    void Promise.allSettled([
+      refresh(true),
+      operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list")
+        .then(result=>{if(!cancelled && organizationRef.current===activeOrganizationId)
+          setDepartments(result.departments||[]);})
+        .catch(reason=>{if(!cancelled)setError(systemErrorMessage(reason,"Não foi possível carregar os departamentos."));}),
+    ]).then(()=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
+      accountRef.current===activeChannelPhone)setReadyAccount(identity);});
+    return()=>{cancelled=true;};
+  },[channelReady,activeOrganizationId,activeChannelId,activeChannelPhone,refresh]);
 
   const checkChannel = useCallback(async () => {
     if (!activeOrganizationId || !canView) return;
@@ -319,7 +328,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       }
     } catch (reason) {
       if (organizationRef.current === activeOrganizationId) {
-        setChannelReady(null);setActiveChannelId(null);setActiveChannelPhone(null);
+        setChannelReady(false);setActiveChannelId(null);setActiveChannelPhone(null);
         setCapabilities({});
         setChannelError(systemErrorMessage(reason, "Não foi possível consultar o canal."));
       }
@@ -460,6 +469,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setShowJumpToLatest(!atBottom);
   };
 
+  const accountIdentity=channelReady===true && activeChannelId && activeChannelPhone && activeOrganizationId
+    ? activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone:null;
+  const bootLoading=channelReady===null || (channelReady===true && readyAccount!==accountIdentity);
+  useEffect(()=>{
+    if(filter!=="waiting" || bootLoading)return;
+    setClockNow(Date.now());
+    const id=window.setInterval(()=>setClockNow(Date.now()),30000);
+    return()=>window.clearInterval(id);
+  },[filter,bootLoading]);
+
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
   const selected = scopedConversations.find(item => item.id === selectedId) || null;
   const counts = useMemo(() => {
@@ -469,8 +488,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   }, [scopedConversations]);
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("pt-BR");
-    return scopedConversations.filter(item => item.status === filter && (departmentFilter === "all" || (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) && (!search ||
+    const matches=scopedConversations.filter(item => item.status === filter && (departmentFilter === "all" || (departmentFilter === "none" ? !item.department_id : item.department_id === departmentFilter)) && (!search ||
       [item.contact_name,item.contact_phone || "",item.chat_jid,item.last_protocol_number ? unionWhatsAppProtocolLabel(item.last_protocol_number) : ""].some(value => value.toLocaleLowerCase("pt-BR").includes(search))));
+    if(filter!=="waiting")return matches;
+    return matches.sort((left,right)=>
+      Date.parse(left.queue_entered_at||left.created_at)-Date.parse(right.queue_entered_at||right.created_at));
   }, [scopedConversations, filter, query, departmentFilter]);
 
   // Fetch photo previews for the first visible rows, in small batches so
@@ -534,14 +556,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setHandoffs(result.history||[]);setHistoryOpen(true);
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível consultar o histórico."));}
   };
-  useEffect(()=>{
-    if(!activeOrganizationId || !canView || channelReady!==true)return;
-    let cancelled=false;const org=activeOrganizationId;
-    void operateUnionWhatsAppInbox(org,crypto.randomUUID(),"departments_list")
-      .then(result=>{if(!cancelled && organizationRef.current===org) setDepartments(result.departments||[]);})
-      .catch(()=>undefined);
-    return()=>{cancelled=true;};
-  },[activeOrganizationId,canView,channelReady]);
+
 
   const showOrders = async () => {
     if(!activeOrganizationId || !selected)return;
@@ -944,7 +959,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       <CircleAlert size={17} className="mr-2 inline"/>{error}
     </div>}
     {channelError && <p role="alert" className="text-xs text-red-600">{channelError}</p>}
-    {channelReady === null ? <div className="flex min-h-[440px] items-center justify-center text-sm text-muted-foreground">{channelError?"Não foi possível verificar a conexão do WhatsApp.":"Verificando conexão do WhatsApp..."}</div> :
+    {bootLoading ? <div className="flex min-h-[520px] items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
      channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
       <MessageCircle size={36} className="text-muted-foreground"/>
       <div className="space-y-2">
@@ -988,7 +1003,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
             </div>
-            {departments.length>0 && <select aria-label="Filtrar departamento" value={departmentFilter}
+            {<select aria-label="Filtrar departamento" value={departmentFilter}
               onChange={event=>setDepartmentFilter(event.target.value)}
               className="mt-3 w-full rounded-lg border border-border bg-card px-2 py-2 text-xs outline-none focus:border-primary">
               <option value="all">Todos os departamentos</option>
@@ -1003,8 +1018,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-            {loading ? <div className="p-5"><LoadingState text="Carregando conversas..."/></div>
-            : visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
+            {visible.length === 0 ? <div className="flex flex-col items-center gap-2 p-6 text-center text-xs text-muted-foreground">
               <MessageCircle size={26}/><p>Nenhuma conversa encontrada.</p>
               {scopedConversations.length === 0 && <p>Ative o recebimento do canal e envie uma mensagem de outro aparelho para testar.</p>}
             </div>
