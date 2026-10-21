@@ -114,6 +114,7 @@ export const emptyPrintTemplateEditorValue = (): PrintTemplateEditorValue => ({
 export const PRINT_TEMPLATE_TYPE_LABELS: Record<string, string> = {
   OS: "Ordem de Serviço",
   ENTRADA: "Entrada",
+  ORCAMENTO: "Orçamento",
   SAIDA_DEVOLUCAO: "Saída / Devolução",
   LAUDO: "Laudo técnico",
   COMPROVANTE: "Comprovante",
