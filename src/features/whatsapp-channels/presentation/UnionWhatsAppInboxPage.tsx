@@ -290,6 +290,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     shownAccountRef.current=identity;
     setConversations([]);setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
+    setNewConversationOpen(false);
     messageIdentity.current+=1;
   },[activeOrganizationId,channelReady,activeChannelId,activeChannelPhone]);
   // Não liberar os painéis até lista e departamentos terminarem de carregar.
