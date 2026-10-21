@@ -499,16 +499,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const result:Record<Filter,number>={waiting:0,in_att:0,forwarded:0,finished:0};
     scopedConversations.forEach(item=>{
       if(item.status==="finished")result.finished+=1;
-      else if(isForwardedFor(item,user?.id))result.forwarded+=1;
+      else if(isForwardedFor(item,user?.id)||(canManage&&hasForwarding(item)))result.forwarded+=1;
       else if(queueOnly(item))result.waiting+=1;
       else if(item.status==="in_att")result.in_att+=1;
     });
     return result;
-  },[scopedConversations,user?.id]);
+  },[scopedConversations,user?.id,canManage]);
   const visible = useMemo(() => {
     const search = query.trim().toLocaleLowerCase("pt-BR");
     const matches=scopedConversations.filter(item => {
-      const rightFilter=filter==="forwarded"?isForwardedFor(item,user?.id):
+      const rightFilter=filter==="forwarded"?(isForwardedFor(item,user?.id)||(canManage&&hasForwarding(item))):
         filter==="waiting"?queueOnly(item):filter==="in_att"?
         item.status==="in_att"&&!hasForwarding(item):item.status==="finished";
       return rightFilter && (departmentFilter === "all" ||
@@ -520,7 +520,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(filter!=="waiting")return matches;
     return matches.sort((left,right)=>
       Date.parse(left.queue_entered_at||left.created_at)-Date.parse(right.queue_entered_at||right.created_at));
-  }, [scopedConversations, filter, query, departmentFilter,user?.id]);
+  }, [scopedConversations, filter, query, departmentFilter,user?.id,canManage]);
   const queuePositions=useMemo(()=>{
     const waiting=scopedConversations.filter(queueOnly)
       .sort((a,b)=>Date.parse(a.queue_entered_at||a.created_at)-
