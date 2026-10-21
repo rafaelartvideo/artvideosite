@@ -18,12 +18,31 @@ export type UnionWhatsAppConversation = {
   last_message_at: string | null;
   unread_count: number;
   created_at: string;
+  last_protocol_number: number | null;
 };
+
+export type UnionWhatsAppProtocol = {
+  id: string;
+  conversation_id: string;
+  protocol_number: number;
+  status: UnionWhatsAppConversation["status"];
+  assigned_to: string | null;
+  department_id: string | null;
+  opened_at: string;
+  assigned_at: string | null;
+  closed_at: string | null;
+  first_reply_at: string | null;
+  message_count: number;
+  opened_by: string | null;
+  closed_by: string | null;
+};
+export const unionWhatsAppProtocolLabel = (number: number) => `ATD-${String(number).padStart(6,"0")}`;
 
 export type UnionWhatsAppMessage = {
   id: string;
   organization_id: string;
   conversation_id: string;
+  protocol_id: string | null;
   provider_message_id: string;
   direction: "incoming" | "outgoing";
   message_type: "text" | "image" | "video" | "audio" | "file" | "sticker" | "location" | "contact" | "unknown";
@@ -52,7 +71,7 @@ const raise = (error: { message: string } | null) => { if (error) throw new Erro
 
 export async function listUnionWhatsAppConversations(organizationId: string, channelId: string, accountPhone: string): Promise<UnionWhatsAppConversation[]> {
   const { data, error } = await supabase.from("union_whatsapp_conversations")
-    .select("id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at")
+    .select("id,organization_id,channel_id,account_phone,chat_jid,contact_name,contact_phone,status,assigned_to,department_id,service_order_id,contact_presence,contact_presence_at,last_message,last_message_at,unread_count,created_at,last_protocol_number")
     .eq("organization_id", organizationId).eq("channel_id", channelId).eq("account_phone",accountPhone)
     .order("last_message_at", { ascending: false, nullsFirst: false })
     .limit(150);
@@ -62,14 +81,28 @@ export async function listUnionWhatsAppConversations(organizationId: string, cha
 
 export async function listUnionWhatsAppMessages(
   organizationId: string, conversationId: string, channelId: string,accountPhone:string,
+  protocolId?: string | null,
 ): Promise<UnionWhatsAppMessage[]> {
-  const { data, error } = await supabase.from("union_whatsapp_messages")
-    .select("id,organization_id,conversation_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
+  let query = supabase.from("union_whatsapp_messages")
+    .select("id,organization_id,conversation_id,protocol_id,provider_message_id,direction,message_type,body_text,sender_name,sent_at,delivery_status,media_path,media_name,media_mime,media_available")
     .eq("organization_id", organizationId).eq("channel_id",channelId).eq("account_phone",accountPhone)
-    .eq("conversation_id", conversationId)
-    .order("sent_at", { ascending: false }).limit(120);
+    .eq("conversation_id", conversationId);
+  if (protocolId) query=query.eq("protocol_id",protocolId);
+  const {data,error}=await query.order("sent_at",{ascending:false}).limit(120);
   raise(error);
   return ((data || []) as UnionWhatsAppMessage[]).reverse();
+}
+
+export async function listUnionWhatsAppProtocols(
+  organizationId: string, conversationId: string, channelId: string, accountPhone: string,
+): Promise<UnionWhatsAppProtocol[]> {
+  const {data,error}=await supabase.from("union_whatsapp_protocols")
+    .select("id,conversation_id,protocol_number,status,assigned_to,department_id,opened_at,assigned_at,closed_at,first_reply_at,message_count,opened_by,closed_by")
+    .eq("organization_id",organizationId).eq("channel_id",channelId).eq("account_phone",accountPhone)
+    .eq("conversation_id",conversationId)
+    .order("opened_at",{ascending:false}).limit(50);
+  raise(error);
+  return (data || []) as UnionWhatsAppProtocol[];
 }
 
 export type UnionWhatsAppInboxAction = "assume" | "return_queue" | "finish" | "reopen" | "mark_read" | "send_text" | "members" | "transfer" | "send_media" | "media_view" | "start" | "check_number" | "channel_status" | "prepare_media" | "resolve_contact" | "contact_avatar" | "customer_match" | "departments_list" | "department_save" | "department_members" | "department_set_member" | "operator_list" | "operator_set" | "role_permissions_list" | "role_permissions_save" | "queue_default" | "transfer_department" | "handoff_history" | "order_options" | "order_link" | "presence_subscribe" | "contacts_list" | "contacts_import" | "contacts_save" | "contacts_import_device" | "contacts_import_batch" | "contacts_apply_names";
