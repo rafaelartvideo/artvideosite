@@ -254,7 +254,8 @@ Deno.serve(async request => {
         if(current?.is_active && ["manager","both"].includes(current.staff_role) &&
           (!enabled || nextRole==="operator")){
           const remaining=(bindings||[]).filter(b=>b.is_active && b.user_id!==targetId &&
-            (b.staff_role==="manager"||b.staff_role==="both"));
+            (b.staff_role==="manager"||b.staff_role==="both") &&
+            (staff||[]).some(m=>m.user_id===b.user_id && profileMap.get(m.user_id)?.is_active));
           if(!remaining.length)return json({success:false,error:
             "É necessário manter ao menos um gestor ativo no atendimento. Defina outro gestor antes de retirar este perfil."},409);
         }
