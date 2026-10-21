@@ -27,6 +27,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
 import { InternalQuoteEditor } from "./InternalQuoteEditor";
 import { InternalQuoteSummary } from "./InternalQuoteSummary";
+import { QuoteEquipmentPhotos } from "./QuoteEquipmentPhotos";
 import { QuoteCommentsSection } from "./QuoteCommentsSection";
 import { parseQuoteRequestMessage, quoteRequestAddress, quoteAddressLabel } from "../domain/quote-request-details.mjs";
 
@@ -372,6 +373,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
           {parsedQuote.notes&&<div className={parsedQuote.issue?"mt-4":""}><InfoRow label="Mensagem" value={parsedQuote.notes}/></div>}
         </Section>}
         {detail.origin === "internal" && <InternalQuoteSummary quote={detail} organizationId={organizationId} />}
+        {detail.origin === "internal" && <QuoteEquipmentPhotos organizationId={organizationId} quoteId={detail.id}/>}
         <QuoteCommentsSection key={detail.id} organizationId={organizationId} quoteId={detail.id} authorId={user?.id || null} canComment={canEditQuote || canCreateQuote}/>
       </div>
       <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canEditThisQuote && <AdminButton variant="secondary" onClick={() => { setEditorQuote(detail); setEditorOpen(true); }}><Pencil size={15}/> Editar orçamento</AdminButton>}{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertApprovedQuote && <div className="w-full sm:w-52"><label className="mb-1 block text-[11px] font-bold text-muted-foreground">Situação da OS *</label><AdminSelect value={conversionSituationId} onValueChange={setConversionSituationId} options={[{ value: "", label: conversionSituationsQuery.isLoading ? "Carregando situações..." : "Selecionar situação..." }, ...conversionSituations.map(situation => ({ value: situation.id, label: situation.name }))]} ariaLabel="Situação obrigatória para converter orçamento em OS" className="min-h-10 w-full" /></div>}{canConvertApprovedQuote && <AdminButton className="w-full sm:w-auto" onClick={async () => {
