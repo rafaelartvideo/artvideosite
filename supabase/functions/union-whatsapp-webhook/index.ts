@@ -362,6 +362,21 @@ Deno.serve(async request => {
       if(byPhoneError)throw byPhoneError;
       if(byPhone?.[0])thread=byPhone[0];
     }
+    if(!thread && validPN(chatJid)){
+      // Caminho inverso: o provedor pode enviar a primeira mensagem
+      // como LID e as seguintes somente com PN.
+      const {data:matches,error:aliasError}=await admin
+        .from("union_whatsapp_verified_jid_aliases").select("lid_jid")
+        .eq("organization_id",org).eq("channel_id",channelId)
+        .eq("account_phone",accountPhone).eq("phone_jid",chatJid).limit(2);
+      if(aliasError)throw aliasError;
+      if(matches?.length===1){
+        const {data:byLid,error:lidError}=await scopedThreads()
+          .eq("chat_jid",String(matches[0].lid_jid)).maybeSingle();
+        if(lidError)throw lidError;
+        if(byLid)thread=byLid;
+      }
+    }
     if(!thread){
       const {error:ensureError}=await admin.from("union_whatsapp_conversations")
         .upsert({
@@ -378,7 +393,7 @@ Deno.serve(async request => {
     }
     // Backfill only Whatsmeow-verified phone aliases on existing LID
     // conversations. This permits later VCF matching without merging chats.
-    if(chatJid.endsWith("@lid") && phone) {
+    if(thread.chat_jid.endsWith("@lid") && phone) {
       const {error:phoneError}=await admin.from("union_whatsapp_conversations")
         .update({contact_phone:phone}).eq("id",thread.id)
         .eq("organization_id",org).is("contact_phone",null);
