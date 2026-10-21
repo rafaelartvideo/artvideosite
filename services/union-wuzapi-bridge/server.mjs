@@ -325,7 +325,11 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       if(!row || typeof row!=="object")continue;
       const query=String(row.Query ?? row.query ?? "").replace(/\D/g,"");
       const jid=String(row.JID ?? row.Jid ?? row.jid ?? "");
-      const match=candidates.find(candidate=>sameBrazilianNumber(candidate,query));
+      // Match the original query exactly before allowing its Brazilian alias.
+      // Otherwise both 9/non-9 negative results collapse into one candidate.
+      const lookup=query || /^([0-9]+)@s\.whatsapp\.net$/.exec(jid)?.[1] || "";
+      const match=candidates.find(candidate=>candidate===lookup) ||
+        candidates.find(candidate=>sameBrazilianNumber(candidate,lookup));
       if(!match || typeof (row.IsInWhatsapp ?? row.isInWhatsapp)!=="boolean")continue;
       covered.add(match);
       const registered=(row.IsInWhatsapp ?? row.isInWhatsapp)===true;
