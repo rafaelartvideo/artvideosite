@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ClipboardList, Eraser, FileText, MapPin, MessageCircle, Pencil, Plus, Search } from "lucide-react";
+import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ClipboardList, Eraser, FileText, MapPin, MessageCircle, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
@@ -25,10 +25,6 @@ import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
-import { InternalQuoteEditor } from "./InternalQuoteEditor";
-import { InternalQuoteSummary } from "./InternalQuoteSummary";
-import { QuoteEquipmentPhotos } from "./QuoteEquipmentPhotos";
-import { QuoteCommentsSection } from "./QuoteCommentsSection";
 import { parseQuoteRequestMessage, quoteRequestAddress, quoteAddressLabel } from "../domain/quote-request-details.mjs";
 
 type TabQuotesProps = {
@@ -70,8 +66,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const canViewDetails = hasPermission("quotes.details.view");
   const canChangeStatus = hasPermission("quotes.status.change");
   const canConvertToOrder = hasPermission("quotes.convert_to_order");
-  const canCreateQuote = hasPermission("quotes.create");
-  const canEditQuote = hasPermission("quotes.edit") || hasPermission("quotes.update");
   const showProtocol = hasPermission("quotes.table.protocol");
   const showCustomer = hasPermission("quotes.table.customer");
   const showDocument = hasPermission("quotes.table.document");
@@ -92,8 +86,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
-  const [editorOpen, setEditorOpen] = useState(false);
-  const [editorQuote, setEditorQuote] = useState<any | null>(null);
   const [conversionSituationId, setConversionSituationId] = useState("");
   const [sacQuoteOpen, setSacQuoteOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -190,11 +182,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const updateStatus = async (id: string, statusId: string) => {
     if (!canChangeStatus) return;
     const selectedStatus = statuses.find(status => status.id === statusId);
-    const currentQuote = detail?.id === id ? detail : quotes.find(quote => quote.id === id);
-    if (currentQuote?.origin === "internal" && selectedStatus?.slug === "APROVADO") {
-      setToast({ msg: "A aprovação final do orçamento interno será liberada junto com a conversão segura em OS.", type: "error" });
-      return;
-    }
     const { error: updateError } = await updateQuoteStatus(organizationId, id, statusId);
     if (updateError) {
       setToast({ msg: `Erro ao atualizar status: ${systemErrorMessage(updateError)}`, type: "error" });
@@ -266,19 +253,11 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
   const mapsUrl=displayAddress?"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(displayAddress):"";
   const quoteWhatsapp=String(detail?.customer?.whatsapp||detail?.customer?.phone||"").replace(/\D/g,"");
   const canMessageQuote=hasPermission("sac_digital.messages.send") && Boolean(detail?.customer_id && quoteWhatsapp && organizationId);
-  // A conversão do novo orçamento interno só será habilitada com a transação
-  // que preserva integralmente itens e preços aprovados na OS.
-  const canConvertApprovedQuote = canConvertToOrder
-    && detail?.origin !== "internal"
-    && detail?.request_status?.slug === "APROVADO";
-  const canEditThisQuote = canEditQuote && detail?.origin === "internal"
-    && ["RASCUNHO", "PENDENTE", "EM_ANALISE", "RENEGOCIACAO"].includes(detail?.request_status?.slug);
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     {!routeResourceId && <>
-      <PageHeader title="Orçamentos" subtitle={totalItems + (totalItems === 1 ? " orçamento registrado" : " orçamentos registrados")}
-        actions={canCreateQuote ? <AdminButton onClick={() => { setEditorQuote(null); setEditorOpen(true); }}><Plus size={16}/> Novo orçamento</AdminButton> : undefined} />
+      <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />
       {canViewTable && <AdminSearchPanel title="Buscar orçamentos" headerActions={<>
         {(hasMobileFilters || search) && <AdminSearchClearButton onClick={() => { clearMobileFilters(); setSearch(""); }} />}
         <AdminSearchSortMenu value={orderSort} onChange={setOrderSort}
@@ -314,7 +293,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     </>}
 
     {routeResourceId && !detail && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    {detail && canViewDetails && !editorOpen && <AdminPage open onClose={closeDetails} breadcrumb={`Orçamentos > ${detail.protocol || detail.id.slice(0, 8)}`} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
+    {detail && canViewDetails && <AdminPage open onClose={closeDetails} breadcrumb={`Orçamentos > ${detail.protocol || detail.id.slice(0, 8)}`} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
       <div className="min-w-0 space-y-4 p-3 sm:p-5">
         <Section title="Dados pessoais / empresariais"
          actions={<button type="button" onClick={()=>setSacQuoteOpen(true)}
@@ -372,11 +351,8 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
           {parsedQuote.issue&&<InfoRow label="Problema relatado" value={parsedQuote.issue}/>}
           {parsedQuote.notes&&<div className={parsedQuote.issue?"mt-4":""}><InfoRow label="Mensagem" value={parsedQuote.notes}/></div>}
         </Section>}
-        {detail.origin === "internal" && <InternalQuoteSummary quote={detail} organizationId={organizationId} />}
-        {detail.origin === "internal" && <QuoteEquipmentPhotos organizationId={organizationId} quoteId={detail.id}/>}
-        <QuoteCommentsSection key={detail.id} organizationId={organizationId} quoteId={detail.id} authorId={user?.id || null} canComment={canEditQuote || canCreateQuote}/>
       </div>
-      <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canEditThisQuote && <AdminButton variant="secondary" onClick={() => { setEditorQuote(detail); setEditorOpen(true); }}><Pencil size={15}/> Editar orçamento</AdminButton>}{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertApprovedQuote && <div className="w-full sm:w-52"><label className="mb-1 block text-[11px] font-bold text-muted-foreground">Situação da OS *</label><AdminSelect value={conversionSituationId} onValueChange={setConversionSituationId} options={[{ value: "", label: conversionSituationsQuery.isLoading ? "Carregando situações..." : "Selecionar situação..." }, ...conversionSituations.map(situation => ({ value: situation.id, label: situation.name }))]} ariaLabel="Situação obrigatória para converter orçamento em OS" className="min-h-10 w-full" /></div>}{canConvertApprovedQuote && <AdminButton className="w-full sm:w-auto" onClick={async () => {
+      <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <div className="w-full sm:w-52"><label className="mb-1 block text-[11px] font-bold text-muted-foreground">Situação da OS *</label><AdminSelect value={conversionSituationId} onValueChange={setConversionSituationId} options={[{ value: "", label: conversionSituationsQuery.isLoading ? "Carregando situações..." : "Selecionar situação..." }, ...conversionSituations.map(situation => ({ value: situation.id, label: situation.name }))]} ariaLabel="Situação obrigatória para converter orçamento em OS" className="min-h-10 w-full" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
         if (!conversionSituationId || !conversionSituations.some(situation => situation.id === conversionSituationId)) { setToast({ msg: "Selecione uma situação válida antes de converter o orçamento em OS.", type: "error" }); return; }
         const { data: existing } = await findServiceOrderByQuote(organizationId, detail.id);
         if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
@@ -391,19 +367,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
         onNavigate?.("orders");
       }}><ClipboardList size={13} /> Converter em OS</AdminButton>}</div><BtnSecondary onClick={closeDetails} className="w-full sm:w-auto">Fechar</BtnSecondary></AdminStickyToolbar>
     </AdminPage>}
-    {editorOpen && <InternalQuoteEditor
-      organizationId={organizationId} quote={editorQuote} onClose={() => setEditorOpen(false)}
-      onSaved={id => {
-        setEditorOpen(false);
-        syncQuotes();
-        void getQuote(organizationId, id).then(saved => {
-          if (!saved) throw new Error("Orçamento salvo, mas não encontrado.");
-          setDetail(saved);
-          onRouteChange?.(id, null);
-          setToast({ msg: "Orçamento salvo com sucesso.", type: "success" });
-        }).catch(error => setToast({ msg: "Orçamento salvo. Falha ao atualizar a tela: " + systemErrorMessage(error), type: "error" }));
-      }}
-    />}
     {sacQuoteOpen && detail && <QuoteSacDigitalDialog quote={detail} organizationId={organizationId} onClose={()=>setSacQuoteOpen(false)}/>}
   </div>;
 }
