@@ -8,6 +8,19 @@ import type { PrintTemplateEditorValue } from "../domain/print-template";
 
 const PREVIEW_CONTEXT: PrintOrderContext = {
   printedBy: "Maria Souza",
+  quote: {
+    version: 1,
+    status: "awaiting_approval",
+    diagnosis: "Falha na placa de alimentação.",
+    proposed_solution: "Substituir componente e testar o funcionamento.",
+    valid_until: "2026-09-05",
+    discount_type: "amount",
+    discount_value: 30,
+    items: [
+      { item_type: "service", title_snapshot: "Reparo eletrônico", quantity: 1, unit_price: 420, additional_cost: 0 },
+      { item_type: "product", title_snapshot: "Componente de reposição", quantity: 1, unit_price: 180, additional_cost: 0 },
+    ],
+  },
   order: {
     id: "preview",
     os_number: "OS-2026-001",
