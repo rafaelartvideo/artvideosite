@@ -17,6 +17,7 @@ import type { PrintTemplateEditorValue } from "./print-template";
 
 export type PrintOrderContext = {
   order: any;
+  quote?: { version?: number; status?: string; diagnosis?: string; proposed_solution?: string; valid_until?: string | null; items?: any[]; discount_type?: string; discount_value?: number } | null;
   checklist?: OrderChecklist | null;
   checklistPhotoUrls?: Record<string, string>;
   usedItems?: any[];
@@ -96,6 +97,12 @@ function resolveField(key: string, context: PrintOrderContext): string {
   const usedItems = context.usedItems || [];
   const requests = context.partRequests || [];
   const history = context.history || [];
+  const quote = context.quote;
+  const quoteItems: any[] = Array.isArray(quote?.items) ? quote.items : [];
+  const quoteProductsTotal = quoteItems.filter(item=>item.item_type==="product").reduce((sum,item)=>sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0);
+  const quoteServicesTotal = quoteItems.filter(item=>item.item_type!=="product").reduce((sum,item)=>sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0);
+  const quoteSubtotal = quoteProductsTotal+quoteServicesTotal;
+  const quoteDiscount = quote?.discount_type==="percentage" ? quoteSubtotal*Number(quote.discount_value||0)/100 : Number(quote?.discount_value||0);
   const formattedZip = address.zip_code ? formatZipCode(String(address.zip_code)) : null;
   const values: Record<string, unknown> = {
     "customer.full_name": customer.full_name,
@@ -147,6 +154,20 @@ function resolveField(key: string, context: PrintOrderContext): string {
     "sla.situation_hours": order.situation_sla_hours == null ? null : formatDurationHours(order.situation_sla_hours),
     "sla.service_type_forecast_days": order.service_type?.forecast_days == null ? null : formatForecastDays(order.service_type.forecast_days),
     "sla.completed_at": date(order.completed_at),
+    "quote.version": quote?.version,
+    "quote.status": ({draft:"Rascunho",awaiting_approval:"Aguardando aprovação",approved:"Aprovado",rejected:"Reprovado",renegotiation:"Renegociação"} as Record<string,string>)[quote?.status||""] || quote?.status,
+    "quote.diagnosis": quote?.diagnosis,
+    "quote.proposed_solution": quote?.proposed_solution,
+    "quote.valid_until": quote?.valid_until ? formatDateOnly(quote.valid_until,"—") : null,
+    "quote.products_total": quote ? money(quoteProductsTotal) : null,
+    "quote.services_total": quote ? money(quoteServicesTotal) : null,
+    "quote.subtotal": quote ? money(quoteSubtotal) : null,
+    "quote.discount_amount": quote ? money(quoteDiscount) : null,
+    "quote.total": quote ? money(Math.max(0,quoteSubtotal-quoteDiscount)) : null,
+    "quote_items.title": quoteItems.map(item=>item.title_snapshot).join("\\n"),
+    "quote_items.quantity": quoteItems.map(item=>text(item.quantity)).join("\\n"),
+    "quote_items.unit_price": quoteItems.map(item=>money(item.unit_price)).join("\\n"),
+    "quote_items.total": quoteItems.map(item=>money(Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0))).join("\\n"),
     "resolution.diagnosis": order.diagnosis,
     "resolution.solution": order.solution,
     "resolution.solved_at": date(order.solved_at),
@@ -227,6 +248,8 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     "equipment.condition",
     "resolution.diagnosis",
     "resolution.solution",
+    "quote.diagnosis",
+    "quote.proposed_solution",
     "used_parts.items",
     "part_requests.notes",
     "history.status_changes",
@@ -276,6 +299,20 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
       }).join("");
     }
     const columnCount = Math.min(section.fields.length, section.defaultColumns);
+    if (section.key === "quote_items") {
+      const numeric = (key: string) => key !== "quote_items.title" ? " class='numeric'" : "";
+      const rows = (context.quote?.items || []).map(item => "<tr>" + section.fields.map(field => {
+        const value = field.key==="quote_items.title" ? item.title_snapshot :
+          field.key==="quote_items.quantity" ? String(item.quantity||0) :
+          field.key==="quote_items.unit_price" ? money(item.unit_price) :
+          field.key==="quote_items.total" ? money(Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0)) : "";
+        return "<td"+numeric(field.key)+">"+escapeHtml(value)+"</td>";
+      }).join("")+"</tr>").join("");
+      return "<section class='section-list'><h2>"+escapeHtml(section.label)+"</h2><table class='items-table'><thead><tr>"+
+        section.fields.map(field=>"<th scope='col'"+numeric(field.key)+">"+escapeHtml(field.label)+"</th>").join("")+
+        "</tr></thead><tbody>"+(rows || "<tr><td colspan='"+section.fields.length+"'>Nenhum item incluído.</td></tr>")+
+        "</tbody></table></section>";
+    }
     if (section.key === "used_parts") {
       const numeric = (key: string) => key !== "used_parts.items" ? " class='numeric'" : "";
       const rows = (context.usedItems || []).map((item) => "<tr>" + section.fields.map((field) =>
