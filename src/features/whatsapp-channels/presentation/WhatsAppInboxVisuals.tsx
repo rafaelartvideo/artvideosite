@@ -28,7 +28,7 @@ export function waitingClasses(minutes: number): string {
 }
 
 export function WhatsAppContactAvatar({name,src,selected=false,size="list",onError}:{
-  name:string;src:string|null|undefined;selected?:boolean;size?:"list"|"header";onError?:()=>void;
+  name:string;src:string|null|undefined;selected?:boolean;size?:"list"|"header"|"detail";onError?:()=>void;
 }) {
   const [imageReady,setImageReady]=useState(false);
   useEffect(()=>setImageReady(false),[src]);
@@ -36,7 +36,7 @@ export function WhatsAppContactAvatar({name,src,selected=false,size="list",onErr
   const initials=(parts.length>1 ? parts[0][0]+parts[parts.length-1][0] :
     (parts[0]||"?").slice(0,2)).toUpperCase();
   const loading=src===undefined || Boolean(src && !imageReady);
-  return <span className={`relative flex ${size==="list"?"h-11 w-11":"h-10 w-10"} shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black
+  return <span className={`relative flex ${size==="detail"?"h-16 w-16":size==="list"?"h-11 w-11":"h-10 w-10"} shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-black
     ${selected?"bg-primary text-primary-foreground":"bg-muted text-muted-foreground"}`}>
     {src && <img src={src} alt="" referrerPolicy="no-referrer"
       loading="lazy" onLoad={()=>setImageReady(true)} onError={onError}
