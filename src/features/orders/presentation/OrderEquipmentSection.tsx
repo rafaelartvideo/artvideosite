@@ -297,7 +297,7 @@ export function OrderEquipmentSection({
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#0057e7] text-white"><Tag size={16} /></span>
                     <div className="min-w-0">
                       <p className="text-sm font-black text-[#0057e7]">Foto da etiqueta{!editingOS && !isQuote && <span className="ml-1 text-red-600">*</span>}</p>
-                      <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS ? "Priorize uma foto nítida da etiqueta de identificação do equipamento." : "{isQuote ? "Adicione uma foto nítida da identificação do equipamento." : "Obrigatória para criar a OS. Envie uma foto nítida da etiqueta de identificação do equipamento."}"}</p>
+                      <p className="mt-0.5 text-xs leading-5 text-[#5a6a82]">{editingOS ? "Priorize uma foto nítida da etiqueta de identificação do equipamento." : isQuote ? "Adicione uma foto nítida da identificação do equipamento." : "Obrigatória para criar a OS. Envie uma foto nítida da etiqueta de identificação do equipamento."}</p>
                     </div>
                   </div>
                   <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
