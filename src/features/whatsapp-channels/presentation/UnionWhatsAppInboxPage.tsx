@@ -487,8 +487,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if (!activeOrganizationId || !activeChannelId || !activeChannelPhone || channelReady!==true || !canView) return;
     let debounce:number|null=null;
     let refreshSelected=false;
-    const schedule=(conversationId?:string)=>{
-      if(!conversationId || conversationId===selectedIdRef.current)refreshSelected=true;
+    const schedule=(conversationId?:string,shouldReloadMessages=false)=>{
+      if(shouldReloadMessages && (!conversationId||conversationId===selectedIdRef.current))
+        refreshSelected=true;
       if(debounce!==null)window.clearTimeout(debounce);
       debounce=window.setTimeout(()=>{
         debounce=null;
@@ -501,12 +502,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const changedConversation=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
       const row=payload.new||payload.old||{};
       if(row.organization_id && row.organization_id!==activeOrganizationId)return;
-      schedule(String(row.id||""));
+      schedule(String(row.id||""),false);
     };
     const changedMessage=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
       const row=payload.new||payload.old||{};
       if(row.organization_id && row.organization_id!==activeOrganizationId)return;
-      schedule(String(row.conversation_id||""));
+      schedule(String(row.conversation_id||""),true);
     };
     const realtime=supabase.channel(`union-whatsapp-${activeOrganizationId}-${activeChannelId}`)
       .on("postgres_changes",{event:"*",schema:"public",table:"union_whatsapp_conversations",
@@ -519,7 +520,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const onResume = () => {
       if (document.visibilityState !== "visible" || Date.now() - lastResume < 30000) return;
       lastResume = Date.now();
-      schedule();
+      schedule(undefined,true);
     };
     window.addEventListener("focus", onResume);
     document.addEventListener("visibilitychange", onResume);
