@@ -76,7 +76,21 @@ async function wuzapi(path, token, method = "GET", body) {
     signal: AbortSignal.timeout(path.startsWith("/chat/download") || path.startsWith("/chat/send/") ? 55000 : 9000),
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok || result?.success === false) throw new Error("provider_error");
+  if (!response.ok || result?.success === false) {
+    if(path==="/user/check"){
+      // WuzAPI reports explicit errors, but never expose its raw text,
+      // query payload, session token or sensitive internal details to callers.
+      const reason=String(result?.error||"").toLowerCase();
+      if(response.status===401 || response.status===403)throw new Error("wuzapi_check_auth_failed");
+      if(response.status===404)throw new Error("wuzapi_check_endpoint_missing");
+      if(reason.includes("no session"))throw new Error("wuzapi_check_session_missing");
+      if(reason.includes("failed to check if users are on whatsapp"))
+        throw new Error("wuzapi_check_lookup_failed");
+      if(response.status>=500)throw new Error("wuzapi_check_internal_error");
+      throw new Error("wuzapi_check_request_rejected");
+    }
+    throw new Error("provider_error");
+  }
   return result;
 }
 
@@ -306,6 +320,11 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       ? input.slice(0,4)+national.slice(1)
       : national.length===8 && /^[6-9]/.test(national) ? input.slice(0,4)+"9"+national : "";
     const candidates=[input,...(alt?[alt]:[])];
+    // A DB connected flag is not enough: the actual Whatsmeow client must be logged in.
+    const checkStatus=await wuzapi("/session/status",session.token);
+    const online=safeData(checkStatus);
+    if(!online.connected || !online.logged_in)
+      throw new Error("wuzapi_check_session_offline");
     const sameBrazilianNumber=(left,right)=>{
       if(left===right)return true;
       if(!/^55[1-9][0-9][0-9]{8,9}$/.test(left) || !/^55[1-9][0-9][0-9]{8,9}$/.test(right))
@@ -532,8 +551,12 @@ createServer(async (req, res) => {
     reply(res, 200, result);
   } catch (error) {
     const code = error?.message;
-    const status = code === "bad_request" ? 400 : code === "session_missing" ? 404 : ["qr_unavailable", "session_not_ready"].includes(code) ? 409 : 502;
+    const status = code === "bad_request" ? 400 : code === "session_missing" ? 404 :
+      ["qr_unavailable", "session_not_ready", "wuzapi_check_session_offline", "wuzapi_check_session_missing"].includes(code) ? 409 : 502;
     console.error("union-bridge:", status, code);
-    reply(res, status, { ok: false, code: status === 502 ? "provider_unavailable" : code });
+    const known=new Set(["wuzapi_check_session_offline","wuzapi_check_session_missing",
+      "wuzapi_check_auth_failed","wuzapi_check_endpoint_missing","wuzapi_check_lookup_failed",
+      "wuzapi_check_internal_error","wuzapi_check_request_rejected"]);
+    reply(res, status, {ok:false,code:known.has(code)?code:status===502?"provider_unavailable":code});
   }
 }).listen(port, host, () => console.log(`Union WuzAPI bridge on ${host}:${port}`));
