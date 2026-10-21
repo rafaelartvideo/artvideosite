@@ -159,8 +159,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","queue_settings_get","queue_settings_save","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -207,7 +207,7 @@ Deno.serve(async request => {
       role_permissions_list:"manage_operators",role_permissions_save:"manage_operators",
       operator_list:"manage_operators",operator_set:"manage_operators",
       department_save:"manage_queues",department_members:"manage_queues",
-      department_set_member:"manage_queues",queue_default:"manage_queues",
+      department_set_member:"manage_queues",queue_default:"manage_queues",queue_settings_save:"manage_queues",
       contacts_list:"view_contacts",contacts_avatar:"view_contacts",
       contacts_save:"manage_contacts",contacts_import:"import_contacts",
       contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
@@ -220,6 +220,33 @@ Deno.serve(async request => {
     if(required[action] && !allowed(required[action]) &&
       !(action==="operator_list" && allowed("manage_queues"))){
       return json({success:false,error:"Seu perfil não possui permissão para esta operação."},403);
+    }
+
+    if(action==="queue_settings_get" || action==="queue_settings_save"){
+      const defaults={warning_minutes:5,critical_minutes:15,
+        show_wait_time:true,show_queue_position:true,show_forward_badges:true};
+      if(action==="queue_settings_save"){
+        const warning=Number(body.warning_minutes),critical=Number(body.critical_minutes);
+        if(!Number.isInteger(warning) || warning<1 || warning>720 ||
+          !Number.isInteger(critical) || critical<=warning || critical>1440 ||
+          ["show_wait_time","show_queue_position","show_forward_badges"]
+            .some(key=>typeof body[key]!=="boolean"))
+          return json({success:false,error:"Configure tempos válidos, com a espera crítica maior que a de atenção."},400);
+        const {data:updated,error:saveError}=await admin.from("union_whatsapp_queue_settings")
+          .upsert({organization_id:org,warning_minutes:warning,critical_minutes:critical,
+            show_wait_time:body.show_wait_time,show_queue_position:body.show_queue_position,
+            show_forward_badges:body.show_forward_badges,updated_by:actorId,updated_at:new Date().toISOString()},
+            {onConflict:"organization_id"})
+          .select("warning_minutes,critical_minutes,show_wait_time,show_queue_position,show_forward_badges")
+          .single();
+        if(saveError)throw saveError;
+        return json({success:true,queue_settings:updated});
+      }
+      const {data:settings,error:settingsError}=await admin.from("union_whatsapp_queue_settings")
+        .select("warning_minutes,critical_minutes,show_wait_time,show_queue_position,show_forward_badges")
+        .eq("organization_id",org).maybeSingle();
+      if(settingsError)throw settingsError;
+      return json({success:true,queue_settings:settings||defaults});
     }
 
     if(action==="role_permissions_list" || action==="role_permissions_save"){
@@ -666,7 +693,7 @@ Deno.serve(async request => {
       if(action==="contacts_list") {
         // Contacts is a saved directory, NOT every person encountered in
         // conversations, group members, or the WhatsApp profile cache.
-        const page=Math.min(40,Math.max(0,Number(body.page)||0));
+        const page=Math.min(10000,Math.max(0,Math.floor(Number(body.page)||0)));
         const search=String(body.search||"").trim().replace(/[^\p{L}\p{N} +().-]/gu,"").slice(0,60);
         let q=admin.from("union_whatsapp_contacts")
           .select("id,chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,updated_at",{count:"exact"})
@@ -984,14 +1011,20 @@ Deno.serve(async request => {
       if(!uuid(targetId))return json({success:false,error:"Selecione um departamento."},400);
       if(thread.status!=="in_att" || !thread.assigned_to)
         return json({success:false,error:"Assuma o atendimento antes de encaminhar."},409);
+      const {data:forwardActor,error:forwardActorError}=await admin.from("profiles")
+        .select("full_name").eq("id",actorId).maybeSingle();
+      if(forwardActorError)throw forwardActorError;
+      const forwardName=String(forwardActor?.full_name||"Atendente").trim().slice(0,100);
       const {data:dept,error:deptError}=await admin.from("union_whatsapp_departments")
-        .select("id").eq("organization_id",org).eq("id",targetId)
+        .select("id,name").eq("organization_id",org).eq("id",targetId)
         .eq("is_active",true).maybeSingle();
       if(deptError)throw deptError;
       if(!dept)return json({success:false,error:"Departamento não está ativo."},409);
       const {data:updated,error:changeError}=await admin.from("union_whatsapp_conversations")
         .update({status:"waiting",assigned_to:null,department_id:targetId,
-          updated_at:new Date().toISOString()})
+          forwarded_by:actorId,forwarded_by_name:forwardName,forwarded_to:null,
+          forwarded_to_department:targetId,forwarded_to_name:String(dept.name||"Departamento"),
+          forwarded_at:new Date().toISOString(),updated_at:new Date().toISOString()})
         .eq("id",thread.id).eq("organization_id",org).eq("status","in_att")
         .eq("assigned_to",thread.assigned_to).select("id").maybeSingle();
       if(changeError)throw changeError;
@@ -1217,7 +1250,7 @@ Deno.serve(async request => {
       if(!uuid(targetId) || !eligible.some(m=>m.user_id===targetId)) {
         return json({success:false,error:"Atendente de destino inválido ou sem permissão."},403);
       }
-      const {data:targetProfile}=await admin.from("profiles").select("is_active")
+      const {data:targetProfile}=await admin.from("profiles").select("is_active,full_name")
         .eq("id",targetId).maybeSingle();
       if(!targetProfile || targetProfile.is_active===false) {
         return json({success:false,error:"Atendente indisponível."},409);
@@ -1225,8 +1258,15 @@ Deno.serve(async request => {
       if(thread.status!=="in_att" || !thread.assigned_to) {
         return json({success:false,error:"Assuma a conversa antes de encaminhar."},409);
       }
+      const {data:forwardActor,error:forwardActorError}=await admin.from("profiles")
+        .select("full_name").eq("id",actorId).maybeSingle();
+      if(forwardActorError)throw forwardActorError;
+      const forwardName=String(forwardActor?.full_name||"Atendente").trim().slice(0,100);
       const {data:routed,error:routingError}=await admin.from("union_whatsapp_conversations")
-        .update({assigned_to:targetId,updated_at:new Date().toISOString()})
+        .update({assigned_to:targetId,forwarded_by:actorId,
+          forwarded_by_name:forwardName,forwarded_to:targetId,forwarded_to_department:null,
+          forwarded_to_name:String(targetProfile.full_name||"Atendente").slice(0,100),
+          forwarded_at:new Date().toISOString(),updated_at:new Date().toISOString()})
         .eq("organization_id",org).eq("id",thread.id)
         .eq("status","in_att").eq("assigned_to",thread.assigned_to)
         .select("id").maybeSingle();
