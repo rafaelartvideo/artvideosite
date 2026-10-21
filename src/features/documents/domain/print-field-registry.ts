@@ -92,10 +92,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     description: "Identificação e condição do equipamento recebido para atendimento.",
     defaultColumns: 3,
     fields: [
-      { key: "equipment.type", label: "Tipo de equipamento" },
-      { key: "equipment.brand", label: "Marca" },
-      { key: "equipment.model", label: "Modelo" },
-      { key: "equipment.serial_number", label: "Número de série" },
+      { key: "equipment.general", label: "Equipamento", description: "Exibe automaticamente tipo, marca, modelo, número de série e os campos extras preenchidos para cada tipo." },
       { key: "equipment.accessories", label: "Acessórios" },
       { key: "equipment.condition", label: "Condição do equipamento" },
     ],
@@ -129,8 +126,6 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     description: "Diagnóstico, solução proposta, valores e validade da proposta vinculada à OS.",
     defaultColumns: 2,
     fields: [
-      { key: "quote.version", label: "Versão da proposta" },
-      { key: "quote.status", label: "Situação do orçamento" },
       { key: "quote.diagnosis", label: "Diagnóstico" },
       { key: "quote.proposed_solution", label: "Solução proposta" },
       { key: "quote.valid_until", label: "Validade da proposta", kind: "date" },
@@ -261,6 +256,10 @@ export function normalizePrintSelectedFields(keys: Iterable<string>): Set<string
     "service.general_services": "service.name",
     "sla.solved_at": "resolution.solved_at",
     "financial.final_price": "financial.final_total",
+    "equipment.type": "equipment.general",
+    "equipment.brand": "equipment.general",
+    "equipment.model": "equipment.general",
+    "equipment.serial_number": "equipment.general",
     "signatures.technician": "signatures.employee",
   };
   const result = new Set([...source].map(key => aliases[key] || key).filter(key => PRINT_FIELD_BY_KEY.has(key)));
