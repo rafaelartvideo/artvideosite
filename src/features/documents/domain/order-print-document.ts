@@ -198,12 +198,14 @@ export function getOrderPrintFooterMetadata(template: PrintTemplateEditorValue, 
 
 /** A área do rodapé não pode invadir tabelas nem assinaturas, mesmo em modelos antigos. */
 export function orderPrintSafeMargins(template: PrintTemplateEditorValue) {
-  return [
-    Math.max(6, Number(template.margin_top) || 6),
-    Math.max(6, Number(template.margin_right) || 6),
-    Math.max(14, Number(template.margin_bottom) || 6),
-    Math.max(6, Number(template.margin_left) || 6),
-  ] as const;
+  // Keep the user's configured margins, including zero and fractional millimeters.
+  // The operating system/printer can still impose its own physical non-printable area.
+  const margin = (value: unknown) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.max(0, numeric) : 12;
+  };
+  return [margin(template.margin_top), margin(template.margin_right),
+    margin(template.margin_bottom), margin(template.margin_left)] as const;
 }
 
 export function openPrintWindow() {
