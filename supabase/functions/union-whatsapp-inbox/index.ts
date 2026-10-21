@@ -28,6 +28,7 @@ async function signedBridge(
   avatar = false,
   presence = false,
   exportContacts = false,
+  numberCheck = false,
 ) {
   const target = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
   const secret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
@@ -38,7 +39,7 @@ async function signedBridge(
     throw Error("bridge_not_configured");
   }
   const body = JSON.stringify({
-    action: exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
+    action: numberCheck ? "number_check" : exportContacts ? "contacts_export" : presence ? "presence_subscribe" : avatar ? "contact_avatar" : lookup ? "contact_lookup" : download ? "download_media" : media ? "send_media" : "send_text",
     organization_id: channel.organization_id, connection_id: channel.id,
     chat_jid: chatJid, body_text: bodyText, client_message_id: clientId,
     ...(media ? {media_url:media.url,media_mime:media.mime,media_name:media.name,media_type:media.type} : {}),
@@ -63,6 +64,10 @@ async function signedBridge(
     });
     const result = await response.json().catch(()=>({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) throw Error("provider_unconfirmed");
+    if (numberCheck) {
+      if(!Array.isArray(result.matches)) throw Error("number_check_invalid");
+      return JSON.stringify({requested:result.requested,matches:result.matches});
+    }
     if (presence) return "";
     if(exportContacts) {
       if(!Array.isArray(result.contacts)) throw Error("contacts_export_invalid");
@@ -124,8 +129,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["start","check_number","channel_status","departments_list","department_save","department_members","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -146,7 +151,7 @@ Deno.serve(async request => {
     const canSend=permissions.has("whatsapp.inbox.send");
     const canManage=permissions.has("whatsapp.inbox.manage");
     if (!canRead || (["contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
-      (["contacts_save","send_text","send_media","start","prepare_media"].includes(action) && !canSend && !canManage) ||
+      (["contacts_save","send_text","send_media","start","check_number","prepare_media"].includes(action) && !canSend && !canManage) ||
       (["assume","members","transfer","transfer_department"].includes(action) && !canSend && !canManage) ||
       (["return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
       return json({success:false,error:"Você não possui permissão para esta ação."},403);
@@ -159,6 +164,42 @@ Deno.serve(async request => {
         .select("is_active").eq("organization_id",org).eq("user_id",actorId).maybeSingle();
       if(operatorError) throw operatorError;
       if(!operator?.is_active) return json({success:false,error:"Seu usuário ainda não está vinculado como operador de atendimento. Solicite a ativação nas configurações."},403);
+    }
+
+    // Validate before writing contacts or conversations; no phantom chats for invalid numbers.
+    const verifyWhatsAppNumber=async (rawPhone:string) => {
+      const digits=rawPhone.replace(/\D/g,"");
+      const national=digits.startsWith("55")&&digits.length>11?digits.slice(2):digits;
+      if(!/^[1-9][0-9][0-9]{8,9}$/.test(national))
+        return {error:"Informe um telefone brasileiro com DDD válido.",status:400};
+      const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
+        .select("id,organization_id,phone").eq("organization_id",org).eq("provider","wuzapi")
+        .eq("state","connected").eq("webhook_ready",true).maybeSingle();
+      if(channelError)throw channelError;
+      if(!channel || !/^[0-9]{10,15}$/.test(String(channel.phone||"")))
+        return {error:"Conecte um número WhatsApp antes de verificar contatos.",status:409};
+      try{
+        const reply=JSON.parse(await signedBridge({id:channel.id,organization_id:org},
+          "55"+national,"",crypto.randomUUID(),undefined,undefined,
+          false,false,false,false,true));
+        const requested="55"+national;
+        const available=(Array.isArray(reply.matches)?reply.matches:[]).filter(
+          (r:Record<string,unknown>) => /^[0-9]{12,13}$/.test(String(r.phone||""))
+        ) as Array<{phone:string;verified_name?:string}>;
+        // Prefer the number typed when both representations are registered.
+        const matched=available.find(r=>r.phone===requested)||available[0];
+        if(!matched)return {error:"Este número não foi encontrado no WhatsApp. Confira o DDD e o telefone.",status:422};
+        return {channel,phone:matched.phone,alternatives:available,
+          adjusted:matched.phone!==requested,verified_name:matched.verified_name||""};
+      }catch{
+        return {error:"Não foi possível confirmar este número no WhatsApp. Nenhuma conversa foi criada.",status:503};
+      }
+    };
+    if(action==="check_number"){
+      const verified=await verifyWhatsAppNumber(String(body.phone||""));
+      if("error" in verified)return json({success:false,error:verified.error},verified.status);
+      return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
+        alternatives:verified.alternatives,verified_name:verified.verified_name});
     }
 
     if(action==="operator_list" || action==="operator_set"){
@@ -527,8 +568,8 @@ Deno.serve(async request => {
     }
     if(action==="channel_status") {
       const {data:channel,error}=await admin.from("whatsapp_channel_connections")
-        .select("id,state,webhook_ready,phone").eq("organization_id",org)
-        .eq("provider","wuzapi").maybeSingle();
+        .select("id,state,webhook_ready,phone") .eq("organization_id",org)
+        .eq("provider","wuzapi").eq("state","connected").maybeSingle();
       if(error) throw error;
       const ready=Boolean(channel && channel.state==="connected" &&
         channel.webhook_ready && /^[0-9]{10,15}$/.test(String(channel.phone||"")));
@@ -541,8 +582,11 @@ Deno.serve(async request => {
         ? inputDigits.slice(2) : inputDigits;
       if(!/^[1-9][0-9][0-9]{8,9}$/.test(national))
         return json({success:false,error:"Informe um telefone brasileiro com DDD válido."},400);
-      // The Union inbox is Brazilian: normalize country code exactly once.
-      const phone="55"+national;
+      // Resolve the actual WhatsApp identity first (including optional ninth digit).
+      // Never create a conversation when the provider rejects or cannot verify.
+      const verified=await verifyWhatsAppNumber("55"+national);
+      if("error" in verified)return json({success:false,error:verified.error},verified.status);
+      const phone=verified.phone!;
       const customerName=String(body.contact_name||"").trim().slice(0,120);
       const {data:channel,error:channelError}=await admin.from("whatsapp_channel_connections")
         .select("id,state,webhook_ready,phone").eq("organization_id",org)
