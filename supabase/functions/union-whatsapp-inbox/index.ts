@@ -1179,7 +1179,17 @@ Deno.serve(async request => {
           .select("file_url,media_key,file_sha256,file_enc_sha256,file_length,mime_type,media_type,file_name")
           .eq("message_id",messageId).eq("organization_id",org).eq("channel_id",thread.channel_id).maybeSingle();
         if(refError) throw refError;
-        if(!ref) return json({success:false,error:"Arquivo não está mais disponível no WhatsApp."},404);
+        if(!ref) {
+          // The image has no cached content and no provider descriptor.
+          // Its stale availability flag previously caused repeated HTTP 404s
+          // whenever the conversation was opened or rendered again.
+          const {error:markUnavailableError}=await admin.from("union_whatsapp_messages")
+            .update({media_available:false})
+            .eq("id",messageId).eq("organization_id",org)
+            .eq("conversation_id",thread.id).is("media_path",null);
+          if(markUnavailableError)throw markUnavailableError;
+          return json({success:true,url:null,media_available:false});
+        }
         let base64:string;
         try {
           base64=await signedBridge({id:thread.channel_id,organization_id:org},"",
