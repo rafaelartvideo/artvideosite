@@ -306,10 +306,6 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       ? input.slice(0,4)+national.slice(1)
       : national.length===8 && /^[6-9]/.test(national) ? input.slice(0,4)+"9"+national : "";
     const candidates=[input,...(alt?[alt]:[])];
-    const response=await wuzapi("/user/check",session.token,"POST",{Phone:candidates});
-    const rawUsers=response?.data?.Users ?? response?.data?.users;
-    // A malformed, empty or partial provider response cannot prove a number is absent.
-    if(!Array.isArray(rawUsers) || rawUsers.length===0)throw new Error("provider_check_unavailable");
     const sameBrazilianNumber=(left,right)=>{
       if(left===right)return true;
       if(!/^55[1-9][0-9][0-9]{8,9}$/.test(left) || !/^55[1-9][0-9][0-9]{8,9}$/.test(right))
@@ -319,34 +315,32 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       return (l.length===9 && l.startsWith("9") && l.slice(1)===r) ||
         (r.length===9 && r.startsWith("9") && r.slice(1)===l);
     };
-    const verified=[];
-    const covered=new Set();
-    for(const row of rawUsers){
-      if(!row || typeof row!=="object")continue;
-      const query=String(row.Query ?? row.query ?? "").replace(/\D/g,"");
-      const jid=String(row.JID ?? row.Jid ?? row.jid ?? "");
-      // Match the original query exactly before allowing its Brazilian alias.
-      // Otherwise both 9/non-9 negative results collapse into one candidate.
-      const lookup=query || /^([0-9]+)@s\.whatsapp\.net$/.exec(jid)?.[1] || "";
-      const match=candidates.find(candidate=>candidate===lookup) ||
-        candidates.find(candidate=>sameBrazilianNumber(candidate,lookup));
-      if(!match || typeof (row.IsInWhatsapp ?? row.isInWhatsapp)!=="boolean")continue;
-      covered.add(match);
-      const registered=(row.IsInWhatsapp ?? row.isInWhatsapp)===true;
-      if(!registered)continue;
-      // WhatsApp may normalize a Brazilian PN, including its ninth digit.
-      // Trust a confirmed JID, but never return a LID or another person's number.
-      const found=/^(55[1-9][0-9][0-9]{8,9})@s\.whatsapp\.net$/.exec(jid);
-      if(!found || !sameBrazilianNumber(match,found[1]))
-        throw new Error("provider_check_unavailable");
-      verified.push({phone:found[1],verified_name:String(row.VerifiedName??row.verifiedName??"").slice(0,120)});
+    // Check variants separately. Some installed WuzAPI versions return only
+    // one User even for a batch of two; that used to cause a false/inconclusive result.
+    for(const candidate of candidates){
+      const response=await wuzapi("/user/check",session.token,"POST",{Phone:[candidate]});
+      const users=response?.data?.Users ?? response?.data?.users;
+      if(!Array.isArray(users) || !users.length)throw new Error("provider_check_unavailable");
+      let answered=false;
+      for(const row of users){
+        if(!row || typeof row!=="object")continue;
+        const query=String(row.Query ?? row.query ?? "").replace(/\\D/g,"");
+        const jid=String(row.JID ?? row.Jid ?? row.jid ?? "");
+        const lookup=query || /^([0-9]+)@s\\.whatsapp\\.net$/.exec(jid)?.[1] || "";
+        if(!sameBrazilianNumber(candidate,lookup) ||
+          typeof (row.IsInWhatsapp ?? row.isInWhatsapp)!=="boolean")continue;
+        answered=true;
+        if((row.IsInWhatsapp ?? row.isInWhatsapp)!==true)continue;
+        const found=/^(55[1-9][0-9][0-9]{8,9})@s\\.whatsapp\\.net$/.exec(jid);
+        if(!found || !sameBrazilianNumber(candidate,found[1]))
+          throw new Error("provider_check_unavailable");
+        return {ok:true,requested:input,
+          matches:[{phone:found[1],verified_name:String(row.VerifiedName??row.verifiedName??"").slice(0,120)}],
+          status:"verified"};
+      }
+      if(!answered)throw new Error("provider_check_unavailable");
     }
-    if(verified.length){
-      const unique=[...new Map(verified.map(item=>[item.phone,item])).values()];
-      return {ok:true,requested:input,matches:unique.slice(0,2),status:"verified"};
-    }
-    // Negative only when WuzAPI explicitly checked every queried variant.
-    if(covered.size!==candidates.length)throw new Error("provider_check_unavailable");
+    // Both query forms were explicitly rejected by the WuzAPI session.
     return {ok:true,requested:input,matches:[],status:"not_registered"};
   }
   if (action === "contact_lookup") {
