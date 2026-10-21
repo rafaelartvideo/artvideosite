@@ -480,7 +480,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     const limits={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576,sticker:1048576};
     const acceptable=kind==="sticker" ? mime==="image/webp" 
       : kind==="image" ? ["image/jpeg","image/png"].includes(mime)
-      : kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg"].includes(mime)
+      : kind==="audio" ? ["audio/ogg","audio/opus","audio/mp4","audio/mpeg","audio/webm"].includes(mime)
       : kind==="video" ? ["video/mp4","video/3gpp"].includes(mime)
       : kind==="file" ? ["application/pdf","text/plain","application/zip","application/octet-stream","audio/webm",
         "application/msword","application/vnd.openxmlformats-officedocument.wordprocessingml.document",
