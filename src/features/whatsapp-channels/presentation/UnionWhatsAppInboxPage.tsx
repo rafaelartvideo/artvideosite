@@ -166,6 +166,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [newPhone, setNewPhone] = useState("");
   const [newName, setNewName] = useState("");
   const [starting, setStarting] = useState(false);
+  const [checkingNumber, setCheckingNumber] = useState(false);
+  const [numberNotice, setNumberNotice] = useState("");
+  const [numberError, setNumberError] = useState("");
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -569,7 +572,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const openFromContact = (contact:UnionWhatsAppContact):boolean => {
-    const existing=conversations.find(item=>item.chat_jid===contact.chat_jid);
+    const existing=conversations.find(item=>item.chat_jid===contact.chat_jid ||
+      (contact.contact_phone && item.contact_phone===contact.contact_phone));
     if(existing){
       setDepartmentFilter("all");
       setFilter(existing.status);
@@ -587,6 +591,22 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setNewConversationOpen(true);
     setContactsOpen(false);
     return true;
+  };
+
+  const checkNewNumber = async () => {
+    if(!activeOrganizationId || checkingNumber)return;
+    setNumberNotice("");setNumberError("");setCheckingNumber(true);
+    try {
+      const phone=brazilNumberDigits(newPhone);
+      if(!/^[1-9][0-9][0-9]{8,9}$/.test(phone))throw Error("Informe DDD e número válido.");
+      const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),
+        "check_number",{phone:"55"+phone});
+      if(!result.phone)throw Error("O WhatsApp não confirmou este número.");
+      setNewPhone(brazilPhoneMask(result.phone));
+      setNumberNotice(result.adjusted ? "Número confirmado pelo WhatsApp com ajuste do 9º dígito." :
+        "Número confirmado no WhatsApp.");
+    }catch(err){setNumberError(systemErrorMessage(err,"Não foi possível verificar este número."));}
+    finally{setCheckingNumber(false);}
   };
 
   const startConversation = async () => {
@@ -610,9 +630,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setNewConversationOpen(false);
       setNewPhone("");
       setNewName("");
+      setNumberNotice("");
+      setNumberError("");
       requestAnimationFrame(() => inputRef.current?.focus());
     } catch(reason) {
-      setError(systemErrorMessage(reason, "Não foi possível iniciar esta conversa."));
+      setNumberError(systemErrorMessage(reason, "Não foi possível iniciar esta conversa."));
     } finally { setStarting(false); }
   };
 
@@ -1166,10 +1188,17 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <div className="mt-1 flex w-full items-stretch overflow-hidden rounded-lg border border-border bg-background focus-within:border-primary">
           <span className="flex shrink-0 items-center border-r border-border bg-muted/45 px-3 text-sm font-semibold text-foreground">+55</span>
           <input id="union-new-phone" required autoFocus inputMode="tel" autoComplete="tel-national"
-            value={newPhone} onChange={event => setNewPhone(brazilPhoneMask(event.target.value))}
+            value={newPhone} onChange={event => {setNewPhone(brazilPhoneMask(event.target.value));setNumberNotice("");setNumberError("");}}
             maxLength={16} placeholder="(79) 98803-7605"
             className="min-w-0 flex-1 px-3 py-2.5 text-sm outline-none"/>
         </div>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">A verificação evita conversas com números inexistentes.</span>
+          <AdminButton variant="secondary" size="sm" disabled={checkingNumber || starting || !newPhone.trim()}
+            onClick={()=>void checkNewNumber()}>{checkingNumber?"Verificando...":"Verificar WhatsApp"}</AdminButton>
+        </div>
+        {numberNotice && <p role="status" className="mt-2 text-xs font-medium text-emerald-600">{numberNotice}</p>}
+        {numberError && <p role="alert" className="mt-2 text-xs font-medium text-red-600">{numberError}</p>}
         <label className="mt-3 block text-xs font-semibold" htmlFor="union-new-name">Nome do contato (opcional)</label>
         <input id="union-new-name" value={newName} maxLength={120} onChange={event => setNewName(event.target.value)}
           placeholder="Nome" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary"/>
