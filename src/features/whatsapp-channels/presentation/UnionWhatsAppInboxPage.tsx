@@ -754,22 +754,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
 
   const showRouting = async () => {
-    if (!selected || !activeOrganizationId || !canAction("transfer") || (!canManage && selected.assigned_to !== user?.id) || runningAction) return;
-    setRunningAction("members");
+    if (!selected || !activeOrganizationId || !canAction("transfer") ||
+      (!canManage && selected.assigned_to !== user?.id) || runningAction)return;
+    setRoutingOpen(true);
+    setRoutingLoading(true);
+    setMembers([]);
+    setTargetUserId("");
+    setTargetDepartmentId("");
+    setRoutingMode("operator");
     setError("");
     try {
-      const response = await operateUnionWhatsAppInbox(activeOrganizationId, selected.id, "members");
-      setMembers(response.members || []);
-      setTargetUserId("");
-      setTargetDepartmentId("");
-      setRoutingMode("operator");
-      await loadDepartments();
-      setRoutingOpen(true);
-    } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível carregar os atendentes."));
-    } finally {
-      setRunningAction(null);
-    }
+      const [response]=await Promise.all([
+        operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"members"),
+        loadDepartments(),
+      ]);
+      setMembers(response.members||[]);
+    }catch(reason){
+      setError(systemErrorMessage(reason,"Não foi possível carregar os destinos do encaminhamento."));
+    }finally{setRoutingLoading(false);}
   };
 
   const transfer = async () => {
@@ -780,7 +782,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         routingMode==="department"?"transfer_department":"transfer",
         routingMode==="department"?{department_id:targetDepartmentId}:{target_user_id:targetUserId});
       setRoutingOpen(false);
-      setSelectedId(null);
+      setFilter("forwarded");
       await refresh(true);
     } catch (reason) {
       setError(systemErrorMessage(reason, "Não foi possível encaminhar o atendimento."));
@@ -1395,48 +1397,43 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </div>
       </form>
     </div>}
-    {routingOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3" role="presentation"
-      onClick={event => { if (event.target === event.currentTarget) setRoutingOpen(false); }}>
-      <div role="dialog" aria-modal="true" aria-label="Encaminhar atendimento" className="w-full max-w-md rounded-xl border border-border bg-card p-5 shadow-xl">
-        <div className="flex items-center justify-between gap-3">
-          <p className="font-black text-foreground">Encaminhar atendimento</p>
-          <button type="button" onClick={() => setRoutingOpen(false)} aria-label="Fechar" className="rounded-md p-1 hover:bg-muted"><X size={18}/></button>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
+    <AdminDialog open={routingOpen && Boolean(selected)}
+      onClose={()=>{if(!routingLoading && runningAction!=="transfer")setRoutingOpen(false);}}
+      title="Encaminhar atendimento" className="w-full max-w-lg"
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" disabled={routingLoading||Boolean(runningAction)}
+          onClick={()=>setRoutingOpen(false)}>Cancelar</AdminButton>
+        <AdminButton loading={runningAction==="transfer"} disabled={routingLoading||
+          Boolean(runningAction)||!(routingMode==="department"?targetDepartmentId:targetUserId)}
+          onClick={()=>void transfer()}>Encaminhar</AdminButton>
+      </div>}>
+      {routingLoading ? <div className="flex min-h-44 items-center justify-center">
+        <LoadingState text="Carregando destinos de encaminhamento..."/>
+      </div> : <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={()=>setRoutingMode("operator")}
-            className={`rounded-lg border px-3 py-2 text-xs font-semibold ${routingMode==="operator"?"border-primary bg-primary/10 text-primary":"border-border"}`}>
-            Atendente
-          </button>
+            className={`rounded-lg border px-3 py-2.5 text-xs font-semibold ${routingMode==="operator"?"border-primary bg-primary/10 text-primary":"border-border"}`}>Atendente</button>
           <button type="button" onClick={()=>setRoutingMode("department")}
-            className={`rounded-lg border px-3 py-2 text-xs font-semibold ${routingMode==="department"?"border-primary bg-primary/10 text-primary":"border-border"}`}>
-            Departamento
-          </button>
+            className={`rounded-lg border px-3 py-2.5 text-xs font-semibold ${routingMode==="department"?"border-primary bg-primary/10 text-primary":"border-border"}`}>Departamento</button>
         </div>
-        {routingMode==="operator" ? <>
-          <label htmlFor="union-whatsapp-routing" className="mt-4 block text-xs font-semibold">Atendente *</label>
-          <select id="union-whatsapp-routing" value={targetUserId} onChange={event => setTargetUserId(event.target.value)}
-            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm">
+        {routingMode==="operator" ? <label className="block text-xs font-semibold">
+          Atendente <span className="text-red-600">*</span>
+          <select value={targetUserId} onChange={event=>setTargetUserId(event.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm">
             <option value="">Selecione um atendente</option>
-            {members.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+            {members.map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          {members.length===0 && <p className="mt-2 text-xs text-muted-foreground">Nenhum atendente autorizado.</p>}
-        </> : <>
-          <label htmlFor="union-whatsapp-department-target" className="mt-4 block text-xs font-semibold">Departamento *</label>
-          <select id="union-whatsapp-department-target" value={targetDepartmentId}
-            onChange={event=>setTargetDepartmentId(event.target.value)}
-            className="mt-2 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm">
+          {members.length===0 && <span className="mt-2 block text-xs font-normal text-muted-foreground">Nenhum atendente autorizado.</span>}
+        </label> : <label className="block text-xs font-semibold">
+          Departamento <span className="text-red-600">*</span>
+          <select value={targetDepartmentId} onChange={event=>setTargetDepartmentId(event.target.value)}
+            className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-3 text-sm">
             <option value="">Selecione o departamento</option>
             {departments.filter(item=>item.is_active).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          {departments.filter(item=>item.is_active).length===0 &&
-            <p className="mt-2 text-xs text-muted-foreground">Cadastre um departamento nas configurações.</p>}
-        </>}
-        <div className="mt-5 flex justify-end gap-2">
-          <AdminButton variant="secondary" onClick={() => setRoutingOpen(false)}>Cancelar</AdminButton>
-          <AdminButton disabled={!(routingMode==="department"?targetDepartmentId:targetUserId) || Boolean(runningAction)} onClick={() => void transfer()}>Encaminhar</AdminButton>
-        </div>
-      </div>
-    </div>}
+        </label>}
+      </div>}
+    </AdminDialog>
     {ordersOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
       role="presentation" onClick={event=>{if(event.target===event.currentTarget)setOrdersOpen(false);}}>
       <div role="dialog" aria-modal="true" aria-label="Vincular ordem de serviço"
