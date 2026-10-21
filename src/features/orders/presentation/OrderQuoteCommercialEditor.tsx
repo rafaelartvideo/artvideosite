@@ -20,11 +20,12 @@ function nonNegativeNumber(value: unknown) {
 export const quoteItemTotal = (item: OrderQuoteItem) =>
   positiveInteger(item.quantity) * nonNegativeNumber(item.unit_price) + nonNegativeNumber(item.additional_cost);
 
-function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
+function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: {
   orderId: string;
   category: "product" | "service";
   onAdd: (option: OrderCatalogOption, quantity: number, unitPrice: number) => void;
   disabled: boolean;
+  onCustomClick?: () => void;
 }) {
   const [search, setSearch] = useState("");
   const [options, setOptions] = useState<OrderCatalogOption[]>([]);
@@ -137,6 +138,14 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
       </p> : <p className="pb-1 text-[10px] text-muted-foreground">
         Estoque atual: {selected.stock ?? 0} {selected.unit}. A inclusão na OS registra a cobrança; a movimentação física continua pelo fluxo de estoque/peças.
       </p>)}
+      {isService && !disabled && <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
+        <p className="text-[10px] leading-relaxed text-muted-foreground">
+          Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.
+        </p>
+        <AdminButton variant="secondary" onClick={onCustomClick} className="h-10 shrink-0 px-4">
+          <Plus size={15}/> Avulso
+        </AdminButton>
+      </div>}
     </div>
   </Section>;
 }
@@ -172,17 +181,7 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
   return <div className="space-y-4">
     {!disabled && <div className="grid gap-4 lg:grid-cols-2">
       <QuoteItemPicker orderId={orderId} category="product" onAdd={(o,q,p)=>add("product",o,q,p)} disabled={disabled}/>
-      <div className="relative">
-        <QuoteItemPicker orderId={orderId} category="service" onAdd={(o,q,p)=>add("service",o,q,p)} disabled={disabled}/>
-        <div className="mt-2 flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
-          <p className="text-[10px] leading-relaxed text-muted-foreground">
-            Serviços sem preço podem ser adicionados normalmente. Os demais seguem o valor definido no cadastro.
-          </p>
-          <AdminButton variant="secondary" onClick={()=>setCustomOpen(true)} className="h-10 shrink-0 px-4">
-            <Plus size={15}/> Avulso
-          </AdminButton>
-        </div>
-      </div>
+      <QuoteItemPicker orderId={orderId} category="service" onAdd={(o,q,p)=>add("service",o,q,p)} disabled={disabled} onCustomClick={()=>setCustomOpen(true)}/>
     </div>}
     <Section title={<span className="inline-flex items-center gap-2">Itens do orçamento
       <span className="inline-flex min-w-6 items-center justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-[11px] font-bold text-primary">{draft.items.length}</span>
