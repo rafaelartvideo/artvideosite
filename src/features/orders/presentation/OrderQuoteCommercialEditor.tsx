@@ -137,7 +137,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
             ? "Serviço sem preço cadastrado; a inclusão não exige valor."
             : "Valor fixado no cadastro do serviço."}
       </p> : <p className="pb-1 text-[10px] text-muted-foreground">
-        Estoque atual: {selected.stock ?? 0} {selected.unit}. A inclusão na OS registra a cobrança; a movimentação física continua pelo fluxo de estoque/peças.
+        Estoque atual: {selected.stock ?? 0} {selected.unit}. Produto previsto no orçamento, sem reserva nem baixa do estoque. A disponibilidade será conferida na aprovação.
       </p>)}
       {isService && !disabled && <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
         <p className="text-[10px] leading-relaxed text-muted-foreground">
@@ -254,6 +254,7 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
           })}
         </div>}
     </Section>
+    {draft.items.some(item=>item.item_type==="product") && <p className="text-xs text-muted-foreground">Produtos no orçamento são apenas previstos: não ficam reservados, não congelam o saldo e não geram baixa no estoque antes da aprovação e do fluxo de peças.</p>}
     <Section title="Resumo do orçamento">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="space-y-3">
