@@ -68,3 +68,11 @@ export async function addOrderQuoteComment(organizationId: string, orderId: stri
     .insert({ organization_id:organizationId,service_order_id:orderId,author_id:authorId,body:body.trim() });
   if(error) throw error;
 }
+
+export async function readOrderPricingAfterApproval(organizationId: string, orderId: string) {
+  const {data,error}=await supabase.from("service_orders")
+    .select("service_price,parts_total,subtotal,discount_type,discount_percentage,discount_amount,final_total,commercial_pricing_enabled")
+    .eq("organization_id",organizationId).eq("id",orderId).single();
+  if(error) throw error;
+  return data;
+}
