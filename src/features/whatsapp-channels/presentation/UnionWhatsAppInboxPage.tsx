@@ -140,6 +140,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [protocolFilter,setProtocolFilter] = useState<{id:string;label:string}|null>(null);
   const [protocolsOpen,setProtocolsOpen] = useState(false);
   const [protocolsLoading,setProtocolsLoading] = useState(false);
+  const [protocolsMoreLoading,setProtocolsMoreLoading] = useState(false);
   const [protocols,setProtocols] = useState<UnionWhatsAppProtocol[]>([]);
   const [protocolsHasMore,setProtocolsHasMore]=useState(false);
   const [protocolsPage,setProtocolsPage]=useState(0);
@@ -385,6 +386,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     shownAccountRef.current=identity;
     conversationLoadSeq.current++;
     lastListQueryRef.current="";
+    listQueryRef.current={filter:"waiting",department:"all",search:"",page:0};
     setConversations([]);setMessagesHasMore(false);messageCursorRef.current=null;
     setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
     setMessages([]);setSelectedId(null);setSelectedFallback(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
@@ -715,7 +717,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const viewProtocols = async () => {
     if(!selected || !activeOrganizationId || !activeChannelId || !activeChannelPhone || protocolsLoading)return;
-    setProtocolsOpen(true);setProtocolsLoading(true);
+    setProtocolsOpen(true);setProtocolsLoading(true);setProtocolsMoreLoading(false);
     try{
       const [data,audit]=await Promise.all([
         listUnionWhatsAppProtocols(activeOrganizationId,selected.id,activeChannelId,activeChannelPhone),
@@ -734,9 +736,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const loadMoreProtocols=async()=>{
     if(!selected||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
-      protocolsLoading||!protocolsHasMore)return;
+      protocolsLoading||protocolsMoreLoading||!protocolsHasMore)return;
     const next=protocolsPage+1;
-    setProtocolsLoading(true);
+    setProtocolsMoreLoading(true);
     try{
       const result=await listUnionWhatsAppProtocols(activeOrganizationId,selected.id,
         activeChannelId,activeChannelPhone,next);
@@ -750,7 +752,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       setProtocolsPage(next);
     }catch(reason){
       setError(systemErrorMessage(reason,"Não foi possível consultar protocolos anteriores."));
-    }finally{setProtocolsLoading(false);}
+    }finally{setProtocolsMoreLoading(false);}
   };
   const showOrders = async () => {
     if(!activeOrganizationId || !selected)return;
@@ -1700,8 +1702,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </button>;
           })}
           {protocolsHasMore && <div className="pt-3 text-center">
-            <AdminButton variant="secondary" loading={protocolsLoading}
-              disabled={protocolsLoading} onClick={()=>void loadMoreProtocols()}>
+            <AdminButton variant="secondary" loading={protocolsMoreLoading}
+              disabled={protocolsMoreLoading} onClick={()=>void loadMoreProtocols()}>
               Carregar protocolos anteriores
             </AdminButton>
           </div>}
