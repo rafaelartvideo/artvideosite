@@ -92,10 +92,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [settlementDialogOpen, setSettlementDialogOpen] = useState(false);
-  const [settlementStep, setSettlementStep] = useState<"question" | "form" | "review">("question");
   const [lastSettledEntryId, setLastSettledEntryId] = useState<string | null>(null);
   const openSettlement = (entryId?: string) => {
-    setSettlementStep("question");
     if (entryId) onSelectEntry(entryId);
     setSettlementDialogOpen(true);
   };
@@ -346,13 +344,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         if (settlementDialogOpen) setSettlementDialogOpen(false);
         else { setLastSettledEntryId(null); onSelectEntry(null); }
       }}
-      title={settlementDialogOpen ? "Dar baixa" : isReceivable ? "Conta a receber" : "Conta a pagar"}
+      title={settlementDialogOpen ? (isReceivable ? "Receber lançamento" : "Pagar lançamento") : isReceivable ? "Conta a receber" : "Conta a pagar"}
       description={settlementDialogOpen ? (finance.detailQuery.data?.description || "Preencher baixa financeira") : (finance.detailQuery.data?.description || "Extrato e movimentações da conta")}
       minimizedDescription={[finance.detailQuery.data?.counterpart_name_snapshot, finance.detailQuery.data ? formatCurrency(finance.detailQuery.data.original_amount) : null].filter(Boolean).join(" · ")}
       className={settlementDialogOpen
-        ? `h-auto max-h-[calc(100dvh-1.5rem)] transition-[max-width,height] duration-300 ease-out ${
-            settlementStep === "form" ? "max-w-3xl" : settlementStep === "review" ? "max-w-2xl" : "max-w-xl"
-          }`
+        ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl transition-[max-width,height] duration-300 ease-out"
         : "h-[calc(100dvh-1.5rem)] max-w-5xl sm:h-[min(820px,calc(100dvh-2rem))]"}
       bodyClassName={settlementDialogOpen ? "flex-none overscroll-contain px-4 py-4 sm:px-5 sm:py-5" : "overscroll-contain"}
       bodyRef={receivableScrollRef}
@@ -371,7 +367,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           accounts={accounts}
           paymentMethods={paymentMethods}
           saving={finance.settlementMutation.isPending}
-          onStepChange={nextStep => { setSettlementStep(nextStep); if (receivableScrollRef.current) receivableScrollRef.current.scrollTop = 0; }}
           onClose={() => { if (!finance.settlementMutation.isPending) setSettlementDialogOpen(false); }}
           onSave={async (draft: FinancialSettlementDraft) => {
             await finance.settlementMutation.mutateAsync(draft);
