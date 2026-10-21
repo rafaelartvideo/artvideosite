@@ -1,5 +1,26 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 
+// Padrões espelhados no catálogo SQL: overrides por empresa são lidos em uma só consulta.
+const WHATSAPP_ROLE_DEFAULTS: Record<string,[boolean,boolean]> = {
+  view_all:[true,false],
+  view_assigned:[true,true],
+  view_queues:[true,true],
+  assume:[false,true],
+  start:[false,true],
+  send:[false,true],
+  transfer:[true,true],
+  return_queue:[true,true],
+  finish:[true,true],
+  reopen:[true,false],
+  manage_operators:[true,false],
+  manage_queues:[true,false],
+  view_contacts:[true,true],
+  manage_contacts:[true,true],
+  import_contacts:[true,false],
+  view_history:[true,false],
+  link_orders:[true,false],
+};
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization,apikey,x-client-info,content-type",
@@ -129,8 +150,8 @@ Deno.serve(async request => {
     const org=String(body.organization_id || "");
     const conversationId=String(body.conversation_id || "");
     const action=String(body.action || "");
-    if (!uuid(org) || (!["start","check_number","channel_status","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
-      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
+    if (!uuid(org) || (!["start","check_number","channel_status","role_permissions_list","role_permissions_save","departments_list","department_save","department_members","department_set_member","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action) && !uuid(conversationId)) ||
+      !["assume","return_queue","finish","reopen","mark_read","send_text","send_media","media_view","members","transfer","start","check_number","channel_status","role_permissions_list","role_permissions_save","prepare_media","resolve_contact","contact_avatar","customer_match","departments_list","department_save","department_members","department_set_member","transfer_department","handoff_history","order_options","order_link","presence_subscribe","operator_list","operator_set","queue_default","contacts_list","contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","contacts_save","contacts_avatar"].includes(action)) {
       return json({success:false,error:"Operação inválida."},400);
     }
     const scoped=createClient(baseUrl,publicKey,{
@@ -147,20 +168,88 @@ Deno.serve(async request => {
     if(permissionError) return json({success:false,error:"Acesso negado."},403);
     const permissions=new Set((Array.isArray(permissionRows)?permissionRows:[])
       .map((row:Record<string,unknown>)=>String(row.permission_key || "")));
-    // O perfil é atribuído individualmente ao atendimento, não herdado do cargo do CRM.
-    // A permissão de visualização do módulo continua obrigatória.
+    // Autorização efetiva = papel ativo + permissão do CRM + matriz da empresa.
     const {data:myBinding,error:myBindingError}=await admin.from("union_whatsapp_operator_bindings")
       .select("staff_role,is_active").eq("organization_id",org).eq("user_id",actorId).maybeSingle();
     if(myBindingError)throw myBindingError;
-    const staffRole = myBinding?.is_active === true ? myBinding.staff_role : null;
+    const staffRole=myBinding?.is_active===true ? myBinding.staff_role as "manager"|"operator"|"both" : null;
     const canRead=permissions.has("whatsapp.inbox.view") && Boolean(staffRole);
-    const canSend=canRead && permissions.has("whatsapp.inbox.send") && (staffRole==="operator" || staffRole==="both");
-    const canManage=canRead && (staffRole==="manager" || staffRole==="both");
-    if (!canRead ||
-      (["contacts_import","contacts_import_device","contacts_import_batch","contacts_apply_names","order_link","department_save","department_members","department_set_member","handoff_history","operator_list","operator_set","queue_default"].includes(action) && !canManage) ||
-      (["send_text","send_media","start","check_number","prepare_media","assume"].includes(action) && !canSend) ||
-      (["contacts_save","members","transfer","transfer_department","return_queue","finish","reopen"].includes(action) && !canSend && !canManage)) {
-      return json({success:false,error:"Seu perfil no atendimento não autoriza esta ação."},403);
+    if(!canRead)return json({success:false,error:"Usuário sem vínculo ativo no atendimento."},403);
+    const {data:overrides,error:rolePermissionError}=await admin.from("union_whatsapp_role_permissions")
+      .select("staff_role,capability,enabled").eq("organization_id",org);
+    if(rolePermissionError)throw rolePermissionError;
+    const overridesMap=new Map((overrides||[]).map(row=>[row.staff_role+":"+row.capability,row.enabled===true]));
+    const roleAllowed=(role:"manager"|"operator",capability:string)=>{
+      const defaults=WHATSAPP_ROLE_DEFAULTS[capability];
+      if(!defaults)return false;
+      return overridesMap.get(role+":"+capability) ?? defaults[role==="manager"?0:1];
+    };
+    const allowed=(capability:string)=>{
+      if(!staffRole)return false;
+      if(["send","start","assume"].includes(capability) && !permissions.has("whatsapp.inbox.send"))return false;
+      if(capability==="link_orders" && !permissions.has("orders.details.view"))return false;
+      return (staffRole!=="operator" && roleAllowed("manager",capability)) ||
+        (staffRole!=="manager" && roleAllowed("operator",capability));
+    };
+    const capabilities=Object.fromEntries(Object.keys(WHATSAPP_ROLE_DEFAULTS).map(key=>[key,allowed(key)]));
+    const canManage=allowed("view_all");
+    const canSend=allowed("send");
+    const required:Record<string,string>={
+      role_permissions_list:"manage_operators",role_permissions_save:"manage_operators",
+      operator_list:"manage_operators",operator_set:"manage_operators",
+      department_save:"manage_queues",department_members:"manage_queues",
+      department_set_member:"manage_queues",queue_default:"manage_queues",
+      contacts_list:"view_contacts",contacts_avatar:"view_contacts",
+      contacts_save:"manage_contacts",contacts_import:"import_contacts",
+      contacts_import_device:"import_contacts",contacts_import_batch:"import_contacts",
+      contacts_apply_names:"import_contacts",check_number:"start",start:"start",
+      assume:"assume",send_text:"send",send_media:"send",prepare_media:"send",
+      members:"transfer",transfer:"transfer",transfer_department:"transfer",
+      return_queue:"return_queue",finish:"finish",reopen:"reopen",
+      handoff_history:"view_history",order_options:"link_orders",order_link:"link_orders",
+    };
+    if(required[action] && !allowed(required[action])){
+      return json({success:false,error:"Seu perfil não possui permissão para esta operação."},403);
+    }
+
+    if(action==="role_permissions_list" || action==="role_permissions_save"){
+      const {data:definitions,error:definitionError}=await admin.from("union_whatsapp_permission_definitions")
+        .select("key,label,category,manager_default,operator_default,sort_order")
+        .order("sort_order");
+      if(definitionError)throw definitionError;
+      let savedOverrides=overridesMap;
+      if(action==="role_permissions_save"){
+        const role=String(body.staff_role||"");
+        const edits=body.permissions;
+        if(role!=="manager" && role!=="operator")
+          return json({success:false,error:"Perfil inválido para configuração."},400);
+        if(!Array.isArray(edits) || edits.length!==(definitions||[]).length ||
+          edits.some((item:Record<string,unknown>)=>!item ||
+            typeof item.capability!=="string" || !(item.capability in WHATSAPP_ROLE_DEFAULTS) ||
+            typeof item.enabled!=="boolean") ||
+          new Set(edits.map((item:{capability:string})=>item.capability)).size!==edits.length)
+          return json({success:false,error:"Envie todas as permissões válidas do perfil."},400);
+        const proposed=new Map(overridesMap);
+        edits.forEach((item:{capability:string;enabled:boolean})=>
+          proposed.set(role+":"+item.capability,item.enabled));
+        const keepManagement=(proposed.get("manager:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[0]) ||
+          (proposed.get("operator:manage_operators") ?? WHATSAPP_ROLE_DEFAULTS.manage_operators[1]);
+        if(!keepManagement)return json({success:false,error:
+          "Mantenha Gerenciar operadores e perfis habilitado em pelo menos um perfil para evitar bloqueio das configurações."},409);
+        const {error:saveError}=await admin.from("union_whatsapp_role_permissions").upsert(
+          edits.map((item:{capability:string;enabled:boolean})=>({
+            organization_id:org,staff_role:role,capability:item.capability,enabled:item.enabled,
+            updated_at:new Date().toISOString(),updated_by:actorId,
+          })),
+          {onConflict:"organization_id,staff_role,capability"});
+        if(saveError)throw saveError;
+        savedOverrides=proposed;
+      }
+      return json({success:true,capability_definitions:(definitions||[]).map(def=>({
+        key:def.key,label:def.label,category:def.category,sort_order:def.sort_order,
+        manager:savedOverrides.get("manager:"+def.key) ?? def.manager_default,
+        operator:savedOverrides.get("operator:"+def.key) ?? def.operator_default,
+      }))});
     }
 
     // Validate before writing contacts or conversations; no phantom chats for invalid numbers.
@@ -613,7 +702,7 @@ Deno.serve(async request => {
       if(error) throw error;
       const ready=Boolean(channel && channel.state==="connected" &&
         channel.webhook_ready && /^[0-9]{10,15}$/.test(String(channel.phone||"")));
-      return json({success:true,channel_connected:ready,staff_role:staffRole,
+      return json({success:true,channel_connected:ready,staff_role:staffRole,capabilities,
         channel_id:ready?channel?.id:null,channel_phone:ready?channel?.phone:null});
     }
     if(action==="start") {
@@ -727,9 +816,9 @@ Deno.serve(async request => {
       thread.account_phone!==activeChannel.phone)
       return json({success:false,error:"Este canal WhatsApp não está conectado."},409);
     if(!canManage){
-      const assigned=thread.assigned_to===actorId;
+      const assigned=allowed("view_assigned") && thread.assigned_to===actorId;
       let inQueue=false;
-      if(thread.status==="waiting" && !thread.assigned_to){
+      if(allowed("view_queues") && thread.status==="waiting" && !thread.assigned_to){
         if(!thread.department_id) inQueue=true;
         else{
           const {data:membership,error:membershipError}=await admin.from("union_whatsapp_department_members")
