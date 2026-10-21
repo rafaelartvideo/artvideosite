@@ -6,6 +6,7 @@ import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolb
 import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
+import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 
 const dateLabel = (value: string | null) =>
   value ? new Date(value).toLocaleString("pt-BR") : "Ainda não verificado";
@@ -31,13 +32,14 @@ function WhatsAppIcon() {
   </svg>;
 }
 
-type ChannelSection = "configuration" | "connections" | "departments" | "queues" | "operators";
+type ChannelSection = "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions";
 const channelSections: Array<{ id: ChannelSection; label: string }> = [
   { id: "configuration", label: "Configuração do canal" },
   { id: "connections", label: "Conexões" },
   { id: "departments", label: "Departamentos" },
   { id: "queues", label: "Filas" },
   { id: "operators", label: "Operadores" },
+  { id: "permissions", label: "Perfis e Permissões" },
 ];
 
 export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration" }: { onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection }) {
@@ -357,7 +359,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
             </div>}
         </AdminCardContent>
       </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
-      <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> :
+      <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> : section === "permissions" ?
+      <WhatsAppRolePermissions/> :
       <AdminCard square>
         <div className="overflow-x-auto">
           <table className="min-w-[850px] w-full">
