@@ -40,6 +40,8 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
 
   const selectedCount = value.selectedFields.size;
   const selectedSections = useMemo(() => PRINT_FIELD_REGISTRY.filter(section => section.fields.some(field => value.selectedFields.has(field.key))), [value.selectedFields]);
+  const alphabeticalSections = useMemo(() => [...PRINT_FIELD_REGISTRY]
+    .sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})), []);
   const ttlPreset = TTL_PRESETS.has(value.signature_link_ttl_hours) ? String(value.signature_link_ttl_hours) : "custom";
 
   const setSignatureConfig = (patch: Partial<PrintTemplateEditorValue>) => setValue(current => normalizeEditorValue({ ...current, ...patch }));
@@ -198,10 +200,10 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
 
         <AdminCard>
           <AdminCardHeader>
-            <div><h3 className="font-black text-[#0d1b2e]">Campos</h3><p className="mt-1 text-xs text-[#5a6a82]">Marque os dados que farão parte deste documento. As assinaturas incluem identificação e data abaixo da linha.</p></div>
+            <div><h3 className="font-black text-[#0d1b2e]">Campos</h3><p className="mt-1 text-xs text-[#5a6a82]">Selecione os campos em ordem alfabética. Equipamento reúne automaticamente os dados e campos extras do tipo; as assinaturas mostram somente CPF quando disponível.</p></div>
             <span className="rounded-full bg-[#edf3ff] px-2.5 py-1 text-xs font-bold text-[#0057e7]">{selectedCount} selecionados</span>
           </AdminCardHeader>
-          <div className="divide-y divide-[#0d1b2e]/7">{PRINT_FIELD_REGISTRY.map(section => {
+          <div className="divide-y divide-[#0d1b2e]/7">{alphabeticalSections.map(section => {
             const open = expanded.has(section.key);
             const count = section.fields.filter(field => value.selectedFields.has(field.key)).length;
             const allSelected = count === section.fields.length;
@@ -218,7 +220,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving, sa
                   {open ? <ChevronDown size={16} className="shrink-0 text-[#5a6a82]" /> : <ChevronRight size={16} className="shrink-0 text-[#5a6a82]" />}
                 </button>
               </div>
-              {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{section.fields.map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} disabled={isRequiredSignatureField(value, field.key)} onChange={() => toggleField(field.key)} />)}</div>}
+              {open && <div className="grid gap-x-6 gap-y-1 border-t border-[#0d1b2e]/5 bg-[#f8fafc] px-5 py-3 md:grid-cols-2">{[...section.fields].sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})).map(field => <CheckOption key={field.key} checked={value.selectedFields.has(field.key)} label={field.label} disabled={isRequiredSignatureField(value, field.key)} onChange={() => toggleField(field.key)} />)}</div>}
             </div>;
           })}</div>
         </AdminCard>
