@@ -304,7 +304,7 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     // Brazilian phone numbers can be represented with/without the ninth digit.
     const alt=national.length===9 && national[0]==="9"
       ? input.slice(0,4)+national.slice(1)
-      : national.length===8 ? input.slice(0,4)+"9"+national : "";
+      : national.length===8 && /^[6-9]/.test(national) ? input.slice(0,4)+"9"+national : "";
     const candidates=[input,...(alt?[alt]:[])];
     const response=await wuzapi("/user/check",session.token,"POST",{Phone:candidates});
     const rawUsers=response?.data?.Users ?? response?.data?.users;
