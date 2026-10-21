@@ -76,10 +76,6 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange}:{
   const [success,setSuccess]=useState("");
   const [showExecution,setShowExecution]=useState(false);
 
-  const reload=async()=>{
-    const [next,notes]=await Promise.all([readOrderQuote(org,orderId),listOrderQuoteComments(org,orderId)]);
-    setProposal(next);setDraft(next?snapshot(next):emptyOrderQuoteDraft());setComments(notes);
-  };
   useEffect(()=>{
     if(!org||!orderId)return;
     let active=true;
