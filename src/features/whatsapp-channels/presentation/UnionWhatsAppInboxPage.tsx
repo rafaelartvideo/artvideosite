@@ -1385,11 +1385,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 </div>
                 <p className="text-xs text-muted-foreground">
                    {formatWhatsAppPhone(selected.contact_phone)}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
-                   <span className={`ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
+                   <span className="ml-2 inline-flex max-w-full min-w-0 items-center gap-1 align-middle">
+                   <span className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
                      {hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
                    </span>
-                   {hasForwarding(selected) && <span className="mx-1 text-muted-foreground">›</span>}
+                   {hasForwarding(selected) && <span className="shrink-0 text-muted-foreground">›</span>}
                    {forwardedBadge(selected)}
+                   </span>
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
                      Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
                      <span className="ml-2 font-semibold text-emerald-600">Online</span>}
