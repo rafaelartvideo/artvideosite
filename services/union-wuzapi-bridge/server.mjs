@@ -6,6 +6,7 @@ import { createServer, request as httpRequest } from "node:http";
 import { randomBytes, createHmac, createHash, timingSafeEqual } from "node:crypto";
 import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { spawn } from "node:child_process";
 
 const host = "127.0.0.1";
 const port = Number(process.env.UNION_BRIDGE_PORT || 19080);
@@ -23,6 +24,45 @@ const contactsCache = new Map();
 const avatarCache = new Map();
 const presenceSubscriptions = new Map();
 const uuid = value => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value || "");
+// WuzAPI voice notes must contain an Ogg/Opus bitstream, not MP4/AAC with a
+// renamed MIME. Conversion happens only on this local private VPS bridge.
+// No third-party conversion service, token or media is exposed.
+const isOggOpus = bytes => bytes.subarray(0,4).toString("ascii")==="OggS"
+  && bytes.subarray(0,8192).includes(Buffer.from("OpusHead"));
+const toVoiceNote = async (input,mime) => {
+  if(mime==="audio/ogg" && isOggOpus(input)) return input;
+  if(input.length>16*1048576) throw new Error("media_too_large");
+  const ffmpeg=process.env.UNION_FFMPEG_PATH || "ffmpeg";
+  return await new Promise((resolve,reject)=>{
+    let settled=false;
+    const fail=message=>{if(!settled){settled=true;reject(new Error(message));}};
+    const convert=spawn(ffmpeg,[
+      "-hide_banner","-loglevel","error","-nostdin","-i","pipe:0",
+      "-map","0:a:0","-vn","-ac","1","-ar","48000",
+      "-c:a","libopus","-application","voip","-b:a","32k",
+      "-f","ogg","pipe:1"
+    ],{stdio:["pipe","pipe","ignore"]});
+    const parts=[];
+    let size=0;
+    const timer=setTimeout(()=>{convert.kill("SIGKILL");fail("audio_conversion_timeout");},20000);
+    convert.stdout.on("data",chunk=>{
+      size+=chunk.length;
+      if(size>16*1048576){convert.kill("SIGKILL");fail("media_too_large");}
+      else parts.push(chunk);
+    });
+    convert.on("error",()=>{clearTimeout(timer);fail("audio_encoder_unavailable");});
+    convert.on("close",code=>{
+      clearTimeout(timer);
+      if(settled)return;
+      const result=Buffer.concat(parts);
+      if(code!==0||!isOggOpus(result))return fail("audio_conversion_failed");
+      settled=true;
+      resolve(result);
+    });
+    convert.stdin.on("error",()=>undefined);
+    convert.stdin.end(input);
+  });
+};
 const reply = (res, status, payload) => {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" });
   res.end(JSON.stringify(payload));
@@ -166,11 +206,13 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       Url:source.href,MediaKey:mediaKey,Mimetype:mime,FileSHA256:fileSHA256,
       FileEncSHA256:String(fileEncSHA256||""),FileLength:size,
     });
-    const raw=result?.data;
+    const raw=result?.data??result;
+    // WuzAPI /chat/download* returns {data:{Data:"data:audio/ogg;..."}},
+    // not only the lowercase "data" or the specialized "Audio" field.
     const encoded=typeof raw==="string" ? raw
-      : String(raw?.Base64 || raw?.base64 || raw?.Image || raw?.Audio ||
+      : String(raw?.Data || raw?.Base64 || raw?.base64 || raw?.Image || raw?.Audio ||
         raw?.Video || raw?.Document || raw?.Media || raw?.data || "");
-    const base64=encoded.replace(/^data:[^,]*,/, "");
+    const base64=encoded.replace(/^data:[^,]*,/, "").replace(/\s/g,"");
     if(!base64 || base64.length>7100000 || !/^[A-Za-z0-9+/]+={0,2}$/.test(base64))
       throw new Error("media_download_unavailable");
     return {ok:true,base64};
@@ -458,11 +500,13 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(declared>limits[kind]) throw new Error("media_too_large");
     const buffer=Buffer.from(await response.arrayBuffer());
     if(!buffer.length || buffer.length>limits[kind]) throw new Error("media_too_large");
-    const dataUrl="data:"+mime+";base64,"+buffer.toString("base64");
+    const audioBytes=kind==="audio" ? await toVoiceNote(buffer,mime) : null;
+    const outgoingMime=kind==="audio"?"audio/ogg; codecs=opus":mime;
+    const dataUrl="data:"+outgoingMime+";base64,"+(audioBytes||buffer).toString("base64");
     const fields={Phone:jid,Id:idText.replaceAll("-","").toUpperCase()};
     let resource,path;
     if(kind==="image"){path="/chat/send/image";resource={...fields,Image:dataUrl,Caption:caption};}
-    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:mime,PTT:mime==="audio/ogg" || mime==="audio/opus"};}
+    else if(kind==="audio"){path="/chat/send/audio";resource={...fields,Audio:dataUrl,MimeType:"audio/ogg; codecs=opus",PTT:true};}
     else if(kind==="video"){path="/chat/send/video";resource={...fields,Video:dataUrl,Caption:caption};}
     else if(kind==="sticker"){if(caption.trim())throw new Error("sticker_caption_unsupported");path="/chat/send/sticker";resource={...fields,Sticker:dataUrl};}
     else {path="/chat/send/document";resource={...fields,Document:dataUrl,FileName:name,MimeType:mime};}
@@ -593,7 +637,8 @@ createServer(async (req, res) => {
     const status = code === "bad_request" ? 400 : code === "session_missing" ? 404 :
       ["qr_unavailable", "session_not_ready", "wuzapi_check_session_offline", "wuzapi_check_session_missing"].includes(code) ? 409 : 502;
     console.error("union-bridge:", status, code);
-    const known=new Set(["wuzapi_check_session_offline","wuzapi_check_session_missing",
+    const known=new Set(["audio_encoder_unavailable","audio_conversion_failed","audio_conversion_timeout",
+      "wuzapi_check_session_offline","wuzapi_check_session_missing",
       "wuzapi_check_auth_failed","wuzapi_check_endpoint_missing","wuzapi_check_lookup_failed",
       "wuzapi_check_socket_closed","wuzapi_check_timeout","wuzapi_check_unreachable",
       "wuzapi_check_internal_error","wuzapi_check_request_rejected"]);
