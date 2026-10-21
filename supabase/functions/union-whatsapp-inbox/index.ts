@@ -986,9 +986,12 @@ Deno.serve(async request => {
       !/^[0-9]{10,15}$/.test(String(activeChannel.phone||"")) ||
       thread.account_phone!==activeChannel.phone)
       return json({success:false,error:"Este canal WhatsApp não está conectado."},409);
+    // The queue-access result is also used by mark_read below. Keep it in
+    // function scope: declaring it inside the manager guard caused repeated
+    // ReferenceError/HTTP 500 for waiting conversations opened by operators.
+    let inQueue=false;
     if(!canManage){
       const assigned=allowed("view_assigned") && thread.assigned_to===actorId;
-      let inQueue=false;
       if(allowed("view_queues") && thread.status==="waiting" && !thread.assigned_to){
         if(!thread.department_id) inQueue=true;
         else{
