@@ -676,7 +676,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       (contact.contact_phone && item.contact_phone===contact.contact_phone));
     if(existing){
       setDepartmentFilter("all");
-      setFilter(existing.status);
+      setFilter(hasForwarding(existing)?"forwarded":existing.status==="abandoned"?"waiting":existing.status);
       setSelectedId(existing.id);
       setContactsOpen(false);
       return true;
