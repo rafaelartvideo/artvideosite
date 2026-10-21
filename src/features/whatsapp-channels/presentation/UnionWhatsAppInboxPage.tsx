@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
@@ -51,6 +51,82 @@ const compactDate = (value: string | null) => value && !Number.isNaN(new Date(va
   : "";
 const clock = (value: string) => new Date(value).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
+const voiceTime=(value:number)=>{
+  if(!Number.isFinite(value) || value<0)return "0:00";
+  const total=Math.floor(value);
+  return Math.floor(total/60)+":"+String(total%60).padStart(2,"0");
+};
+const voiceBars=[8,13,19,12,25,16,9,22,15,28,12,19,26,15,10,22,17,29,12,18,25,11,17,23,14,20,10,16];
+
+function WhatsAppVoicePlayer({src,loading=false,error="",onRetry,compact=false}:{
+  src?:string|null;loading?:boolean;error?:string;onRetry?:()=>void;compact?:boolean;
+}) {
+  const audioRef=useRef<HTMLAudioElement|null>(null);
+  const [playing,setPlaying]=useState(false);
+  const [duration,setDuration]=useState(0);
+  const [elapsed,setElapsed]=useState(0);
+  const [rate,setRate]=useState(1);
+  const [playbackError,setPlaybackError]=useState("");
+  useEffect(()=>{
+    setPlaying(false);setDuration(0);setElapsed(0);setPlaybackError("");
+  },[src]);
+  const toggle=async()=>{
+    const audio=audioRef.current;
+    if(!audio || !src)return;
+    if(!audio.paused){audio.pause();return;}
+    setPlaybackError("");
+    try {audio.playbackRate=rate;await audio.play();}
+    catch {setPlaybackError("Não foi possível reproduzir este áudio.");}
+  };
+  const seek=(value:number)=>{
+    const audio=audioRef.current;
+    if(audio && duration>0){audio.currentTime=value;setElapsed(value);}
+  };
+  const progress=duration>0?Math.min(100,elapsed/duration*100):0;
+  return <div className={`min-w-[230px] max-w-full ${compact?"w-full":"w-[300px]"}`}>
+    <div className="flex items-center gap-2.5">
+      <button type="button" disabled={!src || loading}
+        onClick={()=>void toggle()} aria-label={playing?"Pausar áudio":"Reproduzir áudio"}
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:opacity-50">
+        {loading ? <LoaderCircle size={19} className="animate-spin"/> :
+          playing ? <Pause size={19} fill="currentColor"/> : <Play size={19} fill="currentColor" className="ml-0.5"/>}
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="relative flex h-8 items-center justify-between gap-[2px]" aria-hidden="true">
+          {voiceBars.map((h,i)=><span key={i}
+            className={`w-[3px] min-w-0 flex-1 rounded-full ${i/voiceBars.length*100<=progress?"bg-emerald-600 dark:bg-emerald-400":"bg-emerald-700/30 dark:bg-emerald-200/40"}`}
+            style={{height:h}}/>)}
+          <input type="range" aria-label="Posição do áudio" min={0} max={duration||1} step={0.1}
+            value={Math.min(elapsed,duration||1)} disabled={!src||duration<=0}
+            onChange={event=>seek(Number(event.target.value))}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-default"/>
+        </div>
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px] text-emerald-900/70 dark:text-emerald-100/75">
+          <span className="tabular-nums">{voiceTime(elapsed)} / {duration?voiceTime(duration):"--:--"}</span>
+          <button type="button" disabled={!src} aria-label="Alterar velocidade de reprodução"
+            title="Velocidade de reprodução"
+            onClick={()=>{const next=rate===1?1.5:rate===1.5?2:1;setRate(next);if(audioRef.current)audioRef.current.playbackRate=next;}}
+            className="rounded-full bg-emerald-600/10 px-2 py-0.5 font-bold text-emerald-900 disabled:opacity-50 dark:text-emerald-100">
+            {rate}x
+          </button>
+        </div>
+      </div>
+    </div>
+    {src && <audio ref={audioRef} src={src} preload="metadata"
+      onLoadedMetadata={event=>{const d=event.currentTarget.duration;if(Number.isFinite(d))setDuration(d);}}
+      onDurationChange={event=>{const d=event.currentTarget.duration;if(Number.isFinite(d))setDuration(d);}}
+      onTimeUpdate={event=>setElapsed(event.currentTarget.currentTime)}
+      onPlay={()=>setPlaying(true)} onPause={()=>setPlaying(false)}
+      onEnded={()=>{setPlaying(false);setElapsed(0);}}
+      onError={()=>setPlaybackError("O arquivo de áudio não pôde ser reproduzido.")}/>}
+    {(error||playbackError) && <div className="mt-2 flex items-center gap-2 text-xs text-red-700 dark:text-red-300">
+      <span className="min-w-0 flex-1">{error||playbackError}</span>
+      {onRetry && <button type="button" onClick={onRetry} className="shrink-0 underline">Tentar novamente</button>}
+    </div>}
+    {!src && !loading && !error && <p className="mt-1 text-[10px] opacity-70">Áudio indisponível</p>}
+  </div>;
+}
+
 function MessageBody({ message, organizationId, onMediaLoad }: {
   message: UnionWhatsAppMessage; organizationId: string; onMediaLoad?: () => void;
 }) {
@@ -78,10 +154,16 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
   useEffect(() => {
     setMediaUrl("");
     setMediaError("");
-    if (hasStoredMedia && ["image","sticker"].includes(message.message_type)) void loadMedia();
+    if (hasStoredMedia && (["image","sticker","audio"].includes(message.message_type) ||
+      (message.message_type==="file" && message.media_mime?.startsWith("audio/")))) void loadMedia();
     // Avoid repeatedly fetching large files when switching conversation.
   }, [message.id, hasStoredMedia, message.message_type, organizationId]);
 
+  if(message.message_type==="audio" ||
+    (message.message_type==="file" && message.media_mime?.startsWith("audio/"))) {
+    return <WhatsAppVoicePlayer src={mediaUrl} loading={mediaLoading} error={mediaError}
+      onRetry={()=>void loadMedia()}/>;
+  }
   if (message.message_type === "text" || message.message_type === "unknown") {
     return <p className="text-sm leading-5"><WhatsAppFormattedText text={message.body_text || "Mensagem"}/></p>;
   }
@@ -96,10 +178,6 @@ function MessageBody({ message, organizationId, onMediaLoad }: {
         onLoad={onMediaLoad} loading="lazy" className="max-h-80 w-auto max-w-full rounded-md object-contain"/></a>}
     {mediaUrl && message.message_type === "video" && <video src={mediaUrl} preload="metadata" controls
       className="max-h-80 w-full rounded-md" />}
-    {mediaUrl && message.message_type === "audio" && <audio src={mediaUrl} controls preload="metadata"
-      className="w-full min-w-[240px] max-w-full" />}
-    {mediaUrl && message.message_type === "file" && message.media_mime?.startsWith("audio/") &&
-      <audio src={mediaUrl} controls preload="metadata" className="min-w-[240px] max-w-full"/>}
     {mediaUrl && message.message_type === "file" && <div className="flex items-center gap-3 rounded-md border border-border/70 px-3 py-2 text-xs">
       <FileText size={17}/><a href={mediaUrl} target="_blank" rel="noopener noreferrer" className="font-bold hover:underline">Abrir {message.media_name || "documento"}</a>
       <a href={mediaUrl} target="_blank" rel="noopener noreferrer" download={message.media_name || undefined} className="font-semibold hover:underline">Baixar</a>
