@@ -366,11 +366,17 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
           typeof (row.IsInWhatsapp ?? row.isInWhatsapp)!=="boolean")continue;
         answered=true;
         if((row.IsInWhatsapp ?? row.isInWhatsapp)!==true)continue;
-        const found=/^(55[1-9][0-9][0-9]{8,9})@s\.whatsapp\.net$/.exec(jid);
-        if(!found || !sameBrazilianNumber(candidate,found[1]))
+        // Recent WhatsApp / Whatsmeow versions resolve registered phones to
+        // an opaque LID (the same LID for both valid 9-digit variants).
+        // LID is an account identity, NOT a phone number: never convert it
+        // into a Brazilian PN or drop its @lid suffix.
+        const pn=/^(55[1-9][0-9][0-9]{8,9})@s\.whatsapp\.net$/.exec(jid);
+        const lid=/^[0-9]{5,20}@lid$/.test(jid);
+        if(!lid && (!pn || !sameBrazilianNumber(candidate,pn[1])))
           throw new Error("provider_check_unavailable");
         matches.push({
-          phone:found[1],
+          phone:pn ? pn[1] : candidate,
+          jid,
           query:candidate,
           verified_name:String(row.VerifiedName ?? row.verifiedName ?? "").slice(0,120),
         });
@@ -383,11 +389,11 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       // If both queries resolve to one JID, the returned phone is canonical.
       // If they resolve to different JIDs, keep their identities separate:
       // prefer the exact number typed instead of silently merging contacts.
-      const unique=[...new Map(positives.map(item=>[item.phone+"|"+item.query,item])).values()];
+      const unique=[...new Map(positives.map(item=>[item.jid+"|"+item.query,item])).values()];
       return {
         ok:true,requested:input,matches:unique.slice(0,2),
         status:"verified",
-        distinct_identities:new Set(positives.map(item=>item.phone)).size>1,
+        distinct_identities:new Set(positives.map(item=>item.jid)).size>1,
       };
     }
     // Never claim "not registered" when a provider query timed out or failed.
