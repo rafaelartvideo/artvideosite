@@ -1311,7 +1311,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               const selected = item.id === selectedId;
               const name = item.contact_name || item.contact_phone || "Contato";
               return <button key={item.id} type="button" onClick={() => setSelectedId(item.id)}
-                className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-primary/50 bg-primary-soft/45 hover:bg-primary-soft/65" : "bg-card hover:bg-muted/55"}`}>
+                className={`box-border flex w-full min-w-0 items-start gap-3 border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 ${selected ? "border-l-[3px] border-l-primary bg-primary-soft" : item.unread_count > 0 ? "border-l-[3px] border-l-emerald-500/70 bg-emerald-500/10 hover:bg-emerald-500/15" : "bg-card hover:bg-muted/55"}`}>
                 <WhatsAppContactAvatar key={item.id} name={name} src={avatars[item.id]} selected={selected}
                   onError={()=>setAvatars(old=>({...old,[item.id]:null}))}/>
                 <span className="min-w-0 flex-1">
@@ -1322,7 +1322,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <span className="block truncate text-[11px] text-muted-foreground">{formatWhatsAppPhone(item.contact_phone)}</span>
                   <span className="mt-1.5 flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-[11px] text-muted-foreground">{item.last_message || "Conversa recebida"}</span>
-                    {item.unread_count > 0 && <span className="rounded-full bg-blue-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
+                    {item.unread_count > 0 && !selected && <span className="rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.unread_count}</span>}
                   </span>
                   {queueOnly(item) && (queueSettings.show_wait_time||queueSettings.show_queue_position) &&
                     <span className={`mt-1.5 inline-flex items-center rounded-md border px-2 py-1 text-[10px] font-bold ${waitingClasses(waitingMinutes(item.queue_entered_at||item.created_at,clockNow),queueSettings.warning_minutes,queueSettings.critical_minutes)}`}>
@@ -1372,11 +1372,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    <span className={`ml-2 inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
                      {hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
                    </span>
+                   {hasForwarding(selected) && <span className="mx-1 text-muted-foreground">›</span>}
+                   {forwardedBadge(selected)}
                    {selected.contact_presence==="online" && selected.contact_presence_at &&
                      Date.now()-new Date(selected.contact_presence_at).getTime()<120000 &&
                      <span className="ml-2 font-semibold text-emerald-600">Online</span>}
                  </p>
-                 {forwardedBadge(selected)}
                  {(selected.contact_presence==="composing"||selected.contact_presence==="recording") &&
                    selected.contact_presence_at &&
                    clockNow-Date.parse(selected.contact_presence_at)<12000 && clockNow>=Date.parse(selected.contact_presence_at) &&
@@ -1430,7 +1431,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <div className="relative min-h-0 flex-1">
               <div ref={scrollRef} onScroll={handleMessagesScroll}
                 className="h-full overflow-y-auto overscroll-contain bg-muted/25 px-3 py-4 [scrollbar-gutter:stable] sm:px-5"
-                style={{ backgroundImage: "url('/assets/crm/whatsapp-chat-pattern.svg')", backgroundRepeat:"repeat", backgroundSize:"270px 270px" }}>
+                style={{ backgroundImage: "url('/assets/crm/whatsapp-chat-pattern.svg')", backgroundRepeat:"repeat", backgroundSize:"270px 270px", overflowAnchor:"none" }}>
+              <div ref={messagesContentRef} className="min-h-full">
               {messagesHasMore && <div className="mb-3 flex justify-center">
                 <button type="button" disabled={messagesOlderLoading}
                   onClick={()=>void loadOlderMessages()}
@@ -1438,11 +1440,12 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   {messagesOlderLoading?"Carregando mensagens anteriores...":"Carregar mensagens anteriores"}
                 </button>
               </div>}
-              {messagesLoading && messages.length === 0 ? <LoadingState text="Carregando mensagens..."/>
+              {messagesLoading && messages.length === 0 && !pending.some(item=>item.conversationId===selected.id) ? <LoadingState text="Carregando mensagens..."/>
               : messages.length === 0 && pending.filter(item => item.conversationId === selected.id).length === 0 ?
                 <p className="p-5 text-center text-xs text-muted-foreground">Nenhuma mensagem armazenada nesta conversa.</p>
               : <div className="mx-auto flex max-w-4xl flex-col gap-1">
-                {messages.map(message => <div key={message.id} className={`mt-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
+                {messages.filter(message=>!pending.some(item=>item.conversationId===selected.id &&
+                   item.providerMessageId && item.providerMessageId===message.provider_message_id)).map(message => <div key={message.id} className={`mt-2 flex ${message.direction === "outgoing" ? "justify-end" : "justify-start"}`}>
                   <div className={`max-w-[88%] rounded-lg px-3 py-2 shadow-sm sm:max-w-[72%] ${message.direction === "outgoing" ? "bg-emerald-100 text-emerald-950 dark:bg-emerald-950/55 dark:text-emerald-50" : "border border-border bg-card text-foreground"}`}>
                     
                     <MessageBody message={message} organizationId={activeOrganizationId || ""} onMediaLoad={() => { if (followLatestRef.current) scrollToLatest("auto"); }}/>
@@ -1461,17 +1464,30 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <div className="max-w-[88%] rounded-lg bg-emerald-100 px-3 py-2 text-emerald-950 shadow-sm dark:bg-emerald-950/55 dark:text-emerald-50 sm:max-w-[72%]">
                       {item.fileName && <p className="mb-1 flex items-center gap-2 text-xs"><Paperclip size={13}/>{item.fileName}</p>}
                       {item.text && <p className="text-sm"><WhatsAppFormattedText text={item.text}/></p>}
-                      <div className="mt-1 flex items-center justify-end gap-1.5 text-[10px] opacity-70">
+                      <div className="mt-1 flex min-h-4 items-center justify-end gap-1.5 text-[10px] opacity-70">
                         {item.status === "sending" ? <><LoaderCircle size={12} className="animate-spin"/> Enviando</>
+                          : item.status === "sent" ? <>
+                            {messages.find(message=>message.provider_message_id===item.providerMessageId)?.delivery_status==="read"
+                              ? <CheckCheck size={13} className="text-sky-600" aria-label="Visualizada"/>
+                              : messages.find(message=>message.provider_message_id===item.providerMessageId)?.delivery_status==="delivered"
+                                ? <CheckCheck size={13} aria-label="Entregue"/>
+                                : <Check size={13} aria-label="Enviada"/>}
+                            {clock(item.sentAt)}
+                          </>
                           : <span role="alert" className="text-red-700 dark:text-red-300">{item.error || "Envio não confirmado"}</span>}
                       </div>
-                      {item.status !== "sending" && <p className="mt-1 text-[10px] opacity-70">
+                      {(item.status === "unknown" || item.status === "failed") && <p className="mt-1 text-[10px] opacity-70">
                         Confira no WhatsApp antes de tentar outro envio.
                       </p>}
                     </div>
                   </div>)}
               </div>}
               </div>
+              </div>
+              {(runningAction==="assume" || runningAction==="finish") && <div
+                className="absolute inset-0 z-30 flex items-center justify-center bg-card/75 backdrop-blur-[1px]">
+                <LoadingState text={runningAction==="assume"?"Assumindo atendimento...":"Finalizando atendimento..."}/>
+              </div>}
               {showJumpToLatest && <button type="button" onClick={() => scrollToLatest("smooth")}
                 className="absolute bottom-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
                 aria-label="Ir para a última mensagem" title="Ir para a última mensagem"><ChevronDown size={19}/></button>}
