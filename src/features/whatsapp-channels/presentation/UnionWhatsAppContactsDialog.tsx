@@ -380,21 +380,21 @@ export function UnionWhatsAppContactsDialog({
     if(!canEdit || busy)return;
     if(name.trim().length<2){setError("Informe um nome com pelo menos dois caracteres.");return;}
     const number=normalizePhone(phone);
-    if(creating && !/^[1-9][0-9][0-9]{8,9}$/.test(number)){
+    if((creating || (selected?.contact_phone && "55"+number!==selected.contact_phone) || (!selected?.contact_phone && number)) && !/^[1-9][0-9][0-9]{8,9}$/.test(number)){
       setError("Informe DDD e telefone válido.");return;
     }
     setBusy(true);setError("");setNotice("");
     try{
       const result=await operateUnionWhatsAppInbox(organizationId,crypto.randomUUID(),"contacts_save",
         creating?{phone:"55"+number,display_name:name.trim(),account_phone:accountPhone}:
-          {chat_jid:selected?.chat_jid,display_name:name.trim(),account_phone:accountPhone});
+          {chat_jid:selected?.chat_jid,phone:number?"55"+number:undefined,display_name:name.trim(),account_phone:accountPhone});
       const saved=result.contact;
       if(saved){
         setCreating(false);
-        setSelected(old=>old?{...old,display_name:name.trim()}:
-          {...saved,contact_phone:"55"+number,imported_name:null,profile_name:null,updated_at:new Date().toISOString()});
+        setSelected(old=>old?{...old,...saved,display_name:name.trim()}:
+          {...saved,contact_phone:saved.contact_phone||"55"+number,imported_name:null,profile_name:null,updated_at:new Date().toISOString()});
       }
-      setNotice("Nome salvo na agenda da Union.");
+      setNotice("Contato salvo na agenda da Union com número verificado.");
       await refresh(search,page);
       onSaved();
     }catch(reason){setError(systemErrorMessage(reason,"Não foi possível salvar o contato."));}
@@ -495,7 +495,7 @@ export function UnionWhatsAppContactsDialog({
         <div className="min-h-0 overflow-y-auto p-4 sm:p-5">
           {!selected && !creating ? <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-sm text-muted-foreground">
             <ContactRound size={34}/>
-            <p>Selecione um contato para ver os dados e editar o nome.</p>
+            <p>Selecione um contato para editar o nome e o número.</p>
             <p className="max-w-xs text-xs">A Union preserva o nome salvo aqui mesmo que o perfil público da pessoa seja diferente.</p>
           </div> : <div className="space-y-4">
             <div className="flex items-center gap-3">
@@ -514,7 +514,7 @@ export function UnionWhatsAppContactsDialog({
                 onChange={event=>setName(event.target.value)} maxLength={160} placeholder="Nome do contato"
                 className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm outline-none focus:border-primary disabled:opacity-60"/>
             </div>
-            {creating && <div>
+            {(creating || selected) && <div>
               <label htmlFor="union-contact-phone" className="block text-xs font-semibold">WhatsApp *</label>
               <div className="mt-1 flex overflow-hidden rounded-lg border border-border">
                 <span className="border-r border-border bg-muted px-3 py-2.5 text-sm font-semibold">+55</span>
