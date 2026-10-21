@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Role = "manager" | "operator";
@@ -20,6 +19,8 @@ type Values = Record<Role, Record<string, boolean>>;
 const roles: Role[] = ["manager", "operator"];
 const categories = ["Conversas", "Administração"] as const;
 const emptyValues = (): Values => ({ manager: {}, operator: {} });
+const notifyError=(message:string)=>{if(message)notifyAdmin(message,"error");};
+const notifySuccess=(message:string)=>{if(message)notifyAdmin(message,"success");};
 
 export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => void; onClose?: () => void }) {
   const { activeOrganizationId } = useAuth();
@@ -28,13 +29,11 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
   const [draft, setDraft] = useState<Values>(emptyValues);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const fetchPermissions = useCallback(async () => {
     if (!activeOrganizationId) return;
     setLoading(true);
-    setError("");
+    
     try {
       const result = await operateUnionWhatsAppInbox(
         activeOrganizationId, crypto.randomUUID(), "role_permissions_list",
@@ -49,7 +48,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
       setBaseline(initial);
       setDraft({ manager: { ...initial.manager }, operator: { ...initial.operator } });
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível carregar as permissões dos perfis."));
+      notifyError(systemErrorMessage(reason, "Não foi possível carregar as permissões dos perfis."));
     } finally {
       setLoading(false);
     }
@@ -68,7 +67,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
       ...current,
       [role]: { ...current[role], [key]: enabled },
     }));
-    setNotice("");
+    
   };
 
   const discard = () => {
@@ -76,15 +75,15 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
       manager: { ...baseline.manager },
       operator: { ...baseline.operator },
     });
-    setNotice("");
-    setError("");
+    
+    
   };
 
   const save = async () => {
     if (!activeOrganizationId || saving || !pendingCount) return;
     setSaving(true);
-    setError("");
-    setNotice("");
+    
+    
     const saved: Role[] = [];
     try {
       for (const role of roles) {
@@ -103,11 +102,11 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
         saved.push(role);
       }
       if (saved.length) {
-        setNotice("Permissões atualizadas com sucesso.");
+        notifySuccess("Permissões atualizadas com sucesso.");
         onSaved?.();
       }
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível salvar todas as permissões.") +
+      notifyError(systemErrorMessage(reason, "Não foi possível salvar todas as permissões.") +
         (saved.length ? " As alterações do perfil anterior foram salvas." : ""));
       if (saved.length) onSaved?.();
     } finally {
@@ -116,12 +115,6 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
   };
 
   const content = <div className="space-y-3">
-    {error && <p role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-sm text-red-600">
-      <CircleAlert size={16} className="mt-0.5 shrink-0"/>{error}
-    </p>}
-    {notice && <p role="status" className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-      <CheckCircle2 size={16}/>{notice}
-    </p>}
     {loading ? <LoadingState text="Carregando permissões dos perfis..."/> :
       rows.length ? <AdminCard square>
         <div className="overflow-x-auto">
@@ -174,7 +167,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
             </tbody>)}
           </table>
         </div>
-      </AdminCard> : !error && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma permissão cadastrada.</p>}
+      </AdminCard> : <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma permissão cadastrada.</p>}
   </div>;
 
   const footer = <div className="flex flex-wrap items-center justify-between gap-3">
