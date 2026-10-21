@@ -1313,6 +1313,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               <p className="mt-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
                 <CheckCircle2 size={12} className="mr-1 inline"/>
                 {verifiedContact.nameSource==="agenda"?"Salvo na agenda da Union":
+                 verifiedContact.nameSource==="agenda_whatsapp"?"Salvo na agenda do WhatsApp":
                  verifiedContact.nameSource==="conversa"?"Nome do atendimento anterior":
                  verifiedContact.nameSource==="whatsapp"?"Nome disponível no WhatsApp":
                  "Conta confirmada no WhatsApp"}
