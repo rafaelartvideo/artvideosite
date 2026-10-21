@@ -24,6 +24,7 @@ export type PrintOrderContext = {
   partRequests?: any[];
   history?: any[];
   printedBy?: string | null;
+  employeeCpf?: string | null;
   company?: {
     name?: string | null;
     subtitle?: string | null;
@@ -227,13 +228,20 @@ export function openPrintWindow() {
 
 export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, context: PrintOrderContext, autoPrint = false) {
   template = { ...template, selectedFields: normalizePrintSelectedFields(template.selectedFields) };
+  const sectionSequence = template.document_type === "ORCAMENTO"
+    ? ["customer", "order", "equipment", "quote_items", "quote", "signatures"]
+    : null;
   const sections = PRINT_FIELD_REGISTRY
     .filter((section) => section.key !== "system")
     .map((section) => ({
       ...section,
       fields: section.fields.filter((field) => template.selectedFields.has(field.key)),
     }))
-    .filter((section) => section.fields.length > 0);
+    .filter((section) => section.fields.length > 0)
+    .sort((a,b)=> sectionSequence
+      ? (sectionSequence.indexOf(a.key) < 0 ? 100 : sectionSequence.indexOf(a.key))
+        - (sectionSequence.indexOf(b.key) < 0 ? 100 : sectionSequence.indexOf(b.key))
+      : 0);
 
   // Os metadados do rodapé pertencem à margem física de CADA página,
   // nunca à última seção do corpo (onde podiam ser cortados pelas assinaturas).
@@ -256,18 +264,49 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
   ]);
   const sectionHtml = sections.map((section) => {
     if (section.key === "signatures") {
-      const signatures = section.fields.map((field) => {
-        const customer = context.order?.customer || {};
-        const isCustomer = field.key === "signatures.customer";
-        const name = isCustomer ? customer.full_name || customer.legal_name || customer.trade_name : employeeSignatureName(context);
-        const document = isCustomer ? customer.cnpj || customer.document : null;
+      const signatures = section.fields.map(field => {
+        const cpf = field.key === "signatures.customer"
+          ? context.order?.customer?.document || context.order?.customer?.cpf || null
+          : context.employeeCpf || null;
         return "<div class='signature'><div class='signature-line'></div>" +
           "<div class='signature-label'>" + escapeHtml(field.label) + "</div>" +
-          (name && name !== "—" ? "<div class='signature-name'>" + escapeHtml(name) + "</div>" : "") +
-          (document ? "<div>" + escapeHtml(formatDocument(document)) + "</div>" : "") +
-          "<div class='signature-date'>Data: " + escapeHtml(formatDateOnly(todayDateOnly(), "—")) + "</div></div>";
+          (cpf && normalizeDigits(cpf).length===11
+            ? "<div class='signature-document'>CPF: " + escapeHtml(formatDocument(cpf)) + "</div>"
+            : "") + "</div>";
       }).join("");
       return "<section class='signature-section'><div class='signatures'>" + signatures + "</div></section>";
+    }
+    if (section.key === "equipment") {
+      const order = context.order || {};
+      const extras = Array.isArray(order.technical_values) ? order.technical_values : [];
+      const fields: Array<{label:string;value:unknown}> = [];
+      if (section.fields.some(field=>field.key==="equipment.general")) {
+        const add = (label:string,value:unknown) => {
+          if (value!==null && value!==undefined && String(value).trim()!=="" && String(value)!=="—")
+            fields.push({label,value});
+        };
+        add("Equipamento",nameOf(order.equipment_type));
+        add("Marca",nameOf(order.equipment_brand));
+        add("Modelo",nameOf(order.equipment_model)!=="—" ? nameOf(order.equipment_model) : order.model);
+        add("Número de série",order.serial_number);
+        for (const extra of extras) {
+          const label=String(extra.label_snapshot || extra.field_key_snapshot || "").trim();
+          const value=extra.field_type_snapshot==="number" ? extra.value_number : extra.value_text;
+          if(label && value!==null && value!==undefined && String(value).trim()!=="" &&
+            !fields.some(field=>field.label.toLocaleLowerCase("pt-BR")===label.toLocaleLowerCase("pt-BR")))
+            add(label,value);
+        }
+      }
+      for(const field of section.fields) {
+        if(field.key==="equipment.general")continue;
+        const value=resolveField(field.key,context);
+        if(value && value!=="—")fields.push({label:field.label,value});
+      }
+      if(!fields.length)fields.push({label:"Equipamento",value:"Não informado"});
+      return "<section class='equipment-section'><h2>"+escapeHtml(section.label)+
+        "</h2><div class='grid columns-2'>" +
+        fields.map(field=>"<div class='field'><span>"+escapeHtml(field.label)+"</span><strong>"+
+          escapeHtml(field.value)+"</strong></div>").join("")+"</div></section>";
     }
     if (section.key === "checklists") {
       const stages = (context.checklist?.stages || []).filter(stage => template.selectedFields.has("checklists." + stage.stage_type_snapshot));
@@ -299,6 +338,29 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
       }).join("");
     }
     const columnCount = Math.min(section.fields.length, section.defaultColumns);
+    if (section.key === "quote") {
+      const quoteFields = new Map(section.fields.map(field=>[field.key,field]));
+      const renderField=(key:string) => {
+        const field=quoteFields.get(key);
+        if(!field)return "";
+        const value=resolveField(key,context);
+        return "<div class='field'><span>"+escapeHtml(field.label)+"</span><strong>"+
+          escapeHtml(value)+"</strong></div>";
+      };
+      const row=(keys:string[],columns:number,kind:string) => {
+        const html=keys.filter(key=>quoteFields.has(key)).map(renderField).join("");
+        if(!html)return "";
+        const count=keys.filter(key=>quoteFields.has(key)).length;
+        return "<div class='quote-row quote-row-"+kind+" columns-"+Math.min(columns,Math.max(2,count))+"'>"+html+"</div>";
+      };
+      const rows=[
+        row(["quote.diagnosis","quote.proposed_solution"],2,"technical"),
+        row(["quote.valid_until"],2,"validity"),
+        row(["quote.products_total","quote.services_total","quote.subtotal"],3,"totals"),
+        row(["quote.discount_amount","quote.total"],2,"final"),
+      ].join("");
+      return "<section class='quote-section'><h2>"+escapeHtml(section.label)+"</h2>"+rows+"</section>";
+    }
     if (section.key === "quote_items") {
       const numeric = (key: string) => key !== "quote_items.title" ? " class='numeric'" : "";
       const rows = (context.quote?.items || []).map(item => "<tr>" + section.fields.map(field => {
@@ -311,7 +373,13 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
       return "<section class='section-list'><h2>"+escapeHtml(section.label)+"</h2><table class='items-table'><thead><tr>"+
         section.fields.map(field=>"<th scope='col'"+numeric(field.key)+">"+escapeHtml(field.label)+"</th>").join("")+
         "</tr></thead><tbody>"+(rows || "<tr><td colspan='"+section.fields.length+"'>Nenhum item incluído.</td></tr>")+
-        "</tbody></table></section>";
+        "</tbody>"+(context.quote
+          ? "<tfoot><tr class='subtotal-row'><th scope='row' colspan='"+Math.max(1,section.fields.length-1)+
+            "'>Subtotal</th><td class='numeric'>"+
+            escapeHtml(money((context.quote.items||[]).reduce((sum,item)=>
+              sum+Number(item.quantity||0)*Number(item.unit_price||0)+Number(item.additional_cost||0),0)))+
+            "</td></tr></tfoot>"
+          : "")+"</table></section>";
     }
     if (section.key === "used_parts") {
       const numeric = (key: string) => key !== "used_parts.items" ? " class='numeric'" : "";
