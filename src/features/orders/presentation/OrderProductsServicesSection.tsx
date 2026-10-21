@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { NumberStepper, CatalogResults } from "./OrderCommercialControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Camera, CheckCircle2, ChevronDown, ChevronUp, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
+import { CalendarDays, Camera, CheckCircle2, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { InlineLoading, LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
