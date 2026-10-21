@@ -137,7 +137,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
             ? "Serviço sem preço cadastrado; a inclusão não exige valor."
             : "Valor fixado no cadastro do serviço."}
       </p> : <p className="pb-1 text-[10px] text-muted-foreground">
-        Estoque atual: {selected.stock ?? 0} {selected.unit}. Produto previsto no orçamento, sem reserva nem baixa do estoque. A disponibilidade será conferida na aprovação.
+        Estoque atual: {selected.stock ?? 0} {selected.unit}. Produto previsto no orçamento, sem reserva nem baixa do estoque. A disponibilidade pode mudar até a aprovação.
       </p>)}
       {isService && !disabled && <div className="flex items-center justify-between gap-3 border-t border-border pb-1 pt-3">
         <p className="text-[10px] leading-relaxed text-muted-foreground">
