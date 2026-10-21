@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingDots, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
@@ -42,6 +42,10 @@ const channelSections: Array<{ id: ChannelSection; label: string }> = [
   { id: "permissions", label: "Perfis e Permissões" },
 ];
 
+// Exibe sucesso e erro no balão global do CRM (sucesso: 3s; erro: 6s).
+const showSuccess = (message: string) => { if (message) notifyAdmin(message, "success"); };
+const showError = (message: string) => { if (message) notifyAdmin(message, "error"); };
+
 export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration" }: { onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection }) {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
@@ -53,10 +57,11 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const channelRef = useRef<WhatsAppChannel | null>(null);
   const [loading, setLoading] = useState(true);
   const [action, setAction] = useState<string | null>(null);
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
   const [qrOpen, setQrOpen] = useState(false);
   const [createConnectionOpen, setCreateConnectionOpen] = useState(false);
+  const [creatingWhatsApp, setCreatingWhatsApp] = useState(false);
+  const [connectionName, setConnectionName] = useState("");
+  const registerInFlight = useRef(false);
   const [statusError, setStatusError] = useState("");
   const [qr, setQr] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
@@ -65,6 +70,9 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const qrInFlight = useRef(false);
 
   useEffect(() => { channelRef.current = channel; }, [channel]);
+  // Falhas de sincronização são notificações, não avisos fixos dentro da tabela.
+  // O texto é mantido no estado para não repetir o mesmo erro a cada polling.
+  useEffect(() => { if (statusError) showError(statusError); }, [statusError]);
 
   const applyChannel = useCallback((next: WhatsAppChannel) => {
     const previous = channelRef.current;
@@ -77,8 +85,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       setQr(null);
       setStatusError("");
       if (previous?.state !== "connected") {
-        setError("");
-        setNotice(next.webhook_ready ? "WhatsApp conectado e recebimento ativo." : "Número conectado. Configurando o recebimento automaticamente.");
+        
+        showSuccess(next.webhook_ready ? "WhatsApp conectado e recebimento ativo." : "Número conectado. Configurando o recebimento automaticamente.");
       }
     }
   }, []);
@@ -92,7 +100,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       return;
     }
     setLoading(true);
-    setError("");
+    
     try {
       const result = await operateWhatsAppChannel(activeOrganizationId, "list");
       const all=result.channels||(result.channel?[result.channel]:[]);
@@ -100,7 +108,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       channelRef.current = result.channel ?? null;
       setChannel(result.channel ?? null);
     } catch (e) {
-      setError(systemErrorMessage(e, "Não foi possível carregar os canais."));
+      showError(systemErrorMessage(e, "Não foi possível carregar os canais."));
     } finally {
       setLoading(false);
     }
@@ -113,6 +121,8 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setQr(null);
     setQrOpen(false);
     setCreateConnectionOpen(false);
+    setCreatingWhatsApp(false);
+    setConnectionName("");
     setStatusError("");
     setConfirmLogout(false);
     setConfirmSwitch(false);
@@ -211,31 +221,31 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const perform = useCallback(async (operation: "activate" | "status" | "qr" | "disconnect" | "logout" | "webhook_setup", connectionId?:string) => {
     if (!activeOrganizationId || (!canManage && operation !== "status") || action) return;
     setAction(operation);
-    setError("");
-    if (operation !== "status") setNotice("");
+    
+    if (operation !== "status") 
     try {
       const result = await operateWhatsAppChannel(activeOrganizationId, operation, connectionId || channelRef.current?.id);
       if (result.channel) applyChannel(result.channel);
       if (operation === "qr") setQr(result.qr || null);
-      if (operation === "activate") { setNotice("WhatsApp ativado. Agora basta conectar seu número."); setSection("connections"); }
-      if (operation === "webhook_setup") setNotice("Recebimento autenticado por HMAC configurado. Envie uma mensagem de outro número para testar a entrega.");
+      if (operation === "activate") { showSuccess("WhatsApp ativado. Agora basta conectar seu número."); setSection("connections"); }
+      if (operation === "webhook_setup") showSuccess("Recebimento autenticado por HMAC configurado. Envie uma mensagem de outro número para testar a entrega.");
       if (operation === "disconnect") {
         setQr(null);
         setQrOpen(false);
         setConfirmLogout(false);
         setStatusError("");
-        setNotice("WhatsApp desconectado. Sessão preservada: use Reconectar para voltar sem QR Code.");
+        showSuccess("WhatsApp desconectado. Sessão preservada: use Reconectar para voltar sem QR Code.");
       }
       if (operation === "logout") {
         setQr(null);
         setQrOpen(false);
         setConfirmSwitch(false);
         setStatusError("");
-        setNotice("Sessão encerrada. Para conectar outro número, use Nova conexão e escaneie o QR Code.");
+        showSuccess("Sessão encerrada. Para conectar outro número, use Nova conexão e escaneie o QR Code.");
       }
       if (operation === "status") setStatusError("");
     } catch (e) {
-      setError(systemErrorMessage(e, "Não foi possível comunicar com o WhatsApp."));
+      showError(systemErrorMessage(e, "Não foi possível comunicar com o WhatsApp."));
     } finally {
       setAction(null);
     }
@@ -246,9 +256,9 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     if (!activeOrganizationId || !chosen || !canManage || action) return;
     channelRef.current=chosen;
     setChannel(chosen);
-    setError("");
+    
     setStatusError("");
-    setNotice("");
+    
     setQr(null);
     setQrOpen(true);
     setAction("connect");
@@ -258,7 +268,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       const connection = await operateWhatsAppChannel(activeOrganizationId, "connect", chosen.id);
       if (connection.channel) applyChannel(connection.channel);
       if (connection.logged_in) {
-        setNotice("Sessão reconectada. O mesmo número e seus atendimentos foram recuperados.");
+        showSuccess("Sessão reconectada. O mesmo número e seus atendimentos foram recuperados.");
         return;
       }
       try {
@@ -268,10 +278,10 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         // A retained session can reconnect after /session/connect returns.
         // Don't abort the entire flow on a temporary unavailable QR.
         setQr(null);
-        setNotice("Conexão iniciada. Aguardando a sessão ou um QR Code válido.");
+        showSuccess("Conexão iniciada. Aguardando a sessão ou um QR Code válido.");
       }
     } catch (e) {
-      setError(systemErrorMessage(e, "Não foi possível iniciar o QR Code."));
+      showError(systemErrorMessage(e, "Não foi possível iniciar o QR Code."));
       setQrOpen(false);
     } finally {
       setAction(null);
@@ -279,20 +289,36 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   };
 
   const addConnection = async () => {
-    if(!activeOrganizationId || !canManage || action || channels.length>=3)return;
-    setCreateConnectionOpen(false);
-    setAction("register");setError("");setNotice("");
+    const label=connectionName.trim().replace(/\s+/g," ");
+    if(!activeOrganizationId || !canManage || action || registerInFlight.current ||
+      channels.length>=3 || !creatingWhatsApp || label.length<2)return;
+    registerInFlight.current=true;
+    setAction("register");
     try{
-      const result=await operateWhatsAppChannel(activeOrganizationId,"register",undefined,
-        "WhatsApp "+(channels.length+1));
+      const result=await operateWhatsAppChannel(activeOrganizationId,"register",undefined,label);
       if(result.channels)setChannels(result.channels);
       if(result.channel){channelRef.current=result.channel;setChannel(result.channel);}
+      const hasOtherActive=channels.some(item=>item.state==="connected" || item.state==="connecting");
+      setCreateConnectionOpen(false);
+      setCreatingWhatsApp(false);
+      setConnectionName("");
       setSection("connections");
-      setNotice("Conexão cadastrada. Desconecte o número atual para conectar outro. Sessões anteriores preservadas.");
+      showSuccess(hasOtherActive
+        ? `Sessão "${label}" criada. Desconecte a conexão atual antes de conectar esse número.`
+        : `Sessão "${label}" criada. Clique em Conectar para ler o QR Code.`);
     }catch(e){
-      setError(systemErrorMessage(e,"Não foi possível cadastrar a conexão."));
-      void load();
-    }finally{setAction(null);}
+      showError(systemErrorMessage(e,"Não foi possível cadastrar a sessão de WhatsApp."));
+    }finally{
+      registerInFlight.current=false;
+      setAction(null);
+    }
+  };
+
+  const closeCreateConnection=()=>{
+    if(action==="register")return;
+    setCreateConnectionOpen(false);
+    setCreatingWhatsApp(false);
+    setConnectionName("");
   };
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar canais de atendimento nesta empresa.</div>;
 
@@ -315,8 +341,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         </button>)}
       </div>
     </nav>
-    {error && <div role="alert" className="rounded-xl border border-red-500/25 bg-red-500/5 p-4 text-sm text-red-600 dark:text-red-400">{error}</div>}
-    {notice && <div role="status" className="rounded-xl border border-emerald-500/25 bg-emerald-500/5 p-4 text-sm text-emerald-700 dark:text-emerald-400">{notice}</div>}
     {loading && (section === "configuration" || section === "connections") ? <LoadingState text="Carregando canais..." /> : section === "configuration" ?
       <AdminCard>
         <AdminCardContent className="space-y-5">
@@ -419,9 +443,6 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         {enabled && channel?.state === "connecting" && <p role="status" className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
           O WhatsApp está confirmando a conexão. A verificação ocorre automaticamente.
         </p>}
-        {statusError && <div role="alert" className="border-t border-border px-4 py-3 text-xs text-red-600 dark:text-red-400">
-          {statusError}
-        </div>}
       </AdminCard>}
     <AdminStickyToolbar className="justify-between">
       <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
@@ -436,30 +457,67 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       </AdminButton>}
     </AdminStickyToolbar>
 
-    <AdminDialog open={createConnectionOpen} onClose={() => setCreateConnectionOpen(false)}
-      title="Nova conexão" description="Selecione a rede social que deseja conectar."
-      footer={<AdminButton variant="secondary" onClick={() => setCreateConnectionOpen(false)}>Cancelar</AdminButton>}>
-      <div className="grid gap-3 p-5 sm:grid-cols-3">
-        <button type="button" disabled={!canStartConnection}
-          onClick={() => void addConnection()}
-          className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 py-5 text-primary transition-colors hover:border-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50">
-          <WhatsAppIcon/>
-          <span className="text-sm font-bold">WhatsApp</span>
-          <span className="text-xs font-medium">Disponível</span>
-        </button>
-        <button type="button" disabled title="Instagram · Em breve"
-          className="flex min-h-32 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 px-4 py-5 text-muted-foreground opacity-65">
-          <Instagram size={19}/>
-          <span className="text-sm font-semibold">Instagram</span>
-          <span className="text-xs">Em breve</span>
-        </button>
-        <button type="button" disabled title="Facebook · Em breve"
-          className="flex min-h-32 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 px-4 py-5 text-muted-foreground opacity-65">
-          <Facebook size={19}/>
-          <span className="text-sm font-semibold">Facebook</span>
-          <span className="text-xs">Em breve</span>
-        </button>
-      </div>
+    <AdminDialog open={createConnectionOpen} onClose={closeCreateConnection}
+      title="Nova conexão"
+      description={creatingWhatsApp ? "Personalize a sessão de WhatsApp antes de cadastrá-la." :
+        "Selecione a rede social que deseja conectar."}
+      footer={<div className="flex flex-wrap justify-end gap-2">
+        {creatingWhatsApp && action!=="register" &&
+          <AdminButton variant="secondary" onClick={()=>setCreatingWhatsApp(false)}>Voltar</AdminButton>}
+        <AdminButton variant="secondary" disabled={action==="register"} onClick={closeCreateConnection}>Cancelar</AdminButton>
+        {creatingWhatsApp && <AdminButton disabled={Boolean(action) || connectionName.trim().length<2}
+          loading={action==="register"} onClick={()=>void addConnection()}>Criar sessão</AdminButton>}
+      </div>}>
+      {action==="register" ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 px-3 py-8 text-center"
+        role="status" aria-live="polite" aria-busy="true">
+        <span className="text-sm font-semibold text-foreground">Criando sessão de WhatsApp...</span>
+        <LoadingDots/>
+        <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
+          Preparando a conexão ${connectionName.trim()}. O cadastro será confirmado automaticamente.
+        </p>
+      </div> : creatingWhatsApp ?
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
+            <span className="rounded-lg bg-emerald-500/10 p-2 text-emerald-600"><WhatsAppIcon/></span>
+            <div>
+              <p className="text-sm font-bold text-foreground">WhatsApp</p>
+              <p className="text-xs text-muted-foreground">Nome de identificação da sessão</p>
+            </div>
+          </div>
+          <label className="block text-sm font-semibold text-foreground">
+            Nome da sessão <span className="text-red-600">*</span>
+            <input type="text" maxLength={80} autoFocus value={connectionName}
+              onChange={event=>setConnectionName(event.target.value)}
+              onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();void addConnection();}}}
+              placeholder="Ex.: Atendimento principal"
+              className="mt-1.5 w-full rounded-lg border border-border bg-background px-3 py-2.5 text-sm font-normal outline-none focus:border-primary"/>
+          </label>
+          {channels.some(item=>item.state==="connected" || item.state==="connecting") &&
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              Você pode cadastrar esta sessão agora. Para conectá-la, primeiro desconecte a sessão ativa.
+            </p>}
+        </div> :
+        <div className="grid gap-3 sm:grid-cols-3">
+          <button type="button" disabled={!canStartConnection}
+            onClick={()=>{setCreatingWhatsApp(true);setConnectionName("");}}
+            className="flex min-h-32 flex-col items-center justify-center gap-2 rounded-xl border border-primary/35 bg-primary/10 px-4 py-5 text-primary transition-colors hover:border-primary hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50">
+            <WhatsAppIcon/>
+            <span className="text-sm font-bold">WhatsApp</span>
+            <span className="text-xs font-medium">Disponível</span>
+          </button>
+          <button type="button" disabled title="Instagram · Em breve"
+            className="flex min-h-32 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 px-4 py-5 text-muted-foreground opacity-65">
+            <Instagram size={19}/>
+            <span className="text-sm font-semibold">Instagram</span>
+            <span className="text-xs">Em breve</span>
+          </button>
+          <button type="button" disabled title="Facebook · Em breve"
+            className="flex min-h-32 cursor-not-allowed flex-col items-center justify-center gap-2 rounded-xl border border-border bg-muted/25 px-4 py-5 text-muted-foreground opacity-65">
+            <Facebook size={19}/>
+            <span className="text-sm font-semibold">Facebook</span>
+            <span className="text-xs">Em breve</span>
+          </button>
+        </div>}
     </AdminDialog>
     <AdminDialog open={qrOpen} onClose={() => { setQrOpen(false); setQr(null); }}
       title="Conectar número" description="No WhatsApp, acesse Aparelhos conectados e leia o QR Code."
