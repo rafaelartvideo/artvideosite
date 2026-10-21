@@ -325,6 +325,10 @@ export function OrderDetailsPage(props: Props) {
     if (needsChecklist && !hasPermission("orders.section.checklists")) {
       throw new Error("Você não possui permissão para imprimir os checklists desta OS.");
     }
+    const quote = template.document_type==="ORCAMENTO" || [...configuredTemplate.selectedFields].some(key=>key.startsWith("quote."))
+      ? await readOrderQuote(detail.organization_id,detail.id) : null;
+    if (template.document_type==="ORCAMENTO" && (!quoteWorkflowEnabled || !quote || quote.status==="draft" || quote.status==="renegotiation"))
+      throw new Error("Envie a proposta para aprovação antes de imprimir o orçamento.");
 
     const checklist = needsChecklist ? await getOrderChecklist(detail.id) : null;
     const checklistMedia = (checklist?.stages || [])
@@ -341,6 +345,7 @@ export function OrderDetailsPage(props: Props) {
       configuredTemplate,
       context: {
         order: detail,
+        quote,
         checklist,
         checklistPhotoUrls,
         usedItems: detailUsedItems,
@@ -545,7 +550,7 @@ export function OrderDetailsPage(props: Props) {
               disabled={printingWarranty} className="flex cursor-pointer items-center gap-3">
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#eef5ff] text-[#0057e7]"><FileText size={15}/></span>
               <span className="min-w-0"><span className="block truncate font-semibold">{printingWarranty ? "Preparando certificado..." : "Certificado de garantia"}</span><span className="block text-[10px] text-[#5a6a82]">Imprimir ou salvar em PDF · OS concluída</span></span>
-            </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.map(template => {
+            </DropdownMenuItem>}{printTemplates.loading && <DropdownMenuItem disabled>Carregando modelos...</DropdownMenuItem>}{Boolean(printTemplates.error) && <DropdownMenuItem disabled className="text-red-600">Não foi possível carregar os modelos.</DropdownMenuItem>}{!printTemplates.loading && !printTemplates.error && printTemplates.templates.filter(template => quoteWorkflowEnabled || template.document_type !== "ORCAMENTO").map(template => {
               const printingThis = printingTemplateId === template.id;
               const downloadingThis = downloadingTemplateId === template.id;
               const busy = Boolean(printingTemplateId || downloadingTemplateId);
