@@ -348,13 +348,15 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       return (l.length===9 && l.startsWith("9") && l.slice(1)===r) ||
         (r.length===9 && r.startsWith("9") && r.slice(1)===l);
     };
-    // Check variants separately. Some installed WuzAPI versions return only
-    // one User even for a batch of two; that used to cause a false/inconclusive result.
-    for(const candidate of candidates){
+    // Verify both variants concurrently to keep the bridge under Supabase's
+    // 14-second timeout, and use the actual JID returned by WhatsApp.
+    // A positive alias is not proof that two distinct JIDs are the same person.
+    const checks=await Promise.allSettled(candidates.map(async candidate=>{
       const response=await wuzapi("/user/check",session.token,"POST",{Phone:[candidate]});
       const users=response?.data?.Users ?? response?.data?.users;
       if(!Array.isArray(users) || !users.length)throw new Error("provider_check_unavailable");
       let answered=false;
+      const matches=[];
       for(const row of users){
         if(!row || typeof row!=="object")continue;
         const query=String(row.Query ?? row.query ?? "").replace(/\D/g,"");
@@ -367,14 +369,31 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
         const found=/^(55[1-9][0-9][0-9]{8,9})@s\.whatsapp\.net$/.exec(jid);
         if(!found || !sameBrazilianNumber(candidate,found[1]))
           throw new Error("provider_check_unavailable");
-        return {ok:true,requested:input,
-          matches:[{phone:found[1],verified_name:String(row.VerifiedName??row.verifiedName??"").slice(0,120)}],
-          status:"verified"};
+        matches.push({
+          phone:found[1],
+          query:candidate,
+          verified_name:String(row.VerifiedName ?? row.verifiedName ?? "").slice(0,120),
+        });
       }
       if(!answered)throw new Error("provider_check_unavailable");
+      return matches;
+    }));
+    const positives=checks.flatMap(result=>result.status==="fulfilled"?result.value:[]);
+    if(positives.length){
+      // If both queries resolve to one JID, the returned phone is canonical.
+      // If they resolve to different JIDs, keep their identities separate:
+      // prefer the exact number typed instead of silently merging contacts.
+      const unique=[...new Map(positives.map(item=>[item.phone+"|"+item.query,item])).values()];
+      return {
+        ok:true,requested:input,matches:unique.slice(0,2),
+        status:"verified",
+        distinct_identities:new Set(positives.map(item=>item.phone)).size>1,
+      };
     }
-    // Both query forms were explicitly rejected by the WuzAPI session.
-    return {ok:true,requested:input,matches:[],status:"not_registered"};
+    // Never claim "not registered" when a provider query timed out or failed.
+    const failure=checks.find(item=>item.status==="rejected");
+    if(failure?.status==="rejected")throw failure.reason;
+    return {ok:true,requested:input,matches:[],status:"not_registered",distinct_identities:false};
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
