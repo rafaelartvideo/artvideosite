@@ -12,7 +12,7 @@ import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols,
+  listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation,
   operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
   type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -144,6 +144,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [protocolsHasMore,setProtocolsHasMore]=useState(false);
   const [protocolsPage,setProtocolsPage]=useState(0);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedFallback,setSelectedFallback]=useState<UnionWhatsAppConversation|null>(null);
   const [filter, setFilter] = useState<Filter>("waiting");
   const [query, setQuery] = useState("");
   const [debouncedQuery,setDebouncedQuery]=useState("");
@@ -354,6 +355,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setAvatars({});
     setLinkedCustomers({});
     setSelectedId(null);
+    setSelectedFallback(null);
     setFilter("waiting");
     setDraft("");
     setAttachment(null);
@@ -385,7 +387,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     lastListQueryRef.current="";
     setConversations([]);setMessagesHasMore(false);messageCursorRef.current=null;
     setConversationHasMore(false);setConversationPage(0);setQuery("");setDebouncedQuery("");
-    setMessages([]);setSelectedId(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
+    setMessages([]);setSelectedId(null);setSelectedFallback(null);setProtocolFilter(null);setProtocolsOpen(false);setProtocols([]);
     setAvatars({});setLinkedCustomers({});setContactsOpen(false);
     setQueueSettings(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
     setNewConversationOpen(false);
@@ -598,7 +600,24 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[filter,bootLoading,selectedId]);
 
   const scopedConversations = conversations.filter(item => channelReady===true && item.organization_id === activeOrganizationId && item.channel_id === activeChannelId && item.account_phone===activeChannelPhone);
-  const selected = scopedConversations.find(item => item.id === selectedId) || null;
+  const selectedInPage=scopedConversations.find(item=>item.id===selectedId)||null;
+  const selected=selectedInPage||(selectedFallback?.id===selectedId?selectedFallback:null);
+  useEffect(()=>{
+    if(!selectedId||!activeOrganizationId||!activeChannelId||!activeChannelPhone||
+      channelReady!==true){
+      setSelectedFallback(null);return;
+    }
+    if(conversations.some(item=>item.id===selectedId)){
+      setSelectedFallback(null);return;
+    }
+    let cancelled=false;
+    void getUnionWhatsAppConversation(activeOrganizationId,selectedId,activeChannelId,activeChannelPhone)
+      .then(row=>{if(!cancelled && organizationRef.current===activeOrganizationId &&
+        accountRef.current===activeChannelPhone)setSelectedFallback(row);})
+      .catch(()=>{if(!cancelled)setSelectedFallback(null);});
+    return()=>{cancelled=true;};
+  },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,conversations]);
+
   // Todos os filtros são executados no Supabase, não apenas na página atual.
   const counts=conversationCounts;
   const visible=scopedConversations;
