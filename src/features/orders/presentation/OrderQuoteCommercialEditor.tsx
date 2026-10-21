@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { FCurrencyInput, FInput, FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, RequiredFieldLabel, FCurrencyInput, FInput, FIntegerInput, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCurrency } from "@/shared/domain/formatters";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
 import { searchOrderProducts, searchOrderServices, type OrderCatalogOption } from "../infrastructure/order-commercial-items.repository";
@@ -26,7 +26,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
   const [open,setOpen]=useState(false);
   const [loading,setLoading]=useState(false);
   useEffect(()=>{
-    if(disabled||!open||selected||search.trim().length<2){setOptions([]);setLoading(false);return;}
+    if(disabled||!open||selected){setOptions([]);setLoading(false);return;}
     let active=true;
     const timer=window.setTimeout(()=>{
       setLoading(true);
@@ -34,7 +34,7 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
         .then(results=>{if(active)setOptions(results);})
         .catch(()=>{if(active)setOptions([]);})
         .finally(()=>{if(active)setLoading(false);});
-    },250);
+    },300);
     return ()=>{active=false;window.clearTimeout(timer);};
   },[orderId,category,search,selected,open,disabled]);
   const add=()=>{
@@ -44,20 +44,20 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
   };
   return <div className="space-y-3">
     <div>
-      <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{category==="product"?"Produto":"Serviço"}</label>
+      <AdminFieldLabel label={category==="product"?"Produto":"Serviço"} />
       <div className="relative">
         <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
         <input className={cn(INPUT,"pl-9 pr-9")} value={search} disabled={disabled}
           placeholder={category==="product"?"Busque no estoque por nome ou SKU":"Busque no catálogo de serviços"}
           onFocus={()=>setOpen(true)} onBlur={()=>window.setTimeout(()=>setOpen(false),120)}
           onChange={event=>{setSearch(event.target.value);setSelected(null);setOpen(true);}}/>
-        {open&&!selected&&search.trim().length>=2&&<div className="absolute inset-x-0 top-[calc(100%+4px)] z-50 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover shadow-lg">
+        {open&&!selected&&<div role="listbox" aria-busy={loading} className={cn("absolute inset-x-0 top-[calc(100%+4px)] z-50 overflow-y-auto overscroll-contain rounded-lg border border-border bg-popover shadow-lg",category==="service"?"max-h-[224px]":"max-h-56")}>
           {loading?<div className="flex h-14 items-center justify-center"><LoadingSpinner size="sm"/></div>:
             options.length?options.map(option=><button type="button" key={option.id}
               onMouseDown={event=>event.preventDefault()}
               onClick={()=>{
                 setSelected(option);setSearch(option.name);setPrice(String(option.price??0));setOpen(false);
-              }} className="flex w-full items-center justify-between gap-3 border-b border-border px-3 py-3 text-left last:border-0 hover:bg-primary-soft">
+              }} className={cn("flex w-full cursor-default justify-between gap-3 border-b border-border px-3 text-left transition-colors last:border-b-0 hover:bg-primary-soft",category==="service"?"h-14 items-center py-2":"items-start py-3")}>
               <span className="min-w-0 flex-1"><strong className="block truncate text-sm">{option.name}</strong>
                 {option.description&&<span className="block truncate text-xs text-muted-foreground">{option.description}</span>}
                 {category==="product"&&option.stock!=null&&<span className="block text-[10px] text-muted-foreground">Estoque: {option.stock} {option.unit}</span>}
@@ -68,9 +68,9 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled }: {
       </div>
     </div>
     <div className="grid grid-cols-[90px_minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:gap-3">
-      <FIntegerInput label="Quantidade" value={quantity} min={1} disabled={!selected||disabled}
+      <FIntegerInput label="Quantidade" required value={quantity} min={1} disabled={!selected||disabled}
         onChange={(event:any)=>setQuantity(event.target.value)}/>
-      <FCurrencyInput label="Preço unitário" value={price} placeholder="R$ 0,00" disabled={!selected||disabled}
+      <FCurrencyInput label="Preço unitário" required value={price} placeholder="R$ 0,00" disabled={!selected||disabled}
         onChange={(event:any)=>setPrice(event.target.value)}/>
       <BtnPrimary className="h-[42px] self-end px-2 sm:px-3" disabled={!selected||disabled} onClick={add}><Plus size={15}/> Adicionar</BtnPrimary>
     </div>
@@ -102,14 +102,14 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}:{
   const discount=draft.discount_type==="percentage"?subtotal*money(draft.discount_value)/100:money(draft.discount_value);
   return <div className="space-y-4">
     <div className="grid gap-4 lg:grid-cols-2">
-      <Section title="Incluir produto" className="relative !overflow-visible"><QuoteItemPicker orderId={orderId} category="product" onAdd={(o,q,p)=>add("product",o,q,p)} disabled={disabled}/></Section>
-      <Section title="Incluir serviço" className="relative !overflow-visible">
+      <Section title="Incluir produto" className="relative z-20 !overflow-visible"><QuoteItemPicker orderId={orderId} category="product" onAdd={(o,q,p)=>add("product",o,q,p)} disabled={disabled}/></Section>
+      <Section title="Incluir serviço" className="relative z-20 !overflow-visible">
         <QuoteItemPicker orderId={orderId} category="service" onAdd={(o,q,p)=>add("service",o,q,p)} disabled={disabled}/>
         {!disabled&&<div className="mt-3 flex items-center justify-between gap-3 border-t border-border pt-3"><p className="text-xs text-muted-foreground">Serviços sem preço e avulsos são permitidos.</p>
           <AdminButton variant="secondary" onClick={()=>setCustomOpen(true)}><Plus size={15}/> Avulso</AdminButton></div>}
       </Section>
     </div>
-    <Section title={<span className="inline-flex items-center gap-2">Itens do orçamento
+    <Section title={<span className="inline-flex items-center gap-2"><RequiredFieldLabel label="Itens do orçamento" required />
       <span className="inline-flex min-w-6 justify-center rounded-md border border-primary/25 bg-primary/10 px-1.5 py-0.5 text-xs font-bold text-primary">{draft.items.length}</span></span>} flush>
       {!draft.items.length?<p className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço incluído.</p>:
         <div className="grid gap-3 p-3 sm:p-4">{draft.items.map((item,index)=><article key={index}
@@ -122,9 +122,9 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}:{
               aria-label={"Remover "+item.title_snapshot} className="rounded-lg p-2 text-red-600 hover:bg-red-500/10"><Trash2 size={17}/></button>}
           </div>
           <div className="mt-3 grid gap-3 border-t border-border pt-3 sm:grid-cols-3">
-            <FIntegerInput label="Quantidade" min={1} value={String(item.quantity)} disabled={disabled}
+            <FIntegerInput label="Quantidade" required min={1} value={String(item.quantity)} disabled={disabled}
               onChange={(e:any)=>updateItem(index,{quantity:Number(e.target.value)||1})}/>
-            <FCurrencyInput label="Preço unitário" disabled={disabled} value={String(item.unit_price)}
+            <FCurrencyInput label="Preço unitário" required disabled={disabled} value={String(item.unit_price)}
               onChange={(e:any)=>updateItem(index,{unit_price:money(e.target.value)})}/>
             <FCurrencyInput label="Custo adicional" disabled={disabled} value={String(item.additional_cost)}
               onChange={(e:any)=>updateItem(index,{additional_cost:money(e.target.value)})}/>
@@ -156,12 +156,8 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}:{
               onChange={(e:any)=>patch({discount_value:money(e.target.value)})}/>}</div>
         </div>
       </div>
-      <div className="mt-4 grid gap-4 md:grid-cols-2">
-        <FInput type="date" label="Validade da proposta" value={draft.valid_until||""} disabled={disabled}
-          onChange={(e:any)=>patch({valid_until:e.target.value||null})}/>
-        <FTextarea label="Condições comerciais" rows={3} value={draft.commercial_conditions} disabled={disabled}
-          onChange={(e:any)=>patch({commercial_conditions:e.target.value})}/>
-      </div>
+      <div className="mt-4"><FInput type="date" label="Validade da proposta" value={draft.valid_until||""} disabled={disabled}
+        onChange={(e:any)=>patch({valid_until:e.target.value||null})}/></div>
     </Section>
     <AdminDialog open={customOpen} onClose={()=>setCustomOpen(false)} title="Serviço Avulso" description="Serviço específico para esta proposta">
       <div className="space-y-3">
