@@ -307,16 +307,43 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       : national.length===8 ? input.slice(0,4)+"9"+national : "";
     const candidates=[input,...(alt?[alt]:[])];
     const response=await wuzapi("/user/check",session.token,"POST",{Phone:candidates});
-    const values=response?.data?.Users||response?.data?.users||[];
-    if(!Array.isArray(values)) throw new Error("provider_check_unavailable");
-    const verified=values.flatMap(row=>{
-      const query=String(row?.Query||row?.query||"").replace(/\D/g,"");
-      const jid=String(row?.JID||row?.Jid||row?.jid||"");
-      const registered=row?.IsInWhatsapp===true || row?.isInWhatsapp===true;
-      if(!registered || !candidates.includes(query) || !jid.startsWith(query+"@"))return [];
-      return [{phone:query,verified_name:String(row?.VerifiedName||"").slice(0,120)}];
-    });
-    return {ok:true,requested:input,matches:verified.slice(0,2)};
+    const rawUsers=response?.data?.Users ?? response?.data?.users;
+    // A malformed, empty or partial provider response cannot prove a number is absent.
+    if(!Array.isArray(rawUsers) || rawUsers.length===0)throw new Error("provider_check_unavailable");
+    const sameBrazilianNumber=(left,right)=>{
+      if(left===right)return true;
+      if(!/^55[1-9][0-9][0-9]{8,9}$/.test(left) || !/^55[1-9][0-9][0-9]{8,9}$/.test(right))
+        return false;
+      if(left.slice(0,4)!==right.slice(0,4))return false;
+      const l=left.slice(4),r=right.slice(4);
+      return (l.length===9 && l.startsWith("9") && l.slice(1)===r) ||
+        (r.length===9 && r.startsWith("9") && r.slice(1)===l);
+    };
+    const verified=[];
+    const covered=new Set();
+    for(const row of rawUsers){
+      if(!row || typeof row!=="object")continue;
+      const query=String(row.Query ?? row.query ?? "").replace(/\D/g,"");
+      const jid=String(row.JID ?? row.Jid ?? row.jid ?? "");
+      const match=candidates.find(candidate=>sameBrazilianNumber(candidate,query));
+      if(!match || typeof (row.IsInWhatsapp ?? row.isInWhatsapp)!=="boolean")continue;
+      covered.add(match);
+      const registered=(row.IsInWhatsapp ?? row.isInWhatsapp)===true;
+      if(!registered)continue;
+      // WhatsApp may normalize a Brazilian PN, including its ninth digit.
+      // Trust a confirmed JID, but never return a LID or another person's number.
+      const found=/^(55[1-9][0-9][0-9]{8,9})@s\.whatsapp\.net$/.exec(jid);
+      if(!found || !sameBrazilianNumber(match,found[1]))
+        throw new Error("provider_check_unavailable");
+      verified.push({phone:found[1],verified_name:String(row.VerifiedName??row.verifiedName??"").slice(0,120)});
+    }
+    if(verified.length){
+      const unique=[...new Map(verified.map(item=>[item.phone,item])).values()];
+      return {ok:true,requested:input,matches:unique.slice(0,2),status:"verified"};
+    }
+    // Negative only when WuzAPI explicitly checked every queried variant.
+    if(covered.size!==candidates.length)throw new Error("provider_check_unavailable");
+    return {ok:true,requested:input,matches:[],status:"not_registered"};
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
