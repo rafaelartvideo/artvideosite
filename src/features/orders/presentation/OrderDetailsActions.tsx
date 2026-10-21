@@ -73,16 +73,8 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   };
 
   return <>
-    <div aria-hidden="true" className={quoteMode ? "h-[9.5rem] md:h-28" : "h-[9.5rem] md:hidden"} />
-    <AdminStickyToolbar
-      className={quoteMode
-        ? "fixed inset-x-0 z-[70] block px-3 pt-3 md:px-5 md:py-4"
-        : "fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4"}
-      style={{
-        position: quoteMode ? "fixed" : undefined,
-        bottom: browserBottomInset ? `${browserBottomInset}px` : 0,
-        paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
-      }}>
+    <div aria-hidden="true" className="h-[9.5rem] md:hidden" />
+    <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-3">
         <div className="flex min-w-0 items-center gap-2 md:flex-wrap">
           <AdminIconButton onClick={onClose} ariaLabel="Fechar detalhes da OS" title="Fechar" className="h-10 w-10 shrink-0 md:hidden"><X size={17} /></AdminIconButton>
