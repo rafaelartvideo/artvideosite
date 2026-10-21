@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, CircleAlert, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminSegmentedControl } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
@@ -20,7 +20,7 @@ const tabs: { id: Profile; label: string }[] = [
   { id: "both", label: "Gestor + Operador" },
 ];
 
-export function WhatsAppRolePermissions({ onSaved }: { onSaved?: () => void }) {
+export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => void; onClose?: () => void }) {
   const { activeOrganizationId } = useAuth();
   const [profile, setProfile] = useState<Profile>("operator");
   const [rows, setRows] = useState<Permission[]>([]);
@@ -101,7 +101,7 @@ export function WhatsAppRolePermissions({ onSaved }: { onSaved?: () => void }) {
     }
   };
 
-  return <div className="space-y-4">
+  const content = <div className="space-y-4">
     <div className="space-y-1">
       <p className="text-sm font-semibold text-foreground">Permissões do atendimento</p>
       <p className="text-xs leading-relaxed text-muted-foreground">
@@ -109,17 +109,13 @@ export function WhatsAppRolePermissions({ onSaved }: { onSaved?: () => void }) {
         e outras permissões gerais continuam sendo respeitados.
       </p>
     </div>
-    <nav aria-label="Perfil de atendimento" className="flex flex-wrap items-center gap-2">
-      {tabs.map(tab => <button key={tab.id} type="button" onClick={() => { setProfile(tab.id); setNotice(""); }}
-        aria-current={profile === tab.id ? "page" : undefined}
-        className={`inline-flex min-h-10 items-center gap-2 rounded-lg border px-3.5 py-2 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${profile === tab.id ? "border-primary/35 bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
-        {tab.label}
-        {tab.id !== "both" && changes[tab.id] > 0 &&
-          <span className="rounded-full bg-amber-500/15 px-1.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
-            {changes[tab.id]}
-          </span>}
-      </button>)}
-    </nav>
+    <AdminSegmentedControl<Profile>
+      className="w-full sm:max-w-2xl"
+      value={profile}
+      options={tabs.map(tab => ({ value: tab.id, label: tab.label }))}
+      onChange={next => { setProfile(next); setNotice(""); }}
+      disabled={saving || loading}
+    />
     {profile === "both" && <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/25 p-3 text-xs leading-relaxed text-muted-foreground">
       <ShieldCheck size={17} className="mt-0.5 shrink-0"/>
       Este perfil reúne automaticamente todas as permissões habilitadas para Gestor e Operador.
@@ -153,19 +149,41 @@ export function WhatsAppRolePermissions({ onSaved }: { onSaved?: () => void }) {
             </label>)}
         </div>)}
       </AdminCard> : !error && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma permissão cadastrada.</p>}
-    {profile !== "both" && !loading && <div className="flex flex-wrap items-center justify-between gap-3">
+  </div>;
+
+  const footer =
+    <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-xs text-muted-foreground">
-        {changes[profile] ? `${changes[profile]} alteração(ões) não salva(s).` : "Nenhuma alteração pendente."}
+        {loading ? "Carregando permissões..." : profile === "both" ? "Permissões combinadas, somente leitura." :
+          changes[profile] ? `${changes[profile]} alteração(ões) não salva(s).` : "Nenhuma alteração pendente."}
       </p>
-      <div className="flex items-center gap-2">
-        <AdminButton variant="secondary" disabled={!changes[profile] || saving}
-          onClick={() => setDraft(current => ({ ...current, [profile]: { ...baseline[profile] } }))}>
-          Descartar alterações
-        </AdminButton>
-        <AdminButton disabled={!changes[profile] || saving} loading={saving} onClick={() => void save()}>
-          Salvar permissões
-        </AdminButton>
+      <div className="flex flex-wrap justify-end gap-2">
+        {onClose && <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Fechar</AdminButton>}
+        {profile !== "both" && !loading && <>
+          <AdminButton variant="secondary" disabled={!changes[profile] || saving}
+            onClick={() => setDraft(current => ({ ...current, [profile]: { ...baseline[profile] } }))}>
+            Descartar
+          </AdminButton>
+          <AdminButton disabled={!changes[profile] || saving} loading={saving} onClick={() => void save()}>
+            Salvar permissões
+          </AdminButton>
+        </>}
       </div>
-    </div>}
+    </div>;
+
+  if (onClose) {
+    return <AdminDialog open={true} onClose={() => { if (!saving) onClose(); }}
+      title="Perfis e Permissões"
+      description="Controle as ações autorizadas para Gestor, Operador e Gestor + Operador."
+      className="w-full max-w-4xl"
+      bodyClassName="min-h-0"
+      footer={footer}>
+      {content}
+    </AdminDialog>;
+  }
+
+  return <div className="space-y-4">
+    {content}
+    <div className="border-t border-border bg-card px-4 py-4">{footer}</div>
   </div>;
 }
