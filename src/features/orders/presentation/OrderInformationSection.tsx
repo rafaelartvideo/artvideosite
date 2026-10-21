@@ -193,7 +193,7 @@ export function OrderInformationSection({
                 </div>
               </div>
               <div className="mt-4 space-y-4">
-                <FTextarea label="Descrição do problema" value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
+                <FTextarea label="Descrição do problema" required={!editingOS} value={form.customer_notes} onChange={(e: any) => upF("customer_notes", e.target.value)} rows={4} />
                 <FTextarea label="Observações internas" value={form.internal_notes} onChange={(e: any) => upF("internal_notes", e.target.value)} rows={3} />
               </div>
             </Section>
