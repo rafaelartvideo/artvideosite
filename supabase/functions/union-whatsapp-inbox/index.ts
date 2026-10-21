@@ -1213,7 +1213,10 @@ Deno.serve(async request => {
         for(let i=0;i<decoded.length;i++) bytes[i]=decoded.charCodeAt(i);
         const ext=ref.media_type==="sticker"?"webp":ref.media_type==="image" ? (ref.mime_type==="image/png"?"png":"jpg") :
           ref.media_type==="video"?"mp4":ref.media_type==="audio"?"ogg":
-          (String(ref.file_name||"").split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10)||"bin";
+          // The provider can omit the document name; use its verified MIME
+          // instead of saving a PDF with a .bin extension.
+          ref.mime_type==="application/pdf"?"pdf":
+          (String(ref.file_name||"").split(".").pop()||"bin").replace(/[^a-z0-9]/gi,"").slice(0,10).toLowerCase()||"bin";
         mediaPath=org+"/"+thread.channel_id+"/"+thread.id+"/"+messageId+"."+ext;
         const {error:uploadError}=await admin.storage.from("union-whatsapp-media")
           .upload(mediaPath,bytes,{contentType:ref.mime_type,upsert:false});
@@ -1358,7 +1361,7 @@ Deno.serve(async request => {
       const id=String(body.client_message_id||"");
       const kind=String(body.media_type||"");
       const mime=String(body.media_mime||"");
-      const name=String(body.media_name||"").replace(/[^\\p{L}\\p{N}._() -]/gu,"").slice(0,160);
+      const name=String(body.media_name||"").replace(/[^\p{L}\p{N}._() -]/gu,"").slice(0,160);
       const fileSize=Number(body.media_size);
       const caps:Record<string,number>={image:10*1048576,audio:16*1048576,video:25*1048576,file:25*1048576,sticker:1048576};
       const accepted=kind==="sticker" ? mime==="image/webp" :
