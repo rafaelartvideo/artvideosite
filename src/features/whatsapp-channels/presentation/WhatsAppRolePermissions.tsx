@@ -1,28 +1,28 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, CircleAlert, ShieldCheck } from "lucide-react";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminDialog, AdminSegmentedControl } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Role = "manager" | "operator";
-type Profile = Role | "both";
 type Permission = {
-  key: string; label: string; category: "Conversas" | "Administração";
-  sort_order: number; manager: boolean; operator: boolean;
+  key: string;
+  label: string;
+  category: "Conversas" | "Administração";
+  sort_order: number;
+  manager: boolean;
+  operator: boolean;
 };
 type Values = Record<Role, Record<string, boolean>>;
+
+const roles: Role[] = ["manager", "operator"];
+const categories = ["Conversas", "Administração"] as const;
 const emptyValues = (): Values => ({ manager: {}, operator: {} });
-const tabs: { id: Profile; label: string }[] = [
-  { id: "manager", label: "Gestor" },
-  { id: "operator", label: "Operador" },
-  { id: "both", label: "Gestor + Operador" },
-];
 
 export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => void; onClose?: () => void }) {
   const { activeOrganizationId } = useAuth();
-  const [profile, setProfile] = useState<Profile>("operator");
   const [rows, setRows] = useState<Permission[]>([]);
   const [baseline, setBaseline] = useState<Values>(emptyValues);
   const [draft, setDraft] = useState<Values>(emptyValues);
@@ -61,66 +61,61 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
     manager: rows.filter(item => draft.manager[item.key] !== baseline.manager[item.key]).length,
     operator: rows.filter(item => draft.operator[item.key] !== baseline.operator[item.key]).length,
   }), [rows, draft, baseline]);
+  const pendingCount = changes.manager + changes.operator;
 
-  const checked = (key: string) =>
-    profile === "both"
-      ? Boolean(draft.manager[key] || draft.operator[key])
-      : Boolean(draft[profile][key]);
+  const toggle = (role: Role, key: string, enabled: boolean) => {
+    setDraft(current => ({
+      ...current,
+      [role]: { ...current[role], [key]: enabled },
+    }));
+    setNotice("");
+  };
+
+  const discard = () => {
+    setDraft({
+      manager: { ...baseline.manager },
+      operator: { ...baseline.operator },
+    });
+    setNotice("");
+    setError("");
+  };
 
   const save = async () => {
-    if (!activeOrganizationId || profile === "both" || saving || !changes[profile]) return;
-    const role: Role = profile;
+    if (!activeOrganizationId || saving || !pendingCount) return;
     setSaving(true);
     setError("");
     setNotice("");
+    const saved: Role[] = [];
     try {
-      const result = await operateUnionWhatsAppInbox(
-        activeOrganizationId, crypto.randomUUID(), "role_permissions_save", {
-          staff_role: role,
-          permissions: rows.map(item => ({ capability: item.key, enabled: draft[role][item.key] })),
-        },
-      );
-      const updated = result.capability_definitions || [];
-      const next = emptyValues();
-      for (const item of updated) {
-        next.manager[item.key] = item.manager;
-        next.operator[item.key] = item.operator;
+      for (const role of roles) {
+        if (!changes[role]) continue;
+        const result = await operateUnionWhatsAppInbox(
+          activeOrganizationId, crypto.randomUUID(), "role_permissions_save", {
+            staff_role: role,
+            permissions: rows.map(item => ({ capability: item.key, enabled: draft[role][item.key] })),
+          },
+        );
+        const persisted = Object.fromEntries(
+          (result.capability_definitions || []).map(item => [item.key, item[role]]),
+        ) as Record<string, boolean>;
+        // Cada perfil é salvo separadamente. Se o segundo falhar, o primeiro permanece salvo.
+        setBaseline(current => ({ ...current, [role]: { ...persisted } }));
+        saved.push(role);
       }
-      setRows(updated);
-      setBaseline(next);
-      setDraft(current => ({
-        manager: role === "manager" ? { ...next.manager } : { ...current.manager },
-        operator: role === "operator" ? { ...next.operator } : { ...current.operator },
-      }));
-      setNotice("Permissões do perfil atualizadas com sucesso.");
-      onSaved?.();
+      if (saved.length) {
+        setNotice("Permissões atualizadas com sucesso.");
+        onSaved?.();
+      }
     } catch (reason) {
-      setError(systemErrorMessage(reason, "Não foi possível salvar as permissões."));
+      setError(systemErrorMessage(reason, "Não foi possível salvar todas as permissões.") +
+        (saved.length ? " As alterações do perfil anterior foram salvas." : ""));
+      if (saved.length) onSaved?.();
     } finally {
       setSaving(false);
     }
   };
 
-  const content = <div className="space-y-4">
-    <div className="space-y-1">
-      <p className="text-sm font-semibold text-foreground">Permissões do atendimento</p>
-      <p className="text-xs leading-relaxed text-muted-foreground">
-        Personalize as ações de cada perfil sem alterar os cargos gerais do CRM. O acesso ao módulo
-        e outras permissões gerais continuam sendo respeitados.
-      </p>
-    </div>
-    <AdminSegmentedControl<Profile>
-      className="w-full sm:max-w-2xl"
-      value={profile}
-      options={tabs.map(tab => ({ value: tab.id, label: tab.label }))}
-      onChange={next => { setProfile(next); setNotice(""); }}
-      disabled={saving || loading}
-    />
-    {profile === "both" && <div className="flex items-start gap-2 rounded-lg border border-border bg-muted/25 p-3 text-xs leading-relaxed text-muted-foreground">
-      <ShieldCheck size={17} className="mt-0.5 shrink-0"/>
-      Este perfil reúne automaticamente todas as permissões habilitadas para Gestor e Operador.
-      Para alterar uma delas, selecione o perfil de origem.
-    </div>}
+  const content = <div className="space-y-3">
     {error && <p role="alert" className="flex items-start gap-2 rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-sm text-red-600">
       <CircleAlert size={16} className="mt-0.5 shrink-0"/>{error}
     </p>}
@@ -129,53 +124,79 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
     </p>}
     {loading ? <LoadingState text="Carregando permissões dos perfis..."/> :
       rows.length ? <AdminCard square>
-        {(["Conversas","Administração"] as const).map(category => <div key={category}>
-          <div className="border-b border-border bg-muted/25 px-4 py-3 text-sm font-bold text-foreground">{category}</div>
-          {rows.filter(item => item.category === category).map(item =>
-            <label key={item.key} className={`flex min-h-12 items-center justify-between gap-4 border-b border-border/70 px-4 py-3 last:border-b-0 ${profile === "both" ? "cursor-default" : "cursor-pointer hover:bg-muted/20"}`}>
-              <span className="min-w-0 text-sm font-medium text-foreground">{item.label}</span>
-              <input type="checkbox" checked={checked(item.key)} disabled={profile === "both" || saving}
-                onChange={event => {
-                  if (profile === "both") return;
-                  const role = profile;
-                  setDraft(current => ({
-                    ...current,
-                    [role]: { ...current[role], [item.key]: event.target.checked },
-                  }));
-                  setNotice("");
-                }}
-                aria-label={`${item.label} — ${tabs.find(tab=>tab.id===profile)?.label}`}
-                className="h-4 w-4 shrink-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-60"/>
-            </label>)}
-        </div>)}
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] table-fixed text-sm">
+            <colgroup>
+              <col className="w-[46%]"/>
+              <col className="w-[17%]"/>
+              <col className="w-[17%]"/>
+              <col className="w-[20%]"/>
+            </colgroup>
+            <thead className="sticky top-0 z-10 bg-muted/70">
+              <tr>
+                <th scope="col" className="!text-left !text-xs !normal-case">Permissão</th>
+                <th scope="col" className="!text-center !text-xs !normal-case">Gestor</th>
+                <th scope="col" className="!text-center !text-xs !normal-case">Operador</th>
+                <th scope="col" className="!text-center !text-xs !normal-case">Gestor + Operador</th>
+              </tr>
+            </thead>
+            {categories.map(category => <tbody key={category}>
+              <tr className="bg-muted/35 hover:!bg-muted/35">
+                <th scope="rowgroup" colSpan={4} className="!px-4 !py-3 !text-left !text-xs !font-black !normal-case text-foreground">
+                  {category}
+                </th>
+              </tr>
+              {rows.filter(item => item.category === category).map(item =>
+                <tr key={item.key}>
+                  <th scope="row" className="!px-4 !py-3 !text-left !text-sm !font-medium !normal-case text-foreground">
+                    {item.label}
+                  </th>
+                  {roles.map(role => <td key={role} className="!px-3 !py-2 text-center">
+                    <label className="flex min-h-9 cursor-pointer items-center justify-center">
+                      <input type="checkbox" checked={Boolean(draft[role][item.key])}
+                        disabled={saving}
+                        onChange={event => toggle(role, item.key, event.target.checked)}
+                        aria-label={`${item.label} — ${role === "manager" ? "Gestor" : "Operador"}`}
+                        className="h-[18px] w-[18px] cursor-pointer accent-primary disabled:cursor-not-allowed"/>
+                    </label>
+                  </td>)}
+                  <td className="!px-3 !py-2 text-center">
+                    <div className="flex min-h-9 items-center justify-center">
+                      <input type="checkbox"
+                        checked={Boolean(draft.manager[item.key] || draft.operator[item.key])}
+                        disabled
+                        aria-label={`${item.label} — Gestor + Operador, combinação automática`}
+                        title="Combinação automática de Gestor e Operador"
+                        className="h-[18px] w-[18px] cursor-default accent-primary disabled:opacity-100"/>
+                    </div>
+                  </td>
+                </tr>)}
+            </tbody>)}
+          </table>
+        </div>
       </AdminCard> : !error && <p className="py-8 text-center text-sm text-muted-foreground">Nenhuma permissão cadastrada.</p>}
   </div>;
 
-  const footer =
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-xs text-muted-foreground">
-        {loading ? "Carregando permissões..." : profile === "both" ? "Permissões combinadas, somente leitura." :
-          changes[profile] ? `${changes[profile]} alteração(ões) não salva(s).` : "Nenhuma alteração pendente."}
-      </p>
-      <div className="flex flex-wrap justify-end gap-2">
-        {onClose && <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Fechar</AdminButton>}
-        {profile !== "both" && !loading && <>
-          <AdminButton variant="secondary" disabled={!changes[profile] || saving}
-            onClick={() => setDraft(current => ({ ...current, [profile]: { ...baseline[profile] } }))}>
-            Descartar
-          </AdminButton>
-          <AdminButton disabled={!changes[profile] || saving} loading={saving} onClick={() => void save()}>
-            Salvar permissões
-          </AdminButton>
-        </>}
-      </div>
-    </div>;
+  const footer = <div className="flex flex-wrap items-center justify-between gap-3">
+    <p className="text-xs text-muted-foreground">
+      {loading ? "Carregando..." :
+        pendingCount ? `${pendingCount} alteração(ões) não salva(s).` : "Nenhuma alteração pendente."}
+    </p>
+    <div className="flex flex-wrap justify-end gap-2">
+      {onClose && <AdminButton variant="secondary" disabled={saving} onClick={onClose}>Fechar</AdminButton>}
+      <AdminButton variant="secondary" disabled={!pendingCount || saving || loading} onClick={discard}>
+        Descartar
+      </AdminButton>
+      <AdminButton disabled={!pendingCount || saving || loading} loading={saving} onClick={() => void save()}>
+        Salvar permissões
+      </AdminButton>
+    </div>
+  </div>;
 
   if (onClose) {
     return <AdminDialog open={true} onClose={() => { if (!saving) onClose(); }}
       title="Perfis e Permissões"
-      description="Controle as ações autorizadas para Gestor, Operador e Gestor + Operador."
-      className="w-full max-w-4xl"
+      className="w-full max-w-5xl"
       bodyClassName="min-h-0"
       footer={footer}>
       {content}
