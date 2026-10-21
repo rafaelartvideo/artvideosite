@@ -111,7 +111,7 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "disconnect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "disconnect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
@@ -295,6 +295,28 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
     if(avatarCache.size>100) avatarCache.delete(avatarCache.keys().next().value);
     return {ok:true,avatar_base64:base64||null,avatar_mime:mime||null,
       avatar_cdn_url:!base64?fallbackUrl||null:null,avatar_status:status};
+  }
+  if (action === "number_check") {
+    // Only the signed Union backend can check a direct recipient; no public enumeration.
+    const input=String(bodyText||"").replace(/\D/g,"");
+    if(!/^55[1-9][0-9][0-9]{8,9}$/.test(input)) throw new Error("bad_request");
+    const national=input.slice(4);
+    // Brazilian phone numbers can be represented with/without the ninth digit.
+    const alt=national.length===9 && national[0]==="9"
+      ? input.slice(0,4)+national.slice(1)
+      : national.length===8 ? input.slice(0,4)+"9"+national : "";
+    const candidates=[input,...(alt?[alt]:[])];
+    const response=await wuzapi("/user/check",session.token,"POST",{Phone:candidates});
+    const values=response?.data?.Users||response?.data?.users||[];
+    if(!Array.isArray(values)) throw new Error("provider_check_unavailable");
+    const verified=values.flatMap(row=>{
+      const query=String(row?.Query||row?.query||"").replace(/\D/g,"");
+      const jid=String(row?.JID||row?.Jid||row?.jid||"");
+      const registered=row?.IsInWhatsapp===true || row?.isInWhatsapp===true;
+      if(!registered || !candidates.includes(query) || !jid.startsWith(query+"@"))return [];
+      return [{phone:query,verified_name:String(row?.VerifiedName||"").slice(0,120)}];
+    });
+    return {ok:true,requested:input,matches:verified.slice(0,2)};
   }
   if (action === "contact_lookup") {
     const jid=String(chatJid||"");
