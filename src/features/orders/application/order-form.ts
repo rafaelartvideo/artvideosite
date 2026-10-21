@@ -50,6 +50,10 @@ export function prepareOrderForm({
   if (editingOrder?.is_solved) {
     return { error: "Esta OS está solucionada e é somente leitura." };
   }
+  if (!editingOrder && !String(form.customer_notes || "").trim()) {
+    return { error: "Informe a descrição do problema para abrir a OS." };
+  }
+
   if (!editingOrder && !form.service_type_id) {
     return { error: "Selecione o tipo de atendimento da OS." };
   }
