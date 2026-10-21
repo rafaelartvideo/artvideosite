@@ -113,95 +113,85 @@ Deno.serve(async request => {
     if (!canRead || (action !== "list" && action !== "status" && !canManage)) {
       return json({ success: false, error: "Sem permissão para gerenciar canais nesta empresa." }, 403);
     }
-    const query = () => privileged.from("whatsapp_channel_connections")
-      .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
-      .eq("organization_id", org).eq("provider", "wuzapi").maybeSingle();
+    const fields="id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready,created_at";
+    const listQuery=()=>privileged.from("whatsapp_channel_connections")
+      .select(fields).eq("organization_id",org).eq("provider","wuzapi").order("created_at",{ascending:true});
+    const getAll=async()=>{
+      const {data,error}=await listQuery();
+      if(error)throw error;
+      return (data||[]) as ChannelRow[];
+    };
+    const primary=(rows:ChannelRow[])=>rows.find(c=>c.state==="connected" || c.state==="connecting")||rows[0]||null;
 
-    if (action === "list") {
-      const { data, error } = await query();
-      if (error) throw error;
-      return json({ success: true, channel: data, can_manage: canManage });
+    if(action==="list"){
+      const rows=await getAll();
+      return json({success:true,channels:rows,channel:primary(rows),can_manage:canManage,max_connections:3});
     }
 
-    if (action === "register") {
-      const displayName = String(input.display_name || "WhatsApp Business").trim().slice(0, 80);
-      if (!displayName) return json({ success: false, error: "Informe o nome do canal." }, 400);
-      const { data: existing, error: readError } = await query();
-      if (readError) throw readError;
-      if (existing) return json({ success: true, channel: existing, existed: true });
-      const { data, error } = await privileged.from("whatsapp_channel_connections")
-        .upsert({
-          organization_id: org, provider: "wuzapi",
-          display_name: displayName, created_by: auth.user.id,
-        }, { onConflict: "organization_id,provider", ignoreDuplicates: true })
-        .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready")
-        .maybeSingle();
-      if (error) throw error;
-      const channel = data || (await query()).data;
-      return json({ success: true, channel });
-    }
-
-    // One-click activation: register metadata + provision a private WuzAPI session.
-    // Provision is idempotent in the bridge and does not connect or log out a phone.
-    if (action === "activate") {
-      const { data: existing, error: readError } = await query();
-      if (readError) throw readError;
-      let target = existing;
-      if (!target) {
-        const { error: insertError } = await privileged.from("whatsapp_channel_connections")
-          .upsert({
-            organization_id: org, provider: "wuzapi",
-            display_name: "WhatsApp", created_by: auth.user.id,
-          }, { onConflict: "organization_id,provider", ignoreDuplicates: true });
-        if (insertError) throw insertError;
-        const readBack = await query();
-        if (readBack.error) throw readBack.error;
-        target = readBack.data;
+    if(action==="activate" || action==="register"){
+      const rows=await getAll();
+      if(action==="activate" && rows.length){
+        return json({success:true,channel:primary(rows),channels:rows,existed:true});
       }
-      if (!target) return json({ success: false, error: "Não foi possível cadastrar o canal." }, 500);
-      if (input.connection_id && input.connection_id !== target.id) {
-        return json({ success: false, error: "Canal inválido para esta empresa." }, 403);
+      if(rows.length>=3)return json({success:false,error:"Limite de 3 números cadastrados por empresa."},409);
+      const label=String(input.display_name||("WhatsApp "+(rows.length+1))).trim().slice(0,80);
+      if(!label)return json({success:false,error:"Informe o nome da conexão."},400);
+      const {data:created,error:createError}=await privileged.from("whatsapp_channel_connections")
+        .insert({organization_id:org,provider:"wuzapi",display_name:label,
+          state:"disconnected",created_by:auth.user.id})
+        .select(fields).single();
+      if(createError){
+        if(createError.code==="23505" || createError.code==="23514")
+          return json({success:false,error:"Limite de conexões atingido ou outra conexão em preparação."},409);
+        throw createError;
       }
+      // Each saved connection has its own persistent WuzAPI user and VPS credentials.
       try {
-        await signedBridge("provision", target as ChannelRow);
-      } catch (err) {
-        const reason = String((err as Error)?.message || "");
-        return json({ success: false, code: "bridge_unavailable",
-          error: reason.includes("ainda não foi configurada.") ? reason :
-            "Não foi possível preparar o canal. Tente ativá-lo novamente." }, 503);
+        await signedBridge("provision",created as ChannelRow);
+      }catch(err) {
+        // Keep the row for safe retries; never delete existing WuzAPI credentials.
+        return json({success:false,code:"bridge_unavailable",connection_id:created.id,
+          error:"Conexão cadastrada. Preparação da VPS pendente; tente novamente."},503);
       }
-      // Preserve existing linked phone and state. The new integration is
-      // configured, but must not claim the WhatsApp number is connected.
-      if (target.state === "not_connected") {
-        const { data: updated, error: updateError } = await privileged.from("whatsapp_channel_connections")
-          .update({ state: "disconnected", updated_at: new Date().toISOString() })
-          .eq("id", target.id).eq("organization_id", org)
-          .select("id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready").single();
-        if (updateError) throw updateError;
-        target = updated;
-      }
-      return json({ success: true, channel: target });
+      const all=await getAll();
+      return json({success:true,channel:created,channels:all});
     }
 
-    const { data: channel, error } = await query();
-    if (error) throw error;
-    if (!channel) return json({ success: false, error: "Cadastre o canal primeiro." }, 404);
-    if (input.connection_id && input.connection_id !== channel.id) {
-      return json({ success: false, error: "Canal inválido para esta empresa." }, 403);
+    const id=String(input.connection_id||"");
+    if(!uuid(id))return json({success:false,error:"Selecione uma conexão WhatsApp."},400);
+    const {data:channel,error:readError}=await privileged.from("whatsapp_channel_connections")
+      .select(fields).eq("organization_id",org).eq("provider","wuzapi")
+      .eq("id",id).maybeSingle();
+    if(readError)throw readError;
+    if(!channel)return json({success:false,error:"Conexão não pertence a esta empresa."},404);
+    if(action==="webhook_setup" && channel.state!=="connected")
+      return json({success:false,error:"Conecte o número antes de ativar o recebimento."},409);
+    if(action==="connect"){
+      const rows=await getAll();
+      if(rows.some(other=>other.id!==id &&
+        (other.state==="connected" || other.state==="connecting")))
+        return json({success:false,error:"Desconecte o número ativo antes de conectar outro."},409);
+      // Reserve the only active slot before performing the remote connect.
+      // The DB partial unique index also prevents simultaneous requests racing.
+      const {error:reserveError}=await privileged.from("whatsapp_channel_connections")
+        .update({state:"connecting",updated_at:new Date().toISOString()})
+        .eq("id",id).eq("organization_id",org);
+      if(reserveError) return json({success:false,
+        error:"Outra conexão está sendo ativada. Atualize a lista."},409);
     }
-    if (action === "webhook_setup" && channel.state !== "connected") {
-      return json({ success: false, error: "Conecte o WhatsApp antes de ativar o recebimento." }, 409);
-    }
-    let remote: Record<string, unknown>;
-    try {
-      remote = await signedBridge(action, channel as ChannelRow);
-    } catch (err) {
-      const reason = String((err as Error)?.message || "");
-      return json({
-        success: false, code: "bridge_unavailable",
-        error: reason.includes("ainda não foi configurada.")
-          ? reason : "A comunicação segura com a VPS está indisponível.",
-      }, 503);
+    let remote:Record<string,unknown>;
+    try{
+      remote=await signedBridge(action,channel as ChannelRow);
+    }catch(err){
+      if(action==="connect" && channel.state!=="connected"){
+        await privileged.from("whatsapp_channel_connections").update({
+          state:"disconnected",updated_at:new Date().toISOString()
+        }).eq("id",id).eq("organization_id",org).eq("state","connecting");
+      }
+      const reason=String((err as Error)?.message||"");
+      return json({success:false,code:"bridge_unavailable",
+        error:reason.includes("ainda não foi configurada.")?reason:
+          "A comunicação segura com a VPS está indisponível."},503);
     }
 
     const persistWebhook = async (response: Record<string, unknown>) => {
