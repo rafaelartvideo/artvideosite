@@ -352,11 +352,72 @@ Deno.serve(async request => {
     if(action==="check_number"){
       const verified=await verifyWhatsAppNumber(String(body.phone||""));
       if("error" in verified)return json({success:false,error:verified.error,code:("code" in verified?verified.code:"verification_unavailable")},verified.status);
+
+      // A successful verification may be displayed as a preview, but never
+      // creates a contact, conversation or protocol. Scope all data to the
+      // connected WhatsApp account, not just the organization.
+      const orgAccount=verified.channel.phone;
+      const {data:exact,error:exactError}=await admin.from("union_whatsapp_contacts")
+        .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
+        .eq("organization_id",org).eq("channel_id",verified.channel.id)
+        .eq("account_phone",orgAccount).eq("chat_jid",verified.jid).maybeSingle();
+      if(exactError)throw exactError;
+      let saved=exact;
+      if(!saved){
+        // An imported phone contact can be PN while WuzAPI now returns LID.
+        // Look up the verified phone, including its validated Brazilian alias,
+        // but only when WuzAPI says the aliases are the SAME identity.
+        const variants=verified.distinct_identities ? [verified.phone] :
+          [...new Set([verified.phone,...verified.alternatives.map(item=>item.query||item.phone)])];
+        const {data:aliases,error:aliasesError}=await admin.from("union_whatsapp_contacts")
+          .select("chat_jid,contact_phone,display_name,device_name,imported_name,profile_name,wuzapi_verified_saved")
+          .eq("organization_id",org).eq("channel_id",verified.channel.id)
+          .eq("account_phone",orgAccount).in("contact_phone",variants)
+          .order("updated_at",{ascending:false}).limit(10);
+        if(aliasesError)throw aliasesError;
+        saved=(aliases||[]).find(c=>c.display_name||c.device_name||c.wuzapi_verified_saved)||aliases?.[0]||null;
+      }
+      const savedName=String(saved?.display_name||saved?.device_name||
+        (saved?.wuzapi_verified_saved?saved?.imported_name:null)||"").trim().slice(0,120);
+      let contactName=savedName;
+      let nameSource=savedName?"agenda":"";
+      if(!contactName){
+        const {data:existing,error:existingError}=await admin.from("union_whatsapp_conversations")
+          .select("contact_name,contact_phone").eq("organization_id",org)
+          .eq("channel_id",verified.channel.id).eq("account_phone",orgAccount)
+          .eq("chat_jid",verified.jid).maybeSingle();
+        if(existingError)throw existingError;
+        const value=String(existing?.contact_name||"").trim().slice(0,120);
+        if(value && value!=="Contato WhatsApp" && value!==verified.phone &&
+          !/^[+()\d\s-]+$/.test(value)){
+          contactName=value;nameSource="conversa";
+        }
+      }
+
+      // Fetch photo and optional WhatsApp profile name in parallel. Neither
+      // may invalidate an already verified number when the profile is private.
+      const [avatar,profile]=await Promise.allSettled([
+        signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
+          crypto.randomUUID(),undefined,undefined,false,true),
+        contactName ? Promise.resolve("") :
+          signedBridge({id:verified.channel.id,organization_id:org},"",verified.jid,
+            crypto.randomUUID(),undefined,undefined,true),
+      ]);
+      if(!contactName){
+        const cached=String(saved?.profile_name||"").trim().slice(0,120);
+        const fromBridge=profile.status==="fulfilled" ? profile.value : "";
+        const cut=fromBridge.indexOf(":");
+        const profileName=(cut>=0?fromBridge.slice(cut+1):"").trim().slice(0,120);
+        contactName=cached||profileName||String(verified.verified_name||"").trim().slice(0,120);
+        if(contactName)nameSource="whatsapp";
+      }
       return json({success:true,phone:verified.phone,adjusted:verified.adjusted,
         alternatives:verified.alternatives?.map(item=>({phone:item.phone,verified_name:item.verified_name})),
         verified_name:verified.verified_name,
         identity_type:verified.jid?.endsWith("@lid")?"lid":"phone",
-        distinct_identities:verified.distinct_identities===true});
+        distinct_identities:verified.distinct_identities===true,
+        contact_name:contactName||null,name_source:nameSource||null,
+        avatar_url:avatar.status==="fulfilled" ? avatar.value||null : null});
     }
 
     if(action==="operator_list" || action==="operator_set"){
