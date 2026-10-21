@@ -3,11 +3,15 @@ import { Building2, Check, CircleAlert, Pencil, UsersRound } from "lucide-react"
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Department = { id: string; name: string; is_active: boolean; is_default?: boolean };
-type Operator = { id: string; name: string; eligible: boolean; is_active: boolean; is_manager?: boolean };
+type StaffRole = "manager" | "operator" | "both";
+type Operator = { id: string; name: string; eligible: boolean; can_attend: boolean; is_active: boolean; staff_role: StaffRole; is_manager?: boolean };
+const staffRoleLabels: Record<StaffRole,string> = {
+  manager: "Gestor", operator: "Operador", both: "Gestor + Operador",
+};
 export type WhatsAppOperationsSection = "departments" | "queues" | "operators";
 
 const channelRequest = (organizationId: string, action: Parameters<typeof operateUnionWhatsAppInbox>[2],
@@ -18,7 +22,9 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
   section: WhatsAppOperationsSection; createRequest?: number;
 }) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canManage = hasPermission("whatsapp.inbox.manage");
+  const [staffRole, setStaffRole] = useState<StaffRole | null>(null);
+  const canManage = hasPermission("whatsapp.inbox.view") && (staffRole === "manager" || staffRole === "both");
+  const [selectedRoles, setSelectedRoles] = useState<Record<string,StaffRole>>({});
   const [departments, setDepartments] = useState<Department[]>([]);
   const [operators, setOperators] = useState<Operator[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,18 +43,23 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     setLoading(true);
     setError("");
     try {
-      const [dept, staff] = await Promise.all([
+      const [dept, status] = await Promise.all([
         channelRequest(activeOrganizationId, "departments_list"),
-        canManage ? channelRequest(activeOrganizationId, "operator_list") : Promise.resolve(null),
+        channelRequest(activeOrganizationId, "channel_status"),
       ]);
+      const role = status.staff_role || null;
+      setStaffRole(role);
+      const permitted = hasPermission("whatsapp.inbox.view") && (role==="manager" || role==="both");
+      const staff = permitted ? await channelRequest(activeOrganizationId, "operator_list") : null;
       setDepartments(dept.departments || []);
       setOperators(staff?.operators || []);
+      setSelectedRoles(Object.fromEntries((staff?.operators || []).map(person => [person.id,person.staff_role])));
     } catch (reason) {
       setError(systemErrorMessage(reason, "Não foi possível carregar as configurações de atendimento."));
     } finally {
       setLoading(false);
     }
-  }, [activeOrganizationId, canManage]);
+  }, [activeOrganizationId, hasPermission]);
   useEffect(() => { void reload(); }, [reload]);
 
   const startEdit = (department: Department | "new") => {
@@ -94,16 +105,20 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível configurar a fila.")); }
     finally { setBusy(""); }
   };
-  const toggleOperator = async (person: Operator) => {
+  const toggleOperator = async (person: Operator, enabled: boolean) => {
     if (!activeOrganizationId || busy || !person.eligible) return;
+    const chosenRole=selectedRoles[person.id] || person.staff_role;
     setBusy(person.id); setError("");
     try {
       const result = await channelRequest(activeOrganizationId, "operator_set", {
-        target_user_id: person.id, enabled: !person.is_active,
+        target_user_id: person.id, enabled, staff_role: chosenRole,
       });
       setOperators(result.operators || []);
-      setNotice(person.is_active ? "Vínculo de operador desativado." : "Funcionário vinculado como operador.");
-    } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível atualizar o operador.")); }
+      setSelectedRoles(Object.fromEntries((result.operators || []).map(item => [item.id,item.staff_role])));
+      setNotice(enabled
+        ? `Perfil ${staffRoleLabels[chosenRole]} salvo para este funcionário.`
+        : "Vínculo de atendimento desativado.");
+    } catch (reason) { setError(systemErrorMessage(reason, "Não foi possível atualizar o perfil do atendimento.")); }
     finally { setBusy(""); }
   };
   const openTeam = async (department: Department) => {
@@ -128,7 +143,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     finally { setBusy(""); }
   };
 
-  if (!canManage) return <p className="text-sm text-muted-foreground">A configuração dos departamentos, filas e operadores exige a permissão de gerenciamento do atendimento WhatsApp.</p>;
+  if (!loading && !canManage) return <p className="text-sm text-muted-foreground">Somente funcionários com o perfil Gestor ou Gestor + Operador podem configurar equipes, filas e perfis de atendimento.</p>;
 
   return <div className="space-y-4">
     {error && <div role="alert" className="rounded-lg border border-red-500/25 bg-red-500/5 p-3 text-sm text-red-600"><CircleAlert size={16} className="mr-2 inline"/>{error}</div>}
@@ -136,25 +151,44 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
     {loading ? <LoadingState text="Carregando configuração..." /> :
       <AdminCard square>
         {section === "operators" ? <div className="overflow-x-auto">
-          <table className="min-w-[650px] w-full">
-            <thead><tr><th className="text-left">Funcionário</th><th className="text-left">Permissão</th>
-              <th className="text-left">Vínculo</th><th className="text-right">Ação</th></tr></thead>
+          <table className="min-w-[750px] w-full">
+            <thead><tr><th className="text-left">Funcionário</th><th className="text-left">Perfil no atendimento</th>
+              <th className="text-left">Situação</th><th className="text-right">Ações</th></tr></thead>
             <tbody>
-              {operators.length ? operators.map(person => <tr key={person.id}>
-                <td className="font-semibold">{person.name}</td>
-                <td className="text-xs text-muted-foreground">{person.eligible ? "Autorizado a atender" : "Sem permissão para enviar"}</td>
-                <td><span className={`text-xs font-semibold ${person.is_active ? "text-emerald-600" : "text-muted-foreground"}`}>
-                  {person.is_active ? "Vinculado" : "Não vinculado"}</span></td>
-                <td className="text-right"><AdminButton size="sm" variant="secondary"
-                  disabled={!person.eligible || Boolean(busy)} loading={busy === person.id}
-                  onClick={() => void toggleOperator(person)}>
-                  {person.is_active ? "Desvincular" : "Vincular"}
-                </AdminButton></td>
-              </tr>) : <tr><td colSpan={4} className="py-9 text-center text-sm text-muted-foreground">Nenhum funcionário ativo encontrado.</td></tr>}
+              {operators.length ? operators.map(person => {
+                const chosenRole=selectedRoles[person.id] || person.staff_role;
+                const changedRole=chosenRole !== person.staff_role;
+                const allowed=person.eligible && (chosenRole==="manager" || person.can_attend);
+                return <tr key={person.id}>
+                  <td>
+                    <p className="font-semibold">{person.name}</p>
+                    {!person.eligible && <p className="text-xs text-muted-foreground">Sem acesso ao módulo de atendimentos</p>}
+                  </td>
+                  <td>
+                    <select aria-label={`Perfil de atendimento de ${person.name}`}
+                      value={chosenRole} disabled={!person.eligible || Boolean(busy)}
+                      onChange={event=>setSelectedRoles(old=>({...old,[person.id]:event.target.value as StaffRole}))}
+                      className="min-h-9 w-full max-w-[220px] rounded-lg border border-border bg-background px-3 py-2 text-sm font-semibold text-foreground outline-none focus:border-primary">
+                      <option value="manager">Gestor</option>
+                      <option value="operator" disabled={!person.can_attend}>Operador</option>
+                      <option value="both" disabled={!person.can_attend}>Gestor + Operador</option>
+                    </select>
+                  </td>
+                  <td><StatusBadge status={person.is_active ? "Ativo" : "Inativo"}/></td>
+                  <td><div className="flex justify-end gap-2">
+                    {person.is_active && changedRole && <AdminButton size="sm" disabled={!allowed || Boolean(busy)}
+                      loading={busy===person.id} onClick={()=>void toggleOperator(person,true)}>Salvar perfil</AdminButton>}
+                    <AdminButton size="sm" variant="secondary" disabled={!allowed || Boolean(busy)}
+                      loading={busy===person.id} onClick={()=>void toggleOperator(person,!person.is_active)}>
+                      {person.is_active ? "Desvincular" : "Vincular"}
+                    </AdminButton>
+                  </div></td>
+                </tr>;
+              }) : <tr><td colSpan={4} className="py-9 text-center text-sm text-muted-foreground">Nenhum funcionário ativo encontrado.</td></tr>}
             </tbody>
           </table>
           <p className="border-t border-border px-4 py-3 text-xs text-muted-foreground">
-            Vincular não altera o cargo no CRM. Apenas funcionários com permissão de envio WhatsApp podem atuar como operadores. Gestores autorizados mantêm a supervisão das conversas.
+            Gestor supervisiona e configura sem responder mensagens. Operador atende somente as filas autorizadas e suas conversas. Gestor + Operador acumula as duas funções. O cargo do CRM não é alterado.
           </p>
         </div> : <div className="overflow-x-auto">
           <table className="min-w-[680px] w-full">
@@ -212,7 +246,7 @@ export function WhatsAppOperationsSettings({ section, createRequest = 0 }: {
       footer={<AdminButton variant="secondary" disabled={Boolean(busy)} onClick={() => setTeamDepartment(null)}>Fechar</AdminButton>}>
       <div className="space-y-3">
         <p className="text-xs leading-relaxed text-muted-foreground">Os operadores vinculados a esta fila podem ver e assumir conversas aguardando nela. Conversas em atendimento continuam visíveis somente ao responsável e aos gestores.</p>
-        {operators.filter(person => person.eligible).length ? operators.filter(person => person.eligible).map(person =>
+        {operators.filter(person => person.eligible && person.can_attend && person.is_active && person.staff_role !== "manager").length ? operators.filter(person => person.eligible && person.can_attend && person.is_active && person.staff_role !== "manager").map(person =>
           <label key={person.id} className="flex cursor-pointer items-center justify-between gap-3 rounded-lg border border-border p-3 text-sm">
             <div className="flex min-w-0 items-center gap-3">
               <input type="checkbox" checked={memberIds.includes(person.id)}
