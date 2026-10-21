@@ -953,10 +953,13 @@ Deno.serve(async request => {
       // Starting a conversation with an existing closed number resumes
       // the same conversation and preserves its history. This is an
       // authorized send action; it must not leave the status finished.
-      const {data:claimed,error:claimError}=await admin.from("union_whatsapp_conversations")
+      const claimQuery=admin.from("union_whatsapp_conversations")
         .update({status:"in_att",assigned_to:actorId,updated_at:new Date().toISOString()})
         .eq("organization_id",org).eq("id",existing.id)
-        .eq("status",existing.status).is("assigned_to",null)
+        .eq("status",existing.status);
+      const {data:claimed,error:claimError}=await (existing.assigned_to
+        ? claimQuery.eq("assigned_to",existing.assigned_to)
+        : claimQuery.is("assigned_to",null))
         .select("id").maybeSingle();
       if(claimError) throw claimError;
       if(!claimed) return json({success:false,error:"A conversa foi assumida por outro funcionário."},409);
@@ -1305,7 +1308,7 @@ Deno.serve(async request => {
       return json({success:true});
     }
     if(action==="mark_read") {
-      if(!owned && !canManage) return json({success:false,error:"Conversa não atribuída a você."},403);
+      if(!owned && !canManage && !inQueue) return json({success:false,error:"Conversa não atribuída a você."},403);
       const {error}=await admin.from("union_whatsapp_conversations")
         .update({unread_count:0}).eq("id",thread.id).eq("organization_id",org);
       if(error) throw error;
@@ -1316,7 +1319,7 @@ Deno.serve(async request => {
       const required=action==="reopen"?"finished":"in_att";
       if(thread.status !== required) return json({success:false,code:"invalid_state",error:"A situação da conversa mudou. Atualize a lista."},409);
       const patch:Record<string,unknown>=
-        action==="finish" ? {status:"finished",unread_count:0,assigned_to:null} :
+        action==="finish" ? {status:"finished",unread_count:0,assigned_to:thread.assigned_to} :
         {status:"waiting",assigned_to:null};
       patch.updated_at=new Date().toISOString();
       const {data:updated,error}=await admin.from("union_whatsapp_conversations")
@@ -1427,7 +1430,7 @@ Deno.serve(async request => {
         previous.user_id!==actorId || previous.body_sha256!==hash) {
         return json({success:false,error:"Identificador de envio já utilizado."},409);
       }
-      if(previous.status==="sent") return json({success:true,already_sent:true});
+      if(previous.status==="sent") return json({success:true,already_sent:true,provider_message_id:previous.provider_message_id});
       return json({success:false,code:"pending_confirmation",
         error:"Esse envio já foi solicitado e ainda não está confirmado. Não envie novamente sem verificar no WhatsApp."},409);
     }
@@ -1494,7 +1497,7 @@ Deno.serve(async request => {
       .update({status:"sent",provider_message_id:messageId,updated_at:now})
       .eq("id",attempt.id);
     if(completeError) throw completeError;
-    return json({success:true,message_id:message?.id || null,provider_confirmed:true});
+    return json({success:true,message_id:message?.id || null,provider_message_id:messageId,provider_confirmed:true});
   } catch(error) {
     console.error("union-whatsapp-inbox:",(error as Error)?.name || "unknown");
     return json({success:false,code:"operation_failed",
