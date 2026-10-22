@@ -15,6 +15,7 @@ import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
 import { loadGeneralServicePublication, saveGeneralServicePublication } from "../infrastructure/public-service-publication.repository";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { AdminInlineSearch, matchesAdminSearch } from "@/shared/ui/admin/AdminInlineSearch";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import type { GeneralServiceEquipmentOption } from "../infrastructure/general-services.repository";
 import { formatCurrency, formatNumber } from "@/shared/domain/formatters";
@@ -47,7 +48,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const queryClient = useQueryClient();
   const itemsQuery = useQuery({ queryKey: queryKeys.generalServices.lists(), queryFn: listGeneralServices, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit), staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = itemsQuery.data ?? []; const loading = itemsQuery.isPending;
-  const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [noPrice, setNoPrice] = useState(false); const [active, setActive] = useState(true); const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({}); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5);
+  const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [noPrice, setNoPrice] = useState(false); const [active, setActive] = useState(true); const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({}); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5); const [search, setSearch] = useState("");
   const [equipmentOptions, setEquipmentOptions] = useState<GeneralServiceEquipmentOption[]>([]);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [originalEquipmentIds, setOriginalEquipmentIds] = useState<string[]>([]);
@@ -116,7 +117,9 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
     .sort((a, b) => Number(selectedEquipmentIds.includes(b.id)) - Number(selectedEquipmentIds.includes(a.id))
       || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   useEffect(() => { if (itemsQuery.error) setToast({ msg: `Erro ao carregar serviços gerais: ${systemErrorMessage(itemsQuery.error)}`, type: "error" }); }, [itemsQuery.error]);
-  const sortedItems = [...items].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  const sortedItems = items.filter(item => !search.trim() ||
+    matchesAdminSearch(item.name, search) || matchesAdminSearch(item.description, search))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = sortedItems.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
@@ -207,8 +210,12 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const toggle = async (item: GeneralService) => { if (!canToggleActive) return; try { await setGeneralServiceActive(item.id, !item.is_active); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar serviço: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   if (!canView) return null;
-  return <div className="min-w-0 space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}{!routeResourceId && <><PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" />
-    {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." /> : <><div className="overflow-x-auto"><table className="min-w-[700px]"><thead><tr>{showService && <th className="text-left">Serviço</th>}{showPrice && <th className="text-left">Valor</th>}{showMaxDiscount && <th className="text-left">Desconto máximo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => <tr key={item.id}>{showService && <td className="font-bold text-[#0d1b2e]">{item.name}</td>}{showPrice && <td className="text-[#0d1b2e]">{item.price_at_completion ? <span className="font-semibold text-[#0057e7]">Na conclusão da OS</span> : (item.price == null || Number(item.price) === 0) ? <span className="font-semibold text-muted-foreground">Sem preço</span> : formatCurrency(item.price, "Não informado")}</td>}{showMaxDiscount && <td className="text-[#5a6a82]"><div>{item.max_discount_percentage == null ? "Não informado" : `${formatNumber(item.max_discount_percentage, { maximumFractionDigits: 2 })}%`}</div><div className="mt-0.5 text-xs">{item.max_discount_amount == null ? "Não informado" : formatCurrency(item.max_discount_amount)}</div></td>}{showStatus && <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar serviço geral" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={item.is_active} entityLabel="serviço geral" onClick={() => void toggle(item)} />}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={items.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
+  return <div className="min-w-0 space-y-5">{toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}{!routeResourceId && <><div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
+      <PageHeader title="Serviços Gerais" subtitle="Serviços técnicos internos utilizados na operação" />
+      {canViewTable && <AdminInlineSearch value={search} onChange={value => { setSearch(value); setPage(1); }}
+        placeholder="Buscar serviços..." ariaLabel="Buscar serviços gerais pelo nome ou descrição" />}
+    </div>
+    {canViewTable && <AdminCard>{loading ? <LoadingState /> : items.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço geral cadastrado" message="Cadastre um serviço técnico interno." /> : sortedItems.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço encontrado" message="Tente outro nome ou descrição." /> : <><div className="overflow-x-auto"><table className="min-w-[700px]"><thead><tr>{showService && <th className="text-left">Serviço</th>}{showPrice && <th className="text-left">Valor</th>}{showMaxDiscount && <th className="text-left">Desconto máximo</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedItems.map(item => <tr key={item.id}>{showService && <td className="font-bold text-[#0d1b2e]">{item.name}</td>}{showPrice && <td className="text-[#0d1b2e]">{item.price_at_completion ? <span className="font-semibold text-[#0057e7]">Na conclusão da OS</span> : (item.price == null || Number(item.price) === 0) ? <span className="font-semibold text-muted-foreground">Sem preço</span> : formatCurrency(item.price, "Não informado")}</td>}{showMaxDiscount && <td className="text-[#5a6a82]"><div>{item.max_discount_percentage == null ? "Não informado" : `${formatNumber(item.max_discount_percentage, { maximumFractionDigits: 2 })}%`}</div><div className="mt-0.5 text-xs">{item.max_discount_amount == null ? "Não informado" : formatCurrency(item.max_discount_amount)}</div></td>}{showStatus && <td><StatusBadge status={item.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar serviço geral" title="Editar" onClick={() => openEditPage(item)}><Edit2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={item.is_active} entityLabel="serviço geral" onClick={() => void toggle(item)} />}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={sortedItems.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}<AdminStickyToolbar><BtnSecondary onClick={onBack}>Voltar</BtnSecondary>{canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>}</AdminStickyToolbar></>}
     {routeResourceId && !formOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     <AdminPage open={formOpen} onClose={closeForm} breadcrumb="Operação > Serviços Gerais"
       title={editItem ? editItem.name : "Novo serviço"}
@@ -225,13 +232,8 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
                 onChange={(e: any) => setDescription(e.target.value)}
                 placeholder="Descreva o que está incluído na execução deste serviço." />
             </div>
-            <div className="flex flex-wrap items-start gap-5 sm:col-span-2">
-              <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-              <FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-            </div>
             {!noPrice && !priceAtCompletion && <FCurrencyInput label="Valor do serviço" disabled={saving} error={fieldErrors.price} value={price}
               onChange={(e: any) => { setFieldErrors(current => ({ ...current, price: undefined })); setPrice(e.target.value); }} />}
-            <div className="flex items-center"><FToggle label="Serviço ativo" description="Disponível para inclusão nas OS." disabled={saving} checked={active} onChange={setActive} /></div>
           </div>
           <details className="mt-4 rounded-lg border border-border p-3">
             <summary className="cursor-pointer text-sm font-semibold text-foreground">Limites de desconto (opcional)</summary>
@@ -242,8 +244,39 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
                 onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountAmount: undefined })); setMaxDiscountAmount(e.target.value); }} />
             </div>
           </details>
+          <div className="mt-5 grid gap-4 border-t border-border pt-4 md:grid-cols-3 md:gap-5">
+            <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
+            <FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
+            <FToggle label="Serviço ativo" description="Disponível para inclusão nas OS." disabled={saving} checked={active} onChange={setActive} />
+          </div>
         </Section>
-        {canPublish && <Section title="Loja da Artvideo">
+
+      </div>
+    <div className="px-4 pb-5 sm:px-5">
+      <Section title="Equipamentos vinculados">
+        <p className="mb-3 text-xs text-muted-foreground">Marque os equipamentos que podem receber este serviço.</p>
+        {equipmentLoading && <InlineLoading className="py-4" text="Carregando equipamentos..." />}
+        {!equipmentLoading && equipmentError && <div role="alert" className="space-y-2 py-3 text-xs text-red-600">
+          <p>Não foi possível carregar os vínculos: {equipmentError}</p>
+          <button type="button" disabled={saving} onClick={() => loadEquipmentLinks(editItem?.id ?? null)} className="font-semibold underline underline-offset-2">Tentar novamente</button>
+        </div>}
+        {!equipmentLoading && equipmentReady && <div className="max-h-64 overflow-y-auto border-y border-border">
+          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
+            {sortedEquipment.map(type => <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 py-3 text-xs text-foreground">
+              <Checkbox checked={selectedEquipmentIds.includes(type.id)} disabled={saving || (!type.is_active && !selectedEquipmentIds.includes(type.id))}
+                onCheckedChange={checked => setSelectedEquipmentIds(current =>
+                  checked === true ? [...new Set([...current, type.id])] : current.filter(id => id !== type.id))} />
+              <span className="min-w-0 flex-1 font-semibold">{type.name}</span>
+              {!type.is_active && <span className="text-[10px] text-muted-foreground">Inativo</span>}
+            </label>)}
+          </div>
+          {sortedEquipment.length === 0 && <p className="py-4 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>}
+        </div>}
+        {equipmentReady && <p className="mt-2 text-xs text-muted-foreground">{selectedEquipmentIds.length} equipamento(s) selecionado(s)</p>}
+      </Section>
+    </div>
+    {canPublish && <div className="px-4 pb-5 sm:px-5">
+      <Section title="Loja da Artvideo">
           <div className="space-y-4">
             {publicationLoading && <InlineLoading text="Carregando publicação do serviço..." />}
             {publicationError && <div role="alert" className="text-xs text-red-600">
@@ -274,31 +307,8 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
               {siteCoverMediaId && <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => setSiteCoverMediaId("")}>Remover imagem</button>}
             </div>}
           </div>
-        </Section>}
-      </div>
-    <div className="px-4 pb-5 sm:px-5">
-      <Section title="Equipamentos vinculados">
-        <p className="mb-3 text-xs text-muted-foreground">Marque os equipamentos que podem receber este serviço.</p>
-        {equipmentLoading && <InlineLoading className="py-4" text="Carregando equipamentos..." />}
-        {!equipmentLoading && equipmentError && <div role="alert" className="space-y-2 py-3 text-xs text-red-600">
-          <p>Não foi possível carregar os vínculos: {equipmentError}</p>
-          <button type="button" disabled={saving} onClick={() => loadEquipmentLinks(editItem?.id ?? null)} className="font-semibold underline underline-offset-2">Tentar novamente</button>
-        </div>}
-        {!equipmentLoading && equipmentReady && <div className="max-h-64 overflow-y-auto border-y border-border">
-          <div className="grid grid-cols-1 gap-x-6 sm:grid-cols-2">
-            {sortedEquipment.map(type => <label key={type.id} className="flex cursor-pointer items-center gap-3 border-b border-border/60 py-3 text-xs text-foreground">
-              <Checkbox checked={selectedEquipmentIds.includes(type.id)} disabled={saving || (!type.is_active && !selectedEquipmentIds.includes(type.id))}
-                onCheckedChange={checked => setSelectedEquipmentIds(current =>
-                  checked === true ? [...new Set([...current, type.id])] : current.filter(id => id !== type.id))} />
-              <span className="min-w-0 flex-1 font-semibold">{type.name}</span>
-              {!type.is_active && <span className="text-[10px] text-muted-foreground">Inativo</span>}
-            </label>)}
-          </div>
-          {sortedEquipment.length === 0 && <p className="py-4 text-xs text-muted-foreground">Nenhum equipamento cadastrado.</p>}
-        </div>}
-        {equipmentReady && <p className="mt-2 text-xs text-muted-foreground">{selectedEquipmentIds.length} equipamento(s) selecionado(s)</p>}
       </Section>
-    </div>
+    </div>}
     <div className="sticky bottom-0 flex justify-end gap-3 border-t border-[#0d1b2e]/8 bg-white px-4 py-4 sm:px-5"><BtnSecondary onClick={closeForm} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={save} disabled={equipmentLoading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminPage>
   </div>;
 }
