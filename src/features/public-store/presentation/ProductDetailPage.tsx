@@ -2,6 +2,7 @@ import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPag
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { addStoreCartItem } from "../application/store-cart";
+import { animateProductToCart } from "../application/cart-animation";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight,
@@ -23,7 +24,7 @@ const reviewStars = (rating: number) => Array.from({ length: 5 }, (_, i) =>
     className={i < Math.round(rating) ? "text-[#f59e0b]" : "text-[#cbd5e1]"} strokeWidth={1.8}/>);
 
 function ProductImage({ src, alt, className = "" }: { src?: string | null; alt: string; className?: string }) {
-  return src ? <img src={src} alt={alt} className={`h-full w-full object-contain transition-all duration-500 ease-out ${className}`}/> :
+  return src ? <img src={src} alt={alt} className={`h-full w-full object-contain transition-opacity duration-150 ease-out ${className}`}/> :
     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-white via-[#f6faff] to-[#e4effe]">
       <ImageIcon size={65} strokeWidth={1.2} className="text-[#adc3e2]"/>
     </div>;
@@ -44,6 +45,26 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     staleTime: 30_000,
   });
   const [imageIndex, setImageIndex] = useState(0);
+  const [readyGallery, setReadyGallery] = useState("");
+  // Só exibe a página depois de carregar a galeria e os detalhes do produto.
+  const galleryUrls = (extraQuery.data?.images?.length
+    ? extraQuery.data.images.slice(0,4).map((image: {url: string}) => image.url)
+    : [publicMediaUrl(detail?.media)].filter(Boolean)) as string[];
+  const gallerySignature = JSON.stringify([productId, ...galleryUrls]);
+  useEffect(() => {
+    if (!productId || extraQuery.isPending) return;
+    let active = true;
+    setReadyGallery("");
+    Promise.all(galleryUrls.map(url => new Promise<void>(resolve => {
+      const image = new Image();
+      image.onload = () => resolve();
+      image.onerror = () => resolve();
+      image.src = url;
+      if (image.complete) resolve();
+    }))).then(() => { if (active) setReadyGallery(gallerySignature); });
+    return () => { active = false; };
+  }, [productId, gallerySignature, extraQuery.isPending]);
+
   const [qty, setQty] = useState(1);
   const [postalCode, setPostalCode] = useState("");
   const [shipping, setShipping] = useState<{ key: string; options: ShippingOption[] } | null>(null);
@@ -65,7 +86,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     setShippingError("");
   }, [productId]);
 
-  if (loading) return <section role="status" aria-live="polite" aria-label="Carregando detalhes do produto" className="min-h-[55vh] bg-[#f7faff]">
+  if (loading || (Boolean(productId) && (extraQuery.isPending || readyGallery !== gallerySignature))) return <section role="status" aria-live="polite" aria-label="Carregando detalhes do produto" className="min-h-[55vh] bg-[#f7faff]">
     <div className="mx-auto max-w-7xl animate-pulse px-4 py-10 sm:px-6 lg:px-8">
       <div className="mb-8 h-4 w-52 rounded-full bg-[#dfe9f5]"/>
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)]">
@@ -84,7 +105,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
 
   const { product, brand } = detail;
   const extras = extraQuery.data;
-  const images = extras?.images.length ? extras.images :
+  const images = extras?.images.length ? extras.images.slice(0,4) :
     publicMediaUrl(detail.media) ? [{ url: publicMediaUrl(detail.media)!, alt: product.name }] : [];
   const selectedImage = images[Math.min(imageIndex, Math.max(0, images.length - 1))];
   const stock = extras?.stock ?? null;
@@ -220,7 +241,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--art-primary)] px-4 text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
             <ShoppingCart size={19}/> Comprar agora
           </button>
-          <button type="button" disabled={!canBuy} onClick={() => setCartFeedback(addStoreCartItem(product.id,selectedQty) ? "Produto adicionado ao carrinho." : "Limite de itens do carrinho atingido.")}
+          <button type="button" disabled={!canBuy} onClick={event => {if(addStoreCartItem(product.id,selectedQty)){setCartFeedback("");animateProductToCart(event.currentTarget);}else setCartFeedback("Limite de itens do carrinho atingido.");}}
             className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[var(--art-primary)] px-4 text-[13px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-50">
             <Plus size={17}/> Adicionar ao carrinho
           </button>
@@ -234,13 +255,15 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
 
     <section className="border-t border-[#e7eef6] bg-white py-10">
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <PublicHeading>Descrição e informações do produto</PublicHeading>
-        {product.description ? <p className="mt-5 whitespace-pre-line text-[14px] leading-[1.85] text-[#53637a]">{product.description}</p> :
-          <p className="mt-4 text-[13px] text-[#64748b]">A descrição detalhada ainda não foi cadastrada para este produto.</p>}
-        <div className="mt-6 grid gap-3 sm:grid-cols-2">
-          {brand?.name && <div className="rounded-md border border-[#e6edf6] p-3 text-[12px]"><span className="text-[#718096]">Marca</span><p className="font-bold">{brand.name}</p></div>}
-          {product.sku && <div className="rounded-md border border-[#e6edf6] p-3 text-[12px]"><span className="text-[#718096]">Código do produto</span><p className="font-bold">{product.sku}</p></div>}
-        </div>
+        <h2 className="text-[25px] font-semibold tracking-tight text-[#142943]">Descrição do produto</h2>
+        <div className="mt-5 max-w-4xl whitespace-pre-line text-[14px] leading-7 text-[#53637a]">{product.description?.trim() || product.short_description?.trim() || "Consulte as informações deste produto com nossa equipe."}</div>
+        {(brand?.name || product.sku) && <div className="mt-9 max-w-4xl border-t border-[#e5ecf3] pt-6">
+          <h3 className="text-[17px] font-semibold text-[#142943]">Informações do produto</h3>
+          <dl className="mt-4 divide-y divide-[#eef2f6] text-[13px]">
+            {brand?.name && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Marca</dt><dd className="text-[#233e59]">{brand.name}</dd></div>}
+            {product.sku && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Código</dt><dd className="text-[#233e59]">{product.sku}</dd></div>}
+          </dl>
+        </div>}
       </div>
     </section>
 
@@ -288,11 +311,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             {reviewSending ? "Enviando..." : "Enviar avaliação"}
           </button>
         </form>
-        {askUrl && <div className="mt-7 border-t border-[#e2ebf5] pt-6">
-          <h3 className="text-[17px] font-extrabold">Perguntas sobre este produto</h3>
-          <p className="mt-2 text-[13px] text-[#64748b]">Tem dúvidas sobre compatibilidade, condições ou características?</p>
-          <a className="mt-3 inline-flex items-center gap-2 rounded-md border border-[var(--art-primary)] px-4 py-2.5 text-[12px] font-bold text-[var(--art-primary)] transition-all hover:bg-blue-50" href={askUrl} target="_blank" rel="noopener noreferrer"><MessageCircle size={17}/> Fazer uma pergunta à Artvideo</a>
-        </div>}
+
       </div>
     </section>
 
