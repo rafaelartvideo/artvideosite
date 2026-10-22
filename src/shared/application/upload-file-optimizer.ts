@@ -9,10 +9,10 @@ type ImagePresetConfig = {
 };
 
 const IMAGE_PRESETS: Record<UploadImagePreset, ImagePresetConfig> = {
-  "service-photo": { maxDimension: 1920, quality: 0.82, minQuality: 0.72, minBytesToOptimize: 350 * 1024, targetMaxBytes: 1200 * 1024 },
+  "service-photo": { maxDimension: 1600, quality: 0.80, minQuality: 0.68, minBytesToOptimize: 250 * 1024, targetMaxBytes: 900 * 1024 },
   "service-label": { maxDimension: 2200, quality: 0.88, minQuality: 0.82, minBytesToOptimize: 450 * 1024, targetMaxBytes: 1600 * 1024 },
   "document-image": { maxDimension: 1920, quality: 0.84, minQuality: 0.76, minBytesToOptimize: 350 * 1024, targetMaxBytes: 1200 * 1024 },
-  "catalog-image": { maxDimension: 2200, quality: 0.86, minQuality: 0.80, minBytesToOptimize: 400 * 1024, targetMaxBytes: 1500 * 1024 },
+  "catalog-image": { maxDimension: 1600, quality: 0.82, minQuality: 0.70, minBytesToOptimize: 250 * 1024, targetMaxBytes: 950 * 1024 },
   "whatsapp-image": { maxDimension: 2560, quality: 0.86, minQuality: 0.68, minBytesToOptimize: 160 * 1024, targetMaxBytes: 3 * 1024 * 1024 },
 };
 
