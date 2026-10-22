@@ -39,6 +39,7 @@ export interface Employee {
 export interface GeneralService {
   id: string;
   name: string;
+  description: string | null;
   price: number | null;
   price_at_completion: boolean;
   max_discount_percentage: number | null;
