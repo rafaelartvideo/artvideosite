@@ -257,10 +257,12 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <h2 className="text-[25px] font-semibold tracking-tight text-[#142943]">Descrição do produto</h2>
         <div className="mt-5 max-w-4xl whitespace-pre-line text-[14px] leading-7 text-[#53637a]">{product.description?.trim() || product.short_description?.trim() || "Consulte as informações deste produto com nossa equipe."}</div>
-        {(brand?.name || product.sku) && <div className="mt-9 max-w-4xl border-t border-[#e5ecf3] pt-6">
+        {(brand?.name || product.sku || product.model || product.manufacturer_code) && <div className="mt-9 max-w-4xl border-t border-[#e5ecf3] pt-6">
           <h3 className="text-[17px] font-semibold text-[#142943]">Informações do produto</h3>
           <dl className="mt-4 divide-y divide-[#eef2f6] text-[13px]">
             {brand?.name && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Marca</dt><dd className="text-[#233e59]">{brand.name}</dd></div>}
+            {product.model && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Modelo</dt><dd className="text-[#233e59]">{product.model}</dd></div>}
+            {product.manufacturer_code && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Referência</dt><dd className="text-[#233e59]">{product.manufacturer_code}</dd></div>}
             {product.sku && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Código</dt><dd className="text-[#233e59]">{product.sku}</dd></div>}
           </dl>
         </div>}
