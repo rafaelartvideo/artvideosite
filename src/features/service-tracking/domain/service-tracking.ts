@@ -6,6 +6,8 @@ export type PublicOrderHistory = {
   order_status?: { name?: string | null } | null;
 };
 
+export type PublicTrackedOrderItem = { title: string; type: "service" | "custom_service" | "product" };
+
 export type PublicTrackedOrder = {
   id: string;
   os_number?: string | null;
@@ -14,7 +16,9 @@ export type PublicTrackedOrder = {
   updated_at?: string | null;
   status: string;
   customer_notes?: string | null;
-  internal_notes?: string | null;
+  equipment?: string | null;
+  product_title?: string | null;
+  items?: PublicTrackedOrderItem[];
   history: PublicOrderHistory[];
   title?: string | null;
   description?: string | null;
