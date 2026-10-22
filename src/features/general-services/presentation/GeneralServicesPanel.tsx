@@ -244,13 +244,12 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
                 onChange={(e: any) => { setFieldErrors(current => ({ ...current, maxDiscountAmount: undefined })); setMaxDiscountAmount(e.target.value); }} />
             </div>
           </details>
-          <div className="mt-5 grid gap-4 border-t border-border pt-4 md:grid-cols-3 md:gap-5">
-            <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-            <FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
-            <FToggle label="Serviço ativo" description="Disponível para inclusão nas OS." disabled={saving} checked={active} onChange={setActive} />
+          <div className="mt-5 flex min-w-0 flex-nowrap gap-4 overflow-x-auto border-t border-border pt-4 md:gap-5">
+            <div className="min-w-[155px] flex-1"><FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} /></div>
+            <div className="min-w-[230px] flex-1"><FToggle label="Definir valor na conclusão da OS" disabled={saving} checked={priceAtCompletion} onChange={value => { setPriceAtCompletion(value); if (value) { setNoPrice(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} /></div>
+            <div className="min-w-[210px] flex-1"><FToggle label="Serviço ativo" description="Disponível para inclusão nas OS." disabled={saving} checked={active} onChange={setActive} /></div>
           </div>
         </Section>
-
       </div>
     <div className="px-4 pb-5 sm:px-5">
       <Section title="Equipamentos vinculados">
