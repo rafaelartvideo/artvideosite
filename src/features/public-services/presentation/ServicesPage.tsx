@@ -68,7 +68,7 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
         {categoryChoices.map(item => { const Icon = item.icon; const active = category === item.id;
           return <button type="button" key={item.id} onClick={() => choose(item.id)} aria-pressed={active}
             className="group flex w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:w-[112px]">
-            <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#dceef9] text-[#133954]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
+            <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#eef1ff] text-[var(--art-primary)]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
               <Icon size={26} strokeWidth={1.4}/>
             </span>
             <span className="max-w-[125px] text-[11px] leading-4 text-[#2d3a4a] sm:text-[12px]">{item.name}</span>

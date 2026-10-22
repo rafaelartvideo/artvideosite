@@ -99,7 +99,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
             const Icon = item.icon;
             return <Reveal key={item.label} delay={(index % 3) * 110} className="h-full">
               <div className="group h-full rounded-xl border border-[#0d1b2e]/10 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-[#21466e]/25 hover:shadow-[0_12px_32px_rgba(11,29,55,.09)]">
-                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#e9f0f8] text-[#21466e] transition-transform duration-300 group-hover:scale-110">
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-[#e9f0f8] text-[var(--art-primary)] transition-transform duration-300 group-hover:scale-110">
                   <Icon size={22} strokeWidth={1.8} />
                 </div>
                 <h3 className="mb-2 font-bold text-[#122439]">{item.label}</h3>
@@ -130,7 +130,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
               const Icon = item.icon;
               return <Reveal key={item.label} direction="right" delay={index * 75}>
                 <div className="flex items-start gap-4 rounded-xl border border-[#0d1b2e]/[.07] bg-[#f5f7fa] p-4 transition-all duration-300 hover:translate-x-1 hover:bg-[#edf3f9]">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e2ecf7] text-[#21466e]"><Icon size={18} strokeWidth={1.8}/></div>
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e2ecf7] text-[var(--art-primary)]"><Icon size={18} strokeWidth={1.8}/></div>
                   <div>
                     <p className="text-sm font-bold text-[#122439]">{item.label}</p>
                     <p className="mt-1 text-xs leading-relaxed text-[#5a6a82]">{item.desc}</p>
@@ -149,7 +149,7 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
         <p className="mb-9 text-lg text-white/75">Fale com nossa equipe ou visite nossa loja.</p>
         <div className="flex flex-wrap justify-center gap-4">
           <button type="button" onClick={() => setPage("orcamento")}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-7 py-3 text-sm font-bold text-[#204a92] transition-all hover:-translate-y-0.5 hover:bg-[#e8f0f8]">Solicitar orçamento <ArrowRight size={17}/></button>
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-7 py-3 text-sm font-bold text-[var(--art-primary)] transition-all hover:-translate-y-0.5 hover:bg-[#e8f0f8]">Solicitar orçamento <ArrowRight size={17}/></button>
           <button type="button" onClick={() => setPage("loja")}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/75 px-7 py-3 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10">Visitar loja <ArrowRight size={17}/></button>
         </div>

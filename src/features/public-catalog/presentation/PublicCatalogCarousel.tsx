@@ -57,7 +57,7 @@ export function PublicCatalogCarousel({ slides, title }: { slides: CatalogSlide[
         <h2 className="line-clamp-2 text-[27px] font-bold leading-tight tracking-[-.03em] sm:text-[39px]">{current.title}</h2>
         <p className="mt-3 line-clamp-3 max-w-[470px] text-[13px] leading-relaxed text-white/85 sm:text-[15px]">{current.description}</p>
         {current.onAction && <button type="button" onClick={current.onAction}
-          className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-5 text-[13px] font-bold text-[#204a92] hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-5 text-[13px] font-bold text-[var(--art-primary)] hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
           {current.actionLabel || "Saiba mais"} <ArrowRight size={16} strokeWidth={1.75}/>
         </button>}
       </div>

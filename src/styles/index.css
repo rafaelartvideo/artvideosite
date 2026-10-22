@@ -960,7 +960,7 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   --art-blue-dark: #102c60;
   --art-blue-mid: #173b78;
   --art-blue-light: #204a92;
-  --art-blue-accent: #2459aa;
+  --art-blue-accent: #1032dc;
   --art-brand-gradient: linear-gradient(110deg, var(--art-blue-dark) 0%, var(--art-blue-mid) 62%, var(--art-blue-light) 100%);
 }
 .artvideo-public .art-public-brand-gradient {

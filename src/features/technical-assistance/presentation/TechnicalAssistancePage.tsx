@@ -49,13 +49,13 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
             {ASSIST_CARDS.map((c) => {
               const Icon = c.icon;
               return (
-                <div key={c.title} className="bg-white rounded-xl p-6 border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#0057e7]/30 transition-all group">
-                  <div className="w-10 h-10 bg-[#2459aa]/10 rounded-lg flex items-center justify-center mb-4 group-hover:bg-[#2459aa]/20 transition-colors">
-                    <Icon size={20} className="text-[#2459aa]" />
+                <div key={c.title} className="bg-white rounded-xl p-6 border border-[#0d1b2e]/10 shadow-sm hover:shadow-md hover:border-[#1032dc]/30 transition-all group">
+                  <div className="w-10 h-10 bg-[#1032dc]/10 rounded-lg flex items-center justify-center mb-4 group-hover:bg-[#1032dc]/20 transition-colors">
+                    <Icon size={20} className="text-[var(--art-primary)]" />
                   </div>
                   <h3 className="font-bold text-[#0d1b2e] mb-2">{c.title}</h3>
                   <p className="text-sm text-[#5a6a82] leading-relaxed mb-4">{c.desc}</p>
-                  <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[#2459aa] hover:gap-2 transition-all">
+                  <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[var(--art-primary)] hover:gap-2 transition-all">
                     Ver serviços <ChevronRight size={14} />
                   </button>
                 </div>
@@ -92,7 +92,7 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
           <H2 className="mb-10">Como funciona</H2>
           <div className="relative">
             {/* Os conectores passam exatamente pelo centro das quatro etapas, sem depender da altura dos textos. */}
-            <div aria-hidden="true" className="pointer-events-none absolute left-[calc(12.5%_-_9px)] right-[calc(12.5%_-_9px)] top-7 hidden h-px bg-[#2850e9]/30 lg:block"/>
+            <div aria-hidden="true" className="pointer-events-none absolute left-[calc(12.5%_-_9px)] right-[calc(12.5%_-_9px)] top-7 hidden h-px bg-[#1032dc]/30 lg:block"/>
             <div className="relative z-10 grid gap-x-6 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
               {ASSIST_STEPS.map((step) => (
                 <div key={step.n} className="flex min-w-0 flex-col items-center text-center">
@@ -114,7 +114,7 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
           <h2 className="text-3xl sm:text-5xl font-black text-white mb-4" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Precisa de assistência?</h2>
           <p className="text-white/80 text-lg mb-10">Solicite um orçamento e conte para nossa equipe o que aconteceu com seu equipamento.</p>
           <div className="flex flex-wrap justify-center gap-4">
-            <button onClick={() => setPage("orcamento")} className="bg-white text-[#204a92] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Solicitar orçamento</button>
+            <button onClick={() => setPage("orcamento")} className="bg-white text-[var(--art-primary)] font-bold rounded-md px-7 py-3 text-base hover:bg-[#f0f6ff] transition-colors">Solicitar orçamento</button>
             <WhatsAppAction className="px-7 py-3 text-base" />
           </div>
         </div>

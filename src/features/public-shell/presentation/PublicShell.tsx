@@ -244,8 +244,8 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     { label: routeLabel },
   ];
   const themeStyle = {
-    "--art-primary": ["#1032dc", "#0057e7"].includes(themeColor(settings.primary_color, "#2459aa").toLowerCase())
-      ? "#2459aa" : themeColor(settings.primary_color, "#2459aa"),
+    // Azul de ações da Artvideo igual ao primário da Union World.
+    "--art-primary": "#1032dc",
     "--art-dark": ["#0b1d37", "#0d1b2e"].includes(themeColor(settings.secondary_color, "#102c60").toLowerCase())
       ? "#102c60" : themeColor(settings.secondary_color, "#102c60"),
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",

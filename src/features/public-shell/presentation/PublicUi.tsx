@@ -47,7 +47,7 @@ export function PublicSelect({ value, onValueChange, options, required = false, 
       <SelectValue />
     </SelectTrigger>
     <SelectContent className="border-[#0d1b2e]/10 bg-white text-[#0d1b2e] shadow-xl">
-      {options.map(option => <SelectItem key={option.value || EMPTY_PUBLIC_SELECT_VALUE} value={toSelectValue(option.value)} className="cursor-pointer focus:bg-[#eef5ff] focus:text-[#0057e7]">{option.label}</SelectItem>)}
+      {options.map(option => <SelectItem key={option.value || EMPTY_PUBLIC_SELECT_VALUE} value={toSelectValue(option.value)} className="cursor-pointer focus:bg-[#eef5ff] focus:text-[var(--art-primary)]">{option.label}</SelectItem>)}
     </SelectContent>
   </Select>;
 }
