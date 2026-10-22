@@ -24,11 +24,22 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
  useEffect(()=>{setCep('');setCoverage('idle');setOptionOpen(false);setVariant('');setModal(null);},[slug]);
  const service=detail?.service; const appearance=homeServiceDisplay(settings.home_service_display)[service?.id??''];
  const Icon=publicIcon(appearance?.icon||service?.public_icon||inferredServiceIcon(service?.title));
- const {url:customPhoto}=useMediaUrl(appearance?.media_id);
+ const {url:customPhoto,loading:customPhotoLoading}=useMediaUrl(appearance?.media_id);
  const mediaBucket=detail?.media?.bucket_id??detail?.media?.bucket_name??'',mediaPath=detail?.media?.storage_path??'';
  const imageQuery=useQuery({queryKey:['public-service-media',mediaBucket,mediaPath],enabled:Boolean(mediaBucket&&mediaPath&&!customPhoto),queryFn:()=>resolvePublicMediaUrl(detail?.media),staleTime:30*60_000});
  const imageUrl=customPhoto||imageQuery.data||null;
- if(loading)return <div role="status" className="flex min-h-[55vh] items-center justify-center gap-3 text-sm text-slate-500"><Loader2 size={20} className="animate-spin"/> Carregando serviço...</div>;
+ const [readyImage,setReadyImage]=useState<string|null>(null);
+ useEffect(()=>{
+   if(!imageUrl){setReadyImage(null);return;}
+   let active=true;const photo=new Image();
+   photo.onload=()=>{if(active)setReadyImage(imageUrl);};
+   photo.onerror=()=>{if(active)setReadyImage(imageUrl);};
+   photo.src=imageUrl;
+   if(photo.complete)setReadyImage(imageUrl);
+   return()=>{active=false;};
+ },[imageUrl]);
+ const waitingImage=customPhotoLoading || (Boolean(mediaBucket&&mediaPath&&!customPhoto)&&imageQuery.isPending) || (Boolean(imageUrl)&&readyImage!==imageUrl);
+ if(loading||waitingImage)return <div role="status" className="flex min-h-[55vh] items-center justify-center gap-3 text-sm text-slate-500"><Loader2 size={20} className="animate-spin"/> Carregando serviço...</div>;
  if(error||!detail)return <section className="mx-auto max-w-xl px-5 py-20 text-center"><PublicHeading>{error?'Não foi possível carregar este serviço':'Serviço não encontrado'}</PublicHeading><p className="my-5 text-slate-600">Tente novamente ou escolha outro serviço disponível.</p><PublicButton onClick={()=>setPage('servicos')}>Ver serviços</PublicButton></section>;
  const {inclusions,exclusions,faqs,sections}=detail;
  const c=bookingConfig(service.public_booking);const variants=detail.variants.filter((v:any)=>v.is_active!==false);
