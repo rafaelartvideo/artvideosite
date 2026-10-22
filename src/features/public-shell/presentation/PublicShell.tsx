@@ -251,10 +251,10 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
       ? "#102c60" : themeColor(settings.secondary_color, "#102c60"),
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
   } as CSSProperties;
-  return <div className={`artvideo-public ${isProductRoute ? "artvideo-product-view " : ""}min-h-screen bg-white text-[#10213d]`} style={themeStyle}>
+  return <div className={`artvideo-public ${isProductRoute ? "artvideo-product-view " : ""}${isCheckout ? "artvideo-checkout-view " : ""}min-h-screen bg-white text-[#10213d]`} style={themeStyle}>
     <PublicHeader page={page} setPage={setPage}/>
-    <main>{routeLabel && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
+    <main>{routeLabel && !isCheckout && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
     <PublicFooter setPage={setPage}/>
-    <WhatsAppFloat hideOnMobile={isProductRoute}/>
+    <WhatsAppFloat hideOnMobile={isProductRoute || isCheckout}/>
   </div>;
 }
