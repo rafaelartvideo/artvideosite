@@ -16,6 +16,7 @@ import {
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
+import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 
 type QuoteAction = "submit" | "approve" | "reject" | "renegotiate";
 type ModalFeedback = { type: "success" | "error"; message: string };
@@ -189,6 +190,9 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
           <p className="text-right text-[11px] tabular-nums text-muted-foreground" aria-live="off">
             {draft.diagnosis.length}/{MAX_TECHNICAL_CHARS} caracteres
           </p>
+          {editable && <UnionQuoteAiActions organizationId={org} orderId={orderId} field="diagnosis"
+            currentText={draft.diagnosis} diagnosisText={draft.diagnosis}
+            onApply={text=>setDraft(current=>({...current,diagnosis:text}))}/>}
         </div>
         <div className="space-y-1">
           <FTextarea rows={4} label="Solução proposta" required autoCapitalize="sentences"
@@ -197,9 +201,13 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
           <p className="text-right text-[11px] tabular-nums text-muted-foreground" aria-live="off">
             {draft.proposed_solution.length}/{MAX_TECHNICAL_CHARS} caracteres
           </p>
+          {editable && <UnionQuoteAiActions organizationId={org} orderId={orderId} field="proposed_solution"
+            currentText={draft.proposed_solution} diagnosisText={draft.diagnosis}
+            onApply={text=>setDraft(current=>({...current,proposed_solution:text}))}/>}
         </div>
       </div>
     </Section>
+    {editable && <UnionQuoteAiUsage organizationId={org}/>}
     <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>
     {!!renegotiations.length&&<Section title={<span className="inline-flex items-center gap-2"><History size={15}/> Histórico de renegociações</span>} flush>
       <div className="hidden overflow-x-auto md:block">
