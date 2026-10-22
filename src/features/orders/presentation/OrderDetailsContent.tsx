@@ -166,7 +166,7 @@ export function OrderDetailsContent({
             <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
             <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || undefined} />
             <InfoRow label="Número de série" value={detail.serial_number || undefined} />
-            {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.field_type_snapshot === "number" ? (value.value_number == null ? undefined : String(value.value_number)) : value.value_text} />)}
+            {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? undefined : String(value.value_number))} />)}
             </div>
           {hasPermission("orders.section.images") && (
             <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
