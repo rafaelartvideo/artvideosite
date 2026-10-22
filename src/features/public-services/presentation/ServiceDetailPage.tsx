@@ -2,7 +2,7 @@ import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPag
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowRight, Check, CheckCircle2, Clock3, FileText, Info, Loader2, MapPin, Plus, Wrench, X } from 'lucide-react';
+import { ArrowRight, Check, CheckCircle2, Clock3, FileText, Info, MapPin, Plus, Wrench, X } from 'lucide-react';
 import { useServiceDetailBySlug, useServices } from '@/features/public-catalog/application/usePublicCatalog';
 import { resolvePublicMediaUrl } from '@/features/public-catalog/infrastructure/public-media';
 import { useSiteSettings } from '@/features/public-shell/application/useSiteSettings';
