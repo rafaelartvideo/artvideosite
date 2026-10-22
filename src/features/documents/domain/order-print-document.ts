@@ -375,16 +375,16 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
           field.key === "quote_items.total" ? money(Number(item.quantity || 0) * Number(item.unit_price || 0) + Number(item.additional_cost || 0)) : "";
         return "<td" + numeric(field.key) + ">" + escapeHtml(value) + "</td>";
       }).join("") + "</tr>").join("");
+      const subtotalValue = context.quote ? escapeHtml(money((context.quote.items || []).reduce((sum, item) =>
+        sum + Number(item.quantity || 0) * Number(item.unit_price || 0) + Number(item.additional_cost || 0), 0))) : "";
+      const footer = !context.quote ? "" : columns.length === 1
+        ? "<tfoot><tr class='subtotal-row'><th scope='row'>Subtotal: " + subtotalValue + "</th></tr></tfoot>"
+        : "<tfoot><tr class='subtotal-row'><th scope='row' colspan='" + (columns.length - 1) +
+          "'>Subtotal</th><td class='numeric'>" + subtotalValue + "</td></tr></tfoot>";
       return "<section class='section-list'><h2>" + escapeHtml(section.label) + "</h2><table class='items-table'><thead><tr>" +
         columns.map(field => "<th scope='col'" + numeric(field.key) + ">" + escapeHtml(field.label) + "</th>").join("") +
         "</tr></thead><tbody>" + (rows || "<tr><td colspan='" + columns.length + "'>Nenhum item incluído.</td></tr>") +
-        "</tbody>" + (context.quote
-          ? "<tfoot><tr class='subtotal-row'><th scope='row' colspan='" + Math.max(1, columns.length - 1) +
-            "'>Subtotal</th><td class='numeric'>" +
-            escapeHtml(money((context.quote.items || []).reduce((sum, item) =>
-              sum + Number(item.quantity || 0) * Number(item.unit_price || 0) + Number(item.additional_cost || 0), 0))) +
-            "</td></tr></tfoot>"
-          : "") + "</table></section>";
+        "</tbody>" + footer + "</table></section>";
     }
     if (section.key === "used_parts") {
       const numeric = (key: string) => key !== "used_parts.items" ? " class='numeric'" : "";
