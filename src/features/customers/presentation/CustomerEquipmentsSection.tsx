@@ -7,10 +7,7 @@ function technicalValueLabel(value: any) {
 }
 
 function technicalValueText(value: any) {
-  if (value?.field_type_snapshot === "number") {
-    return value?.value_number == null ? "—" : String(value.value_number);
-  }
-  return String(value?.value_text || "—");
+  return String(value?.value_text ?? (value?.value_number == null ? "—" : value.value_number));
 }
 
 export function CustomerEquipmentsSection({ equipments }: { equipments: any[] }) {
