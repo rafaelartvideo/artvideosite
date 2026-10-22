@@ -1,7 +1,7 @@
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight, ClipboardList, FileText, Search, Settings2,
-  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote,
+  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useBrands, useFeaturedProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard, ProductCard, ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -24,6 +24,61 @@ const steps = [
   { defaultTitle: "Orçamento", defaultDesc: "Você recebe o diagnóstico e o valor do serviço.", Icon: ClipboardList },
   { defaultTitle: "Reparo", defaultDesc: "Após a aprovação, realizamos o reparo com qualidade e garantia.", Icon: Wrench },
 ];
+
+const EXAMPLE_TESTIMONIALS = [
+  { name: "Mariana Almeida", message: "Gostei de receber explicações claras sobre o que seria avaliado e sobre as próximas etapas do serviço." },
+  { name: "Carlos Henrique", message: "Poder conversar sobre o problema antes de decidir pelo reparo faz toda a diferença." },
+  { name: "Ana Paula Santos", message: "Um atendimento organizado, com espaço para tirar dúvidas e entender o orçamento." },
+  { name: "João Victor Lima", message: "Achei ótima a ideia de acompanhar cada etapa da assistência sem complicação." },
+  { name: "Fernanda Oliveira", message: "É muito melhor escolher os produtos tendo informações claras e opções de atendimento." },
+  { name: "Ricardo Martins", message: "Transparência no diagnóstico e atenção aos detalhes são o que procuro em uma assistência técnica." },
+  { name: "Patrícia Costa", message: "Ter produtos e serviços no mesmo lugar ajuda bastante na hora de resolver um problema." },
+  { name: "Lucas Ferreira", message: "Um orçamento bem explicado facilita muito a decisão de autorizar o conserto." },
+];
+// Pessoas e comentários fictícios: nunca apresentar como avaliações verificadas.
+function ExampleTestimonialsCarousel() {
+  const [index, setIndex] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const count = EXAMPLE_TESTIMONIALS.length;
+  const go = (change: number) => setIndex(current => (current + change + count) % count);
+  useEffect(() => {
+    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const timer = window.setInterval(() => setIndex(current => (current + 1) % count), 5500);
+    return () => window.clearInterval(timer);
+  }, [paused, count]);
+  return <div role="region" aria-label="Exemplos de depoimentos" aria-roledescription="carrossel"
+    onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
+    onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)}>
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-live="off">
+      {Array.from({ length: 3 }, (_, offset) => {
+        const item = EXAMPLE_TESTIMONIALS[(index + offset) % count];
+        return <article key={item.name} className={`min-h-[205px] flex-col rounded-xl border border-[#e3eaf4] bg-white p-5 shadow-sm transition-colors hover:border-blue-200 hover:shadow-md ${offset === 0 ? "flex" : offset === 1 ? "hidden sm:flex" : "hidden lg:flex"}`}>
+          <Quote size={24} className="shrink-0 text-[var(--art-primary)]" strokeWidth={1.8}/>
+          <p className="mt-3 flex-1 text-[13px] leading-[1.7] text-[#42546e]">“{item.message}”</p>
+          <div className="mt-4 border-t border-[#edf1f7] pt-3">
+            <p className="text-[13px] font-bold text-[#172b45]">{item.name}</p>
+            <p className="mt-0.5 text-[11px] text-[#7b8aa0]">Nome fictício · Depoimento ilustrativo</p>
+          </div>
+        </article>;
+      })}
+    </div>
+    <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
+      <button type="button" onClick={() => go(-1)} aria-label="Depoimentos anteriores"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dbe5f0] text-[#2748a4] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
+        <ChevronLeft size={18}/>
+      </button>
+      <div className="flex items-center gap-2" aria-label="Selecionar exemplo">
+        {EXAMPLE_TESTIMONIALS.map((item, i) => <button type="button" key={item.name} onClick={() => setIndex(i)}
+          aria-label={`Ver exemplo ${i + 1}`} aria-current={index === i ? "true" : undefined}
+          className={`h-2 rounded-full transition-[width] ${index === i ? "w-7 bg-[var(--art-primary)]" : "w-2 bg-[#cbd5e1] hover:bg-[#94a3b8]"}`}/>)}
+      </div>
+      <button type="button" onClick={() => go(1)} aria-label="Próximos depoimentos"
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dbe5f0] text-[#2748a4] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
+        <ChevronRight size={18}/>
+      </button>
+    </div>
+  </div>;
+}
 
 export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSection }: HomeProps) {
   const { settings } = useSiteSettings();
@@ -200,19 +255,8 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
           <PublicHeading>{t("home_testimonials_title", "Uma experiência de atendimento que faz diferença")}</PublicHeading>
           <p className="mt-1 text-[13px] text-[#617088]">{t("home_testimonials_subtitle", "Cuidado, transparência e atenção em cada atendimento.")}</p>
         </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {[
-            "Atendimento atencioso e explicações claras em cada etapa.",
-            "Facilidade para tirar dúvidas e acompanhar o serviço.",
-            "Produtos e soluções pensados para o que você realmente precisa.",
-          ].map((message, index) => <div key={index}
-            className="rounded-[8px] border border-[#e3eaf4] bg-white p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-md">
-            <Quote size={24} className="text-[var(--art-primary)]" strokeWidth={1.7}/>
-            <p className="mt-3 text-[13px] leading-[1.7] text-[#42546e]">“{message}”</p>
-            <p className="mt-4 border-t border-[#edf1f7] pt-3 text-[11px] font-medium text-[#7b8aa0]">Texto ilustrativo</p>
-          </div>)}
-        </div>
-        <p className="mt-3 text-[11px] text-[#8693a6]">Estes textos são exemplos visuais e não representam depoimentos de clientes. Serão substituídos por avaliações reais.</p>
+        <ExampleTestimonialsCarousel/>
+        <p className="mt-3 text-[11px] text-[#8693a6]">Os nomes e relatos acima são fictícios, apenas ilustrativos. Não são avaliações de clientes e poderão ser substituídos por depoimentos reais autorizados.</p>
       </div>
     </section>
 
