@@ -123,7 +123,7 @@ export function RepairQuoteWizard() {
     <CheckCircle2 size={56} className="mx-auto text-emerald-600" strokeWidth={1.5}/>
     <h2 className="mt-5 text-3xl font-semibold">Solicitação recebida!</h2>
     <p className="mt-4 text-[15px] leading-7 text-slate-600">Recebemos os detalhes do equipamento. A Artvideo entrará em contato para avaliar o conserto e informar as condições do orçamento.</p>
-    <div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 break-all font-mono text-xl font-semibold">{protocol}</p></div>
+    <div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 font-mono text-2xl font-bold tracking-wide">{protocol}</p></div>
     <PublicButton onClick={() => navigate("/assistencia")}>Ver assistência técnica</PublicButton>
   </section>;
 
@@ -165,7 +165,7 @@ export function RepairQuoteWizard() {
           </FormField>}
           {location === "collect" && address.zip_code.replace(/\D/g, "").length === 8 &&
             <p role="status" aria-live="polite" className={"rounded-lg px-4 py-3 text-sm " + (feeStatus === "ready" ? "bg-blue-50 text-[#244567]" : feeStatus === "unavailable" ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600")}>
-              {feeStatus === "loading" ? "Calculando a taxa de coleta..." : feeStatus === "ready" && collectionFee !== null ? "Taxa de coleta: " + formatCurrency(collectionFee) : "Não há tarifa para este CEP. Escolha outro ou leve o equipamento à loja."}
+              {feeStatus === "loading" || feeStatus === "idle" ? "Consultando a taxa de coleta..." : feeStatus === "ready" && collectionFee !== null ? "Taxa de coleta: " + formatCurrency(collectionFee) : "Não há tarifa para este CEP. Escolha outro ou leve o equipamento à loja."}
             </p>}
         </>}
         {stage === 1 && <>
