@@ -9,7 +9,7 @@ import {
 
 type Kind = "technical" | "checklist";
 type TemplateForm = {
-  field_key: string; label: string; field_type: "text" | "number"; required: boolean;
+  field_key: string; label: string; required: boolean;
   stage_code: string; title: string; description: string;
   response_type: CatalogChecklistTemplate["response_type"];
   allow_na: boolean; is_required: boolean;
@@ -18,7 +18,7 @@ type TemplateForm = {
   sort_order: number; is_active: boolean;
 };
 const EMPTY_FORM: TemplateForm = {
-  field_key: "", label: "", field_type: "text", required: false,
+  field_key: "", label: "", required: false,
   stage_code: "entrada", title: "", description: "",
   response_type: "conformity", allow_na: false, is_required: true,
   photo_requirement: "none", observation_requirement: "none",
@@ -70,7 +70,7 @@ export function UnionEquipmentTemplates({
     try {
       const payload: Record<string, string | number | boolean | null> = kind === "technical"
         ? { field_key: form.field_key.trim(), label: form.label.trim(),
-            field_type: form.field_type, required: form.required,
+            field_type: "text", required: form.required,
             is_active: form.is_active, sort_order: form.sort_order }
         : { stage_code: form.stage_code.trim(), title: form.title.trim(),
             description: form.description.trim(), response_type: form.response_type,
@@ -112,12 +112,6 @@ export function UnionEquipmentTemplates({
         <label className={labelClass}>Nome do campo
           <input className={fieldClass} maxLength={120} value={form.label}
             onChange={e => setForm(x => ({ ...x,label:e.target.value }))} placeholder="Número de série"/>
-        </label>
-        <label className={labelClass}>Tipo
-          <select className={fieldClass} value={form.field_type}
-            onChange={e => setForm(x => ({ ...x,field_type:e.target.value as "text"|"number" }))}>
-            <option value="text">Texto</option><option value="number">Número</option>
-          </select>
         </label>
         <label className="flex items-center gap-2 pt-5 text-sm text-[#30445f]">
           <input type="checkbox" checked={form.required} onChange={e => setForm(x => ({ ...x,required:e.target.checked }))}/>Obrigatório
