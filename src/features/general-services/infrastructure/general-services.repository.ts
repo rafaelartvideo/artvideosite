@@ -6,8 +6,8 @@ const generalServiceColumns = "id,name,description,price,price_at_completion,max
 
 type GeneralServiceWrite = Pick<
   GeneralService,
-  "name" | "description" | "price" | "price_at_completion" | "max_discount_percentage" | "max_discount_amount" | "is_active" | "sort_order"
->;
+  "name" | "price" | "price_at_completion" | "max_discount_percentage" | "max_discount_amount" | "is_active" | "sort_order"
+> & { description?: string | null };
 
 /** Seleção inversa dos mesmos vínculos usados no cadastro de equipamentos. */
 export type GeneralServiceEquipmentOption = {
