@@ -17,7 +17,7 @@ export function ServicesPage({ setPage, onSelectService }: {
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
-  const [page, setPage] = useState(1);
+  const [page, setPageNumber] = useState(1);
   const { services, loading, error } = useServices();
   const { categories } = useServiceCategories();
   const { settings } = useSiteSettings();
@@ -48,7 +48,7 @@ export function ServicesPage({ setPage, onSelectService }: {
   const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const current = Math.min(page, pages);
   const visible = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
-  const choose = (id: string) => { setCategory(id); setPage(1); };
+  const choose = (id: string) => { setCategory(id); setPageNumber(1); };
   const categoryChoices = [
     { id: "all", name: "Todos", count: services.length, icon: Star },
     ...(featured.length ? [{ id: "featured", name: "Destaques", count: featured.length, icon: Star }] : []),
@@ -64,7 +64,7 @@ export function ServicesPage({ setPage, onSelectService }: {
     <section className="mx-auto max-w-[1630px] px-5 pb-12 pt-8 sm:px-8 sm:pt-12 lg:px-12">
       <label className="relative block">
         <span className="sr-only">Pesquisar serviços</span>
-        <input type="search" value={search} onChange={event => {setSearch(event.target.value);setPage(1);}}
+        <input type="search" value={search} onChange={event => {setSearch(event.target.value);setPageNumber(1);}}
           placeholder="Encontre o serviço que precisa"
           className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
@@ -98,9 +98,9 @@ export function ServicesPage({ setPage, onSelectService }: {
           <button type="button" onClick={() => {setSearch("");choose("all");}} className="mt-3 text-[12px] text-[var(--art-primary)]">Limpar pesquisa</button>
         </div>}
       {filtered.length > PAGE_SIZE && <nav aria-label="Paginação de serviços" className="mt-9 flex items-center justify-center gap-4">
-        <button type="button" aria-label="Página anterior" disabled={current<=1} onClick={()=>setPage(n=>Math.max(1,n-1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronLeft size={19}/></button>
+        <button type="button" aria-label="Página anterior" disabled={current<=1} onClick={()=>setPageNumber(n=>Math.max(1,n-1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronLeft size={19}/></button>
         <span className="text-[12px] text-[#4a596a]">{current} de {pages}</span>
-        <button type="button" aria-label="Próxima página" disabled={current>=pages} onClick={()=>setPage(n=>Math.min(pages,n+1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
+        <button type="button" aria-label="Próxima página" disabled={current>=pages} onClick={()=>setPageNumber(n=>Math.min(pages,n+1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
       </nav>}
       <p className="mt-12 border-t border-[#e9edf2] pt-7 text-center text-[13px] text-[#57687a]">Não encontrou o atendimento que procura? <button type="button" onClick={()=>setPage("orcamento")} className="font-semibold text-[var(--art-primary)] hover:underline">Solicitar orçamento</button></p>
     </section>
