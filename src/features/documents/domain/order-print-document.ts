@@ -283,7 +283,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
         add("Número de série",order.serial_number);
         for (const extra of extras) {
           const label=String(extra.label_snapshot || extra.field_key_snapshot || "").trim();
-          const value=extra.field_type_snapshot==="number" ? extra.value_number : extra.value_text;
+          const value=extra.value_text ?? extra.value_number;
           if(label && value!==null && value!==undefined && String(value).trim()!=="" &&
             !fields.some(field=>field.label.toLocaleLowerCase("pt-BR")===label.toLocaleLowerCase("pt-BR")))
             add(label,value);
