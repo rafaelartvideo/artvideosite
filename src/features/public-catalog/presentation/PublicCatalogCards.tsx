@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
+import { animateProductToCart } from "@/features/public-store/application/cart-animation";
 import { ArrowRight, Package, ShoppingCart, Plus } from "lucide-react";
 import { addStoreCartItem } from "@/features/public-store/application/store-cart";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -24,14 +25,14 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
   const hasDiscount = Number.isFinite(oldPrice) && oldPrice > nowPrice && nowPrice > 0;
   const discount = hasDiscount ? Math.round((1 - nowPrice / oldPrice) * 100) : 0;
   const soldOut = availableQuantity === 0;
-  const addToCart=()=>{if(soldOut) return;setFeedback(addStoreCartItem(product.id,1) ? "Adicionado ao carrinho" : "Limite do carrinho atingido");};
-  return <article className="group flex min-w-0 flex-col overflow-hidden rounded-[7px] border border-[#e6ecf4] bg-white p-4 shadow-[0_2px_12px_rgba(12,36,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-[#bad5fb] hover:shadow-[0_14px_30px_rgba(16,53,96,.13)]">
+  const addToCart=(event:MouseEvent<HTMLButtonElement>)=>{if(soldOut)return;if(addStoreCartItem(product.id,1)){setFeedback("");animateProductToCart(event.currentTarget);}else setFeedback("Limite do carrinho atingido");};
+  return <article className="group flex min-w-0 flex-col overflow-hidden rounded-[7px] border border-[#e6ecf4] bg-white p-4 shadow-[0_2px_12px_rgba(12,36,71,.03)] transition-colors duration-150 hover:border-[#bad5fb] hover:shadow-[0_14px_30px_rgba(16,53,96,.13)]">
     <div className="relative">
       {hasDiscount && <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-700">{discount}% OFF</span>}
       {soldOut && <span className="absolute right-2 top-2 z-10 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">Esgotado</span>}
     <button type="button" aria-label={`Ver produto ${product.name}`} onClick={() => onSelectProduct(product.slug)}
       className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white via-[#fbfdff] to-[#f1f6ff] p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      {imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-105"/>
+      {imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-contain transition-opacity duration-150"/>
         : <Package size={49} strokeWidth={1.35} className="text-[#b2c8e5] transition-transform group-hover:scale-110"/>}
     </button>
     </div>
@@ -67,10 +68,10 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
     service.price_mode === "FIXED" && basePrice ? basePrice :
     service.price_mode === "STARTING_FROM" && basePrice ? `A partir de ${basePrice}` : "Consulte o valor";
 
-  if (variant === "catalog") return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#dfe4e9] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-[#acc9e6] hover:shadow-[0_12px_28px_rgba(23,43,69,.08)]">
+  if (variant === "catalog") return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#dfe4e9] bg-white transition-colors duration-150 hover:border-[#acc9e6] hover:shadow-[0_12px_28px_rgba(23,43,69,.08)]">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)}
       className="relative isolate block aspect-[16/10] w-full overflow-hidden bg-[#f0f5fa] text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="absolute inset-y-0 right-0 h-full w-[85%] object-cover transition-transform duration-500 group-hover:scale-105"/>}
+      {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="absolute inset-y-0 right-0 h-full w-[85%] object-cover transition-opacity duration-150"/>}
       <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, white 0%, white 16%, rgba(255,255,255,.97) 30%, rgba(255,255,255,.68) 52%, rgba(255,255,255,0) 91%)" }}/>
       <Icon size={38} strokeWidth={1.3} className="absolute left-6 top-6 text-[var(--art-primary)]"/>
     </button>
@@ -90,9 +91,9 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
     </div>
   </article>;
 
-  return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-all duration-200 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg">
+  return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-colors duration-150 hover:border-blue-300 hover:shadow-lg">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="w-full text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"/> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
+      <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-opacity duration-150"/> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
       <div className="p-6 pb-3"><h3 className="text-lg font-semibold leading-6 tracking-tight text-[#172b45]">{service.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-[#64717e]">{service.short_description || service.description || "Conheça o atendimento e solicite seu orçamento."}</p></div>
     </button>
     <div className="mt-auto flex flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-4"><span className="text-sm font-medium text-[#172b45]">{priceLabel || " "}</span><button type="button" onClick={() => onSelectService(service.slug)} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)] transition-all hover:gap-3">Saiba mais <ArrowRight size={16}/></button></div>
