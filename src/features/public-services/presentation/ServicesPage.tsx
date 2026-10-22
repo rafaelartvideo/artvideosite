@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight, Search, Star } from "lucide-react";
-import { useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
+import { useServiceCategories, useServices, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
-import { PublicCatalogCarousel, type CatalogSlide } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
-import { homeServiceDisplay, inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
+import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
+import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPageHeader";
+import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
+import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 
@@ -11,31 +13,25 @@ const PAGE_SIZE = 12;
 const normalize = (value: unknown) =>
   String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 
-export function ServicesPage({ setPage, onSelectService }: {
+export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
   setPage: (page: PublicPage) => void;
   onSelectService: (slug: string) => void;
+  onSelectProduct: (slug: string) => void;
 }) {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [page, setPageNumber] = useState(1);
   const { services, loading, error } = useServices();
+  const { products } = useProducts();
   const { categories } = useServiceCategories();
   const { settings } = useSiteSettings();
-  const appearances = homeServiceDisplay(settings.home_service_display);
   const categoriesWithServices = useMemo(() => categories.filter(item =>
     services.some(service => service.category_id === item.id)), [categories, services]);
   const categoryNames = useMemo(() => new Map(categories.map(item => [item.id, item.name])), [categories]);
   const featured = services.filter(service => service.is_featured === true);
-  const bannerServices = (featured.length ? featured : services).slice(0, 4);
-  const slides: CatalogSlide[] = bannerServices.map(service => ({
-    id: service.id,
-    title: service.title,
-    description: service.short_description || "Atendimento especializado com a confiança da Eletrônica Artvideo.",
-    imageId: appearances[service.id]?.media_id || service.cover_media_id,
-    label: categoryNames.get(service.category_id) || "Assistência e serviços",
-    actionLabel: "Conhecer serviço",
-    onAction: () => onSelectService(service.slug),
-  }));
+  const slides = buildSiteBannerSlides(siteBanners(settings.site_banners), "servicos", {
+    products, services, setPage, onSelectProduct, onSelectService,
+  });
   const filtered = useMemo(() => {
     const query = normalize(search.trim());
     return services.filter(service => {
@@ -60,7 +56,8 @@ export function ServicesPage({ setPage, onSelectService }: {
   ];
 
   return <div className="min-h-screen bg-white text-[#172b45]">
-    <PublicCatalogCarousel title="Serviços em destaque" slides={slides}/>
+    <PublicCatalogCarousel title="Banners de serviços" slides={slides}/>
+    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Serviços" }]}/>
     <section className="mx-auto max-w-[1630px] px-5 pb-12 pt-8 sm:px-8 sm:pt-12 lg:px-12">
       <label className="relative block">
         <span className="sr-only">Pesquisar serviços</span>
@@ -69,10 +66,10 @@ export function ServicesPage({ setPage, onSelectService }: {
           className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
       </label>
-      <nav aria-label="Categorias de serviços" className="mt-8 flex gap-3 overflow-x-auto pb-4 sm:justify-between sm:gap-5">
+      <nav aria-label="Categorias de serviços" className="mt-8 flex flex-wrap items-start justify-center gap-x-4 gap-y-5 pb-4 sm:gap-x-7">
         {categoryChoices.map(item => { const Icon = item.icon; const active = category === item.id;
           return <button type="button" key={item.id} onClick={() => choose(item.id)} aria-pressed={active}
-            className="group flex min-w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:min-w-[110px]">
+            className="group flex w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:w-[112px]">
             <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#dceef9] text-[#133954]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
               <Icon size={26} strokeWidth={1.4}/>
             </span>
