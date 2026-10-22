@@ -6,6 +6,7 @@ import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AdminButton, AdminCard, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import { matchesAdminSearch } from "@/shared/ui/admin/AdminInlineSearch";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 
@@ -152,10 +153,11 @@ export function EquipmentModelsSelector({ draft, canEdit, canCreate, canDelete, 
   </div>;
 }
 
-export function EquipmentBrandsDirectory({ choices, brands, types, onEditBrand, onToggleBrand, busyBrand = null }: {
+export function EquipmentBrandsDirectory({ choices, brands, types, search = "", onEditBrand, onToggleBrand, busyBrand = null }: {
   choices: EquipmentBrandDirectoryEntry[];
   brands: EquipmentBrandRow[];
   types: EquipmentTypeRow[];
+  search?: string;
   onEditBrand?: (name: string) => void;
   onToggleBrand?: (name: string, nextActive: boolean) => void;
   busyBrand?: string | null;
@@ -168,7 +170,10 @@ export function EquipmentBrandsDirectory({ choices, brands, types, onEditBrand, 
       .map(brand => equipmentById.get(brand.equipment_type_id))
       .filter((value): value is string => Boolean(value))
   )].sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
-  const filtered = [...choices].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
+  const filtered = choices.filter(choice =>
+    matchesAdminSearch(choice.name, search) ||
+    equipmentNames(choice.name).some(name => matchesAdminSearch(name, search))
+  ).sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }));
   const safePage = Math.min(page,Math.max(1,Math.ceil(filtered.length/pageSize)));
   const visible = filtered.slice((safePage-1)*pageSize,safePage*pageSize);
   return <div className="min-w-0 space-y-4">
