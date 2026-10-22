@@ -943,29 +943,14 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 .art-public-page-header :is(input,select,textarea) { color:#172b45; }
 .art-public-page-header h1 { letter-spacing:-.035em; }
 
-/* Transições discretas no site público; não afetam os módulos do CRM. */
-@keyframes art-public-enter {
-  from { opacity: .55; transform: translate3d(0, 9px, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
+/* Sem animação de entrada ao navegar entre rotas: evita a sensação de layout quebrado. */
+.artvideo-public .art-public-page-content > * { animation: none; }
+.artvideo-public :is(button, a, input, select, textarea) {
+  transition-property: color, background-color, border-color, box-shadow;
+  transition-duration: .15s;
 }
-.artvideo-public .art-public-page-content > * {
-  animation: art-public-enter .38s cubic-bezier(.2,.7,.2,1) both;
-}
-.artvideo-public :is(input, select, textarea, button, a) {
-  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
-  transition-duration: .22s;
-  transition-timing-function: ease-out;
-}
-.artvideo-public :is(.art-choice, .art-review) {
-  transition: background-color .24s ease, border-color .24s ease, box-shadow .24s ease;
-}
-.artvideo-public .art-input:focus-visible {
-  box-shadow: 0 0 0 3px rgba(8,102,245,.12);
-}
-.artvideo-public :is(.art-choice, .art-service-card) {
-  will-change: auto;
-}
+.artvideo-public :is(.group-hover\\:scale-105, .group-hover\\:scale-110) { transform: none; }
+.artvideo-public .art-input:focus-visible { box-shadow: 0 0 0 3px rgba(16,50,220,.12); }
 @media (prefers-reduced-motion: reduce) {
-  .artvideo-public .art-public-page-content > * { animation: none; }
-  .artvideo-public :is(input, select, textarea, button, a, .art-choice, .art-review) { transition: none; }
+  .artvideo-public * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
