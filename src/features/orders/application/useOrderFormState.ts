@@ -160,7 +160,7 @@ export function useOrderFormState() {
       queue_reservation_id: order.queue_reservation_id || "",
       queue_ticket_number: order.queue_ticket_number || "",
       queue_override_reason: order.queue_override_reason || "",
-      technicalValues: Object.fromEntries(technicalValues.map(value => [value.technical_field_id, value.field_type_snapshot === "number" ? String(value.value_number ?? "") : value.value_text || ""])),
+      technicalValues: Object.fromEntries(technicalValues.map(value => [value.technical_field_id, value.value_text ?? (value.value_number == null ? "" : String(value.value_number))])),
       technicalHistory: technicalValues,
     });
     setFormOpen(true);
