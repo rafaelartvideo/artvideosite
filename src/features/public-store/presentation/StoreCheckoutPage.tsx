@@ -65,7 +65,7 @@ function formatCheckoutPhone(value: string, previousValue = "", cursorPosition?:
   if (value.length < previousValue.length && formatted === previousValue) {
     const chars = value.split("");
     let index = Math.min(Math.max((cursorPosition ?? value.length) - 1, 0), chars.length - 1);
-    while (index >= 0 && !/\d/.test(chars[index])) index--;
+    while (index >= 0 && !/\d/.test(chars[index] || "")) index--;
     if (index >= 0) {
       chars.splice(index, 1);
       return format(chars.join("").replace(/\D/g, "").slice(0, 11));
