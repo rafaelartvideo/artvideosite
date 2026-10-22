@@ -267,7 +267,7 @@ function EditorTabTrigger({
 }) {
   return <TabsTrigger
     value={value}
-    className="group relative h-10 shrink-0 rounded-none border-0 bg-transparent px-3 text-xs font-bold text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-primary data-[state=active]:bg-transparent data-[state=active]:text-primary data-[state=active]:shadow-none after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:origin-center after:rounded-full after:bg-primary after:scale-x-0 after:transition-transform after:duration-300 data-[state=active]:after:scale-x-100"
+    className="group relative h-11 shrink-0 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3.5 text-[13px] font-medium text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
   >
     <Icon size={14} />
     {children}
@@ -940,13 +940,21 @@ export function TabProducts({
       fullPage
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
-        <div className="border-b border-border px-4 py-4 sm:px-5">
-          <TabsList className="mx-auto h-auto w-fit max-w-full gap-1 overflow-x-auto rounded-xl border border-border bg-card p-1.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 sm:px-5">
+          <TabsList className="flex h-auto max-w-full flex-1 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 shadow-none">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
             {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
           </TabsList>
+          <button type="button" role="switch" aria-checked={form.is_active} aria-label="Ativar ou inativar item"
+            disabled={saving || !(editItem ? canEdit : canCreate)}
+            onClick={() => setForm(current => ({ ...current, is_active: !current.is_active }))}
+            className={cn("my-2 inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition-colors disabled:opacity-50",
+              form.is_active ? "border-green-200 bg-green-50 text-green-700" : "border-[#d9e1eb] bg-[#f3f5f8] text-[#65758b]")}>
+            <span className={cn("h-2 w-2 rounded-full", form.is_active ? "bg-green-500" : "bg-[#98a3b5]")}/>
+            {form.is_active ? "Ativo" : "Inativo"}
+          </button>
         </div>
 
         <div className="p-4 sm:p-5">
@@ -1298,19 +1306,11 @@ export function TabProducts({
                 </div>}
               </div>
             </Section>
-            <Section title="Fotos do item">
+            <Section title="Fotos da loja">
               <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
                 Máximo de 4 fotos por produto, incluindo a principal. JPG e PNG são convertidos e comprimidos automaticamente quando possível.
               </p>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <ImageUpload
-                  bucket="product-images"
-                  organizationId={activeOrganizationId || undefined}
-                  currentMediaId={form.cover_media_id}
-                  onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
-                  canUpload={!saving && (editItem ? canEdit : canCreate)}
-                  label="Foto principal"
-                />
+              <div className="grid max-w-xl gap-5">
                 <ImageUpload
                   bucket="product-images"
                   organizationId={activeOrganizationId || undefined}
@@ -1329,7 +1329,7 @@ export function TabProducts({
                       .catch(error => setToast({ msg: `Imagem enviada, mas não foi possível carregar a prévia: ${systemErrorMessage(error)}`, type: "error" }));
                   }}
                   canUpload={!saving && (editItem ? canEdit : canCreate) && new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size < 4}
-                  label="Adicionar foto à galeria"
+                  label="Adicionar foto do produto"
                 />
               </div>
 
@@ -1337,7 +1337,7 @@ export function TabProducts({
                 <div className="mb-2 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black text-[#0d1b2e]">Galeria de fotos</p>
-                    <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Fotos importadas pela busca ou enviadas manualmente. Escolha a principal ou remova as que não quiser salvar.</p>
+                    <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Selecione a estrela para escolher a foto principal que aparecerá na loja.</p>
                   </div>
                   <span className="text-[10px] font-bold text-[#5a6a82]">{galleryMedia.length} foto{galleryMedia.length === 1 ? "" : "s"}</span>
                 </div>
@@ -1353,7 +1353,7 @@ export function TabProducts({
                         type="button"
                         onClick={() => setForm(current => ({ ...current, cover_media_id: image.media_id }))}
                         className={cn("flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-bold", form.cover_media_id === image.media_id ? "bg-primary text-white" : "bg-[#f1f4f8] text-[#5a6a82]")}
-                      ><Star size={10} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> Capa</button>
+                      ><Star size={14} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"}/> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
                       <button
                         type="button"
                         onClick={() => {
