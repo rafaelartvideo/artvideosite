@@ -91,13 +91,16 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
           <SectionLabel>Processo</SectionLabel>
           <H2 className="mb-10">Como funciona</H2>
           <div className="relative">
-            <div className="hidden lg:block absolute top-8 left-[calc(12.5%+16px)] right-[calc(12.5%+16px)] h-px bg-[#0057e7]/30 z-0" />
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6 relative z-10">
-              {ASSIST_STEPS.map((s) => (
-                <div key={s.n} className="flex flex-col gap-3">
-                  <div className="w-14 h-14 bg-[#0057e7] rounded-xl flex items-center justify-center shadow-md shadow-[#0057e7]/30"><span className="text-white font-black text-sm">{s.n}</span></div>
-                  <h3 className="font-bold text-[#0d1b2e] text-lg">{s.title}</h3>
-                  <p className="text-sm text-[#5a6a82] leading-relaxed">{s.desc}</p>
+            {/* Os conectores passam exatamente pelo centro das quatro etapas, sem depender da altura dos textos. */}
+            <div aria-hidden="true" className="pointer-events-none absolute left-[calc(12.5%-9px)] right-[calc(12.5%-9px)] top-7 hidden h-px bg-[#2850e9]/30 lg:block"/>
+            <div className="relative z-10 grid gap-x-6 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
+              {ASSIST_STEPS.map((step) => (
+                <div key={step.n} className="flex min-w-0 flex-col items-center text-center">
+                  <span className="relative z-10 flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--art-primary)] text-sm font-extrabold text-white shadow-[0_5px_12px_rgba(30,60,200,.22)]">
+                    {step.n}
+                  </span>
+                  <h3 className="mt-4 text-[17px] font-bold text-[#0d1b2e]">{step.title}</h3>
+                  <p className="mt-2 max-w-[240px] text-[13px] leading-[1.6] text-[#5a6a82]">{step.desc}</p>
                 </div>
               ))}
             </div>
