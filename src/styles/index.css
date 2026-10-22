@@ -942,3 +942,30 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 :is(.artvideo-public,.artvideo-dialog) :is(h1,h2,h3,h4,h5,h6,.font-extrabold,.font-black,.font-bold) { font-weight:600; }
 .art-public-page-header :is(input,select,textarea) { color:#172b45; }
 .art-public-page-header h1 { letter-spacing:-.035em; }
+
+/* Transições discretas no site público; não afetam os módulos do CRM. */
+@keyframes art-public-enter {
+  from { opacity: .55; transform: translate3d(0, 9px, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+.artvideo-public .art-public-page-content > * {
+  animation: art-public-enter .38s cubic-bezier(.2,.7,.2,1) both;
+}
+.artvideo-public :is(input, select, textarea, button, a) {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: .22s;
+  transition-timing-function: ease-out;
+}
+.artvideo-public :is(.art-choice, .art-review) {
+  transition: background-color .24s ease, border-color .24s ease, box-shadow .24s ease;
+}
+.artvideo-public .art-input:focus-visible {
+  box-shadow: 0 0 0 3px rgba(8,102,245,.12);
+}
+.artvideo-public :is(.art-choice, .art-service-card) {
+  will-change: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .artvideo-public .art-public-page-content > * { animation: none; }
+  .artvideo-public :is(input, select, textarea, button, a, .art-choice, .art-review) { transition: none; }
+}
