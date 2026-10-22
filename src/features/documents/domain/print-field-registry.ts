@@ -144,6 +144,7 @@ export const PRINT_FIELD_REGISTRY: PrintSectionDefinition[] = [
     defaultColumns: 1,
     fields: [
       { key: "quote_items.title", label: "Produto / Serviço", kind: "list" },
+      { key: "quote_items.service_description", label: "Descrição do serviço", description: "Exibe abaixo do nome de cada serviço, sem criar coluna adicional e sem alterar produtos.", kind: "list" },
       { key: "quote_items.quantity", label: "Quantidade", kind: "list" },
       { key: "quote_items.unit_price", label: "Preço unitário", kind: "list" },
       { key: "quote_items.total", label: "Total do item", kind: "list" },
@@ -264,6 +265,8 @@ export function normalizePrintSelectedFields(keys: Iterable<string>): Set<string
     "signatures.technician": "signatures.employee",
   };
   const result = new Set([...source].map(key => aliases[key] || key).filter(key => PRINT_FIELD_BY_KEY.has(key)));
+  // A descrição é um detalhe do nome do item, nunca uma coluna separada.
+  if (result.has("quote_items.service_description")) result.add("quote_items.title");
   if (!result.has("signatures.customer") && !result.has("signatures.employee") &&
       ["signatures.customer_name", "signatures.customer_document", "signatures.date"].some(key => source.has(key))) {
     result.add("signatures.customer");
