@@ -1,16 +1,14 @@
-import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
+import { PublicCatalogCarousel, type CatalogSlide } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight, BadgePercent, ChevronDown, ChevronLeft, ChevronRight,
-  Grid3X3, Package, Search, SlidersHorizontal,
-  Tag, X,
+  BadgePercent, ChevronLeft, ChevronRight, Grid3X3, Package, Search, SlidersHorizontal, X,
+  Monitor, Headphones, Smartphone, Laptop, PlugZap, ShoppingBag, Star,
 } from "lucide-react";
 import { useBrands, useProductCategories, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { loadCatalogAvailability } from "@/features/public-store/infrastructure/storefront.repository";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
-import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
 
 const normalize = (text: unknown) => String(text ?? "").normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
@@ -148,92 +146,104 @@ export function StorePage({ setPage, onSelectProduct }: {
     </fieldset>
   </div>;
 
-  return <div className="bg-[#f7faff] text-[#132947]">
-    <PublicPageHeader title="Nossa loja" description="Encontre produtos, compare preços e escolha como receber seu pedido.">
-        <label className="relative block">
-          <span className="sr-only">Pesquisar produtos</span>
-          <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#7991ae]"/>
-          <input type="search" value={search} onChange={e=>{setSearch(e.target.value);resetPage();}}
-            placeholder="O que você está procurando? Produto, modelo ou marca"
-            className="min-h-[60px] w-full sm:min-h-[70px] rounded-lg bg-white py-3 pl-12 pr-5 text-[15px] text-[#10243d] shadow-lg outline-none focus:ring-2 focus:ring-blue-400"/>
-        </label>
-    </PublicPageHeader>
-    <div className="border-b border-[#e1eafa] bg-white">
-      <div className="mx-auto flex max-w-7xl gap-2 overflow-x-auto px-4 py-3 sm:px-6 lg:px-8">
-        <button type="button" onClick={()=>setCategoryFilter("all")}
-          className={"shrink-0 rounded-full border px-4 py-2 text-[12px] font-bold transition-colors "+(category==="all"?"border-[var(--art-primary)] bg-[var(--art-primary)] text-white":"border-[#dae5f3] hover:bg-blue-50")}>
-          <Grid3X3 size={14} className="mr-1 inline"/> Todos os produtos
-        </button>
-        {categoryEntries.map(item=><button key={item.id} type="button" onClick={()=>setCategoryFilter(item.id)}
-          className={"shrink-0 rounded-full border px-4 py-2 text-[12px] font-bold transition-colors "+(category===item.id?"border-[var(--art-primary)] bg-[var(--art-primary)] text-white":"border-[#dae5f3] hover:border-[var(--art-primary)] hover:bg-blue-50")}>
-          {item.name}
-        </button>)}
+  const slideProducts = (products.some(product=>product.is_featured)
+    ? products.filter(product=>product.is_featured) : products).slice(0,4);
+  const slides: CatalogSlide[] = slideProducts.map(product=>({
+    id:product.id, title:product.name,
+    description:product.short_description || "Escolha seus produtos na loja da Eletrônica Artvideo.",
+    imageId:product.cover_media_id,
+    label:categoryNames.get(product.category_id) || "Produtos selecionados",
+    actionLabel:"Ver produto", onAction:()=>onSelectProduct(product.slug),
+  }));
+  const iconForCategory = (name:string) => {
+    const normalized=normalize(name);
+    if(/celular|smartphone|telefone/.test(normalized))return Smartphone;
+    if(/tv|televis|monitor|tela/.test(normalized))return Monitor;
+    if(/fone|audio|som|caixa/.test(normalized))return Headphones;
+    if(/comput|notebook|laptop|informat/.test(normalized))return Laptop;
+    if(/cabo|fonte|carreg|eletric/.test(normalized))return PlugZap;
+    return Package;
+  };
+  const catalogCategories = [
+    {id:"all",name:"Todos",Icon:Grid3X3},
+    {id:"offers",name:"Ofertas",Icon:BadgePercent},
+    ...categoryEntries.map(item=>({id:item.id,name:item.name,Icon:iconForCategory(item.name)})),
+  ];
+
+  return <div className="min-h-screen bg-white text-[#172b45]">
+    <PublicCatalogCarousel title="Produtos em destaque" slides={slides}/>
+    <section className="mx-auto max-w-[1630px] px-5 pb-12 pt-8 sm:px-8 sm:pt-12 lg:px-12">
+      <label className="relative block">
+        <span className="sr-only">Pesquisar produtos</span>
+        <input type="search" value={search} onChange={event=>{setSearch(event.target.value);resetPage();}}
+          placeholder="Encontre o produto que precisa"
+          className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
+        <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
+      </label>
+      <nav aria-label="Categorias de produtos" className="mt-8 flex gap-3 overflow-x-auto pb-4 sm:justify-between sm:gap-5">
+        {catalogCategories.map(item=>{
+          const active=item.id==="offers"?onlyOffers&&category==="all":item.id===category&&!onlyOffers;
+          const Icon=item.Icon;
+          const select=()=>{if(item.id==="offers"){setCategory("all");setOnlyOffers(true);}
+            else{setOnlyOffers(false);setCategoryFilter(item.id);}resetPage();};
+          return <button key={item.id} type="button" onClick={select} aria-pressed={active}
+            className="group flex min-w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:min-w-[110px]">
+            <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#dceef9] text-[#133954]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
+              <Icon size={26} strokeWidth={1.4}/>
+            </span>
+            <span className="max-w-[125px] text-[11px] leading-4 text-[#2d3a4a] sm:text-[12px]">{item.name}</span>
+          </button>;
+        })}
+      </nav>
+      <div className="mb-6 mt-7 flex flex-wrap items-center justify-between gap-4">
+        <p className="text-[13px] text-[#24374a]"><strong>{loading?"—":filtered.length}</strong> {filtered.length===1?"produto disponível":"produtos disponíveis"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={()=>setFilterDrawer(true)}
+            className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#d9dfe8] bg-white px-3 text-[12px] font-medium text-[#32485f] hover:bg-[#f6f7f9]">
+            <SlidersHorizontal size={17}/> Filtros {activeCount>0?"("+activeCount+")":""}
+          </button>
+          <label className="flex items-center gap-2 text-[12px] text-[#45586a]">
+            <span className="hidden sm:inline">Ordenar</span>
+            <select value={sortBy} onChange={event=>{setSortBy(event.target.value as SortOption);resetPage();}}
+              className="min-h-10 rounded-md border border-[#d9dfe8] bg-white px-3 text-[12px] outline-none focus:border-[var(--art-primary)]">
+              <option value="newest">Mais recentes</option><option value="price-asc">Menor preço</option>
+              <option value="price-desc">Maior preço</option><option value="discount">Maior desconto</option>
+              <option value="name">Nome (A–Z)</option>
+            </select>
+          </label>
+        </div>
       </div>
-    </div>
-    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-      <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="hidden self-start rounded-xl border border-[#e4ebf5] bg-white p-5 shadow-sm lg:sticky lg:top-[108px] lg:block lg:max-h-[calc(100dvh-124px)] lg:overflow-y-auto lg:overscroll-contain">
-          {filterPanel}
-        </aside>
-        <main className="min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-[21px] font-extrabold tracking-tight">{category==="all"?"Todos os produtos":categoryEntries.find(c=>c.id===category)?.name||"Produtos"}</h2>
-              {!loading&&<p className="mt-1 text-[12px] text-[#73839a]">{filtered.length} {filtered.length===1?"produto encontrado":"produtos encontrados"}</p>}
-            </div>
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={()=>setFilterDrawer(true)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[#dce5f2] bg-white px-3 text-[12px] font-bold hover:bg-blue-50 lg:hidden">
-                <SlidersHorizontal size={17}/> Filtros {activeCount>0?"("+activeCount+")":""}
-              </button>
-              <label className="flex items-center gap-2 text-[12px] font-bold text-[#445871]">
-                <span className="hidden sm:inline">Ordenar por</span>
-                <select value={sortBy} onChange={e=>{setSortBy(e.target.value as SortOption);resetPage();}}
-                  className="min-h-10 rounded-md border border-[#dce6f2] bg-white px-2 text-[12px] outline-none focus:border-[var(--art-primary)]">
-                  <option value="newest">Mais recentes</option><option value="price-asc">Menor preço</option>
-                  <option value="price-desc">Maior preço</option><option value="discount">Maior desconto</option>
-                  <option value="name">Nome (A–Z)</option>
-                </select>
-              </label>
-            </div>
-          </div>
-          {(activeCount>0||search) && <div className="mt-4 flex flex-wrap items-center gap-2">
-            {category!=="all"&&<button className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-[var(--art-primary)]" onClick={()=>setCategoryFilter("all")}>{categoryEntries.find(c=>c.id===category)?.name} ×</button>}
-            {brandIds.map(id=><button key={id} onClick={()=>toggleBrand(id)} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-[var(--art-primary)]">{availableBrands.find(b=>b.id===id)?.name} ×</button>)}
-            {onlyOffers&&<button onClick={()=>{setOnlyOffers(false);resetPage();}} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-[var(--art-primary)]">Ofertas ×</button>}
-            {onlyAvailable&&<button onClick={()=>{setOnlyAvailable(false);resetPage();}} className="rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-[11px] font-bold text-[var(--art-primary)]">Disponíveis ×</button>}
-            <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 text-[11px] font-bold text-[#6d7890] hover:text-[var(--art-primary)]"><X size={14}/> Limpar filtros</button>
-          </div>}
-          {loading ? <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-live="polite">{Array.from({length:9},(_,i)=><div key={i} className="h-80 animate-pulse rounded-lg bg-[#e5eef8]"/>)}</div>
-            : error ? <div role="alert" className="mt-5 rounded-lg border border-red-100 bg-white p-8 text-center text-sm text-red-700">{error}</div>
-            : items.length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {items.map(product=><ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct} availableQuantity={availability ? Number(availability[product.id] ?? 0) : undefined}/>)}
-            </div>
-            : <div className="mt-5 flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-[#cfddec] bg-white p-8 text-center">
-              <Package size={34} className="text-[#9bb5d3]"/>
-              <h3 className="mt-3 text-[15px] font-bold">Nenhum produto encontrado</h3>
-              <p className="mt-2 max-w-sm text-[12px] text-[#758399]">Ajuste sua busca ou remova alguns filtros.</p>
-              <button onClick={clearFilters} className="mt-4 rounded-md bg-[var(--art-primary)] px-4 py-2.5 text-[12px] font-bold text-white hover:brightness-110">Limpar filtros</button>
-            </div>}
-          {filtered.length>PER_PAGE&&<nav aria-label="Paginação de produtos" className="mt-8 flex items-center justify-center gap-3">
-            <button type="button" aria-label="Página anterior" disabled={currentPage<=1}
-              onClick={()=>setCurrentPage(v=>Math.max(1,v-1))} className="rounded-md border border-[#dfe7f2] bg-white p-2 disabled:opacity-40"><ChevronLeft size={19}/></button>
-            <span className="text-[12px] font-bold text-[#536881]">{currentPage} de {totalPages}</span>
-            <button type="button" aria-label="Próxima página" disabled={currentPage>=totalPages}
-              onClick={()=>setCurrentPage(v=>Math.min(totalPages,v+1))} className="rounded-md border border-[#dfe7f2] bg-white p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
-          </nav>}
-        </main>
-      </div>
-    </div>
-    <section className="bg-[var(--art-primary)] text-white"><div className="mx-auto flex max-w-7xl flex-col justify-between gap-4 px-4 py-8 sm:px-6 md:flex-row md:items-center lg:px-8">
-      <div><h2 className="text-[21px] font-extrabold">Não encontrou o que procurava?</h2><p className="mt-1 text-[13px] text-white/85">Fale com nossa equipe para consultar outras opções.</p></div>
-      <PublicButton variant="outline" onClick={()=>setPage("contato")} className="gap-2 !border-white !bg-white !text-[var(--art-primary)] hover:!bg-blue-50">Entrar em contato <ArrowRight size={17}/></PublicButton>
-    </div></section>
-    {filterDrawer&&<div className="fixed inset-0 z-[100] bg-[#061b33]/70 lg:hidden" role="presentation" onMouseDown={e=>{if(e.target===e.currentTarget)setFilterDrawer(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Filtros da loja" className="absolute inset-y-0 right-0 flex w-[min(360px,92vw)] flex-col bg-white">
-        <div className="flex items-center justify-between border-b border-[#e8eff6] px-5 py-4"><strong>Filtros</strong><button onClick={()=>setFilterDrawer(false)} aria-label="Fechar filtros" className="rounded-md p-2 hover:bg-blue-50"><X size={20}/></button></div>
+      {(activeCount>0||search) && <div className="mb-5 flex flex-wrap items-center gap-2">
+        {category!=="all"&&<button type="button" onClick={()=>setCategoryFilter("all")} className="rounded-md bg-[#f2f5f8] px-3 py-1.5 text-[11px] text-[#526477]">{categoryEntries.find(item=>item.id===category)?.name} ×</button>}
+        {brandIds.map(id=><button key={id} type="button" onClick={()=>toggleBrand(id)} className="rounded-md bg-[#f2f5f8] px-3 py-1.5 text-[11px] text-[#526477]">{availableBrands.find(item=>item.id===id)?.name} ×</button>)}
+        {onlyOffers&&<button type="button" onClick={()=>{setOnlyOffers(false);resetPage();}} className="rounded-md bg-[#f2f5f8] px-3 py-1.5 text-[11px] text-[#526477]">Ofertas ×</button>}
+        <button type="button" onClick={clearFilters} className="inline-flex items-center gap-1 text-[11px] text-[#69798b] hover:underline"><X size={14}/> Limpar filtros</button>
+      </div>}
+      {loading ? <div role="status" aria-label="Carregando produtos" className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({length:8},(_,i)=><div key={i} className="overflow-hidden rounded-lg border border-[#e3e8ee] bg-white">
+          <div className="aspect-[4/3] animate-pulse bg-[#ededed]"/>
+          <div className="space-y-3 p-4"><div className="h-5 w-4/5 animate-pulse rounded bg-[#e8edf2]"/><div className="h-4 w-3/5 animate-pulse rounded bg-[#e8edf2]"/><div className="mt-6 h-10 animate-pulse rounded bg-[#e8edf2]"/></div>
+        </div>)}
+      </div> : error ? <div role="alert" className="rounded-lg border border-red-100 p-8 text-center text-sm text-red-700">{error}</div>
+        : items.length ? <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {items.map(product=><ProductCard key={product.id} product={product} onSelectProduct={onSelectProduct}
+            availableQuantity={availability ? Number(availability[product.id] ?? 0) : undefined}/>)}
+        </div> : <div className="flex min-h-56 flex-col items-center justify-center rounded-lg border border-dashed border-[#dce2e9] p-7 text-center">
+          <Search size={30} className="text-[#9aabbc]"/><p className="mt-3 text-[14px] font-medium">Nenhum produto encontrado</p>
+          <button type="button" onClick={clearFilters} className="mt-3 text-[12px] text-[var(--art-primary)]">Limpar pesquisa</button>
+        </div>}
+      {filtered.length>PER_PAGE&&<nav aria-label="Paginação de produtos" className="mt-9 flex items-center justify-center gap-4">
+        <button type="button" aria-label="Página anterior" disabled={currentPage<=1} onClick={()=>setCurrentPage(v=>Math.max(1,v-1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronLeft size={19}/></button>
+        <span className="text-[12px] text-[#4a596a]">{currentPage} de {totalPages}</span>
+        <button type="button" aria-label="Próxima página" disabled={currentPage>=totalPages} onClick={()=>setCurrentPage(v=>Math.min(totalPages,v+1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
+      </nav>}
+      <p className="mt-12 border-t border-[#e9edf2] pt-7 text-center text-[13px] text-[#57687a]">Não encontrou o que procura? <button type="button" onClick={()=>setPage("contato")} className="font-semibold text-[var(--art-primary)] hover:underline">Entre em contato</button></p>
+    </section>
+    {filterDrawer&&<div className="fixed inset-0 z-[100] bg-[#061b33]/60" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setFilterDrawer(false);}}>
+      <div role="dialog" aria-modal="true" aria-label="Filtros da loja" className="absolute inset-y-0 right-0 flex w-[min(390px,92vw)] flex-col bg-white">
+        <div className="flex items-center justify-between border-b border-[#e8eff6] px-5 py-4"><strong>Filtros</strong><button type="button" onClick={()=>setFilterDrawer(false)} aria-label="Fechar filtros" className="rounded-md p-2 hover:bg-[#f4f6f8]"><X size={20}/></button></div>
         <div className="flex-1 overflow-y-auto p-5">{filterPanel}</div>
-        <div className="border-t border-[#e8eff6] p-4"><button onClick={()=>setFilterDrawer(false)} className="min-h-11 w-full rounded-md bg-[var(--art-primary)] text-[13px] font-bold text-white hover:brightness-110">Ver {filtered.length} produtos</button></div>
+        <div className="border-t border-[#e8eff6] p-4"><button type="button" onClick={()=>setFilterDrawer(false)} className="min-h-11 w-full rounded-md bg-[var(--art-primary)] text-[13px] font-semibold text-white">Ver {filtered.length} produtos</button></div>
       </div>
     </div>}
   </div>;
