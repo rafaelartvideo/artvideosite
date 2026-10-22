@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { Database, List, MapPinned, MessageSquare, Phone, Store } from "lucide-react";
+import { Database, List, MapPinned, MessageSquare, Phone, Store, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -58,6 +58,7 @@ const SiteStoreOrdersPage = lazy(() => import("@/features/settings/presentation/
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
+const UnionAiToolPage = lazy(() => import("@/features/union-ai/presentation/UnionAiToolPage").then(({ UnionAiToolPage }) => ({ default: UnionAiToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
@@ -286,6 +287,7 @@ export function AdminDashboard({
   const canAccessWhatsAppTool = (isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view");
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
+  const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
     ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
@@ -302,6 +304,7 @@ export function AdminDashboard({
     ...(canAccessMarketplaceTool ? [
       { id: "marketplace", label: "Marketplace Union", icon: Store, description: isPlatformOperatorOrganization ? "Modere lojas, anúncios e categorias do marketplace." : "Configure sua loja e gerencie serviços e produtos publicados.", href: null },
     ] : []),
+    ...(canAccessAiTool ? [{ id: "union-ia", label: "Union IA", icon: Sparkles, description: "Consumo, histórico e limites de inteligência artificial.", href: null }] : []),
     ...((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use") ? [
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
     ] : []),
@@ -348,11 +351,19 @@ export function AdminDashboard({
         navigateAdmin("tools", "marketplace");
         return;
       }
+      if (id === "union-ia" && canAccessAiTool) {
+        navigateAdmin("tools", "union-ia");
+        return;
+      }
       const tool = toolItems.find(item => item.id === id);
       if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
   />;
-  const toolsContent = route.resourceId === "marketplace"
+  const toolsContent = route.resourceId === "union-ia"
+    ? canAccessAiTool
+      ? <UnionAiToolPage onBack={() => navigateAdmin("tools")} />
+      : <Navigate to={adminPath("tools")} replace />
+    : route.resourceId === "marketplace"
     ? canAccessMarketplaceTool
       ? <MarketplaceToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
