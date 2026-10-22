@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
-import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, X } from "lucide-react";
+import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, X, PanelsTopLeft, ArrowUp, ArrowDown, Plus, Trash2 } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useAuth } from "@/lib/auth";
-import { useServices } from "@/features/public-catalog/application/usePublicCatalog";
+import { useProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
+import type { Service } from "@/lib/database.types";
+import { siteBanners, type SiteBanner, type SiteBannerType } from "@/features/public-catalog/domain/site-banners";
 import { DEFAULT_HOME_CATEGORIES, homeCategories, homeServiceDisplay, PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
 import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
@@ -86,11 +88,12 @@ function ImageSetting({ label, mediaId, onChange, disabled }: {
   </div>;
 }
 
-type SiteSection = "identity" | "home" | "catalog" | "assistance" | "testimonials" | "general";
+type SiteSection = "identity" | "home" | "banners" | "catalog" | "assistance" | "testimonials" | "general";
 
 const sections = [
   { id: "identity", label: "Identidade", icon: Image, hint: "Cores, logo e imagens institucionais." },
   { id: "home", label: "Página inicial", icon: LayoutTemplate, hint: "Capa, acessos, etapas e chamada final." },
+  { id: "banners", label: "Banners", icon: PanelsTopLeft, hint: "Banners da loja e dos serviços, associados a produtos ou serviços ou livres." },
   { id: "catalog", label: "Catálogos", icon: Layers3, hint: "Produtos e apresentação visual dos serviços." },
   { id: "assistance", label: "Assistência", icon: MonitorPlay, hint: "Marcas e categorias atendidas." },
   { id: "testimonials", label: "Depoimentos", icon: MessagesSquare, hint: "Textos ilustrativos da página inicial." },
@@ -100,11 +103,118 @@ const sections = [
 const sectionGroups: Record<SiteSection, string[]> = {
   identity: ["Identidade visual"],
   home: ["Capa da página inicial", "Três acessos rápidos", "Etapas do atendimento", "Chamada final e informações"],
+  banners: [],
   catalog: ["Catálogos na página inicial"],
   assistance: ["Assistência e marcas"],
   testimonials: ["Depoimentos temporários"],
   general: ["Chamada final e informações"],
 };
+
+function BannerSettingsEditor({ banners, services, disabled, onChange }: {
+  banners: SiteBanner[];
+  services: Service[];
+  disabled: boolean;
+  onChange: (banners: SiteBanner[]) => void;
+}) {
+  const { products, loading: productsLoading } = useProducts();
+  const edit = (index: number, patch: Partial<SiteBanner>) =>
+    onChange(banners.map((item, i) => i === index ? { ...item, ...patch } : item));
+  const move = (index: number, direction: -1 | 1) => {
+    const target = index + direction;
+    if (target < 0 || target >= banners.length) return;
+    const next = [...banners];
+    [next[index], next[target]] = [next[target], next[index]];
+    onChange(next);
+  };
+  const add = () => onChange([...banners, {
+    id: "banner-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7),
+    placement: "loja", type: "livre", referenceId: "",
+    title: "", description: "", label: "", actionLabel: "",
+    actionPage: "", imageId: "", active: true,
+  }]);
+  return <Section title="Banners da loja e dos serviços"
+    description="Crie banners próprios com imagem opcional. Escolha onde aparecem, associe a um produto ou serviço ou deixe como banner livre. A ordem abaixo define a sequência do carrossel.">
+    <div className="space-y-4">
+      {banners.map((banner, index) => {
+        const linkedItems = banner.type === "produto"
+          ? products.map(product => ({ value: product.id, label: product.name }))
+          : banner.type === "servico"
+            ? services.map(service => ({ value: service.id, label: service.title }))
+            : [];
+        return <div key={banner.id} className="space-y-4 rounded-xl border border-border bg-background p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-extrabold text-primary">{String(index + 1).padStart(2, "0")}</span>
+              <div>
+                <p className="text-sm font-bold text-foreground">{banner.title || (banner.type === "livre" ? "Novo banner" : "Banner vinculado")}</p>
+                <p className="text-xs text-muted-foreground">{banner.placement === "ambos" ? "Loja e serviços" : banner.placement === "loja" ? "Loja" : "Serviços"}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="inline-flex items-center gap-2 text-xs font-semibold">
+                <input type="checkbox" role="switch" aria-label={`Ativar banner ${index + 1}`} checked={banner.active} disabled={disabled}
+                  onChange={event => edit(index, { active: event.target.checked })} className="h-4 w-4 accent-primary"/>
+                Ativo
+              </label>
+              <button type="button" onClick={() => move(index, -1)} disabled={disabled || index === 0} title="Subir banner" aria-label="Subir banner"
+                className="rounded-md border border-border p-2 text-muted-foreground hover:bg-muted disabled:opacity-35"><ArrowUp size={16}/></button>
+              <button type="button" onClick={() => move(index, 1)} disabled={disabled || index === banners.length - 1} title="Descer banner" aria-label="Descer banner"
+                className="rounded-md border border-border p-2 text-muted-foreground hover:bg-muted disabled:opacity-35"><ArrowDown size={16}/></button>
+              <button type="button" onClick={() => onChange(banners.filter(item => item.id !== banner.id))}
+                disabled={disabled} title="Excluir banner" aria-label="Excluir banner"
+                className="rounded-md border border-border p-2 text-destructive hover:bg-destructive/10 disabled:opacity-35"><Trash2 size={16}/></button>
+            </div>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <FSelect label="Exibir em" disabled={disabled} value={banner.placement}
+              onChange={(event: any) => edit(index, { placement: event.target.value })}
+              options={[{ value: "loja", label: "Loja" }, { value: "servicos", label: "Serviços" }, { value: "ambos", label: "Loja e Serviços" }]}/>
+            <FSelect label="Tipo de banner" disabled={disabled} value={banner.type}
+              onChange={(event: any) => edit(index, { type: event.target.value as SiteBannerType, referenceId: "" })}
+              options={[{ value: "livre", label: "Banner livre" }, { value: "produto", label: "Produto cadastrado" }, { value: "servico", label: "Serviço cadastrado" }]}/>
+            {banner.type !== "livre" && <div className="sm:col-span-2">
+              <FSelect label={banner.type === "produto" ? "Selecionar produto" : "Selecionar serviço"}
+                disabled={disabled || (banner.type === "produto" && productsLoading)}
+                value={banner.referenceId}
+                onChange={(event: any) => edit(index, { referenceId: event.target.value })}
+                options={[{ value: "", label: "Selecione um item" }, ...linkedItems]}/>
+              {!banner.referenceId && <p className="mt-1 text-xs text-amber-600">Escolha um item para publicar este banner.</p>}
+            </div>}
+            <FInput label="Título (opcional para item vinculado)" disabled={disabled} value={banner.title}
+              placeholder={banner.type === "livre" ? "Título do banner" : "Padrão: nome do item"}
+              onChange={(event: any) => edit(index, { title: event.target.value })}/>
+            <FInput label="Destaque acima do título" disabled={disabled} value={banner.label}
+              placeholder="Ex.: Loja Artvideo"
+              onChange={(event: any) => edit(index, { label: event.target.value })}/>
+            <div className="sm:col-span-2">
+              <FTextarea label="Descrição do banner" rows={2} disabled={disabled} value={banner.description}
+                placeholder="Uma frase curta para apresentar a oferta ou o serviço."
+                onChange={(event: any) => edit(index, { description: event.target.value })}/>
+            </div>
+            <FInput label="Texto do botão" disabled={disabled} value={banner.actionLabel}
+              placeholder="Ex.: Saiba mais"
+              onChange={(event: any) => edit(index, { actionLabel: event.target.value })}/>
+            {banner.type === "livre" ? <FSelect label="Destino do botão" value={banner.actionPage} disabled={disabled}
+              onChange={(event: any) => edit(index, { actionPage: event.target.value })}
+              options={[{ value: "", label: "Sem botão" }, { value: "loja", label: "Loja" }, { value: "servicos", label: "Serviços" },
+                { value: "assistencia", label: "Assistência" }, { value: "orcamento", label: "Solicitar orçamento" }, { value: "contato", label: "Contato" }]}/>
+              : <div className="flex items-center text-xs text-muted-foreground">O botão abrirá automaticamente o {banner.type === "produto" ? "produto" : "serviço"} selecionado.</div>}
+          </div>
+          <div className="border-t border-border pt-4">
+            <ImageSetting label="Imagem exclusiva do banner (opcional: sem imagem, usa arte em degradê)"
+              mediaId={banner.imageId} onChange={imageId => edit(index, { imageId })} disabled={disabled}/>
+          </div>
+        </div>;
+      })}
+      {!banners.length && <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Nenhum banner cadastrado. A loja e os serviços aparecerão sem carrossel até você adicionar um.</p>}
+      <button type="button" disabled={disabled} onClick={add}
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 text-xs font-bold text-primary transition-colors hover:bg-primary/10 disabled:opacity-50">
+        <Plus size={16}/> Adicionar banner
+      </button>
+      <p className="text-xs text-muted-foreground">Depois das alterações, clique em Salvar na barra inferior. Os banners não alteram fotos, preços ou destaques cadastrados de produtos e serviços.</p>
+    </div>
+  </Section>;
+}
 
 export function TabSiteSettings({ onBack }: { onBack: () => void }) {
   const { user, hasPermission } = useAuth();
@@ -171,7 +281,7 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
       subtitle="Organize a aparência e o conteúdo da Artvideo em subseções." />
     <nav aria-label="Subseções das configurações do site"
       className="min-w-0 overflow-x-auto rounded-xl border border-border bg-card p-2">
-      <div className="grid min-w-[650px] grid-cols-6 gap-1.5">
+      <div className="grid min-w-[770px] grid-cols-7 gap-1.5">
         {sections.map(item => {
           const Icon = item.icon;
           const active = item.id === section;
@@ -234,6 +344,8 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
           </div>
         </Section>;
       })}
+      {section === "banners" && <BannerSettingsEditor banners={siteBanners(settings.site_banners)} services={services}
+        disabled={disabled} onChange={value => updateSetting("site_banners", value)}/>}
       {section === "identity" && <Section title="Imagens institucionais"
         description="Fotos das páginas Sobre nós e Assistência. O degradê permanece até escolher uma imagem.">
         <div className="grid min-w-0 gap-5 sm:grid-cols-2">
