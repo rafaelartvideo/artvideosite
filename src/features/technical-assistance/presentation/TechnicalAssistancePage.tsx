@@ -92,7 +92,7 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
           <H2 className="mb-10">Como funciona</H2>
           <div className="relative">
             {/* Os conectores passam exatamente pelo centro das quatro etapas, sem depender da altura dos textos. */}
-            <div aria-hidden="true" className="pointer-events-none absolute left-[calc(12.5%-9px)] right-[calc(12.5%-9px)] top-7 hidden h-px bg-[#2850e9]/30 lg:block"/>
+            <div aria-hidden="true" className="pointer-events-none absolute left-[calc(12.5%_-_9px)] right-[calc(12.5%_-_9px)] top-7 hidden h-px bg-[#2850e9]/30 lg:block"/>
             <div className="relative z-10 grid gap-x-6 gap-y-9 sm:grid-cols-2 lg:grid-cols-4">
               {ASSIST_STEPS.map((step) => (
                 <div key={step.n} className="flex min-w-0 flex-col items-center text-center">
