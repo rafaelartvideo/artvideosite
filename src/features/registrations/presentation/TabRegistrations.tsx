@@ -739,7 +739,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader
       title={platformUsersOnly ? "Usuários" : "Cadastros"}
-      subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : `${String(registrationsTotal).padStart(3, "0")} cadastros realizados`}
+      subtitle={platformUsersOnly ? "Gerencie funcionários e acessos da Union World." : `${String(registrationsTotal)} cadastros realizados`}
       actions={canCreate ? <BtnPrimary onClick={openNew}><Plus size={16} /> {platformUsersOnly ? "Novo usuário" : "Novo cadastro"}</BtnPrimary> : undefined}
     />
     <AdminCard square className="overflow-hidden p-0">
