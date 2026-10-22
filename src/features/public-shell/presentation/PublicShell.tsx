@@ -94,7 +94,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "auto" });
   };
-  return <header className="sticky top-0 z-40 border-b border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white shadow-md">
+  return <header className="sticky top-0 z-40 border-b border-white/10 bg-[#172938] text-white shadow-[0_6px_24px_rgba(8,23,39,.18)]">
     <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[84px] sm:px-6 xl:h-[96px] xl:gap-4 lg:px-8">
       <button type="button" onClick={() => navigate("home")} aria-label="Eletrônica Artvideo — início" className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400">
         <PublicLogo/>
@@ -136,7 +136,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}
       </button>
     </div>
-    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] px-4 pb-5 pt-2 shadow-xl xl:hidden">
+    {menuOpen && <nav aria-label="Navegação móvel" className="border-t border-white/10 bg-[#172938] px-4 pb-5 pt-2 shadow-xl xl:hidden">
       {PUBLIC_NAV_LINKS.map(label => {
         const active = isCurrent(PUBLIC_NAV_MAP[label]);
         return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
