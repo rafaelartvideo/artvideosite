@@ -6,7 +6,6 @@ import {
   isValidEmail,
 } from "@/shared/domain/formatters";
 import {
-  generateQuoteProtocol,
   isValidCpf,
   isValidPastOrCurrentDate,
   normalizeDocument,
@@ -14,6 +13,7 @@ import {
   type PublicQuoteForm,
 } from "../domain/public-quote";
 import { createPublicQuote } from "../infrastructure/public-quotes.repository";
+import { reservePublicQuoteProtocol } from "../infrastructure/quote-protocol.repository";
 
 export async function submitPublicQuote(form: PublicQuoteForm, address: Address): Promise<string> {
   const cpf = normalizeDocument(form.cpf);
@@ -33,7 +33,7 @@ export async function submitPublicQuote(form: PublicQuoteForm, address: Address)
   if (form.customerType === "PF" && !isValidPastOrCurrentDate(form.birthDate)) throw new Error("Informe uma data de nascimento válida e que não seja futura.");
   if (form.customerType === "PJ" && form.foundationDate && !isValidPastOrCurrentDate(form.foundationDate)) throw new Error("Informe uma data de fundação válida e que não seja futura.");
 
-  const protocol = generateQuoteProtocol();
+  const protocol = await reservePublicQuoteProtocol();
   const brandNote = form.marca === "Outra marca" && form.outraMarca ? `Marca: ${form.outraMarca}` : null;
   const modelNote = form.modelo ? `Modelo: ${form.modelo}` : null;
   const extraNotes = [brandNote, modelNote].filter(Boolean).join(" | ");
