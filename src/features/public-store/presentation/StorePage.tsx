@@ -1,5 +1,4 @@
 import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
-import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPageHeader";
 import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import { useMemo, useState } from "react";
@@ -172,7 +171,6 @@ export function StorePage({ setPage, onSelectProduct, onSelectService }: {
 
   return <div className="min-h-screen bg-white text-[#172b45]">
     <PublicCatalogCarousel title="Banners da loja" slides={slides}/>
-    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Loja" }]}/>
     <section className="mx-auto max-w-[1630px] px-5 pb-12 pt-8 sm:px-8 sm:pt-12 lg:px-12">
       <label className="relative block">
         <span className="sr-only">Pesquisar produtos</span>

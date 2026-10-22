@@ -250,7 +250,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
   } as CSSProperties;
   return <div className="artvideo-public min-h-screen bg-white text-[#10213d]" style={themeStyle}>
     <PublicHeader page={page} setPage={setPage}/>
-    <main>{routeLabel && routePath !== "/loja" && routePath !== "/servicos" && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
+    <main>{routeLabel && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
     <PublicFooter setPage={setPage}/>
     <WhatsAppFloat/>
   </div>;

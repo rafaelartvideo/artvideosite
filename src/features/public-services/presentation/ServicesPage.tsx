@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight, Search, Star } from "lucide-react";
 import { useServiceCategories, useServices, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
-import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPageHeader";
 import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
 import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -57,7 +56,6 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
 
   return <div className="min-h-screen bg-white text-[#172b45]">
     <PublicCatalogCarousel title="Banners de serviços" slides={slides}/>
-    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Serviços" }]}/>
     <section className="mx-auto max-w-[1630px] px-5 pb-12 pt-8 sm:px-8 sm:pt-12 lg:px-12">
       <label className="relative block">
         <span className="sr-only">Pesquisar serviços</span>

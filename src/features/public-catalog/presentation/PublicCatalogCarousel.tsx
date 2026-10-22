@@ -37,43 +37,55 @@ function CatalogSlideImage({ slide }: { slide: CatalogSlide }) {
   </div>;
 }
 
-/** Banners editoriais configuráveis no CRM. Sem dependência automática de fotos dos produtos. */
+/** Transição suave de opacidade e leve zoom, automática ou via setas/indicadores. */
 export function PublicCatalogCarousel({ slides, title }: { slides: CatalogSlide[]; title: string }) {
   const [index, setIndex] = useState(0);
   const [paused, setPaused] = useState(false);
   const count = slides.length;
-  const activeIndex = count ? index % count : 0;
+  const activeIndex = count ? ((index % count) + count) % count : 0;
   useEffect(() => {
     if (count < 2 || paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => setIndex(value => (value + 1) % count), 7000);
+    const timer = window.setInterval(() => setIndex(value => (value + 1) % count), 5500);
     return () => window.clearInterval(timer);
   }, [count, paused]);
   if (!count) return null;
-  const current = slides[activeIndex];
   const change = (offset: number) => setIndex(value => (value + offset + count) % count);
   return <section aria-label={title} aria-roledescription="carrossel"
     className="relative isolate h-[275px] overflow-hidden bg-[#0b244e] text-white sm:h-[330px]"
     onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-    onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)}>
-    <CatalogSlideImage key={current.id} slide={current}/>
-    <div className="relative mx-auto flex h-full max-w-[1630px] items-center px-14 sm:px-20 lg:px-24">
-      <div className="max-w-[590px]">
-        {current.label && <p className="mb-2 text-[11px] font-bold uppercase tracking-[.2em] text-sky-200 sm:text-[12px]">{current.label}</p>}
-        <h2 className="line-clamp-2 text-[27px] font-bold leading-tight tracking-[-.03em] sm:text-[39px]">{current.title}</h2>
-        <p className="mt-3 line-clamp-3 max-w-[470px] text-[13px] leading-relaxed text-white/85 sm:text-[15px]">{current.description}</p>
-        {current.onAction && <button type="button" onClick={current.onAction}
-          className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-5 text-[13px] font-bold text-[#1337ca] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
-          {current.actionLabel || "Saiba mais"} <ArrowRight size={16}/>
-        </button>}
-      </div>
-    </div>
+    onFocusCapture={() => setPaused(true)}
+    onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setPaused(false); }}>
+    {slides.map((slide, slideIndex) => {
+      const active = slideIndex === activeIndex;
+      return <div key={slide.id} aria-hidden={!active}
+        className={`absolute inset-0 transition-[opacity,transform] duration-700 ease-in-out motion-reduce:transition-none ${active ? "z-10 scale-100 opacity-100" : "pointer-events-none z-0 scale-[1.045] opacity-0"}`}>
+        <CatalogSlideImage slide={slide}/>
+        <div className="relative mx-auto flex h-full max-w-[1630px] items-center px-14 sm:px-20 lg:px-24">
+          <div className="max-w-[590px]">
+            {slide.label && <p className="mb-2 text-[11px] font-bold uppercase tracking-[.2em] text-sky-200 sm:text-[12px]">{slide.label}</p>}
+            <h2 className="line-clamp-2 text-[27px] font-bold leading-tight tracking-[-.03em] sm:text-[39px]">{slide.title}</h2>
+            <p className="mt-3 line-clamp-3 max-w-[470px] text-[13px] leading-relaxed text-white/85 sm:text-[15px]">{slide.description}</p>
+            {slide.onAction && <button type="button" tabIndex={active ? 0 : -1} onClick={slide.onAction}
+              className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-md bg-white px-5 text-[13px] font-bold text-[#1337ca] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              {slide.actionLabel || "Saiba mais"} <ArrowRight size={16} strokeWidth={1.75}/>
+            </button>}
+          </div>
+        </div>
+      </div>;
+    })}
     {count > 1 && <>
-      <button type="button" aria-label="Banner anterior" onClick={() => change(-1)} className="absolute left-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 sm:left-4"><ChevronLeft size={24}/></button>
-      <button type="button" aria-label="Próximo banner" onClick={() => change(1)} className="absolute right-1 top-1/2 z-10 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 sm:right-4"><ChevronRight size={24}/></button>
-      <nav aria-label="Selecionar banner" className="absolute inset-x-0 bottom-4 z-10 flex justify-center gap-2">
+      <button type="button" aria-label="Banner anterior" onClick={() => change(-1)}
+        className="absolute left-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-[#102c50]/60 text-white shadow-md backdrop-blur-sm transition-[background-color,transform] hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:left-5 sm:h-11 sm:w-11">
+        <ChevronLeft size={22} strokeWidth={1.8}/>
+      </button>
+      <button type="button" aria-label="Próximo banner" onClick={() => change(1)}
+        className="absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-[#102c50]/60 text-white shadow-md backdrop-blur-sm transition-[background-color,transform] hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-5 sm:h-11 sm:w-11">
+        <ChevronRight size={22} strokeWidth={1.8}/>
+      </button>
+      <nav aria-label="Selecionar banner" className="absolute inset-x-0 bottom-4 z-20 flex justify-center gap-2">
         {slides.map((slide, i) => <button type="button" key={slide.id} onClick={() => setIndex(i)}
           aria-label={`Banner ${i + 1} de ${count}`} aria-current={activeIndex === i ? "true" : undefined}
-          className={`h-2 rounded-full transition-[width] duration-200 ${activeIndex === i ? "w-9 bg-white" : "w-2 bg-white/50 hover:bg-white/85"}`}/>)}
+          className={`h-2 rounded-full transition-[width,background-color] duration-300 ${activeIndex === i ? "w-9 bg-white" : "w-2 bg-white/50 hover:bg-white/85"}`}/>)}
       </nav>
     </>}
   </section>;

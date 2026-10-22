@@ -37,44 +37,78 @@ const EXAMPLE_TESTIMONIALS = [
 ];
 // Pessoas e comentários fictícios: nunca apresentar como avaliações verificadas.
 function ExampleTestimonialsCarousel() {
-  const [index, setIndex] = useState(0);
+  const originals = EXAMPLE_TESTIMONIALS;
+  const count = originals.length;
+  const clones = 3;
+  const items = [...originals.slice(-clones), ...originals, ...originals.slice(0, clones)];
+  const [index, setIndex] = useState(clones);
+  const [animated, setAnimated] = useState(true);
   const [paused, setPaused] = useState(false);
-  const count = EXAMPLE_TESTIMONIALS.length;
-  const go = (change: number) => setIndex(current => (current + change + count) % count);
+  const [visibleCount, setVisibleCount] = useState(1);
+  useEffect(() => {
+    const update = () => setVisibleCount(
+      window.matchMedia("(min-width: 1024px)").matches ? 3
+        : window.matchMedia("(min-width: 640px)").matches ? 2 : 1,
+    );
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
   useEffect(() => {
     if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    const timer = window.setInterval(() => setIndex(current => (current + 1) % count), 5500);
+    const timer = window.setInterval(() => setIndex(current => Math.min(current + 1, count + clones)), 4700);
     return () => window.clearInterval(timer);
   }, [paused, count]);
-  return <div role="region" aria-label="Exemplos de depoimentos" aria-roledescription="carrossel"
+  useEffect(() => {
+    if (animated) return;
+    const frame = window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => setAnimated(true));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [animated]);
+  const activeIndex = ((index - clones) % count + count) % count;
+  const go = (direction: number) => setIndex(current => Math.max(clones - 1, Math.min(current + direction, count + clones)));
+  const onSlideEnd = () => {
+    if (index === count + clones) {
+      setAnimated(false);
+      setIndex(clones);
+    } else if (index === clones - 1) {
+      setAnimated(false);
+      setIndex(count + clones - 1);
+    }
+  };
+  return <div role="region" aria-label="Carrossel de depoimentos de demonstração" aria-roledescription="carrossel"
     onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-    onFocusCapture={() => setPaused(true)} onBlurCapture={() => setPaused(false)}>
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-live="off">
-      {Array.from({ length: 3 }, (_, offset) => {
-        const item = EXAMPLE_TESTIMONIALS[(index + offset) % count];
-        return <article key={item.name} className={`min-h-[205px] flex-col rounded-xl border border-[#e3eaf4] bg-white p-5 shadow-sm transition-colors hover:border-blue-200 hover:shadow-md ${offset === 0 ? "flex" : offset === 1 ? "hidden sm:flex" : "hidden lg:flex"}`}>
-          <Quote size={24} className="shrink-0 text-[var(--art-primary)]" strokeWidth={1.8}/>
-          <p className="mt-3 flex-1 text-[13px] leading-[1.7] text-[#42546e]">“{item.message}”</p>
-          <div className="mt-4 border-t border-[#edf1f7] pt-3">
-            <p className="text-[13px] font-bold text-[#172b45]">{item.name}</p>
-            <p className="mt-0.5 text-[11px] text-[#7b8aa0]">Nome fictício · Depoimento ilustrativo</p>
-          </div>
-        </article>;
-      })}
+    onFocusCapture={() => setPaused(true)}
+    onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setPaused(false); }}>
+    <div className="overflow-hidden" aria-live="off">
+      <div className={`flex w-full motion-reduce:transition-none ${animated ? "transition-transform duration-700 ease-in-out" : ""}`}
+        style={{ transform: `translate3d(-${index * 100 / visibleCount}%, 0, 0)` }}
+        onTransitionEnd={event => { if (event.target === event.currentTarget) onSlideEnd(); }}>
+        {items.map((item, itemIndex) => <div key={`${item.name}-${itemIndex}`} className="w-full shrink-0 px-2 sm:w-1/2 lg:w-1/3">
+          <article className="flex min-h-[205px] h-full flex-col rounded-xl border border-[#e3eaf4] bg-white p-5 shadow-sm transition-[border-color,box-shadow] hover:border-blue-200 hover:shadow-md">
+            <Quote size={24} className="shrink-0 text-[var(--art-primary)]" strokeWidth={1.65}/>
+            <p className="mt-3 flex-1 text-[13px] leading-[1.7] text-[#42546e]">“{item.message}”</p>
+            <div className="mt-4 border-t border-[#edf1f7] pt-3">
+              <p className="text-[13px] font-bold text-[#172b45]">{item.name}</p>
+            </div>
+          </article>
+        </div>)}
+      </div>
     </div>
     <div className="mt-5 flex flex-wrap items-center justify-center gap-4">
       <button type="button" onClick={() => go(-1)} aria-label="Depoimentos anteriores"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dbe5f0] text-[#2748a4] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
-        <ChevronLeft size={18}/>
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dbe5f0] bg-white text-[#2748a4] shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
+        <ChevronLeft size={19} strokeWidth={1.75}/>
       </button>
-      <div className="flex items-center gap-2" aria-label="Selecionar exemplo">
-        {EXAMPLE_TESTIMONIALS.map((item, i) => <button type="button" key={item.name} onClick={() => setIndex(i)}
-          aria-label={`Ver exemplo ${i + 1}`} aria-current={index === i ? "true" : undefined}
-          className={`h-2 rounded-full transition-[width] ${index === i ? "w-7 bg-[var(--art-primary)]" : "w-2 bg-[#cbd5e1] hover:bg-[#94a3b8]"}`}/>)}
+      <div className="flex items-center gap-2" aria-label="Selecionar depoimento">
+        {originals.map((item, i) => <button type="button" key={item.name} onClick={() => setIndex(i + clones)}
+          aria-label={`Ver exemplo ${i + 1}`} aria-current={activeIndex === i ? "true" : undefined}
+          className={`h-2 rounded-full transition-[width] duration-200 ${activeIndex === i ? "w-7 bg-[var(--art-primary)]" : "w-2 bg-[#cbd5e1] hover:bg-[#94a3b8]"}`}/>)}
       </div>
       <button type="button" onClick={() => go(1)} aria-label="Próximos depoimentos"
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dbe5f0] text-[#2748a4] transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
-        <ChevronRight size={18}/>
+        className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dbe5f0] bg-white text-[#2748a4] shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
+        <ChevronRight size={19} strokeWidth={1.75}/>
       </button>
     </div>
   </div>;
@@ -130,7 +164,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
           </h1>
           <p className="mt-4 max-w-[560px] text-[14px] leading-[1.6] text-white/85 sm:text-[15px]">{t("hero_subtitle", "Produtos, assistência técnica, instalações e manutenção para sua casa ou seu negócio. Qualidade, confiança e experiência em eletrônica.")}</p>
           <div className="mt-6 flex flex-wrap gap-3">
-            <PublicButton onClick={() => setPage("loja")} className="!min-h-11 gap-2.5 px-6"><ShoppingCart size={18} fill="currentColor" strokeWidth={1.7}/> Comprar na loja <ArrowRight size={16}/></PublicButton>
+            <PublicButton onClick={() => setPage("loja")} className="!min-h-11 gap-2.5 px-6"><ShoppingCart size={18} strokeWidth={1.7}/> Comprar na loja <ArrowRight size={16}/></PublicButton>
             <PublicButton onClick={() => setPage("orcamento")} variant="outline" className="!min-h-11 !border-white/80 !text-white hover:!bg-white/10"><FileText size={18}/> Solicitar orçamento</PublicButton>
           </div>
           <div className="mt-7 flex flex-wrap gap-x-5 gap-y-3 text-[11px] font-semibold text-white/85 sm:text-[12px]">
@@ -148,12 +182,12 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
         {paths.map(({ Icon, title: label, description, onClick, label: accessibleLabel }) =>
           <button key={label} type="button" onClick={onClick} aria-label={accessibleLabel}
             className="group flex min-h-[157px] w-full items-start gap-4 rounded-[7px] border border-[#e8edf4] bg-white px-5 py-6 text-left shadow-[0_3px_15px_rgba(7,33,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(16,53,96,.11)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">
-            <Icon size={43} strokeWidth={2.6} className="mt-0.5 shrink-0 text-[var(--art-primary)] transition-transform duration-200 group-hover:scale-110"/>
+            <Icon size={40} strokeWidth={1.65} className="mt-0.5 shrink-0 text-[var(--art-primary)] transition-transform duration-200 group-hover:scale-105"/>
             <div className="flex min-h-[105px] flex-col items-start">
               <h2 className="text-[15px] font-extrabold tracking-[-.02em] text-[#0c1a32]">{label}</h2>
               <p className="mt-2 text-[12px] leading-[1.48] text-[#57657b]">{description}</p>
               <span className="mt-auto flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e7f0] bg-white text-[var(--art-primary)] transition-all group-hover:translate-x-1 group-hover:border-blue-300 group-hover:bg-blue-50">
-                <ArrowRight size={15} strokeWidth={2.2}/>
+                <ArrowRight size={15} strokeWidth={1.7}/>
               </span>
             </div>
           </button>)}
@@ -254,9 +288,9 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
         <div className="mb-6">
           <PublicHeading>{t("home_testimonials_title", "Uma experiência de atendimento que faz diferença")}</PublicHeading>
           <p className="mt-1 text-[13px] text-[#617088]">{t("home_testimonials_subtitle", "Cuidado, transparência e atenção em cada atendimento.")}</p>
+          <p className="mt-1 text-[11px] text-[#8290a4]">Depoimentos fictícios para demonstração</p>
         </div>
         <ExampleTestimonialsCarousel/>
-        <p className="mt-3 text-[11px] text-[#8693a6]">Os nomes e relatos acima são fictícios, apenas ilustrativos. Não são avaliações de clientes e poderão ser substituídos por depoimentos reais autorizados.</p>
       </div>
     </section>
 

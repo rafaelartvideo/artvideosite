@@ -2,8 +2,8 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 export function PublicBreadcrumb({ items }: { items: { label: string; onClick?: () => void }[] }) {
-  return <nav aria-label="Navegação estrutural" className="art-public-breadcrumb border-y border-white/20 bg-gradient-to-r from-[#172938] via-[#1b3346] to-[#264358] text-white">
-    <ol className="mx-auto flex max-w-[1344px] items-center gap-2 overflow-hidden px-5 py-3.5 text-[13px] sm:px-8 lg:px-10">
+  return <nav aria-label="Navegação estrutural" className="art-public-breadcrumb border-b border-white/15 bg-gradient-to-r from-[#172938] via-[#1b3346] to-[#264358] text-white">
+    <ol className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-4 py-3.5 text-[13px] sm:px-6 lg:px-8">
       {items.map((item, index) => <li key={`${index}-${item.label}`} className={`flex min-w-0 items-center gap-2 ${index === items.length - 1 ? "" : "shrink-0"}`}>
         {index > 0 && <ChevronRight size={14} aria-hidden="true" className="shrink-0 text-white/45"/>}
         {item.onClick ? <button type="button" onClick={item.onClick} className="whitespace-nowrap rounded-sm text-white/75 underline-offset-4 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{item.label}</button>
