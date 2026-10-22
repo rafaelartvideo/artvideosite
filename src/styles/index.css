@@ -969,21 +969,31 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 }
 
 
-/* Tipografia mobile do site público: desktop, modais do CRM e inputs permanecem intactos. */
+/* Escala compacta no celular: hierarquia de e-commerce sem afetar desktop/CRM. */
 @media (max-width: 639px) {
   .artvideo-public .art-public-page-content { font-size: 13px; line-height: 1.55; }
   .artvideo-public .art-public-page-content :is(.text-sm,[class~="text-[14px]"]) { font-size: 13px; }
-  .artvideo-public .art-public-page-content :is(.text-base,[class~="text-[16px]"]) { font-size: 15px; }
+  .artvideo-public .art-public-page-content :is(.text-base,[class~="text-[16px]"]) { font-size: 14px; }
   .artvideo-public .art-public-page-content :is([class~="text-[15px]"]) { font-size: 14px; }
   .artvideo-public .art-public-page-content :is([class~="text-[13px]"]) { font-size: 12.5px; }
-  .artvideo-public .art-public-page-content :is(.text-lg,[class~="text-[18px]"]) { font-size: 17px; }
-  .artvideo-public .art-public-page-content :is(.text-xl,[class~="text-[20px]"]) { font-size: 19px; }
-  .artvideo-public .art-public-page-content :is(.text-2xl,[class~="text-[24px]"],[class~="text-[25px]"]) { font-size: 22px; }
-  .artvideo-public .art-public-page-content :is(.text-3xl,[class~="text-[28px]"],[class~="text-[30px]"]) { font-size: 26px; }
-  .artvideo-public .art-public-page-content :is([class~="text-[32px]"]) { font-size: 29px; }
-  .artvideo-public .art-public-page-content :is([class~="text-[35px]"]) { font-size: 31px; }
-  .artvideo-public .art-public-page-content :is(.text-4xl,[class~="text-[40px]"]) { font-size: 33px; }
-  /* Mantém campos legíveis e evita zoom automático ao editar no Safari iOS. */
+  .artvideo-public .art-public-page-content :is(.text-lg,[class~="text-[18px]"]) { font-size: 16px; }
+  .artvideo-public .art-public-page-content :is(.text-xl,[class~="text-[20px]"]) { font-size: 18px; }
+  .artvideo-public .art-public-page-content :is(.text-2xl,[class~="text-[24px]"],[class~="text-[25px]"]) { font-size: 20px; }
+  .artvideo-public .art-public-page-content :is(.text-3xl,[class~="text-[28px]"],[class~="text-[30px]"]) { font-size: 23px; }
+  .artvideo-public .art-public-page-content :is([class~="text-[32px]"]) { font-size: 27px; }
+  .artvideo-public .art-public-page-content :is([class~="text-[35px]"]) { font-size: 29px; }
+  .artvideo-public .art-public-page-content :is(.text-4xl,[class~="text-[40px]"]) { font-size: 29px; }
+
+  /* Títulos têm escala própria, mesmo quando o componente utiliza classes maiores. */
+  .artvideo-public .art-public-page-content h1 { font-size: 23px !important; line-height: 1.25; letter-spacing: -.025em; }
+  .artvideo-public .art-public-page-content h2 { font-size: 20px !important; line-height: 1.3; letter-spacing: -.02em; }
+  .artvideo-public .art-public-page-content h3 { font-size: 17px !important; line-height: 1.35; }
+  .artvideo-public .art-public-page-content h4 { font-size: 15px !important; line-height: 1.4; }
+  .artvideo-public .art-product-detail h1 { font-size: 20px !important; }
+  .artvideo-public .art-checkout-page h1 { font-size: 22px !important; }
+  .artvideo-public .art-checkout-page h2 { font-size: 19px !important; }
+
+  /* Inputs continuam com 16px para legibilidade e para não disparar zoom no Safari iOS. */
   .artvideo-public .art-public-page-content :is(input,select,textarea) { font-size: 16px; }
 }
 
