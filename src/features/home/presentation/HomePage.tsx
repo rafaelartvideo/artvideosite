@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight, ClipboardList, FileText, Search, Settings2,
-  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote, ChevronLeft, ChevronRight, Pause, Play,
+  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { useBrands, useFeaturedProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard, ProductCard, ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -43,7 +43,6 @@ function ExampleTestimonialsCarousel() {
   const items = [...originals.slice(-clones), ...originals, ...originals.slice(0, clones)];
   const [index, setIndex] = useState(clones);
   const [animated, setAnimated] = useState(true);
-  const [paused, setPaused] = useState(false);
   const [visibleCount, setVisibleCount] = useState(1);
   useEffect(() => {
     const update = () => setVisibleCount(
@@ -55,10 +54,10 @@ function ExampleTestimonialsCarousel() {
     return () => window.removeEventListener("resize", update);
   }, []);
   useEffect(() => {
-    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setInterval(() => setIndex(current => Math.min(current + 1, count + clones)), 4700);
     return () => window.clearInterval(timer);
-  }, [paused, count]);
+  }, [count]);
   useEffect(() => {
     if (animated) return;
     const frame = window.requestAnimationFrame(() => {
@@ -106,11 +105,6 @@ function ExampleTestimonialsCarousel() {
       <button type="button" onClick={() => go(1)} aria-label="Próximos depoimentos"
         className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dbe5f0] bg-white text-[#2748a4] shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
         <ChevronRight size={19} strokeWidth={1.75}/>
-      </button>
-      <button type="button" aria-label={paused ? "Retomar rotação dos depoimentos" : "Pausar rotação dos depoimentos"} aria-pressed={paused}
-        onClick={() => setPaused(value => !value)}
-        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dbe5f0] bg-white text-[#2748a4] shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
-        {paused ? <Play size={16} strokeWidth={1.75}/> : <Pause size={16} strokeWidth={1.75}/>}
       </button>
     </div>
   </div>;
