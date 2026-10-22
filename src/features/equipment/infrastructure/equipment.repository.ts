@@ -271,9 +271,9 @@ export async function listServiceOrderTechnicalValues(serviceOrderId: string) {
   return result.data ?? [];
 }
 
-export async function saveTechnicalField(field: { id?: string; label: string; field_key?: string; field_type: "text" | "number"; is_active: boolean; sort_order: number; }) {
+export async function saveTechnicalField(field: { id?: string; label: string; field_key?: string; is_active: boolean; sort_order: number; }) {
   const organizationId = await getActiveOrganizationId();
-  const payload = { ...(field.id ? {} : { field_key: field.field_key, organization_id: organizationId }), label: field.label.trim(), field_type: field.field_type, is_active: field.is_active, sort_order: field.sort_order };
+  const payload = { ...(field.id ? {} : { field_key: field.field_key, organization_id: organizationId }), label: field.label.trim(), field_type: "text", is_active: field.is_active, sort_order: field.sort_order };
   const query = field.id ? supabase.from("technical_fields").update(payload).eq("id", field.id).eq("organization_id", organizationId) : supabase.from("technical_fields").insert(payload);
   const result = await query.select("*").single();
   if (result.error) throw result.error;
