@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { addStoreCartItem } from "../application/store-cart";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, Clock3,
+  AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight,
   Image as ImageIcon, LockKeyhole, MessageCircle, Minus,
   Package, Plus, ShieldCheck, ShoppingCart, Star, Truck, X,
 } from "lucide-react";
