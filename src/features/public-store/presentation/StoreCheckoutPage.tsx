@@ -44,9 +44,39 @@ function displayCep(code: string) {
   const digits = code.replace(/\D/g, "").slice(0, 8);
   return digits.length > 5 ? digits.slice(0, 5) + "-" + digits.slice(5) : digits;
 }
+function formatCheckoutPhone(value: string, previousValue = "", cursorPosition?: number | null) {
+  let digits = value.replace(/\D/g, "");
+  // Aceita também números colados com o código do Brasil (+55).
+  if (digits.length > 11 && digits.startsWith("55")) digits = digits.slice(2);
+  digits = digits.slice(0, 11);
+
+  const format = (phoneDigits: string) => {
+    if (!phoneDigits) return "";
+    if (phoneDigits.length <= 2) return "(" + phoneDigits;
+    const ddd = phoneDigits.slice(0, 2);
+    const number = phoneDigits.slice(2);
+    const firstPart = phoneDigits.length === 11 ? 5 : 4;
+    return "(" + ddd + ") " + number.slice(0, firstPart)
+      + (number.length > firstPart ? "-" + number.slice(firstPart) : "");
+  };
+
+  const formatted = format(digits);
+  // Ao apagar um separador da máscara, apaga também o dígito anterior.
+  if (value.length < previousValue.length && formatted === previousValue) {
+    const chars = value.split("");
+    let index = Math.min(Math.max((cursorPosition ?? value.length) - 1, 0), chars.length - 1);
+    while (index >= 0 && !/\d/.test(chars[index])) index--;
+    if (index >= 0) {
+      chars.splice(index, 1);
+      return format(chars.join("").replace(/\D/g, "").slice(0, 11));
+    }
+  }
+  return formatted;
+}
+
 function validPhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
-  return digits.length >= 10 && digits.length <= 13;
+  return digits.length === 10 || digits.length === 11;
 }
 
 export function StoreCheckoutPage({ slug }: { slug: string | null }) {
@@ -471,8 +501,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                     placeholder="voce@exemplo.com"/>
                 </Field>
                 <Field label="Celular com DDD" required hint="Para dúvidas sobre a entrega.">
-                  <input className={inputStyle} inputMode="tel" autoComplete="tel" maxLength={24}
-                    value={buyer.buyer_phone} onChange={e => updateBuyer("buyer_phone", e.target.value)}
+                  <input className={inputStyle} type="tel" inputMode="tel" autoComplete="tel-national" maxLength={24}
+                    value={buyer.buyer_phone}
+                    onChange={e => updateBuyer("buyer_phone", formatCheckoutPhone(e.target.value, buyer.buyer_phone, e.target.selectionStart))}
                     placeholder="(79) 99999-9999"/>
                 </Field>
               </div>
