@@ -3,7 +3,8 @@ import { ChevronLeft, ChevronRight, Search, Star } from "lucide-react";
 import { useServiceCategories, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { PublicCatalogCarousel, type CatalogSlide } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
-import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
+import { homeServiceDisplay, inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 
 const PAGE_SIZE = 12;
@@ -19,6 +20,8 @@ export function ServicesPage({ setPage, onSelectService }: {
   const [page, setPage] = useState(1);
   const { services, loading, error } = useServices();
   const { categories } = useServiceCategories();
+  const { settings } = useSiteSettings();
+  const appearances = homeServiceDisplay(settings.home_service_display);
   const categoriesWithServices = useMemo(() => categories.filter(item =>
     services.some(service => service.category_id === item.id)), [categories, services]);
   const categoryNames = useMemo(() => new Map(categories.map(item => [item.id, item.name])), [categories]);
@@ -28,7 +31,7 @@ export function ServicesPage({ setPage, onSelectService }: {
     id: service.id,
     title: service.title,
     description: service.short_description || "Atendimento especializado com a confiança da Eletrônica Artvideo.",
-    imageId: service.cover_media_id,
+    imageId: appearances[service.id]?.media_id || service.cover_media_id,
     label: categoryNames.get(service.category_id) || "Assistência e serviços",
     actionLabel: "Conhecer serviço",
     onAction: () => onSelectService(service.slug),
