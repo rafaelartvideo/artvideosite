@@ -1,11 +1,11 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
-import { CalendarDays, Search } from "lucide-react";
+import { CalendarDays, ClipboardList, Search } from "lucide-react";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import type { TechnicianTask } from "../infrastructure/technician-tasks.repository";
 import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
@@ -169,7 +169,7 @@ export function TechnicianOrdersTable({
     </AdminSearchPanel>
     <AdminCard square className="[&_th]:md:py-2 [&_td]:md:py-2.5">
     {loading ? <LoadingState />
-      : !visible.length ? <p className="p-6 text-sm text-muted-foreground">Nenhuma OS encontrada.</p>
+      : !visible.length ? <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" />
       : <>
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-[880px] text-left">
