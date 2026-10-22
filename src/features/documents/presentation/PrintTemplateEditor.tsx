@@ -49,8 +49,9 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving }: 
   const toggleField = (key: string) => setValue(current => {
     if (isRequiredSignatureField(current, key)) return current;
     const fields = new Set(current.selectedFields);
+    if (key === "quote_items.title" && fields.has(key)) fields.delete("quote_items.service_description");
     fields.has(key) ? fields.delete(key) : fields.add(key);
-    return { ...current, selectedFields: fields };
+    return { ...current, selectedFields: normalizePrintSelectedFields(fields) };
   });
 
   const toggleSection = (sectionKey: string) => {
@@ -66,7 +67,7 @@ export function PrintTemplateEditor({ initialValue, onCancel, onSave, saving }: 
           fields.add(field.key);
         }
       });
-      return { ...current, selectedFields: fields };
+      return { ...current, selectedFields: normalizePrintSelectedFields(fields) };
     });
   };
 
