@@ -17,7 +17,7 @@ const PREVIEW_CONTEXT: PrintOrderContext = {
     discount_type: "amount",
     discount_value: 30,
     items: [
-      { item_type: "service", title_snapshot: "Reparo eletrônico", quantity: 1, unit_price: 420, additional_cost: 0 },
+      { item_type: "service", title_snapshot: "Reparo eletrônico", description_snapshot: "Revisão da placa, substituição dos componentes danificados e testes de funcionamento.", quantity: 1, unit_price: 420, additional_cost: 0 },
       { item_type: "product", title_snapshot: "Componente de reposição", quantity: 1, unit_price: 180, additional_cost: 0 },
     ],
   },
