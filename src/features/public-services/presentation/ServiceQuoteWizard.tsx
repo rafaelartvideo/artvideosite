@@ -61,7 +61,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{det
   if(sending.current)return;
   for(let i=0;i<3;i++){const message=validate(i);if(message){go(i);setError('');return;}}
   sending.current=true;setBusy(true);setError('');
-  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date,slot},requestProtocol.current));window.scrollTo({top:0,behavior:'smooth');}
+  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date,slot},requestProtocol.current));window.scrollTo({top:0,behavior:'smooth'});}
   catch(e){setError(e instanceof Error?e.message:'Não foi possível enviar. Tente novamente.');}
   finally{sending.current=false;setBusy(false);}
  }
