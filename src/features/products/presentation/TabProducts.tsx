@@ -809,8 +809,7 @@ export function TabProducts({
     {!routeResourceId && <>
       <PageHeader
         title="Estoque"
-        subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""} · cadastro, saldo, fornecedores, fiscal e vendas no mesmo lugar`}
-        actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Novo item</AdminButton> : undefined}
+        subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
       />
 
       {canViewTable && <AdminSearchPanel title="Buscar no estoque" headerActions={<>
@@ -888,9 +887,6 @@ export function TabProducts({
           <EmptyState
             icon={Package}
             title={hasInventoryFilters ? "Nenhum resultado" : "Nenhum item cadastrado"}
-            message="Cadastre o item uma única vez para estoque, vendas, PDV, dados fiscais e catálogo quando aplicável."
-            onAdd={canCreate ? openNewPage : undefined}
-            addLabel="Novo item"
           />
         ) : (
           <div className="overflow-x-auto">
