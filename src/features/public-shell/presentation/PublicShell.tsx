@@ -54,13 +54,13 @@ export function WhatsAppAction({ className = "" }: { className?: string }) {
   </a>;
 }
 
-function WhatsAppFloat() {
+function WhatsAppFloat({ hideOnMobile = false }: { hideOnMobile?: boolean }) {
   const { settings } = useSiteSettings();
   const number = getWhatsAppNumber(settings);
   if (!number) return null;
   return <a href={`https://wa.me/${number}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
     target="_blank" rel="noopener noreferrer" aria-label="Fale conosco pelo WhatsApp"
-    className="group fixed bottom-5 right-5 z-50 flex items-center gap-2 overflow-hidden rounded-full bg-[#25d366] px-4 py-4 text-white shadow-lg shadow-green-700/20 transition-all duration-200 hover:-translate-y-1 hover:bg-[#1db954] hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600">
+    className={`${hideOnMobile ? "max-md:hidden " : ""}group fixed bottom-5 right-5 z-50 flex items-center gap-2 overflow-hidden rounded-full bg-[#25d366] px-4 py-4 text-white shadow-lg shadow-green-700/20 transition-all duration-200 hover:-translate-y-1 hover:bg-[#1db954] hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600`}>
     <WhatsAppIcon size={30} className="shrink-0"/>
     <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold transition-all duration-300 group-hover:max-w-[125px]">Fale conosco</span>
   </a>;
@@ -235,6 +235,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     "/descadastramento": "Descadastramento",
   };
   const routePath = pathname.replace(/\/+$/, "") || "/";
+  const isProductRoute = routePath.startsWith("/loja/");
   const isCheckout = routePath.startsWith("/checkout/");
   const routeLabel = routeLabels[routePath] || (isCheckout ? "Finalizar compra" : "");
   const breadcrumbItems = [
@@ -250,10 +251,10 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
       ? "#102c60" : themeColor(settings.secondary_color, "#102c60"),
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
   } as CSSProperties;
-  return <div className="artvideo-public min-h-screen bg-white text-[#10213d]" style={themeStyle}>
+  return <div className={`artvideo-public ${isProductRoute ? "artvideo-product-view " : ""}min-h-screen bg-white text-[#10213d]`} style={themeStyle}>
     <PublicHeader page={page} setPage={setPage}/>
     <main>{routeLabel && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
     <PublicFooter setPage={setPage}/>
-    <WhatsAppFloat/>
+    <WhatsAppFloat hideOnMobile={isProductRoute}/>
   </div>;
 }
