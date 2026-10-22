@@ -151,10 +151,10 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
 
   return <div className="bg-white">
     {/* Hero com imagem editável e máscara azul permanente. */}
-    <section className="relative isolate overflow-hidden bg-[#08182f] text-white">
+    <section className="relative isolate overflow-hidden bg-[#102c60] text-white">
       {heroImage ? <div className="absolute inset-y-0 right-0 -z-20 h-full w-full lg:w-[64%]">
         <img src={heroImage} alt={t("hero_image_alt", "Eletrônica Artvideo")} fetchPriority="high" className="h-full w-full object-cover object-center" />
-      </div> : <div aria-hidden="true" className="absolute inset-y-0 right-0 -z-20 hidden w-[60%] items-center justify-center bg-gradient-to-br from-[#0d294c] via-[#153961] to-[#0c2342] lg:flex">
+      </div> : <div aria-hidden="true" className="absolute inset-y-0 right-0 -z-20 hidden w-[60%] items-center justify-center bg-gradient-to-br from-[#102c60] via-[#173b78] to-[#204a92] lg:flex">
         <Store size={126} strokeWidth={.85} className="text-white/15"/>
         <div className="absolute -right-12 bottom-0 h-72 w-72 rounded-full bg-blue-500/20 blur-3xl" />
       </div>}
@@ -233,7 +233,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
     </section>
 
     {/* Assistência e categorias configuráveis. */}
-    <section className="relative overflow-hidden bg-gradient-to-r from-[#081a32] via-[var(--art-dark)] to-[#0c2344] py-7 text-white sm:py-9">
+    <section className="relative overflow-hidden art-public-brand-gradient py-7 text-white sm:py-9">
       <div className="mx-auto grid max-w-7xl items-center gap-6 px-4 sm:px-6 lg:grid-cols-[.78fr_1.22fr] lg:gap-10 lg:px-8">
         <div>
           <h2 className="text-[24px] font-extrabold leading-[1.2] tracking-[-.03em] sm:text-[29px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>{t("home_assistance_title", "Seu equipamento apresentou algum problema?")}</h2>
@@ -297,7 +297,7 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
     </section>
 
     {/* Faixa final. */}
-    <section className="bg-[var(--art-primary)] text-white">
+    <section className="art-public-brand-gradient text-white">
       <div className="mx-auto flex max-w-7xl flex-col items-start justify-between gap-5 px-4 py-6 sm:px-6 md:flex-row md:items-center lg:px-8">
         <div className="flex items-center gap-4">
           <Store size={35} strokeWidth={1.6} className="hidden shrink-0 sm:block"/>

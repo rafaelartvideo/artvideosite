@@ -12,7 +12,7 @@ export function ContactPage() {
   const [mapView, setMapView] = useState<"street" | "map">("street");
   const [form, setForm] = useState({ nome: "", whatsapp: "", email: "", assunto: "", mensagem: "" });
   const update = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-  const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#0057e7] focus:border-transparent transition-all";
+  const inputCls = "w-full bg-[#f5f7fa] border border-[#0d1b2e]/15 rounded-lg px-4 py-3 text-sm text-[#0d1b2e] outline-none focus:ring-2 focus:ring-[#2459aa] focus:border-transparent transition-all";
   const rawWhatsApp = getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number);
   const whatsappDigits = rawWhatsApp.replace(/\D/g, "");
   const whatsappNumber = whatsappDigits.startsWith("55") ? whatsappDigits : whatsappDigits ? `55${whatsappDigits}` : "";
@@ -54,7 +54,7 @@ export function ContactPage() {
             {/* Info cards */}
             {settingsLoading ? <div className="text-sm text-[#5a6a82]">Carregando informações...</div> : contactDetails.map(({ icon: Icon, label, value }) => (
               <div key={label} className="bg-white border border-[#0d1b2e]/10 rounded-xl px-5 py-4 flex items-center gap-4">
-                <div className="w-9 h-9 bg-[#0057e7]/10 rounded-lg flex items-center justify-center flex-shrink-0"><Icon size={18} className="text-[#0057e7]" /></div>
+                <div className="w-9 h-9 bg-[#2459aa]/10 rounded-lg flex items-center justify-center flex-shrink-0"><Icon size={18} className="text-[#2459aa]" /></div>
                 <div>
                   <p className="text-xs font-bold text-[#5a6a82] uppercase tracking-wide">{label}</p>
                   <p className="text-sm font-semibold text-[#0d1b2e]">{value}</p>
@@ -69,7 +69,7 @@ export function ContactPage() {
             <h2 className="text-2xl font-black text-[#0d1b2e] mb-6" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Envie uma mensagem</h2>
             {sent ? (
               <div className="flex flex-col items-center gap-3 py-12 text-center">
-                <CheckCircle size={40} className="text-[#0057e7]" />
+                <CheckCircle size={40} className="text-[#2459aa]" />
                 <p className="font-bold text-[#0d1b2e]">Mensagem enviada!</p>
                 <p className="text-sm text-[#5a6a82]">Nossa equipe entrará em contato em breve.</p>
                 <Btn variant="outline" className="mt-2" onClick={() => { setSent(false); setForm({ nome: "", whatsapp: "", email: "", assunto: "", mensagem: "" }); }}>Enviar outra</Btn>

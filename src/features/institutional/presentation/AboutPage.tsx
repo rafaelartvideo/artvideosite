@@ -143,13 +143,13 @@ export function AboutPage({ setPage }: { setPage: (page: PublicPage) => void }) 
       </div>
     </section>
 
-    <section className="overflow-hidden bg-[#17334b] py-16 text-white sm:py-20">
+    <section className="overflow-hidden art-public-brand-gradient py-16 text-white sm:py-20">
       <Reveal className="mx-auto max-w-3xl px-4 text-center sm:px-6">
         <h2 className="mb-4 text-3xl font-extrabold tracking-tight sm:text-5xl">Precisa de ajuda?</h2>
         <p className="mb-9 text-lg text-white/75">Fale com nossa equipe ou visite nossa loja.</p>
         <div className="flex flex-wrap justify-center gap-4">
           <button type="button" onClick={() => setPage("orcamento")}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-7 py-3 text-sm font-bold text-[#17334b] transition-all hover:-translate-y-0.5 hover:bg-[#e8f0f8]">Solicitar orçamento <ArrowRight size={17}/></button>
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-white px-7 py-3 text-sm font-bold text-[#204a92] transition-all hover:-translate-y-0.5 hover:bg-[#e8f0f8]">Solicitar orçamento <ArrowRight size={17}/></button>
           <button type="button" onClick={() => setPage("loja")}
             className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-white/75 px-7 py-3 text-sm font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10">Visitar loja <ArrowRight size={17}/></button>
         </div>

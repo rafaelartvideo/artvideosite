@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 
 export function PublicBreadcrumb({ items }: { items: { label: string; onClick?: () => void }[] }) {
-  return <nav aria-label="Navegação estrutural" className="art-public-breadcrumb border-b border-white/15 text-white art-public-blue-texture">
+  return <nav aria-label="Navegação estrutural" className="art-public-breadcrumb border-b border-white/15 text-white art-public-brand-gradient">
     <ol className="mx-auto flex max-w-7xl items-center gap-2 overflow-hidden px-4 py-3.5 text-[13px] sm:px-6 lg:px-8">
       {items.map((item, index) => <li key={`${index}-${item.label}`} className={`flex min-w-0 items-center gap-2 ${index === items.length - 1 ? "" : "shrink-0"}`}>
         {index > 0 && <ChevronRight size={14} aria-hidden="true" className="shrink-0 text-white/45"/>}
@@ -18,8 +18,7 @@ export function PublicPageHeader({ title, description, children }: {
   description?: ReactNode;
   children?: ReactNode;
 }) {
-  return <section className="art-public-page-header relative isolate overflow-hidden text-white art-public-blue-texture">
-    <div className="pointer-events-none absolute -right-16 -top-24 -z-10 h-80 w-80 rounded-full bg-blue-500/15 blur-3xl"/>
+  return <section className="art-public-page-header relative isolate overflow-hidden text-white art-public-brand-gradient">
     <div className="mx-auto max-w-[1344px] px-5 py-9 sm:px-8 sm:py-11 lg:px-10">
       <h1 className="max-w-4xl text-[30px] font-semibold leading-tight tracking-[-.035em] sm:text-[40px]">{title}</h1>
       {description && <p className="mt-3 max-w-2xl text-[15px] leading-7 text-white/80">{description}</p>}

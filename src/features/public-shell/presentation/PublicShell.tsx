@@ -94,7 +94,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     setMenuOpen(false);
     window.scrollTo({ top: 0, behavior: "auto" });
   };
-  return <header className="art-public-blue-texture sticky top-0 z-40 border-b border-white/15 text-white shadow-[0_5px_20px_rgba(19,55,125,.22)]">
+  return <header className="art-public-brand-gradient sticky top-0 z-40 border-b border-white/15 text-white shadow-[0_5px_20px_rgba(19,55,125,.22)]">
     <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[84px] sm:px-6 xl:h-[96px] xl:gap-4 lg:px-8">
       <button type="button" onClick={() => navigate("home")} aria-label="Eletrônica Artvideo — início" className="shrink-0 rounded-sm focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-400">
         <PublicLogo/>
@@ -136,7 +136,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}
       </button>
     </div>
-    {menuOpen && <nav aria-label="Navegação móvel" className="art-public-blue-texture border-t border-white/15 px-4 pb-5 pt-2 shadow-xl xl:hidden">
+    {menuOpen && <nav aria-label="Navegação móvel" className="art-public-brand-gradient border-t border-white/15 px-4 pb-5 pt-2 shadow-xl xl:hidden">
       {PUBLIC_NAV_LINKS.map(label => {
         const active = isCurrent(PUBLIC_NAV_MAP[label]);
         return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
@@ -172,7 +172,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
     { name: "YouTube", url: validExternalUrl(settings.youtube, "https://youtube.com/"), Icon: Youtube },
   ].filter(item => Boolean(item.url));
   const contactClass = "flex items-start gap-2.5 text-[13px] leading-5 text-white/75 transition-colors hover:text-white";
-  return <footer className="bg-gradient-to-b from-[#0b203d] to-[#06162c] pt-10 text-white">
+  return <footer className="bg-gradient-to-b from-[#15366f] to-[#102c60] pt-10 text-white">
     <div className="mx-auto grid max-w-7xl gap-7 px-4 pb-9 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.1fr_1.25fr_.8fr_1fr] lg:gap-8 lg:px-8">
       <div className="lg:pr-7">
         <button type="button" onClick={() => setPage("home")} aria-label="Voltar ao início"><PublicLogo/></button>
@@ -209,7 +209,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
         </div> : <button type="button" onClick={() => setPage("contato")} className="text-left text-[13px] text-white/75 transition-colors hover:text-white">Consulte nossos horários de atendimento.</button>}
       </div>
     </div>
-    <div className="bg-[#07162b]/55 py-5">
+    <div className="bg-[#0d2859]/65 py-5">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 text-[11px] text-white/50 sm:px-6 lg:px-8">
         <span>© {new Date().getFullYear()} Eletrônica Artvideo. Todos os direitos reservados.</span>
         <nav aria-label="Informações legais" className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -244,8 +244,10 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     { label: routeLabel },
   ];
   const themeStyle = {
-    "--art-primary": themeColor(settings.primary_color, "#1032dc"),
-    "--art-dark": themeColor(settings.secondary_color, "#0b1d37"),
+    "--art-primary": ["#1032dc", "#0057e7"].includes(themeColor(settings.primary_color, "#2459aa").toLowerCase())
+      ? "#2459aa" : themeColor(settings.primary_color, "#2459aa"),
+    "--art-dark": ["#0b1d37", "#0d1b2e"].includes(themeColor(settings.secondary_color, "#102c60").toLowerCase())
+      ? "#102c60" : themeColor(settings.secondary_color, "#102c60"),
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
   } as CSSProperties;
   return <div className="artvideo-public min-h-screen bg-white text-[#10213d]" style={themeStyle}>
