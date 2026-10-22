@@ -967,3 +967,29 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   background-color: var(--art-blue-dark);
   background-image: var(--art-brand-gradient);
 }
+
+
+/* Tipografia mobile do site público: desktop, modais do CRM e inputs permanecem intactos. */
+@media (max-width: 639px) {
+  .artvideo-public .art-public-page-content { font-size: 13px; line-height: 1.55; }
+  .artvideo-public .art-public-page-content :is(.text-sm,[class~="text-[14px]"]) { font-size: 13px; }
+  .artvideo-public .art-public-page-content :is(.text-base,[class~="text-[16px]"]) { font-size: 15px; }
+  .artvideo-public .art-public-page-content :is([class~="text-[15px]"]) { font-size: 14px; }
+  .artvideo-public .art-public-page-content :is([class~="text-[13px]"]) { font-size: 12.5px; }
+  .artvideo-public .art-public-page-content :is(.text-lg,[class~="text-[18px]"]) { font-size: 17px; }
+  .artvideo-public .art-public-page-content :is(.text-xl,[class~="text-[20px]"]) { font-size: 19px; }
+  .artvideo-public .art-public-page-content :is(.text-2xl,[class~="text-[24px]"],[class~="text-[25px]"]) { font-size: 22px; }
+  .artvideo-public .art-public-page-content :is(.text-3xl,[class~="text-[28px]"],[class~="text-[30px]"]) { font-size: 26px; }
+  .artvideo-public .art-public-page-content :is([class~="text-[32px]"]) { font-size: 29px; }
+  .artvideo-public .art-public-page-content :is([class~="text-[35px]"]) { font-size: 31px; }
+  .artvideo-public .art-public-page-content :is(.text-4xl,[class~="text-[40px]"]) { font-size: 33px; }
+  /* Mantém campos legíveis e evita zoom automático ao editar no Safari iOS. */
+  .artvideo-public .art-public-page-content :is(input,select,textarea) { font-size: 16px; }
+}
+
+/* A barra móvel cobre apenas a área de compra, nunca a navegação do navegador. */
+@media (max-width: 767px) {
+  .artvideo-product-view footer {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  }
+}
