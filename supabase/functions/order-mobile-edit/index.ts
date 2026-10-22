@@ -285,7 +285,7 @@ async function loadMobileEditor(admin: AdminClient, session: MobileSession) {
     },
     technician_ids: (technicians.data || []).map(item => String(item.employee_id)),
     seller_ids: (sellers.data || []).map(item => String(item.employee_id)),
-    technical_values: Object.fromEntries((technicalValues.data || []).map((item: any) => [String(item.technical_field_id), item.field_type_snapshot === "number" ? String(item.value_number ?? "") : String(item.value_text ?? "")])),
+    technical_values: Object.fromEntries((technicalValues.data || []).map((item: any) => [String(item.technical_field_id), String(item.value_text ?? item.value_number ?? "")])),
     technical_fields: technicalFields.data || [],
   };
 }
@@ -309,9 +309,9 @@ async function saveTechnicalValues(admin: AdminClient, session: MobileSession, e
       technical_field_id: fieldId,
       field_key_snapshot: String(field.field_key || fieldId),
       label_snapshot: String(field.label || "Campo técnico"),
-      field_type_snapshot: String(field.field_type || "text"),
-      value_text: field.field_type === "number" ? null : raw || null,
-      value_number: field.field_type === "number" && raw !== "" && Number.isFinite(Number(raw.replace(",", "."))) ? Number(raw.replace(",", ".")) : null,
+      field_type_snapshot: "text",
+      value_text: raw || null,
+      value_number: null,
       updated_at: new Date().toISOString(),
     };
   });
