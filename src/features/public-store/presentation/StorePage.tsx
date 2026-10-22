@@ -1,11 +1,14 @@
-import { PublicCatalogCarousel, type CatalogSlide } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
+import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
+import { PublicBreadcrumb } from "@/features/public-shell/presentation/PublicPageHeader";
+import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
+import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BadgePercent, ChevronLeft, ChevronRight, Grid3X3, Package, Search, SlidersHorizontal, X,
   Monitor, Headphones, Smartphone, Laptop, PlugZap,
 } from "lucide-react";
-import { useBrands, useProductCategories, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
+import { useBrands, useProductCategories, useProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { loadCatalogAvailability } from "@/features/public-store/infrastructure/storefront.repository";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
@@ -17,11 +20,14 @@ const PER_PAGE = 12;
 const inputStyle = "h-10 w-full rounded-md border border-[#dce5f1] bg-white px-3 text-[13px] text-[#10243d] outline-none transition-colors placeholder:text-[#90a0b5] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
 const checkStyle = "h-4 w-4 shrink-0 accent-blue-600";
 
-export function StorePage({ setPage, onSelectProduct }: {
+export function StorePage({ setPage, onSelectProduct, onSelectService }: {
   setPage: (page: PublicPage) => void;
   onSelectProduct: (slug: string) => void;
+  onSelectService: (slug: string) => void;
 }) {
   const { products, loading, error } = useProducts();
+  const { services } = useServices();
+  const { settings } = useSiteSettings();
   const { brands } = useBrands();
   const { categories } = useProductCategories();
   const [search, setSearch] = useState("");
@@ -146,15 +152,9 @@ export function StorePage({ setPage, onSelectProduct }: {
     </fieldset>
   </div>;
 
-  const slideProducts = (products.some(product=>product.is_featured)
-    ? products.filter(product=>product.is_featured) : products).slice(0,4);
-  const slides: CatalogSlide[] = slideProducts.map(product=>({
-    id:product.id, title:product.name,
-    description:product.short_description || "Escolha seus produtos na loja da Eletrônica Artvideo.",
-    imageId:product.cover_media_id,
-    label:categoryNames.get(product.category_id) || "Produtos selecionados",
-    actionLabel:"Ver produto", onAction:()=>onSelectProduct(product.slug),
-  }));
+  const slides = buildSiteBannerSlides(siteBanners(settings.site_banners), "loja", {
+    products, services, setPage, onSelectProduct, onSelectService,
+  });
   const iconForCategory = (name:string) => {
     const normalized=normalize(name);
     if(/celular|smartphone|telefone/.test(normalized))return Smartphone;
@@ -171,7 +171,8 @@ export function StorePage({ setPage, onSelectProduct }: {
   ];
 
   return <div className="min-h-screen bg-white text-[#172b45]">
-    <PublicCatalogCarousel title="Produtos em destaque" slides={slides}/>
+    <PublicCatalogCarousel title="Banners da loja" slides={slides}/>
+    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Loja" }]}/>
     <section className="mx-auto max-w-[1630px] px-5 pb-12 pt-8 sm:px-8 sm:pt-12 lg:px-12">
       <label className="relative block">
         <span className="sr-only">Pesquisar produtos</span>
@@ -180,14 +181,14 @@ export function StorePage({ setPage, onSelectProduct }: {
           className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
       </label>
-      <nav aria-label="Categorias de produtos" className="mt-8 flex gap-3 overflow-x-auto pb-4 sm:justify-between sm:gap-5">
+      <nav aria-label="Categorias de produtos" className="mt-8 flex flex-wrap items-start justify-center gap-x-4 gap-y-5 pb-4 sm:gap-x-7">
         {catalogCategories.map(item=>{
           const active=item.id==="offers"?onlyOffers&&category==="all":item.id===category&&!onlyOffers;
           const Icon=item.Icon;
           const select=()=>{if(item.id==="offers"){setCategory("all");setOnlyOffers(true);}
             else{setOnlyOffers(false);setCategoryFilter(item.id);}resetPage();};
           return <button key={item.id} type="button" onClick={select} aria-pressed={active}
-            className="group flex min-w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:min-w-[110px]">
+            className="group flex w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:w-[112px]">
             <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#dceef9] text-[#133954]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
               <Icon size={26} strokeWidth={1.4}/>
             </span>
