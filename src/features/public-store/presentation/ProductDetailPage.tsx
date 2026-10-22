@@ -117,6 +117,23 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const comparePrice = product.price != null && product.compare_at_price != null && Number(product.compare_at_price) > Number(product.price)
     ? Number(product.compare_at_price) : null;
   const name = String(product.name);
+  const positiveValue = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0;
+  const formatCm = (value: unknown) => (Number(value) / 10).toLocaleString("pt-BR", {maximumFractionDigits: 1}) + " cm";
+  const specs: { label: string; value: string }[] = [
+    {label: "Marca", value: String(brand?.name ?? "")},
+    {label: "Modelo", value: String(product.model ?? "")},
+    {label: "Referência do fabricante", value: String(product.manufacturer_code ?? "")},
+    {label: "Código do produto", value: String(product.sku ?? "")},
+    {label: "Código de barras", value: String(product.barcode ?? "")},
+    {label: "Peso", value: positiveValue(product.gross_weight_grams) ? (Number(product.gross_weight_grams) / 1000).toLocaleString("pt-BR", {maximumFractionDigits: 3}) + " kg" : ""},
+    {label: "Largura", value: positiveValue(product.width_mm) ? formatCm(product.width_mm) : ""},
+    {label: "Altura", value: positiveValue(product.height_mm) ? formatCm(product.height_mm) : ""},
+    {label: "Profundidade", value: positiveValue(product.length_mm) ? formatCm(product.length_mm) : ""},
+  ].filter(item => item.value.trim() !== "");
+  const fullDescription = String(product.description ?? "").trim();
+  const paragraphs = (fullDescription || String(product.short_description ?? "").trim())
+    .split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
+
   const shareUrl = typeof window !== "undefined" ? window.location.href : "";
   const whatsapp = getWhatsAppNumber(settings);
   const askUrl = whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(`Olá! Gostaria de tirar uma dúvida sobre o produto ${name}: ${shareUrl}`)}` : "";
@@ -253,19 +270,29 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
       </div>
     </section>
 
-    <section className="border-t border-[#e7eef6] bg-white py-10">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <h2 className="text-[25px] font-semibold tracking-tight text-[#142943]">Descrição do produto</h2>
-        <div className="mt-5 max-w-4xl whitespace-pre-line text-[14px] leading-7 text-[#53637a]">{product.description?.trim() || product.short_description?.trim() || "Consulte as informações deste produto com nossa equipe."}</div>
-        {(brand?.name || product.sku || product.model || product.manufacturer_code) && <div className="mt-9 max-w-4xl border-t border-[#e5ecf3] pt-6">
-          <h3 className="text-[17px] font-semibold text-[#142943]">Informações do produto</h3>
-          <dl className="mt-4 divide-y divide-[#eef2f6] text-[13px]">
-            {brand?.name && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Marca</dt><dd className="text-[#233e59]">{brand.name}</dd></div>}
-            {product.model && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Modelo</dt><dd className="text-[#233e59]">{product.model}</dd></div>}
-            {product.manufacturer_code && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Referência</dt><dd className="text-[#233e59]">{product.manufacturer_code}</dd></div>}
-            {product.sku && <div className="grid grid-cols-[130px_1fr] gap-4 py-3"><dt className="text-[#718096]">Código</dt><dd className="text-[#233e59]">{product.sku}</dd></div>}
-          </dl>
-        </div>}
+    <section className="border-t border-[#e7eef6] bg-[#f8fafc] py-10 sm:py-14">
+      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        <h2 className="text-[24px] font-semibold tracking-tight text-[#142943] sm:text-[28px]">Informações sobre o produto</h2>
+        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1.15fr)_minmax(330px,.85fr)]">
+          <article className="min-w-0 rounded-xl border border-[#e3eaf2] bg-white p-5 sm:p-7">
+            <h3 className="border-b border-[#e8edf3] pb-4 text-[18px] font-semibold text-[#18344f]">Descrição</h3>
+            {paragraphs.length ? <div className="mt-5 space-y-4 text-[14px] leading-7 text-[#485d71]">
+              {paragraphs.map((paragraph, index) => <p key={index} className="whitespace-pre-line break-words">{paragraph}</p>)}
+            </div> : <p className="mt-5 text-[14px] leading-7 text-[#718096]">Ainda não há uma descrição detalhada cadastrada para este produto.</p>}
+          </article>
+          <aside className="min-w-0 overflow-hidden rounded-xl border border-[#e3eaf2] bg-white">
+            <div className="border-b border-[#e8edf3] px-5 py-5 sm:px-6">
+              <h3 className="text-[18px] font-semibold text-[#18344f]">Características do produto</h3>
+              <p className="mt-1 text-[12px] text-[#75849a]">Informações técnicas cadastradas</p>
+            </div>
+            {specs.length ? <dl className="text-[13px]">
+              {specs.map((item,index)=><div key={item.label} className={`grid grid-cols-[minmax(105px,.85fr)_minmax(0,1.15fr)] gap-x-4 gap-y-1 border-b border-[#edf1f5] px-5 py-3.5 last:border-b-0 sm:px-6 ${index%2===0?"bg-[#f8fafc]":"bg-white"}`}>
+                <dt className="text-[#64748b]">{item.label}</dt>
+                <dd className="min-w-0 break-words font-medium text-[#203b58]">{item.value}</dd>
+              </div>)}
+            </dl> : <p className="px-6 py-5 text-[13px] text-[#718096]">Características técnicas ainda não cadastradas.</p>}
+          </aside>
+        </div>
       </div>
     </section>
 
