@@ -274,7 +274,7 @@ export function OrderEquipmentSection({
               <FInput
                 label={field.label}
                 required={relation.required}
-                type={field.field_type === "number" ? "number" : "text"}
+                type="text"
                 value={technicalValues[relation.technical_field_id] || ""}
                 disabled={!isCurrentField}
                 onChange={(e: any) => onTechnicalValueChange(relation.technical_field_id, e.target.value)}
