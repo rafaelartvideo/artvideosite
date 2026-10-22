@@ -32,7 +32,7 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
       {hasDiscount && <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-700">{discount}% OFF</span>}
       {soldOut && <span className="absolute right-2 top-2 z-10 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">Esgotado</span>}
     <button type="button" aria-label={`Ver produto ${product.name}`} onClick={() => onSelectProduct(product.slug)}
-      className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white via-[#fbfdff] to-[#f1f6ff] p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+      className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-white p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
       {imageUrl ? <div className="relative h-full w-full">
           {readyCover!==imageUrl && <div className="absolute inset-0 animate-pulse rounded bg-[#e8eef7]"/>}
           <img src={imageUrl} alt={product.name} loading="lazy" onLoad={()=>setReadyCover(imageUrl)} onError={()=>setReadyCover(imageUrl)} className={`h-full w-full object-contain ${readyCover===imageUrl?"opacity-100":"opacity-0"}`}/>
@@ -72,16 +72,15 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
     service.price_mode === "FIXED" && basePrice ? basePrice :
     service.price_mode === "STARTING_FROM" && basePrice ? `A partir de ${basePrice}` : "Consulte o valor";
 
-  if (variant === "catalog") return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#dfe4e9] bg-white transition-colors duration-150 hover:border-[#acc9e6] hover:shadow-[0_12px_28px_rgba(23,43,69,.08)]">
+  if (variant === "catalog") return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-lg border border-[#e3e6eb] bg-white transition-colors duration-150 hover:border-[#acc9e6] hover:shadow-[0_12px_28px_rgba(23,43,69,.08)]">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)}
       className="relative isolate block aspect-[16/10] w-full overflow-hidden bg-[#f0f5fa] text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
       {imageUrl && readyImage !== imageUrl && <div className="absolute inset-0 animate-pulse bg-[#e8eef7]"/>}
-      {imageUrl && <img src={imageUrl} alt="" loading="lazy" onLoad={()=>setReadyImage(imageUrl)} onError={()=>setReadyImage(imageUrl)} className={`absolute inset-y-0 right-0 h-full w-[85%] object-cover ${readyImage===imageUrl?"opacity-100":"opacity-0"}`}/>}
-      <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, white 0%, white 16%, rgba(255,255,255,.97) 30%, rgba(255,255,255,.68) 52%, rgba(255,255,255,0) 91%)" }}/>
-      <Icon size={38} strokeWidth={1.3} className="absolute left-6 top-6 text-[var(--art-primary)]"/>
+      {imageUrl ? <img src={imageUrl} alt={service.title} loading="lazy" onLoad={()=>setReadyImage(imageUrl)} onError={()=>setReadyImage(imageUrl)} className={`absolute inset-0 h-full w-full object-cover ${readyImage===imageUrl?"opacity-100":"opacity-0"}`}/>
+        : <div className="flex h-full w-full items-center justify-center bg-[#f5f5f5]"><Icon size={55} className="text-[#697787]" strokeWidth={1.25}/></div>}
     </button>
     <div className="flex flex-1 flex-col px-5 pb-5 pt-5">
-      <p className="mb-2 text-[11px] leading-4 text-[#697684]">{categoryName || "Serviços Artvideo"}</p>
+      {categoryName && <p className="mb-2 text-[11px] leading-4 text-[#697684]">{categoryName}</p>}
       <button type="button" onClick={() => onSelectService(service.slug)} className="text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
         <h3 className="min-h-12 text-[17px] font-semibold leading-6 tracking-[-.025em] text-[#172b45]">{service.title}</h3>
       </button>
