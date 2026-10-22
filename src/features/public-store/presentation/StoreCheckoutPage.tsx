@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   AlertCircle, ArrowLeft, ArrowRight, BadgeCheck, Check, CheckCircle2,
-  ChevronRight, CreditCard, Headphones, LoaderCircle,
+  CreditCard, Headphones, LoaderCircle,
   LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, UserRound,
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
@@ -380,51 +380,64 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     </div>
   </div>;
 
-  return <div className="min-h-screen bg-[#f6f9fd] text-[#10243d]">
-    <div className="border-b border-[#e4ebf5] bg-white">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <button type="button" onClick={() => navigate(backToProduct)}
-          className="inline-flex items-center gap-2 text-[12px] font-bold text-[#52677f] transition-colors hover:text-[var(--art-primary)]">
-          <ArrowLeft size={17}/> Voltar ao produto
-        </button>
-        <span className="inline-flex items-center gap-2 text-[11px] font-semibold text-[#668098]"><LockKeyhole size={15} className="text-[var(--art-primary)]"/> Finalização protegida</span>
-      </div>
-    </div>
+  const backAction = <button type="button" disabled={paying}
+    onClick={() => step === 1 ? navigate(backToProduct) : move((step - 1) as Step)}
+    className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] border border-[var(--art-primary)] bg-[#ecf2ff] px-2 text-center text-[12px] font-bold leading-tight text-[var(--art-primary)] transition-colors hover:bg-[#dfeaff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-5 md:text-[13px]">
+    <ArrowLeft size={16} className="shrink-0"/>
+    <span>{step === 1 ? cartMode ? "Voltar ao carrinho" : "Voltar ao produto" : "Anterior"}</span>
+  </button>;
+  const nextAction = step < 3 ? <button type="button" disabled={!purchasable || shippingLoading || paying}
+    onClick={() => {
+      if (step === 1 && checkIdentity()) move(2);
+      if (step === 2 && checkDelivery()) move(3);
+    }}
+    className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[13px] font-bold leading-tight text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-6">
+    Continuar <ArrowRight size={16} className="shrink-0"/>
+  </button> : <button type="button" disabled={!purchasable || paying || !selectedShipping || !paymentsAvailable}
+    onClick={() => void placeOrder()}
+    className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[12px] font-bold leading-tight text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-6 md:text-[13px]">
+    {paying ? <><LoaderCircle size={17} className="shrink-0 animate-spin"/> Verificando...</> :
+      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> Ir para pagamento</> :
+      "Pagamento indisponível"}
+  </button>;
 
+  return <div className="art-checkout-page min-h-screen bg-[#f6f9fd] text-[#10243d]">
     <div className="bg-gradient-to-r from-[#0b1c34] via-[#0e2a51] to-[#114577]">
-      <div className="mx-auto max-w-7xl px-4 py-9 text-white sm:px-6 sm:py-11 lg:px-8">
-        <div className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[.12em] text-[#8bc6ff]"><ShoppingBag size={15}/> Loja Artvideo</div>
-        <h1 className="mt-2 text-[30px] font-extrabold tracking-[-.04em] sm:text-[38px]" style={{ fontFamily: "'Poppins', 'Inter', sans-serif" }}>Finalizar compra</h1>
-        <p className="mt-2 text-[13px] text-white/75">Mais alguns passos e seu pedido estará pronto para o pagamento.</p>
+      <div className="mx-auto max-w-7xl px-4 py-6 text-white sm:px-6 sm:py-10 lg:px-8">
+        <h1 className="text-[26px] font-extrabold tracking-[-.035em] sm:text-[38px]">Finalizar compra</h1>
+        <p className="mt-1.5 text-[12px] leading-relaxed text-white/75 sm:mt-2 sm:text-[13px]">Mais alguns passos e seu pedido estará pronto para o pagamento.</p>
       </div>
     </div>
 
-    <div ref={mainRef} className="mx-auto max-w-7xl scroll-mt-24 px-4 py-8 sm:px-6 lg:px-8">
-      <nav aria-label="Etapas da compra" className={cardStyle + " mb-7 p-3 sm:p-5"}>
-        <ol className="grid grid-cols-3 gap-1 sm:gap-3">
-          {steps.map(({ value, name, sub, Icon }, index) => {
+    <div ref={mainRef} className="mx-auto max-w-7xl scroll-mt-24 px-4 pb-28 pt-5 sm:px-6 sm:py-8 lg:px-8">
+      <nav aria-label="Etapas da compra" className={cardStyle + " mb-5 p-2.5 sm:mb-7 sm:p-5"}>
+        <ol className="grid grid-cols-3 gap-1.5 sm:gap-3">
+          {steps.map(({ value, name, sub, Icon }) => {
             const done = step > value;
             const active = step === value;
             return <li key={value} className="min-w-0">
               <button type="button" disabled={paying || value > step}
                 onClick={() => { if (value <= step) move(value); }}
+                aria-label={name + " · etapa " + value + " de 3"}
                 aria-current={active ? "step" : undefined}
-                className={"flex w-full items-center gap-2 rounded-lg px-1 py-2 text-left transition-colors sm:gap-3 sm:p-3 " +
+                className={"flex min-h-[81px] w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-center transition-colors sm:min-h-0 sm:flex-row sm:justify-start sm:gap-3 sm:p-3 sm:text-left " +
                   (active ? "bg-[#eff6ff]" : done ? "hover:bg-[#f7faff]" : "cursor-default")}>
-                <span className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-full border text-sm font-extrabold sm:h-11 sm:w-11 " +
+                <span className={"flex h-9 w-9 shrink-0 items-center justify-center rounded-full border sm:h-11 sm:w-11 " +
                   (done ? "border-[#b6e2d1] bg-[#e5f8ef] text-[#198d5e]" : active ? "border-[var(--art-primary)] bg-[var(--art-primary)] text-white" : "border-[#d9e4f1] bg-[#f3f7fc] text-[#9aafc5]")}>
-                  {done ? <Check size={20}/> : <Icon size={19}/>}
+                  {done ? <Check size={18}/> : <Icon size={18}/>}
                 </span>
-                <span className="min-w-0">
-                  <span className={"block text-[11px] font-extrabold leading-tight sm:text-[13px] " + (active ? "text-[var(--art-primary)]" : "text-[#203852]")}>{name}</span>
+                <span className="min-w-0 max-w-full">
+                  <span className={"block text-[10px] font-bold leading-tight sm:text-[13px] sm:font-extrabold " + (active ? "text-[var(--art-primary)]" : "text-[#203852]")}>
+                    <span className="sm:hidden">{value === 3 ? "Revisão" : name}</span>
+                    <span className="hidden sm:inline">{name}</span>
+                  </span>
                   <span className="mt-0.5 hidden text-[11px] text-[#8492a7] sm:block">{sub}</span>
                 </span>
-                {index < 2 && <ChevronRight size={15} className="ml-auto hidden shrink-0 text-[#b1bfd0] lg:block"/>}
               </button>
             </li>;
           })}
         </ol>
-        <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#e9eff7]">
+        <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-[#e9eff7] sm:mt-3">
           <div className="h-full rounded-full bg-[var(--art-primary)] transition-all duration-300"
             style={{ width: (step / 3 * 100) + "%" }}/>
         </div>
@@ -652,27 +665,13 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             </div>
           </section>}
 
-          {error && <div role="alert" aria-live="assertive" className="mt-5 flex items-start gap-3 rounded-lg border border-[#edcacc] bg-[#fff4f4] px-4 py-4 text-[13px] leading-5 text-[#a83e45]">
+          {error && <div role="alert" aria-live="assertive" className="mt-5 hidden items-start gap-3 rounded-lg border border-[#edcacc] bg-[#fff4f4] px-4 py-4 text-[13px] leading-5 text-[#a83e45] md:flex">
             <AlertCircle size={19} className="mt-0.5 shrink-0"/><span>{error}</span>
           </div>}
 
-          <div className="mt-6 flex flex-col-reverse items-stretch justify-between gap-3 sm:flex-row sm:items-center">
-            {step === 1 ? <button type="button" onClick={() => navigate(backToProduct)}
-              className="inline-flex min-h-12 items-center justify-center gap-2 px-4 text-[13px] font-bold text-[#677991] transition-colors hover:text-[var(--art-primary)]"><ArrowLeft size={17}/> Voltar ao produto</button>
-              : <button type="button" onClick={() => move((step - 1) as Step)} disabled={paying}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border border-[#dce6f2] bg-white px-5 text-[13px] font-bold text-[#415873] transition-colors hover:bg-[#e9f3ff] disabled:opacity-50"><ArrowLeft size={17}/> Voltar</button>}
-            {step < 3 ? <button type="button" className={buttonStyle} disabled={!purchasable || shippingLoading}
-              onClick={() => {
-                if (step === 1 && checkIdentity()) move(2);
-                if (step === 2 && checkDelivery()) move(3);
-              }}>
-              Continuar <ArrowRight size={17}/>
-            </button> : <button type="button" className={buttonStyle} disabled={!purchasable || paying || !selectedShipping || !paymentsAvailable}
-              onClick={() => void placeOrder()}>
-              {paying ? <><LoaderCircle className="animate-spin" size={19}/> Verificando seu pedido...</> :
-                paymentsAvailable ? <><LockKeyhole size={18}/> Ir para pagamento <ArrowRight size={16}/></> :
-                <><LockKeyhole size={18}/> Pagamento indisponível</>}
-            </button>}
+          <div className="mt-6 hidden items-center justify-between gap-3 md:flex">
+            {backAction}
+            {nextAction}
           </div>
         </div>
 
@@ -681,6 +680,15 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           <p className="mt-4 flex items-start gap-2 px-2 text-[11px] leading-relaxed text-[#8493a9]"><BadgeCheck size={16} className="shrink-0 text-[var(--art-primary)]"/>
             Valores e disponibilidade são conferidos novamente ao continuar para o pagamento.</p>
         </aside>
+      </div>
+    </div>
+
+    {/* Mesmas ações e validações em todas as etapas; visíveis no celular sem rolagem. */}
+    <div className="art-checkout-mobile-actions fixed inset-x-0 bottom-0 z-[60] border-t border-[#e0e8f2] bg-white/95 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-5px_20px_rgba(15,38,73,.10)] backdrop-blur-md md:hidden" aria-label="Navegação do checkout">
+      {error && <p role="alert" aria-live="assertive" className="mx-3 mb-2 rounded-lg border border-[#edcacc] bg-[#fff4f4] px-3 py-2.5 text-[12px] leading-relaxed text-[#a83e45]">{error}</p>}
+      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2 px-3">
+        {backAction}
+        {nextAction}
       </div>
     </div>
   </div>;
