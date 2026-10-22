@@ -92,7 +92,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const navigate = (destination: PublicPage) => {
     setPage(destination);
     setMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: "instant" });
+    window.scrollTo({ top: 0, behavior: "auto" });
   };
   return <header className="sticky top-0 z-40 border-b border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white shadow-md">
     <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[84px] sm:px-6 xl:h-[96px] xl:gap-4 lg:px-8">
