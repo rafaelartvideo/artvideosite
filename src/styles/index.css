@@ -993,3 +993,15 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
     padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
   }
 }
+
+
+/* Checkout: ações persistentes sem sobrepor a barra inferior do navegador. */
+@media (max-width: 767px) {
+  .artvideo-checkout-view footer {
+    padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+  }
+  /* Quando o teclado está aberto, libera todo o espaço para digitação e campos de endereço. */
+  .art-checkout-page:has(input:focus, textarea:focus, select:focus) .art-checkout-mobile-actions {
+    display: none;
+  }
+}
