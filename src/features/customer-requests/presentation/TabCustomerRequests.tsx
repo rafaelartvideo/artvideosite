@@ -215,7 +215,7 @@ export function TabCustomerRequests() {
 
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Pedidos Avulsos"
-      subtitle={`${String(overallTotal).padStart(3, "0")} pedidos realizados`}
+      subtitle={`${String(overallTotal)} pedidos realizados`}
       actions={canCreate ? <BtnPrimary onClick={() => { resetForm(); setOpen(true); }}>Novo</BtnPrimary> : undefined} />
 
     <AdminSearchPanel title="Buscar pedidos" headerActions={<>
