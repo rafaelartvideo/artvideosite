@@ -1358,7 +1358,14 @@ export function TabProducts({
                     <div className="mt-1.5 flex gap-1">
                       <button
                         type="button"
-                        onClick={() => setForm(current => ({ ...current, cover_media_id: image.media_id }))}
+                        onClick={() => {
+                          if (form.cover_media_id && form.cover_media_id !== image.media_id &&
+                              !galleryMedia.some(entry => entry.media_id === form.cover_media_id)) {
+                            const previous = {media_id: form.cover_media_id, public_url: coverPreviewUrl || "", alt_text: null};
+                            setGalleryMedia(current => current.some(entry => entry.media_id === previous.media_id) ? current : [previous, ...current]);
+                          }
+                          setForm(current => ({ ...current, cover_media_id: image.media_id }));
+                        }}
                         className={cn("flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-bold", form.cover_media_id === image.media_id ? "bg-primary text-white" : "bg-[#f1f4f8] text-[#5a6a82]")}
                       ><Star size={14} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"}/> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
                       <button
