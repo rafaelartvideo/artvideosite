@@ -63,6 +63,7 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
   const appearance = homeServiceDisplay(settings.home_service_display)[service.id];
   const Icon = publicIcon(appearance?.icon || service.public_icon || inferredServiceIcon(service.title));
   const { url: imageUrl } = useMediaUrl(appearance?.media_id || service.cover_media_id);
+  const [readyImage, setReadyImage] = useState<string | null>(null);
   const basePrice = service.base_price == null ? null : formatCurrency(service.base_price);
   const priceLabel = service.price_mode === "HIDDEN" ? null :
     service.price_mode === "FIXED" && basePrice ? basePrice :
@@ -71,7 +72,8 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
   if (variant === "catalog") return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#dfe4e9] bg-white transition-colors duration-150 hover:border-[#acc9e6] hover:shadow-[0_12px_28px_rgba(23,43,69,.08)]">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)}
       className="relative isolate block aspect-[16/10] w-full overflow-hidden bg-[#f0f5fa] text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      {imageUrl && <img src={imageUrl} alt="" loading="lazy" className="absolute inset-y-0 right-0 h-full w-[85%] object-cover transition-opacity duration-150"/>}
+      {imageUrl && readyImage !== imageUrl && <div className="absolute inset-0 animate-pulse bg-[#e8eef7]"/>}
+      {imageUrl && <img src={imageUrl} alt="" loading="lazy" onLoad={()=>setReadyImage(imageUrl)} onError={()=>setReadyImage(imageUrl)} className={`absolute inset-y-0 right-0 h-full w-[85%] object-cover ${readyImage===imageUrl?"opacity-100":"opacity-0"}`}/>}
       <div className="absolute inset-0" style={{ background: "linear-gradient(90deg, white 0%, white 16%, rgba(255,255,255,.97) 30%, rgba(255,255,255,.68) 52%, rgba(255,255,255,0) 91%)" }}/>
       <Icon size={38} strokeWidth={1.3} className="absolute left-6 top-6 text-[var(--art-primary)]"/>
     </button>
@@ -93,7 +95,7 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
 
   return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-colors duration-150 hover:border-blue-300 hover:shadow-lg">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="w-full text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <img src={imageUrl} alt="" loading="lazy" className="h-full w-full object-cover transition-opacity duration-150"/> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
+      <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <div className="relative h-full w-full">{readyImage!==imageUrl && <div className="absolute inset-0 animate-pulse bg-[#e8eef7]"/>}<img src={imageUrl} alt="" loading="lazy" onLoad={()=>setReadyImage(imageUrl)} onError={()=>setReadyImage(imageUrl)} className={`h-full w-full object-cover ${readyImage===imageUrl?"opacity-100":"opacity-0"}`}/></div> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
       <div className="p-6 pb-3"><h3 className="text-lg font-semibold leading-6 tracking-tight text-[#172b45]">{service.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-[#64717e]">{service.short_description || service.description || "Conheça o atendimento e solicite seu orçamento."}</p></div>
     </button>
     <div className="mt-auto flex flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-4"><span className="text-sm font-medium text-[#172b45]">{priceLabel || " "}</span><button type="button" onClick={() => onSelectService(service.slug)} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)] transition-all hover:gap-3">Saiba mais <ArrowRight size={16}/></button></div>
