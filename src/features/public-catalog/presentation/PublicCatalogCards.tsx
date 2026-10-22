@@ -19,6 +19,7 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
   product: any; onSelectProduct: (slug: string) => void; availableQuantity?: number;
 }) {
   const { url: imageUrl } = useMediaUrl(product.cover_media_id);
+  const [readyCover,setReadyCover] = useState<string | null>(null);
   const [feedback,setFeedback]=useState("");
   const oldPrice = Number(product.compare_at_price);
   const nowPrice = Number(product.price);
@@ -32,8 +33,10 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
       {soldOut && <span className="absolute right-2 top-2 z-10 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">Esgotado</span>}
     <button type="button" aria-label={`Ver produto ${product.name}`} onClick={() => onSelectProduct(product.slug)}
       className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-gradient-to-br from-white via-[#fbfdff] to-[#f1f6ff] p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
-      {imageUrl ? <img src={imageUrl} alt={product.name} loading="lazy" className="h-full w-full object-contain transition-opacity duration-150"/>
-        : <Package size={49} strokeWidth={1.35} className="text-[#b2c8e5] transition-transform group-hover:scale-110"/>}
+      {imageUrl ? <div className="relative h-full w-full">
+          {readyCover!==imageUrl && <div className="absolute inset-0 animate-pulse rounded bg-[#e8eef7]"/>}
+          <img src={imageUrl} alt={product.name} loading="lazy" onLoad={()=>setReadyCover(imageUrl)} onError={()=>setReadyCover(imageUrl)} className={`h-full w-full object-contain ${readyCover===imageUrl?"opacity-100":"opacity-0"}`}/>
+        </div> : <Package size={49} strokeWidth={1.35} className="text-[#b2c8e5]"/>}
     </button>
     </div>
     <h3 className="mt-3 line-clamp-2 min-h-[42px] text-[13px] font-extrabold leading-[1.43] tracking-[-.025em] text-[#0c1a32]">{product.name}</h3>
