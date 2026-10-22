@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ChevronLeft, ChevronRight, ArrowRight, ShoppingBag, Wrench } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowRight, Pause, Play, ShoppingBag, Wrench } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 
 export type CatalogSlide = {
@@ -51,10 +51,7 @@ export function PublicCatalogCarousel({ slides, title }: { slides: CatalogSlide[
   if (!count) return null;
   const change = (offset: number) => setIndex(value => (value + offset + count) % count);
   return <section aria-label={title} aria-roledescription="carrossel"
-    className="relative isolate h-[275px] overflow-hidden bg-[#0b244e] text-white sm:h-[330px]"
-    onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-    onFocusCapture={() => setPaused(true)}
-    onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setPaused(false); }}>
+    className="relative isolate h-[275px] overflow-hidden bg-[#0b244e] text-white sm:h-[330px]">
     {slides.map((slide, slideIndex) => {
       const active = slideIndex === activeIndex;
       return <div key={slide.id} aria-hidden={!active}
@@ -82,10 +79,15 @@ export function PublicCatalogCarousel({ slides, title }: { slides: CatalogSlide[
         className="absolute right-2 top-1/2 z-20 flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full border border-white/40 bg-[#102c50]/60 text-white shadow-md backdrop-blur-sm transition-[background-color,transform] hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-5 sm:h-11 sm:w-11">
         <ChevronRight size={22} strokeWidth={1.8}/>
       </button>
-      <nav aria-label="Selecionar banner" className="absolute inset-x-0 bottom-4 z-20 flex justify-center gap-2">
+      <nav aria-label="Selecionar banner" className="absolute inset-x-0 bottom-4 z-20 flex items-center justify-center gap-2">
         {slides.map((slide, i) => <button type="button" key={slide.id} onClick={() => setIndex(i)}
           aria-label={`Banner ${i + 1} de ${count}`} aria-current={activeIndex === i ? "true" : undefined}
           className={`h-2 rounded-full transition-[width,background-color] duration-300 ${activeIndex === i ? "w-9 bg-white" : "w-2 bg-white/50 hover:bg-white/85"}`}/>)}
+        <button type="button" aria-label={paused ? "Retomar rotação dos banners" : "Pausar rotação dos banners"} aria-pressed={paused}
+          onClick={() => setPaused(value => !value)}
+          className="ml-2 flex h-7 w-7 items-center justify-center rounded-full border border-white/30 bg-[#102c50]/65 text-white hover:bg-white/25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+          {paused ? <Play size={13} strokeWidth={1.8}/> : <Pause size={13} strokeWidth={1.8}/>}
+        </button>
       </nav>
     </>}
   </section>;

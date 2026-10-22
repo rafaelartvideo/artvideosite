@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowRight, ClipboardList, FileText, Search, Settings2,
-  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote, ChevronLeft, ChevronRight,
+  ShieldCheck, ShoppingCart, Star, Store, Wrench, Quote, ChevronLeft, ChevronRight, Pause, Play,
 } from "lucide-react";
 import { useBrands, useFeaturedProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { BrandCard, ProductCard, ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -77,10 +77,7 @@ function ExampleTestimonialsCarousel() {
       setIndex(count + clones - 1);
     }
   };
-  return <div role="region" aria-label="Carrossel de depoimentos de demonstração" aria-roledescription="carrossel"
-    onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-    onFocusCapture={() => setPaused(true)}
-    onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setPaused(false); }}>
+  return <div role="region" aria-label="Carrossel de depoimentos de demonstração" aria-roledescription="carrossel">
     <div className="overflow-hidden" aria-live="off">
       <div className={`flex w-full motion-reduce:transition-none ${animated ? "transition-transform duration-700 ease-in-out" : ""}`}
         style={{ transform: `translate3d(-${index * 100 / visibleCount}%, 0, 0)` }}
@@ -109,6 +106,11 @@ function ExampleTestimonialsCarousel() {
       <button type="button" onClick={() => go(1)} aria-label="Próximos depoimentos"
         className="flex h-10 w-10 items-center justify-center rounded-full border border-[#dbe5f0] bg-white text-[#2748a4] shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
         <ChevronRight size={19} strokeWidth={1.75}/>
+      </button>
+      <button type="button" aria-label={paused ? "Retomar rotação dos depoimentos" : "Pausar rotação dos depoimentos"} aria-pressed={paused}
+        onClick={() => setPaused(value => !value)}
+        className="flex h-9 w-9 items-center justify-center rounded-full border border-[#dbe5f0] bg-white text-[#2748a4] shadow-sm transition-colors hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-blue-500">
+        {paused ? <Play size={16} strokeWidth={1.75}/> : <Pause size={16} strokeWidth={1.75}/>}
       </button>
     </div>
   </div>;
