@@ -371,12 +371,12 @@ function PublicRoutes() {
       <Suspense fallback={<PublicPageFallback />}>
         <Routes>
           <Route path="/" element={<HomePage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} trackingSection={<ServiceTrackingSection />} />} />
-          <Route path="/loja" element={<StorePage setPage={setPage} onSelectProduct={selectProduct} />} />
+          <Route path="/loja" element={<StorePage setPage={setPage} onSelectProduct={selectProduct} onSelectService={selectService} />} />
           <Route path="/loja/:slug" element={<ProductDetailRoute setPage={setPage} />} />
           <Route path="/carrinho" element={<StoreCartPage />} />
           <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
           <Route path="/acompanhar-pedido" element={<StoreOrderTrackingPage />} />
-          <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} />} />
+          <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
           <Route path="/politica-de-privacidade" element={<PrivacyPolicyPage />} />
