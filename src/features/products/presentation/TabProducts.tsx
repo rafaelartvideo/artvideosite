@@ -3,10 +3,8 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftRight,
-  CircleHelp,
   Edit2,
   Eraser,
-  FileText,
   Image as ImageIcon,
   List,
   Package,
@@ -56,7 +54,6 @@ import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.reposito
 import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives/tabs";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/shared/ui/primitives/tooltip";
 import {
   listInventoryItemSuppliers,
   type InventorySupplier,
@@ -70,7 +67,7 @@ import {
   type ImportedProductImage,
 } from "../infrastructure/product-lookup.repository";
 
-type ProductEditorTab = "general" | "commercial" | "suppliers" | "fiscal" | "photos" | "catalog";
+type ProductEditorTab = "general" | "commercial" | "suppliers" | "store";
 
 type ProductForm = {
   name: string;
@@ -242,10 +239,6 @@ function emptyForm(): ProductForm {
   };
 }
 
-function digitsOnly(value: string, maxLength: number) {
-  return value.replace(/\D/g, "").slice(0, maxLength);
-}
-
 function nullableNumber(value: string) {
   if (value.trim() === "") return null;
   const parsed = Number(value.replace(",", "."));
@@ -261,31 +254,6 @@ function displayUnitCost(value: unknown, unit: string, factor: number) {
   if (value == null) return null;
   const base = Number(value);
   return unit === "cx" ? base * Math.max(1, factor) : base;
-}
-
-function FiscalField({
-  label,
-  help,
-  children,
-}: {
-  label: string;
-  help: string;
-  children: React.ReactNode;
-}) {
-  return <div className="min-w-0">
-    <div className="mb-1.5 flex items-center gap-1.5">
-      <label className="text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">{label}</label>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button type="button" className="inline-flex h-4 w-4 items-center justify-center text-[#8a96a8]" aria-label={`Ajuda sobre ${label}`}>
-            <CircleHelp size={12} />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent sideOffset={6} className="max-w-xs leading-relaxed">{help}</TooltipContent>
-      </Tooltip>
-    </div>
-    {children}
-  </div>;
 }
 
 function EditorTabTrigger({
@@ -565,27 +533,6 @@ export function TabProducts({
       errors.initial_supplier_entity_id = "O fornecedor do saldo inicial precisa estar vinculado ao item.";
     }
 
-    if (form.ncm && !/^\d{1,8}$/.test(form.ncm)) errors.ncm = "NCM deve ter até 8 dígitos.";
-    if (form.cest && !/^\d{7}$/.test(form.cest)) errors.cest = "CEST deve ter 7 dígitos.";
-    if (form.cfop_entry && !/^\d{4}$/.test(form.cfop_entry)) errors.cfop_entry = "CFOP deve ter 4 dígitos.";
-    if (form.cfop_exit && !/^\d{4}$/.test(form.cfop_exit)) errors.cfop_exit = "CFOP deve ter 4 dígitos.";
-    if (form.csosn && !/^\d{3}$/.test(form.csosn)) errors.csosn = "CSOSN deve ter 3 dígitos.";
-    if (form.cst_icms && !/^\d{3}$/.test(form.cst_icms)) errors.cst_icms = "CST ICMS deve ter 3 dígitos.";
-    if (form.cst_pis && !/^\d{2}$/.test(form.cst_pis)) errors.cst_pis = "CST PIS deve ter 2 dígitos.";
-    if (form.cst_cofins && !/^\d{2}$/.test(form.cst_cofins)) errors.cst_cofins = "CST COFINS deve ter 2 dígitos.";
-    if (form.cst_ipi && !/^\d{2}$/.test(form.cst_ipi)) errors.cst_ipi = "CST IPI deve ter 2 dígitos.";
-
-    const rateFields: Array<[keyof Pick<ProductFieldErrors, "internal_icms_rate" | "ipi_rate" | "pis_rate" | "cofins_rate">, string]> = [
-      ["internal_icms_rate", form.internal_icms_rate],
-      ["ipi_rate", form.ipi_rate],
-      ["pis_rate", form.pis_rate],
-      ["cofins_rate", form.cofins_rate],
-    ];
-    rateFields.forEach(([key, value]) => {
-      const parsed = nullableNumber(value);
-      if (parsed !== null && (parsed < 0 || parsed > 100)) errors[key] = "A alíquota deve estar entre 0 e 100%.";
-    });
-
     if (isArtvideoTenant && form.show_in_catalog) {
       if (compareAtPrice !== null && compareAtPrice < 0) errors.compare_at_price = "Informe um preço de comparação válido.";
       if (price !== null && compareAtPrice !== null && compareAtPrice < price) {
@@ -599,7 +546,7 @@ export function TabProducts({
       if (errors.name || errors.barcode) setEditorTab("general");
       else if (errors.price || errors.conversion_factor || errors.min_quantity || errors.initial_quantity || errors.initial_unit_cost || errors.initial_supplier_entity_id) setEditorTab("commercial");
       else if (errors.compare_at_price) setEditorTab("general");
-      else setEditorTab("fiscal");
+      else setEditorTab("general");
       return false;
     }
 
@@ -611,7 +558,7 @@ export function TabProducts({
     if (!validate()) return;
     const photoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
     if (photoCount > 4) {
-      setEditorTab("photos");
+      setEditorTab("store");
       setToast({ msg: "Limite de 4 fotos por produto, incluindo a principal. Remova as fotos excedentes.", type: "error" });
       return;
     }
@@ -998,8 +945,7 @@ export function TabProducts({
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
-            <EditorTabTrigger value="fiscal" icon={FileText}>Fiscais</EditorTabTrigger>
-            <EditorTabTrigger value="photos" icon={ImageIcon}>Fotos</EditorTabTrigger>
+            {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
           </TabsList>
         </div>
 
@@ -1122,7 +1068,6 @@ export function TabProducts({
                     rows={3}
                     placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
                   />
-                  <p className="mt-1 text-[10px] leading-4 text-[#7a8aa0]">Uso interno do CRM. Não aparece no catálogo, nota fiscal ou documentos.</p>
                 </div>
               </div>
             </Section>
@@ -1203,7 +1148,7 @@ export function TabProducts({
                   </div>
                   <div className="sm:col-span-2">
                     <ImageUpload bucket="product-images" organizationId={activeOrganizationId || undefined} currentMediaId={form.cover_media_id} onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))} canUpload={!saving} label="Foto principal do produto" />
-                    <button type="button" disabled={saving} className="mt-3 text-xs font-semibold text-primary hover:underline" onClick={() => setEditorTab("photos")}>Adicionar mais fotos</button>
+                    <button type="button" disabled={saving} className="mt-3 text-xs font-semibold text-primary hover:underline" onClick={() => setEditorTab("store")}>Adicionar mais fotos</button>
                   </div>
                 </div>}
               </div>
@@ -1358,273 +1303,7 @@ export function TabProducts({
             />
           </TabsContent>}
 
-          <TabsContent value="fiscal" className="mt-0">
-            <Section title="Dados fiscais do item">
-              <p className="mb-5 text-xs leading-5 text-[#7a8aa0]">
-                Campos usados em NF-e / NFC-e e escrituração de ICMS, PIS/COFINS e IPI. Preencha conforme o regime da empresa e orientação contábil.
-              </p>
-
-              <div className="grid grid-cols-1 gap-x-4 gap-y-5 lg:grid-cols-2">
-                <FiscalField label="NCM" help="Classificação fiscal da mercadoria. Informe até 8 dígitos.">
-                  <FInput
-                    value={form.ncm}
-                    disabled={saving}
-                    error={fieldErrors.ncm}
-                    inputMode="numeric"
-                    maxLength={8}
-                    placeholder="ex.: 85171231"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, ncm: undefined }));
-                      setForm(current => ({ ...current, ncm: digitsOnly(event.target.value, 8) }));
-                    }}
-                    hint="Até 8 dígitos."
-                  />
-                </FiscalField>
-
-                <FiscalField label="CEST" help="Código Especificador da Substituição Tributária. Use quando aplicável ao item.">
-                  <FInput
-                    value={form.cest}
-                    disabled={saving}
-                    error={fieldErrors.cest}
-                    inputMode="numeric"
-                    maxLength={7}
-                    placeholder="7 dígitos quando aplicável"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cest: undefined }));
-                      setForm(current => ({ ...current, cest: digitsOnly(event.target.value, 7) }));
-                    }}
-                    hint="Opcional — 7 dígitos quando aplicável."
-                  />
-                </FiscalField>
-
-                <div className="lg:col-span-2">
-                  <FiscalField label="Origem da mercadoria" help="Código de origem utilizado no ICMS e na NF-e/NFC-e.">
-                    <AdminSelect
-                      value={form.merchandise_origin}
-                      onValueChange={value => setForm(current => ({ ...current, merchandise_origin: value }))}
-                      options={originOptions}
-                      disabled={saving}
-                      ariaLabel="Origem da mercadoria"
-                    />
-                  </FiscalField>
-                </div>
-
-                <FiscalField label="CFOP padrão (entrada)" help="CFOP sugerido para operações típicas de compra ou devolução de venda. A operação fiscal poderá sobrescrever esse padrão.">
-                  <FInput
-                    value={form.cfop_entry}
-                    disabled={saving}
-                    error={fieldErrors.cfop_entry}
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="1102"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cfop_entry: undefined }));
-                      setForm(current => ({ ...current, cfop_entry: digitsOnly(event.target.value, 4) }));
-                    }}
-                    hint="Compra / devolução de venda."
-                  />
-                </FiscalField>
-
-                <FiscalField label="CFOP padrão (saída)" help="CFOP sugerido para operações típicas de venda ou remessa. A operação fiscal poderá sobrescrever esse padrão.">
-                  <FInput
-                    value={form.cfop_exit}
-                    disabled={saving}
-                    error={fieldErrors.cfop_exit}
-                    inputMode="numeric"
-                    maxLength={4}
-                    placeholder="5102"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cfop_exit: undefined }));
-                      setForm(current => ({ ...current, cfop_exit: digitsOnly(event.target.value, 4) }));
-                    }}
-                    hint="Venda / remessa típica."
-                  />
-                </FiscalField>
-
-                <FiscalField label="CSOSN" help="Código de Situação da Operação no Simples Nacional, usado principalmente nas saídas.">
-                  <FInput
-                    value={form.csosn}
-                    disabled={saving}
-                    error={fieldErrors.csosn}
-                    inputMode="numeric"
-                    maxLength={3}
-                    placeholder="102"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, csosn: undefined }));
-                      setForm(current => ({ ...current, csosn: digitsOnly(event.target.value, 3) }));
-                    }}
-                    hint="Simples Nacional."
-                  />
-                </FiscalField>
-
-                <FiscalField label="CST ICMS" help="Código de Situação Tributária do ICMS para empresas fora do Simples Nacional.">
-                  <FInput
-                    value={form.cst_icms}
-                    disabled={saving}
-                    error={fieldErrors.cst_icms}
-                    inputMode="numeric"
-                    maxLength={3}
-                    placeholder="000"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cst_icms: undefined }));
-                      setForm(current => ({ ...current, cst_icms: digitsOnly(event.target.value, 3) }));
-                    }}
-                    hint="Lucro presumido / real."
-                  />
-                </FiscalField>
-
-                <FiscalField label="CST PIS" help="Código de Situação Tributária do PIS aplicável ao item.">
-                  <FInput
-                    value={form.cst_pis}
-                    disabled={saving}
-                    error={fieldErrors.cst_pis}
-                    inputMode="numeric"
-                    maxLength={2}
-                    placeholder="01"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cst_pis: undefined }));
-                      setForm(current => ({ ...current, cst_pis: digitsOnly(event.target.value, 2) }));
-                    }}
-                  />
-                </FiscalField>
-
-                <FiscalField label="CST COFINS" help="Código de Situação Tributária da COFINS aplicável ao item.">
-                  <FInput
-                    value={form.cst_cofins}
-                    disabled={saving}
-                    error={fieldErrors.cst_cofins}
-                    inputMode="numeric"
-                    maxLength={2}
-                    placeholder="01"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cst_cofins: undefined }));
-                      setForm(current => ({ ...current, cst_cofins: digitsOnly(event.target.value, 2) }));
-                    }}
-                  />
-                </FiscalField>
-
-                <FiscalField label="CST IPI" help="Código de Situação Tributária do IPI, quando houver incidência.">
-                  <FInput
-                    value={form.cst_ipi}
-                    disabled={saving}
-                    error={fieldErrors.cst_ipi}
-                    inputMode="numeric"
-                    maxLength={2}
-                    placeholder="99"
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cst_ipi: undefined }));
-                      setForm(current => ({ ...current, cst_ipi: digitsOnly(event.target.value, 2) }));
-                    }}
-                  />
-                </FiscalField>
-
-                <FiscalField label="Alíquota ICMS interna (%)" help="Alíquota interna do estado para o produto. Pode ser usada no cálculo do diferencial de alíquota em entradas interestaduais.">
-                  <FDecimalInput
-                    value={form.internal_icms_rate}
-                    disabled={saving}
-                    error={fieldErrors.internal_icms_rate}
-                    decimalPlaces={4}
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, internal_icms_rate: undefined }));
-                      setForm(current => ({ ...current, internal_icms_rate: event.target.value }));
-                    }}
-                    hint="Valor entre 0 e 100."
-                  />
-                </FiscalField>
-
-                <div className="lg:col-span-2 rounded-xl border border-[#0d1b2e]/10 bg-[#f8fafc] p-4">
-                  <FToggle
-                    label="Calcular diferencial de ICMS na entrada (compra interestadual)"
-                    description="Marque quando este produto, comprado de outro estado para revenda, gerar diferencial de alíquota. O cálculo efetivo dependerá das configurações fiscais da empresa."
-                    checked={form.calculate_entry_difal}
-                    disabled={saving}
-                    onChange={value => setForm(current => ({ ...current, calculate_entry_difal: value }))}
-                  />
-                </div>
-
-                <FiscalField label="Alíquota IPI (%)" help="Alíquota padrão de IPI para o produto, quando aplicável.">
-                  <FDecimalInput
-                    value={form.ipi_rate}
-                    disabled={saving}
-                    error={fieldErrors.ipi_rate}
-                    decimalPlaces={4}
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, ipi_rate: undefined }));
-                      setForm(current => ({ ...current, ipi_rate: event.target.value }));
-                    }}
-                  />
-                </FiscalField>
-
-                <FiscalField label="Unidade tributável" help="Unidade usada para tributação na NF-e. Se vazia, será usada a unidade comercial do cadastro.">
-                  <FInput
-                    value={form.tax_unit}
-                    disabled={saving}
-                    maxLength={6}
-                    placeholder={form.commercial_unit.toUpperCase()}
-                    onChange={(event: any) => setForm(current => ({ ...current, tax_unit: event.target.value.toUpperCase() }))}
-                    hint="Se vazio, usa a unidade comercial."
-                  />
-                </FiscalField>
-
-                <FiscalField label="Alíquota PIS (%)" help="Alíquota padrão de PIS, quando o regime e a operação exigirem.">
-                  <FDecimalInput
-                    value={form.pis_rate}
-                    disabled={saving}
-                    error={fieldErrors.pis_rate}
-                    decimalPlaces={4}
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, pis_rate: undefined }));
-                      setForm(current => ({ ...current, pis_rate: event.target.value }));
-                    }}
-                  />
-                </FiscalField>
-
-                <FiscalField label="Alíquota COFINS (%)" help="Alíquota padrão de COFINS, quando o regime e a operação exigirem.">
-                  <FDecimalInput
-                    value={form.cofins_rate}
-                    disabled={saving}
-                    error={fieldErrors.cofins_rate}
-                    decimalPlaces={4}
-                    onChange={(event: any) => {
-                      setFieldErrors(current => ({ ...current, cofins_rate: undefined }));
-                      setForm(current => ({ ...current, cofins_rate: event.target.value }));
-                    }}
-                  />
-                </FiscalField>
-
-                <FiscalField label="GTIN tributável" help="Código GTIN/EAN da unidade tributável. Se vazio, pode ser usado o código de barras comercial.">
-                  <FInput
-                    value={form.tax_barcode}
-                    disabled={saving}
-                    placeholder="Opcional"
-                    onChange={(event: any) => setForm(current => ({ ...current, tax_barcode: event.target.value }))}
-                  />
-                </FiscalField>
-
-                <FiscalField label="Código de benefício fiscal" help="cBenef informado na NF-e quando exigido pela legislação estadual para a operação/produto.">
-                  <FInput
-                    value={form.fiscal_benefit_code}
-                    disabled={saving}
-                    placeholder="Opcional"
-                    onChange={(event: any) => setForm(current => ({ ...current, fiscal_benefit_code: event.target.value }))}
-                  />
-                </FiscalField>
-
-                <div className="lg:col-span-2">
-                  <FTextarea
-                    label="Observações fiscais"
-                    value={form.fiscal_notes}
-                    disabled={saving}
-                    rows={4}
-                    onChange={(event: any) => setForm(current => ({ ...current, fiscal_notes: event.target.value }))}
-                    placeholder="Informações fiscais específicas do produto"
-                  />
-                </div>
-              </div>
-            </Section>
-          </TabsContent>
-
-          <TabsContent value="photos" className="mt-0">
+          {isArtvideoTenant && <TabsContent value="store" className="mt-0 space-y-5">
             <Section title="Fotos do item">
               <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
                 Máximo de 4 fotos por produto, incluindo a principal. JPG e PNG são convertidos e comprimidos automaticamente quando possível.
@@ -1697,7 +1376,7 @@ export function TabProducts({
                 </div>
               </div>}
             </Section>
-          </TabsContent>
+          </TabsContent>}
 
         </div>
       </Tabs>
