@@ -6,8 +6,8 @@ export function PublicBreadcrumb({ items }: { items: { label: string; onClick?: 
     <ol className="mx-auto flex max-w-[1344px] items-center gap-2 overflow-hidden px-5 py-3.5 text-[13px] sm:px-8 lg:px-10">
       {items.map((item, index) => <li key={`${index}-${item.label}`} className={`flex min-w-0 items-center gap-2 ${index === items.length - 1 ? "" : "shrink-0"}`}>
         {index > 0 && <ChevronRight size={14} aria-hidden="true" className="shrink-0 text-white/45"/>}
-        {item.onClick ? <button type="button" onClick={item.onClick} className="whitespace-nowrap rounded-sm text-white/75 underline-offset-4 transition-colors hover:text-white hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{item.label}</button>
-          : <span aria-current={index === items.length - 1 ? "page" : undefined} className="min-w-0 truncate border-b-2 border-white pb-0.5 font-semibold text-white">{item.label}</span>}
+        {item.onClick ? <button type="button" onClick={item.onClick} className="whitespace-nowrap rounded-sm text-white/75 underline-offset-4 transition-colors hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">{item.label}</button>
+          : <span aria-current={index === items.length - 1 ? "page" : undefined} className="min-w-0 truncate font-semibold text-white">{item.label}</span>}
       </li>)}
     </ol>
   </nav>;
