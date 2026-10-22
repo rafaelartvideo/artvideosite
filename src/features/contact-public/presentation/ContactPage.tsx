@@ -62,7 +62,6 @@ export function ContactPage() {
               </div>
             ))}
 
-}
           </div>
 
           {/* Form */}
