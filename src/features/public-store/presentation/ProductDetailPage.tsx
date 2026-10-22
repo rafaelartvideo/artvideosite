@@ -4,7 +4,7 @@ import { useNavigate } from "react-router";
 import { addStoreCartItem } from "../application/store-cart";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, Clock3,
+  AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight, Clock3,
   Image as ImageIcon, LockKeyhole, MessageCircle, Minus,
   Package, Plus, ShieldCheck, ShoppingCart, Star, Truck, X,
 } from "lucide-react";
@@ -23,7 +23,7 @@ const reviewStars = (rating: number) => Array.from({ length: 5 }, (_, i) =>
     className={i < Math.round(rating) ? "text-[#f59e0b]" : "text-[#cbd5e1]"} strokeWidth={1.8}/>);
 
 function ProductImage({ src, alt, className = "" }: { src?: string | null; alt: string; className?: string }) {
-  return src ? <img src={src} alt={alt} className={`h-full w-full object-contain ${className}`}/> :
+  return src ? <img src={src} alt={alt} className={`h-full w-full object-contain transition-all duration-500 ease-out ${className}`}/> :
     <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-white via-[#f6faff] to-[#e4effe]">
       <ImageIcon size={65} strokeWidth={1.2} className="text-[#adc3e2]"/>
     </div>;
@@ -65,7 +65,16 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     setShippingError("");
   }, [productId]);
 
-  if (loading) return <div className="flex min-h-[55vh] items-center justify-center gap-2 text-[14px] text-[#5d6c83]"><Clock3 size={20} className="animate-spin text-[var(--art-primary)]"/> Carregando produto...</div>;
+  if (loading) return <section role="status" aria-live="polite" aria-label="Carregando detalhes do produto" className="min-h-[55vh] bg-[#f7faff]">
+    <div className="mx-auto max-w-7xl animate-pulse px-4 py-10 sm:px-6 lg:px-8">
+      <div className="mb-8 h-4 w-52 rounded-full bg-[#dfe9f5]"/>
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1.15fr)_minmax(320px,.85fr)]">
+        <div className="space-y-4"><div className="aspect-square max-h-[520px] rounded-2xl bg-gradient-to-br from-[#e6eef9] via-white to-[#dbe9f9]"/><div className="flex gap-3">{[0,1,2,3].map(i=><div key={i} className="h-20 w-20 rounded-xl bg-[#e3edf8]"/>)}</div></div>
+        <div className="space-y-5 rounded-2xl bg-white p-6 shadow-sm"><div className="h-4 w-28 rounded-full bg-[#e3edf8]"/><div className="h-8 w-4/5 rounded-lg bg-[#dfe9f5]"/><div className="h-5 w-1/2 rounded-lg bg-[#e3edf8]"/><div className="my-8 h-11 w-2/5 rounded-lg bg-[#dfe9f5]"/><div className="h-12 w-full rounded-lg bg-[#e3edf8]"/><div className="h-12 w-full rounded-lg bg-[#dfe9f5]"/></div>
+      </div>
+      <span className="sr-only">Carregando produto...</span>
+    </div>
+  </section>;
   if (error || !detail) return <section className="min-h-[55vh] bg-[#f8fbff] py-20"><div className="mx-auto max-w-lg px-4 text-center">
     <AlertCircle size={34} className="mx-auto mb-4 text-[var(--art-primary)]"/>
     <PublicHeading>{error ? "Não foi possível carregar este produto" : "Produto não encontrado"}</PublicHeading>
