@@ -2,7 +2,7 @@ import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPag
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  ArrowRight, BadgePercent, ChevronDown, ChevronLeft,
+  ArrowRight, BadgePercent, ChevronDown, ChevronLeft, ChevronRight,
   Grid3X3, Package, Search, SlidersHorizontal,
   Tag, X,
 } from "lucide-react";
