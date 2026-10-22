@@ -61,7 +61,7 @@ export function OrderResolutionPage({
               <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || "—"} />
               <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || (detail.brand as any)?.name || "—"} />
               <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || "—"} />
-              {technicalValues.length > 0 ? technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.field_type_snapshot === "number" ? (value.value_number == null ? "—" : String(value.value_number)) : value.value_text || "—"} />) : <><InfoRow label="Versão" value={detail.model || "—"} /><InfoRow label="Nº de série" value={detail.serial_number || "—"} /></>}
+              {technicalValues.length > 0 ? technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? "—" : String(value.value_number))} />) : <><InfoRow label="Versão" value={detail.model || "—"} /><InfoRow label="Nº de série" value={detail.serial_number || "—"} /></>}
               <InfoRow label="Lacre" value={detail.accessories || "—"} />
               <InfoRow label="Garantia" value={detail.equipment_condition || "—"} />
             </div>
