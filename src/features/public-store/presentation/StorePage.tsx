@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   BadgePercent, ChevronLeft, ChevronRight, Grid3X3, Package, Search, SlidersHorizontal, X,
-  Monitor, Headphones, Smartphone, Laptop, PlugZap, ShoppingBag, Star,
+  Monitor, Headphones, Smartphone, Laptop, PlugZap,
 } from "lucide-react";
 import { useBrands, useProductCategories, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
