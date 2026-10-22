@@ -111,7 +111,7 @@ export function ServicesPage({ setPage, onSelectService }: {
             </div>)}
           </div> : error ? <div role="alert" className="mt-5 rounded-xl border border-red-100 bg-white p-8 text-center text-sm text-red-700">{error}</div>
           : visibleServices.length ? <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            {visibleServices.map(service => <div key={service.id} className="min-w-0 transition-transform duration-300 ease-out hover:-translate-y-1 motion-reduce:transform-none">
+            {visibleServices.map(service => <div key={service.id} className="min-w-0">
               <ServiceCard service={service} onSelectService={onSelectService} variant="catalog" categoryName={categories.find(category => category.id === service.category_id)?.name}/>
             </div>)}
           </div> : <div className="mt-5 flex min-h-64 flex-col items-center justify-center rounded-lg border border-dashed border-[#cfddec] bg-white p-8 text-center">
