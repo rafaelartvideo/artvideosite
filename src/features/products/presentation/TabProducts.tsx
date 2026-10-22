@@ -609,6 +609,12 @@ export function TabProducts({
   const handleSave = async () => {
     if (!activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
+    const photoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
+    if (photoCount > 4) {
+      setEditorTab("photos");
+      setToast({ msg: "Limite de 4 fotos por produto, incluindo a principal. Remova as fotos excedentes.", type: "error" });
+      return;
+    }
 
     const price = nullableNumber(form.price);
     const compareAtPrice = nullableNumber(form.compare_at_price);
@@ -1621,7 +1627,7 @@ export function TabProducts({
           <TabsContent value="photos" className="mt-0">
             <Section title="Fotos do item">
               <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
-                A foto principal identifica o item no CRM e pode ser reutilizada no catálogo da Artvideo quando a publicação estiver habilitada.
+                Máximo de 4 fotos por produto, incluindo a principal. JPG e PNG são convertidos e comprimidos automaticamente quando possível.
               </p>
               <div className="grid gap-5 lg:grid-cols-2">
                 <ImageUpload
@@ -1641,13 +1647,15 @@ export function TabProducts({
                     if (!activeOrganizationId) return;
                     void resolveProductMediaImage(activeOrganizationId, mediaId)
                       .then(image => {
-                        setGalleryMedia(current => current.some(entry => entry.media_id === image.media_id)
-                          ? current
-                          : [...current, image].slice(0, 10));
+                        setGalleryMedia(current => {
+                          if (current.some(entry => entry.media_id === image.media_id)) return current;
+                          const total = new Set([form.cover_media_id, ...current.map(entry => entry.media_id)].filter(Boolean)).size;
+                          return total >= 4 ? current : [...current, image];
+                        });
                       })
                       .catch(error => setToast({ msg: `Imagem enviada, mas não foi possível carregar a prévia: ${systemErrorMessage(error)}`, type: "error" }));
                   }}
-                  canUpload={!saving && (editItem ? canEdit : canCreate) && galleryMedia.length < 10}
+                  canUpload={!saving && (editItem ? canEdit : canCreate) && new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size < 4}
                   label="Adicionar foto à galeria"
                 />
               </div>
