@@ -39,7 +39,29 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
    return()=>{active=false;};
  },[imageUrl]);
  const waitingImage=customPhotoLoading || (Boolean(mediaBucket&&mediaPath&&!customPhoto)&&imageQuery.isPending) || (Boolean(imageUrl)&&readyImage!==imageUrl);
- if(loading||waitingImage)return <div role="status" className="flex min-h-[55vh] items-center justify-center gap-3 text-sm text-slate-500"><Loader2 size={20} className="animate-spin"/> Carregando serviço...</div>;
+ if(loading||waitingImage)return <section role="status" aria-live="polite" aria-label="Carregando detalhes do serviço" className="min-h-[70vh] bg-white">
+   <div className="mx-auto max-w-[1480px] animate-pulse px-5 py-9 sm:px-8 lg:px-12">
+     <div className="mb-8 h-4 w-52 rounded-full bg-[#e2eaf3]"/>
+     <div className="grid items-center gap-8 lg:grid-cols-[minmax(0,.93fr)_minmax(0,1.3fr)] lg:gap-16">
+       <div className="space-y-5 py-6">
+         <div className="h-10 w-4/5 rounded-lg bg-[#e1e9f4] sm:h-14"/>
+         <div className="h-10 w-3/5 rounded-lg bg-[#e1e9f4]"/>
+         <div className="mt-7 h-4 w-full rounded bg-[#e8eef6]"/>
+         <div className="h-4 w-5/6 rounded bg-[#e8eef6]"/>
+       </div>
+       <div className="aspect-[16/10] rounded-xl bg-[#e7eef7] sm:aspect-[16/9]"/>
+     </div>
+     <div className="mt-12 grid gap-6 lg:grid-cols-2">
+       {[0,1].map(item=><div key={item} className="space-y-5 rounded-2xl border border-[#e4ebf3] bg-white p-7">
+         <div className="h-7 w-1/2 rounded bg-[#e2eaf4]"/>
+         <div className="h-4 w-5/6 rounded bg-[#ebf0f6]"/>
+         <div className="h-12 w-full rounded-lg bg-[#e9eff7]"/>
+         <div className="h-12 w-full rounded-lg bg-[#e9eff7]"/>
+       </div>)}
+     </div>
+     <span className="sr-only">Preparando informações do serviço.</span>
+   </div>
+ </section>;
  if(error||!detail)return <section className="mx-auto max-w-xl px-5 py-20 text-center"><PublicHeading>{error?'Não foi possível carregar este serviço':'Serviço não encontrado'}</PublicHeading><p className="my-5 text-slate-600">Tente novamente ou escolha outro serviço disponível.</p><PublicButton onClick={()=>setPage('servicos')}>Ver serviços</PublicButton></section>;
  const {inclusions,exclusions,faqs,sections}=detail;
  const c=bookingConfig(service.public_booking);const variants=detail.variants.filter((v:any)=>v.is_active!==false);
