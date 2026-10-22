@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 import { ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Loader2, MapPin, MonitorCog, Wrench } from "lucide-react";
 import { useBrands } from "@/features/public-catalog/application/usePublicCatalog";
@@ -7,8 +7,10 @@ import { EMPTY_PUBLIC_QUOTE_FORM, formatCpf, formatCnpj, formatPublicDate, isVal
 import { formatZipCode, emptyAddress } from "@/lib/address";
 import { isValidBrazilianMobile, isValidCnpj, isValidEmail, formatPhoneInput } from "@/shared/domain/formatters";
 import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
+import { supabase } from "@/lib/supabase";
+import { formatCurrency } from "@/shared/domain/formatters";
 
-type RepairLocation = "store" | "consult";
+type RepairLocation = "store" | "collect";
 const deviceTypes = ["Televisão", "Computador / notebook", "Celular / tablet", "Micro-ondas", "Geladeira / freezer", "Máquina de lavar / lava e seca", "Ar-condicionado", "Som / áudio", "Outro equipamento"];
 const stageNames = ["Equipamento", "Seus dados", "Revisão"];
 const input = "art-input w-full";
@@ -26,10 +28,28 @@ export function RepairQuoteWizard() {
   const [form, setForm] = useState({ ...EMPTY_PUBLIC_QUOTE_FORM });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [collectionFee, setCollectionFee] = useState<number | null>(null);
+  const [feeStatus, setFeeStatus] = useState<"idle" | "loading" | "ready" | "unavailable">("idle");
   const [protocol, setProtocol] = useState("");
   const update = (field: keyof typeof form, value: string) => setForm(previous => ({ ...previous, [field]: value }));
   const brandName = brands.find(brand => brand.id === form.marca)?.name || form.outraMarca.trim() || "Não informada";
-  const locationName = location === "store" ? "Entregar o equipamento na loja" : "Consultar possibilidade de atendimento no endereço";
+  const locationName = location === "store" ? "Levar o equipamento à loja" : "Coletar o equipamento no endereço";
+  useEffect(() => {
+    const cep = address.zip_code.replace(/\D/g, "");
+    setCollectionFee(null);
+    if (location !== "collect" || cep.length !== 8) { setFeeStatus("idle"); return; }
+    let active = true;
+    setFeeStatus("loading");
+    const timer = window.setTimeout(async () => {
+      const { data, error: lookupError } = await supabase.rpc("artvideo_shipping_quote_v1", { p_cep: cep });
+      if (!active) return;
+      const price = Number(data?.price);
+      if (lookupError || !data || !Number.isFinite(price) || price < 0) { setFeeStatus("unavailable"); return; }
+      setCollectionFee(price);
+      setFeeStatus("ready");
+    }, 400);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [location, address.zip_code]);
 
   function validate(current: number) {
     if (current === 0) {
@@ -37,7 +57,11 @@ export function RepairQuoteWizard() {
       if (form.marca === "Outra marca" && !form.outraMarca.trim()) return "Informe o nome da marca.";
       if (!form.descricao.trim()) return "Descreva o defeito ou o serviço necessário.";
       if (!location) return "Escolha como deseja realizar o atendimento.";
-      if (location === "consult" && address.zip_code.replace(/\D/g, "").length !== 8) return "Informe o CEP para consultar o atendimento no local.";
+      if (location === "collect") {
+        if (address.zip_code.replace(/\D/g, "").length !== 8) return "Informe um CEP válido para a coleta.";
+        if (feeStatus === "loading") return "Aguarde o cálculo da taxa de coleta.";
+        if (feeStatus !== "ready") return "Coleta indisponível para este CEP. Informe outro ou leve à loja.";
+      }
     }
     if (current === 1) {
       if (form.customerType === "PF" && (!form.nome.trim() || !isValidCpf(form.cpf) || !isValidPastOrCurrentDate(form.birthDate))) return "Informe nome completo, CPF e data de nascimento válidos.";
@@ -70,7 +94,8 @@ export function RepairQuoteWizard() {
         "Marca: " + brandName,
         form.modelo.trim() ? "Modelo: " + form.modelo.trim() : null,
         "Atendimento solicitado: " + locationName,
-        location === "consult" ? "CEP informado para consulta: " + address.zip_code : null,
+        location === "collect" && collectionFee !== null ? "Taxa de coleta para o CEP " + address.zip_code + ": " + formatCurrency(collectionFee) : null,
+        location === "collect" ? "CEP informado para coleta: " + address.zip_code : null,
         "Problema relatado: " + form.descricao.trim(),
       ].filter(Boolean).join("\n");
       // Reuse the existing public quote RPC. The equipment and requested location are
@@ -122,12 +147,16 @@ export function RepairQuoteWizard() {
           <fieldset className="space-y-3"><legend className="text-sm font-semibold text-[#24364d]">Como prefere o atendimento? <span className="text-red-600">*</span></legend>
             <label className={`art-choice ${location === "store" ? "is-selected" : ""}`}><input type="radio" name="repair-location" checked={location === "store"} onChange={() => { setLocation("store"); setAddress({ ...emptyAddress }); }}/>
               <div><strong className="block font-semibold">Levar o equipamento à loja</strong><p className="mt-1 text-xs leading-5 text-slate-600">A equipe informará como proceder após a solicitação.</p></div></label>
-            <label className={`art-choice ${location === "consult" ? "is-selected" : ""}`}><input type="radio" name="repair-location" checked={location === "consult"} onChange={() => setLocation("consult")}/>
-              <div><strong className="block font-semibold">Consultar atendimento no endereço</strong><p className="mt-1 text-xs leading-5 text-slate-600">A disponibilidade e o deslocamento serão confirmados pela equipe.</p></div></label>
+            <label className={`art-choice ${location === "collect" ? "is-selected" : ""}`}><input type="radio" name="repair-location" checked={location === "consult"} onChange={() => setLocation("collect")}/>
+              <div><strong className="block font-semibold">Solicitar coleta no endereço</strong><p className="mt-1 text-xs leading-5 text-slate-600">A coleta tem custo de deslocamento, calculado pelo CEP e incluído no seu orçamento.</p></div></label>
           </fieldset>
-          {location === "consult" && <FormField label="CEP para consulta de atendimento" required>
+          {location === "consult" && <FormField label="CEP para coleta" required>
             <input className={input} inputMode="numeric" autoComplete="postal-code" value={address.zip_code} maxLength={9} onChange={event => setAddress(previous => ({ ...previous, zip_code: formatZipCode(event.target.value) }))} placeholder="00000-000"/>
           </FormField>}
+          {location === "collect" && address.zip_code.replace(/\D/g, "").length === 8 &&
+            <p role="status" aria-live="polite" className={"rounded-lg px-4 py-3 text-sm " + (feeStatus === "ready" ? "bg-blue-50 text-[#244567]" : feeStatus === "unavailable" ? "bg-red-50 text-red-700" : "bg-slate-50 text-slate-600")}>
+              {feeStatus === "loading" ? "Calculando a taxa de coleta..." : feeStatus === "ready" && collectionFee !== null ? "Taxa de coleta: " + formatCurrency(collectionFee) : "Não há tarifa para este CEP. Escolha outro ou leve o equipamento à loja."}
+            </p>}
         </>}
         {stage === 1 && <>
           <div className="flex flex-wrap gap-3">{(["PF", "PJ"] as const).map(type => <button key={type} type="button" aria-pressed={form.customerType === type}
@@ -155,7 +184,7 @@ export function RepairQuoteWizard() {
             <button type="button" onClick={() => setStage(0)} className="mt-4 text-sm font-semibold text-[var(--art-primary)] hover:underline">Alterar equipamento</button>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-6"><h3 className="font-semibold">Forma de atendimento</h3><p className="mt-2 text-sm text-slate-600">{locationName}{location === "consult" ? " · " + address.zip_code : ""}</p>
-            <p className="mt-2 text-xs text-slate-500">Atendimento e valores sujeitos à confirmação da equipe.</p></div>
+            <p className="mt-2 text-xs text-slate-500">Atendimento sujeito à confirmação da equipe. A taxa informada está registrada na solicitação.</p></div>
           <div className="rounded-xl border border-slate-200 bg-white p-6"><h3 className="font-semibold">Contato</h3>
             <p className="mt-2 text-sm text-slate-600">{form.customerType === "PF" ? form.nome : form.tradeName} · {form.whatsapp}</p>
             <button type="button" onClick={() => setStage(1)} className="mt-4 text-sm font-semibold text-[var(--art-primary)] hover:underline">Alterar dados</button>
@@ -172,6 +201,7 @@ export function RepairQuoteWizard() {
           <p className="flex items-start gap-2"><Wrench size={17} className="mt-1 shrink-0"/>{device || "Equipamento a informar"}</p>
           <p className="flex items-start gap-2"><MapPin size={17} className="mt-1 shrink-0"/>{location ? locationName : "Forma de atendimento a escolher"}</p>
           <p className="flex items-start gap-2"><ClipboardList size={17} className="mt-1 shrink-0"/>Orçamento e disponibilidade a confirmar</p>
+          {location === "collect" && <p className="text-sm font-semibold text-[#172b45]">Taxa de coleta: {feeStatus === "ready" && collectionFee !== null ? formatCurrency(collectionFee) : "A calcular pelo CEP"}</p>}
         </div>
         <div className="mt-6 border-t border-slate-200 pt-5"><p className="flex items-center justify-between text-sm"><span>Pagamento agora</span><strong>Sem cobrança</strong></p></div>
         <div className="mt-6 hidden lg:block"><PublicButton type="submit" form="repair-quote-form" disabled={busy} className="w-full">{busy ? <Loader2 size={17} className="animate-spin"/> : stage === 2 ? <CheckCircle2 size={17}/> : <ArrowRight size={17}/>} {busy ? "Enviando..." : stage === 2 ? "Solicitar orçamento" : "Continuar"}</PublicButton></div>
