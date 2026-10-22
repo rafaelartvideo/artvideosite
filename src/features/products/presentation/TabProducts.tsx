@@ -1120,39 +1120,13 @@ export function TabProducts({
             </Section>
 
             </div></details>
-            <Section title="Disponibilidade">
-              <FToggle
-                label="Item ativo"
-                description="Disponibiliza o item para estoque, vendas, PDV e demais módulos comerciais."
-                checked={form.is_active}
-                disabled={saving}
-                onChange={value => setForm(current => ({ ...current, is_active: value }))}
-              />
+            <Section title="Foto da capa">
+              <ImageUpload bucket="product-images" organizationId={activeOrganizationId || undefined}
+                currentMediaId={form.cover_media_id}
+                onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
+                canUpload={!saving && (editItem ? canEdit : canCreate)}
+                label="Imagem principal do item"/>
             </Section>
-            {isArtvideoTenant && <Section title="Publicação na loja da Artvideo">
-              <div className="space-y-4">
-                <FToggle
-                  label="Exibir este produto na loja"
-                  description="O mesmo item será usado no estoque, nas vendas e no site. Não cria outro cadastro."
-                  checked={form.show_in_catalog}
-                  disabled={saving}
-                  onChange={value => setForm(current => ({ ...current, show_in_catalog: value, is_featured: value ? current.is_featured : false }))}
-                />
-                {form.show_in_catalog && <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <FTextarea label="Descrição curta para a loja" value={form.short_description} rows={2} disabled={saving} placeholder="Resumo que o cliente verá no site" onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))} />
-                  </div>
-                  <FCurrencyInput label="Preço anterior (opcional)" value={form.compare_at_price} disabled={saving} error={fieldErrors.compare_at_price} hint="Usado apenas para comparação; deve ser igual ou maior que o preço atual." onChange={(event: any) => setForm(current => ({ ...current, compare_at_price: event.target.value }))} />
-                  <div className="flex items-end pb-1">
-                    <FToggle label="Destacar na página inicial" description="Exibe o produto entre os destaques da home." checked={form.is_featured} disabled={saving} onChange={value => setForm(current => ({ ...current, is_featured: value }))} />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <ImageUpload bucket="product-images" organizationId={activeOrganizationId || undefined} currentMediaId={form.cover_media_id} onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))} canUpload={!saving} label="Foto principal do produto" />
-                    <button type="button" disabled={saving} className="mt-3 text-xs font-semibold text-primary hover:underline" onClick={() => setEditorTab("store")}>Adicionar mais fotos</button>
-                  </div>
-                </div>}
-              </div>
-            </Section>}
           </TabsContent>
 
           <TabsContent value="commercial" className="mt-0 space-y-5">
@@ -1304,6 +1278,26 @@ export function TabProducts({
           </TabsContent>}
 
           {isArtvideoTenant && <TabsContent value="store" className="mt-0 space-y-5">
+            <Section title="Informações comerciais do site">
+              <div className="space-y-4">
+                <FToggle
+                  label="Exibir este produto na loja"
+                  description="O mesmo item será usado no estoque, nas vendas e no site. Não cria outro cadastro."
+                  checked={form.show_in_catalog}
+                  disabled={saving}
+                  onChange={value => setForm(current => ({ ...current, show_in_catalog: value, is_featured: value ? current.is_featured : false }))}
+                />
+                {form.show_in_catalog && <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <FTextarea label="Descrição curta para a loja" value={form.short_description} rows={2} disabled={saving} placeholder="Resumo que o cliente verá no site" onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))} />
+                  </div>
+                  <FCurrencyInput label="Preço anterior (opcional)" value={form.compare_at_price} disabled={saving} error={fieldErrors.compare_at_price} hint="Usado apenas para comparação; deve ser igual ou maior que o preço atual." onChange={(event: any) => setForm(current => ({ ...current, compare_at_price: event.target.value }))} />
+                  <div className="flex items-end pb-1">
+                    <FToggle label="Destacar na página inicial" description="Exibe o produto entre os destaques da home." checked={form.is_featured} disabled={saving} onChange={value => setForm(current => ({ ...current, is_featured: value }))} />
+                  </div>
+                </div>}
+              </div>
+            </Section>
             <Section title="Fotos do item">
               <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
                 Máximo de 4 fotos por produto, incluindo a principal. JPG e PNG são convertidos e comprimidos automaticamente quando possível.
