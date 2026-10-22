@@ -13,7 +13,8 @@ create or replace function public.artvideo_next_quote_protocol_v1()
 returns text
 language sql volatile security definer set search_path=''
 as $$
- select 'ORC-' || lpad(nextval('public.artvideo_quote_protocol_seq'::regclass)::text,6,'0');
+ select 'ORC-' || lpad(s.n::text, greatest(length(s.n::text),6),'0')
+ from (select nextval('public.artvideo_quote_protocol_seq'::regclass) as n) s;
 $$;
 revoke all on function public.artvideo_next_quote_protocol_v1() from public;
 grant execute on function public.artvideo_next_quote_protocol_v1() to anon, authenticated, service_role;
