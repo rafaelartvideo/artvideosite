@@ -93,7 +93,7 @@ export const getFeaturedProducts = () =>
   supabase.from("products").select(PUBLIC_PRODUCT_COLUMNS).eq("is_active", true).eq("show_in_catalog", true).eq("is_featured", true).order("created_at", { ascending: false });
 
 const getProductBySlug = (slug: string) =>
-  supabase.from("products").select(`${PUBLIC_PRODUCT_COLUMNS},sku,model,manufacturer_code`).eq("slug", slug).eq("is_active", true).eq("show_in_catalog", true).maybeSingle();
+  supabase.from("products").select(`${PUBLIC_PRODUCT_COLUMNS},sku,model,manufacturer_code,barcode,gross_weight_grams,width_mm,height_mm,length_mm`).eq("slug", slug).eq("is_active", true).eq("show_in_catalog", true).maybeSingle();
 
 export async function getProductDetailBySlug(slug: string) {
   const { data: product, error } = await getProductBySlug(slug);
