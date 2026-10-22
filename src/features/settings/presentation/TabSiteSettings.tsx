@@ -170,7 +170,7 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
               onChange={(event: any) => edit(index, { placement: event.target.value })}
               options={[{ value: "loja", label: "Loja" }, { value: "servicos", label: "Serviços" }, { value: "ambos", label: "Loja e Serviços" }]}/>
             <FSelect label="Tipo de banner" disabled={disabled} value={banner.type}
-              onChange={(event: any) => edit(index, { type: event.target.value as SiteBannerType, referenceId: "" })}
+              onChange={(event: any) => edit(index, { type: event.target.value as SiteBannerType, referenceId: "", title: "", description: "", label: "", actionLabel: "" })}
               options={[{ value: "livre", label: "Banner livre" }, { value: "produto", label: "Produto cadastrado" }, { value: "servico", label: "Serviço cadastrado" }]}/>
             {banner.type !== "livre" && <div className="sm:col-span-2">
               <FSelect label={banner.type === "produto" ? "Selecionar produto" : "Selecionar serviço"}
