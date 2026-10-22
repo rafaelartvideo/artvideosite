@@ -52,6 +52,7 @@ import {
 } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives/tabs";
 import {
@@ -346,6 +347,12 @@ export function TabProducts({
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
+  const { url: coverPreviewUrl } = useMediaUrl(form.cover_media_id);
+  const storePhotos = [
+    ...(form.cover_media_id && !galleryMedia.some(image => image.media_id === form.cover_media_id)
+      ? [{media_id: form.cover_media_id, public_url: coverPreviewUrl || "", alt_text: null}] : []),
+    ...galleryMedia,
+  ];
   const [masterDataDialog, setMasterDataDialog] = useState<"category" | "brand" | null>(null);
   const [masterDataName, setMasterDataName] = useState("");
   const [masterDataSaving, setMasterDataSaving] = useState(false);
@@ -626,7 +633,7 @@ export function TabProducts({
         is_featured: isArtvideoTenant ? form.is_featured : false,
         category_id: form.category_id || null,
         brand_id: form.brand_id || null,
-        gallery_media_ids: galleryMedia.map(image => image.media_id),
+        gallery_media_ids: Array.from(new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean))).slice(0, 4),
         updated_by: user?.id || null,
       };
 
@@ -1333,16 +1340,16 @@ export function TabProducts({
                 />
               </div>
 
-              {galleryMedia.length > 0 && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-4">
+              {storePhotos.length > 0 && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-4">
                 <div className="mb-2 flex items-center justify-between">
                   <div>
                     <p className="text-xs font-black text-[#0d1b2e]">Galeria de fotos</p>
                     <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Selecione a estrela para escolher a foto principal que aparecerá na loja.</p>
                   </div>
-                  <span className="text-[10px] font-bold text-[#5a6a82]">{galleryMedia.length} foto{galleryMedia.length === 1 ? "" : "s"}</span>
+                  <span className="text-[10px] font-bold text-[#5a6a82]">{storePhotos.length} foto{storePhotos.length === 1 ? "" : "s"}</span>
                 </div>
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-5">
-                  {galleryMedia.map(image => <div key={image.media_id} className={cn("relative rounded-xl border bg-white p-1.5", form.cover_media_id === image.media_id ? "border-primary ring-1 ring-primary/20" : "border-[#0d1b2e]/10")}>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                  {storePhotos.map(image => <div key={image.media_id} className={cn("relative rounded-xl border bg-white p-1.5", form.cover_media_id === image.media_id ? "border-primary ring-1 ring-primary/20" : "border-[#0d1b2e]/10")}>
                     <div className="aspect-square overflow-hidden rounded-lg bg-[#f8fafc]">
                       {image.public_url
                         ? <img src={image.public_url} alt="" className="h-full w-full object-contain" />
@@ -1359,7 +1366,7 @@ export function TabProducts({
                         onClick={() => {
                           setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
                           if (form.cover_media_id === image.media_id) {
-                            const next = galleryMedia.find(entry => entry.media_id !== image.media_id);
+                            const next = storePhotos.find(entry => entry.media_id !== image.media_id);
                             setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
                           }
                         }}
