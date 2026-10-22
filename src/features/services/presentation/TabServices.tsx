@@ -103,17 +103,18 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   const { hasPermission } = useAuth();
   const creating = !editItem;
   const canCreate = hasPermission("services.create");
-  const canInfo = creating ? canCreate : hasPermission("services.info.manage");
-  const canPrice = creating ? canCreate : hasPermission("services.price.manage");
-  const canMedia = creating ? canCreate : hasPermission("services.media.manage");
-  const canVariants = creating ? canCreate : hasPermission("services.variants.manage");
-  const canFeatures = creating ? canCreate : hasPermission("services.features.manage");
-  const canExclusions = creating ? canCreate : hasPermission("services.exclusions.manage");
-  const canFactors = creating ? canCreate : hasPermission("services.factors.manage");
-  const canFaq = creating ? canCreate : hasPermission("services.faq.manage");
-  const canSections = creating ? canCreate : hasPermission("services.sections.manage");
-  const canPublication = creating ? canCreate : hasPermission("services.publication.manage");
-  const canToggleActive = creating ? canCreate : hasPermission("services.toggle_active");
+  const canEditAll = !creating && hasPermission("services.update");
+  const canInfo = creating ? canCreate : canEditAll || hasPermission("services.info.manage");
+  const canPrice = creating ? canCreate : canEditAll || hasPermission("services.price.manage");
+  const canMedia = creating ? canCreate : canEditAll || hasPermission("services.media.manage");
+  const canVariants = creating ? canCreate : canEditAll || hasPermission("services.variants.manage");
+  const canFeatures = creating ? canCreate : canEditAll || hasPermission("services.features.manage");
+  const canExclusions = creating ? canCreate : canEditAll || hasPermission("services.exclusions.manage");
+  const canFactors = creating ? canCreate : canEditAll || hasPermission("services.factors.manage");
+  const canFaq = creating ? canCreate : canEditAll || hasPermission("services.faq.manage");
+  const canSections = creating ? canCreate : canEditAll || hasPermission("services.sections.manage");
+  const canPublication = creating ? canCreate : canEditAll || hasPermission("services.publication.manage");
+  const canToggleActive = creating ? canCreate : canEditAll || hasPermission("services.toggle_active");
   const canSave = creating ? canCreate : [canInfo, canPrice, canMedia, canVariants, canFeatures, canExclusions, canFactors, canFaq, canSections, canPublication, canToggleActive].some(Boolean);
 
   const [booking, setBooking] = useState<any>(bookingConfig(null));
@@ -218,13 +219,53 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     finally { setSaving(false); }
   };
 
+  const tabGuidance: Record<string, string> = {
+    info: "Defina como o serviço aparece na busca e na página do site. Comece pelo nome, descrição e imagem.",
+    price: "Configure a forma de cobrança e, se precisar, cadastre diferentes opções ou variações.",
+    features: "Liste os itens incluídos no atendimento para que o cliente saiba o que receberá.",
+    exclusions: "Esclareça o que não está incluído para evitar dúvidas antes do orçamento.",
+    factors: "Explique situações que podem alterar o preço do serviço.",
+    faq: "Cadastre perguntas e respostas que aparecerão na página pública do serviço.",
+    sections: "Crie blocos extras de conteúdo, como requisitos, condições ou informações importantes.",
+    booking: "Configure atendimento, disponibilidade, orientações e conteúdo complementar.",
+    publish: "Escolha a visibilidade do serviço, os destaques e a posição no catálogo.",
+  };
+  const tabCounts: Record<string, number> = {
+    price: variants.length, features: features.length, exclusions: exclusions.length,
+    factors: priceFactors.length, faq: faqs.length, sections: sections.length,
+  };
+  const currentTab = availableTabs.find(item => item.id === tab);
+  const currentTabIndex = availableTabs.findIndex(item => item.id === tab);
+
   const catOptions = [{ value: "", label: "Selecionar categoria..." }, ...categories.map(item => ({ value: item.id, label: item.name }))];
   const brandOptions = [{ value: "", label: "Sem marca" }, ...brands.map(item => ({ value: item.id, label: item.name }))];
   const productOptions = [{ value: "", label: "Sem produto vinculado" }, ...products.map(item => ({ value: item.id, label: item.name }))];
 
-  return <AdminPage open={open && canSave} onClose={onClose} breadcrumb="Serviços" title={editItem ? `Editar: ${editItem.title}` : "Novo serviço"} subtitle="As seções exibidas respeitam as permissões da função" maxW="max-w-3xl">
-    <div className="sticky top-0 z-10 flex flex-shrink-0 gap-0 overflow-x-auto border-b border-[#0d1b2e]/8 bg-white px-4">{availableTabs.map(item => { const Icon = item.icon; return <button key={item.id} onClick={() => setTab(item.id)} className={cn("flex items-center gap-1.5 whitespace-nowrap border-b-2 px-4 py-3 text-xs font-bold transition-colors", tab === item.id ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}><Icon size={13} /> {item.label}</button>; })}</div>
-    <div className="space-y-4 p-5">
+  return <AdminPage open={open && canSave} onClose={onClose} breadcrumb="Serviços" title={editItem ? `Editar: ${editItem.title}` : "Novo serviço"} subtitle="Configure o serviço e todas as informações exibidas no site." maxW="max-w-5xl">
+    <nav aria-label="Seções do cadastro do serviço" className="sticky top-0 z-10 border-b border-[#dfe6ee] bg-white px-4 py-3 sm:px-6">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+        {availableTabs.map(item => {
+          const Icon = item.icon;
+          const selected = tab === item.id;
+          const count = tabCounts[item.id];
+          return <button key={item.id} type="button" onClick={() => setTab(item.id)} aria-current={selected ? "step" : undefined}
+            className={cn("flex min-h-[48px] items-center gap-2 rounded-lg border px-3 py-2 text-left text-[12px] font-medium transition-colors",
+              selected ? "border-primary bg-primary/5 text-primary" : "border-[#e1e7ef] bg-white text-[#52647c] hover:border-primary/40 hover:bg-[#f8faff]")}>
+            <Icon size={17} className="shrink-0"/>
+            <span className="min-w-0 flex-1 leading-4">{item.label}</span>
+            {count !== undefined && <span className={cn("min-w-5 rounded px-1.5 py-0.5 text-center text-[10px]", selected ? "bg-primary/10 text-primary" : "bg-[#edf2f7] text-[#65758b]")}>{count}</span>}
+          </button>;
+        })}
+      </div>
+    </nav>
+    <div className="border-b border-[#e5eaf0] bg-[#f8fafc] px-5 py-4 sm:px-7">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="text-[17px] font-semibold text-[#172b45]">{currentTab?.label || "Cadastro"}</h3>
+        <span className="text-[11px] font-medium text-[#718096]">{currentTabIndex + 1} de {availableTabs.length} seções</span>
+      </div>
+      <p className="mt-1 text-[12px] leading-5 text-[#68788c]">{tabGuidance[tab]}</p>
+    </div>
+    <div className="space-y-6 p-5 sm:p-7">
       {tab === "info" && <>{canInfo && <><Section title="Identificação"><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><FInput label="Nome do Serviço" value={name} required disabled={Boolean(editItem?.general_service_id)} error={fieldErrors.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setName(event.target.value); }} /></div><FSelect label="Categoria" value={categoryId} onChange={(event: any) => setCategoryId(event.target.value)} options={catOptions} /><FSelect label="Marca" value={brandId} onChange={(event: any) => setBrandId(event.target.value)} options={brandOptions} /><FSelect label="Produto relacionado" value={productId} onChange={(event: any) => setProductId(event.target.value)} options={productOptions} /></div></Section><Section title="Descrição"><div className="space-y-4"><FTextarea label="Descrição curta" value={shortDesc} onChange={(event: any) => setShortDesc(event.target.value)} rows={2} /><FTextarea label="Descrição completa" value={description} onChange={(event: any) => setDescription(event.target.value)} rows={5} /></div></Section></>}{canMedia && <Section title="Imagem de capa"><ImageUpload bucket="service-images" currentMediaId={coverMediaId} onUpload={setCoverMediaId} canUpload label="Imagem do serviço" /></Section>}</>}
       {tab === "price" && <>{canPrice && <Section title="Preço base"><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><FCurrencyInput label="Preço base (R$)" disabled={Boolean(editItem?.general_service_id)} value={basePrice} error={fieldErrors.basePrice} onChange={(event: any) => { setFieldErrors(current => ({ ...current, basePrice: undefined })); setBasePrice(event.target.value); }} /><FSelect label="Modo de preço" disabled={Boolean(editItem?.general_service_id)} value={priceMode} onChange={(event: any) => setPriceMode(event.target.value)} options={[{ value: "FIXED", label: "Preço fixo" }, { value: "STARTING_FROM", label: "Preço a partir de" }, { value: "QUOTE", label: "Consultar orçamento" }, { value: "HIDDEN", label: "Não exibir preço" }]} /></div></Section>}{canVariants && <Section title="Variações de Preço">{variants.map((item, index) => <AdminCard key={index} className="mb-3 bg-[#f8fafc] p-3 shadow-none"><div className="flex items-start gap-3"><div className="grid flex-1 grid-cols-1 gap-3 sm:grid-cols-3"><FInput label="Título" value={item.title} error={fieldErrors.variants?.[index]?.title} onChange={(event: any) => { setFieldErrors(current => ({ ...current, variants: { ...current.variants, [index]: { ...current.variants?.[index], title: undefined } } })); setVariants(current => current.map((value, i) => i === index ? { ...value, title: event.target.value } : value)); }} /><FCurrencyInput label="Preço" value={item.price} error={fieldErrors.variants?.[index]?.price} onChange={(event: any) => { setFieldErrors(current => ({ ...current, variants: { ...current.variants, [index]: { ...current.variants?.[index], price: undefined } } })); setVariants(current => current.map((value, i) => i === index ? { ...value, price: event.target.value } : value)); }} /><FInput label="Descrição" value={item.description} onChange={(event: any) => setVariants(current => current.map((value, i) => i === index ? { ...value, description: event.target.value } : value))} /></div><button type="button" onClick={() => setVariants(current => current.filter((_, i) => i !== index))} className="p-1.5 text-red-400"><X size={15} /></button></div></AdminCard>)}<button type="button" onClick={() => setVariants(current => [...current, { title: "", description: "", price: "" }])} className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#0057e7]/40 px-3 py-2 text-xs font-bold text-[#0057e7]"><Plus size={14} /> Adicionar variação</button></Section>}</>}
       {tab === "booking" && canInfo && <ServiceBookingSettings value={booking} onChange={setBooking}/>}
@@ -235,7 +276,17 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
       {tab === "sections" && canSections && <Section title="Seções personalizadas">{sections.map((item, index) => <AdminCard key={index} className="mb-3 bg-[#f8fafc] p-3 shadow-none"><div className="space-y-3"><FInput label="Título" value={item.title} onChange={(event: any) => setSections(current => current.map((value, i) => i === index ? { ...value, title: event.target.value } : value))} /><FTextarea label="Conteúdo" value={item.content} onChange={(event: any) => setSections(current => current.map((value, i) => i === index ? { ...value, content: event.target.value } : value))} rows={3} /><button type="button" onClick={() => setSections(current => current.filter((_, i) => i !== index))} className="text-xs font-bold text-red-600">Remover seção</button></div></AdminCard>)}<button type="button" onClick={() => setSections(current => [...current, { title: "", content: "" }])} className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-[#0057e7]/40 px-3 py-2 text-xs font-bold text-[#0057e7]"><Plus size={14} /> Adicionar seção</button></Section>}
       {tab === "publish" && <Section title="Publicação"><div className="space-y-4">{editItem?.general_service_id && <p className="text-xs text-muted-foreground">Nome e preço vinculados ao cadastro de Serviços Gerais. Edite essas informações por lá.</p>}{canToggleActive && <FToggle label="Serviço ativo" description="Serviços inativos não aparecem no site." checked={active} onChange={setActive} />}{canPublication && <><FToggle label="Exibir na loja" description="Ocultar do site não remove este serviço das OS." checked={showInCatalog} onChange={setShowInCatalog}/><FToggle label="Destaque" description="Exibe o serviço como destaque na Home." checked={featured} onChange={setFeatured} disabled={!showInCatalog}/><FIntegerInput label="Ordem de exibição" value={String(sortOrder)} onChange={(event: any) => setSortOrder(Number(event.target.value || 0))} /></>}</div></Section>}
     </div>
-    <AdminStickyToolbar className="justify-between px-6"><p className="text-xs text-muted-foreground">Somente as seções autorizadas serão alteradas.</p><div className="flex gap-3"><BtnSecondary onClick={onClose}>Cancelar</BtnSecondary>{canSave && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</div></AdminStickyToolbar>
+    <AdminStickyToolbar className="flex-wrap justify-between gap-3 px-5 py-3 sm:px-7">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs text-muted-foreground">Seção {currentTabIndex + 1} de {availableTabs.length}</span>
+        {currentTabIndex < availableTabs.length - 1 && <button type="button" onClick={() => setTab(availableTabs[currentTabIndex + 1].id)}
+          className="text-xs font-semibold text-primary hover:underline">Próxima seção →</button>}
+      </div>
+      <div className="flex items-center gap-3">
+        <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
+        {canSave && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar serviço</BtnPrimary>}
+      </div>
+    </AdminStickyToolbar>
   </AdminPage>;
 }
 
