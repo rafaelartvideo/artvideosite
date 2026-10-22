@@ -144,7 +144,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const whatsapp = getWhatsAppNumber(settings);
   const askUrl = whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(`Olá! Gostaria de tirar uma dúvida sobre o produto ${name}: ${shareUrl}`)}` : "";
 
-  const checkoutNow = () => navigate("/checkout/" + encodeURIComponent(slug || product.slug) + "?q=" + selectedQty + (postalCode.replace(/\\D/g, "").length === 8 ? "&cep=" + postalCode.replace(/\\D/g, "") : ""));
+  const checkoutNow = () => navigate("/checkout/" + encodeURIComponent(slug || product.slug) + "?q=" + selectedQty + (postalCode.replace(/\D/g, "").length === 8 ? "&cep=" + postalCode.replace(/\D/g, "") : ""));
   const addToCart = (source?: HTMLElement | null) => {
     if (addStoreCartItem(product.id, selectedQty)) {
       setCartFeedback("Produto adicionado ao carrinho.");
