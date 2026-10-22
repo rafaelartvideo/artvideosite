@@ -172,7 +172,7 @@ export function StorePage({ setPage, onSelectProduct }: {
     </div>
     <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
       <div className="grid gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
-        <aside className="hidden self-start rounded-xl border border-[#e4ebf5] bg-white p-5 shadow-sm lg:sticky lg:top-24 lg:block">
+        <aside className="hidden self-start rounded-xl border border-[#e4ebf5] bg-white p-5 shadow-sm lg:sticky lg:top-[108px] lg:block lg:max-h-[calc(100dvh-124px)] lg:overflow-y-auto lg:overscroll-contain">
           {filterPanel}
         </aside>
         <main className="min-w-0">
