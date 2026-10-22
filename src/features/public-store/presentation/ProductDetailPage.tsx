@@ -80,10 +80,16 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const [reviewSending, setReviewSending] = useState(false);
   const [reviewFeedback, setReviewFeedback] = useState("");
   const purchaseReturn = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("compra") : null;
+  useEffect(() => {
+    if (!cartFeedback) return;
+    const timeout = window.setTimeout(() => setCartFeedback(""), 3200);
+    return () => window.clearTimeout(timeout);
+  }, [cartFeedback]);
 
   useEffect(() => {
     setImageIndex(0); setQty(1); setPostalCode(""); setShipping(null); setSelectedShippingId("");
     setShippingError("");
+    setCartFeedback("");
   }, [productId]);
 
   if (loading || (Boolean(productId) && (extraQuery.isPending || readyGallery !== gallerySignature))) return <section role="status" aria-live="polite" aria-label="Carregando detalhes do produto" className="min-h-[55vh] bg-[#f7faff]">
@@ -138,6 +144,14 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const whatsapp = getWhatsAppNumber(settings);
   const askUrl = whatsapp ? `https://wa.me/${whatsapp}?text=${encodeURIComponent(`Olá! Gostaria de tirar uma dúvida sobre o produto ${name}: ${shareUrl}`)}` : "";
 
+  const checkoutNow = () => navigate("/checkout/" + encodeURIComponent(slug || product.slug) + "?q=" + selectedQty + (postalCode.replace(/\\D/g, "").length === 8 ? "&cep=" + postalCode.replace(/\\D/g, "") : ""));
+  const addToCart = (source?: HTMLElement | null) => {
+    if (addStoreCartItem(product.id, selectedQty)) {
+      setCartFeedback("Produto adicionado ao carrinho.");
+      if (source) animateProductToCart(source);
+    } else setCartFeedback("Limite de itens do carrinho atingido.");
+  };
+
   const quoteShipping = async () => {
     setShippingError(""); setShipping(null); setSelectedShippingId("");
     const digits = postalCode.replace(/\D/g, "");
@@ -165,26 +179,26 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     finally { setReviewSending(false); }
   };
 
-  return <div className="bg-white text-[#0b1d37]">
+  return <div className="art-product-detail bg-white text-[#0b1d37]">
     {purchaseReturn && <div role="status" className="border-b border-[#dce9f8] bg-[#eff6ff] px-4 py-3 text-center text-[13px] font-semibold text-[#294c77]">
       {purchaseReturn === "nao-concluida" ?
         "O pagamento não foi concluído. Nenhum pedido é considerado pago sem confirmação do gateway." :
         "Retorno do pagamento recebido. A Artvideo confirmará seu pedido apenas após a verificação pelo provedor."}
     </div>}
     <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Loja", onClick: () => setPage("loja") }, { label: name }]}/>
-    <section className="bg-[#f8fbff] py-7 sm:py-10">
-      <div className="mx-auto grid max-w-7xl items-start gap-7 px-4 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(250px,.72fr)] lg:gap-6 lg:px-8">
+    <section className="bg-[#f8fbff] py-5 sm:py-10">
+      <div className="mx-auto grid max-w-7xl items-start gap-5 px-4 sm:gap-7 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(250px,.72fr)] lg:gap-6 lg:px-8">
         {/* Miniaturas verticais e imagem principal */}
-        <div className="flex min-w-0 flex-col-reverse gap-3 sm:flex-row">
-          {images.length > 1 && <div className="flex shrink-0 flex-row gap-2 overflow-x-auto sm:w-[65px] sm:flex-col sm:overflow-y-auto">
+        <div className="-mx-4 flex min-w-0 flex-col-reverse gap-2 sm:mx-0 sm:gap-3 sm:flex-row">
+          {images.length > 1 && <div className="flex shrink-0 flex-row gap-2 overflow-x-auto px-4 sm:w-[65px] sm:px-0 sm:flex-col sm:overflow-y-auto">
             {images.map((image, i) => <button key={image.url} type="button" onClick={() => setImageIndex(i)}
               aria-label={`Ver imagem ${i + 1}`} aria-pressed={imageIndex === i}
               className={`h-[62px] w-[62px] shrink-0 overflow-hidden rounded-[6px] border-2 bg-white p-1 transition-all hover:border-[var(--art-primary)] ${imageIndex === i ? "border-[var(--art-primary)]" : "border-[#dce6f3]"}`}>
               <ProductImage src={image.url} alt={image.alt}/>
             </button>)}
           </div>}
-          <div className="relative min-w-0 flex-1 overflow-hidden rounded-[9px] border border-[#e4eaf3] bg-white shadow-sm">
-            <div className="aspect-[1/1] w-full overflow-hidden p-5 sm:p-8"><ProductImage src={selectedImage?.url} alt={selectedImage?.alt || name}/></div>
+          <div className="relative min-w-0 flex-1 overflow-hidden border-y border-[#e4eaf3] bg-white sm:rounded-[9px] sm:border sm:shadow-sm">
+            <div className="aspect-[1/1] w-full overflow-hidden p-3 sm:p-8"><ProductImage src={selectedImage?.url} alt={selectedImage?.alt || name}/></div>
             {images.length > 1 && <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
               <button type="button" onClick={() => setImageIndex(i => (i + images.length - 1) % images.length)}
                 className="flex h-9 w-9 items-center justify-center rounded-full border border-[#e2e9f2] bg-white text-[#0b1d37] shadow-sm hover:bg-blue-50" aria-label="Imagem anterior"><ChevronLeft size={19}/></button>
@@ -196,9 +210,9 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         </div>
 
         {/* Informações principais */}
-        <div className="min-w-0 py-2">
+        <div className="min-w-0 py-1 sm:py-2">
           <p className="text-[12px] font-bold text-[var(--art-primary)]">{brand?.name || "Eletrônica Artvideo"}</p>
-          <h1 className="mt-2 text-[24px] font-extrabold leading-[1.25] tracking-[-.035em] sm:text-[30px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>{name}</h1>
+          <h1 className="mt-2 text-[20px] font-extrabold leading-[1.3] tracking-[-.025em] sm:text-[30px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>{name}</h1>
           {product.sku && <p className="mt-2 text-[11px] text-[#7c8b9f]">Código: {product.sku}</p>}
           <a href="#avaliacoes" className="mt-3 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#45617f] hover:text-[var(--art-primary)]">
             {extras?.reviewCount ? <><strong className="text-[#0b1d37]">{extras.rating.toFixed(1)}</strong> {reviewStars(extras.rating)} <span>({extras.reviewCount} avaliações)</span></> :
@@ -206,7 +220,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
           </a>
           <div className="mt-6 border-t border-[#e0e8f2] pt-5">
             {comparePrice != null && <p className="text-[13px] text-[#8290a3] line-through">{formatCurrency(comparePrice)}</p>}
-            <p className="text-[32px] font-extrabold leading-tight tracking-[-.04em] text-[var(--art-primary)]">{product.price != null ? formatCurrency(product.price) : "Preço indisponível"}</p>
+            <p className="text-[28px] font-extrabold leading-tight tracking-[-.04em] text-[var(--art-primary)]">{product.price != null ? formatCurrency(product.price) : "Preço indisponível"}</p>
             <p className="mt-2 text-[12px] text-[#63738b]">Condições e opções de pagamento apresentadas no checkout seguro.</p>
           </div>
           {product.short_description && <p className="mt-5 whitespace-pre-line text-[14px] leading-[1.75] text-[#53637a]">{product.short_description}</p>}
@@ -219,7 +233,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         </div>
 
         {/* Caixa de compra */}
-        <aside className="rounded-[9px] border border-[#e0e8f2] bg-white p-5 shadow-sm lg:sticky lg:top-[95px]">
+        <aside className="rounded-[9px] border border-[#e0e8f2] bg-white p-4 shadow-sm sm:p-5 lg:sticky lg:top-[95px]">
           <div className="mb-5 flex items-start gap-2 text-[13px] text-[#45617e]"><Truck size={21} className="shrink-0 text-[var(--art-primary)]"/><span><strong className="block text-[#0b1d37]">Entrega para seu endereço</strong> Digite seu CEP para consultar se entregamos no seu endereço.</span></div>
           {pickupQuery.data && <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-3 text-[12px] text-[#3d5c7e]">
             <strong className="block text-[var(--art-primary)]">Retirada gratuita na loja</strong>
@@ -254,15 +268,15 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             {selectedOption && <div className="flex justify-between gap-2"><span>Frete</span><span>{formatCurrency(selectedOption.price)}</span></div>}
             {selectedOption && <div className="flex justify-between gap-2 pt-2 text-[14px] font-extrabold"><span>Total</span><span>{formatCurrency(Number(product.price)*selectedQty+selectedOption.price)}</span></div>}
           </div>}
-          <button type="button" disabled={!canBuy} onClick={() => navigate("/checkout/" + encodeURIComponent(slug || product.slug) + "?q=" + selectedQty + (postalCode.replace(/\D/g, "").length === 8 ? "&cep=" + postalCode.replace(/\D/g, "") : ""))}
-            className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--art-primary)] px-4 text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={!canBuy} onClick={checkoutNow}
+            className="mt-5 hidden md:flex min-h-12 w-full items-center justify-center gap-2 rounded-[6px] bg-[var(--art-primary)] px-4 text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:brightness-110 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-50">
             <ShoppingCart size={19}/> Comprar agora
           </button>
-          <button type="button" disabled={!canBuy} onClick={event => {if(addStoreCartItem(product.id,selectedQty)){setCartFeedback("");animateProductToCart(event.currentTarget);}else setCartFeedback("Limite de itens do carrinho atingido.");}}
-            className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[var(--art-primary)] px-4 text-[13px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-50">
+          <button type="button" disabled={!canBuy} onClick={event => addToCart(event.currentTarget)}
+            className="mt-2 hidden md:inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[var(--art-primary)] px-4 text-[13px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-50">
             <Plus size={17}/> Adicionar ao carrinho
           </button>
-          {cartFeedback && <p role="status" className="mt-2 text-center text-[12px] font-semibold text-[#486785]">{cartFeedback}</p>}
+          {cartFeedback && <p role="status" className="mt-2 hidden text-center text-[12px] font-semibold text-[#486785] md:block">{cartFeedback}</p>}
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-[#7b8ba1]"><LockKeyhole size={13}/> O pagamento só ocorre no checkout seguro.</p>
           {!canBuy && <p className="mt-2 text-center text-[12px] text-[#9a4851]">Compra online indisponível até confirmar preço e estoque.</p>}
           {canBuy && !selectedOption && <p className="mt-2 text-center text-[12px] text-[#687b95]">Você poderá consultar o frete durante a finalização da compra.</p>}
@@ -347,5 +361,19 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
       </div>
     </section>
 
+    {/* Ações fixas somente no celular; o navegador gerencia a barra inferior e o safe-area completa o espaçamento. */}
+    <div className="art-product-mobile-buy-bar fixed inset-x-0 bottom-0 z-[60] border-t border-[#e0e8f2] bg-white/95 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-5px_20px_rgba(15,38,73,.10)] backdrop-blur-md md:hidden" aria-label="Ações de compra do produto">
+      {cartFeedback && <p role="status" className="absolute inset-x-3 bottom-[calc(100%+8px)] rounded-lg border border-[#dce6f3] bg-white px-4 py-3 text-center text-[12px] font-semibold text-[#214a7d] shadow-md">{cartFeedback}</p>}
+      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2 px-3">
+        <button type="button" disabled={!canBuy} onClick={() => addToCart()}
+          className="flex min-h-[52px] items-center justify-center rounded-[7px] border border-[var(--art-primary)] bg-[#ecf2ff] px-2 text-center text-[12px] font-bold leading-[1.2] text-[var(--art-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
+          Adicionar ao carrinho
+        </button>
+        <button type="button" disabled={!canBuy} onClick={checkoutNow}
+          className="flex min-h-[52px] items-center justify-center rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[13px] font-bold leading-[1.2] text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
+          Comprar agora
+        </button>
+      </div>
+    </div>
   </div>;
 }
