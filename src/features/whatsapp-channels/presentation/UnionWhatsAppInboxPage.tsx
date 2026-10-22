@@ -1366,9 +1366,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <Settings2 size={16}/> Reconectar WhatsApp
           </AdminButton>}
       </div>
-    </div> : <div className="h-[min(76vh,850px)] min-h-[520px] overflow-hidden rounded-none border border-border bg-card shadow-sm">
-      <div className="grid h-full min-h-0 grid-rows-[280px_minmax(0,1fr)] md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
-        <aside className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r">
+    </div> : <div className="h-[calc(100dvh-210px)] min-h-[420px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:h-[min(76vh,850px)] md:min-h-[520px]">
+      <div className="grid h-full min-h-0 grid-cols-1 grid-rows-1 md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
+        <aside className={`${selectedId ? "hidden md:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r`}>
           <div className="border-b border-border bg-muted/35 p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-base font-black text-foreground">Conversas</p>
@@ -1390,10 +1390,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <p className="mt-0.5 text-[10px] text-muted-foreground">
               {counts.total} conversa(s) · {counts.unread} não lida(s)
             </p>
-            <div className="mt-3 grid grid-cols-2 gap-1.5">
+            <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1 md:grid md:grid-cols-2 md:overflow-visible md:pb-0">
               {filters.map(item => <button key={item.value} type="button" onClick={() => {setSelectedId(null);setConversationPage(0);setFilter(item.value);}}
                 aria-pressed={filter === item.value}
-                className={`flex min-w-0 items-center justify-between gap-1.5 rounded-lg border px-2 py-2 text-[10px] font-bold transition-colors ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
+                className={`flex shrink-0 items-center justify-between gap-1.5 rounded-full border px-3 py-2 text-[11px] font-bold transition-colors md:min-w-0 md:rounded-lg md:px-2 md:text-[10px] ${filter === item.value ? "border-primary bg-primary-soft text-foreground" : "border-border bg-card text-muted-foreground hover:bg-muted"}`}>
                 <span className="truncate">{item.label}</span>
                 <span className={`inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black ${item.tone}`}>{counts[item.value]}</span>
               </button>)}
@@ -1472,14 +1472,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>}
         </aside>
-        <section className="flex min-h-0 min-w-0 flex-col bg-card">
+        <section className={`${selectedId ? "fixed inset-0 z-[45] flex h-[100dvh] w-full overflow-hidden overscroll-contain md:static md:h-auto md:w-auto" : "hidden md:flex"} min-h-0 min-w-0 flex-col bg-card`}>
           {!selected ? <div role="status" className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+            {selectedId && <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);}} aria-label="Voltar para conversas"
+              className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground md:hidden"><ChevronLeft size={22}/> Conversas</button>}
             <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">Selecione uma conversa</p>
             <div aria-hidden="true" className="mt-4 flex gap-2">
               {[0,1,2].map(index => <span key={index} className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none" style={{ animationDelay: `${index * 160}ms` }}/>)}
             </div>
           </div> : <>
-            <header className="flex min-h-16 items-center gap-3 border-b border-border bg-muted/30 px-4">
+            <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 md:min-h-16 md:flex-nowrap md:gap-3 md:px-4 md:py-0">
+              <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);}} aria-label="Voltar para conversas"
+                className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted md:hidden"><ChevronLeft size={25}/></button>
               <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
                 src={avatars[selected.id]} onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/>
               <div className="min-w-0 flex-1">
@@ -1487,7 +1491,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   <p className="min-w-0 flex-1 truncate text-sm font-black text-foreground">{selected.contact_name}</p>
 
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="truncate text-xs text-muted-foreground md:whitespace-normal">
                    {formatWhatsAppPhone(selected.contact_phone)}{selected.last_protocol_number ? ` · ${unionWhatsAppProtocolLabel(selected.last_protocol_number)}` : ""}
                    <span className="ml-2 inline-flex max-w-full min-w-0 items-center gap-1 align-middle">
                    <span className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
@@ -1513,7 +1517,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    Cliente: {linkedCustomers[selected.id]!.name} · Abrir cadastro
                  </button>}
               </div>
-              <div className="flex shrink-0 flex-wrap items-center justify-end gap-1.5">
+              <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
                 {canAction("manage_contacts") && <button type="button"
                   title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
@@ -1616,7 +1620,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                 className="absolute bottom-4 right-4 z-20 flex h-10 w-10 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-lg transition hover:bg-muted"
                 aria-label="Ir para a última mensagem" title="Ir para a última mensagem"><ChevronDown size={19}/></button>}
             </div>
-            <footer className="border-t border-border bg-card px-3 py-3">
+            <footer className="shrink-0 border-t border-border bg-card px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-3 sm:pt-3 sm:pb-3">
               {canReply ? <div className="mx-auto max-w-4xl">
                 {imageOptimizing && <div role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <LoaderCircle size={14} className="animate-spin"/> Otimizando imagem antes do envio...
