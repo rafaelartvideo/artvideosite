@@ -514,7 +514,6 @@ export function TabProducts({
     onRouteChange?.(null, null);
   };
 
-  const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
 
   useEffect(() => {
