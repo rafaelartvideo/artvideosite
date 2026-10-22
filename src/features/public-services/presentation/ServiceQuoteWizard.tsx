@@ -8,9 +8,10 @@ import { PublicButton } from '@/features/public-shell/presentation/PublicUi';
 import { bookingConfig, bookingDates, slotsForDate, displayBookingDate, mergeResolvedAddress } from '../domain/service-booking.mjs';
 import { ServiceCepLookup } from './ServiceCepLookup';
 import { submitServiceBooking } from '../infrastructure/service-booking.repository';
+import { reservePublicQuoteProtocol } from '@/features/public-quotes/infrastructure/quote-protocol.repository';
 
 const steps=['Agendamento','Local do serviço','Seus dados','Revisão'];
-function Field({label,required=false,children}:{label:string;required?:boolean;children:React.ReactNode}) {return <label className="block text-sm font-medium">{label}{required&&<span className="text-red-600"> *</span>}<span className="mt-2 block">{children}</span></label>;}
+function Field({label,required=false,error,children}:{label:string;required?:boolean;error?:string;children:React.ReactNode}) {return <label className="block text-sm font-medium">{label}{required&&<span className="text-red-600"> *</span>}<span className="mt-2 block">{children}</span>{error&&<span role="alert" className="mt-1.5 block text-xs font-medium text-red-600">{error}</span>}</label>;}
 export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{detail:any;initialCep?:string;initialVariant?:string}) {
  const navigate=useNavigate(); const c=bookingConfig(detail.service.public_booking),service=detail.service;
  const variants=detail.variants.filter((v:any)=>v.is_active!==false);
@@ -20,43 +21,56 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{det
  const [coverage,setCoverage]=useState('idle'); const [noNumber,setNoNumber]=useState(false);
  const [form,setForm]=useState({...EMPTY_PUBLIC_QUOTE_FORM,servico:service.id});
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[protocol,setProtocol]=useState('');
- const sending=useRef(false); const requestProtocol=useRef(`ORC-${crypto.randomUUID()}`);
+ const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({});
+ const sending=useRef(false); const requestProtocol=useRef("");
  const heading=useRef<HTMLHeadingElement>(null);
  const selected=variants.find((v:any)=>v.id===variant); const dates=bookingDates(c).filter((d:string)=>slotsForDate(c,d).length>0);
  const times=slotsForDate(c,date); const up=(key:string,value:string)=>setForm(f=>({...f,[key]:value}));
  const go=(value:number)=>{setError('');setStep(value);window.scrollTo({top:0,behavior:'smooth'});requestAnimationFrame(()=>heading.current?.focus());};
  function validate(stage:number) {
+  const issues:Record<string,string>={};
   if(stage===0) {
-   if(variants.length&&!selected) return 'Selecione a opção do serviço.';
-   if(c.schedule_enabled&&(!date||!times.some((s:any)=>`${s.start}–${s.end}`===slot))) return 'Selecione um dia e um horário disponíveis.';
+   if(variants.length&&!selected) issues.variant='Selecione a opção do serviço.';
+   if(c.schedule_enabled&&!date) issues.date='Escolha uma data disponível.';
+   if(c.schedule_enabled&&date&&!times.some((item:any)=>`${item.start}–${item.end}`===slot)) issues.slot='Selecione um horário disponível.';
   }
   if(stage===1) {
-   if(!['available','consult'].includes(coverage)) return 'Consulte um CEP válido dentro da área atendida.';
-   if(!address.street.trim()||!address.number.trim()||!address.city.trim()||address.state.trim().length!==2) return 'Preencha o endereço completo do atendimento.';
+   if(!['available','consult'].includes(coverage)) issues.cep='Consulte um CEP válido dentro da área atendida.';
+   if(!address.street.trim()) issues.street='Informe a rua ou avenida.';
+   if(!address.number.trim()) issues.number='Informe o número ou marque S/N.';
+   if(!address.city.trim()) issues.city='Informe a cidade.';
+   if(address.state.trim().length!==2) issues.state='Informe a UF com duas letras.';
   }
   if(stage===2) {
-   if(form.customerType==='PF'&&(!form.nome.trim()||!isValidCpf(form.cpf)||!isValidPastOrCurrentDate(form.birthDate))) return 'Informe nome completo, CPF válido e data de nascimento válida.';
-   if(form.customerType==='PJ'&&(!form.tradeName.trim()||!isValidCnpj(form.cnpj))) return 'Informe nome da empresa e CNPJ válido.';
-   if(!isValidBrazilianMobile(form.whatsapp)) return 'Informe um WhatsApp válido com DDD.';
-   if(!isValidEmail(form.email)) return 'Informe um e-mail válido.';
+   if(form.customerType==='PF') {
+    if(!form.nome.trim()) issues.nome='Informe seu nome completo.';
+    if(!isValidCpf(form.cpf)) issues.cpf='Informe um CPF válido.';
+    if(!isValidPastOrCurrentDate(form.birthDate)) issues.birthDate='Informe uma data de nascimento válida.';
+   } else {
+    if(!form.tradeName.trim()) issues.tradeName='Informe o nome da empresa.';
+    if(!isValidCnpj(form.cnpj)) issues.cnpj='Informe um CNPJ válido.';
+   }
+   if(!isValidBrazilianMobile(form.whatsapp)) issues.whatsapp='Informe um WhatsApp válido com DDD.';
+   if(form.email.trim()&&!isValidEmail(form.email)) issues.email='Informe um e-mail válido ou deixe em branco.';
   }
-  return '';
+  setFieldErrors(issues);
+  return Object.values(issues)[0]||'';
  }
- const next=(event:React.FormEvent)=>{event.preventDefault();if(step===3){void send();return;}const message=validate(step);if(message){setError(message);return;}go(step+1);};
+ const next=(event:React.FormEvent)=>{event.preventDefault();if(step===3){void send();return;}const message=validate(step);if(message){setError('');return;}setFieldErrors({});go(step+1);};
  async function send() {
   if(sending.current)return;
-  for(let i=0;i<3;i++){const message=validate(i);if(message){go(i);setError(message);return;}}
+  for(let i=0;i<3;i++){const message=validate(i);if(message){go(i);setError('');return;}}
   sending.current=true;setBusy(true);setError('');
-  try {setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date,slot},requestProtocol.current));window.scrollTo({top:0,behavior:'smooth'});}
+  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date,slot},requestProtocol.current));window.scrollTo({top:0,behavior:'smooth');}
   catch(e){setError(e instanceof Error?e.message:'Não foi possível enviar. Tente novamente.');}
   finally{sending.current=false;setBusy(false);}
  }
- if(protocol) return <section className="mx-auto max-w-2xl px-5 py-20 text-center"><CheckCircle2 size={56} strokeWidth={1.5} className="mx-auto mb-6 text-emerald-600"/><h1 className="text-3xl font-semibold">Orçamento solicitado!</h1><p className="mt-4 leading-7 text-slate-600">A Artvideo entrará em contato pelo WhatsApp para avaliar o serviço, informar o orçamento e confirmar o atendimento.</p><div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 break-all font-mono text-lg font-semibold">{protocol}</p></div>{date&&<p className="mb-6 text-sm text-slate-600">Preferência: {displayBookingDate(date)} · {slot}. Aguarde a confirmação da equipe.</p>}<PublicButton onClick={()=>navigate(`/servicos/${service.slug}`)}>Voltar ao serviço</PublicButton></section>;
+ if(protocol) return <section className="mx-auto max-w-2xl px-5 py-20 text-center"><CheckCircle2 size={56} strokeWidth={1.5} className="mx-auto mb-6 text-emerald-600"/><h1 className="text-3xl font-semibold">Orçamento solicitado!</h1><p className="mt-4 leading-7 text-slate-600">A Artvideo entrará em contato pelo WhatsApp para avaliar o serviço, informar o orçamento e confirmar o atendimento.</p><div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 font-mono text-2xl font-bold tracking-wide">{protocol}</p></div>{date&&<p className="mb-6 text-sm text-slate-600">Preferência: {displayBookingDate(date)} · {slot}. Aguarde a confirmação da equipe.</p>}<PublicButton onClick={()=>navigate(`/servicos/${service.slug}`)}>Voltar ao serviço</PublicButton></section>;
  return <div className="art-booking mx-auto max-w-5xl px-5 py-9 sm:py-14">
   <button type="button" onClick={()=>step?go(step-1):navigate(`/servicos/${service.slug}`)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)]"><ArrowLeft size={18}/> Voltar</button>
   <nav aria-label="Etapas da solicitação" className="mb-10"><div className="mb-3 flex justify-between gap-4 text-sm"><p><strong>{step+1} de {steps.length}</strong> — {steps[step]}</p><p className="hidden text-slate-500 sm:block">{step<3?`Próximo passo: ${steps[step+1]}`:'Confira antes de enviar'}</p></div><ol className="flex gap-2">{steps.map((label,i)=><li key={label} aria-current={step===i?'step':undefined} className={`h-1.5 flex-1 rounded-full ${i<=step?'bg-[var(--art-primary)]':'bg-slate-200'}`}><span className="sr-only">{label}</span></li>)}</ol></nav>
   <div className="grid items-start gap-10 lg:grid-cols-[1.2fr_1fr] lg:gap-14">
-   <form id="service-quote-step" onSubmit={next} className="min-w-0 space-y-6">
+   <form id="service-quote-step" noValidate onChangeCapture={()=>setFieldErrors({})} onSubmit={next} className="min-w-0 space-y-6">
     <h1 ref={heading} tabIndex={-1} className="text-[26px] font-semibold leading-tight tracking-tight outline-none">{['Escolha seu atendimento','Onde o serviço será realizado?','Como podemos falar com você?','Confira sua solicitação'][step]}</h1>
     {step===0&&<>
      {variants.length>0&&<fieldset><legend className="mb-3 text-sm text-slate-600">Opção do serviço <span className="text-red-600">*</span></legend><div className="space-y-2">{variants.map((v:any)=><label key={v.id} className={`art-choice ${variant===v.id?'is-selected':''}`}><input type="radio" name="service-variant" value={v.id} checked={variant===v.id} onChange={()=>setVariant(v.id)}/><div><span className="font-medium">{v.title}</span>{v.description&&<p className="mt-1 text-xs leading-5 text-slate-500">{v.description}</p>}</div>{service.price_mode!=='HIDDEN'&&v.price!=null&&<span className="ml-auto shrink-0 text-sm font-semibold">{formatCurrency(v.price)}</span>}</label>)}</div></fieldset>}
@@ -65,30 +79,31 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{det
       <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">{dates.slice(0,dateCount).map((d:string)=><button key={d} type="button" aria-pressed={date===d} onClick={()=>{setDate(d);setSlot('');}} className={`rounded-lg border px-2 py-3 text-sm transition-colors ${date===d?'border-[var(--art-primary)] bg-blue-50 text-[var(--art-primary)]':'border-slate-200 hover:border-blue-400'}`}><span className="block text-xs capitalize">{new Date(`${d}T12:00:00Z`).toLocaleDateString('pt-BR',{weekday:'short',timeZone:'America/Sao_Paulo'})}</span><strong className="mt-1 block">{d.slice(8)}/{d.slice(5,7)}</strong></button>)}</div>
       {dates.length>dateCount&&<button type="button" onClick={()=>setDateCount(n=>n+6)} className="text-sm font-semibold text-[var(--art-primary)]">Mais datas</button>}
       {!dates.length&&<p role="status" className="rounded-lg bg-amber-50 p-4 text-sm text-amber-900">Não há horários disponíveis no momento. Entre em contato com a Artvideo para combinar o atendimento.</p>}
+      {fieldErrors.date&&<p role="alert" className="mt-2 text-xs font-medium text-red-600">{fieldErrors.date}</p>}
+      {fieldErrors.slot&&<p role="alert" className="mt-2 text-xs font-medium text-red-600">{fieldErrors.slot}</p>}
       {date&&<fieldset><legend className="mb-3 text-sm font-medium">Horário de preferência <span className="text-red-600">*</span></legend><div className="space-y-2">{times.map((s:any)=>{const value=`${s.start}–${s.end}`;return <label key={value} className={`art-choice ${slot===value?'is-selected':''}`}><span>{s.start} às {s.end}</span><input className="ml-auto" type="radio" name="time" value={value} checked={slot===value} onChange={()=>setSlot(value)}/></label>;})}</div></fieldset>}
      </>:<p className="rounded-lg bg-slate-50 p-5 text-sm leading-6 text-slate-600">A equipe combinará o melhor dia e horário com você após analisar a solicitação.</p>}
      <p className="rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-600">Se o atendimento for em condomínio, confira as regras de acesso e os horários permitidos.</p>
     </>}
     {step===1&&<>
-     <ServiceCepLookup config={c} value={address.zip_code} onChange={zip=>{setAddress({...emptyAddress,zip_code:zip});setCoverage('idle');setNoNumber(false);}} onResolved={(a,status)=>{setCoverage(status);if(a)setAddress(old=>mergeResolvedAddress(old,a));}}/>
+     <div><ServiceCepLookup config={c} value={address.zip_code} onChange={zip=>{setAddress({...emptyAddress,zip_code:zip});setCoverage('idle');setNoNumber(false);}} onResolved={(a,status)=>{setCoverage(status);if(a)setAddress(old=>mergeResolvedAddress(old,a));}}/>{fieldErrors.cep&&<p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{fieldErrors.cep}</p>}</div>
      {['available','consult'].includes(coverage)&&<div className="space-y-5">
-      <Field label="Rua / avenida" required><input className="art-input" required autoComplete="address-line1" value={address.street} onChange={e=>setAddress(a=>({...a,street:e.target.value}))}/></Field>
-      <div className="grid grid-cols-2 gap-4"><Field label="Número" required><input className="art-input" required disabled={noNumber} value={address.number} onChange={e=>setAddress(a=>({...a,number:e.target.value}))}/></Field><Field label="Complemento"><input className="art-input" autoComplete="address-line2" value={address.complement} onChange={e=>setAddress(a=>({...a,complement:e.target.value}))}/></Field></div>
+      <Field label="Rua / avenida" required error={fieldErrors.street}><input className="art-input" required autoComplete="address-line1" value={address.street} onChange={e=>setAddress(a=>({...a,street:e.target.value}))}/></Field>
+      <div className="grid grid-cols-2 gap-4"><Field label="Número" required error={fieldErrors.number}><input className="art-input" required disabled={noNumber} value={address.number} onChange={e=>setAddress(a=>({...a,number:e.target.value}))}/></Field><Field label="Complemento"><input className="art-input" autoComplete="address-line2" value={address.complement} onChange={e=>setAddress(a=>({...a,complement:e.target.value}))}/></Field></div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={noNumber} onChange={e=>{setNoNumber(e.target.checked);setAddress(a=>({...a,number:e.target.checked?'S/N':''}));}}/> Meu endereço não tem número</label>
       <Field label="Bairro"><input className="art-input" value={address.neighborhood} onChange={e=>setAddress(a=>({...a,neighborhood:e.target.value}))}/></Field>
-      <div className="grid grid-cols-[1fr_80px] gap-4"><Field label="Cidade" required><input className="art-input" required value={address.city} onChange={e=>setAddress(a=>({...a,city:e.target.value}))}/></Field><Field label="UF" required><input className="art-input" required maxLength={2} value={address.state} onChange={e=>setAddress(a=>({...a,state:e.target.value.toUpperCase()}))}/></Field></div>
+      <div className="grid grid-cols-[1fr_80px] gap-4"><Field label="Cidade" required error={fieldErrors.city}><input className="art-input" required value={address.city} onChange={e=>setAddress(a=>({...a,city:e.target.value}))}/></Field><Field label="UF" required error={fieldErrors.state}><input className="art-input" required maxLength={2} value={address.state} onChange={e=>setAddress(a=>({...a,state:e.target.value.toUpperCase()}))}/></Field></div>
      </div>}
     </>}
     {step===2&&<>
      <div className="flex gap-3">{['PF','PJ'].map(type=><button key={type} type="button" aria-pressed={form.customerType===type} onClick={()=>up('customerType',type)} className={`rounded-lg border px-4 py-2 text-sm ${form.customerType===type?'border-blue-600 bg-blue-50 text-blue-700':'border-slate-200'}`}>{type==='PF'?'Pessoa física':'Pessoa jurídica'}</button>)}</div>
-     {form.customerType==='PF'?<><Field label="Nome completo" required><input autoComplete="name" className="art-input" required value={form.nome} onChange={e=>up('nome',e.target.value)}/></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="CPF" required><input className="art-input" inputMode="numeric" required value={form.cpf} onChange={e=>up('cpf',formatCpf(e.target.value))}/></Field><Field label="Data de nascimento" required><input className="art-input" inputMode="numeric" autoComplete="bday" placeholder="DD/MM/AAAA" required value={form.birthDate} onChange={e=>up('birthDate',formatPublicDate(e.target.value))}/></Field></div></>:<><Field label="Nome da empresa" required><input className="art-input" autoComplete="organization" required value={form.tradeName} onChange={e=>up('tradeName',e.target.value)}/></Field><Field label="CNPJ" required><input className="art-input" required inputMode="numeric" value={form.cnpj} onChange={e=>up('cnpj',formatCnpj(e.target.value))}/></Field></>}
-     <Field label="WhatsApp com DDD" required><input className="art-input" type="tel" autoComplete="tel-national" required placeholder="(79) 9 9999-9999" value={form.whatsapp} onChange={e=>up('whatsapp',formatPhoneInput(e.target.value,form.whatsapp,e.target.selectionStart))}/></Field>
-     <Field label="E-mail" required><input className="art-input" type="email" autoComplete="email" required value={form.email} onChange={e=>up('email',e.target.value)}/></Field>
+     {form.customerType==='PF'?<><Field label="Nome completo" required error={fieldErrors.nome}><input autoComplete="name" className="art-input" required value={form.nome} onChange={e=>up('nome',e.target.value)}/></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="CPF" required error={fieldErrors.cpf}><input className="art-input" inputMode="numeric" required value={form.cpf} onChange={e=>up('cpf',formatCpf(e.target.value))}/></Field><Field label="Data de nascimento" required error={fieldErrors.birthDate}><input className="art-input" inputMode="numeric" autoComplete="bday" placeholder="DD/MM/AAAA" required value={form.birthDate} onChange={e=>up('birthDate',formatPublicDate(e.target.value))}/></Field></div></>:<><Field label="Nome da empresa" required error={fieldErrors.tradeName}><input className="art-input" autoComplete="organization" required value={form.tradeName} onChange={e=>up('tradeName',e.target.value)}/></Field><Field label="CNPJ" required error={fieldErrors.cnpj}><input className="art-input" required inputMode="numeric" value={form.cnpj} onChange={e=>up('cnpj',formatCnpj(e.target.value))}/></Field></>}
+     <Field label="WhatsApp com DDD" required error={fieldErrors.whatsapp}><input className="art-input" type="tel" autoComplete="tel-national" required placeholder="(79) 9 9999-9999" value={form.whatsapp} onChange={e=>up('whatsapp',formatPhoneInput(e.target.value,form.whatsapp,e.target.selectionStart))}/></Field>
+     <Field label="E-mail (opcional)" error={fieldErrors.email}><input className="art-input" type="email" autoComplete="email" value={form.email} onChange={e=>up('email',e.target.value)}/></Field>
      <Field label="Modelo do equipamento"><input className="art-input" value={form.modelo} onChange={e=>up('modelo',e.target.value)}/></Field>
-     <Field label="Conte o que você precisa"><textarea className="art-input min-h-28 resize-y" maxLength={5000} value={form.descricao} onChange={e=>up('descricao',e.target.value)}/></Field>
      <p className="text-xs leading-5 text-slate-500">Usaremos seus dados para identificar a solicitação e entrar em contato sobre este atendimento.</p>
     </>}
-    {step===3&&<div className="space-y-5 text-sm leading-6"><div className="art-review"><strong>Serviço e preferência</strong><p>{service.title}{selected?` · ${selected.title}`:''}</p><p>{quantity} {quantity===1?'unidade':'unidades'}</p><p>{date?`${displayBookingDate(date)} · ${slot} (a confirmar)`:'Dia e horário a combinar'}</p><button type="button" onClick={()=>go(0)}>Alterar</button></div><div className="art-review"><strong>Local do atendimento</strong><p>{address.street}, {address.number} {address.complement}</p><p>{address.neighborhood} · {address.city}/{address.state} · {address.zip_code}</p><button type="button" onClick={()=>go(1)}>Alterar</button></div><div className="art-review"><strong>Seus dados</strong><p>{form.customerType==='PF'?form.nome:form.tradeName}</p><p>{form.whatsapp} · {form.email}</p>{form.descricao&&<p className="whitespace-pre-line">{form.descricao}</p>}<button type="button" onClick={()=>go(2)}>Alterar</button></div><p className="rounded-lg bg-blue-50 p-5 text-[#244567]">Ao enviar, você solicita um orçamento. A Artvideo entrará em contato para informar os valores e confirmar o atendimento. Não há cobrança nesta etapa.</p></div>}
+    {step===3&&<div className="space-y-5 text-sm leading-6"><div className="art-review"><strong>Serviço e preferência</strong><p>{service.title}{selected?` · ${selected.title}`:''}</p><p>{quantity} {quantity===1?'unidade':'unidades'}</p><p>{date?`${displayBookingDate(date)} · ${slot} (a confirmar)`:'Dia e horário a combinar'}</p><button type="button" onClick={()=>go(0)}>Alterar</button></div><div className="art-review"><strong>Local do atendimento</strong><p>{address.street}, {address.number} {address.complement}</p><p>{address.neighborhood} · {address.city}/{address.state} · {address.zip_code}</p><button type="button" onClick={()=>go(1)}>Alterar</button></div><div className="art-review"><strong>Seus dados</strong><p>{form.customerType==='PF'?form.nome:form.tradeName}</p><p>{form.whatsapp}{form.email?` · ${form.email}`:""}</p>{form.descricao&&<p className="whitespace-pre-line">{form.descricao}</p>}<button type="button" onClick={()=>go(2)}>Alterar</button></div><p className="rounded-lg bg-blue-50 p-5 text-[#244567]">Ao enviar, você solicita um orçamento. A Artvideo entrará em contato para informar os valores e confirmar o atendimento. Não há cobrança nesta etapa.</p></div>}
     {error&&<p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</p>}
     <div className="lg:hidden">{step<3?<PublicButton type="submit" className="w-full">Continuar <ArrowRight size={17}/></PublicButton>:<PublicButton type="button" disabled={busy} onClick={send} className="w-full">{busy?<Loader2 className="animate-spin" size={18}/>:<Check size={18}/>} {busy?'Enviando...':'Solicitar orçamento'}</PublicButton>}</div>
    </form>
