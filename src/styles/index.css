@@ -954,3 +954,18 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 @media (prefers-reduced-motion: reduce) {
   .artvideo-public * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/*
+ * Artvideo public masthead theme — coordinated with the blue catalog banners.
+ * Layered light and diagonal highlights add depth without image downloads or a flat fill.
+ * Shared by the desktop header, mobile navigation, breadcrumbs and page title bands.
+ */
+.artvideo-public .art-public-blue-texture {
+  background-color: #164b9b;
+  background-image:
+    radial-gradient(ellipse 480px 230px at 85% -35%, rgba(160, 214, 255, 0.23), transparent 76%),
+    radial-gradient(ellipse 410px 260px at 4% 120%, rgba(9, 38, 119, 0.30), transparent 78%),
+    repeating-linear-gradient(126deg, rgba(255,255,255,0.031) 0px, rgba(255,255,255,0.031) 1px, transparent 1px, transparent 26px),
+    linear-gradient(112deg, #0b3274 0%, #164994 42%, #205cbb 77%, #2e6cce 100%);
+}
+
