@@ -68,9 +68,11 @@ const TERM_META: Record<OrganizationTermType, { name: string; audience: string; 
 };
 
 export function TabTerms({ onBack }: { onBack: () => void }) {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const canView = hasPermission("terms.view");
   const canManage = hasPermission("terms.manage");
+  // Termos de uso e responsabilidade são administrados somente pela Union World.
+  const canEditTerms = canManage && activeOrganization?.is_platform_operator === true;
   const [drafts, setDrafts] = useState<Record<OrganizationTermType, Draft>>(DEFAULTS);
   const [certificateConfig, setCertificateConfig] = useState<WarrantyCertificateTemplate>({ ...DEFAULT_WARRANTY_CERTIFICATE_TEMPLATE });
   const [certificateOpen, setCertificateOpen] = useState(false);
@@ -133,7 +135,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
   };
 
   const saveTerm = async () => {
-    if (!activeOrganizationId || !canManage || editor?.kind !== "term") return;
+    if (!activeOrganizationId || !canEditTerms || editor?.kind !== "term") return;
     const { type, draft } = editor;
 
     if (!draft.title.trim()) {
@@ -197,14 +199,14 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
 
     <PageHeader
       title="Termos/Garantia"
-      subtitle="Gerencie os termos da empresa e personalize o certificado de garantia dos equipamentos."
+      subtitle="Consulte os termos da Union World e personalize o certificado de garantia da empresa."
     />
 
     <AdminCard>
       <AdminCardHeader>
         <div className="min-w-0">
           <h2 className="text-sm font-black text-foreground">Termos</h2>
-          <p className="mt-1 text-xs text-muted-foreground">Documentos de aceite obrigatório dos usuários da empresa.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Documentos de aceite administrados pela Union World.</p>
         </div>
         <span className="shrink-0 text-xs font-bold text-muted-foreground">2 documentos</span>
       </AdminCardHeader>
@@ -237,11 +239,11 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
                 <td>
                   <div className="flex justify-end">
                     <AdminIconButton
-                      ariaLabel={canManage ? `Editar ${meta.name}` : `Visualizar ${meta.name}`}
-                      title={canManage ? "Editar" : "Visualizar"}
+                      ariaLabel={canEditTerms ? `Editar ${meta.name}` : `Visualizar ${meta.name}`}
+                      title={canEditTerms ? "Editar" : "Visualizar"}
                       onClick={() => openTerm(type)}
                     >
-                      {canManage ? <Pencil size={14} /> : <Eye size={14} />}
+                      {canEditTerms ? <Pencil size={14} /> : <Eye size={14} />}
                     </AdminIconButton>
                   </div>
                 </td>
@@ -289,14 +291,14 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
             <FInput
               label="Título"
               value={editor.draft.title}
-              disabled={!canManage || saving}
+              disabled={!canEditTerms || saving}
               onChange={(event: any) => updateTermDraft({ title: event.target.value })}
             />
             <div>
               <FTextarea
                 label="Conteúdo do termo"
                 value={editor.draft.content}
-                disabled={!canManage || saving}
+                disabled={!canEditTerms || saving}
                 onChange={(event: any) => updateTermDraft({ content: event.target.value })}
                 rows={16}
                 placeholder="Digite o texto completo que deverá ser aceito..."
@@ -309,7 +311,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
                 ? "Quando ativo, o proprietário da empresa deverá aceitar a versão vigente."
                 : "Quando ativo, cada usuário deverá aceitar a versão vigente."}
               checked={editor.draft.is_active}
-              disabled={!canManage || saving}
+              disabled={!canEditTerms || saving}
               onChange={value => updateTermDraft({ is_active: value })}
             />
           </div>
@@ -322,7 +324,7 @@ export function TabTerms({ onBack }: { onBack: () => void }) {
 
       <AdminStickyToolbar className="justify-end">
         <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
-        {canManage && <BtnPrimary onClick={() => void saveTerm()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+        {canEditTerms && <BtnPrimary onClick={() => void saveTerm()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>}
 
