@@ -285,12 +285,15 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
               <h3 className="text-[18px] font-semibold text-[#18344f]">Características do produto</h3>
               <p className="mt-1 text-[12px] text-[#75849a]">Informações técnicas cadastradas</p>
             </div>
-            {specs.length ? <dl className="text-[13px]">
-              {specs.map((item,index)=><div key={item.label} className={`grid grid-cols-[minmax(105px,.85fr)_minmax(0,1.15fr)] gap-x-4 gap-y-1 border-b border-[#edf1f5] px-5 py-3.5 last:border-b-0 sm:px-6 ${index%2===0?"bg-[#f8fafc]":"bg-white"}`}>
-                <dt className="text-[#64748b]">{item.label}</dt>
-                <dd className="min-w-0 break-words font-medium text-[#203b58]">{item.value}</dd>
-              </div>)}
-            </dl> : <p className="px-6 py-5 text-[13px] text-[#718096]">Características técnicas ainda não cadastradas.</p>}
+            {specs.length ? <table className="w-full table-fixed border-collapse text-left text-[13px]">
+              <caption className="sr-only">Tabela de características do produto</caption>
+              <tbody>
+                {specs.map((item,index)=><tr key={item.label} className={index%2===0?"bg-[#f8fafc]":"bg-white"}>
+                  <th scope="row" className="w-[43%] border-b border-[#edf1f5] px-5 py-3.5 align-top font-normal text-[#64748b] sm:px-6">{item.label}</th>
+                  <td className="break-words border-b border-[#edf1f5] px-3 py-3.5 align-top font-medium text-[#203b58] sm:px-4">{item.value}</td>
+                </tr>)}
+              </tbody>
+            </table> : <p className="px-6 py-5 text-[13px] text-[#718096]">Características técnicas ainda não cadastradas.</p>}
           </aside>
         </div>
       </div>
