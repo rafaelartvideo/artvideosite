@@ -43,8 +43,3 @@ export const publicDateToIso = foundationDateToIso;
 export const isValidPastOrCurrentDate = isPastOrTodayBrazilianDate;
 export const isValidCpf = sharedIsValidCpf;
 
-export function generateQuoteProtocol(): string {
-  const now = new Date();
-  const date = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`;
-  return `ORC-${date}-${Math.floor(Math.random() * 9000) + 1000}`;
-}
