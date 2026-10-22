@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { PublicBreadcrumb } from "./PublicPageHeader";
-import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, MessageCircle, Phone, ShoppingCart, X, Youtube } from "lucide-react";
+import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, Phone, ShoppingCart, X, Youtube } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -37,6 +37,12 @@ function PublicLogo({ className = "" }: { className?: string }) {
   </span>;
 }
 
+function WhatsAppIcon({ size = 23, className = "" }: { size?: number; className?: string }) {
+  return <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.148-.669.15-.198.296-.768.965-.94 1.163-.173.198-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.476-.883-.788-1.48-1.761-1.653-2.058-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.173.198-.297.297-.495.099-.198.05-.372-.025-.52-.074-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.372-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.015-1.04 2.479s1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.693.625.711.226 1.359.194 1.87.118.571-.085 1.758-.719 2.005-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.004 2a9.94 9.94 0 0 0-9.968 9.963c0 1.756.462 3.472 1.343 4.984L2 22l5.168-1.356a9.951 9.951 0 0 0 4.832 1.232h.004c5.493 0 9.966-4.473 9.968-9.969A9.902 9.902 0 0 0 19.05 4.9 9.91 9.91 0 0 0 12.004 2zm0 18.195h-.003a8.27 8.27 0 0 1-4.215-1.154l-.302-.18-3.125.819.834-3.046-.197-.312a8.282 8.282 0 0 1-1.27-4.414c.002-4.572 3.724-8.295 8.3-8.295a8.247 8.247 0 0 1 5.868 2.431 8.241 8.241 0 0 1 2.43 5.875c-.003 4.574-3.725 8.296-8.32 8.296z"/>
+  </svg>;
+}
+
 export function WhatsAppAction({ className = "" }: { className?: string }) {
   const { settings } = useSiteSettings();
   const number = getWhatsAppNumber(settings);
@@ -44,7 +50,7 @@ export function WhatsAppAction({ className = "" }: { className?: string }) {
   return <a href={`https://wa.me/${number}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
     target="_blank" rel="noopener noreferrer"
     className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#25d366] px-5 py-2.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#1db954] hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600 ${className}`}>
-    <MessageCircle size={17} /> Falar pelo WhatsApp
+    <WhatsAppIcon size={19} /> Falar pelo WhatsApp
   </a>;
 }
 
@@ -54,8 +60,8 @@ function WhatsAppFloat() {
   if (!number) return null;
   return <a href={`https://wa.me/${number}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`}
     target="_blank" rel="noopener noreferrer" aria-label="Fale conosco pelo WhatsApp"
-    className="group fixed bottom-5 right-5 z-50 flex items-center gap-2 overflow-hidden rounded-full bg-[#25d366] px-3.5 py-3.5 text-white shadow-lg shadow-green-700/20 transition-all duration-200 hover:-translate-y-1 hover:bg-[#1db954] hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600">
-    <MessageCircle size={23} className="shrink-0"/>
+    className="group fixed bottom-5 right-5 z-50 flex items-center gap-2 overflow-hidden rounded-full bg-[#25d366] px-4 py-4 text-white shadow-lg shadow-green-700/20 transition-all duration-200 hover:-translate-y-1 hover:bg-[#1db954] hover:shadow-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600">
+    <WhatsAppIcon size={30} className="shrink-0"/>
     <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-semibold transition-all duration-300 group-hover:max-w-[125px]">Fale conosco</span>
   </a>;
 }
@@ -78,7 +84,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
     { label: "Instagram da Eletrônica Artvideo", title: "Instagram", url: instagramUrl, Icon: Instagram },
     { label: "Localização da Eletrônica Artvideo no Google Maps", title: "Localização", url: locationUrl, Icon: MapPin },
   ];
-  const socialClass = "inline-flex h-[43px] w-[43px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.065] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/15 hover:text-[#ffda59] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
+  const socialClass = "inline-flex h-[43px] w-[43px] shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.065] text-white shadow-[inset_0_1px_0_rgba(255,255,255,.06)] transition-all duration-200 hover:-translate-y-0.5 hover:border-white/25 hover:bg-white/15 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-300";
   const underlineClass = (active: boolean) => [
     "pointer-events-none absolute -bottom-[7px] left-0 h-[3px] w-full origin-center rounded-full bg-white transition-transform duration-300 ease-out motion-reduce:transition-none",
     active ? "scale-x-100" : "scale-x-0 group-hover:scale-x-100",
@@ -86,7 +92,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const navigate = (destination: PublicPage) => {
     setPage(destination);
     setMenuOpen(false);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    window.scrollTo({ top: 0, behavior: "instant" });
   };
   return <header className="sticky top-0 z-40 border-b border-white/15 bg-gradient-to-r from-[#081a32] via-[#0c294c] to-[#164978] text-white shadow-md">
     <div className="mx-auto flex h-[76px] max-w-7xl items-center justify-between gap-3 px-4 sm:h-[84px] sm:px-6 xl:h-[96px] xl:gap-4 lg:px-8">
@@ -104,7 +110,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         })}
       </nav>
       <div className="hidden shrink-0 items-center gap-2 xl:flex">
-        <a href="/carrinho" aria-label={"Meu carrinho, " + cartCount + " produtos"}
+        <a href="/carrinho" data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
           className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
           <ShoppingCart size={21}/>
           {cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[var(--art-primary)] px-1 text-[10px] font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>}
@@ -168,7 +174,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
   const contactClass = "flex items-start gap-2.5 text-[13px] leading-5 text-white/75 transition-colors hover:text-white";
   return <footer className="bg-gradient-to-b from-[#0b203d] to-[#06162c] pt-10 text-white">
     <div className="mx-auto grid max-w-7xl gap-7 px-4 pb-9 sm:grid-cols-2 sm:px-6 lg:grid-cols-[1.1fr_1.25fr_.8fr_1fr] lg:gap-8 lg:px-8">
-      <div className="lg:border-r lg:border-white/10 lg:pr-7">
+      <div className="lg:pr-7">
         <button type="button" onClick={() => setPage("home")} aria-label="Voltar ao início"><PublicLogo/></button>
         <p className="mt-4 max-w-[215px] text-[13px] leading-relaxed text-white/75">Tecnologia, serviços e confiança para o seu dia a dia.</p>
         {socials.length > 0 && <div className="mt-4 flex gap-3">{socials.map(({ name, url, Icon }) =>
@@ -177,17 +183,17 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
             <Icon size={19} />
           </a>)}</div>}
       </div>
-      <div className="lg:border-r lg:border-white/10 lg:pr-6">
+      <div className="lg:pr-6">
         <h3 className="mb-4 text-sm font-bold text-white">Contato</h3>
         <div className="space-y-2">
           {phone && <a className={contactClass} href={`tel:${phone.replace(/[^\d+]/g,"")}`}><Phone size={17} className="mt-0.5 shrink-0"/> {formatPhone(phone)}</a>}
-          {number && <a className={contactClass} href={`https://wa.me/${number}`} target="_blank" rel="noopener noreferrer"><MessageCircle size={17} className="mt-0.5 shrink-0"/> {formatPhone(getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number))}</a>}
+          {number && <a className={contactClass} href={`https://wa.me/${number}`} target="_blank" rel="noopener noreferrer"><WhatsAppIcon size={17} className="mt-0.5 shrink-0"/> {formatPhone(getSettingText(settings.whatsapp) || getSettingText(settings.whatsapp_number))}</a>}
           {email && <a className={contactClass} href={`mailto:${email}`}><Mail size={17} className="mt-0.5 shrink-0"/> {email}</a>}
           {address && <div className="flex items-start gap-2.5 text-[13px] leading-5 text-white/75"><MapPin size={17} className="mt-0.5 shrink-0"/> <span>{address}</span></div>}
           {!phone && !number && !email && !address && <button type="button" onClick={() => setPage("contato")} className="text-sm text-white/75 underline-offset-2 hover:text-white hover:underline">Ver canais de contato</button>}
         </div>
       </div>
-      <div className="lg:border-r lg:border-white/10 lg:pr-6">
+      <div className="lg:pr-6">
         <h3 className="mb-4 text-sm font-bold text-white">Links</h3>
         <div className="flex flex-col items-start gap-2">
           {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => setPage(PUBLIC_NAV_MAP[label])}
@@ -203,7 +209,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
         </div> : <button type="button" onClick={() => setPage("contato")} className="text-left text-[13px] text-white/75 transition-colors hover:text-white">Consulte nossos horários de atendimento.</button>}
       </div>
     </div>
-    <div className="border-t border-white/10 py-4">
+    <div className="bg-[#07162b]/55 py-5">
       <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 text-[11px] text-white/50 sm:px-6 lg:px-8">
         <span>© {new Date().getFullYear()} Eletrônica Artvideo. Todos os direitos reservados.</span>
         <nav aria-label="Informações legais" className="flex flex-wrap items-center gap-x-4 gap-y-2">
@@ -238,7 +244,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     { label: routeLabel },
   ];
   const themeStyle = {
-    "--art-primary": themeColor(settings.primary_color, "#0866f5"),
+    "--art-primary": themeColor(settings.primary_color, "#1032dc"),
     "--art-dark": themeColor(settings.secondary_color, "#0b1d37"),
     fontFamily: "'Inter', ui-sans-serif, system-ui, sans-serif",
   } as CSSProperties;
