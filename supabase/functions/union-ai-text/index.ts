@@ -83,6 +83,44 @@ Deno.serve(async request=>{
         user_daily_limit:Number(module.settings?.daily_request_limit??40)};
     };
     if(action==="usage")return respond({success:true,usage:await baseUsage()});
+    if(action==="report"){
+      const start=new Date();start.setUTCDate(1);start.setUTCHours(0,0,0,0);
+      const {data:recent,error:recentError}=await db.from("union_ai_usage")
+        .select("created_at,status,field_key,action_key,input_tokens,output_tokens,cost_usd")
+        .eq("organization_id",organizationId).gte("created_at",start.toISOString())
+        .order("created_at",{ascending:false}).limit(20);
+      if(recentError)throw Error("Falha ao carregar relatório de IA");
+      let canConfigure=Boolean(member.is_owner);
+      if(!canConfigure){
+        const {data:access}=await db.from("role_permissions").select("permissions!inner(key)")
+          .eq("role_id",member.role_id).eq("permissions.key","settings.update").limit(1);
+        canConfigure=Boolean(access?.length);
+      }
+      return respond({success:true,usage:await baseUsage(),settings:module.settings||{},can_configure:canConfigure,recent:recent||[]});
+    }
+    if(action==="configure"){
+      let canConfigure=Boolean(member.is_owner);
+      if(!canConfigure){
+        const {data:access}=await db.from("role_permissions").select("permissions!inner(key)")
+          .eq("role_id",member.role_id).eq("permissions.key","settings.update").limit(1);
+        canConfigure=Boolean(access?.length);
+      }
+      if(!canConfigure)return respond({error:"Sem permissão para definir limites da Union IA"},403);
+      const monthly=Number(body?.monthly_budget_usd);
+      const daily=Number(body?.daily_request_limit);
+      const perMinute=Number(body?.per_minute_limit);
+      if(!Number.isFinite(monthly)||monthly<0.5||monthly>50||
+        !Number.isInteger(daily)||daily<1||daily>500||
+        !Number.isInteger(perMinute)||perMinute<1||perMinute>30)
+        return respond({error:"Limites inválidos: mensal US$ 0,50–50; diário 1–500; por minuto 1–30."},400);
+      const settings={...(module.settings||{}),model:"gpt-6-luna",
+        monthly_budget_usd:monthly,daily_request_limit:daily,per_minute_limit:perMinute};
+      const {error:saveError}=await db.from("organization_modules")
+        .update({settings,updated_at:new Date().toISOString()})
+        .eq("organization_id",organizationId).eq("module_key","ai").eq("is_enabled",true);
+      if(saveError)throw Error("Falha ao salvar limites da IA");
+      return respond({success:true,settings});
+    }
     if(action!=="generate"&&action!=="improve")return respond({error:"Ação não permitida"},400);
     const orderId=body?.order_id;
     const field=body?.field;
