@@ -47,7 +47,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const queryClient = useQueryClient();
   const itemsQuery = useQuery({ queryKey: queryKeys.generalServices.lists(), queryFn: listGeneralServices, enabled: canView && (canViewTable || canViewDetails || canCreate || canEdit), staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
   const items = itemsQuery.data ?? []; const loading = itemsQuery.isPending;
-  const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [noPrice, setNoPrice] = useState(false); const [active, setActive] = useState(true); const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({}); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5);
+  const [formOpen, setFormOpen] = useState(false); const [editItem, setEditItem] = useState<GeneralService | null>(null); const [name, setName] = useState(""); const [description, setDescription] = useState(""); const [price, setPrice] = useState(""); const [maxDiscountPercentage, setMaxDiscountPercentage] = useState(""); const [maxDiscountAmount, setMaxDiscountAmount] = useState(""); const [priceAtCompletion, setPriceAtCompletion] = useState(false); const [noPrice, setNoPrice] = useState(false); const [active, setActive] = useState(true); const [fieldErrors, setFieldErrors] = useState<{ name?: string; price?: string; maxDiscountPercentage?: string; maxDiscountAmount?: string }>({}); const [saving, setSaving] = useState(false); const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(5);
   const [equipmentOptions, setEquipmentOptions] = useState<GeneralServiceEquipmentOption[]>([]);
   const [selectedEquipmentIds, setSelectedEquipmentIds] = useState<string[]>([]);
   const [originalEquipmentIds, setOriginalEquipmentIds] = useState<string[]>([]);
@@ -120,8 +120,8 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
   const totalPages = Math.max(1, Math.ceil(sortedItems.length / pageSize)); const safePage = Math.min(page, totalPages); const pagedItems = sortedItems.slice((safePage - 1) * pageSize, safePage * pageSize);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
   const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.generalServices.all });
-  const openNew = () => { if (!canCreate) return; loadPublication(null); setEditItem(null); setFieldErrors({}); setName(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(null); };
-  const openEdit = (item: GeneralService) => { if (!(canViewDetails && canEdit)) return; loadPublication(item.id); setEditItem(item); setFieldErrors({}); setName(item.name || ""); setPrice(item.price == null || Number(item.price) === 0 ? "" : String(item.price)); setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage)); setMaxDiscountAmount(item.max_discount_amount == null ? "" : String(item.max_discount_amount)); setPriceAtCompletion(Boolean(item.price_at_completion)); setNoPrice(!item.price_at_completion && (item.price == null || Number(item.price) === 0)); setActive(item.is_active !== false); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(item.id); };
+  const openNew = () => { if (!canCreate) return; loadPublication(null); setEditItem(null); setFieldErrors({}); setName(""); setDescription(""); setPrice(""); setMaxDiscountPercentage(""); setMaxDiscountAmount(""); setPriceAtCompletion(false); setNoPrice(false); setActive(true); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(null); };
+  const openEdit = (item: GeneralService) => { if (!(canViewDetails && canEdit)) return; loadPublication(item.id); setEditItem(item); setFieldErrors({}); setName(item.name || ""); setDescription(item.description || ""); setPrice(item.price == null || Number(item.price) === 0 ? "" : String(item.price)); setMaxDiscountPercentage(item.max_discount_percentage == null ? "" : String(item.max_discount_percentage)); setMaxDiscountAmount(item.max_discount_amount == null ? "" : String(item.max_discount_amount)); setPriceAtCompletion(Boolean(item.price_at_completion)); setNoPrice(!item.price_at_completion && (item.price == null || Number(item.price) === 0)); setActive(item.is_active !== false); setPendingCreatedId(null); setFormOpen(true); loadEquipmentLinks(item.id); };
   const closeForm = () => { if (saving) return; publicationRequestId.current += 1; equipmentRequestId.current += 1; setFormOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: GeneralService) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
@@ -154,6 +154,7 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
     try {
       const payload = {
         name: name.trim(),
+        description: description.trim() || null,
         price: parsedPrice,
         price_at_completion: priceAtCompletion,
         max_discount_percentage: parsedDiscount,
@@ -218,6 +219,11 @@ function GeneralServicesPanelContent({ onBack, routeResourceId, routeSubpage, on
             <div className="sm:col-span-2">
               <FInput label="Nome do serviço" required disabled={saving} error={fieldErrors.name} value={name}
                 onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setName(e.target.value); }} />
+            </div>
+            <div className="sm:col-span-2">
+              <FTextarea label="Descrição do serviço" rows={3} disabled={saving} value={description}
+                onChange={(e: any) => setDescription(e.target.value)}
+                placeholder="Descreva o que está incluído na execução deste serviço." />
             </div>
             <div className="flex flex-wrap items-start gap-5 sm:col-span-2">
               <FToggle label="Sem preço" disabled={saving} checked={noPrice} onChange={value => { setNoPrice(value); if (value) { setPriceAtCompletion(false); setPrice(""); setFieldErrors(current => ({ ...current, price: undefined })); } }} />
