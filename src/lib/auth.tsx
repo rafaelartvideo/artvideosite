@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
+import { recordAuthActivity } from "@/features/auth/infrastructure/session-audit.repository";
 import type { Profile } from "./database.types";
 import type { OrganizationAccess, OrganizationStatus, OrganizationType } from "./organization.types";
 import type { PendingOrganizationTerm } from "@/features/terms/infrastructure/terms.repository";
@@ -516,6 +517,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     cancelScheduledAccessLoad();
 
     try {
+      // Gravar antes de revogar o JWT; o registro é uma operação autenticada.
+      await recordAuthActivity("logout");
       await supabase.auth.signOut({ scope: "local" });
     } finally {
       if (userId) {
