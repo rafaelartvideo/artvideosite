@@ -3,6 +3,7 @@ import { Section, BtnSecondary } from '@/shared/ui/admin/AdminLayout';
 import { FInput, FIntegerInput, FSelect, FTextarea, FToggle } from '@/shared/ui/admin/AdminFormControls';
 import { bookingConfig, effectiveWeeklySlots } from '@/features/public-services/domain/service-booking.mjs';
 import { formatZipCode } from '@/lib/address';
+import { RichTextEditor } from '@/shared/ui/admin/RichTextEditor';
 
 export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:(value:any)=>void}) {
  const c=bookingConfig(value);
@@ -63,7 +64,7 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
     <FTextarea label="Datas bloqueadas (uma por linha, AAAA-MM-DD)" value={c.blocked_dates.join('\n')} onChange={(e:any)=>set('blocked_dates',e.target.value.split('\n').map((v:string)=>v.trim()))} rows={3}/>
    </>}
   </div></Section>
-  <Section title="Apresentação da página"><div className="space-y-4"><FSelect label="Serviços relacionados" value={c.related_position} onChange={(e:any)=>set('related_position',e.target.value)} options={[{value:'after_coverage',label:'Após a seção Por que contratar?'},{value:'bottom',label:'No final da página'},{value:'hidden',label:'Não exibir'}]}/><p className="text-xs font-bold">Por que contratar?</p>{c.benefits.map((b:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4"><FInput label="Título" value={b.title} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/><FTextarea label="Descrição" value={b.content} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,content:e.target.value}:v))} rows={2}/><FInput label="URL HTTPS da imagem (opcional, use imagens próprias ou autorizadas)" value={b.image_url||''} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,image_url:e.target.value}:v))} placeholder="https://..."/><button type="button" className="text-xs font-bold text-red-600" onClick={()=>set('benefits',c.benefits.filter((_:any,j:number)=>j!==i))}>Remover benefício</button></div>)}<BtnSecondary onClick={()=>set('benefits',[...c.benefits,{title:'',content:''}])}><Plus size={15}/> Adicionar benefício</BtnSecondary></div></Section>
+  <Section title="Apresentação da página"><div className="space-y-4"><FSelect label="Serviços relacionados" value={c.related_position} onChange={(e:any)=>set('related_position',e.target.value)} options={[{value:'after_coverage',label:'Após a seção Por que contratar?'},{value:'bottom',label:'No final da página'},{value:'hidden',label:'Não exibir'}]}/><p className="text-xs font-bold">Por que contratar?</p>{c.benefits.map((b:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4"><FInput label="Título" value={b.title} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/><RichTextEditor label="Descrição" value={b.content} onChange={(text)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,content:text}:v))} minHeight={90}/><FInput label="URL HTTPS da imagem (opcional, use imagens próprias ou autorizadas)" value={b.image_url||''} onChange={(e:any)=>set('benefits',c.benefits.map((v:any,j:number)=>i===j?{...v,image_url:e.target.value}:v))} placeholder="https://..."/><button type="button" className="text-xs font-bold text-red-600" onClick={()=>set('benefits',c.benefits.filter((_:any,j:number)=>j!==i))}>Remover benefício</button></div>)}<BtnSecondary onClick={()=>set('benefits',[...c.benefits,{title:'',content:''}])}><Plus size={15}/> Adicionar benefício</BtnSecondary></div></Section>
   <Section title="Depoimentos de clientes"><div className="space-y-4">
    <p className="text-xs leading-5 text-muted-foreground">Inclua somente avaliações reais que a Artvideo tenha autorização para divulgar. Elas aparecerão no carrossel da página deste serviço. Sem avaliações cadastradas, a seção não aparece.</p>
    {testimonials.map((review:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4">
@@ -84,12 +85,12 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
      </div>
     </div>
     <FInput label="Título do card" value={o.title} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/>
-    <FTextarea label="Conteúdo do modal Saiba mais" value={o.content} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,content:e.target.value}:v))} rows={4}/>
+    <RichTextEditor label="Conteúdo do modal Saiba mais" value={o.content} onChange={(text)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,content:text}:v))} minHeight={125}/>
     <FSelect label="Ícone do card" value={o.icon || ''} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,icon:e.target.value}:v))} options={[{value:'',label:'Automático (conforme a ordem)'},{value:'wrench',label:'Ferramenta'},{value:'map-pin',label:'Localização'},{value:'info',label:'Informações'},{value:'file-text',label:'Documento'}]}/>
    </div>)}
    <BtnSecondary onClick={()=>set('orientations',[...c.orientations,{title:'',content:''}])}><Plus size={15}/> Adicionar orientação</BtnSecondary>
    <FInput label="Tempo estimado de execução" value={c.duration} onChange={(e:any)=>set('duration',e.target.value)} placeholder="Ex.: aproximadamente 2 horas"/>
-   <FTextarea label="Condições do serviço" value={c.terms} onChange={(e:any)=>set('terms',e.target.value)} rows={6}/>
+   <RichTextEditor label="Condições do serviço" value={c.terms} onChange={(text)=>set('terms',text)} minHeight={160}/>
   </div></Section>
  </div>;
 }
