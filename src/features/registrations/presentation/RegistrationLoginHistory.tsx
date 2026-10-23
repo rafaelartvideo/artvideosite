@@ -63,20 +63,20 @@ export function RegistrationLoginHistory({
   return <div className="sm:col-span-2 space-y-3 border-t border-[#0d1b2e]/10 pt-4">
     <div className="grid gap-4 sm:grid-cols-2">
       <div>
-        <div className="text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Último login</div>
-        <div className="mt-1 text-sm font-bold text-[#0d1b2e]">{summary.last_login_at ? formatDateTime(summary.last_login_at, "—") : "Nunca registrado"}</div>
+        <div className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Último login</div>
+        <div className={`mt-1 text-sm font-bold ${summary.last_login_at ? "text-emerald-700" : "text-[#5a6a82]"}`}>{summary.last_login_at ? formatDateTime(summary.last_login_at, "—") : "Nunca registrado"}</div>
       </div>
       <div>
-        <div className="text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Último logout</div>
-        <div className="mt-1 text-sm font-bold text-[#0d1b2e]">{summary.last_logout_at ? formatDateTime(summary.last_logout_at, "—") : "Não registrado"}</div>
+        <div className="text-[10px] font-black uppercase tracking-wider text-red-600">Último logout</div>
+        <div className={`mt-1 text-sm font-bold ${summary.last_logout_at ? "text-red-600" : "text-[#5a6a82]"}`}>{summary.last_logout_at ? formatDateTime(summary.last_logout_at, "—") : "Não registrado"}</div>
       </div>
     </div>
     {summary.sessions.length > 0 && <div>
       <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Acessos recentes</div>
       <div role="region" aria-label="Histórico de acessos recentes" tabIndex={0} className="max-h-[240px] overflow-y-auto overscroll-contain divide-y divide-[#0d1b2e]/10 rounded-lg border border-[#0d1b2e]/10 sm:max-h-[176px]">
         {summary.sessions.map((session, index) => <div key={session.logged_in_at + index} className="grid min-h-[60px] gap-1 px-3 py-2 text-xs sm:min-h-[44px] sm:grid-cols-2 sm:items-center sm:gap-2">
-          <span><span className="font-semibold text-[#5a6a82]">Entrada:</span> <span className="font-bold text-[#0d1b2e]">{formatDateTime(session.logged_in_at, "—")}</span></span>
-          <span><span className="font-semibold text-[#5a6a82]">Saída:</span> <span className="font-bold text-[#0d1b2e]">{session.logged_out_at ? formatDateTime(session.logged_out_at, "—") : "Não registrada"}</span></span>
+          <span><span className="font-semibold text-emerald-700">Login:</span> <span className="font-bold text-emerald-700">{formatDateTime(session.logged_in_at, "—")}</span></span>
+          <span><span className="font-semibold text-red-600">Logout:</span> <span className={`font-bold ${session.logged_out_at ? "text-red-600" : "text-[#5a6a82]"}`}>{session.logged_out_at ? formatDateTime(session.logged_out_at, "—") : "Não registrado"}</span></span>
         </div>)}
       </div>
       <p className="mt-2 text-[11px] text-[#5a6a82]">Saídas são registradas ao encerrar a sessão pelo sistema; fechar o navegador pode não informar o horário da saída.</p>
