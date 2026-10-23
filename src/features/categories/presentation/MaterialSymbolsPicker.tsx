@@ -1,15 +1,13 @@
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useDeferredValue, useMemo, useState } from "react";
+import { MATERIAL_SYMBOL_NAMES } from "./material-symbol-names";
 import { Search } from "lucide-react";
 import {
   MaterialSymbol, materialIconValue, parseMaterialIcon,
   type MaterialSymbolStyle,
 } from "@/features/public-shell/presentation/MaterialSymbol";
 
-// Official Material Symbols codepoints index maintained by Google (no API key).
-// Retrieved only when the icon chooser is opened, not on every public-site visit.
-const GOOGLE_INDEX = "https://raw.githubusercontent.com/google/material-design-icons/master/variablefont/MaterialSymbolsOutlined%5BFILL%2CGRAD%2Copsz%2Cwght%5D.codepoints";
-
+// The official Google codepoints catalog is bundled locally; category searches
+// never call GitHub, Supabase or an Edge Function.
 const FEATURED = [
   "ac_unit", "air_purifier", "tv", "connected_tv", "desktop_windows", "laptop_mac",
   "smartphone", "headphones", "speaker", "videogame_asset", "kitchen",
@@ -59,17 +57,6 @@ const normalize = (name: string) => name
   .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
   .trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
 
-async function fetchGoogleIcons(): Promise<string[]> {
-  const response = await fetch(GOOGLE_INDEX, { cache: "force-cache" });
-  if (!response.ok) throw new Error("Catálogo de ícones indisponível");
-  const text = await response.text();
-  const names = [...new Set(text.split(/\r?\n/)
-    .map(line => line.trim().split(/\s+/)[0])
-    .filter(name => /^[a-z0-9_]+$/.test(name)))];
-  if (names.length < 500) throw new Error("Catálogo retornado pelo Google está incompleto");
-  return names;
-}
-
 export function MaterialSymbolsPicker({
   value, onChange, disabled,
 }: {
@@ -81,17 +68,10 @@ export function MaterialSymbolsPicker({
   const style = selected?.style || "outlined";
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(72);
-  const query = useQuery({
-    queryKey: ["site", "google-material-symbols-index"],
-    queryFn: fetchGoogleIcons,
-    staleTime: 24 * 60 * 60 * 1000,
-    gcTime: 48 * 60 * 60 * 1000,
-    retry: 1,
-    refetchOnWindowFocus: false,
-  });
+  const deferredSearch = useDeferredValue(search);
   const icons = useMemo(() => {
-    const all = query.data || FEATURED;
-    const term = normalize(search);
+    const all = MATERIAL_SYMBOL_NAMES;
+    const term = normalize(deferredSearch);
     if (!term) {
       const featured = FEATURED.filter(name => all.includes(name));
       return [...new Set([...featured, ...all])];
@@ -101,7 +81,7 @@ export function MaterialSymbolsPicker({
       .flatMap(([, matches]) => matches.split(" "));
     return [...new Set([...aliasMatches.filter(name => all.includes(name)),
       ...all.filter(name => name.includes(term))])];
-  }, [query.data, search]);
+  }, [deferredSearch]);
   const chooseStyle = (next: MaterialSymbolStyle) =>
     onChange(materialIconValue(selected?.name || "home_repair_service", next));
 
@@ -133,10 +113,8 @@ export function MaterialSymbolsPicker({
         className="h-10 w-full rounded-lg border border-[#dce4ee] bg-white pl-9 pr-3 text-sm outline-none focus:border-[var(--art-primary)]"/>
     </label>
     <p className="text-[11px] text-[#64748b]">
-      {query.isPending ? "Consultando a biblioteca do Google..."
-        : query.isError ? "Não foi possível consultar o catálogo completo. Exibindo sugestões disponíveis."
-        : `${query.data?.length ?? 0} ícones na biblioteca oficial do Google · pesquisa em português e inglês`}
-    </p>
+      {MATERIAL_SYMBOL_NAMES.length} ícones do Google disponíveis localmente · pesquisa sem consultas externas
+    </p></p>
     <div className="grid max-h-[280px] grid-cols-4 gap-2 overflow-y-auto rounded-lg border border-[#e2e8f0] p-2 sm:grid-cols-6">
       {icons.slice(0, limit).map(name => {
         const encoded = materialIconValue(name, style);
