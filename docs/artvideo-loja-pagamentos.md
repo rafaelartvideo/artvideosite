@@ -45,3 +45,13 @@ https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payme
 - O webhook assinado valida vendedor e valor e grava o resultado apenas em `artvideo_payment_test_runs`.
 - Não altera pedidos, estoque, finanças ou relatórios da loja.
 - Sandbox não pode ser ativado no checkout público. Use o laboratório; só produção homologada poderá liberar vendas.
+
+## Conciliação de pagamentos de teste
+A documentação do Mercado Pago informa que pagamentos criados com credenciais de teste
+não enviam notificações automáticas Webhook. O botão Consultar resultado consulta,
+com o Access Token de teste no servidor, `GET /v1/payments/search?external_reference=<test-id>`.
+Antes de atualizar o status, valida o ID do pagamento, a referência exata, o vendedor,
+a moeda BRL, o valor de R$ 1,00, `live_mode=false` e a data do teste.
+A transação é registrada via `artvideo_payment_lab_settle_v1`, sem qualquer movimentação
+de estoque/caixa. Webhooks de produção continuam exigindo assinatura HMAC.
+Referência: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications

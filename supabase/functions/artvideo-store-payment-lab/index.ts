@@ -50,11 +50,80 @@ Deno.serve(async (req:Request) => {
     if(action==="status"){
       if(!safeId(input.test_id)) return reply({error:"Identificador do teste inválido."},400);
       const {data,error}=await admin.from("artvideo_payment_test_runs")
-        .select("id,status,created_at,updated_at")
+        .select("id,status,amount,payment_id,created_at,updated_at")
         .eq("id",input.test_id).eq("created_by",userData.user.id).maybeSingle();
       if(error) return reply({error:"Não foi possível consultar o teste."},503);
       if(!data) return reply({error:"Teste não encontrado."},404);
-      return reply({test:{id:data.id,status:data.status,createdAt:data.created_at,updatedAt:data.updated_at}});
+      let status=String(data.status),paymentId=String(data.payment_id||"");
+      let message="O teste ainda não tem pagamento confirmado.";
+      let checked=false;
+      // Os pagamentos com credenciais sandbox não enviam webhook automático.
+      // Consulta autenticada e sob demanda pela referência única do teste.
+      if(status!=="approved"){
+        const testToken=Deno.env.get("MERCADO_PAGO_TEST_ACCESS_TOKEN")||"";
+        const seller=Deno.env.get("MERCADO_PAGO_TEST_COLLECTOR_ID")||"";
+        if(!testToken||!seller)
+          return reply({error:"Credenciais de teste ausentes; não é possível conferir o pagamento."},503);
+        const url=new URL("https://api.mercadopago.com/v1/payments/search");
+        url.searchParams.set("external_reference",data.id);
+        url.searchParams.set("sort","date_created");
+        url.searchParams.set("criteria","desc");
+        url.searchParams.set("limit","20");
+        let results:unknown[];
+        try{
+          const response=await fetch(url,{
+            headers:{Authorization:"Bearer "+testToken,Accept:"application/json"},
+            signal:AbortSignal.timeout(12000),
+          });
+          if(!response.ok){
+            console.error("Artvideo lab payment search HTTP",response.status);
+            return reply({error:"O Mercado Pago não conseguiu consultar o pagamento (HTTP "+response.status+")."},502);
+          }
+          const search=await response.json();
+          results=Array.isArray(search.results)?search.results:[];
+          checked=true;
+        }catch{
+          return reply({error:"Não foi possível consultar o pagamento no Mercado Pago agora."},503);
+        }
+        const valid=(results as Array<Record<string,unknown>>).filter(p=>{
+          const id=String(p.id||"");
+          const amount=Number(p.transaction_amount);
+          const date=Date.parse(String(p.date_created||""));
+          return /^\d{5,25}$/.test(id)
+            && String(p.external_reference||"")===data.id
+            && String(p.collector_id||"")===seller
+            && String(p.currency_id||"")==="BRL"
+            && p.live_mode===false
+            && Number.isFinite(amount) && Math.abs(amount-Number(data.amount))<0.009
+            && Number.isFinite(date) && date>=Date.parse(data.created_at)-120000;
+        });
+        const allowed=["approved","pending","in_process","rejected","cancelled","refunded","charged_back"];
+        const candidate=valid.find(p=>String(p.status)==="approved")
+          || valid.find(p=>allowed.includes(String(p.status)))
+          || null;
+        if(candidate) {
+          const next=String(candidate.status);
+          const nextId=String(candidate.id);
+          const {data:recorded,error:settleError}=await admin.rpc("artvideo_payment_lab_settle_v1",{
+            p_test_id:data.id,p_payment_id:nextId,p_payment_status:next,
+            p_amount:Number(candidate.transaction_amount),
+          });
+          if(settleError)return reply({error:"Pagamento encontrado, mas não foi possível registrar a confirmação."},503);
+          status=String(recorded||next);
+          paymentId=nextId;
+          message=status==="approved"?"Pagamento de teste aprovado e confirmado pela API.":"Pagamento encontrado na API do Mercado Pago.";
+        }else if(results.length){
+          message="O Mercado Pago retornou transações, mas nenhuma corresponde ao vendedor, valor e ambiente deste teste.";
+        }else{
+          message="Nenhum pagamento encontrado para este teste. Abra o checkout e conclua a compra com a conta compradora.";
+        }
+      }else{
+        message="Pagamento de teste previamente confirmado pela API ou por webhook autenticado.";
+      }
+      return reply({test:{id:data.id,status,paymentId:paymentId||null,
+        amount:Number(data.amount),createdAt:data.created_at,
+        updatedAt:new Date().toISOString()},
+        checked,source:checked?"mercado_pago_api":"database",message});
     }
     if(!["diagnose","create"].includes(action)) return reply({error:"Ação não permitida."},400);
     const tokenSecret=Deno.env.get("MERCADO_PAGO_TEST_ACCESS_TOKEN")||"";

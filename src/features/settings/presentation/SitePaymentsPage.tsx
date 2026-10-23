@@ -28,7 +28,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [labCredentials,setLabCredentials]=useState<{token:boolean;seller:boolean;webhook:boolean}|null>(null);
   const [labVerified,setLabVerified]=useState(false);
   const [labMessage,setLabMessage]=useState("");
-  const [labTest,setLabTest]=useState<{id:string;status:string}|null>(null);
+  const [labTest,setLabTest]=useState<{id:string;status:string;paymentId?:string|null;amount?:number;updatedAt?:string}|null>(null);
   const [labUrl,setLabUrl]=useState("");
   const invokeLab=async(action:"diagnose"|"create"|"status",testId?:string)=>{
     const {data,error}=await supabase.functions.invoke("artvideo-store-payment-lab",{
@@ -56,9 +56,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       if(result.test)setLabTest(result.test);
       if(result.checkoutUrl)setLabUrl(String(result.checkoutUrl));
       if(action==="status"&&result.test){
-        const labels:Record<string,string>={approved:"Aprovado no sandbox",pending:"Pendente",rejected:"Recusado",
-          awaiting_payment:"Aguardando o comprador",cancelled:"Cancelado",error:"Erro no teste",in_process:"Processando"};
-        setLabMessage(labels[result.test.status]||"Status: "+String(result.test.status));
+        setLabMessage(String(result.message||"Resultado atualizado."));
       }
     }catch(error){
       notifyAdmin(systemErrorMessage(error,"Falha ao testar o Mercado Pago."),"error");
@@ -203,11 +201,28 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
           className="inline-flex items-center gap-2 font-bold text-primary hover:underline">
           Abrir pagamento de teste no Mercado Pago <ExternalLink size={15}/>
         </a>}
-        {labTest&&<div className="flex flex-wrap items-center gap-3">
-          <p>Teste {labTest.id.slice(0,8)} · <strong>{labTest.status}</strong></p>
+        {labTest&&<div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="font-bold">Resultado do teste · {labTest.id.slice(0,8)}</p>
+            <span className={"rounded-full px-2.5 py-1 text-[11px] font-bold "+
+              (labTest.status==="approved"?"bg-emerald-500/10 text-emerald-600 dark:text-emerald-300":
+               labTest.status==="rejected"||labTest.status==="cancelled"?"bg-red-500/10 text-red-600 dark:text-red-300":"bg-amber-500/10 text-amber-700 dark:text-amber-300")}>
+              {({approved:"Aprovado",pending:"Pendente",rejected:"Recusado",cancelled:"Cancelado",
+                awaiting_payment:"Aguardando pagamento",in_process:"Em processamento",
+                refunded:"Reembolsado",charged_back:"Contestado",error:"Falha no teste",
+                creating:"Preparando"} as Record<string,string>)[labTest.status]||labTest.status}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 text-muted-foreground">
+            <p>Valor: <strong className="text-foreground">R$ 1,00</strong></p>
+            <p>Ambiente: <strong className="text-foreground">Sandbox</strong></p>
+            {labTest.paymentId&&<p className="break-all">Transação: <strong className="text-foreground">{labTest.paymentId}</strong></p>}
+            {labTest.updatedAt&&<p>Última consulta: {new Date(labTest.updatedAt).toLocaleString("pt-BR")}</p>}
+          </div>
           <BtnSecondary onClick={()=>void labAction("status")} disabled={labLoading}>
-            <RefreshCw size={14}/> Consultar resultado
+            <RefreshCw size={14}/> Consultar resultado no Mercado Pago
           </BtnSecondary>
+          <p className="text-muted-foreground">A consulta verifica o pagamento diretamente na API. Transações de teste podem não gerar webhook automático.</p>
         </div>}
         <p className="text-muted-foreground">O checkout público permanece desligado durante a homologação. A compra fictícia não entra nos pedidos e não altera movimentações do estoque.</p>
       </div>
