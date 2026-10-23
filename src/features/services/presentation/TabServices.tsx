@@ -77,7 +77,18 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const openNewPage = () => { openNew(); onRouteChange?.("new", null); };
   const openEditPage = (item: any) => { if (!(canViewDetails && canUpdate)) return; openEdit(item); onRouteChange?.(item.id, "edit"); };
 
-  useEffect(() => { if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; } if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; } if (!(canViewDetails && canUpdate) || routeSubpage !== "edit" || editItem?.id === routeResourceId) return; const item = services.find((entry: any) => entry.id === routeResourceId); if (item) openEdit(item); }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canUpdate]);
+  // A rota determina a abertura do editor, sem depender de efeitos assíncronos.
+  // Antes, um efeito podia fechar o formulário ao navegar e outro deixava de
+  // reabri-lo porque o ID já estava selecionado (erro "Serviço não encontrado").
+  const editingRoute = Boolean(routeResourceId && routeResourceId !== "new" && routeSubpage === "edit");
+  const creatingRoute = routeResourceId === "new";
+  const routeItem = editingRoute ? services.find((entry: any) => entry.id === routeResourceId) : null;
+  const editorItem = creatingRoute ? null : editingRoute
+    ? (editItem?.id === routeResourceId ? editItem : routeItem)
+    : editItem;
+  const editorOpen = creatingRoute ? canCreate
+    : editingRoute ? canViewDetails && canUpdate && Boolean(editorItem)
+    : drawerOpen;
   const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
   const toggleActive = async (service: any) => {
     if (!canToggleActive) return;
@@ -116,14 +127,16 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
         {canCreate && <div className="flex flex-wrap items-center gap-2"><BtnSecondary onClick={() => setImportOpen(true)}>Importar de site</BtnSecondary><BtnPrimary onClick={openNewPage}>Novo</BtnPrimary></div>}
       </AdminStickyToolbar>
     </>}
-    {routeResourceId && !drawerOpen && (
+    {routeResourceId && !editorOpen && (
       <AdminCard className="p-8">{catalogQuery.isPending
         ? <LoadingState />
-        : <p className="text-sm text-muted-foreground">{catalogQuery.error ? "Não foi possível carregar os serviços." : "Serviço não encontrado."}</p>}
+        : <p role="status" className="text-sm text-muted-foreground">{catalogQuery.error
+          ? "Não foi possível carregar os serviços."
+          : !creatingRoute && !editingRoute ? "Endereço de edição inválido." : "Serviço não encontrado."}</p>}
       </AdminCard>
     )}
     {importOpen && <SiteImportWizard onClose={() => setImportOpen(false)} onImported={() => void refresh()} services={services} products={products} categories={categories} />}
-    <ServiceDrawer open={drawerOpen} onClose={closeEditor} onSaved={handleSaved} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
+    <ServiceDrawer open={editorOpen} onClose={closeEditor} onSaved={handleSaved} editItem={editorItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
   </div>;
 }
 
