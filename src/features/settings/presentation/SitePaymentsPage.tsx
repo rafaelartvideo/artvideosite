@@ -30,7 +30,9 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [labMessage,setLabMessage]=useState("");
   const [labTest,setLabTest]=useState<{id:string;status:string;paymentId?:string|null;amount?:number;updatedAt?:string}|null>(null);
   const [labUrl,setLabUrl]=useState("");
-  const invokeLab=async(action:"diagnose"|"create"|"status",testId?:string)=>{
+  const [labHistory,setLabHistory]=useState<Array<{id:string;status:string;paymentId?:string|null;amount?:number;createdAt?:string;updatedAt?:string}>>([]);
+  const [labHistoryLoading,setLabHistoryLoading]=useState(false);
+  const invokeLab=async(action:"diagnose"|"create"|"status"|"latest",testId?:string)=>{
     const {data,error}=await supabase.functions.invoke("artvideo-store-payment-lab",{
       body:{action,...(testId?{test_id:testId}:{})},
     });
@@ -53,7 +55,14 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       if(result.credentials)setLabCredentials(result.credentials);
       if(typeof result.verified==="boolean")setLabVerified(result.verified);
       if(result.message)setLabMessage(String(result.message));
-      if(result.test)setLabTest(result.test);
+      if(result.test){
+        setLabTest(result.test);
+        setLabHistory(previous=>{
+          const rest=previous.filter(t=>t.id!==result.test.id);
+          return [result.test,...rest].sort((a,b)=>
+            new Date(b.createdAt||0).getTime()-new Date(a.createdAt||0).getTime()).slice(0,10);
+        });
+      }
       if(result.checkoutUrl)setLabUrl(String(result.checkoutUrl));
       if(action==="status"&&result.test){
         setLabMessage(String(result.message||"Resultado atualizado."));
@@ -62,6 +71,26 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       notifyAdmin(systemErrorMessage(error,"Falha ao testar o Mercado Pago."),"error");
     }finally{setLabLoading(false);}
   };
+  useEffect(()=>{
+    let live=true;
+    if(!orgId||!canUpdate){
+      setLabTest(null);setLabHistory([]);setLabMessage("");setLabUrl("");
+      return;
+    }
+    setLabTest(null);setLabHistory([]);setLabMessage("");setLabUrl("");
+    setLabHistoryLoading(true);
+    void invokeLab("latest").then(result=>{
+      if(!live)return;
+      const recovered=Array.isArray(result.tests)?result.tests:[];
+      setLabHistory(recovered);
+      setLabTest(result.test||null);
+      if(result.test)setLabMessage("Teste anterior recuperado. Consulte o resultado sem gerar outro pagamento.");
+    }).catch(error=>{
+      if(live)notifyAdmin(systemErrorMessage(error,"Não foi possível recuperar os testes anteriores."),"error");
+    }).finally(()=>{if(live)setLabHistoryLoading(false);});
+    return()=>{live=false;};
+  },[orgId,canUpdate]);
+
   useEffect(()=>{
     let live=true;
     if(!orgId){setLoading(false);return;}
@@ -201,6 +230,21 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
           className="inline-flex items-center gap-2 font-bold text-primary hover:underline">
           Abrir pagamento de teste no Mercado Pago <ExternalLink size={15}/>
         </a>}
+        {labHistoryLoading&&<p className="text-muted-foreground" role="status">Recuperando testes anteriores...</p>}
+        {!labHistoryLoading&&labHistory.length>0&&<div className="space-y-2">
+          <p className="font-bold">Histórico de testes (últimos {labHistory.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {labHistory.map(test=><button type="button" key={test.id}
+              onClick={()=>{setLabTest(test);setLabUrl("");setLabMessage("Teste selecionado. Clique em Consultar resultado para verificar no Mercado Pago.");}}
+              aria-pressed={labTest?.id===test.id}
+              className={"rounded-lg border px-3 py-2 text-left transition-colors hover:border-primary/50 "+
+                (labTest?.id===test.id?"border-primary bg-primary/5 text-foreground":"border-border bg-background text-muted-foreground")}>
+              <span className="font-bold">{test.id.slice(0,8)}</span>
+              <span className="ml-2">{test.status==="approved"?"Aprovado":test.status==="awaiting_payment"?"Aguardando":test.status}</span>
+              {test.createdAt&&<span className="ml-2 text-[11px] opacity-70">{new Date(test.createdAt).toLocaleString("pt-BR")}</span>}
+            </button>)}
+          </div>
+        </div>}
         {labTest&&<div className="rounded-lg border border-border bg-muted/20 p-4 space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="font-bold">Resultado do teste · {labTest.id.slice(0,8)}</p>

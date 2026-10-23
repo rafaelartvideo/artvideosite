@@ -47,6 +47,20 @@ Deno.serve(async (req:Request) => {
     let input:Record<string,unknown>;
     try{input=await req.json();}catch{return reply({error:"Solicitação inválida."},400);}
     const action=String(input?.action||"");
+    // Retoma testes do usuário mesmo após atualizar ou fechar a página.
+    // Apenas IDs, status e metadados; nunca revela tokens ou dados de outros usuários.
+    if(action==="latest"){
+      const {data,error}=await admin.from("artvideo_payment_test_runs")
+        .select("id,status,amount,payment_id,created_at,updated_at")
+        .eq("created_by",userData.user.id)
+        .order("created_at",{ascending:false}).limit(10);
+      if(error) return reply({error:"Não foi possível recuperar os testes anteriores."},503);
+      const tests=(data||[]).map(t=>({
+        id:t.id,status:t.status,amount:Number(t.amount),
+        paymentId:t.payment_id||null,createdAt:t.created_at,updatedAt:t.updated_at,
+      }));
+      return reply({tests,test:tests[0]||null});
+    }
     if(action==="status"){
       if(!safeId(input.test_id)) return reply({error:"Identificador do teste inválido."},400);
       const {data,error}=await admin.from("artvideo_payment_test_runs")
