@@ -55,3 +55,10 @@ a moeda BRL, o valor de R$ 1,00, `live_mode=false` e a data do teste.
 A transação é registrada via `artvideo_payment_lab_settle_v1`, sem qualquer movimentação
 de estoque/caixa. Webhooks de produção continuam exigindo assinatura HMAC.
 Referência: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications
+
+## Preparação segura de produção (23/10/2026)
+- Edge Function `artvideo-store-payment-lab` também atende `production_diagnose` apenas a usuários autenticados com permissão `site_settings.update`.
+- Somente leitura: compara `GET /users/me` da API com o `MERCADO_PAGO_COLLECTOR_ID`, verifica presença do Access Token e do segredo de produção; recusa token igual ao de testes. Nenhuma cobrança é criada.
+- Os segredos reais `MERCADO_PAGO_ACCESS_TOKEN`, `MERCADO_PAGO_COLLECTOR_ID` e `MERCADO_PAGO_WEBHOOK_SECRET` ficam exclusivamente nas variáveis privadas do Supabase.
+- `configurationValid=true` NÃO homologa webhook nem pagamento real. As verificações `webhookValidated` e `livePaymentValidated` permanecem falsas nesta fase.
+- `integration_ready=false` e `enabled=false` permanecem inalterados; só ativar vendas após confirmação real da conciliação e do retorno do site.

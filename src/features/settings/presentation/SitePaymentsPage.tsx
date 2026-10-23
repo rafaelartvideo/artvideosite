@@ -32,7 +32,14 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [labUrl,setLabUrl]=useState("");
   const [labHistory,setLabHistory]=useState<Array<{id:string;status:string;paymentId?:string|null;amount?:number;createdAt?:string;updatedAt?:string}>>([]);
   const [labHistoryLoading,setLabHistoryLoading]=useState(false);
-  const invokeLab=async(action:"diagnose"|"create"|"status"|"latest",testId?:string)=>{
+  const [prodChecking,setProdChecking]=useState(false);
+  const [prodStatus,setProdStatus]=useState<{
+    credentials:{token:boolean;seller:boolean;webhook:boolean};
+    accountVerified:boolean;configurationValid:boolean;
+    webhookValidated:boolean;livePaymentValidated:boolean;
+    message:string;
+  }|null>(null);
+  const invokeLab=async(action:"diagnose"|"create"|"status"|"latest"|"production_diagnose",testId?:string)=>{
     const {data,error}=await supabase.functions.invoke("artvideo-store-payment-lab",{
       body:{action,...(testId?{test_id:testId}:{})},
     });
@@ -46,6 +53,19 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     }
     if(data?.error)throw new Error(String(data.error));
     return data;
+  };
+  const verifyProduction=async()=>{
+    if(!canUpdate||prodChecking)return;
+    setProdChecking(true);
+    try{
+      const result=await invokeLab("production_diagnose");
+      if(!result?.credentials)throw new Error("Não foi possível obter o diagnóstico de produção.");
+      setProdStatus(result);
+    }catch(error){
+      notifyAdmin(systemErrorMessage(error,"Não foi possível validar as credenciais de produção."),"error");
+    }finally{
+      setProdChecking(false);
+    }
   };
   const labAction=async(action:"diagnose"|"create"|"status")=>{
     if(labLoading)return;
@@ -206,6 +226,63 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       </div>
     </Section>
 
+    {current.provider_key==="mercado_pago"&&<Section
+      title="Preparar Mercado Pago para produção"
+      description="Valide as credenciais reais sem iniciar cobrança. O checkout público continuará desativado até a homologação.">
+      <div className="space-y-4 text-xs leading-6">
+        <p className="text-muted-foreground">
+          No Mercado Pago Developers, abra sua aplicação Checkout Pro e ative as
+          <strong> Credenciais de produção</strong>. Cadastre os três valores abaixo em
+          Supabase → Edge Functions → Secrets. Não cole chaves privadas neste painel.
+        </p>
+        <div className="grid gap-3 md:grid-cols-3">
+          {[
+            {label:"Access Token de produção",name:"MERCADO_PAGO_ACCESS_TOKEN"},
+            {label:"User ID da conta real",name:"MERCADO_PAGO_COLLECTOR_ID"},
+            {label:"Assinatura secreta do webhook de produção",name:"MERCADO_PAGO_WEBHOOK_SECRET"},
+          ].map(item=><div key={item.name} className="min-w-0 rounded-lg border border-border bg-muted/20 p-3">
+            <p className="font-semibold">{item.label}</p>
+            <code className="mt-1 block break-all text-[11px] text-muted-foreground">{item.name}</code>
+          </div>)}
+        </div>
+        <p className="text-muted-foreground">
+          Em Mercado Pago → Webhooks → <strong>Modo de produção</strong>, use a URL abaixo e
+          selecione o evento <strong>Pagamentos (legacy)</strong> compatível com a API de Preferences.
+        </p>
+        <code className="block break-all rounded-lg border border-border bg-muted/20 p-3 text-[11px]">
+          https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/artvideo-store-webhook
+        </code>
+        <div className="flex flex-wrap items-center gap-3">
+          <BtnSecondary onClick={()=>void verifyProduction()} disabled={!canUpdate||prodChecking}>
+            <ShieldCheck size={15}/>{prodChecking?"Verificando...":"Verificar credenciais de produção"}
+          </BtnSecondary>
+          <a href="https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-orders/go-to-production?scope=prod"
+            target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
+            Instruções do Mercado Pago <ExternalLink size={14}/>
+          </a>
+        </div>
+        {prodStatus&&<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4" role="status">
+          <p className="font-bold">Diagnóstico de produção</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            <p>Access Token: <strong>{prodStatus.credentials.token?"Cadastrado":"Ausente"}</strong></p>
+            <p>User ID do recebedor: <strong>{prodStatus.credentials.seller?"Cadastrado":"Ausente/inválido"}</strong></p>
+            <p>Assinatura do webhook: <strong>{prodStatus.credentials.webhook?"Cadastrada":"Ausente"}</strong></p>
+            <p>Conta vendedora: <strong className={prodStatus.accountVerified?"text-emerald-600":"text-amber-600"}>
+              {prodStatus.accountVerified?"Verificada na API":"Não verificada"}
+            </strong></p>
+          </div>
+          <p className="font-semibold">{prodStatus.message}</p>
+          <p className="text-muted-foreground">
+            A chave secreta cadastrada não significa que o webhook real foi validado.
+            O envio de uma notificação assinada e a conciliação de uma transação real são etapas separadas.
+          </p>
+        </div>}
+        <p className="text-muted-foreground">
+          O botão Aceitar pagamentos online continuará bloqueado até concluirmos a homologação de produção.
+          Nenhuma cobrança real é criada por esta verificação.
+        </p>
+      </div>
+    </Section>}
     {current.provider_key==="mercado_pago"&&<Section title="Laboratório Mercado Pago" description="Teste em ambiente isolado, sem criar pedidos reais ou descontar o estoque.">
       <div className="space-y-3 text-xs leading-6">
         <p className="flex items-start gap-2 text-muted-foreground"><FlaskConical size={17} className="mt-0.5 shrink-0 text-primary"/>

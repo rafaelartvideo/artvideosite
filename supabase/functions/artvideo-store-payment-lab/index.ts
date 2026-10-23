@@ -49,6 +49,68 @@ Deno.serve(async (req:Request) => {
     const action=String(input?.action||"");
     // Retoma testes do usuário mesmo após atualizar ou fechar a página.
     // Apenas IDs, status e metadados; nunca revela tokens ou dados de outros usuários.
+    if(action==="production_diagnose"){
+      // Verificação somente de leitura; nenhuma preferência real é criada.
+      const accessToken=Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"";
+      const collector=Deno.env.get("MERCADO_PAGO_COLLECTOR_ID")||"";
+      const webhookSecret=Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET")||"";
+      const presence={
+        token:accessToken.trim().length>0,
+        seller:/^\d{5,20}$/.test(collector.trim()),
+        webhook:webhookSecret.trim().length>0,
+      };
+      const allPresent=presence.token&&presence.seller&&presence.webhook;
+      if(!allPresent){
+        return reply({
+          environment:"production",credentials:presence,
+          accountVerified:false,configurationValid:false,
+          webhookValidated:false,livePaymentValidated:false,
+          message:"Cadastre os três segredos de produção no Supabase antes de prosseguir.",
+        });
+      }
+      if(accessToken===(Deno.env.get("MERCADO_PAGO_TEST_ACCESS_TOKEN")||"")){
+        return reply({
+          environment:"production",credentials:presence,
+          accountVerified:false,configurationValid:false,
+          webhookValidated:false,livePaymentValidated:false,
+          message:"O Access Token de produção não pode ser igual ao de teste. Confira as credenciais.",
+        });
+      }
+      try{
+        const response=await fetch("https://api.mercadopago.com/users/me",{
+          headers:{Authorization:"Bearer "+accessToken,Accept:"application/json"},
+          signal:AbortSignal.timeout(12000),
+        });
+        if(!response.ok){
+          return reply({
+            environment:"production",credentials:presence,
+            accountVerified:false,configurationValid:false,
+            webhookValidated:false,livePaymentValidated:false,
+            message:response.status===401||response.status===403?
+              "Access Token de produção inválido ou sem autorização.":
+              "Não foi possível validar o vendedor no Mercado Pago (HTTP "+response.status+").",
+          });
+        }
+        const account=await response.json();
+        const match=String(account?.id||"")===collector.trim();
+        return reply({
+          environment:"production",credentials:presence,
+          accountVerified:match,configurationValid:match,
+          webhookValidated:false,livePaymentValidated:false,
+          message:match?
+            "Credenciais de produção reconhecidas. Falta validar o webhook assinado e um pagamento real controlado antes de liberar a loja.":
+            "O User ID de produção não corresponde ao titular do Access Token.",
+        });
+      }catch{
+        return reply({
+          environment:"production",credentials:presence,
+          accountVerified:false,configurationValid:false,
+          webhookValidated:false,livePaymentValidated:false,
+          message:"Falha temporária ao consultar a conta de produção no Mercado Pago.",
+        });
+      }
+    }
+
     if(action==="latest"){
       const {data,error}=await admin.from("artvideo_payment_test_runs")
         .select("id,status,amount,payment_id,created_at,updated_at")
