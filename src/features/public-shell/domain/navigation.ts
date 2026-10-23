@@ -11,7 +11,7 @@ export type PublicPage =
 
 export const PUBLIC_NAV_LINKS = [
   "Início",
-  "Loja",
+  "Produtos",
   "Serviços",
   "Assistência Técnica",
   "Sobre nós",
@@ -20,7 +20,7 @@ export const PUBLIC_NAV_LINKS = [
 
 export const PUBLIC_NAV_MAP: Record<(typeof PUBLIC_NAV_LINKS)[number], PublicPage> = {
   "Início": "home",
-  "Loja": "loja",
+  "Produtos": "loja",
   "Serviços": "servicos",
   "Assistência Técnica": "assistencia",
   "Sobre nós": "sobre",
