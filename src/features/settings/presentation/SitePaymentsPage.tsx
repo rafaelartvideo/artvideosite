@@ -462,7 +462,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             {realCheck.legacyNotificationAt&&<p className="text-muted-foreground">
               IPN recebido em {new Date(realCheck.legacyNotificationAt).toLocaleString("pt-BR")}.
               A confirmação por API não substitui a assinatura HMAC.
-            </p>
+            </p>}
             {realCheck.paymentId&&<p className="break-all">Transação: {realCheck.paymentId}</p>}
             {realCheck.checkoutUrl&&realCheck.status==="awaiting_payment"&&
               <a href={realCheck.checkoutUrl} target="_blank" rel="noopener noreferrer"
