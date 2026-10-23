@@ -117,6 +117,8 @@ export interface ServiceCategory {
   id: string;
   name: string;
   slug: string;
+  icon?: string | null;
+  image_media_id?: string | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -217,6 +219,8 @@ export interface ProductCategory {
   id: string;
   name: string;
   slug: string;
+  icon?: string | null;
+  image_media_id?: string | null;
   description: string | null;
   is_active: boolean;
   sort_order: number;
