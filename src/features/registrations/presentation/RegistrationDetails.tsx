@@ -11,6 +11,7 @@ import type { EmployeeAccessFormState } from "@/features/access/presentation/Use
 import { SupplierItemsTable } from "./SupplierItemsTable";
 import { RegistrationDetailsToolbar } from "./RegistrationDetailsToolbar";
 import { EmployeeAgendaSection } from "./EmployeeAgendaDialog";
+import { RegistrationLoginHistory } from "./RegistrationLoginHistory";
 
 const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor" };
 
@@ -141,6 +142,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
               {detailValue("Função vinculada", accessForm.role_id ? "Configurada" : "—")}
               {detailValue("Restrição por IP", accessForm.restrict_by_ip ? "Ativada" : "Desativada")}
               {accessForm.restrict_by_ip && <div className="sm:col-span-2">{detailValue("IPs permitidos", accessForm.allowed_ips.split("\n").filter(Boolean).join(", ") || "—")}</div>}
+              {accessExisting && <RegistrationLoginHistory organizationId={activeOrganizationId} userId={permissionUserId} />}
             </div>}
           </div>
         </Section>}
