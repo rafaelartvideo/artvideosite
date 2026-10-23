@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, FolderTree, Package, Plus, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -8,7 +8,8 @@ import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteCategory, listCategories, saveCategory, setCategoryActive, type SiteCategory, type SiteCategoryKind } from "../infrastructure/categories.repository";
 import { publicIcon, PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
 import { MaterialSymbol, parseMaterialIcon } from "@/features/public-shell/presentation/MaterialSymbol";
-import { MaterialSymbolsPicker } from "./MaterialSymbolsPicker";
+const MaterialSymbolsPicker = lazy(() => import("./MaterialSymbolsPicker").then(module => ({ default: module.MaterialSymbolsPicker })));
+
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -323,8 +324,10 @@ export function TabCategories({
                 </div>
               </div>
               {iconLibrary === "google"
-                ? <MaterialSymbolsPicker value={form.icon} disabled={saving}
-                    onChange={icon => setForm(prev => ({ ...prev, icon }))}/>
+                ? <Suspense fallback={<p className="text-xs text-[#64748b]">Preparando biblioteca de ícones...</p>}>
+                    <MaterialSymbolsPicker value={form.icon} disabled={saving}
+                      onChange={icon => setForm(prev => ({ ...prev, icon }))}/>
+                  </Suspense>
                 : <div className="flex items-end gap-3">
                     <div className="flex-1"><FSelect label="Ícone" value={form.icon}
                       options={PUBLIC_ICON_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
