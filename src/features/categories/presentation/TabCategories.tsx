@@ -7,6 +7,8 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import { deleteCategory, listCategories, saveCategory, setCategoryActive, type SiteCategory, type SiteCategoryKind } from "../infrastructure/categories.repository";
 import { publicIcon, PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
+import { MaterialSymbol, parseMaterialIcon } from "@/features/public-shell/presentation/MaterialSymbol";
+import { MaterialSymbolsPicker } from "./MaterialSymbolsPicker";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -30,7 +32,9 @@ function CategoryVisual({ category, kind }: { category: SiteCategory; kind: Site
   const { url } = useMediaUrl(category.image_media_id);
   const Icon = category.icon ? publicIcon(category.icon) : kind === "products" ? Package : Wrench;
   return <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#edf3ff] text-[var(--art-primary)]">
-    {url ? <img src={url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <Icon size={19} strokeWidth={1.8}/>}
+    {url ? <img src={url} alt="" className="h-full w-full object-contain" loading="lazy" />
+      : parseMaterialIcon(category.icon) ? <MaterialSymbol icon={category.icon!} size={22}/>
+      : <Icon size={19} strokeWidth={1.8}/> }
   </span>;
 }
 
@@ -105,6 +109,7 @@ export function TabCategories({
   const safePage = Math.min(page, totalPages);
   const pagedCats = cats.slice((safePage - 1) * pageSize, safePage * pageSize);
   const label = kind === "products" ? "produtos" : "serviços";
+  const iconLibrary = parseMaterialIcon(form.icon) ? "google" : "lucide";
 
   useEffect(() => {
     const error = productQuery.error || serviceQuery.error;
@@ -297,13 +302,37 @@ export function TabCategories({
           <div className="space-y-4">
             <FSelect label="Exibição" value={form.visual} options={[{value:"icon",label:"Ícone"},{value:"image",label:"Imagem"}]}
               onChange={(event: any) => setForm(prev => ({ ...prev, visual: event.target.value as "icon" | "image" }))}/>
-            {form.visual === "icon" ? <div className="flex items-end gap-3">
-              <div className="flex-1"><FSelect label="Ícone" value={form.icon}
-                options={PUBLIC_ICON_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
-                onChange={(event: any) => setForm(prev => ({ ...prev, icon: event.target.value }))}/></div>
-              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#edf3ff] text-[var(--art-primary)]">
-                {(() => { const Icon = publicIcon(form.icon); return <Icon size={22}/>; })()}
-              </span>
+            {form.visual === "icon" ? <div className="space-y-4">
+              <div>
+                <p className="mb-1.5 text-xs font-semibold text-[#475569]">Biblioteca de ícones</p>
+                <div className="flex flex-wrap gap-2">
+                  <button type="button" disabled={saving} aria-pressed={iconLibrary === "google"}
+                    onClick={() => setForm(prev => ({ ...prev,
+                      icon: parseMaterialIcon(prev.icon) ? prev.icon : "material-outlined:home_repair_service",
+                    }))}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${iconLibrary === "google"
+                      ? "border-[var(--art-primary)] bg-[#edf3ff] text-[var(--art-primary)]"
+                      : "border-[#d9e2ed] text-[#526276] hover:bg-[#f7f9fc]"}`}>Google Material 3</button>
+                  <button type="button" disabled={saving} aria-pressed={iconLibrary === "lucide"}
+                    onClick={() => setForm(prev => ({ ...prev,
+                      icon: parseMaterialIcon(prev.icon) ? (kind === "products" ? "package" : "wrench") : prev.icon,
+                    }))}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${iconLibrary === "lucide"
+                      ? "border-[var(--art-primary)] bg-[#edf3ff] text-[var(--art-primary)]"
+                      : "border-[#d9e2ed] text-[#526276] hover:bg-[#f7f9fc]"}`}>Lucide (atual)</button>
+                </div>
+              </div>
+              {iconLibrary === "google"
+                ? <MaterialSymbolsPicker value={form.icon} disabled={saving}
+                    onChange={icon => setForm(prev => ({ ...prev, icon }))}/>
+                : <div className="flex items-end gap-3">
+                    <div className="flex-1"><FSelect label="Ícone" value={form.icon}
+                      options={PUBLIC_ICON_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+                      onChange={(event: any) => setForm(prev => ({ ...prev, icon: event.target.value }))}/></div>
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#edf3ff] text-[var(--art-primary)]">
+                      {(() => { const Icon = publicIcon(form.icon); return <Icon size={22}/>; })()}
+                    </span>
+                  </div>}
             </div> : <div className="space-y-2">
               <ImageUpload bucket="public-assets" organizationId={organizationQuery.data}
                 currentMediaId={form.image_media_id || null} label="Imagem da categoria"
