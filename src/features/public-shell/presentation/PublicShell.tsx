@@ -145,14 +145,17 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
           <span className="relative inline-flex py-1">{label}<span aria-hidden="true" className={underlineClass(active)}/></span>
         </button>;
       })}
-      <button type="button" onClick={() => navigate("orcamento")} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] font-bold text-white hover:brightness-110">
-        <FileText size={17} /> Solicitar orçamento
-      </button>
-      <div className="mt-4 flex items-center justify-center gap-3" aria-label="Redes sociais e localização">
-        {socialLinks.map(({ label, title, url, Icon }) =>
-          <a key={title} href={url} aria-label={label} title={title} target="_blank" rel="noopener noreferrer" className={socialClass}>
-            <Icon size={21}/>
-          </a>)}
+      <div className="mt-4 flex flex-wrap items-center gap-2.5" aria-label="Orçamento, redes sociais e localização">
+        <button type="button" onClick={() => navigate("orcamento")}
+          className="inline-flex min-h-11 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-3 text-[12px] font-bold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-blue-300">
+          <FileText size={17} className="shrink-0"/> Solicitar orçamento
+        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {socialLinks.map(({ label, title, url, Icon }) =>
+            <a key={title} href={url} aria-label={label} title={title} target="_blank" rel="noopener noreferrer" className={socialClass}>
+              <Icon size={21}/>
+            </a>)}
+        </div>
       </div>
     </nav>}
   </header>;
@@ -227,7 +230,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
   const { pathname } = useLocation();
   const navigate = useNavigate();
   const routeLabels: Record<string, string> = {
-    "/loja": "Loja", "/servicos": "Serviços", "/assistencia": "Assistência técnica",
+    "/loja": "Produtos", "/servicos": "Serviços", "/assistencia": "Assistência técnica",
     "/sobre": "Sobre nós", "/contato": "Contato", "/orcamento": "Solicitar orçamento",
     "/carrinho": "Meu carrinho", "/acompanhar-pedido": "Acompanhar pedido",
     "/politica-de-privacidade": "Política de Privacidade",
