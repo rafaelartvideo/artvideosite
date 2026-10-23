@@ -185,7 +185,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
         "O pagamento não foi concluído. Nenhum pedido é considerado pago sem confirmação do gateway." :
         "Retorno do pagamento recebido. A Artvideo confirmará seu pedido apenas após a verificação pelo provedor."}
     </div>}
-    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Loja", onClick: () => setPage("loja") }, { label: name }]}/>
+    <PublicBreadcrumb items={[{ label: "Início", onClick: () => setPage("home") }, { label: "Produtos", onClick: () => setPage("loja") }, { label: name }]}/>
     <section className="bg-[#f8fbff] py-5 sm:py-10">
       <div className="mx-auto grid max-w-7xl items-start gap-5 px-4 sm:gap-7 sm:px-6 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(250px,.72fr)] lg:gap-6 lg:px-8">
         {/* Miniaturas verticais e imagem principal */}
