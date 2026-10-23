@@ -1,19 +1,62 @@
-import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, FolderTree, Plus, Trash2 } from "lucide-react";
+import { Edit2, FolderTree, Package, Plus, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
-import { deleteCategory, listCategories, saveCategory, setCategoryActive } from "../infrastructure/categories.repository";
+import { deleteCategory, listCategories, saveCategory, setCategoryActive, type SiteCategory, type SiteCategoryKind } from "../infrastructure/categories.repository";
+import { publicIcon, PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
+import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { FInput, FIntegerInput, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { FInput, FIntegerInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
+import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 
-export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteChange }: { onBack: () => void; routeResourceId?: string | null; routeSubpage?: string | null; onRouteChange?: (resourceId: string | null, subpage?: string | null) => void }) {
+type CategoryForm = {
+  name: string;
+  sort_order: string;
+  icon: string;
+  image_media_id: string;
+  visual: "icon" | "image";
+  is_active: boolean;
+};
+
+function CategoryVisual({ category, kind }: { category: SiteCategory; kind: SiteCategoryKind }) {
+  const { url } = useMediaUrl(category.image_media_id);
+  const Icon = category.icon ? publicIcon(category.icon) : kind === "products" ? Package : Wrench;
+  return <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[#edf3ff] text-[var(--art-primary)]">
+    {url ? <img src={url} alt="" className="h-full w-full object-contain" loading="lazy" /> : <Icon size={19} strokeWidth={1.8}/>}
+  </span>;
+}
+
+const newForm = (kind: SiteCategoryKind, sortOrder: number): CategoryForm => ({
+  name: "", sort_order: String(sortOrder),
+  icon: kind === "products" ? "package" : "wrench",
+  image_media_id: "", visual: "icon", is_active: true,
+});
+
+const formFor = (category: SiteCategory, kind: SiteCategoryKind): CategoryForm => ({
+  name: category.name,
+  sort_order: String(category.sort_order ?? 0),
+  icon: category.icon || (kind === "products" ? "package" : "wrench"),
+  image_media_id: category.image_media_id || "",
+  visual: category.image_media_id ? "image" : "icon",
+  is_active: category.is_active,
+});
+
+export function TabCategories({
+  onBack, routeResourceId, routeSubpage, onRouteChange,
+}: {
+  onBack: () => void;
+  routeResourceId?: string | null;
+  routeSubpage?: string | null;
+  onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
+}) {
   const { hasPermission } = useAuth();
   const canViewTable = hasPermission("categories.table.view");
   const canViewDetails = hasPermission("categories.details.view");
@@ -25,74 +68,258 @@ export function TabCategories({ onBack, routeResourceId, routeSubpage, onRouteCh
   const showSortOrder = hasPermission("categories.table.sort_order");
   const showStatus = hasPermission("categories.table.status");
   const showActions = hasPermission("categories.table.actions");
+  const canLoad = canViewTable || canViewDetails || canCreate || canEdit;
   const queryClient = useQueryClient();
-  const categoriesQuery = useQuery({ queryKey: queryKeys.catalog.categories(), queryFn: listCategories, enabled: canViewTable || canViewDetails || canCreate || canEdit, staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME });
-  const cats = categoriesQuery.data ?? [];
-  const loading = categoriesQuery.isPending;
+
+  const productQuery = useQuery({
+    queryKey: ["catalog", "site-product-categories"],
+    queryFn: () => listCategories("products"), enabled: canLoad,
+    staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME,
+  });
+  const serviceQuery = useQuery({
+    queryKey: queryKeys.catalog.categories(),
+    queryFn: () => listCategories("services"), enabled: canLoad,
+    staleTime: REFERENCE_DATA_CACHE_TIME, gcTime: REFERENCE_DATA_CACHE_TIME,
+  });
+  const organizationQuery = useQuery({
+    queryKey: ["organization", "artvideo-id"], queryFn: getArtVideoOrganizationId,
+    enabled: canLoad, staleTime: Infinity,
+  });
+
+  const [kind, setKind] = useState<SiteCategoryKind>("products");
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [editItem, setEditItem] = useState<any>(null);
-  const [delId, setDelId] = useState<string | null>(null);
+  const [editItem, setEditItem] = useState<SiteCategory | null>(null);
+  const [form, setForm] = useState<CategoryForm>(() => newForm("products", 0));
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; sort_order?: string; image?: string }>({});
+  const [delItem, setDelItem] = useState<SiteCategory | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [form, setForm] = useState({ name: "", is_active: true, sort_order: "0" });
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; sort_order?: string }>({});
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => { if (categoriesQuery.error) setToast({ msg: `Erro ao carregar categorias: ${systemErrorMessage(categoriesQuery.error)}`, type: "error" }); }, [categoriesQuery.error]);
+  const products = productQuery.data ?? [];
+  const services = serviceQuery.data ?? [];
+  const cats = kind === "products" ? products : services;
+  const loading = kind === "products" ? productQuery.isPending : serviceQuery.isPending;
   const totalPages = Math.max(1, Math.ceil(cats.length / pageSize));
   const safePage = Math.min(page, totalPages);
-  const pagedCats = [...cats].sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR", { sensitivity: "base" }))
-    .slice((safePage - 1) * pageSize, safePage * pageSize);
-  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.categories() })]);
-  const openNew = () => { if (!canCreate) return; setFieldErrors({}); setForm({ name: "", is_active: true, sort_order: "0" }); setEditItem(null); setDrawerOpen(true); };
-  const openEdit = (c: any) => { if (!(canViewDetails && canEdit)) return; setFieldErrors({}); setForm({ name: c.name || "", is_active: c.is_active ?? true, sort_order: String(c.sort_order ?? 0) }); setEditItem(c); setDrawerOpen(true); };
-  const closeEditor = () => { if (saving) return; setDrawerOpen(false); onRouteChange?.(null, null); };
-  const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
-  const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
+  const pagedCats = cats.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const label = kind === "products" ? "produtos" : "serviços";
 
   useEffect(() => {
-    if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; }
-    if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; }
-    if (!canViewDetails || !canEdit || routeSubpage !== "edit" || editItem?.id === routeResourceId) return;
-    const item = cats.find((entry: any) => entry.id === routeResourceId); if (item) openEdit(item);
-  }, [routeResourceId, routeSubpage, cats, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
+    const error = productQuery.error || serviceQuery.error;
+    if (error) setToast({ msg: "Erro ao carregar categorias: " + systemErrorMessage(error), type: "error" });
+  }, [productQuery.error, serviceQuery.error]);
+
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.categories() }),
+      queryClient.invalidateQueries({ queryKey: ["public-site", "product-categories"] }),
+      queryClient.invalidateQueries({ queryKey: queryKeys.inventory.all }),
+    ]);
+  };
+
+  const openNew = (target: SiteCategoryKind = kind) => {
+    if (!canCreate) return;
+    const existing = target === "products" ? products : services;
+    setKind(target);
+    setFieldErrors({});
+    setForm(newForm(target, existing.length ? Math.max(...existing.map(c => c.sort_order || 0)) + 10 : 0));
+    setEditItem(null);
+    setDrawerOpen(true);
+  };
+  const openEdit = (category: SiteCategory, target: SiteCategoryKind = kind) => {
+    if (!(canViewDetails && canEdit)) return;
+    setKind(target);
+    setFieldErrors({});
+    setForm(formFor(category, target));
+    setEditItem(category);
+    setDrawerOpen(true);
+  };
+  const closeEditor = () => {
+    if (saving) return;
+    setDrawerOpen(false);
+    setEditItem(null);
+    onRouteChange?.(null, null);
+  };
+  const openNewPage = () => {
+    openNew();
+    onRouteChange?.("new", null);
+  };
+  const openEditPage = (category: SiteCategory) => {
+    openEdit(category);
+    onRouteChange?.(category.id, "edit");
+  };
+
+  useEffect(() => {
+    if (!routeResourceId) return;
+    if (routeResourceId === "new") {
+      if (!drawerOpen && canCreate) openNew();
+      return;
+    }
+    if (!canViewDetails || !canEdit || routeSubpage !== "edit") return;
+    const product = products.find(item => item.id === routeResourceId);
+    const service = services.find(item => item.id === routeResourceId);
+    const target = product ? "products" : "services";
+    const item = product || service;
+    if (item && (!drawerOpen || editItem?.id !== item.id)) openEdit(item, target);
+  }, [routeResourceId, routeSubpage, products, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
 
   const handleSave = async () => {
-    if (!(editItem ? canEdit : canCreate)) return;
+    if (!(editItem ? canEdit : canCreate) || saving) return;
     const sortOrder = Number(form.sort_order);
-    const nextErrors: typeof fieldErrors = {};
-    if (!form.name.trim()) nextErrors.name = "Nome obrigatório.";
-    if (!Number.isInteger(sortOrder) || sortOrder < 0) nextErrors.sort_order = "A ordem deve ser um número inteiro e não negativo.";
-    setFieldErrors(nextErrors);
-    if (Object.keys(nextErrors).length) return;
+    const errors: typeof fieldErrors = {};
+    if (!form.name.trim()) errors.name = "Informe o nome da categoria.";
+    if (!Number.isInteger(sortOrder) || sortOrder < 0) errors.sort_order = "Informe uma ordem inteira igual ou maior que zero.";
+    if (form.visual === "image" && !form.image_media_id) errors.image = "Escolha uma imagem ou selecione a opção Ícone.";
+    setFieldErrors(errors);
+    if (Object.keys(errors).length) return;
+
     setSaving(true);
     try {
-      const finalSlug = editItem?.name === form.name.trim() && editItem?.slug
+      const finalName = form.name.trim();
+      const table = kind === "products" ? "product_categories" : "service_categories";
+      const slug = editItem?.name === finalName && editItem.slug
         ? editItem.slug
-        : await generateUniqueSlug("service_categories", form.name, editItem?.id);
-      const payload = { ...form, sort_order: sortOrder, name: form.name.trim(), slug: finalSlug };
-      if (editItem && Object.entries(payload).every(([key, value]) => JSON.stringify(value ?? null) === JSON.stringify(editItem[key] ?? null))) {
-        setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
+        : await generateUniqueSlug(table, finalName, editItem?.id);
+      const payload = {
+        name: finalName, slug, sort_order: sortOrder, is_active: form.is_active,
+        icon: form.icon, image_media_id: form.visual === "image" ? form.image_media_id : null,
+      };
+      if (editItem && Object.entries(payload).every(([key, value]) =>
+        JSON.stringify(value ?? null) === JSON.stringify(editItem[key as keyof SiteCategory] ?? null))) {
+        closeEditor();
+        setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
         return;
       }
-      await saveCategory(payload, editItem?.id);
-      setDrawerOpen(false); onRouteChange?.(null, null); setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" }); void refresh();
-    } catch (error) { setToast({ msg: `Erro ao salvar categoria: ${systemErrorMessage(error)}`, type: "error" }); }
-    finally { setSaving(false); }
+      await saveCategory(payload, editItem?.id, kind);
+      closeEditor();
+      setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
+      void refresh();
+    } catch (error) {
+      setToast({ msg: "Erro ao salvar categoria: " + systemErrorMessage(error), type: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
-  const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteCategory(id); setDelId(null); setToast({ msg: "Categoria excluída.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao excluir categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
-  const toggleActive = async (category: any) => { if (!canToggleActive) return; const nextActive = !category.is_active; try { await setCategoryActive(category.id, nextActive); queryClient.setQueryData(queryKeys.catalog.categories(), (current: any[] | undefined) => (current ?? []).map(item => item.id === category.id ? { ...item, is_active: nextActive } : item)); setToast({ msg: "Status atualizado!", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar categoria: ${systemErrorMessage(error)}`, type: "error" }); } };
+  const handleDelete = async () => {
+    if (!delItem || !canDelete) return;
+    try {
+      await deleteCategory(delItem.id, kind);
+      setDelItem(null);
+      setToast({ msg: "Categoria excluída.", type: "success" });
+      void refresh();
+    } catch (error) {
+      setToast({ msg: "Erro ao excluir categoria: " + systemErrorMessage(error), type: "error" });
+    }
+  };
+  const toggleActive = async (category: SiteCategory) => {
+    if (!canToggleActive) return;
+    try {
+      await setCategoryActive(category.id, !category.is_active, kind);
+      setToast({ msg: "Status atualizado!", type: "success" });
+      void refresh();
+    } catch (error) {
+      setToast({ msg: "Erro ao atualizar categoria: " + systemErrorMessage(error), type: "error" });
+    }
+  };
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {delId && <ConfirmDialog message="Excluir esta categoria? Serviços vinculados perderão a referência." onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
+    {delItem && <ConfirmDialog message={`Excluir a categoria "${delItem.name}"? Itens vinculados poderão perder a referência.`}
+      onConfirm={handleDelete} onCancel={() => setDelItem(null)} />}
     {!routeResourceId && <>
-      <PageHeader title="Categorias" subtitle={`${cats.length} categoria${cats.length !== 1 ? "s" : ""}`} actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />{canCreate && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16} /> Nova categoria</AdminButton>}</div>} />
-      {canViewTable && <AdminCard>{loading ? <LoadingState /> : cats.length === 0 ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada" message="Crie categorias para organizar seus serviços." onAdd={canCreate ? openNewPage : undefined} addLabel="Nova categoria" /> : <><div className="overflow-x-auto"><table className="min-w-[560px]"><thead><tr>{showName && <th className="text-left">Nome</th>}{showSortOrder && <th className="text-left">Ordem</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedCats.map(c => <tr key={c.id}>{showName && <td className="font-bold text-[#0d1b2e]">{c.name}</td>}{showSortOrder && <td className="text-xs text-[#5a6a82]">{c.sort_order}</td>}{showStatus && <td><StatusBadge status={c.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar categoria" title="Editar" onClick={() => openEditPage(c)}><Edit2 size={15} /></AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir categoria" title="Excluir" variant="danger" onClick={() => setDelId(c.id)}><Trash2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={c.is_active} entityLabel="categoria" onClick={() => toggleActive(c)} />}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safePage} pageSize={pageSize} totalItems={cats.length} onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} /></>}</AdminCard>}
+      <PageHeader title="Categorias" subtitle="Personalize nome, ordem e ícone ou imagem das categorias exibidas no site."
+        actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />
+          {canCreate && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16}/> Nova categoria</AdminButton>}
+        </div>} />
+      <div role="tablist" aria-label="Tipo de categoria" className="flex items-center gap-5 border-b border-[#e4eaf2]">
+        {([{ id: "products", title: "Produtos", Icon: Package }, { id: "services", title: "Serviços", Icon: Wrench }] as const).map(tab =>
+          <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id}
+            onClick={() => { setKind(tab.id); setPage(1); }}
+            className={`inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition-colors ${kind === tab.id
+              ? "border-[var(--art-primary)] text-[var(--art-primary)]"
+              : "border-transparent text-[#64748b] hover:text-[#21344d]"}`}>
+            <tab.Icon size={17}/>{tab.title}
+          </button>)}
+      </div>
+      {canViewTable && <AdminCard>
+        {loading ? <LoadingState/> : cats.length === 0
+          ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada"
+              message={`Crie categorias para organizar os ${label} do site.`}
+              onAdd={canCreate ? openNewPage : undefined} addLabel="Nova categoria" />
+          : <><div className="overflow-x-auto">
+              <table className="min-w-[570px]">
+                <thead><tr>
+                  {showName && <th className="text-left">Categoria</th>}
+                  {showSortOrder && <th className="text-left">Ordem</th>}
+                  {showStatus && <th className="text-left">Status</th>}
+                  {showActions && <th className="text-right">Ações</th>}
+                </tr></thead>
+                <tbody>{pagedCats.map(c => <tr key={c.id}>
+                  {showName && <td><div className="flex items-center gap-3"><CategoryVisual category={c} kind={kind}/>
+                    <span className="font-semibold text-[#0d1b2e]">{c.name}</span></div></td>}
+                  {showSortOrder && <td className="text-xs text-[#5a6a82]">{c.sort_order}</td>}
+                  {showStatus && <td><StatusBadge status={c.is_active ? "Ativo" : "Inativo"}/></td>}
+                  {showActions && <td><div className="flex items-center justify-end gap-1">
+                    {canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar categoria" title="Editar" onClick={() => openEditPage(c)}><Edit2 size={15}/></AdminIconButton>}
+                    {canDelete && <AdminIconButton ariaLabel="Excluir categoria" title="Excluir" variant="danger" onClick={() => setDelItem(c)}><Trash2 size={15}/></AdminIconButton>}
+                    {canToggleActive && <AdminActiveStateButton active={c.is_active} entityLabel="categoria" onClick={() => toggleActive(c)}/>}
+                  </div></td>}
+                </tr>)}</tbody>
+              </table>
+            </div>
+            <PaginationBar page={safePage} pageSize={pageSize} totalItems={cats.length}
+              onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }}/>
+          </>}
+      </AdminCard>}
     </>}
-    {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    <AdminPage open={drawerOpen} onClose={closeEditor} breadcrumb="Categorias" title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-lg"><div className="space-y-4 p-4 sm:p-5"><Section title="Informações"><FInput label="Nome" value={form.name} required error={fieldErrors.name} onChange={(e: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setForm({ ...form, name: e.target.value }); }} placeholder="Ex: Ar-condicionado" /></Section><Section title="Publicação"><div className="space-y-4"><FToggle label="Categoria ativa" description="Categorias inativas ficam ocultas nos filtros do site." checked={form.is_active} onChange={v => setForm({ ...form, is_active: v })} /><FIntegerInput label="Ordem" value={form.sort_order} error={fieldErrors.sort_order} onChange={(e: any) => { setFieldErrors(current => ({ ...current, sort_order: undefined })); setForm({ ...form, sort_order: e.target.value }); }} /></div></Section></div><AdminStickyToolbar className="justify-end"><BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>{(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}</AdminStickyToolbar></AdminPage>
+    {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState/></AdminCard>}
+    <AdminPage open={drawerOpen} onClose={closeEditor}
+      breadcrumb={`Categorias / ${kind === "products" ? "Produtos" : "Serviços"}`}
+      title={editItem ? "Editar categoria" : "Nova categoria"} maxW="max-w-xl">
+      <div className="space-y-4 p-4 sm:p-5">
+        <Section title="Informações da categoria">
+          <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_110px]">
+            <FInput label="Nome" value={form.name} required error={fieldErrors.name}
+              onChange={(event: any) => { setForm(prev => ({ ...prev, name: event.target.value })); setFieldErrors(prev => ({ ...prev, name: undefined })); }}
+              placeholder="Ex: Ar-condicionado"/>
+            <FIntegerInput label="Ordem" value={form.sort_order} error={fieldErrors.sort_order}
+              onChange={(event: any) => { setForm(prev => ({ ...prev, sort_order: event.target.value })); setFieldErrors(prev => ({ ...prev, sort_order: undefined })); }}/>
+          </div>
+        </Section>
+        <Section title="Identidade visual" description="Use um ícone da biblioteca ou uma imagem personalizada. A escolha aparece nas categorias do site.">
+          <div className="space-y-4">
+            <FSelect label="Exibição" value={form.visual} options={[{value:"icon",label:"Ícone"},{value:"image",label:"Imagem"}]}
+              onChange={(event: any) => setForm(prev => ({ ...prev, visual: event.target.value as "icon" | "image" }))}/>
+            {form.visual === "icon" ? <div className="flex items-end gap-3">
+              <div className="flex-1"><FSelect label="Ícone" value={form.icon}
+                options={PUBLIC_ICON_OPTIONS.map(option => ({ value: option.value, label: option.label }))}
+                onChange={(event: any) => setForm(prev => ({ ...prev, icon: event.target.value }))}/></div>
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#edf3ff] text-[var(--art-primary)]">
+                {(() => { const Icon = publicIcon(form.icon); return <Icon size={22}/>; })()}
+              </span>
+            </div> : <div className="space-y-2">
+              <ImageUpload bucket="public-assets" organizationId={organizationQuery.data}
+                currentMediaId={form.image_media_id || null} label="Imagem da categoria"
+                onUpload={mediaId => { setForm(prev => ({ ...prev, image_media_id: mediaId })); setFieldErrors(prev => ({ ...prev, image: undefined })); }}
+                canUpload={Boolean(organizationQuery.data) && !saving && (editItem ? canEdit : canCreate)}/>
+              {form.image_media_id && <button type="button" className="text-xs font-semibold text-red-600 hover:underline"
+                onClick={() => setForm(prev => ({ ...prev, image_media_id: "" }))}>Remover imagem</button>}
+              {fieldErrors.image && <p className="text-xs text-red-600">{fieldErrors.image}</p>}
+            </div>}
+          </div>
+        </Section>
+        <Section title="Publicação">
+          <FToggle label="Categoria ativa" description="Categorias inativas ficam ocultas nas vitrines públicas."
+            checked={form.is_active} onChange={value => setForm(prev => ({ ...prev, is_active: value }))}/>
+        </Section>
+      </div>
+      <AdminStickyToolbar className="justify-end">
+        <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
+        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+      </AdminStickyToolbar>
+    </AdminPage>
   </div>;
 }
