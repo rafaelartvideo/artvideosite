@@ -173,10 +173,10 @@ Deno.serve(async (req:Request) => {
             url.searchParams.set("limit","20");
             const orders=await getMp(url);
             const ids=new Set<string>();
-            for(const order of Array.isArray(orders.elements)?orders.elements as Record<string,unknown>[]):[]){
+            for(const order of Array.isArray(orders.elements)?orders.elements as Record<string,unknown>[]:[]){
               if(String(order.preference_id||"")!==check.preference_id
                 || String(order.external_reference||"")!==check.id)continue;
-              for(const pay of Array.isArray(order.payments)?order.payments as Record<string,unknown>[]):[]){
+              for(const pay of Array.isArray(order.payments)?order.payments as Record<string,unknown>[]:[]){
                 if(/^\d{5,25}$/.test(String(pay.id||"")))ids.add(String(pay.id));
               }
             }
