@@ -5,13 +5,14 @@ import { useSiteSettings } from "@/features/public-shell/application/useSiteSett
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  BadgePercent, ChevronLeft, ChevronRight, Grid3X3, Package, Search, SlidersHorizontal, X,
+  ArrowRight, BadgePercent, ChevronLeft, ChevronRight, Grid3X3, Headset, Package, Search, SlidersHorizontal, X,
   Monitor, Headphones, Smartphone, Laptop, PlugZap,
 } from "lucide-react";
 import { useBrands, useProductCategories, useProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { loadCatalogAvailability } from "@/features/public-store/infrastructure/storefront.repository";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
+import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
 
 const normalize = (text: unknown) => String(text ?? "").normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
@@ -240,14 +241,29 @@ export function StorePage({ setPage, onSelectProduct, onSelectService }: {
         <span className="text-[12px] text-[#4a596a]">{currentPage} de {totalPages}</span>
         <button type="button" aria-label="Próxima página" disabled={currentPage>=totalPages} onClick={()=>setCurrentPage(v=>Math.min(totalPages,v+1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
       </nav>}
-      <p className="mt-12 border-t border-[#e9edf2] pt-7 text-center text-[13px] text-[#57687a]">Não encontrou o que procura? <button type="button" onClick={()=>setPage("contato")} className="font-semibold text-[var(--art-primary)] hover:underline">Entre em contato</button></p>
     </section>
-    {filterDrawer&&<div className="fixed inset-0 z-[100] bg-[#061b33]/60" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)setFilterDrawer(false);}}>
-      <div role="dialog" aria-modal="true" aria-label="Filtros da loja" className="absolute inset-y-0 right-0 flex w-[min(390px,92vw)] flex-col bg-white">
-        <div className="flex items-center justify-between border-b border-[#e8eff6] px-5 py-4"><strong>Filtros</strong><button type="button" onClick={()=>setFilterDrawer(false)} aria-label="Fechar filtros" className="rounded-md p-2 hover:bg-[#f4f6f8]"><X size={20}/></button></div>
-        <div className="flex-1 overflow-y-auto p-5">{filterPanel}</div>
-        <div className="border-t border-[#e8eff6] p-4"><button type="button" onClick={()=>setFilterDrawer(false)} className="min-h-11 w-full rounded-md bg-[var(--art-primary)] text-[13px] font-semibold text-white">Ver {filtered.length} produtos</button></div>
+    <section aria-labelledby="store-contact-heading" className="bg-gradient-to-r from-[var(--art-primary)] to-[#123b72] text-white">
+      <div className="mx-auto flex max-w-[1630px] flex-col justify-between gap-5 px-5 py-8 sm:px-8 md:flex-row md:items-center lg:px-12">
+        <div className="flex items-start gap-4 sm:items-center">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10">
+            <Headset size={26} strokeWidth={1.7} aria-hidden="true"/>
+          </span>
+          <div>
+            <h2 id="store-contact-heading" className="text-[21px] font-semibold">Não encontrou o que procura?</h2>
+            <p className="mt-1 text-[13px] leading-6 text-white/85">Fale com nossa equipe para consultar outras opções de produtos.</p>
+          </div>
+        </div>
+        <PublicButton variant="outline" onClick={()=>setPage("contato")}
+          className="gap-2 self-start !border-white !bg-white !text-[var(--art-primary)] hover:!bg-blue-50 md:self-auto">
+          Entre em contato <ArrowRight size={17} aria-hidden="true"/>
+        </PublicButton>
       </div>
+    </section>
+    {filterDrawer&&<div className="pointer-events-none fixed inset-0 z-[100]" role="presentation">
+      <aside aria-label="Filtros da loja" className="pointer-events-auto absolute inset-y-0 right-0 flex w-[min(390px,92vw)] flex-col border-l border-[#dce5ef] bg-white shadow-[-12px_0_35px_rgba(20,45,75,.12)]">
+        <div className="flex items-center justify-between border-b border-[#e8eff6] px-5 py-4"><strong>Filtros</strong><button type="button" onClick={()=>setFilterDrawer(false)} aria-label="Fechar filtros" className="rounded-md p-2 hover:bg-[#f4f6f8]"><X size={20}/></button></div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-5">{filterPanel}</div>
+      </aside>
     </div>}
   </div>;
 }
