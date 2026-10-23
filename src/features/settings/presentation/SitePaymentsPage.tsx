@@ -16,7 +16,7 @@ type PaymentSettings={
 };
 type RealPaymentCheck={
   id:string;status:string;amount:number;paymentId?:string|null;
-  webhookReceivedAt?:string|null;checkoutUrl?:string|null;
+  webhookReceivedAt?:string|null;legacyNotificationAt?:string|null;checkoutUrl?:string|null;
   createdAt?:string;updatedAt?:string;
 };
 const initial:PaymentSettings={provider_key:"none",environment:"sandbox",enabled:false};
@@ -454,6 +454,15 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             {realCheck.webhookReceivedAt&&<p>Recebido em:
               {" "+new Date(realCheck.webhookReceivedAt).toLocaleString("pt-BR")}
             </p>}
+            <p>Notificação IPN legada recebida, com pagamento conferido pela API:
+              <strong className={realCheck.legacyNotificationAt?"text-emerald-600":"text-amber-700"}>
+                {realCheck.legacyNotificationAt?" Sim":" Ainda não"}
+              </strong>
+            </p>
+            {realCheck.legacyNotificationAt&&<p className="text-muted-foreground">
+              IPN recebido em {new Date(realCheck.legacyNotificationAt).toLocaleString("pt-BR")}.
+              A confirmação por API não substitui a assinatura HMAC.
+            </p>
             {realCheck.paymentId&&<p className="break-all">Transação: {realCheck.paymentId}</p>}
             {realCheck.checkoutUrl&&realCheck.status==="awaiting_payment"&&
               <a href={realCheck.checkoutUrl} target="_blank" rel="noopener noreferrer"
