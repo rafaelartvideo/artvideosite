@@ -114,6 +114,28 @@ export async function refreshEmbeddedPayment(session:EmbeddedCheckoutSession):Pr
   return invokeEmbeddedPayment({action:"status",order_id:session.orderId,
     tracking_token:session.trackingToken});
 }
+export async function resumeEmbeddedStoreCheckout(orderId:string,trackingToken:string):
+  Promise<EmbeddedCheckoutSession & {buyerEmail:string}>{
+  const {data,error}=await supabase.functions.invoke("artvideo-store-checkout",{
+    body:{action:"bricks_resume",order_id:orderId,tracking_token:trackingToken},
+  });
+  if(error){
+    const response=error.context;
+    if(response instanceof Response){
+      const result=await response.clone().json().catch(()=>null);
+      if(result?.error)throw new Error(String(result.error));
+    }
+    throw new Error("Não foi possível retomar o pedido. Consulte o acompanhamento.");
+  }
+  if(data?.error)throw new Error(String(data.error));
+  if(typeof data.order_id!=="string"||typeof data.tracking_token!=="string"
+    ||!/^APP_USR-[A-Za-z0-9_-]{12,}$/.test(String(data.public_key))
+    ||!/^[a-f0-9]{64}$/.test(data.tracking_token))
+    throw new Error("Sessão de pagamento inválida.");
+  return {orderId:data.order_id,trackingToken:data.tracking_token,
+    publicKey:data.public_key,amount:Number(data.amount),
+    expiresAt:String(data.expires_at),buyerEmail:String(data.buyer_email||"")};
+}
 export async function prepareEmbeddedStoreCheckout(
   payload:Parameters<typeof startStoreCheckout>[0]
 ):Promise<EmbeddedCheckoutSession>{

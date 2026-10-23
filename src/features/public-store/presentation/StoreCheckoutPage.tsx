@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, refreshEmbeddedPayment, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, refreshEmbeddedPayment, resumeEmbeddedStoreCheckout, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {QRCodeSVG} from "qrcode.react";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
@@ -146,6 +146,16 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const [brickSession,setBrickSession]=useState<EmbeddedCheckoutSession|null>(null);
   const [brickResult,setBrickResult]=useState<EmbeddedPaymentResult|null>(null);
   const [brickRefreshing,setBrickRefreshing]=useState(false);
+  const [resumingBrick,setResumingBrick]=useState(false);
+  const [lastBrickAccess]=useState(()=>{
+    try{
+      const orderId=sessionStorage.getItem("artvideo-last-order")||"";
+      const token=sessionStorage.getItem("artvideo-store-tracking")||"";
+      if(/^[0-9a-f-]{36}$/i.test(orderId)&&/^[a-f0-9]{64}$/.test(token))
+        return {orderId,token};
+    }catch{/* navegador sem sessionStorage */}
+    return null;
+  });
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [quoteKey, setQuoteKey] = useState("");
   const [shippingId, setShippingId] = useState("");
@@ -394,6 +404,22 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
   };
 
+  const resumeBrick=async()=>{
+    if(!lastBrickAccess||resumingBrick)return;
+    setResumingBrick(true);
+    setError("");
+    try{
+      const session=await resumeEmbeddedStoreCheckout(
+        lastBrickAccess.orderId,lastBrickAccess.token);
+      setBuyer(current=>({...current,buyer_email:session.buyerEmail}));
+      setBrickSession(session);
+      setBrickResult(null);
+      move(4);
+    }catch(err){
+      setError(err instanceof Error?err.message:"Nao foi possivel retomar o pedido.");
+      mainRef.current?.scrollIntoView({behavior:"smooth",block:"start"});
+    }finally{setResumingBrick(false);}
+  };
   const refreshBrickStatus=async()=>{
     if(!brickSession||brickRefreshing)return;
     setBrickRefreshing(true);
@@ -488,9 +514,16 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       Homologação privada ativa. Este é um pedido REAL: a compra será cobrada pelo Mercado Pago
       e, se aprovada, poderá baixar o estoque da Artvideo.
     </div>}
-    {homologationToken&&!homologationAvailable&&!brickSession&&!testAccess.isPending&&<div role="alert"
+    {homologationToken&&!homologationAvailable&&!brickSession&&!lastBrickAccess&&!testAccess.isPending&&<div role="alert"
       className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold text-amber-900">
       O convite privado expirou ou já foi utilizado. Gere outro convite na Union World.
+    </div>}
+    {!brickSession&&lastBrickAccess&&<div className="border-b border-[#dce6f4] bg-[#f1f7ff] px-5 py-3 text-center">
+      <button type="button" onClick={()=>void resumeBrick()} disabled={resumingBrick}
+        className="inline-flex min-h-10 items-center gap-2 text-[12px] font-bold text-[var(--art-primary)] disabled:opacity-50">
+        {resumingBrick?<LoaderCircle className="animate-spin" size={17}/>:<CreditCard size={17}/>}
+        Retomar pagamento do último pedido de homologação
+      </button>
     </div>}
     <div className="bg-gradient-to-r from-[#0b1c34] via-[#0e2a51] to-[#114577]">
       <div className="mx-auto max-w-7xl px-4 py-6 text-white sm:px-6 sm:py-10 lg:px-8">

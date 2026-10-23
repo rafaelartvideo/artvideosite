@@ -22,6 +22,48 @@ Deno.serve(async req => {
     const tokenHash=validToken?Array.from(new Uint8Array(
       await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rawToken))
     )).map(n=>n.toString(16).padStart(2,"0")).join(""):"";
+    if(input?.action==="bricks_resume"){
+      const resumeId=String(input?.order_id||"");
+      const resumeToken=String(input?.tracking_token||"").toLowerCase();
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(resumeId)
+         || !/^[0-9a-f]{64}$/.test(resumeToken))
+        return json({error:"Acesso ao pedido invalido."},400);
+      // Somente quem possui o token aleatorio do pedido original pode retomar.
+      const {data:access,error:accessError}=await admin
+        .from("artvideo_store_tracking_access").select("order_id")
+        .eq("order_id",resumeId).eq("tracking_token",resumeToken).maybeSingle();
+      if(accessError)return json({error:"Nao foi possivel validar o pedido."},503);
+      if(!access)return json({error:"Pedido nao autorizado."},403);
+      const {data:order,error:orderError}=await admin
+        .from("artvideo_store_orders")
+        .select("status,expires_at,preference_id,payment_provider,payment_environment,shipping_price,buyer")
+        .eq("id",resumeId).maybeSingle();
+      if(orderError||!order)return json({error:"Pedido nao encontrado."},404);
+      if(order.preference_id!=="bricks:"+resumeId
+        ||order.payment_provider!=="mercado_pago"||order.payment_environment!=="production")
+        return json({error:"Este pedido nao foi iniciado no pagamento integrado."},403);
+      if(order.status!=="awaiting_payment"||Date.parse(order.expires_at)<=Date.now())
+        return json({error:"A reserva deste pedido expirou ou ja foi paga. Consulte o acompanhamento."},409);
+      const {data:config,error:configError}=await admin
+        .from("artvideo_store_payment_settings")
+        .select("mercado_pago_public_key,environment")
+        .eq("provider_key","mercado_pago").maybeSingle();
+      const publicKey=String(config?.mercado_pago_public_key||Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"");
+      if(configError||config?.environment!=="production"
+        || !/^APP_USR-[a-zA-Z0-9_-]{12,}$/.test(publicKey))
+        return json({error:"Formulario integrado indisponivel."},503);
+      const {data:lines,error:lineError}=await admin
+        .from("artvideo_store_order_items")
+        .select("unit_price,quantity").eq("order_id",resumeId).limit(15);
+      if(lineError||!lines?.length)return json({error:"Itens do pedido indisponiveis."},503);
+      const total=Number(order.shipping_price)+lines.reduce(
+        (sum,line)=>sum+Number(line.unit_price)*Number(line.quantity),0);
+      if(!Number.isFinite(total)||total<1)return json({error:"Valor do pedido invalido."},400);
+      return json({order_id:resumeId,tracking_token:resumeToken,
+        public_key:publicKey,amount:Math.round(total*100)/100,
+        expires_at:order.expires_at,buyer_email:String(order.buyer?.buyer_email||""),
+        mode:"bricks"});
+    }
     if(input?.action==="bricks_status"){
       // A chave publica somente e divulgada se a modalidade estiver
       // autorizada. Nenhuma credencial privada e retornada.
