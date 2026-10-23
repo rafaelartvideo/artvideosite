@@ -36,6 +36,7 @@ export function sanitizeRichText(value: string = ""): string {
     if (discarded.has(name)) return "";
     const children = Array.from(element.childNodes).map(walk).join("");
     if (name === "br") return "<br>";
+    if (name === "div") return /<(?:p|ul|ol|blockquote|h3)\b/i.test(children) ? children : "<p>" + children + "</p>";
     const normalized = name === "b" ? "strong" : name === "i" ? "em" : /^h[1-6]$/.test(name) ? "h3" : name;
     let content = children;
     // Google Docs/Word often paste bold and italic as spans with inline styles.
@@ -112,7 +113,7 @@ export function RichTextEditor({ label, value, onChange, disabled = false, minHe
     event.preventDefault();
     const html = event.clipboardData.getData("text/html");
     const plain = event.clipboardData.getData("text/plain");
-    insert(sanitizeRichText(html || plain));
+    insert(html ? sanitizeRichText(html) : escape(plain).replace(/\r?\n/g, "<br>"));
   };
   const beginLink = () => {
     if (disabled) return;
