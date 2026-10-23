@@ -55,3 +55,13 @@ Código pronto para homologação e revisão. A presença dos arquivos no reposi
 - O token de acompanhamento agora é gerado **antes** de criar a preferência hospedada, para reduzir pedidos cobrados sem retorno de acompanhamento.
 - Novos campos `payment_issue_status` e `payment_issue_at` registram `refunded`/`charged_back`; tanto a rotina multi-itens quanto a antiga (um item) preservam histórico, mantêm movimentações e colocam a venda em revisão humana. A equipe e o cliente recebem identificação de estorno ou contestação no acompanhamento.
 - Este teste simula a conciliação SQL, mas não comprova uma compra real no fluxo do site. Para liberar produção, ainda testar ponta a ponta em ambiente controlado, incluindo frete, carrinho, retorno, autorização, webhook assinado, estoques, e estorno operacional.
+
+## Convite privado para teste de compra completa (23/10/2026)
+- Painel Union World → Site → Pagamentos → Teste completo da loja → Gerar convite de homologação, protegido por sessão autenticada e permissão `site_settings.update`.
+- Token criptograficamente aleatório de 256 bits, enviado somente no fragmento `#homologacao=`; o site o armazena em `sessionStorage` após limpar o fragmento. No banco fica somente SHA-256 do token.
+- Convites expiram após duas horas, limitados a três por usuário em 24 horas, e somente um convite não usado por usuário permanece ativo.
+- O site não permite pagamento público: `artvideo_store_payment_status_v1` permanece `available=false`; apenas o checkout com convite válido, confirmado por RPC service_role, pode iniciar uma compra REAL de produção.
+- A função `artvideo_store_begin_homologation_multi_v1` consome o convite com `FOR UPDATE`, define contexto local exclusivamente na transação e cria o pedido usando a rotina de reserva existente. O gatilho permite Mercado Pago produção somente enquanto esse contexto de convite válido está em andamento.
+- Os preços e frete continuam recalculados no backend. Depois de consumir o convite, uma tentativa de reutilizá-lo é recusada.
+- Não é sandbox: um pagamento aprovado cria um pedido real e baixa estoque real. Orientar o operador a usar outro comprador e não a conta vendedora.
+- Permanece pendente a inspeção humana da compra fim a fim, no CRM e site, antes de ativar pagamentos para todos.
