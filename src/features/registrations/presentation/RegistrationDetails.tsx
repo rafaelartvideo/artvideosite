@@ -59,7 +59,6 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const roles = activeRegistrationRoles(selected);
-  const employee = selected.employee_details?.[0];
   const employeeRecord = selected.legacy_employee;
   const accessActive = employeeRecord?.is_active !== false && accessForm.enabled !== false;
   const accessUsername = accessForm.username || usernameFromAuthEmail(accessForm.email) || "—";
@@ -125,14 +124,6 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             </div>;
           })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
         </Section>
-
-        {roles.includes("employee") && <Section title="Geral">
-          <div className="grid gap-4 sm:grid-cols-3">
-            {detailValue("Cargo", employee?.job_title || "—")}
-            {detailValue("Setor", employee?.team_name || "—")}
-            {detailValue("Admissão", formatDateOnly(employee?.admission_date, "—"))}
-          </div>
-        </Section>}
 
         {roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
           <div aria-busy={accessLoading}>
