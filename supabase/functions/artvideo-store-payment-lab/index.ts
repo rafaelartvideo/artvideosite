@@ -1,10 +1,10 @@
 import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 import { CORS } from "../_shared/artvideo-store.ts";
 
-const headers = { ...CORS, "Cache-Control": "no-store", "Content-Type": "application/json; charset=utf-8" };
-function reply(body: unknown,status=200) {
-  return new Response(JSON.stringify(body),{status,headers});
-}
+const allowedOrigins=new Set([
+  "https://unionworld.com.br","https://www.unionworld.com.br",
+  "https://eletronicaartvideo.com.br","https://www.eletronicaartvideo.com.br",
+]);
 function safeId(value: unknown) {return typeof value==="string" && /^[0-9a-f-]{36}$/i.test(value);}
 const allowedHosts = new Set([
   "www.mercadopago.com.br","www.mercadopago.com",
@@ -18,7 +18,13 @@ function validRedirect(value: unknown): value is string {
 }
 
 Deno.serve(async (req:Request) => {
-  if(req.method==="OPTIONS") return new Response(null,{headers:CORS});
+  const origin=req.headers.get("origin")||"";
+  const headers={...CORS,
+    "Access-Control-Allow-Origin":allowedOrigins.has(origin)?origin:"https://unionworld.com.br",
+    "Cache-Control":"no-store","Vary":"Origin",
+    "Content-Type":"application/json; charset=utf-8"};
+  const reply=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers});
+  if(req.method==="OPTIONS") return new Response(null,{headers});
   if(req.method!=="POST") return reply({error:"Método não permitido."},405);
   if(Number(req.headers.get("content-length")||0)>2048) return reply({error:"Solicitação inválida."},413);
   const base=Deno.env.get("SUPABASE_URL")||"";
