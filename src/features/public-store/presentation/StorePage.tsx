@@ -179,14 +179,14 @@ export function StorePage({ setPage, onSelectProduct, onSelectService }: {
           className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
       </label>
-      <nav aria-label="Categorias de produtos" className="mt-8 flex flex-wrap items-start justify-center gap-x-4 gap-y-5 pb-4 sm:gap-x-7">
+      <nav aria-label="Categorias de produtos" className="art-category-carousel -mx-5 mt-6 flex snap-x snap-mandatory items-start gap-3 overflow-x-auto overscroll-x-contain px-5 pb-4 scroll-smooth sm:mx-0 sm:mt-8 sm:flex-wrap sm:justify-center sm:gap-x-7 sm:gap-y-5 sm:overflow-visible sm:px-0">
         {catalogCategories.map(item=>{
           const active=item.id==="offers"?onlyOffers&&category==="all":item.id===category&&!onlyOffers;
           const Icon=item.Icon;
           const select=()=>{if(item.id==="offers"){setCategory("all");setOnlyOffers(true);}
             else{setOnlyOffers(false);setCategoryFilter(item.id);}resetPage();};
           return <button key={item.id} type="button" onClick={select} aria-pressed={active}
-            className="group flex w-[94px] shrink-0 flex-col items-center gap-2.5 text-center sm:w-[112px]">
+            className="group flex w-[94px] shrink-0 snap-start flex-col items-center gap-2.5 text-center sm:w-[112px] sm:snap-align-none">
             <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#eef1ff] text-[var(--art-primary)]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
               <Icon size={26} strokeWidth={1.4}/>
             </span>
