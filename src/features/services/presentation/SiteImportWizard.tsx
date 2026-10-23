@@ -499,7 +499,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                         </div>
                         <input aria-label={block.target === "faqs" ? "Pergunta" : "Título"} placeholder={block.target === "faqs" ? "Pergunta frequente" : block.target === "orientations" ? "Título do card Saiba mais" : "Título da informação"} className={input} value={block.heading} disabled={saving} onChange={e => updateBlock(item.id, block.id, { heading: e.target.value })} />
                         <textarea aria-label={block.target === "faqs" ? "Resposta" : "Conteúdo"} placeholder={block.target === "faqs" ? "Resposta para o cliente" : block.target === "orientations" ? "Texto completo do modal Saiba mais" : "Conteúdo da informação técnica"} className={input + " min-h-20 resize-y"} rows={3} value={block.text} disabled={saving} onChange={e => updateBlock(item.id, block.id, { text: e.target.value })} />
-                        {["faqs", "orientations", "sections"].includes(block.target) && (!block.heading.trim() || !block.text.trim()) && <p className="text-xs font-medium text-amber-700">Preencha título e conteúdo, ou selecione Ignorar.</p>
+                        {["faqs", "orientations", "sections"].includes(block.target) && (!block.heading.trim() || !block.text.trim()) && <p className="text-xs font-medium text-amber-700">Preencha título e conteúdo, ou selecione Ignorar.</p>}
                       </div>
                       <label className="space-y-1 text-xs font-semibold">Destino na Artvideo
                         <select className={input} value={block.target} disabled={saving} onChange={e => updateBlock(item.id, block.id, { target: e.target.value as Destination })}>
