@@ -66,15 +66,6 @@ export async function deleteService(serviceId: string): Promise<void> {
   if (error) throw error;
 }
 
-export async function setServicePublication(serviceId: string, published: boolean): Promise<void> {
-  const organizationId = await getArtVideoOrganizationId();
-  // A public service must be both active and visible in the catalog.
-  const flags = published ? { is_active: true, show_in_catalog: true } : { show_in_catalog: false };
-  const { data, error } = await supabase.from("services").update(flags).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
-  if (error) throw error;
-  if (!data) throw new Error("Não foi possível atualizar a publicação do serviço.");
-}
-
 export async function setServiceActive(serviceId: string, isActive: boolean): Promise<void> {
   const organizationId = await getArtVideoOrganizationId();
   const { error } = await supabase.from("services").update({ is_active: isActive, show_in_catalog: isActive }).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
