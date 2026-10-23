@@ -8,10 +8,12 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, refreshEmbeddedPayment, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
+import {QRCodeSVG} from "qrcode.react";
+import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
 
-type Step = 1 | 2 | 3;
+type Step = 1 | 2 | 3 | 4;
 type Buyer = {
   buyer_name: string; buyer_email: string; buyer_phone: string;
   street: string; number: string; complement: string;
@@ -27,7 +29,8 @@ const buttonStyle = "inline-flex min-h-12 items-center justify-center gap-2.5 ro
 const steps: { value: Step; name: string; sub: string; Icon: typeof UserRound }[] = [
   { value: 1, name: "Identificação", sub: "Seus dados", Icon: UserRound },
   { value: 2, name: "Entrega", sub: "Endereço e frete", Icon: Truck },
-  { value: 3, name: "Revisão e pagamento", sub: "Confira o pedido", Icon: CreditCard },
+  { value: 3, name: "Revisão", sub: "Confira o pedido", Icon: Package },
+  { value: 4, name: "Pagamento", sub: "Finalize aqui no site", Icon: CreditCard },
 ];
 
 function Field({ label, required, children, hint }: {
@@ -134,6 +137,15 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   });
   const homologationAvailable=homologationToken.length===64 && testAccess.data===true;
   const paymentsAvailable=paymentQuery.data?.available===true || homologationAvailable;
+  const embeddedQuery=useQuery({
+    queryKey:["artvideo-embedded-payment",homologationToken],
+    queryFn:()=>loadEmbeddedCheckoutAvailability(homologationToken),
+    enabled:paymentsAvailable,staleTime:15_000,
+  });
+  const embeddedAvailable=embeddedQuery.data===true;
+  const [brickSession,setBrickSession]=useState<EmbeddedCheckoutSession|null>(null);
+  const [brickResult,setBrickResult]=useState<EmbeddedPaymentResult|null>(null);
+  const [brickRefreshing,setBrickRefreshing]=useState(false);
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [quoteKey, setQuoteKey] = useState("");
   const [shippingId, setShippingId] = useState("");
@@ -284,7 +296,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
   };
 
-  const placeOrder = async () => {
+  const placeOrder = async (mode:"hosted"|"bricks"="hosted") => {
     if (inFlight.current || paying) return;
     if(!paymentsAvailable){setError("O pagamento online está sendo preparado. Nenhuma cobrança foi realizada.");return;}
     if (!checkIdentity() || !checkDelivery() || !purchasable || !selectedShipping) {
@@ -326,7 +338,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         setError("O valor da entrega foi atualizado. Confira o novo total antes de pagar.");
         return;
       }
-      const checkout = await startStoreCheckout({
+      const checkoutPayload={
         ...(homologationAvailable ? {homologation_token:homologationToken}:{}),
         product_id: productId, quantity,
         ...(cartMode ? { items: cartItems.map(i => ({ product_id: i.productId, quantity: i.quantity })) } : {}),
@@ -345,7 +357,20 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         district: buyer.district.trim(), city: buyer.city.trim(),
         state: buyer.state.trim().toUpperCase(),
         complement: buyer.complement.trim(),
-      });
+      };
+      if(mode==="bricks"){
+        const session=await prepareEmbeddedStoreCheckout(checkoutPayload);
+        try{
+          sessionStorage.setItem("artvideo-last-order",session.orderId);
+          sessionStorage.setItem("artvideo-last-email",buyer.buyer_email.trim());
+          sessionStorage.setItem("artvideo-store-tracking",session.trackingToken);
+        }catch{/* navegador com sessao restrita */}
+        setBrickSession(session);
+        setBrickResult(null);
+        move(4);
+        return;
+      }
+      const checkout=await startStoreCheckout(checkoutPayload);
       if (checkout.orderId) {
         try {
           sessionStorage.setItem("artvideo-last-order", checkout.orderId);
@@ -367,6 +392,21 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         setPaying(false);
       }
     }
+  };
+
+  const refreshBrickStatus=async()=>{
+    if(!brickSession||brickRefreshing)return;
+    setBrickRefreshing(true);
+    setError("");
+    try{
+      const result=await refreshEmbeddedPayment(brickSession);
+      if(result.status==="not_started"){
+        setError("Aguardando o envio do pagamento pelo formulário.");
+      }else{
+        setBrickResult(result);
+      }
+    }catch(err){setError(err instanceof Error?err.message:"Nao foi possivel atualizar o pagamento.");}
+    finally{setBrickRefreshing(false);}
   };
 
   if (productLoading || (cartMode && catalogLoading)) return <div className="flex min-h-[65vh] items-center justify-center gap-3 bg-[#f8fbff] text-sm text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={21}/> Preparando sua compra...</div>;
@@ -422,7 +462,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     </div>
   </div>;
 
-  const backAction = <button type="button" disabled={paying}
+  const backAction = <button type="button" disabled={paying || Boolean(brickSession)}
     onClick={() => step === 1 ? navigate(backToProduct) : move((step - 1) as Step)}
     className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] border border-[var(--art-primary)] bg-[#ecf2ff] px-2 text-center text-[12px] font-bold leading-tight text-[var(--art-primary)] transition-colors hover:bg-[#dfeaff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-5 md:text-[13px]">
     <ArrowLeft size={16} className="shrink-0"/>
@@ -435,13 +475,13 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }}
     className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[13px] font-bold leading-tight text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-6">
     Continuar <ArrowRight size={16} className="shrink-0"/>
-  </button> : <button type="button" disabled={!purchasable || paying || !selectedShipping || !paymentsAvailable}
-    onClick={() => void placeOrder()}
+  </button> : step===3 ? <button type="button" disabled={!purchasable || paying || !selectedShipping || !paymentsAvailable}
+    onClick={() => void placeOrder(embeddedAvailable?"bricks":"hosted")}
     className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[12px] font-bold leading-tight text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-6 md:text-[13px]">
     {paying ? <><LoaderCircle size={17} className="shrink-0 animate-spin"/> Verificando...</> :
-      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> Ir para pagamento</> :
+      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> {embeddedAvailable?"Pagar aqui no site":"Ir para pagamento"}</> :
       "Pagamento indisponível"}
-  </button>;
+  </button> : null;
 
   return <div className="art-checkout-page min-h-screen bg-[#f6f9fd] text-[#10243d]">
     {homologationAvailable&&<div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold leading-5 text-amber-900">
@@ -461,14 +501,14 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
     <div ref={mainRef} className="mx-auto max-w-7xl scroll-mt-24 px-4 pb-28 pt-5 sm:px-6 sm:py-8 lg:px-8">
       <nav aria-label="Etapas da compra" className={cardStyle + " mb-5 p-2.5 sm:mb-7 sm:p-5"}>
-        <ol className="grid grid-cols-3 gap-1.5 sm:gap-3">
+        <ol className="grid grid-cols-4 gap-1 sm:gap-3">
           {steps.map(({ value, name, sub, Icon }) => {
             const done = step > value;
             const active = step === value;
             return <li key={value} className="min-w-0">
-              <button type="button" disabled={paying || value > step}
-                onClick={() => { if (value <= step) move(value); }}
-                aria-label={name + " · etapa " + value + " de 3"}
+              <button type="button" disabled={paying || value > step || Boolean(brickSession)}
+                onClick={() => { if (value <= step && !brickSession) move(value); }}
+                aria-label={name + " · etapa " + value + " de 4"}
                 aria-current={active ? "step" : undefined}
                 className={"flex min-h-[81px] w-full min-w-0 flex-col items-center justify-center gap-1.5 rounded-lg px-1 py-2 text-center transition-colors sm:min-h-0 sm:flex-row sm:justify-start sm:gap-3 sm:p-3 sm:text-left " +
                   (active ? "bg-[#eff6ff]" : done ? "hover:bg-[#f7faff]" : "cursor-default")}>
@@ -489,7 +529,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         </ol>
         <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-[#e9eff7] sm:mt-3">
           <div className="h-full rounded-full bg-[var(--art-primary)] transition-all duration-300"
-            style={{ width: (step / 3 * 100) + "%" }}/>
+            style={{ width: (step / 4 * 100) + "%" }}/>
         </div>
       </nav>
 
@@ -502,7 +542,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
           {step === 1 && <section aria-labelledby="checkout-identificacao" className={cardStyle + " overflow-hidden"}>
             <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 1 de 3</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 1 de 4</span>
               <h2 id="checkout-identificacao" className="mt-1 text-[22px] font-extrabold tracking-tight">Seus dados</h2>
               <p className="mt-1 text-[13px] text-[#647791]">Como podemos identificar você e falar sobre o seu pedido?</p>
             </div>
@@ -550,7 +590,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
           {step === 2 && <section aria-labelledby="checkout-entrega" className={cardStyle + " overflow-hidden"}>
             <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 2 de 3</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 2 de 4</span>
               <h2 id="checkout-entrega" className="mt-1 text-[22px] font-extrabold tracking-tight">Como você quer receber?</h2>
               <p className="mt-1 text-[13px] text-[#647791]">Escolha a entrega regional ou retire seu pedido na loja.</p>
             </div>
@@ -657,7 +697,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
           {step === 3 && <section aria-labelledby="checkout-revisao" className={cardStyle + " overflow-hidden"}>
             <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
-              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 3 de 3</span>
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 3 de 4</span>
               <h2 id="checkout-revisao" className="mt-1 text-[22px] font-extrabold tracking-tight">Revise antes de pagar</h2>
               <p className="mt-1 text-[13px] text-[#647791]">Confira seus dados e o total do pedido.</p>
             </div>
@@ -699,7 +739,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                     </h3>
                     <p className="mt-1 text-[12px] leading-relaxed text-[#58728e]">
                       {paymentsAvailable
-                        ? "Ao continuar, você será direcionado ao ambiente seguro de pagamento. A Artvideo não solicita dados do cartão nesta página."
+                        ? embeddedAvailable
+                          ? "Você pode pagar no próximo passo, sem sair do site. Os dados do cartão são tratados pelo SDK seguro do Mercado Pago."
+                          : "Ao continuar, você será direcionado ao ambiente seguro de pagamento. A Artvideo não solicita dados do cartão nesta página."
                         : "Estamos preparando uma nova forma de pagamento para a loja. Você pode consultar os produtos e o frete, mas novas cobranças estão temporariamente indisponíveis."}
                     </p>
                   </div>
@@ -709,6 +751,12 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-[#278a61]"/>
                 O pedido só será considerado pago após a confirmação do provedor.
               </p>
+              {embeddedAvailable && <button type="button"
+                disabled={paying || !selectedShipping}
+                onClick={()=>void placeOrder("hosted")}
+                className="text-[12px] font-bold text-[var(--art-primary)] hover:underline disabled:opacity-50">
+                Prefiro pagar na página do Mercado Pago (Checkout Pro)
+              </button>}
               {!paymentsAvailable && <Link to="/contato"
                 className="inline-flex min-h-10 items-center gap-2 text-[12px] font-bold text-[var(--art-primary)] hover:underline">
                 Entre em contato com a Artvideo para consultar opções de compra <ArrowRight size={16}/>
@@ -716,14 +764,73 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             </div>
           </section>}
 
+          {step===4 && brickSession && <section aria-labelledby="checkout-pagamento" className={cardStyle+" overflow-hidden"}>
+            <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
+              <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 4 de 4</span>
+              <h2 id="checkout-pagamento" className="mt-1 text-[22px] font-extrabold tracking-tight">Pagamento seguro</h2>
+              <p className="mt-1 text-[13px] text-[#647791]">Finalize o pedido no próprio site com Pix, cartão ou boleto.</p>
+            </div>
+            <div className="space-y-5 p-5 sm:p-7">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dce7f5] bg-[#f7faff] p-4">
+                <div>
+                  <p className="text-[12px] font-semibold text-[#667b95]">Pedido #{brickSession.orderId.slice(0,8).toUpperCase()}</p>
+                  <p className="mt-1 text-[12px] text-[#667b95]">Valor calculado e reservado no servidor</p>
+                </div>
+                <strong className="text-[22px] text-[#173b64]">{formatCurrency(brickSession.amount)}</strong>
+              </div>
+              {!brickResult ? <EmbeddedMercadoPagoPayment
+                session={brickSession} buyerEmail={buyer.buyer_email}
+                onResult={setBrickResult}/> : <>
+                <div className={"rounded-lg border p-4 text-[13px] "+
+                  (brickResult.status==="approved"?"border-emerald-200 bg-emerald-50 text-emerald-900":
+                   ["pending","in_process","authorized"].includes(brickResult.status)?
+                   "border-blue-200 bg-blue-50 text-blue-900":"border-amber-200 bg-amber-50 text-amber-900")}>
+                  <strong>{brickResult.status==="approved"?"Pagamento confirmado":
+                    brickResult.status==="pending"?"Pagamento aguardando confirmação":
+                    brickResult.status==="in_process"?"Pagamento em análise":
+                    ["rejected","cancelled"].includes(brickResult.status)?"Pagamento não aprovado":
+                    "Situação do pagamento: "+brickResult.status}</strong>
+                  <p className="mt-1 leading-5">O estoque somente será baixado após a confirmação válida do pagamento.</p>
+                </div>
+                {brickResult.qrCode && <div className="flex flex-col items-center gap-4 rounded-lg border border-[#e2e9f4] p-4">
+                  <p className="text-sm font-bold">Pague com Pix</p>
+                  <QRCodeSVG value={brickResult.qrCode} size={192}/>
+                  <button type="button" onClick={()=>void navigator.clipboard.writeText(brickResult.qrCode!)}
+                    className="rounded-lg border border-[#c8def5] px-4 py-3 text-[12px] font-bold text-[var(--art-primary)]">
+                    Copiar código Pix
+                  </button>
+                </div>}
+                {brickResult.ticketUrl&&<a href={brickResult.ticketUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex min-h-11 items-center rounded-lg border border-[#bcd6f2] px-4 text-xs font-bold text-[var(--art-primary)]">
+                  Ver boleto bancário
+                </a>}
+              </>}
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" disabled={brickRefreshing} onClick={()=>void refreshBrickStatus()}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#c8dff9] px-4 text-xs font-bold text-[var(--art-primary)] disabled:opacity-50">
+                  {brickRefreshing?<LoaderCircle size={16} className="animate-spin"/>:<CheckCircle2 size={16}/>}
+                  Atualizar situação
+                </button>
+                <Link to={"/acompanhar-pedido#c="+brickSession.trackingToken}
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-bold text-white">
+                  Acompanhar pedido <ArrowRight size={16}/>
+                </Link>
+              </div>
+              <p className="text-xs leading-5 text-[#627895]">
+                Se a confirmação demorar, acompanhe seu pedido sem gerar outro pagamento.
+                Você pode sair desta página depois de salvar o link de acompanhamento.
+              </p>
+            </div>
+          </section>}
+
           {error && <div role="alert" aria-live="assertive" className="mt-5 hidden items-start gap-3 rounded-lg border border-[#edcacc] bg-[#fff4f4] px-4 py-4 text-[13px] leading-5 text-[#a83e45] md:flex">
             <AlertCircle size={19} className="mt-0.5 shrink-0"/><span>{error}</span>
           </div>}
 
-          <div className="mt-6 hidden items-center justify-between gap-3 md:flex">
+          {step!==4&&<div className="mt-6 hidden items-center justify-between gap-3 md:flex">
             {backAction}
             {nextAction}
-          </div>
+          </div>}
         </div>
 
         <aside className="min-w-0 lg:sticky lg:top-[95px]">
@@ -735,12 +842,12 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     </div>
 
     {/* Mesmas ações e validações em todas as etapas; visíveis no celular sem rolagem. */}
-    <div className="art-checkout-mobile-actions fixed inset-x-0 bottom-0 z-[60] border-t border-[#e0e8f2] bg-white/95 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-5px_20px_rgba(15,38,73,.10)] backdrop-blur-md md:hidden" aria-label="Navegação do checkout">
+    {step!==4&&<div className="art-checkout-mobile-actions fixed inset-x-0 bottom-0 z-[60] border-t border-[#e0e8f2] bg-white/95 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-5px_20px_rgba(15,38,73,.10)] backdrop-blur-md md:hidden" aria-label="Navegação do checkout">
       {error && <p role="alert" aria-live="assertive" className="mx-3 mb-2 rounded-lg border border-[#edcacc] bg-[#fff4f4] px-3 py-2.5 text-[12px] leading-relaxed text-[#a83e45]">{error}</p>}
       <div className="mx-auto grid max-w-lg grid-cols-2 gap-2 px-3">
         {backAction}
         {nextAction}
       </div>
-    </div>
+    </div>}
   </div>;
 }
