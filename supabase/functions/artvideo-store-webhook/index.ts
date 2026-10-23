@@ -89,7 +89,7 @@ Deno.serve(async req => {
     const payment = await response.json();
     if (String(payment.id) !== id || String(payment.collector_id) !== config.collector
       || payment.currency_id !== "BRL"
-      || (typeof payment.live_mode === "boolean" && payment.live_mode !== (config.environment === "production"))) return new Response("payment mismatch",{status:403});
+      || payment.live_mode !== (config.environment === "production")) return new Response("payment mismatch",{status:403});
     const orderId = String(payment.external_reference || "");
     if (!/^[0-9a-f-]{36}$/i.test(orderId)) return new Response("external reference invalid",{status:400});
     const status = String(payment.status || "");
@@ -110,6 +110,25 @@ Deno.serve(async req => {
           p_test_id:orderId,p_payment_id:id,p_payment_status:status,p_amount:amount,
         });
         if(settleError)return new Response("lab reconciliation pending",{status:503});
+        return new Response("ok",{status:200});
+      }
+    }
+    if(config.environment==="production"){
+      // Transação REAL isolada de homologação: sem pedido/estoque/financeiro.
+      // Recebida somente depois de HMAC, consulta do pagamento e conferência
+      // de vendedor, ambiente, BRL, referência e valor.
+      const {data:live,error:liveError}=await admin.from("artvideo_payment_live_checks")
+        .select("id,amount").eq("id",orderId).maybeSingle();
+      if(liveError)return new Response("isolated payment lookup failed",{status:503});
+      if(live){
+        if(Math.abs(Number(live.amount)-amount)>0.009)
+          return new Response("isolated payment amount mismatch",{status:403});
+        const {error:settleError}=await admin.rpc("artvideo_payment_live_check_settle_v1",{
+          p_check_id:orderId,p_payment_id:id,p_payment_status:status,
+          p_amount:amount,p_from_signed_webhook:true,
+        });
+        if(settleError)return new Response("isolated payment reconciliation pending",{status:503});
+        console.info("Artvideo real payment check reconciled from signed webhook");
         return new Response("ok",{status:200});
       }
     }

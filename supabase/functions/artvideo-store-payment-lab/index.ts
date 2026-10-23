@@ -49,6 +49,183 @@ Deno.serve(async (req:Request) => {
     const action=String(input?.action||"");
     // Retoma testes do usuário mesmo após atualizar ou fechar a página.
     // Apenas IDs, status e metadados; nunca revela tokens ou dados de outros usuários.
+    if(action==="production_latest"){
+      const {data,error}=await admin.from("artvideo_payment_live_checks")
+        .select("id,status,amount,payment_id,webhook_received_at,created_at,updated_at")
+        .eq("created_by",userData.user.id).order("created_at",{ascending:false}).limit(8);
+      if(error)return reply({error:"Não foi possível recuperar as validações de produção."},503);
+      const runs=(data||[]).map(t=>({
+        id:t.id,status:t.status,amount:Number(t.amount),paymentId:t.payment_id||null,
+        webhookReceivedAt:t.webhook_received_at||null,createdAt:t.created_at,updatedAt:t.updated_at,
+      }));
+      return reply({tests:runs,test:runs[0]||null});
+    }
+    if(action==="production_create"){
+      // Nunca gera cobrança de produção durante diagnóstico/status.
+      // A UI exige confirmação adicional antes de enviar esta ação.
+      if(input.confirm_real_payment!==true)
+        return reply({error:"Confirme explicitamente a criação do link REAL de R$ 1,00."},400);
+      const accessToken=Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"";
+      const collector=Deno.env.get("MERCADO_PAGO_COLLECTOR_ID")||"";
+      const webhookSecret=Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET")||"";
+      const testToken=Deno.env.get("MERCADO_PAGO_TEST_ACCESS_TOKEN")||"";
+      if(!accessToken||!webhookSecret||!/^\d{5,20}$/.test(collector)
+        ||(testToken&&accessToken===testToken))
+        return reply({error:"Credenciais de produção ainda não foram validadas."},503);
+      let validAccount=false;
+      try{
+        const response=await fetch("https://api.mercadopago.com/users/me",{
+          headers:{Authorization:"Bearer "+accessToken,Accept:"application/json"},
+          signal:AbortSignal.timeout(12000),
+        });
+        if(response.ok)validAccount=String((await response.json()).id||"")===collector;
+      }catch{}
+      if(!validAccount)return reply({error:"Conta de produção não confirmada pela API."},403);
+      const since10=new Date(Date.now()-10*60*1000).toISOString();
+      const sinceDay=new Date(Date.now()-24*60*60*1000).toISOString();
+      const {data:recent,error:limitError}=await admin.from("artvideo_payment_live_checks")
+        .select("id,created_at").eq("created_by",userData.user.id)
+        .gte("created_at",sinceDay).order("created_at",{ascending:false}).limit(3);
+      if(limitError)return reply({error:"Não foi possível verificar os limites de segurança."},503);
+      if((recent||[]).length>=3)
+        return reply({error:"Limite de três validações reais em 24 horas atingido."},429);
+      if((recent||[]).some(r=>r.created_at>=since10))
+        return reply({error:"Para evitar cobranças repetidas, aguarde 10 minutos antes de gerar outro link real."},429);
+      const {data:check,error:checkError}=await admin.from("artvideo_payment_live_checks")
+        .insert({created_by:userData.user.id}).select("id,created_at").single();
+      if(checkError||!check?.id)return reply({error:"Não foi possível registrar a validação isolada."},503);
+      const expires=new Date(Date.now()+30*60*1000);
+      const pref={
+        items:[{id:"artvideo-producao-validacao",title:"Validacao de integracao Artvideo - valor real",
+          currency_id:"BRL",quantity:1,unit_price:1}],
+        external_reference:check.id,
+        notification_url:base+"/functions/v1/artvideo-store-webhook",
+        expires:true,expiration_date_from:new Date().toISOString(),
+        expiration_date_to:expires.toISOString(),
+      };
+      try{
+        const res=await fetch("https://api.mercadopago.com/checkout/preferences",{
+          method:"POST",signal:AbortSignal.timeout(15000),
+          headers:{Authorization:"Bearer "+accessToken,"Content-Type":"application/json",
+            "X-Idempotency-Key":check.id},
+          body:JSON.stringify(pref),
+        });
+        if(!res.ok){
+          console.error("Artvideo live check preference creation failed",res.status);
+          throw new Error("O Mercado Pago não conseguiu criar a validação real (HTTP "+res.status+").");
+        }
+        const data=await res.json();
+        if(typeof data?.id!=="string"||!data.id||!validRedirect(data.init_point)){
+          throw new Error("A API não forneceu link oficial válido para a conta real.");
+        }
+        const {error:updateError}=await admin.from("artvideo_payment_live_checks")
+          .update({status:"awaiting_payment",preference_id:data.id,updated_at:new Date().toISOString()})
+          .eq("id",check.id);
+        if(updateError)throw new Error("Não foi possível guardar a referência da validação real.");
+        return reply({
+          environment:"production",realMoney:true,
+          checkoutUrl:data.init_point,
+          test:{id:check.id,status:"awaiting_payment",amount:1,createdAt:check.created_at,
+            webhookReceivedAt:null},
+          message:"Link REAL de R$ 1,00 criado. Só ocorrerá cobrança se o comprador concluir o pagamento.",
+        });
+      }catch(error){
+        await admin.from("artvideo_payment_live_checks").update({status:"error"}).eq("id",check.id);
+        return reply({error:error instanceof Error?error.message:"Falha ao preparar a validação real."},502);
+      }
+    }
+    if(action==="production_status"){
+      if(!safeId(input.test_id))return reply({error:"Identificador inválido."},400);
+      const {data:check,error:checkError}=await admin.from("artvideo_payment_live_checks")
+        .select("id,status,amount,payment_id,preference_id,webhook_received_at,created_at,updated_at")
+        .eq("id",input.test_id).eq("created_by",userData.user.id).maybeSingle();
+      if(checkError)return reply({error:"Não foi possível consultar a validação."},503);
+      if(!check)return reply({error:"Validação não encontrada."},404);
+      let status=String(check.status),paymentId=String(check.payment_id||"");
+      let message=status==="approved"?"Pagamento real confirmado pelo Mercado Pago.":"Nenhum pagamento real confirmado para esta validação.";
+      let source="database";
+      if(status!=="approved"&&status!=="refunded"&&status!=="charged_back"){
+        const accessToken=Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"";
+        const collector=Deno.env.get("MERCADO_PAGO_COLLECTOR_ID")||"";
+        if(!accessToken||!collector)return reply({error:"Credenciais de produção ausentes."},503);
+        const mpHeaders={Authorization:"Bearer "+accessToken,Accept:"application/json"};
+        const getMp=async(url:URL):Promise<Record<string,unknown>>=>{
+          const res=await fetch(url,{headers:mpHeaders,signal:AbortSignal.timeout(12000)});
+          if(!res.ok)throw new Error("HTTP "+res.status);
+          return await res.json() as Record<string,unknown>;
+        };
+        const searchUrl=new URL("https://api.mercadopago.com/v1/payments/search");
+        searchUrl.searchParams.set("external_reference",check.id);
+        searchUrl.searchParams.set("sort","date_created");
+        searchUrl.searchParams.set("criteria","desc");
+        searchUrl.searchParams.set("limit","20");
+        let all:Record<string,unknown>[]=[];
+        let anyLookup=false;
+        try{
+          const search=await getMp(searchUrl);
+          all=Array.isArray(search.results)?search.results as Record<string,unknown>[]:[];
+          anyLookup=true;source="payment_search";
+        }catch(e){console.warn("Artvideo production check search unavailable",e instanceof Error?e.message:"error");}
+        if(!all.length&&typeof check.preference_id==="string"&&check.preference_id){
+          try{
+            const url=new URL("https://api.mercadopago.com/merchant_orders/search");
+            url.searchParams.set("preference_id",check.preference_id);
+            url.searchParams.set("limit","20");
+            const orders=await getMp(url);
+            const ids=new Set<string>();
+            for(const order of Array.isArray(orders.elements)?orders.elements as Record<string,unknown>[]):[]){
+              if(String(order.preference_id||"")!==check.preference_id
+                || String(order.external_reference||"")!==check.id)continue;
+              for(const pay of Array.isArray(order.payments)?order.payments as Record<string,unknown>[]):[]){
+                if(/^\d{5,25}$/.test(String(pay.id||"")))ids.add(String(pay.id));
+              }
+            }
+            for(const id of [...ids].slice(0,10)){
+              try{all.push(await getMp(new URL("https://api.mercadopago.com/v1/payments/"+id)));}
+              catch(e){console.warn("Artvideo production payment lookup failed",e instanceof Error?e.message:"error");}
+            }
+            anyLookup=true;source="merchant_orders";
+          }catch(e){console.warn("Artvideo production merchant order search failed",e instanceof Error?e.message:"error");}
+        }
+        const allowed=["approved","pending","in_process","rejected","cancelled","refunded","charged_back"];
+        const valid=all.filter(p=>{
+          const amount=Number(p.transaction_amount);
+          const time=Date.parse(String(p.date_created||""));
+          return /^\d{5,25}$/.test(String(p.id||""))
+            && String(p.external_reference||"")===check.id
+            && String(p.collector_id||"")===collector
+            && p.currency_id==="BRL" && p.live_mode===true
+            && allowed.includes(String(p.status||""))
+            && Number.isFinite(amount)&&Math.abs(amount-Number(check.amount))<0.009
+            && Number.isFinite(time)&&time>=Date.parse(check.created_at)-120000;
+        });
+        const candidate=valid.find(p=>p.status==="approved")||valid[0]||null;
+        if(candidate){
+          const id=String(candidate.id),next=String(candidate.status);
+          const {data:recorded,error:rpcError}=await admin.rpc("artvideo_payment_live_check_settle_v1",{
+            p_check_id:check.id,p_payment_id:id,p_payment_status:next,
+            p_amount:Number(candidate.transaction_amount),p_from_signed_webhook:false,
+          });
+          if(rpcError)return reply({error:"Pagamento encontrado, mas sua confirmação não foi registrada."},503);
+          status=String(recorded||next);paymentId=id;
+          message=status==="approved"?"Pagamento real de R$ 1,00 confirmado pela API do Mercado Pago.":
+            "Transação real localizada no Mercado Pago. Situação: "+status+".";
+        }else if(!anyLookup)return reply({error:"Não foi possível consultar o Mercado Pago agora."},503);
+        else if(all.length)message="A API retornou transações, mas nenhuma corresponde ao ambiente, vendedor, valor e referência. Nenhum pagamento foi confirmado.";
+        else message="Nenhuma transação real encontrada. A cobrança só acontece depois que o comprador conclui o checkout.";
+      }
+      // Retoma a data do webhook assinada mesmo que tenha chegado enquanto consultávamos.
+      const {data:fresh,error:freshError}=await admin.from("artvideo_payment_live_checks")
+        .select("status,payment_id,webhook_received_at,updated_at").eq("id",check.id).maybeSingle();
+      if(freshError)return reply({error:"Não foi possível atualizar o estado do webhook."},503);
+      return reply({environment:"production",realMoney:true,
+        test:{id:check.id,status:fresh?.status||status,
+          paymentId:fresh?.payment_id||paymentId||null,amount:Number(check.amount),
+          createdAt:check.created_at,updatedAt:fresh?.updated_at||check.updated_at,
+          webhookReceivedAt:fresh?.webhook_received_at||null},
+        source,message});
+    }
+
     if(action==="production_diagnose"){
       // Verificação somente de leitura; nenhuma preferência real é criada.
       const accessToken=Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"";
