@@ -73,8 +73,8 @@ export function RegistrationLoginHistory({
     </div>
     {summary.sessions.length > 0 && <div>
       <div className="mb-2 text-[10px] font-black uppercase tracking-wider text-[#8a98aa]">Acessos recentes</div>
-      <div className="divide-y divide-[#0d1b2e]/10 rounded-lg border border-[#0d1b2e]/10">
-        {summary.sessions.map((session, index) => <div key={session.logged_in_at + index} className="grid gap-2 px-3 py-2 text-xs sm:grid-cols-2">
+      <div role="region" aria-label="Histórico de acessos recentes" tabIndex={0} className="max-h-[240px] overflow-y-auto overscroll-contain divide-y divide-[#0d1b2e]/10 rounded-lg border border-[#0d1b2e]/10 sm:max-h-[176px]">
+        {summary.sessions.map((session, index) => <div key={session.logged_in_at + index} className="grid min-h-[60px] gap-1 px-3 py-2 text-xs sm:min-h-[44px] sm:grid-cols-2 sm:items-center sm:gap-2">
           <span><span className="font-semibold text-[#5a6a82]">Entrada:</span> <span className="font-bold text-[#0d1b2e]">{formatDateTime(session.logged_in_at, "—")}</span></span>
           <span><span className="font-semibold text-[#5a6a82]">Saída:</span> <span className="font-bold text-[#0d1b2e]">{session.logged_out_at ? formatDateTime(session.logged_out_at, "—") : "Não registrada"}</span></span>
         </div>)}
