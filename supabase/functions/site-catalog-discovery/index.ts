@@ -108,6 +108,26 @@ type Destination = "description" | "short_description" | "inclusions" | "exclusi
 type ExtractedBlock = { id: string; heading: string; text: string; suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; sourceUrl?: string; };
 const normalize = (raw: string) => raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const clip = (raw: string, max = 420) => clean(raw).slice(0, max);
+// Retém somente tags semânticas (não scripts/estilos/atributos do site de origem).
+// A interface também higieniza novamente ao editar, salvar e apresentar o texto.
+function formatted(raw: string, max = 3000) {
+  const allowed = new Set(["p", "br", "strong", "b", "em", "i", "u", "ul", "ol", "li", "blockquote", "h3", "a"]);
+  return raw.slice(0, max * 5)
+    .replace(/<!--[\s\S]*?-->/g, "")
+    .replace(/<(script|style|iframe|object|svg|noscript|template)\b[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*>/gi, (tag, kind: string) => {
+      const normalized = /^h[1-6]$/i.test(kind) ? "h3" : kind.toLowerCase();
+      if (!allowed.has(normalized)) return " ";
+      if (normalized === "br") return "<br>";
+      if (tag.startsWith("</")) return "</" + normalized + ">";
+      if (normalized === "a") {
+        const href = attr(tag, "href");
+        if (!/^https?:\/\/[^\s"'<>]+$/i.test(href)) return "";
+        return '<a href="' + href.replace(/&/g, "&amp;").replace(/"/g, "&quot;") + '">';
+      }
+      return "<" + normalized + ">";
+    }).slice(0, max).trim();
+}
 const headingsToDestination = (heading: string): { target: Destination; confidence: ExtractedBlock["confidence"] } => {
   const h = normalize(heading);
   if (/nao (esta |estao )?(inclus|cobert)|nao (inclui|cobre|cobertos)|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte|o que pode impedir|limitacoes tecnicas/.test(h)) return { target: "exclusions", confidence: "high" };
@@ -125,9 +145,11 @@ const headingsToDestination = (heading: string): { target: Destination; confiden
 function discoverDetails(html: string, nodes: Record<string, any>[], summary: string, price: number | null): ExtractedBlock[] {
   const blocks: ExtractedBlock[] = [], keys = new Set<string>();
   function add(heading: string, text: string, suggestedTarget: Destination, confidence: ExtractedBlock["confidence"], origin: ExtractedBlock["origin"]) {
-    const h = clip(heading, 130), t = clip(text, 1500);
-    if ((!t || t.length < 3) && suggestedTarget !== "orientations" || blocks.length >= 90) return;
-    const key = normalize(h + " " + t).replace(/[^a-z0-9]/g, "").slice(0, 300);
+    const h = clip(heading, 130);
+    const usesFormatting = ["faqs", "sections", "orientations", "description", "terms"].includes(suggestedTarget);
+    const t = usesFormatting ? formatted(text, 3000) : clip(text, 1500);
+    if ((!clean(t) || clean(t).length < 3) && suggestedTarget !== "orientations" || blocks.length >= 90) return;
+    const key = normalize(h + " " + clean(t)).replace(/[^a-z0-9]/g, "").slice(0, 300);
     if (keys.has(key)) return;
     keys.add(key);
     blocks.push({ id: String(blocks.length + 1), heading: h, text: t, suggestedTarget, confidence, origin });
@@ -140,7 +162,7 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
   // Structured FAQ data has priority over fragile accordion markup.
   for (const node of nodes.filter(n => /FAQPage/i.test(String(n["@type"] || "")))) {
     for (const q of (Array.isArray(node.mainEntity) ? node.mainEntity : [node.mainEntity])) {
-      if (q?.name && q?.acceptedAnswer?.text) add(value(q.name), value(q.acceptedAnswer.text), "faqs", "high", "schema");
+      if (q?.name && q?.acceptedAnswer?.text) add(value(q.name), String(q.acceptedAnswer.text), "faqs", "high", "schema");
     }
   }
   // Acordeões costumam conter ícones, wrappers e spans antes do <summary>.
@@ -148,11 +170,11 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     const summaryMatch = m[1].match(/<summary\b[^>]*>([\s\S]*?)<\/summary>/i);
     if (!summaryMatch) continue;
     const question = clip(summaryMatch[1], 150);
-    const answer = clip(m[1].replace(summaryMatch[0], ""), 1400);
+    const answer = formatted(m[1].replace(summaryMatch[0], ""), 2000);
     if (question && answer && question !== answer) add(question, answer, "faqs", "high", "html");
   }
   for (const m of content.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)) {
-    const question = clip(m[1], 150), answer = clip(m[2], 480);
+    const question = clip(m[1], 150), answer = formatted(m[2], 1500);
     if (question && answer && (question.endsWith("?") || /pergunt|duvida|faq/i.test(question))) add(question, answer, "faqs", "medium", "html");
   }
   // Acordeões com aria-controls podem manter a resposta em um painel separado do botão.
@@ -165,7 +187,7 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     const panel = /^[\w:-]{1,120}$/.test(panelId)
       ? content.match(new RegExp("<[^>]+id=[\"']" + panelId + "[\"'][^>]*>([\\s\\S]{0,2500}?)<\\/(?:div|section|article)>", "i"))
       : null;
-    const answer = clip(panel?.[1] || tail.split(/<button\b|<h[2-4]\b/i)[0], 1200);
+    const answer = formatted(panel?.[1] || tail.split(/<button\b|<h[2-4]\b/i)[0], 2000);
     if (answer && answer !== question) add(question, answer, "faqs", "medium", "html");
   }
   // Alguns sites só disponibilizam o conteúdo dos modais ao clicar em "Saiba mais".
@@ -189,7 +211,7 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
       const panel = /^[\w:-]{1,120}$/.test(id)
         ? content.match(new RegExp("<(?:dialog|div|section)[^>]+id=[\"']" + id + "[\"'][^>]*>([\\s\\S]{0,3500}?)<\\/(?:dialog|div|section)>", "i"))
         : null;
-      const details = clip(panel?.[1] || "", 1500);
+      const details = formatted(panel?.[1] || "", 2200);
       add(title, details && details !== title ? details : "", "orientations", details ? "high" : "low", "html");
     }
   }
@@ -207,7 +229,12 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
       .map(v => clip(v[1], 220)).filter(v => v.length > 3 && v.length < 220).slice(0, 18);
     const paras = [...section.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
       .map(v => clip(v[1], 360)).filter(v => v.length > 12).slice(0, 6);
-    const full = [...new Set([...paras, ...list])].join("\n").slice(0, 1500);
+    const richParagraphs = [...section.matchAll(/<p\b[^>]*>[\s\S]*?<\/p>/gi)].slice(0, 6)
+      .map(match => formatted(match[0], 700)).filter(piece => clean(piece).length > 12);
+    const richLists = [...section.matchAll(/<(ul|ol)\b[^>]*>[\s\S]*?<\/\1>/gi)].slice(0, 5)
+      .map(match => formatted(match[0], 1600)).filter(piece => clean(piece).length > 3);
+    const full = [...new Set([...richParagraphs, ...richLists])].join("")
+      || [...paras, ...list].join("\n").slice(0, 1500);
     if (heading.endsWith("?") && full) {
       add(heading, full, "faqs", "medium", "html");
       continue;
@@ -220,16 +247,16 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
         if (fallback.length > 20) add(heading, fallback, choice.target, "low", "html");
       }
     } else if (choice.target === "faqs") {
-      for (let j = 0; j < Math.min(10, paras.length - 1); j += 2) add(paras[j], paras[j + 1], "faqs", "low", "html");
+      for (let j = 0; j < Math.min(10, paras.length - 1); j += 2) add(paras[j], richParagraphs[j + 1] || paras[j + 1], "faqs", "low", "html");
       if (!paras.length && list.length) add(heading, list.join("\n"), "sections", "low", "html");
     } else if (choice.target === "orientations") {
-      const detail = full || clip(section, 1150);
+      const detail = full || formatted(section, 1800);
       add(heading, /^(saiba mais|ver detalhes|mais informacoes)$/i.test(normalize(detail)) ? "" : detail, "orientations", choice.confidence, "html");
     } else if (full) {
       add(heading, full, choice.target, choice.confidence, "html");
     } else {
       // Div/span-heavy pages may have no semantic paragraph or list tags.
-      const rawText = clip(section, 1150);
+      const rawText = formatted(section, 1800);
       if (rawText.length >= 24) add(heading, rawText, choice.target, "low", "html");
     }
   }
@@ -239,14 +266,14 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     const pairs = [...table[1].matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)].slice(0, 15).map(row =>
       [...row[1].matchAll(/<(?:th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/gi)].map(cell => clip(cell[1], 120)).filter(Boolean).join(": ")
     ).filter(Boolean);
-    if (pairs.length) add("Ficha técnica", pairs.join("\n"), "sections", "medium", "html");
+    if (pairs.length) add("Ficha técnica", "<ul>" + pairs.map(row => "<li>" + row + "</li>").join("") + "</ul>", "sections", "medium", "html");
   }
   for (const node of nodes) {
     if (Array.isArray(node.additionalProperty)) {
       const pairs = node.additionalProperty.slice(0, 20).map((p: any) =>
         value(p?.name) && value(p?.value) ? value(p.name) + ": " + value(p.value) : ""
       ).filter(Boolean);
-      if (pairs.length) add("Especificações", pairs.join("\n"), "sections", "medium", "schema");
+      if (pairs.length) add("Especificações", "<ul>" + pairs.map(row => "<li>" + row + "</li>").join("") + "</ul>", "sections", "medium", "schema");
     }
   }
   if (price !== null) add("Preço anunciado na origem", String(price), "unmapped", "low", "schema");
@@ -268,7 +295,7 @@ function parse(html: string, url: URL, types: Set<Kind>): Found | null {
   const faqs: FAQ[] = [];
   for (const node of nodes.filter(n => /FAQPage/i.test(String(n["@type"] || "")))) {
     for (const q of (Array.isArray(node.mainEntity) ? node.mainEntity : [node.mainEntity])) {
-      if (q?.name && q?.acceptedAnswer?.text) faqs.push({ question: value(q.name).slice(0, 160), answer: value(q.acceptedAnswer.text).slice(0, 300) });
+      if (q?.name && q?.acceptedAnswer?.text) faqs.push({ question: value(q.name).slice(0, 160), answer: formatted(String(q.acceptedAnswer.text), 3000) });
     }
   }
   const price = Number(data?.offers?.price);
