@@ -492,13 +492,14 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                     {item.blocks.map(block => <div className="grid items-start gap-3 rounded-xl border border-border bg-background p-3 md:grid-cols-[minmax(0,1fr)_220px]" key={block.id}>
                       <div className="min-w-0 space-y-1.5">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="font-semibold">Origem: {block.origin === "schema" ? "Dados estruturados" : "Página"}</span>
+                          <span className="font-semibold">Origem: {block.origin === "schema" ? "Dados estruturados" : block.origin === "manual" ? "Adicionado manualmente" : "Página"}</span>
                           <span className="text-muted-foreground">Sugestão: {fieldNames[block.suggestedTarget]}</span>
                           <span className="text-muted-foreground">· Confiança {block.confidence === "high" ? "alta" : block.confidence === "medium" ? "média" : "baixa"}</span>
                           {block.sourceUrl && block.sourceUrl !== item.sourceUrl && <a href={block.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver subpágina</a>}
                         </div>
-                        <input aria-label="Título ou pergunta detectada" className={input} value={block.heading} disabled={saving} onChange={e => updateBlock(item.id, block.id, { heading: e.target.value })} />
-                        <textarea aria-label="Conteúdo detectado" className={input + " min-h-16 resize-y"} rows={2} value={block.text} disabled={saving} onChange={e => updateBlock(item.id, block.id, { text: e.target.value })} />
+                        <input aria-label={block.target === "faqs" ? "Pergunta" : "Título"} placeholder={block.target === "faqs" ? "Pergunta frequente" : block.target === "orientations" ? "Título do card Saiba mais" : "Título da informação"} className={input} value={block.heading} disabled={saving} onChange={e => updateBlock(item.id, block.id, { heading: e.target.value })} />
+                        <textarea aria-label={block.target === "faqs" ? "Resposta" : "Conteúdo"} placeholder={block.target === "faqs" ? "Resposta para o cliente" : block.target === "orientations" ? "Texto completo do modal Saiba mais" : "Conteúdo da informação técnica"} className={input + " min-h-20 resize-y"} rows={3} value={block.text} disabled={saving} onChange={e => updateBlock(item.id, block.id, { text: e.target.value })} />
+                        {["faqs", "orientations", "sections"].includes(block.target) && (!block.heading.trim() || !block.text.trim()) && <p className="text-xs font-medium text-amber-700">Preencha título e conteúdo, ou selecione Ignorar.</p>
                       </div>
                       <label className="space-y-1 text-xs font-semibold">Destino na Artvideo
                         <select className={input} value={block.target} disabled={saving} onChange={e => updateBlock(item.id, block.id, { target: e.target.value as Destination })}>
@@ -507,9 +508,16 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                         {block.target === "unmapped" && <span className="block text-amber-600">Pendente de classificação</span>}
                         {block.target === "ignore" && <span className="block text-muted-foreground">Não será importado</span>}
                         {existing && block.target !== "ignore" && block.target !== "unmapped" && <span className="block text-xs font-normal text-muted-foreground">{currentMatch(existing, block)}</span>}
+                        {block.origin === "manual" && <button type="button" disabled={saving} className="mt-2 block text-left text-xs font-medium text-red-600 hover:underline" onClick={() => removeBlock(item.id, block.id)}>Remover</button>
                       </label>
                     </div>)}
                   </div>
+                  {isService(item.type) && <div className="mt-3 flex flex-wrap gap-2">
+                    <BtnSecondary onClick={() => addManualBlock(item.id, "faqs")} disabled={saving}>Adicionar pergunta e resposta</BtnSecondary>
+                    <BtnSecondary onClick={() => addManualBlock(item.id, "orientations")} disabled={saving}>Adicionar orientação / Saiba mais</BtnSecondary>
+                    <BtnSecondary onClick={() => addManualBlock(item.id, "sections")} disabled={saving}>Adicionar informação técnica</BtnSecondary>
+                  </div>}
+                  {item.blocks.some(b => b.target === "orientations" && !b.text.trim()) && <p className="mt-2 text-xs text-amber-700">O texto do modal pode carregar somente após o clique. O título foi encontrado; preencha o conteúdo antes de importar ou selecione Ignorar.</p>}
                 </div>
                 <a href={itemLink(item)} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 truncate text-xs text-blue-500 hover:underline"><ExternalLink size={13} /> Página de origem</a>
               </div>}
@@ -518,14 +526,14 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         </section>}
       </main>
       <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-4">
-        <div className="space-y-1"><p className="text-xs font-medium">{selected.length} selecionados · {unresolved.length} trechos pendentes</p>
+        <div className="space-y-1"><p className="text-xs font-medium">{selected.length} selecionados · {unresolved.length} trechos pendentes · {incomplete.length} campos incompletos</p>
           <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
             <input type="checkbox" checked={publishAfterImport} disabled={saving} onChange={event => setPublishAfterImport(event.target.checked)} />
             Publicar no site após importar com sucesso
           </label>
           <p className="text-xs text-muted-foreground">{publishAfterImport ? "Os itens importados ficarão ativos e visíveis no catálogo." : "Padrão: salvar como rascunho para revisar antes de publicar."}</p></div>
         <div className="flex gap-2"><BtnSecondary onClick={onClose} disabled={saving}>Voltar</BtnSecondary>
-          <BtnPrimary onClick={() => void importSelected()} loading={saving} loadingText="Importando..." disabled={scanning || saving || !selected.length || unresolved.length > 0}>
+          <BtnPrimary onClick={() => void importSelected()} loading={saving} loadingText="Importando..." disabled={scanning || saving || !selected.length || unresolved.length > 0 || incomplete.length > 0}>
             <Check size={16} /> Importar ({selected.length})
           </BtnPrimary></div>
       </footer>
