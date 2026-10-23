@@ -1,4 +1,4 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Plus, Trash2 } from 'lucide-react';
 import { Section, BtnSecondary } from '@/shared/ui/admin/AdminLayout';
 import { FInput, FIntegerInput, FSelect, FTextarea, FToggle } from '@/shared/ui/admin/AdminFormControls';
 import { bookingConfig, effectiveWeeklySlots } from '@/features/public-services/domain/service-booking.mjs';
@@ -8,6 +8,13 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
  const c=bookingConfig(value);
  const testimonials=Array.isArray(c.testimonials)?c.testimonials:[];
  const set=(key:string,v:any)=>onChange({...c,[key]:v});
+ const moveOrientation=(index:number,direction:number)=>{
+  const target=index+direction;
+  if(target<0||target>=c.orientations.length)return;
+  const copy=[...c.orientations];
+  [copy[index],copy[target]]=[copy[target],copy[index]];
+  set('orientations',copy);
+ };
  const dayNames=['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
  const weekly=effectiveWeeklySlots(c);
  const setDaySlots=(day:number,slots:{start:string;end:string}[])=>onChange({...c,weekly_slots:{...weekly,[String(day)]:slots}});
@@ -68,7 +75,18 @@ export function ServiceBookingSettings({ value, onChange }: {value:any;onChange:
   </div></Section>
   <Section title="Orientações para este serviço"><div className="space-y-4">
    <p className="text-xs text-muted-foreground">Cada orientação aparece como um card com o botão Saiba mais e abre seu próprio modal.</p>
-   {c.orientations.map((o:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4"><FInput label="Título do card" value={o.title} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/><FTextarea label="Conteúdo do modal" value={o.content} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,content:e.target.value}:v))} rows={4}/><button type="button" className="text-xs font-bold text-red-600" onClick={()=>set('orientations',c.orientations.filter((_:any,j:number)=>j!==i))}>Remover orientação</button></div>)}
+   {c.orientations.map((o:any,i:number)=><div key={i} className="space-y-3 rounded-lg border border-border p-4">
+    <div className="flex items-center justify-between gap-3"><span className="text-xs font-semibold">Orientação {i+1}</span>
+     <div className="flex items-center gap-1">
+      <button type="button" disabled={i===0} onClick={()=>moveOrientation(i,-1)} aria-label="Mover orientação para cima" className="rounded-lg p-2 hover:bg-muted disabled:opacity-30"><ArrowUp size={15}/></button>
+      <button type="button" disabled={i===c.orientations.length-1} onClick={()=>moveOrientation(i,1)} aria-label="Mover orientação para baixo" className="rounded-lg p-2 hover:bg-muted disabled:opacity-30"><ArrowDown size={15}/></button>
+      <button type="button" onClick={()=>set('orientations',c.orientations.filter((_:any,j:number)=>j!==i))} aria-label="Remover orientação" className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={15}/></button>
+     </div>
+    </div>
+    <FInput label="Título do card" value={o.title} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,title:e.target.value}:v))}/>
+    <FTextarea label="Conteúdo do modal Saiba mais" value={o.content} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,content:e.target.value}:v))} rows={4}/>
+    <FSelect label="Ícone do card" value={o.icon || ''} onChange={(e:any)=>set('orientations',c.orientations.map((v:any,j:number)=>i===j?{...v,icon:e.target.value}:v))} options={[{value:'',label:'Automático (conforme a ordem)'},{value:'wrench',label:'Ferramenta'},{value:'map-pin',label:'Localização'},{value:'info',label:'Informações'},{value:'file-text',label:'Documento'}]}/>
+   </div>)}
    <BtnSecondary onClick={()=>set('orientations',[...c.orientations,{title:'',content:''}])}><Plus size={15}/> Adicionar orientação</BtnSecondary>
    <FInput label="Tempo estimado de execução" value={c.duration} onChange={(e:any)=>set('duration',e.target.value)} placeholder="Ex.: aproximadamente 2 horas"/>
    <FTextarea label="Condições do serviço" value={c.terms} onChange={(e:any)=>set('terms',e.target.value)} rows={6}/>
