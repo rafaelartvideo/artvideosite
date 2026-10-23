@@ -161,19 +161,14 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     const isAccordion = /aria-expanded|data-accordion|aria-controls/i.test(m[1]);
     if (!question.endsWith("?") || !isAccordion) continue;
     const panelId = attr("<button " + m[1] + ">", "aria-controls");
-    const escapedId = panelId.replace(/[.*+?^${}()|[\]\\]/g, "\\  // Some sites use accordion buttons instead of <details> or FAQPage.
-  for (const m of [...content.matchAll(/<button\b[^>]*(?:aria-expanded|data-accordion|aria-controls)[^>]*>([\s\S]*?)<\/button>([\s\S]{0,1500})/gi)].slice(0, 22)) {
-    const question = clip(m[1], 150);
-    if (!question.endsWith("?")) continue;
-    const answer = clip((m[2] || "").split(/<button\b|<h[2-4]\b/i)[0], 400);
-    if (answer && answer !== question) add(question, answer, "faqs", "low", "html");
-  }");
-    const panel = escapedId ? content.match(new RegExp('<[^>]+id=["\\\']' + escapedId + '["\\\'][^>]*>([\\s\\S]{0,2500}?)<\\/(?:div|section|article)>', "i")) : null;
+    const panel = /^[\w:-]{1,120}$/.test(panelId)
+      ? content.match(new RegExp("<[^>]+id=[\"']" + panelId + "[\"'][^>]*>([\\s\\S]{0,2500}?)<\\/(?:div|section|article)>", "i"))
+      : null;
     const answer = clip(panel?.[1] || (m[3] || "").split(/<button\b|<h[2-4]\b/i)[0], 1200);
     if (answer && answer !== question) add(question, answer, "faqs", "medium", "html");
   }
-  // Botões dos cards Saiba mais são apenas títulos em sites React: a descrição
-  // do modal pode não existir no HTML inicial. Mantemos o título editável, sem inventar conteúdo.
+  // Alguns sites só disponibilizam o conteúdo dos modais ao clicar em "Saiba mais".
+  // Nesse caso preservamos o título do card para edição, sem inventar a explicação.
   const guidanceHeading = /<h[2-4]\b[^>]*>\s*orienta[cç][oõ]es(?:\s+para\s+(?:este|o)\s+servi[cç]o)?\s*<\/h[2-4]>/i.exec(content);
   if (guidanceHeading && guidanceHeading.index !== undefined) {
     const after = content.slice(guidanceHeading.index + guidanceHeading[0].length);
@@ -185,18 +180,14 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
         .map(v => clip(v[1], 130)).filter(v => v && !/^(saiba mais|ver detalhes|mais informa[cç][oõ]es)$/i.test(v));
       const title = pieces[0] || clip(button[3], 140).replace(/(?:saiba mais|ver detalhes).*$/i, "").trim();
       if (!title || title.length < 4) continue;
-      const id = attr("<button " + button[2] + ">", "aria-controls") ||
-        attr("<button " + button[2] + ">", "data-bs-target").replace(/^#/, "") ||
-        attr("<button " + button[2] + ">", "data-target").replace(/^#/, "") ||
+      const tag = "<button " + button[2] + ">";
+      const id = attr(tag, "aria-controls") ||
+        attr(tag, "data-bs-target").replace(/^#/, "") ||
+        attr(tag, "data-target").replace(/^#/, "") ||
         attr("<a " + button[2] + ">", "href").replace(/^#/, "");
-      const safeId = id.replace(/[.*+?^${}()|[\]\\]/g, "\\  // Some sites use accordion buttons instead of <details> or FAQPage.
-  for (const m of [...content.matchAll(/<button\b[^>]*(?:aria-expanded|data-accordion|aria-controls)[^>]*>([\s\S]*?)<\/button>([\s\S]{0,1500})/gi)].slice(0, 22)) {
-    const question = clip(m[1], 150);
-    if (!question.endsWith("?")) continue;
-    const answer = clip((m[2] || "").split(/<button\b|<h[2-4]\b/i)[0], 400);
-    if (answer && answer !== question) add(question, answer, "faqs", "low", "html");
-  }");
-      const panel = safeId ? content.match(new RegExp('<(?:dialog|div|section)[^>]+id=["\\\']' + safeId + '["\\\'][^>]*>([\\s\\S]{0,3500}?)<\\/(?:dialog|div|section)>', "i")) : null;
+      const panel = /^[\w:-]{1,120}$/.test(id)
+        ? content.match(new RegExp("<(?:dialog|div|section)[^>]+id=[\"']" + id + "[\"'][^>]*>([\\s\\S]{0,3500}?)<\\/(?:dialog|div|section)>", "i"))
+        : null;
       const details = clip(panel?.[1] || "", 1500);
       add(title, details && details !== title ? details : "", "orientations", details ? "high" : "low", "html");
     }
