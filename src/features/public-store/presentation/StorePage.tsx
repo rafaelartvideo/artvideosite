@@ -186,7 +186,7 @@ export function StorePage({ setPage, onSelectProduct, onSelectService }: {
           const select=()=>{if(item.id==="offers"){setCategory("all");setOnlyOffers(true);}
             else{setOnlyOffers(false);setCategoryFilter(item.id);}resetPage();};
           return <button key={item.id} type="button" onClick={select} aria-pressed={active}
-            className="group flex w-[94px] shrink-0 snap-start flex-col items-center gap-2.5 text-center sm:w-[112px] sm:snap-align-none">
+            className="group flex w-[94px] shrink-0 snap-start flex-col items-center gap-2.5 text-center sm:w-[112px] sm:snap-normal">
             <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#eef1ff] text-[var(--art-primary)]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
               <Icon size={26} strokeWidth={1.4}/>
             </span>
