@@ -299,6 +299,7 @@ Deno.serve(async (req:Request) => {
         return reply({
           environment:"production",credentials:presence,
           accountVerified:match,configurationValid:match,
+          webhookSecretsSame:webhookSecret===(Deno.env.get("MERCADO_PAGO_TEST_WEBHOOK_SECRET")||""),
           accountUserId:/^\d{5,20}$/.test(accountId)?accountId:null,
           webhookValidated:Boolean(receipt),webhookVerifiedAt:receipt?.received_at||null,
           webhookSimulated:receipt?.simulated===true,

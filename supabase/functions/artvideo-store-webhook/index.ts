@@ -41,13 +41,31 @@ Deno.serve(async req => {
        token:Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"",
        collector:Deno.env.get("MERCADO_PAGO_COLLECTOR_ID")||""},
     ] as const;
-    let config:typeof configs[number]|undefined;
-    for(const candidate of configs) {
-      if(candidate.secret && await verifySignature(req,id,candidate.secret)){
-        config=candidate;break;
-      }
+    // A assinatura e o ambiente devem coincidir. Uma mesma chave pode ser
+    // cadastrada em teste e produção; jamais escolher por ordem do array.
+    // A API de pagamentos é consultada depois para comprovar live_mode.
+    const signatures=await Promise.all(configs.map(async candidate=>({
+      environment:candidate.environment,
+      valid:!!candidate.secret && await verifySignature(req,id,candidate.secret),
+    })));
+    const signed=signatures.filter(candidate=>candidate.valid);
+    if(!signed.length) {
+      console.warn("Artvideo Mercado Pago webhook signature rejected");
+      return new Response("unauthorized",{status:401});
     }
-    if(!config) return new Response("unauthorized",{status:401});
+    const notifiedMode=payload?.live_mode;
+    if(typeof notifiedMode!=="boolean") {
+      console.warn("Artvideo Mercado Pago webhook environment missing");
+      return new Response("event environment missing",{status:400});
+    }
+    const desiredEnvironment=notifiedMode?"production":"sandbox";
+    const config=configs.find(candidate=>candidate.environment===desiredEnvironment
+      && signed.some(valid=>valid.environment===candidate.environment));
+    if(!config) {
+      console.warn("Artvideo Mercado Pago webhook signed for different environment",desiredEnvironment);
+      return new Response("signature environment mismatch",{status:403});
+    }
+    console.info("Artvideo Mercado Pago signed webhook accepted",config.environment);
     const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{
       auth:{persistSession:false},
     });
@@ -85,7 +103,10 @@ Deno.serve(async req => {
       headers:{Authorization:`Bearer ${config.token}`,Accept:"application/json"},
       signal:AbortSignal.timeout(15000),
     });
-    if (!response.ok) return new Response("gateway lookup failed",{status:503});
+    if (!response.ok) {
+      console.error("Artvideo Mercado Pago payment lookup failed",config.environment,response.status);
+      return new Response("gateway lookup failed",{status:503});
+    }
     const payment = await response.json();
     if (String(payment.id) !== id || String(payment.collector_id) !== config.collector
       || payment.currency_id !== "BRL"

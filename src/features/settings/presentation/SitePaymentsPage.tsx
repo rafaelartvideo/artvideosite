@@ -46,6 +46,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [prodStatus,setProdStatus]=useState<{
     credentials:{token:boolean;seller:boolean;webhook:boolean};
     accountVerified:boolean;configurationValid:boolean;
+    webhookSecretsSame?:boolean;
     accountUserId?:string|null;
     webhookValidated:boolean;webhookVerifiedAt?:string|null;webhookSimulated?:boolean;
     sandboxWebhookSimulationSeen?:boolean;
@@ -361,6 +362,10 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             </strong></p>
           </div>
           <p className="font-semibold">{prodStatus.message}</p>
+          {prodStatus.webhookSecretsSame&&<p className="font-semibold text-amber-700 dark:text-amber-300">
+            Atenção: a chave do webhook cadastrada para produção é igual à de testes.
+            Confira a assinatura secreta do modo produção no Mercado Pago Developers.
+          </p>}
           <div className="rounded-lg border border-border bg-background p-3 space-y-2">
             <p className="font-bold">Webhook de produção</p>
             <p className={prodStatus.webhookValidated?"text-emerald-600 dark:text-emerald-300":"text-amber-700 dark:text-amber-300"}>
