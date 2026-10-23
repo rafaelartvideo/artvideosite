@@ -183,7 +183,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
            {title:'Orçamento e confirmação',text:'A Artvideo entra em contato com os valores e os detalhes.'},
            {title:'Realização do serviço',text:'Com sua aprovação, a equipe combina a execução.'}
          ].map((step,i)=><div key={step.title} className="text-center">
-           <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-white text-lg font-semibold text-[var(--art-primary)]">{i+1}</span>
+           <span className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-[var(--art-primary)] text-lg font-semibold text-white">{i+1}</span>
            <h3 className="mt-5 text-base font-semibold">{step.title}</h3>
            <p className="mt-3 text-sm leading-7 text-slate-600">{step.text}</p>
          </div>)}
