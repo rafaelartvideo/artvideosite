@@ -52,7 +52,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   },[orgId]);
 
   const gateway=useMemo(()=>providers.find(p=>p.provider_key===current.provider_key),[current.provider_key,providers]);
-  const ready=gateway?.integration_ready===true;
+  const ready=gateway?.integration_ready===true || (current.provider_key==="mercado_pago" && current.environment==="sandbox");
   const dirty=JSON.stringify(current)!==JSON.stringify(original);
   const patch=(changes:Partial<PaymentSettings>)=>{
     if(!canUpdate||saving)return;
@@ -95,7 +95,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{p.description}</p>
           {p.provider_key!=="none"&&<p className={"mt-3 text-[11px] font-bold "+
               (p.integration_ready?"text-emerald-600 dark:text-emerald-300":"text-amber-700 dark:text-amber-300")}>
-            {p.integration_ready?"Conector homologado":"Integração técnica pendente"}
+            {p.integration_ready?"Conector homologado":p.provider_key==="mercado_pago"?"Sandbox disponível para testes":"Integração técnica pendente"}
           </p>}
         </button>)}
       </div>

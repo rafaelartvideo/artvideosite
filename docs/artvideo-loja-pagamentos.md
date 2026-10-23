@@ -14,7 +14,9 @@ independentes do gateway.
 - Cada pedido registra o ambiente (sandbox/production); pedidos antigos
   sem ambiente registrado são tratados como produção.
 - Nenhum status de URL de retorno vale como confirmação de pagamento.
-- Permanecem `integration_ready=false` e `enabled=false` até os testes.
+- `integration_ready=false` mantém produção bloqueada. O sandbox pode ser habilitado
+  manualmente no painel **após** cadastrar as credenciais de teste. Por padrão,
+  `enabled=false` e nenhuma cobrança (mesmo simulada) é iniciada.
 
 ## Credenciais secretas (Supabase Edge)
 Sandbox: `MERCADO_PAGO_TEST_ACCESS_TOKEN`, `MERCADO_PAGO_TEST_COLLECTOR_ID`,
