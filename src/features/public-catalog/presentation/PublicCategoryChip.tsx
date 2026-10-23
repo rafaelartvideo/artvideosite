@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { publicIcon } from "@/features/public-shell/domain/site-appearance";
+import { MaterialSymbol, parseMaterialIcon } from "@/features/public-shell/presentation/MaterialSymbol";
 
 export function PublicCategoryChip({
   name, icon, mediaId, fallbackIcon: FallbackIcon, active, onClick,
@@ -27,7 +28,8 @@ export function PublicCategoryChip({
       {url ? (
         <img src={url} alt="" loading="lazy" className="h-8 w-8 shrink-0 rounded-md object-contain" />
       ) : (
-        <Icon size={23} strokeWidth={1.7} aria-hidden="true" className="shrink-0" />
+        parseMaterialIcon(icon) ? <MaterialSymbol icon={icon!} size={23} className="shrink-0" />
+          : <Icon size={23} strokeWidth={1.7} aria-hidden="true" className="shrink-0" />
       )}
       <span className="whitespace-nowrap text-[13px] font-semibold leading-5 sm:text-[14px]">{name}</span>
     </button>
