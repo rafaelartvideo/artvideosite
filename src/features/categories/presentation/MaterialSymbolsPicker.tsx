@@ -1,9 +1,9 @@
 import { useDeferredValue, useMemo, useState } from "react";
-import { MATERIAL_SYMBOL_NAMES } from "./material-symbol-names";
+import { MATERIAL_SYMBOL_NAMES } from "@/features/public-shell/domain/material-symbols-catalog";
 import { Search } from "lucide-react";
 import {
   MaterialSymbol, materialIconValue, parseMaterialIcon,
-  type MaterialSymbolStyle,
+  type MaterialSymbolStyle, type MaterialSymbolWeight,
 } from "@/features/public-shell/presentation/MaterialSymbol";
 
 // The official Google codepoints catalog is bundled locally; category searches
@@ -66,6 +66,7 @@ export function MaterialSymbolsPicker({
 }) {
   const selected = parseMaterialIcon(value);
   const style = selected?.style || "outlined";
+  const weight = selected?.weight || 400;
   const [search, setSearch] = useState("");
   const [limit, setLimit] = useState(72);
   const deferredSearch = useDeferredValue(search);
@@ -83,7 +84,9 @@ export function MaterialSymbolsPicker({
       ...all.filter(name => name.includes(term))])];
   }, [deferredSearch]);
   const chooseStyle = (next: MaterialSymbolStyle) =>
-    onChange(materialIconValue(selected?.name || "home_repair_service", next));
+    onChange(materialIconValue(selected?.name || "home_repair_service", next, weight));
+  const chooseWeight = (next: MaterialSymbolWeight) =>
+    onChange(materialIconValue(selected?.name || "home_repair_service", style, next));
 
   return <div className="space-y-3">
     <div>
@@ -104,6 +107,24 @@ export function MaterialSymbolsPicker({
           </button>)}
       </div>
     </div>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <label htmlFor="artvideo-material-icon-weight" className="text-xs font-semibold text-[#475569]">
+          Espessura da linha (weight)
+        </label>
+        <output htmlFor="artvideo-material-icon-weight" className="rounded-md bg-[#edf3ff] px-2 py-1 text-xs font-semibold text-[var(--art-primary)]">
+          {weight}
+        </output>
+      </div>
+      <input id="artvideo-material-icon-weight" type="range" min={100} max={700} step={100}
+        value={weight} disabled={disabled}
+        onChange={event => chooseWeight(Number(event.target.value) as MaterialSymbolWeight)}
+        className="w-full cursor-pointer accent-[var(--art-primary)] disabled:cursor-not-allowed"
+        aria-label="Espessura do ícone, de 100 até 700" />
+      <div className="flex justify-between text-[11px] text-[#64748b]">
+        <span>100 · Fino</span><span>400 · Normal</span><span>700 · Grosso</span>
+      </div>
+    </div>
     <label className="relative block">
       <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#718096]"/>
       <input type="search" value={search} disabled={disabled}
@@ -117,7 +138,7 @@ export function MaterialSymbolsPicker({
     </p>
     <div className="grid max-h-[280px] grid-cols-4 gap-2 overflow-y-auto rounded-lg border border-[#e2e8f0] p-2 sm:grid-cols-6">
       {icons.slice(0, limit).map(name => {
-        const encoded = materialIconValue(name, style);
+        const encoded = materialIconValue(name, style, weight);
         const active = encoded === value;
         return <button key={name} type="button" title={name.replace(/_/g, " ")}
           aria-label={`Selecionar ícone ${name.replace(/_/g, " ")}`}
@@ -137,7 +158,7 @@ export function MaterialSymbolsPicker({
       className="text-xs font-semibold text-[var(--art-primary)] hover:underline">Ver mais ícones ({icons.length - limit} restantes)</button>}
     {selected && <div className="flex items-center gap-2 rounded-lg bg-[#f8fafc] p-2 text-xs text-[#475569]">
       <MaterialSymbol icon={value} size={26}/>
-      Selecionado: <strong>{selected.name.replace(/_/g, " ")}</strong>
+      Selecionado: <strong>{selected.name.replace(/_/g, " ")}</strong> · Espessura {weight}
     </div>}
   </div>;
 }
