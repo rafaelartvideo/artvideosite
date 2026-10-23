@@ -8,6 +8,7 @@ import { saveServiceAggregate, setServicePublication } from "../infrastructure/s
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
+import { RichTextEditor, richTextPlain, sanitizeRichText } from "@/shared/ui/admin/RichTextEditor";
 
 type ContentType = "service" | "product" | "page";
 type Destination = "short_description" | "description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "orientations" | "terms" | "price" | "unmapped" | "ignore";
@@ -52,29 +53,30 @@ function numberFrom(text: string): number | null {
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 const itemLink = (item: ReviewItem) => item.sourceUrl;
-const chooseBlocks = (item: ReviewItem, target: Destination) => item.blocks.filter(b => b.target === target && b.text.trim());
+const richTargets: Destination[] = ["description", "faqs", "sections", "orientations", "terms"];
+const chooseBlocks = (item: ReviewItem, target: Destination) => item.blocks.filter(b => b.target === target && richTextPlain(b.text).trim());
 function payloadFor(item: ReviewItem) {
-  const description = chooseBlocks(item, "description").map(b => b.heading === "Resumo da página" ? b.text : b.heading + "\n" + b.text).join("\n\n").slice(0, 10000);
-  const short = chooseBlocks(item, "short_description").map(b => b.text).join(" ").slice(0, 300);
-  const sections = chooseBlocks(item, "sections").filter(b => b.heading.trim() && b.text.trim()).map(b => ({ title: b.heading.trim(), content: b.text.trim() }));
+  const description = chooseBlocks(item, "description").map(b => b.heading === "Resumo da página" ? sanitizeRichText(b.text) : "<h3>" + sanitizeRichText(b.heading) + "</h3>" + sanitizeRichText(b.text)).join("<br>");
+  const short = chooseBlocks(item, "short_description").map(b => richTextPlain(b.text)).join(" ").slice(0, 300);
+  const sections = chooseBlocks(item, "sections").filter(b => b.heading.trim()).map(b => ({ title: b.heading.trim(), content: sanitizeRichText(b.text) }));
   const faqSeen = new Set<string>();
   const faqs = chooseBlocks(item, "faqs").filter(b => {
     const key = cleanName(b.heading);
-    if (!key || !b.text.trim() || faqSeen.has(key)) return false;
+    if (!key || !richTextPlain(b.text).trim() || faqSeen.has(key)) return false;
     faqSeen.add(key); return true;
-  }).map(b => ({ question: b.heading.trim(), answer: b.text.trim() }));
-  const variants = chooseBlocks(item, "variants").map(b => ({ title: b.text.slice(0, 180), description: b.heading || "", price: "" }));
-  const inclusions = chooseBlocks(item, "inclusions").map(b => b.text);
-  const exclusions = chooseBlocks(item, "exclusions").map(b => b.text);
+  }).map(b => ({ question: b.heading.trim(), answer: sanitizeRichText(b.text) }));
+  const variants = chooseBlocks(item, "variants").map(b => ({ title: richTextPlain(b.text).slice(0, 180), description: b.heading || "", price: "" }));
+  const inclusions = chooseBlocks(item, "inclusions").map(b => richTextPlain(b.text));
+  const exclusions = chooseBlocks(item, "exclusions").map(b => richTextPlain(b.text));
   const priceBlock = chooseBlocks(item, "price")[0];
-  const price = priceBlock ? numberFrom(priceBlock.text) : null;
+  const price = priceBlock ? numberFrom(richTextPlain(priceBlock.text)) : null;
   const guidanceSeen = new Set<string>();
   const orientations = chooseBlocks(item, "orientations").filter(b => {
     const key = cleanName(b.heading);
-    if (!key || !b.text.trim() || guidanceSeen.has(key)) return false;
+    if (!key || !richTextPlain(b.text).trim() || guidanceSeen.has(key)) return false;
     guidanceSeen.add(key); return true;
-  }).map(b => ({ title: b.heading.trim(), content: b.text.trim() }));
-  const terms = chooseBlocks(item, "terms").map(b => b.text).join("\n\n");
+  }).map(b => ({ title: b.heading.trim(), content: sanitizeRichText(b.text) }));
+  const terms = chooseBlocks(item, "terms").map(b => sanitizeRichText(b.text)).join("<br><br>");
   return { description, short, sections, faqs, variants, inclusions, exclusions, price, orientations, terms };
 }
 function currentMatch(existing: any, block: ReviewBlock): string {
@@ -88,7 +90,7 @@ function currentMatch(existing: any, block: ReviewBlock): string {
   };
   const field = linked[block.target];
   if (field && Array.isArray(existing[field[0]]) &&
-    existing[field[0]].some((row: Record<string, unknown>) => cleanName(String(row[field[1]] || "")) === cleanName(block.target === "faqs" ? block.heading : block.text)))
+    existing[field[0]].some((row: Record<string, unknown>) => cleanName(String(row[field[1]] || "")) === cleanName(block.target === "faqs" ? block.heading : richTextPlain(block.text))))
     return "Informação já cadastrada (não será duplicada)";
   return "Informação nova para este campo";
 }
@@ -119,7 +121,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   const selected = items.filter(item => item.selected);
   const unresolved = selected.flatMap(item => item.blocks.filter(b => b.target === "unmapped").map(b => item.title + ": " + b.heading));
   const incomplete = selected.flatMap(item => item.blocks.filter(b =>
-    ["faqs", "sections", "orientations"].includes(b.target) && (!b.heading.trim() || !b.text.trim())
+    ["faqs", "sections", "orientations"].includes(b.target) && (!b.heading.trim() || !richTextPlain(b.text).trim())
   ).map(b => item.title + ": " + (b.heading || fieldNames[b.target])));
   const getExisting = (item: ReviewItem) => item.type === "product" ? existingProduct.get(cleanName(item.title)) : existingService.get(cleanName(item.title));
   const allowed = (item: ReviewItem) => isService(item.type) ? canService : canProduct;
@@ -498,8 +500,10 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                           {block.sourceUrl && block.sourceUrl !== item.sourceUrl && <a href={block.sourceUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">Ver subpágina</a>}
                         </div>
                         <input aria-label={block.target === "faqs" ? "Pergunta" : "Título"} placeholder={block.target === "faqs" ? "Pergunta frequente" : block.target === "orientations" ? "Título do card Saiba mais" : "Título da informação"} className={input} value={block.heading} disabled={saving} onChange={e => updateBlock(item.id, block.id, { heading: e.target.value })} />
-                        <textarea aria-label={block.target === "faqs" ? "Resposta" : "Conteúdo"} placeholder={block.target === "faqs" ? "Resposta para o cliente" : block.target === "orientations" ? "Texto completo do modal Saiba mais" : "Conteúdo da informação técnica"} className={input + " min-h-20 resize-y"} rows={3} value={block.text} disabled={saving} onChange={e => updateBlock(item.id, block.id, { text: e.target.value })} />
-                        {["faqs", "orientations", "sections"].includes(block.target) && (!block.heading.trim() || !block.text.trim()) && <p className="text-xs font-medium text-amber-700">Preencha título e conteúdo, ou selecione Ignorar.</p>}
+                        {richTargets.includes(block.target)
+                          ? <RichTextEditor label={block.target === "faqs" ? "Resposta" : block.target === "orientations" ? "Conteúdo do modal Saiba mais" : block.target === "sections" ? "Informações técnicas" : "Conteúdo formatado"} value={block.text} disabled={saving} onChange={text => updateBlock(item.id, block.id, { text })} minHeight={105}/>
+                          : <textarea aria-label="Conteúdo detectado" className={input + " min-h-20 resize-y"} rows={3} value={block.text} disabled={saving} onChange={e => updateBlock(item.id, block.id, { text: e.target.value })} />}
+                        {["faqs", "orientations", "sections"].includes(block.target) && (!block.heading.trim() || !richTextPlain(block.text).trim()) && <p className="text-xs font-medium text-amber-700">Preencha título e conteúdo, ou selecione Ignorar.</p>}
                       </div>
                       <label className="space-y-1 text-xs font-semibold">Destino na Artvideo
                         <select className={input} value={block.target} disabled={saving} onChange={e => updateBlock(item.id, block.id, { target: e.target.value as Destination })}>
@@ -517,7 +521,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                     <BtnSecondary onClick={() => addManualBlock(item.id, "orientations")} disabled={saving}>Adicionar orientação / Saiba mais</BtnSecondary>
                     <BtnSecondary onClick={() => addManualBlock(item.id, "sections")} disabled={saving}>Adicionar informação técnica</BtnSecondary>
                   </div>}
-                  {item.blocks.some(b => b.target === "orientations" && !b.text.trim()) && <p className="mt-2 text-xs text-amber-700">O texto do modal pode carregar somente após o clique. O título foi encontrado; preencha o conteúdo antes de importar ou selecione Ignorar.</p>}
+                  {item.blocks.some(b => b.target === "orientations" && !richTextPlain(b.text).trim()) && <p className="mt-2 text-xs text-amber-700">O texto do modal pode carregar somente após o clique. O título foi encontrado; preencha o conteúdo antes de importar ou selecione Ignorar.</p>}
                 </div>
                 <a href={itemLink(item)} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 truncate text-xs text-blue-500 hover:underline"><ExternalLink size={13} /> Página de origem</a>
               </div>}
