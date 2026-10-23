@@ -768,7 +768,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
               <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 4 de 4</span>
               <h2 id="checkout-pagamento" className="mt-1 text-[22px] font-extrabold tracking-tight">Pagamento seguro</h2>
-              <p className="mt-1 text-[13px] text-[#647791]">Finalize o pedido no próprio site com Pix, cartão ou boleto.</p>
+              <p className="mt-1 text-[13px] text-[#647791]">Finalize o pedido no próprio site com Pix ou cartão. Outros meios continuam disponíveis no Checkout Pro.</p>
             </div>
             <div className="space-y-5 p-5 sm:p-7">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dce7f5] bg-[#f7faff] p-4">

@@ -65,7 +65,7 @@ export function EmbeddedMercadoPagoPayment({
         customization:{
           paymentMethods:{
             creditCard:"all",debitCard:"all",
-            bankTransfer:["pix"],ticket:["bolbradesco"],
+            bankTransfer:["pix"],
           },
           visual:{style:{theme:"default"}},
         },
