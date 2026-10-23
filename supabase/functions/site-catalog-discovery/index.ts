@@ -104,7 +104,7 @@ function structured(html: string): Record<string, any>[] {
 }
 function value(raw: any): string { return typeof raw === "string" ? clean(raw).slice(0, 400) : typeof raw?.name === "string" ? clean(raw.name).slice(0, 400) : ""; }
 
-type Destination = "description" | "short_description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "price" | "unmapped";
+type Destination = "description" | "short_description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "orientations" | "terms" | "price" | "unmapped";
 type ExtractedBlock = { id: string; heading: string; text: string; suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; sourceUrl?: string; };
 const normalize = (raw: string) => raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 const clip = (raw: string, max = 420) => clean(raw).slice(0, max);
@@ -113,9 +113,12 @@ const headingsToDestination = (heading: string): { target: Destination; confiden
   if (/nao (esta |estao )?(inclus|cobert)|nao (inclui|cobre|cobertos)|exclus|nao contempl|nao atend|fora da cobertura|restric|nao faz parte|o que pode impedir|limitacoes tecnicas/.test(h)) return { target: "exclusions", confidence: "high" };
   if (/o que (esta )?inclu|inclus|cobert|servicos oferecidos|o que contempla|o que voce recebe|beneficios inclusos/.test(h)) return { target: "inclusions", confidence: "high" };
   if (/faq|perguntas frequentes|duvidas frequentes/.test(h)) return { target: "faqs", confidence: "medium" };
+  if (/orientac|especificac(oes)? (do|da|de) (aparelho|equipamento)|local (de|do) atendimento|maior responsavel|responsavel (pelo|no|do) (local|atendimento)|condicoes gerais|requisitos (do|para o) atendimento/.test(h))
+    return { target: "orientations", confidence: "high" };
+  if (/termos de (uso|servico)|politica de atendimento/.test(h)) return { target: "terms", confidence: "medium" };
   if (/varia|modalidade|opcoes de plano|tipos de servico/.test(h)) return { target: "variants", confidence: "medium" };
   if (/sobre (o |este )?servico|descricao do servico|apresentacao/.test(h)) return { target: "description", confidence: "medium" };
-  if (/orientac|informac|especificac|requisit|como funciona|passo a passo|tempo de execuc|garantia|antes de receber|condic|atendimento|equipamento|aparelho|como e feito/.test(h))
+  if (/informac|especificac|requisit|como funciona|passo a passo|tempo de execuc|garantia|antes de receber|condic|atendimento|equipamento|aparelho|como e feito/.test(h))
     return { target: "sections", confidence: "medium" };
   return { target: "unmapped", confidence: "low" };
 };
@@ -123,7 +126,7 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
   const blocks: ExtractedBlock[] = [], keys = new Set<string>();
   function add(heading: string, text: string, suggestedTarget: Destination, confidence: ExtractedBlock["confidence"], origin: ExtractedBlock["origin"]) {
     const h = clip(heading, 130), t = clip(text, 1500);
-    if (!t || t.length < 3 || blocks.length >= 90) return;
+    if ((!t || t.length < 3) && suggestedTarget !== "orientations" || blocks.length >= 90) return;
     const key = normalize(h + " " + t).replace(/[^a-z0-9]/g, "").slice(0, 300);
     if (keys.has(key)) return;
     keys.add(key);
@@ -140,27 +143,71 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
       if (q?.name && q?.acceptedAnswer?.text) add(value(q.name), value(q.acceptedAnswer.text), "faqs", "high", "schema");
     }
   }
-  for (const m of content.matchAll(/<details\b[^>]*>\s*<summary\b[^>]*>([\s\S]*?)<\/summary>([\s\S]*?)<\/details>/gi)) {
-    const heading = clip(m[1], 150);
-    const answer = clip(m[2], 480);
-    if (heading && answer) add(heading, answer, "faqs", "medium", "html");
+  // Acordeões costumam conter ícones, wrappers e spans antes do <summary>.
+  for (const m of content.matchAll(/<details\b[^>]*>([\s\S]*?)<\/details>/gi)) {
+    const summaryMatch = m[1].match(/<summary\b[^>]*>([\s\S]*?)<\/summary>/i);
+    if (!summaryMatch) continue;
+    const question = clip(summaryMatch[1], 150);
+    const answer = clip(m[1].replace(summaryMatch[0], ""), 1400);
+    if (question && answer && question !== answer) add(question, answer, "faqs", "high", "html");
   }
   for (const m of content.matchAll(/<dt\b[^>]*>([\s\S]*?)<\/dt>\s*<dd\b[^>]*>([\s\S]*?)<\/dd>/gi)) {
     const question = clip(m[1], 150), answer = clip(m[2], 480);
     if (question && answer && (question.endsWith("?") || /pergunt|duvida|faq/i.test(question))) add(question, answer, "faqs", "medium", "html");
   }
-  // Some sites use accordion buttons instead of <details> or FAQPage.
+  // Acordeões com aria-controls podem manter a resposta em um painel separado do botão.
+  for (const m of [...content.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>([\s\S]{0,2200})/gi)].slice(0, 60)) {
+    const question = clip(m[2], 160);
+    const isAccordion = /aria-expanded|data-accordion|aria-controls/i.test(m[1]);
+    if (!question.endsWith("?") || !isAccordion) continue;
+    const panelId = attr("<button " + m[1] + ">", "aria-controls");
+    const escapedId = panelId.replace(/[.*+?^${}()|[\]\\]/g, "\\  // Some sites use accordion buttons instead of <details> or FAQPage.
   for (const m of [...content.matchAll(/<button\b[^>]*(?:aria-expanded|data-accordion|aria-controls)[^>]*>([\s\S]*?)<\/button>([\s\S]{0,1500})/gi)].slice(0, 22)) {
     const question = clip(m[1], 150);
     if (!question.endsWith("?")) continue;
     const answer = clip((m[2] || "").split(/<button\b|<h[2-4]\b/i)[0], 400);
     if (answer && answer !== question) add(question, answer, "faqs", "low", "html");
+  }");
+    const panel = escapedId ? content.match(new RegExp('<[^>]+id=["\\\']' + escapedId + '["\\\'][^>]*>([\\s\\S]{0,2500}?)<\\/(?:div|section|article)>', "i")) : null;
+    const answer = clip(panel?.[1] || (m[3] || "").split(/<button\b|<h[2-4]\b/i)[0], 1200);
+    if (answer && answer !== question) add(question, answer, "faqs", "medium", "html");
+  }
+  // Botões dos cards Saiba mais são apenas títulos em sites React: a descrição
+  // do modal pode não existir no HTML inicial. Mantemos o título editável, sem inventar conteúdo.
+  const guidanceHeading = /<h[2-4]\b[^>]*>\s*orienta[cç][oõ]es(?:\s+para\s+(?:este|o)\s+servi[cç]o)?\s*<\/h[2-4]>/i.exec(content);
+  if (guidanceHeading && guidanceHeading.index !== undefined) {
+    const after = content.slice(guidanceHeading.index + guidanceHeading[0].length);
+    const nextSection = /<h2\b[^>]*>/i.exec(after);
+    const region = after.slice(0, Math.min(nextSection?.index ?? after.length, 22000));
+    for (const button of [...region.matchAll(/<(button|a)\b([^>]*)>([\s\S]*?)<\/\1>/gi)].slice(0, 20)) {
+      if (!/saiba mais|ver detalhes|mais informa[cç][oõ]es/i.test(button[3])) continue;
+      const pieces = [...button[3].matchAll(/<(?:span|strong|h[3-5])\b[^>]*>([\s\S]*?)<\/(?:span|strong|h[3-5])>/gi)]
+        .map(v => clip(v[1], 130)).filter(v => v && !/^(saiba mais|ver detalhes|mais informa[cç][oõ]es)$/i.test(v));
+      const title = pieces[0] || clip(button[3], 140).replace(/(?:saiba mais|ver detalhes).*$/i, "").trim();
+      if (!title || title.length < 4) continue;
+      const id = attr("<button " + button[2] + ">", "aria-controls") ||
+        attr("<button " + button[2] + ">", "data-bs-target").replace(/^#/, "") ||
+        attr("<button " + button[2] + ">", "data-target").replace(/^#/, "") ||
+        attr("<a " + button[2] + ">", "href").replace(/^#/, "");
+      const safeId = id.replace(/[.*+?^${}()|[\]\\]/g, "\\  // Some sites use accordion buttons instead of <details> or FAQPage.
+  for (const m of [...content.matchAll(/<button\b[^>]*(?:aria-expanded|data-accordion|aria-controls)[^>]*>([\s\S]*?)<\/button>([\s\S]{0,1500})/gi)].slice(0, 22)) {
+    const question = clip(m[1], 150);
+    if (!question.endsWith("?")) continue;
+    const answer = clip((m[2] || "").split(/<button\b|<h[2-4]\b/i)[0], 400);
+    if (answer && answer !== question) add(question, answer, "faqs", "low", "html");
+  }");
+      const panel = safeId ? content.match(new RegExp('<(?:dialog|div|section)[^>]+id=["\\\']' + safeId + '["\\\'][^>]*>([\\s\\S]{0,3500}?)<\\/(?:dialog|div|section)>', "i")) : null;
+      const details = clip(panel?.[1] || "", 1500);
+      add(title, details && details !== title ? details : "", "orientations", details ? "high" : "low", "html");
+    }
   }
   const headingMatches = [...content.matchAll(/<h([2-5])\b[^>]*>([\s\S]*?)<\/h\1>/gi)].slice(0, 65);
   for (let i = 0; i < headingMatches.length; i++) {
     const m = headingMatches[i];
     const heading = clip(m[2], 130);
     if (!heading || heading.length < 4 || /^(menu|rodape|navegacao|contato|siga-nos)$/i.test(normalize(heading))) continue;
+    // Este título agrupa cards independentes. Importar a seção inteira criaria um card duplicado.
+    if (/^orientacoes(?: para (?:este|o) servico)?$/.test(normalize(heading))) continue;
     const start = (m.index || 0) + m[0].length, end = headingMatches[i + 1]?.index ?? content.length;
     const section = content.slice(start, Math.min(end, start + 8000));
     const choice = headingsToDestination(heading);
@@ -183,6 +230,9 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     } else if (choice.target === "faqs") {
       for (let j = 0; j < Math.min(10, paras.length - 1); j += 2) add(paras[j], paras[j + 1], "faqs", "low", "html");
       if (!paras.length && list.length) add(heading, list.join("\n"), "sections", "low", "html");
+    } else if (choice.target === "orientations") {
+      const detail = full || clip(section, 1150);
+      add(heading, /^(saiba mais|ver detalhes|mais informacoes)$/i.test(normalize(detail)) ? "" : detail, "orientations", choice.confidence, "html");
     } else if (full) {
       add(heading, full, choice.target, choice.confidence, "html");
     } else {
