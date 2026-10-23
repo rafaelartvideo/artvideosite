@@ -14,6 +14,7 @@ import { ServiceCard } from '@/features/public-catalog/presentation/PublicCatalo
 import { formatCurrency } from '@/shared/domain/formatters';
 import { useMediaUrl } from '@/shared/application/useMediaUrl';
 import { bookingConfig } from '../domain/service-booking.mjs';
+import { RichTextContent } from '@/shared/ui/admin/RichTextEditor';
 import { ServiceCepLookup } from './ServiceCepLookup';
 import { ServiceTestimonialsCarousel } from './ServiceTestimonialsCarousel';
 
@@ -155,8 +156,8 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
          </button>;})}
        </div>}
        {(Boolean(service.description)||extraSections.length>0||detail.priceFactors.length>0)&&<div className="mt-6 grid gap-4 md:grid-cols-2">
-         {service.description&&<article className="rounded-xl border border-[#dfe3e9] bg-white p-6"><h3 className="text-[18px] font-semibold">Sobre o serviço</h3><p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-slate-600">{service.description}</p></article>}
-         {extraSections.map((s:any)=><article key={s.id} className="rounded-xl border border-[#dfe3e9] bg-white p-6"><h3 className="text-[18px] font-semibold">{s.title}</h3><p className="mt-3 whitespace-pre-line text-[15px] leading-7 text-slate-600">{s.content}</p></article>)}
+         {service.description&&<article className="rounded-xl border border-[#dfe3e9] bg-white p-6"><h3 className="text-[18px] font-semibold">Sobre o serviço</h3><RichTextContent value={service.description} className="mt-3 text-[15px] leading-7 text-slate-600"/></article>}
+         {extraSections.map((s:any)=><article key={s.id} className="rounded-xl border border-[#dfe3e9] bg-white p-6"><h3 className="text-[18px] font-semibold">{s.title}</h3><RichTextContent value={s.content} className="mt-3 text-[15px] leading-7 text-slate-600"/></article>)}
          {detail.priceFactors.length>0&&<article className="rounded-xl border border-[#dfe3e9] bg-white p-6">
            <h3 className="text-[18px] font-semibold">O que pode alterar o orçamento?</h3>
            <ul className="mt-4 space-y-4">{detail.priceFactors.map((factor:any)=><li key={factor.id} className="text-[15px] leading-7 text-slate-600"><strong className="text-[#172b45]">{factor.name}</strong>{factor.description&&<p>{factor.description}</p>}</li>)}</ul>
@@ -169,7 +170,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
      <h2 className="mb-7 text-[27px] font-medium tracking-tight sm:text-[32px]">Dúvidas frequentes</h2>
      <div className="space-y-3">{faqs.map((faq:any)=><details key={faq.id} className="group rounded-lg bg-[#f0f1f3]">
        <summary className="flex min-h-[72px] cursor-pointer list-none items-center justify-between gap-5 px-5 py-5 text-[15px] font-medium focus-visible:outline-2 focus-visible:outline-[var(--art-primary)] sm:px-7 sm:text-[16px]">{faq.question}<Plus size={20} className="shrink-0 text-[#53606d] transition-transform group-open:rotate-45"/></summary>
-       <p className="art-faq-answer whitespace-pre-line px-5 pb-6 text-[15px] leading-8 text-[#4d5b6b] sm:px-7">{faq.answer}</p>
+       <RichTextContent value={faq.answer} className="art-faq-answer px-5 pb-6 text-[15px] leading-8 text-[#4d5b6b] sm:px-7"/>
      </details>)}</div>
    </section>}
 
@@ -199,7 +200,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
            ?<img src={b.image_url} alt="" loading="lazy" className="h-[195px] w-full rounded-lg object-cover"/>
            :<div className="flex h-[195px] w-full items-center justify-center rounded-lg bg-[#eef3f8]"><CheckCircle2 size={60} strokeWidth={1.2} className="text-[var(--art-primary)]"/></div>}
          <h3 className="mt-5 text-[19px] font-semibold tracking-tight">{b.title}</h3>
-         <p className="mt-3 text-[15px] leading-7 text-[#55616d]">{b.content}</p>
+         <RichTextContent value={b.content} className="mt-3 text-[15px] leading-7 text-[#55616d]"/>
        </article>)}
      </div>
    </section>}
@@ -214,7 +215,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
      <PublicButton variant="outline" onClick={()=>setModal({title:'Termos de uso e condições gerais',content:c.terms})} className="mt-6">Consultar <FileText size={17}/></PublicButton>
    </section>}
 
-  <Dialog open={Boolean(modal)} onOpenChange={open=>{if(!open)setModal(null);}}><DialogContent className="artvideo-dialog max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-7 text-[#172b45] sm:max-w-xl sm:p-9"><DialogHeader><DialogTitle className="pr-6 text-2xl font-semibold">{modal?.title}</DialogTitle><DialogDescription className="sr-only">Orientações para o atendimento</DialogDescription></DialogHeader><p className="whitespace-pre-line text-[15px] leading-8 text-slate-600">{modal?.content}</p></DialogContent></Dialog>
+  <Dialog open={Boolean(modal)} onOpenChange={open=>{if(!open)setModal(null);}}><DialogContent className="artvideo-dialog max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-7 text-[#172b45] sm:max-w-xl sm:p-9"><DialogHeader><DialogTitle className="pr-6 text-2xl font-semibold">{modal?.title}</DialogTitle><DialogDescription className="sr-only">Orientações para o atendimento</DialogDescription></DialogHeader><RichTextContent value={modal?.content || ""} className="text-[15px] leading-8 text-slate-600"/></DialogContent></Dialog>
   <Dialog open={optionOpen} onOpenChange={setOptionOpen}><DialogContent className="artvideo-dialog max-h-[85dvh] overflow-y-auto rounded-2xl bg-white p-7 text-[#172b45] sm:max-w-lg"><DialogHeader><DialogTitle className="text-2xl font-semibold">Selecione a opção</DialogTitle><DialogDescription>Escolha o atendimento que você precisa.</DialogDescription></DialogHeader><fieldset className="space-y-3"><legend className="sr-only">Opções do serviço</legend>{variants.map((v:any)=><label key={v.id} className={`art-choice ${variant===v.id?'is-selected':''}`}><input type="radio" name="service-option" checked={variant===v.id} onChange={()=>setVariant(v.id)}/><span>{v.title}</span>{service.price_mode!=='HIDDEN'&&v.price!=null&&<strong className="ml-auto shrink-0 text-sm">{formatCurrency(v.price)}</strong>}</label>)}</fieldset><PublicButton disabled={!variant} onClick={()=>start(variant)} className="mt-3 w-full">Continuar <ArrowRight size={17}/></PublicButton></DialogContent></Dialog>
  </div>;
 }
