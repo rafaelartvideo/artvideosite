@@ -5,7 +5,7 @@ import { CheckCircle, Activity, DollarSign, Edit2, FileText, HelpCircle, List, P
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
-import { deleteService, loadServicesCatalog, saveServiceAggregate, setServiceActive, setServicePublication } from "../infrastructure/services.repository";
+import { deleteService, loadServicesCatalog, saveServiceAggregate, setServiceActive } from "../infrastructure/services.repository";
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { cn } from "@/shared/domain/formatters";
@@ -28,7 +28,6 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const canUpdate = hasPermission("services.update");
   const canDelete = hasPermission("services.delete");
   const canToggleActive = hasPermission("services.toggle_active");
-  const canTogglePublication = canToggleActive && hasPermission("services.publication.manage");
   const showService = hasPermission("services.table.service");
   const showCategory = hasPermission("services.table.category");
   const showVariants = hasPermission("services.table.variants");
@@ -51,26 +50,49 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   useEffect(() => { if (catalogQuery.error) setToast({ msg: `Erro ao carregar serviços: ${systemErrorMessage(catalogQuery.error)}`, type: "error" }); }, [catalogQuery.error]);
-  const refresh = () => Promise.all([queryClient.invalidateQueries({ queryKey: queryKeys.catalog.all }), queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }), queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() })]);
+  const refresh = () => Promise.all([
+    queryClient.invalidateQueries({ queryKey: queryKeys.catalog.services() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() }),
+    queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() }),
+  ]);
+  // Atualiza o cache após salvar. Evita baixar novamente o catálogo inteiro para reabrir o editor.
+  const handleSaved = (serviceId: string, changes: Record<string, unknown>) => {
+    queryClient.setQueryData(queryKeys.catalog.services(), (current: any) => {
+      if (!current) return current;
+      const previous = (current.services ?? []) as any[];
+      const index = previous.findIndex((service: any) => service.id === serviceId);
+      const service = { ...(index >= 0 ? previous[index] : {}), id: serviceId, ...changes };
+      return { ...current, services: index >= 0
+        ? previous.map((entry: any, i: number) => i === index ? service : entry)
+        : [...previous, service] };
+    });
+    // Marcar como desatualizado sem forçar uma consulta pesada enquanto o formulário fecha.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.catalog.services(), refetchType: "none" });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() });
+  };
   const openNew = () => { if (!canCreate) return; setEditItem(null); setDrawerOpen(true); };
   const openEdit = (service: any) => { if (!(canViewDetails && canUpdate)) return; setEditItem(service); setDrawerOpen(true); };
   const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
   const openNewPage = () => onRouteChange ? onRouteChange("new", null) : openNew();
-  const openEditPage = (item: any) => { if (!(canViewDetails && canUpdate)) return; onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item); };
+  const openEditPage = (item: any) => { if (!(canViewDetails && canUpdate)) return; openEdit(item); onRouteChange?.(item.id, "edit"); };
 
   useEffect(() => { if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; } if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; } if (!(canViewDetails && canUpdate) || routeSubpage !== "edit" || editItem?.id === routeResourceId) return; const item = services.find((entry: any) => entry.id === routeResourceId); if (item) openEdit(item); }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canUpdate]);
   const handleDelete = async (id: string) => { if (!canDelete) return; try { await deleteService(id); setDelId(null); setToast({ msg: "Serviço excluído com sucesso.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao excluir: ${systemErrorMessage(error)}`, type: "error" }); } };
-  const togglePublication = async (service: any) => {
-    if (!canTogglePublication) return;
-    const published = !(service.is_active && service.show_in_catalog);
+  const toggleActive = async (service: any) => {
+    if (!canToggleActive) return;
+    const nextActive = !service.is_active;
     try {
-      await setServicePublication(service.id, published);
-      queryClient.setQueryData(queryKeys.catalog.services(), (current: any) => current ? { ...current, services: (current.services ?? []).map((item: any) => item.id === service.id ? { ...item, show_in_catalog: published, is_active: published ? true : item.is_active } : item) } : current);
-      setToast({ msg: published ? "Serviço publicado no site." : "Serviço ocultado do site.", type: "success" });
-      void refresh();
-    } catch (error) { setToast({ msg: `Erro ao publicar: ${systemErrorMessage(error)}`, type: "error" }); }
+      await setServiceActive(service.id, nextActive);
+      queryClient.setQueryData(queryKeys.catalog.services(), (current: any) => current
+        ? { ...current, services: (current.services ?? []).map((item: any) => item.id === service.id
+          ? { ...item, is_active: nextActive, show_in_catalog: nextActive } : item) }
+        : current);
+      setToast({ msg: nextActive ? "Serviço ativado." : "Serviço desativado.", type: "success" });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.services() });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.catalog.services(), refetchType: "none" });
+    } catch (error) { setToast({ msg: `Erro ao atualizar: ${systemErrorMessage(error)}`, type: "error" }); }
   };
-  const toggleActive = async (service: any) => { if (!canToggleActive) return; const nextActive = !service.is_active; try { await setServiceActive(service.id, nextActive); queryClient.setQueryData(queryKeys.catalog.services(), (current: any) => current ? { ...current, services: (current.services ?? []).map((item: any) => item.id === service.id ? { ...item, is_active: nextActive } : item) } : current); setToast({ msg: "Status atualizado com sucesso.", type: "success" }); void refresh(); } catch (error) { setToast({ msg: `Erro ao atualizar: ${systemErrorMessage(error)}`, type: "error" }); } };
 
   const sortedServices = [...services].sort((a, b) => String(a.title || "").localeCompare(String(b.title || ""), "pt-BR", { sensitivity: "base" }));
   const totalPages = Math.max(1, Math.ceil(sortedServices.length / pageSize));
@@ -86,7 +108,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
     {!routeResourceId && <>
       <PageHeader title="Serviços do Site" subtitle={`${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${services.length !== 1 ? "s" : ""}`} />
       {canViewTable && <AdminCard>
-        {loading ? <LoadingState /> : sortedServices.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço cadastrado" message="Clique em Novo para começar." /> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-sm"><thead><tr>{showService && <th className="text-left">Serviço</th>}{showCategory && <th className="text-left">Categoria</th>}{showVariants && <th className="text-left">Variações</th>}{showFeatured && <th className="text-left">Destaque</th>}{showStatus && <th className="text-left">Status</th>}{showStatus && <th className="text-left">No site</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedServices.map(service => { const category = categories.find(item => item.id === service.category_id); return <tr key={service.id}>{showService && <td><p className="font-bold text-[#0d1b2e]">{service.title}</p>{service.short_description && <p className="max-w-xs truncate text-xs text-[#5a6a82]">{service.short_description}</p>}</td>}{showCategory && <td className="text-xs text-[#5a6a82]">{category?.name || "—"}</td>}{showVariants && <td className="text-xs text-[#5a6a82]">{service.service_variants?.length || 0}</td>}{showFeatured && <td>{service.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>}{showStatus && <td><StatusBadge status={service.is_active ? "Ativo" : "Inativo"} /></td>}{showStatus && <td><div className="flex items-center gap-2"><span className={service.is_active && service.show_in_catalog ? "text-xs font-semibold text-green-600" : "text-xs text-muted-foreground"}>{service.is_active && service.show_in_catalog ? "Publicado" : "Oculto"}</span>{canTogglePublication && <AdminActiveStateButton active={Boolean(service.is_active && service.show_in_catalog)} entityLabel="publicação no site" onClick={() => void togglePublication(service)} />}</div></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canUpdate && <AdminIconButton ariaLabel="Editar serviço" title="Editar" onClick={() => openEditPage(service)}><Edit2 size={15} /></AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir serviço" title="Excluir" variant="danger" onClick={() => setDelId(service.id)}><Trash2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={service.is_active} entityLabel="serviço" onClick={() => toggleActive(service)} />}</div></td>}</tr>; })}</tbody></table></div>}
+        {loading ? <LoadingState /> : sortedServices.length === 0 ? <EmptyState icon={Wrench} title="Nenhum serviço cadastrado" message="Clique em Novo para começar." /> : <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-sm"><thead><tr>{showService && <th className="text-left">Serviço</th>}{showCategory && <th className="text-left">Categoria</th>}{showVariants && <th className="text-left">Variações</th>}{showFeatured && <th className="text-left">Destaque</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedServices.map(service => { const category = categories.find(item => item.id === service.category_id); return <tr key={service.id}>{showService && <td><p className="font-bold text-[#0d1b2e]">{service.title}</p>{service.short_description && <p className="max-w-xs truncate text-xs text-[#5a6a82]">{service.short_description}</p>}</td>}{showCategory && <td className="text-xs text-[#5a6a82]">{category?.name || "—"}</td>}{showVariants && <td className="text-xs text-[#5a6a82]">{service.service_variants?.length || 0}</td>}{showFeatured && <td>{service.is_featured ? <Star size={15} className="fill-amber-400 text-amber-400" /> : <span className="text-xs text-[#5a6a82]">—</span>}</td>}{showStatus && <td><StatusBadge status={service.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex items-center justify-end gap-1">{canViewDetails && canUpdate && <AdminIconButton ariaLabel="Editar serviço" title="Editar" onClick={() => openEditPage(service)}><Edit2 size={15} /></AdminIconButton>}{canDelete && <AdminIconButton ariaLabel="Excluir serviço" title="Excluir" variant="danger" onClick={() => setDelId(service.id)}><Trash2 size={15} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={service.is_active} entityLabel="serviço" onClick={() => toggleActive(service)} />}</div></td>}</tr>; })}</tbody></table></div>}
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={sortedServices.length} onPageChange={next => setPage(Math.max(1, Math.min(next, totalPages)))} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </AdminCard>}
       <AdminStickyToolbar className="justify-between">
@@ -94,13 +116,18 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
         {canCreate && <div className="flex flex-wrap items-center gap-2"><BtnSecondary onClick={() => setImportOpen(true)}>Importar de site</BtnSecondary><BtnPrimary onClick={openNewPage}>Novo</BtnPrimary></div>}
       </AdminStickyToolbar>
     </>}
-    {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
+    {routeResourceId && !drawerOpen && (
+      <AdminCard className="p-8">{catalogQuery.isPending
+        ? <LoadingState />
+        : <p className="text-sm text-muted-foreground">{catalogQuery.error ? "Não foi possível carregar os serviços." : "Serviço não encontrado."}</p>}
+      </AdminCard>
+    )}
     {importOpen && <SiteImportWizard onClose={() => setImportOpen(false)} onImported={() => void refresh()} services={services} products={products} categories={categories} />}
-    <ServiceDrawer open={drawerOpen} onClose={() => { closeEditor(); void refresh(); }} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
+    <ServiceDrawer open={drawerOpen} onClose={closeEditor} onSaved={handleSaved} editItem={editItem} categories={categories} brands={brands} products={products} userId={user?.id || null} onToast={setToast} />
   </div>;
 }
 
-function ServiceDrawer({ open, onClose, editItem, categories, brands, products, userId, onToast }: { open: boolean; onClose: () => void; editItem: any | null; categories: any[]; brands: any[]; products: any[]; userId: string | null; onToast: (toast: { msg: string; type: "success" | "error" }) => void }) {
+function ServiceDrawer({ open, onClose, onSaved, editItem, categories, brands, products, userId, onToast }: { open: boolean; onClose: () => void; onSaved: (serviceId: string, changes: Record<string, unknown>) => void; editItem: any | null; categories: any[]; brands: any[]; products: any[]; userId: string | null; onToast: (toast: { msg: string; type: "success" | "error" }) => void }) {
   const { hasPermission } = useAuth();
   const creating = !editItem;
   const canCreate = hasPermission("services.create");
@@ -122,7 +149,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
   const [tab, setTab] = useState("info");
   const [saving, setSaving] = useState(false);
   const [name, setName] = useState(""); const [categoryId, setCategoryId] = useState(""); const [brandId, setBrandId] = useState(""); const [productId, setProductId] = useState(""); const [coverMediaId, setCoverMediaId] = useState(""); const [shortDesc, setShortDesc] = useState(""); const [description, setDescription] = useState(""); const [basePrice, setBasePrice] = useState("");
-  const [priceMode, setPriceMode] = useState<"FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN">("QUOTE"); const [active, setActive] = useState(true); const [showInCatalog, setShowInCatalog] = useState(true); const [featured, setFeatured] = useState(false); const [sortOrder, setSortOrder] = useState(0);
+  const [priceMode, setPriceMode] = useState<"FIXED" | "STARTING_FROM" | "QUOTE" | "HIDDEN">("QUOTE"); const [active, setActive] = useState(true); const [featured, setFeatured] = useState(false); const [sortOrder, setSortOrder] = useState(0);
   const [variants, setVariants] = useState<{ title: string; description: string; price: string }[]>([]); const [features, setFeatures] = useState<string[]>([]); const [exclusions, setExclusions] = useState<string[]>([]); const [priceFactors, setPriceFactors] = useState<{ name: string; description: string; impact: "increase" | "decrease"; amount: string; unit: string }[]>([]); const [sections, setSections] = useState<{ title: string; content: string }[]>([]); const [faqs, setFaqs] = useState<{ question: string; answer: string }[]>([]);
   const [fieldErrors, setFieldErrors] = useState<{
     name?: string;
@@ -141,7 +168,6 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     { id: "faq", label: "FAQ", icon: HelpCircle, visible: canFaq },
     { id: "sections", label: "Seções", icon: FileText, visible: canSections },
     { id: "booking", label: "Atendimento e orientações", icon: FileText, visible: canInfo },
-    { id: "publish", label: "Publicação", icon: Star, visible: canPublication || canToggleActive },
   ].filter(item => item.visible), [canInfo, canMedia, canPrice, canVariants, canFeatures, canExclusions, canFactors, canFaq, canSections, canPublication, canToggleActive]);
 
   useEffect(() => {
@@ -151,10 +177,10 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     setFieldErrors({});
     setBooking(bookingConfig(editItem?.public_booking));
     if (editItem) {
-      setName(editItem.title || ""); setCategoryId(editItem.category_id || ""); setBrandId(editItem.brand_id || ""); setProductId(editItem.product_id || ""); setCoverMediaId(editItem.cover_media_id || ""); setShortDesc(editItem.short_description || ""); setDescription(editItem.description || ""); setBasePrice(editItem.base_price == null ? "" : String(editItem.base_price)); setPriceMode(["FIXED", "STARTING_FROM", "QUOTE", "HIDDEN"].includes(editItem.price_mode) ? editItem.price_mode : "QUOTE"); setActive(editItem.is_active ?? true); setShowInCatalog(editItem.show_in_catalog !== false); setFeatured(editItem.is_featured ?? false); setSortOrder(editItem.sort_order ?? 0);
+      setName(editItem.title || ""); setCategoryId(editItem.category_id || ""); setBrandId(editItem.brand_id || ""); setProductId(editItem.product_id || ""); setCoverMediaId(editItem.cover_media_id || ""); setShortDesc(editItem.short_description || ""); setDescription(editItem.description || ""); setBasePrice(editItem.base_price == null ? "" : String(editItem.base_price)); setPriceMode(["FIXED", "STARTING_FROM", "QUOTE", "HIDDEN"].includes(editItem.price_mode) ? editItem.price_mode : "QUOTE"); setActive(editItem.is_active ?? true); setFeatured(editItem.is_featured ?? false); setSortOrder(editItem.sort_order ?? 0);
       setVariants((editItem.service_variants || []).map((item: any) => ({ title: item.title || "", description: item.description || "", price: item.price == null ? "" : String(item.price) }))); setFeatures((editItem.service_inclusions || []).map((item: any) => item.description || "")); setExclusions((editItem.service_exclusions || []).map((item: any) => item.description || "")); setPriceFactors((editItem.service_price_factors || []).map((item: any) => ({ name: item.name || "", description: item.description || "", impact: item.impact || "increase", amount: item.amount == null ? "" : String(item.amount), unit: item.unit || "" }))); setSections((editItem.service_sections || []).map((item: any) => ({ title: item.title || "", content: item.content || "" }))); setFaqs((editItem.service_faqs || []).map((item: any) => ({ question: item.question || "", answer: item.answer || "" })));
     } else {
-      setName(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setPriceMode("QUOTE"); setActive(true); setShowInCatalog(true); setFeatured(false); setSortOrder(0); setVariants([]); setFeatures([]); setExclusions([]); setPriceFactors([]); setSections([]); setFaqs([]);
+      setName(""); setCategoryId(""); setBrandId(""); setProductId(""); setCoverMediaId(""); setShortDesc(""); setDescription(""); setBasePrice(""); setPriceMode("QUOTE"); setActive(true); setFeatured(false); setSortOrder(0); setVariants([]); setFeatures([]); setExclusions([]); setPriceFactors([]); setSections([]); setFaqs([]);
     }
   }, [open, editItem, availableTabs]);
 
@@ -198,7 +224,7 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
       if (nextErrors.name) setTab("info");
       else if (nextErrors.basePrice || nextErrors.variants) setTab("price");
       else if (nextErrors.factors) setTab("factors");
-      else if (nextErrors.sortOrder) setTab("publish");
+      else if (nextErrors.sortOrder) setTab("info");
       return;
     }
     setSaving(true);
@@ -206,13 +232,14 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
       const payload: Record<string, unknown> = {};
       if (canInfo) payload.public_booking = {...booking, blocked_dates:booking.blocked_dates.filter(Boolean), orientations:booking.orientations.filter((v:any)=>v.title.trim() && v.content.trim()), testimonials:(Array.isArray(booking.testimonials)?booking.testimonials:[]).filter((v:any)=>v.name?.trim() && v.text?.trim())};
       if (canInfo) {
-        const finalSlug = await generateUniqueSlug("services", name, editItem?.id);
+        const shouldRename = !editItem || (name.trim() !== editItem.title && !editItem.general_service_id);
+        const finalSlug = shouldRename ? await generateUniqueSlug("services", name, editItem?.id) : editItem?.slug;
         Object.assign(payload, { ...(!editItem?.general_service_id ? { title: name.trim(), slug: finalSlug } : {}), category_id: categoryId || null, brand_id: brandId || null, product_id: productId || null, short_description: shortDesc.trim() || null, description: description.trim() || null });
       }
       if (canMedia) payload.cover_media_id = coverMediaId || null;
       if (canPrice && !editItem?.general_service_id) Object.assign(payload, { base_price: parsedBasePrice, price_mode: priceMode });
-      if (canPublication) Object.assign(payload, { is_featured: featured && showInCatalog, show_in_catalog: showInCatalog, sort_order: Number(sortOrder) });
-      if (canToggleActive) payload.is_active = active;
+      if (canPublication) Object.assign(payload, { is_featured: featured, sort_order: Number(sortOrder) });
+      if (creating || canToggleActive) Object.assign(payload, { is_active: active, show_in_catalog: active });
       if (!creating && Object.keys(payload).length) payload.updated_by = userId;
       await saveServiceAggregate({ serviceId: editItem?.id, payload, userId, variants, inclusions: features, exclusions, priceFactors, sections, faqs, scope: creating ? undefined : { variants: canVariants, inclusions: canFeatures, exclusions: canExclusions, priceFactors: canFactors, sections: canSections, faqs: canFaq } });
       onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" }); onClose();
@@ -229,7 +256,6 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     faq: "Cadastre perguntas e respostas que aparecerão na página pública do serviço.",
     sections: "Crie blocos extras de conteúdo, como requisitos, condições ou informações importantes.",
     booking: "Configure atendimento, disponibilidade, orientações e conteúdo complementar.",
-    publish: "Escolha a visibilidade do serviço, os destaques e a posição no catálogo.",
   };
   const tabCounts: Record<string, number> = {
     price: variants.length, features: features.length, exclusions: exclusions.length,
@@ -268,6 +294,13 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
     </div>
     <div className="space-y-6 p-5 sm:p-7">
       {tab === "info" && <>{canInfo && <><Section title="Identificação"><div className="grid grid-cols-1 gap-4 sm:grid-cols-2"><div className="sm:col-span-2"><FInput label="Nome do Serviço" value={name} required disabled={Boolean(editItem?.general_service_id)} error={fieldErrors.name} onChange={(event: any) => { setFieldErrors(current => ({ ...current, name: undefined })); setName(event.target.value); }} /></div><FSelect label="Categoria" value={categoryId} onChange={(event: any) => setCategoryId(event.target.value)} options={catOptions} /><FSelect label="Marca" value={brandId} onChange={(event: any) => setBrandId(event.target.value)} options={brandOptions} /><FSelect label="Produto relacionado" value={productId} onChange={(event: any) => setProductId(event.target.value)} options={productOptions} /></div></Section><Section title="Descrição"><div className="space-y-4"><div><FTextarea label="Descrição curta" value={shortDesc} onChange={(event: any) => setShortDesc(event.target.value)} rows={2} /><p className="mt-1 text-[11px] text-muted-foreground">Resumo que aparece nos cartões e na apresentação do serviço.</p></div><div><RichTextEditor label="Descrição completa" value={description} onChange={setDescription} minHeight={180} /><p className="mt-1 text-[11px] text-muted-foreground">Explique como funciona o atendimento, para quem é indicado e as principais condições.</p></div></div></Section></>}{canMedia && <Section title="Imagem de capa"><ImageUpload bucket="service-images" currentMediaId={coverMediaId} onUpload={setCoverMediaId} canUpload label="Imagem do serviço" /></Section>}</>}
+      {tab === "info" && (canToggleActive || canPublication || creating) && <Section title="Visibilidade e apresentação">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {(canToggleActive || creating) && <FToggle label="Serviço ativo" description="Ativo aparece no site; inativo fica oculto." checked={active} onChange={setActive} />}
+          {canPublication && <FToggle label="Destaque" description="Destacar na página inicial." checked={featured} onChange={setFeatured} />}
+          {canPublication && <FIntegerInput label="Ordem de exibição" value={String(sortOrder)} onChange={(event: any) => setSortOrder(Number(event.target.value || 0))} />}
+        </div>
+      </Section>}
       {tab === "info" && canInfo && <div className="rounded-xl border border-[#dae4f0] bg-[#f7faff] p-5">
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[#718096]">Prévia dos textos do serviço</p>
         <h4 className="text-[18px] font-semibold text-[#172b45]">{name.trim() || "Nome do serviço"}</h4>
@@ -307,7 +340,6 @@ function ServiceDrawer({ open, onClose, editItem, categories, brands, products, 
         </div>)}</div>
         <button type="button" onClick={()=>setSections(current=>[...current,{title:"",content:""}])} className="mt-4 flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-dashed border-primary/35 px-3 py-2 text-[12px] font-semibold text-primary hover:bg-primary/5"><Plus size={16}/> Adicionar seção</button>
       </Section>}
-      {tab === "publish" && <Section title="Publicação"><div className="space-y-4">{editItem?.general_service_id && <p className="text-xs text-muted-foreground">Nome e preço vinculados ao cadastro de Serviços Gerais. Edite essas informações por lá.</p>}{canToggleActive && <FToggle label="Serviço ativo" description="Serviços inativos não aparecem no site." checked={active} onChange={setActive} />}{canPublication && <><FToggle label="Exibir na loja" description="Ocultar do site não remove este serviço das OS." checked={showInCatalog} onChange={setShowInCatalog}/><FToggle label="Destaque" description="Exibe o serviço como destaque na Home." checked={featured} onChange={setFeatured} disabled={!showInCatalog}/><FIntegerInput label="Ordem de exibição" value={String(sortOrder)} onChange={(event: any) => setSortOrder(Number(event.target.value || 0))} /></>}</div></Section>}
     </div>
     <AdminStickyToolbar className="flex-wrap justify-between gap-3 px-5 py-3 sm:px-7">
       <div className="flex flex-wrap items-center gap-3">
