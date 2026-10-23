@@ -114,7 +114,7 @@ export function MaterialSymbolsPicker({
     </label>
     <p className="text-[11px] text-[#64748b]">
       {MATERIAL_SYMBOL_NAMES.length} ícones do Google disponíveis localmente · pesquisa sem consultas externas
-    </p></p>
+    </p>
     <div className="grid max-h-[280px] grid-cols-4 gap-2 overflow-y-auto rounded-lg border border-[#e2e8f0] p-2 sm:grid-cols-6">
       {icons.slice(0, limit).map(name => {
         const encoded = materialIconValue(name, style);
