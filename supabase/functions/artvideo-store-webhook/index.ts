@@ -69,6 +69,21 @@ Deno.serve(async req => {
     // Compatibilidade exclusivamente com transações históricas deste provedor.
     // O endpoint legado nunca pode confirmar um pedido criado pela Getnet
     // ou por qualquer outro conector selecionado futuramente.
+    // Testes de sandbox usam tabela isolada e nunca movimentam o estoque real.
+    if(config.environment==="sandbox"){
+      const {data:labRun,error:labError}=await admin.from("artvideo_payment_test_runs")
+        .select("id,amount").eq("id",orderId).maybeSingle();
+      if(labError) return new Response("lab lookup failed",{status:503});
+      if(labRun){
+        if(Math.abs(Number(labRun.amount)-amount)>0.009)
+          return new Response("test amount mismatch",{status:403});
+        const {error:settleError}=await admin.rpc("artvideo_payment_lab_settle_v1",{
+          p_test_id:orderId,p_payment_id:id,p_payment_status:status,p_amount:amount,
+        });
+        if(settleError)return new Response("lab reconciliation pending",{status:503});
+        return new Response("ok",{status:200});
+      }
+    }
     const {data:order,error:orderError}=await admin.from("artvideo_store_orders")
       .select("payment_provider,payment_environment").eq("id",orderId).maybeSingle();
     if(orderError) return new Response("order lookup failed",{status:503});

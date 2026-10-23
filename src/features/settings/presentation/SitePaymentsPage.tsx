@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, LockKeyhole, PlugZap, ShieldCheck } from "lucide-react";
+import { AlertCircle, CheckCircle2, CreditCard, ExternalLink, LockKeyhole, PlugZap, ShieldCheck, FlaskConical, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -24,6 +24,46 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [original,setOriginal]=useState<PaymentSettings>(initial);
   const [loading,setLoading]=useState(true);
   const [saving,setSaving]=useState(false);
+  const [labLoading,setLabLoading]=useState(false);
+  const [labCredentials,setLabCredentials]=useState<{token:boolean;seller:boolean;webhook:boolean}|null>(null);
+  const [labVerified,setLabVerified]=useState(false);
+  const [labMessage,setLabMessage]=useState("");
+  const [labTest,setLabTest]=useState<{id:string;status:string}|null>(null);
+  const [labUrl,setLabUrl]=useState("");
+  const invokeLab=async(action:"diagnose"|"create"|"status",testId?:string)=>{
+    const {data,error}=await supabase.functions.invoke("artvideo-store-payment-lab",{
+      body:{action,...(testId?{test_id:testId}:{})},
+    });
+    if(error){
+      const response=error.context;
+      if(response instanceof Response){
+        const payload=await response.clone().json().catch(()=>null);
+        if(payload?.error)throw new Error(String(payload.error));
+      }
+      throw new Error("Não foi possível consultar o laboratório do Mercado Pago.");
+    }
+    if(data?.error)throw new Error(String(data.error));
+    return data;
+  };
+  const labAction=async(action:"diagnose"|"create"|"status")=>{
+    if(labLoading)return;
+    setLabLoading(true);
+    try{
+      const result=await invokeLab(action,labTest?.id);
+      if(result.credentials)setLabCredentials(result.credentials);
+      if(typeof result.verified==="boolean")setLabVerified(result.verified);
+      if(result.message)setLabMessage(String(result.message));
+      if(result.test)setLabTest(result.test);
+      if(result.checkoutUrl)setLabUrl(String(result.checkoutUrl));
+      if(action==="status"&&result.test){
+        const labels:Record<string,string>={approved:"Aprovado no sandbox",pending:"Pendente",rejected:"Recusado",
+          awaiting_payment:"Aguardando o comprador",cancelled:"Cancelado",error:"Erro no teste",in_process:"Processando"};
+        setLabMessage(labels[result.test.status]||"Status: "+String(result.test.status));
+      }
+    }catch(error){
+      notifyAdmin(systemErrorMessage(error,"Falha ao testar o Mercado Pago."),"error");
+    }finally{setLabLoading(false);}
+  };
   useEffect(()=>{
     let live=true;
     if(!orgId){setLoading(false);return;}
@@ -52,7 +92,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   },[orgId]);
 
   const gateway=useMemo(()=>providers.find(p=>p.provider_key===current.provider_key),[current.provider_key,providers]);
-  const ready=gateway?.integration_ready===true || (current.provider_key==="mercado_pago" && current.environment==="sandbox");
+  const ready=gateway?.integration_ready===true && !(current.provider_key==="mercado_pago" && current.environment==="sandbox");
   const dirty=JSON.stringify(current)!==JSON.stringify(original);
   const patch=(changes:Partial<PaymentSettings>)=>{
     if(!canUpdate||saving)return;
@@ -95,7 +135,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
           <p className="mt-2 text-xs leading-5 text-muted-foreground">{p.description}</p>
           {p.provider_key!=="none"&&<p className={"mt-3 text-[11px] font-bold "+
               (p.integration_ready?"text-emerald-600 dark:text-emerald-300":"text-amber-700 dark:text-amber-300")}>
-            {p.integration_ready?"Conector homologado":p.provider_key==="mercado_pago"?"Sandbox disponível para testes":"Integração técnica pendente"}
+            {p.integration_ready?"Conector homologado":p.provider_key==="mercado_pago"?"Testes pelo laboratório":"Integração técnica pendente"}
           </p>}
         </button>)}
       </div>
@@ -139,6 +179,39 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       </div>
     </Section>
 
+    {current.provider_key==="mercado_pago"&&<Section title="Laboratório Mercado Pago" description="Teste em ambiente isolado, sem criar pedidos reais ou descontar o estoque.">
+      <div className="space-y-3 text-xs leading-6">
+        <p className="flex items-start gap-2 text-muted-foreground"><FlaskConical size={17} className="mt-0.5 shrink-0 text-primary"/>
+          Primeiro valide as credenciais privadas. Depois gere uma preferência fictícia de R$ 1,00 para pagar com uma conta de teste compradora, preferencialmente em uma janela anônima.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <BtnSecondary onClick={()=>void labAction("diagnose")} disabled={!canUpdate||labLoading}>
+            {labLoading?"Verificando...":"Verificar credenciais"}
+          </BtnSecondary>
+          <BtnPrimary onClick={()=>void labAction("create")} disabled={!canUpdate||labLoading||!labVerified}>
+            Gerar pagamento de teste · R$ 1,00
+          </BtnPrimary>
+        </div>
+        {labCredentials&&<div className="rounded-lg border border-border bg-muted/20 p-3 space-y-1">
+          <p>Access Token de teste: {labCredentials.token?"Cadastrado":"Não encontrado"}</p>
+          <p>User ID do vendedor: {labCredentials.seller?"Cadastrado":"Não encontrado"}</p>
+          <p>Assinatura do webhook: {labCredentials.webhook?"Cadastrada":"Não encontrada"}</p>
+          <p className="font-bold">{labVerified?"Credenciais reconhecidas pelo Mercado Pago":"Validação ainda pendente"}</p>
+        </div>}
+        {labMessage&&<p role="status" className="text-muted-foreground">{labMessage}</p>}
+        {labUrl&&<a href={labUrl} target="_blank" rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 font-bold text-primary hover:underline">
+          Abrir pagamento de teste no Mercado Pago <ExternalLink size={15}/>
+        </a>}
+        {labTest&&<div className="flex flex-wrap items-center gap-3">
+          <p>Teste {labTest.id.slice(0,8)} · <strong>{labTest.status}</strong></p>
+          <BtnSecondary onClick={()=>void labAction("status")} disabled={labLoading}>
+            <RefreshCw size={14}/> Consultar resultado
+          </BtnSecondary>
+        </div>}
+        <p className="text-muted-foreground">O checkout público permanece desligado durante a homologação. A compra fictícia não entra nos pedidos e não altera movimentações do estoque.</p>
+      </div>
+    </Section>}
     <Section title="Próxima integração" description="Configure as credenciais no servidor e homologue antes de ativar pagamentos.">
       <div className="space-y-3 text-xs leading-6 text-muted-foreground">
         {current.provider_key==="mercado_pago"&&<p className="flex gap-2"><PlugZap size={17} className="mt-0.5 shrink-0 text-primary"/>O Checkout Pro usa o redirecionamento seguro do Mercado Pago. Configure no Supabase o Access Token, o ID da conta recebedora e o segredo do webhook (teste e produção). Depois valide pagamentos aprovados, recusados e pendentes.</p>}

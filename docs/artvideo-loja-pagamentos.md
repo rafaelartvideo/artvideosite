@@ -37,3 +37,11 @@ em migração auditada; depois ativar em Site → Pagamentos.
 Docs oficiais:
 https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/overview
 https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-preferences/payment-notifications
+
+## Laboratório isolado (23/10/2026)
+- Edge Function `artvideo-store-payment-lab`: painel autenticado com permissão de edição do site.
+- A validação consulta `GET /users/me` usando token secreto sem expô-lo ao navegador.
+- O laboratório cria preferências fictícias de R$ 1,00 numa tabela privada para as credenciais de teste.
+- O webhook assinado valida vendedor e valor e grava o resultado apenas em `artvideo_payment_test_runs`.
+- Não altera pedidos, estoque, finanças ou relatórios da loja.
+- Sandbox não pode ser ativado no checkout público. Use o laboratório; só produção homologada poderá liberar vendas.
