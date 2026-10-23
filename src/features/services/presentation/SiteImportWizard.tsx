@@ -508,7 +508,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                         {block.target === "unmapped" && <span className="block text-amber-600">Pendente de classificação</span>}
                         {block.target === "ignore" && <span className="block text-muted-foreground">Não será importado</span>}
                         {existing && block.target !== "ignore" && block.target !== "unmapped" && <span className="block text-xs font-normal text-muted-foreground">{currentMatch(existing, block)}</span>}
-                        {block.origin === "manual" && <button type="button" disabled={saving} className="mt-2 block text-left text-xs font-medium text-red-600 hover:underline" onClick={() => removeBlock(item.id, block.id)}>Remover</button>
+                        {block.origin === "manual" && <button type="button" disabled={saving} className="mt-2 block text-left text-xs font-medium text-red-600 hover:underline" onClick={() => removeBlock(item.id, block.id)}>Remover</button>}
                       </label>
                     </div>)}
                   </div>
