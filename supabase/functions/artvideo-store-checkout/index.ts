@@ -30,7 +30,7 @@ Deno.serve(async req => {
         .eq("provider_key","mercado_pago").maybeSingle();
       const publicKey=String(config?.mercado_pago_public_key||
         Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"");
-      const keyReady=/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(publicKey)
+      const keyReady=/^APP_USR-[a-zA-Z0-9_-]{12,}$/.test(publicKey)
         && config?.environment==="production";
       const {data:regular}=await admin.rpc("artvideo_store_payment_status_v1");
       let invited=false;
@@ -79,7 +79,7 @@ Deno.serve(async req => {
       Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"");
     if(bricksPrepare && (!isHomologation || providerKey!=="mercado_pago" ||
        paymentEnvironment!=="production" ||
-       !/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(brickPublicKey))) {
+       !/^APP_USR-[a-zA-Z0-9_-]{12,}$/.test(brickPublicKey))) {
       return json({error:"O pagamento integrado ainda nao esta configurado. Use o Checkout Pro."},503);
     }
     const cart = Array.isArray(input.items) ? input.items : [
