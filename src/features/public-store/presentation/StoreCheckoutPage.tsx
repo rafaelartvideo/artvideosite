@@ -444,6 +444,14 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   </button>;
 
   return <div className="art-checkout-page min-h-screen bg-[#f6f9fd] text-[#10243d]">
+    {homologationAvailable&&<div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold leading-5 text-amber-900">
+      Homologação privada ativa. Este é um pedido REAL: a compra será cobrada pelo Mercado Pago
+      e, se aprovada, poderá baixar o estoque da Artvideo.
+    </div>}
+    {homologationToken&&!homologationAvailable&&!testAccess.isPending&&<div role="alert"
+      className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold text-amber-900">
+      O convite privado expirou ou já foi utilizado. Gere outro convite na Union World.
+    </div>}
     <div className="bg-gradient-to-r from-[#0b1c34] via-[#0e2a51] to-[#114577]">
       <div className="mx-auto max-w-7xl px-4 py-6 text-white sm:px-6 sm:py-10 lg:px-8">
         <h1 className="text-[26px] font-extrabold tracking-[-.035em] sm:text-[38px]">Finalizar compra</h1>
