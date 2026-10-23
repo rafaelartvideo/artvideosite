@@ -147,7 +147,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
      <div className={wide}>
        <h2 className="text-[27px] font-medium tracking-tight sm:text-[32px]">Orientações para este serviço</h2>
        {orientations.length>0&&<div className="mt-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-         {orientations.map((o:any,i:number)=>{const OIcon=[Wrench,MapPin,Info,FileText][i%4];return <button type="button" key={i} onClick={()=>setModal(o)}
+         {orientations.map((o:any,i:number)=>{const icons:Record<string,typeof Wrench>={wrench:Wrench,"map-pin":MapPin,info:Info,"file-text":FileText};const OIcon=icons[o.icon]||[Wrench,MapPin,Info,FileText][i%4];return <button type="button" key={i} onClick={()=>setModal(o)}
            className="group flex min-h-[174px] flex-col items-start rounded-2xl border border-[#d9dee3] bg-white p-5 text-left transition-all hover:-translate-y-0.5 hover:border-[#8fb6dc] hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">
            <OIcon size={31} strokeWidth={1.4} className="text-[#172b45]"/>
            <span className="mt-4 text-[15px] font-semibold">{o.title}</span>
