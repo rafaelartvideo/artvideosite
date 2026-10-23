@@ -51,12 +51,14 @@ Deno.serve(async (req:Request) => {
     // Apenas IDs, status e metadados; nunca revela tokens ou dados de outros usuários.
     if(action==="production_latest"){
       const {data,error}=await admin.from("artvideo_payment_live_checks")
-        .select("id,status,amount,payment_id,webhook_received_at,created_at,updated_at")
+        .select("id,status,amount,payment_id,checkout_url,webhook_received_at,created_at,updated_at")
         .eq("created_by",userData.user.id).order("created_at",{ascending:false}).limit(8);
       if(error)return reply({error:"Não foi possível recuperar as validações de produção."},503);
       const runs=(data||[]).map(t=>({
         id:t.id,status:t.status,amount:Number(t.amount),paymentId:t.payment_id||null,
-        webhookReceivedAt:t.webhook_received_at||null,createdAt:t.created_at,updatedAt:t.updated_at,
+        webhookReceivedAt:t.webhook_received_at||null,
+        checkoutUrl:validRedirect(t.checkout_url)?t.checkout_url:null,
+        createdAt:t.created_at,updatedAt:t.updated_at,
       }));
       return reply({tests:runs,test:runs[0]||null});
     }
@@ -119,7 +121,8 @@ Deno.serve(async (req:Request) => {
           throw new Error("A API não forneceu link oficial válido para a conta real.");
         }
         const {error:updateError}=await admin.from("artvideo_payment_live_checks")
-          .update({status:"awaiting_payment",preference_id:data.id,updated_at:new Date().toISOString()})
+          .update({status:"awaiting_payment",preference_id:data.id,
+            checkout_url:data.init_point,updated_at:new Date().toISOString()})
           .eq("id",check.id);
         if(updateError)throw new Error("Não foi possível guardar a referência da validação real.");
         return reply({
@@ -137,7 +140,7 @@ Deno.serve(async (req:Request) => {
     if(action==="production_status"){
       if(!safeId(input.test_id))return reply({error:"Identificador inválido."},400);
       const {data:check,error:checkError}=await admin.from("artvideo_payment_live_checks")
-        .select("id,status,amount,payment_id,preference_id,webhook_received_at,created_at,updated_at")
+        .select("id,status,amount,payment_id,preference_id,checkout_url,webhook_received_at,created_at,updated_at")
         .eq("id",input.test_id).eq("created_by",userData.user.id).maybeSingle();
       if(checkError)return reply({error:"Não foi possível consultar a validação."},503);
       if(!check)return reply({error:"Validação não encontrada."},404);
@@ -222,7 +225,8 @@ Deno.serve(async (req:Request) => {
         test:{id:check.id,status:fresh?.status||status,
           paymentId:fresh?.payment_id||paymentId||null,amount:Number(check.amount),
           createdAt:check.created_at,updatedAt:fresh?.updated_at||check.updated_at,
-          webhookReceivedAt:fresh?.webhook_received_at||null},
+          webhookReceivedAt:fresh?.webhook_received_at||null,
+          checkoutUrl:validRedirect(check.checkout_url)?check.checkout_url:null},
         source,message});
     }
 
