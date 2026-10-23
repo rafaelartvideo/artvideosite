@@ -156,15 +156,16 @@ function discoverDetails(html: string, nodes: Record<string, any>[], summary: st
     if (question && answer && (question.endsWith("?") || /pergunt|duvida|faq/i.test(question))) add(question, answer, "faqs", "medium", "html");
   }
   // Acordeões com aria-controls podem manter a resposta em um painel separado do botão.
-  for (const m of [...content.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>([\s\S]{0,2200})/gi)].slice(0, 60)) {
+  for (const m of [...content.matchAll(/<button\b([^>]*)>([\s\S]*?)<\/button>/gi)].slice(0, 80)) {
     const question = clip(m[2], 160);
+    const tail = content.slice((m.index || 0) + m[0].length, (m.index || 0) + m[0].length + 2200);
     const isAccordion = /aria-expanded|data-accordion|aria-controls/i.test(m[1]);
     if (!question.endsWith("?") || !isAccordion) continue;
     const panelId = attr("<button " + m[1] + ">", "aria-controls");
     const panel = /^[\w:-]{1,120}$/.test(panelId)
       ? content.match(new RegExp("<[^>]+id=[\"']" + panelId + "[\"'][^>]*>([\\s\\S]{0,2500}?)<\\/(?:div|section|article)>", "i"))
       : null;
-    const answer = clip(panel?.[1] || (m[3] || "").split(/<button\b|<h[2-4]\b/i)[0], 1200);
+    const answer = clip(panel?.[1] || tail.split(/<button\b|<h[2-4]\b/i)[0], 1200);
     if (answer && answer !== question) add(question, answer, "faqs", "medium", "html");
   }
   // Alguns sites só disponibilizam o conteúdo dos modais ao clicar em "Saiba mais".
