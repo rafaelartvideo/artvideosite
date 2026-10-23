@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
-import { saveServiceAggregate, setServicePublication } from "../infrastructure/services.repository";
+import { saveServiceAggregate } from "../infrastructure/services.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
@@ -113,7 +113,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   const [scanInfo, setScanInfo] = useState<{ pages: number; blocked: number; warnings: string[] } | null>(null);
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [publishAfterImport, setPublishAfterImport] = useState(false);
+  const [activateAfterImport, setActivateAfterImport] = useState(true);
   const [stats, setStats] = useState<ImportStats | null>(null);
   const [error, setError] = useState("");
   const existingService = useMemo(() => new Map(services.map(s => [cleanName(s.title || ""), s])), [services]);
@@ -250,7 +250,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           const { error: saveError } = await supabase.from("products").update(changes).eq("organization_id", organizationId).eq("id", actual.id);
           if (saveError) throw saveError;
         }
-        if (publishAfterImport) {
+        if (activateAfterImport) {
           const { error: publishError } = await supabase.from("products")
             .update({ is_active: true, show_in_catalog: true }).eq("organization_id", organizationId).eq("id", actual.id);
           if (publishError) throw publishError;
@@ -261,7 +261,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           organization_id: organizationId, created_by: user?.id, name: title, slug,
           short_description: result.short || null, description: result.description || null,
           price: result.price, category_id: categoryId, cover_media_id: item.mediaId || null,
-          is_active: publishAfterImport, show_in_catalog: publishAfterImport, is_featured: false,
+          is_active: activateAfterImport, show_in_catalog: activateAfterImport, is_featured: false,
         });
         if (saveError) throw saveError;
       }
@@ -271,7 +271,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           .select("id,public_booking,short_description,description,base_price,price_mode,category_id,cover_media_id,is_active,show_in_catalog,service_inclusions(description),service_exclusions(description),service_variants(title,description,price),service_sections(title,content),service_faqs(question,answer)")
           .eq("organization_id", organizationId).eq("id", previous.id).single();
         if (fetchError) throw fetchError;
-        if (actual.is_active && actual.show_in_catalog) throw Error("Este item já está publicado. Oculte-o do site antes de complementar para não publicar alterações sem revisão.");
+
         const changes: Record<string, unknown> = {};
         if (!actual.short_description && result.short) changes.short_description = result.short;
         if (!actual.description && result.description) changes.description = result.description;
@@ -319,21 +319,21 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
         await insertExtra("service_variants",
           additions((actual.service_variants || []).map(v => ({ title: v.title || "", description: v.description || "", price: v.price == null ? "" : String(v.price) })), result.variants, v => v.title)
             .map(row => ({ title: row.title, description: row.description, price: row.price ? Number(row.price) : null, is_active: true })));
-        if (publishAfterImport) await setServicePublication(actual.id, true);
+
       } else {
         const slug = await generateUniqueSlug("services", title);
-        const createdServiceId = await saveServiceAggregate({
+        await saveServiceAggregate({
           userId: user?.id || null,
           payload: {
             title, slug, category_id: categoryId, short_description: result.short || null,
             public_booking: {...(result.orientations.length ? {orientations:result.orientations} : {}), ...(result.terms ? {terms:result.terms} : {})},
             description: result.description || null, base_price: result.price, price_mode: result.price !== null ? "FIXED" : "QUOTE",
-            is_active: false, show_in_catalog: false, is_featured: false, sort_order: 0, cover_media_id: item.mediaId || null,
+            is_active: activateAfterImport, show_in_catalog: activateAfterImport, is_featured: false, sort_order: 0, cover_media_id: item.mediaId || null,
           },
           variants: result.variants, inclusions: result.inclusions, exclusions: result.exclusions, priceFactors: [],
           sections: result.sections, faqs: result.faqs,
         });
-        if (publishAfterImport) await setServicePublication(createdServiceId, true);
+
       }
     }
     taken.add((isService(item.type) ? "service" : "product") + ":" + cleanName(title));
@@ -394,7 +394,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
             </label>
           </div>
           <p className="flex items-start gap-2 text-xs text-muted-foreground"><ShieldAlert size={15} className="mt-0.5 shrink-0" />
-            São analisadas apenas páginas públicas permitidas. Os textos extraídos são rascunhos para revisão e adaptação; imagens externas não são copiadas automaticamente.</p>
+            São analisadas somente páginas públicas permitidas. Revise os textos identificados antes de importar; imagens externas não são copiadas automaticamente.</p>
         </section>
 
         {error && <p role="alert" className="whitespace-pre-line rounded-xl border border-red-500/30 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
@@ -403,7 +403,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
           {scanInfo.warnings.map((warning, i) => <p key={i} className="mt-1 text-xs text-muted-foreground">{warning}</p>)}
         </div>}
         {stats && <div role="status" className="rounded-xl border border-blue-500/25 bg-blue-500/5 px-4 py-3 text-sm">
-          {stats.created} criados · {stats.updated} complementados · {stats.skipped} ignorados · {stats.failed} erros. {publishAfterImport ? "Publicação solicitada para os itens concluídos." : "Itens novos foram salvos como rascunho (fora do site)."}
+          {stats.created} criados · {stats.updated} complementados · {stats.skipped} ignorados · {stats.failed} erros. {activateAfterImport ? "Novos itens ativos." : "Novos itens inativos."}
         </div>}
         {scanning && <div className="flex min-h-36 items-center justify-center gap-3 text-sm text-muted-foreground"><Loader2 size={22} className="animate-spin" /> Analisando seções, listas e perguntas frequentes...</div>}
         {!scanning && scanInfo && !items.length && <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground">
@@ -446,7 +446,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
                 </div>
                 {existing && <div className="rounded-xl border border-amber-500/35 bg-amber-500/5 p-3 text-sm">
                   <strong>Cadastro semelhante encontrado.</strong> Compare antes de complementar. Campos existentes não são substituídos.
-                  {existing.is_active && existing.show_in_catalog && <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">Este cadastro já está publicado. Oculte-o do site antes de importar alterações, para evitar atualização pública imediata.</p>}
+                  {existing.is_active && existing.show_in_catalog && <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-400">Esse cadastro está ativo. Ao complementar suas informações, as mudanças serão exibidas no site.</p>}
                   <div className="mt-2 grid gap-2 sm:grid-cols-2 text-xs">
                     <p><span className="font-semibold">Artvideo:</span> {String(existing.short_description || existing.description || "Sem descrição")}</p>
                     <p><span className="font-semibold">Site de origem:</span> {item.summary || "Sem resumo"}</p>
@@ -532,10 +532,10 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
       <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-background p-4">
         <div className="space-y-1"><p className="text-xs font-medium">{selected.length} selecionados · {unresolved.length} trechos pendentes · {incomplete.length} campos incompletos</p>
           <label className="flex cursor-pointer items-center gap-2 text-xs font-medium">
-            <input type="checkbox" checked={publishAfterImport} disabled={saving} onChange={event => setPublishAfterImport(event.target.checked)} />
-            Publicar no site após importar com sucesso
+            <input type="checkbox" checked={activateAfterImport} disabled={saving} onChange={event => setActivateAfterImport(event.target.checked)} />
+            Cadastrar novos itens como ativos
           </label>
-          <p className="text-xs text-muted-foreground">{publishAfterImport ? "Os itens importados ficarão ativos e visíveis no catálogo." : "Padrão: salvar como rascunho para revisar antes de publicar."}</p></div>
+          <p className="text-xs text-muted-foreground">{activateAfterImport ? "Ativos aparecem no site; você poderá desativá-los no cadastro." : "Itens inativos permanecem ocultos do site até a ativação."}</p></div>
         <div className="flex gap-2"><BtnSecondary onClick={onClose} disabled={saving}>Voltar</BtnSecondary>
           <BtnPrimary onClick={() => void importSelected()} loading={saving} loadingText="Importando..." disabled={scanning || saving || !selected.length || unresolved.length > 0 || incomplete.length > 0}>
             <Check size={16} /> Importar ({selected.length})
