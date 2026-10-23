@@ -84,7 +84,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
    .filter((item:any)=>typeof item.name==='string'&&item.name.trim()&&typeof item.text==='string'&&item.text.trim())
    .map((item:any)=>({name:item.name.trim(),text:item.text.trim()}));
  const extraSections=sections.filter((s:any)=>s.is_active!==false&&(s.title||s.content));
- const hasGuidance=orientations.length>0||Boolean(service.description)||extraSections.length>0||detail.priceFactors.length>0;
+ const hasGuidance=orientations.length>0||extraSections.length>0||detail.priceFactors.length>0;
  const wide='mx-auto w-full max-w-[1480px] px-5 sm:px-8 lg:px-12';
  return <div className="art-service bg-white text-[#172b45]">
    <PublicBreadcrumb items={[{label:'Início',onClick:()=>setPage('home')},{label:'Serviços',onClick:()=>setPage('servicos')},{label:service.title}]}/>
@@ -155,8 +155,7 @@ export function ServiceDetailPage({slug,setPage}:{slug:string|null;setPage:(page
            <span className="mt-auto pt-5 text-sm font-medium text-[var(--art-primary)] group-hover:underline">Saiba mais</span>
          </button>;})}
        </div>}
-       {(Boolean(service.description)||extraSections.length>0||detail.priceFactors.length>0)&&<div className="mt-6 grid gap-4 md:grid-cols-2">
-         {service.description&&<article className="rounded-xl border border-[#dfe3e9] bg-white p-6"><h3 className="text-[18px] font-semibold">Sobre o serviço</h3><RichTextContent value={service.description} className="mt-3 text-[15px] leading-7 text-slate-600"/></article>}
+       {(extraSections.length>0||detail.priceFactors.length>0)&&<div className="mt-6 grid gap-4 md:grid-cols-2">
          {extraSections.map((s:any)=><article key={s.id} className="rounded-xl border border-[#dfe3e9] bg-white p-6"><h3 className="text-[18px] font-semibold">{s.title}</h3><RichTextContent value={s.content} className="mt-3 text-[15px] leading-7 text-slate-600"/></article>)}
          {detail.priceFactors.length>0&&<article className="rounded-xl border border-[#dfe3e9] bg-white p-6">
            <h3 className="text-[18px] font-semibold">O que pode alterar o orçamento?</h3>
