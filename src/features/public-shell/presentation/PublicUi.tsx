@@ -15,12 +15,12 @@ export function PublicButton({ children, variant = "primary", className = "", ..
   className?: string;
   [key: string]: unknown;
 }) {
-  const base = "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-bold transition-all duration-200 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60";
+  const base = "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-5 py-2.5 text-sm font-bold transition-colors duration-150 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-60";
   const variants = {
-    primary: "bg-[var(--art-primary)] text-white shadow-sm hover:-translate-y-0.5 hover:brightness-110 hover:shadow-lg hover:shadow-blue-500/20",
-    outline: "border border-[var(--art-primary)] text-[var(--art-primary)] hover:-translate-y-0.5 hover:bg-[var(--art-primary)] hover:text-white hover:shadow-md",
-    ghost: "text-[var(--art-primary)] px-0 hover:gap-3 hover:text-blue-700",
-    whatsapp: "bg-[#25d366] text-white hover:-translate-y-0.5 hover:bg-[#1db954] hover:shadow-md",
+    primary: "bg-[var(--art-primary)] text-white shadow-sm hover:bg-[#0e2dc8]",
+    outline: "border border-[var(--art-primary)] text-[var(--art-primary)] hover:bg-blue-50",
+    ghost: "text-[var(--art-primary)] px-0 hover:text-[#0e2dc8]",
+    whatsapp: "bg-[#25d366] text-white hover:bg-[#1db954]",
   };
   return <button className={`${base} ${variants[variant]} ${className}`} {...props}>{children}</button>;
 }

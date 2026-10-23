@@ -945,11 +945,37 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 
 /* Sem animação de entrada ao navegar entre rotas: evita a sensação de layout quebrado. */
 .artvideo-public .art-public-page-content > * { animation: none; }
+/* Hover discreto e consistente no site público; não interfere nos loaders nem carrosséis. */
 .artvideo-public :is(button, a, input, select, textarea) {
   transition-property: color, background-color, border-color, box-shadow;
-  transition-duration: .12s;
+  transition-duration: .16s;
 }
- .artvideo-public :is(button, a, article):hover { transform: none !important; }
+@media (hover: hover) {
+  .artvideo-public :is(button, a, article, [role="button"], .group):not(.art-home-quick-card):hover {
+    transform: none !important;
+    filter: none !important;
+    text-shadow: none !important;
+  }
+  /* Substitui os brilhos/sombras muito fortes por profundidade quase imperceptível. */
+  .artvideo-public :is(article, [class*="hover:shadow"]):not(.art-home-quick-card):hover {
+    box-shadow: 0 3px 12px rgba(16, 44, 96, .07) !important;
+  }
+  .artvideo-public :is(button, a, [role="button"]):not(.art-home-quick-card):hover {
+    box-shadow: none !important;
+  }
+  /* Ícones e imagens de cards comuns não devem pular ou crescer no hover. */
+  .artvideo-public .group:not(.art-home-quick-card):hover :is([class*="group-hover:scale"], [class*="group-hover:translate"], [class*="group-hover:rotate"]) {
+    transform: none !important;
+  }
+  /* Única exceção: os três acessos rápidos da página inicial. */
+  .artvideo-public .art-home-quick-card:hover {
+    transform: translateY(-4px) !important;
+  }
+}
+.artvideo-public .art-home-quick-card {
+  transition-property: transform, border-color, box-shadow;
+  transition-duration: .2s;
+}
 .artvideo-public .art-input:focus-visible { box-shadow: 0 0 0 3px rgba(16,50,220,.12); }
 @media (prefers-reduced-motion: reduce) {
   .artvideo-public * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }

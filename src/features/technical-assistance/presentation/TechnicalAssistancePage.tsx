@@ -55,7 +55,7 @@ export function TechnicalAssistancePage({ setPage }: { setPage: (page: PublicPag
                   </div>
                   <h3 className="font-bold text-[#0d1b2e] mb-2">{c.title}</h3>
                   <p className="text-sm text-[#5a6a82] leading-relaxed mb-4">{c.desc}</p>
-                  <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[var(--art-primary)] hover:gap-2 transition-all">
+                  <button onClick={() => setPage("servicos")} className="flex items-center gap-1 text-sm font-semibold text-[var(--art-primary)] hover:text-[#0e2dc8] transition-colors">
                     Ver serviços <ChevronRight size={14} />
                   </button>
                 </div>
