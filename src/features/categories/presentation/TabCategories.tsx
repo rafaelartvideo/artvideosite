@@ -189,12 +189,16 @@ export function TabCategories({
       };
       if (editItem && Object.entries(payload).every(([key, value]) =>
         JSON.stringify(value ?? null) === JSON.stringify(editItem[key as keyof SiteCategory] ?? null))) {
-        closeEditor();
+        setDrawerOpen(false);
+        setEditItem(null);
+        onRouteChange?.(null, null);
         setToast({ msg: "Nenhuma alteração necessária.", type: "success" });
         return;
       }
       await saveCategory(payload, editItem?.id, kind);
-      closeEditor();
+      setDrawerOpen(false);
+      setEditItem(null);
+      onRouteChange?.(null, null);
       setToast({ msg: editItem ? "Categoria atualizada!" : "Categoria criada!", type: "success" });
       void refresh();
     } catch (error) {
