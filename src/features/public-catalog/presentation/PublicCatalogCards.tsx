@@ -5,6 +5,7 @@ import { addStoreCartItem } from "@/features/public-store/application/store-cart
 import { formatCurrency } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
+import { richTextPlain } from "@/shared/ui/admin/RichTextEditor";
 import { homeServiceDisplay, inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 
 export function BrandCard({ brand }: { brand: any }) {
@@ -98,7 +99,7 @@ export function ServiceCard({ service, onSelectService, variant = "default", cat
   return <article className="art-service-card group flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#e1e5ea] bg-white transition-colors duration-150 hover:border-blue-300 hover:shadow-lg">
     <button type="button" aria-label={`Ver detalhes de ${service.title}`} onClick={() => onSelectService(service.slug)} className="w-full text-left focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
       <div className="aspect-[16/10] overflow-hidden bg-[#f0f3f6]">{imageUrl ? <div className="relative h-full w-full">{readyImage!==imageUrl && <div className="absolute inset-0 animate-pulse bg-[#e8eef7]"/>}<img src={imageUrl} alt="" loading="lazy" onLoad={()=>setReadyImage(imageUrl)} onError={()=>setReadyImage(imageUrl)} className={`h-full w-full object-cover ${readyImage===imageUrl?"opacity-100":"opacity-0"}`}/></div> : <div className="flex h-full items-center justify-center"><Icon size={60} strokeWidth={1.2} className="text-[#87a4bf]"/></div>}</div>
-      <div className="p-6 pb-3"><h3 className="text-lg font-semibold leading-6 tracking-tight text-[#172b45]">{service.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-[#64717e]">{service.short_description || service.description || "Conheça o atendimento e solicite seu orçamento."}</p></div>
+      <div className="p-6 pb-3"><h3 className="text-lg font-semibold leading-6 tracking-tight text-[#172b45]">{service.title}</h3><p className="mt-3 line-clamp-3 text-sm leading-6 text-[#64717e]">{richTextPlain(service.short_description || service.description || "Conheça o atendimento e solicite seu orçamento.")}</p></div>
     </button>
     <div className="mt-auto flex flex-wrap items-center justify-between gap-3 px-6 pb-6 pt-4"><span className="text-sm font-medium text-[#172b45]">{priceLabel || " "}</span><button type="button" onClick={() => onSelectService(service.slug)} className="inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)] transition-all hover:gap-3">Saiba mais <ArrowRight size={16}/></button></div>
   </article>;
