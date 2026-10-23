@@ -71,6 +71,7 @@ Deno.serve(async req => {
       }
       // 200 confirma apenas entrega + assinatura + log.
       // Em sandbox, não homologa o segredo de produção.
+      console.info("Artvideo Mercado Pago simulator authenticated",config.environment);
       return new Response("signed simulation accepted",{status:200});
     }
     if(!config.token || !config.collector) return new Response("not configured",{status:503});
@@ -128,7 +129,9 @@ Deno.serve(async req => {
     if (error) return new Response("order reconciliation pending",{status:503});
     // Avisos automáticos estão pausados. A confirmação do pagamento fica intacta.
     return new Response("ok",{status:200});
-  } catch {
+  } catch (error) {
+    console.error("Artvideo Mercado Pago webhook processing failure",
+      error instanceof Error ? error.name : "unknown");
     return new Response("temporary error",{status:503});
   }
 });
