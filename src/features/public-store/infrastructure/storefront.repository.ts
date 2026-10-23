@@ -76,6 +76,69 @@ export async function checkStoreHomologationAccess(token:string):Promise<boolean
   });
   return !error&&data?.available===true;
 }
+export type EmbeddedCheckoutSession={
+  orderId:string;trackingToken:string;publicKey:string;amount:number;expiresAt:string;
+};
+export type EmbeddedPaymentResult={
+  orderId:string;status:string;statusDetail?:string;paymentId:string|null;
+  qrCode?:string|null;qrCodeBase64?:string|null;ticketUrl?:string|null;
+  trackingUrl?:string;
+};
+export async function loadEmbeddedCheckoutAvailability(homologationToken?:string):Promise<boolean>{
+  const {data,error}=await supabase.functions.invoke("artvideo-store-checkout",{
+    body:{action:"bricks_status",
+      ...(homologationToken?{homologation_token:homologationToken}:{})},
+  });
+  return !error&&data?.available===true;
+}
+async function invokeEmbeddedPayment(body:Record<string,unknown>):Promise<EmbeddedPaymentResult>{
+  const {data,error}=await supabase.functions.invoke("artvideo-store-bricks-payment",{body});
+  if(error){
+    const response=error.context;
+    if(response instanceof Response){
+      const parsed=await response.clone().json().catch(()=>null);
+      if(parsed?.error)throw new Error(String(parsed.error));
+    }
+    throw new Error("Não foi possível processar o pagamento agora. Consulte o pedido antes de tentar novamente.");
+  }
+  if(data?.error)throw new Error(String(data.error));
+  return data as EmbeddedPaymentResult;
+}
+export async function submitEmbeddedPayment(
+  session:EmbeddedCheckoutSession,formData:Record<string,unknown>
+):Promise<EmbeddedPaymentResult>{
+  return invokeEmbeddedPayment({action:"pay",order_id:session.orderId,
+    tracking_token:session.trackingToken,form_data:formData});
+}
+export async function refreshEmbeddedPayment(session:EmbeddedCheckoutSession):Promise<EmbeddedPaymentResult>{
+  return invokeEmbeddedPayment({action:"status",order_id:session.orderId,
+    tracking_token:session.trackingToken});
+}
+export async function prepareEmbeddedStoreCheckout(
+  payload:Parameters<typeof startStoreCheckout>[0]
+):Promise<EmbeddedCheckoutSession>{
+  const {data,error}=await supabase.functions.invoke("artvideo-store-checkout",{
+    body:{...payload,action:"bricks_prepare"},
+  });
+  if(error){
+    const response=error.context;
+    if(response instanceof Response){
+      const body=await response.clone().json().catch(()=>null);
+      if(body?.error)throw new Error(String(body.error));
+    }
+    throw new Error("Não foi possível preparar o pagamento integrado.");
+  }
+  if(data?.error)throw new Error(String(data.error));
+  if(typeof data.order_id!=="string"||typeof data.tracking_token!=="string"
+    ||!/^[a-f0-9]{64}$/.test(data.tracking_token)
+    ||typeof data.public_key!=="string"
+    ||!Number.isFinite(Number(data.amount))||Number(data.amount)<1)
+    throw new Error("Sessão de pagamento inválida.");
+  return {orderId:data.order_id,trackingToken:data.tracking_token,
+    publicKey:data.public_key,amount:Number(data.amount),
+    expiresAt:String(data.expires_at||"")};
+}
+
 export async function startStoreCheckout(payload: {
   homologation_token?:string;
   product_id: string;
