@@ -13,7 +13,7 @@ type ContentType = "service" | "product" | "page";
 type Destination = "short_description" | "description" | "inclusions" | "exclusions" | "faqs" | "variants" | "sections" | "orientations" | "terms" | "price" | "unmapped" | "ignore";
 type DataBlock = {
   id: string; heading: string; text: string;
-  suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema"; sourceUrl?: string;
+  suggestedTarget: Destination; confidence: "high" | "medium" | "low"; origin: "html" | "schema" | "manual"; sourceUrl?: string;
 };
 type ReviewBlock = DataBlock & { target: Destination };
 type SourceItem = {
@@ -56,14 +56,24 @@ const chooseBlocks = (item: ReviewItem, target: Destination) => item.blocks.filt
 function payloadFor(item: ReviewItem) {
   const description = chooseBlocks(item, "description").map(b => b.heading === "Resumo da página" ? b.text : b.heading + "\n" + b.text).join("\n\n").slice(0, 10000);
   const short = chooseBlocks(item, "short_description").map(b => b.text).join(" ").slice(0, 300);
-  const sections = chooseBlocks(item, "sections").map(b => ({ title: b.heading || "Informações", content: b.text }));
-  const faqs = chooseBlocks(item, "faqs").filter(b => b.heading && b.text).map(b => ({ question: b.heading, answer: b.text }));
+  const sections = chooseBlocks(item, "sections").filter(b => b.heading.trim() && b.text.trim()).map(b => ({ title: b.heading.trim(), content: b.text.trim() }));
+  const faqSeen = new Set<string>();
+  const faqs = chooseBlocks(item, "faqs").filter(b => {
+    const key = cleanName(b.heading);
+    if (!key || !b.text.trim() || faqSeen.has(key)) return false;
+    faqSeen.add(key); return true;
+  }).map(b => ({ question: b.heading.trim(), answer: b.text.trim() }));
   const variants = chooseBlocks(item, "variants").map(b => ({ title: b.text.slice(0, 180), description: b.heading || "", price: "" }));
   const inclusions = chooseBlocks(item, "inclusions").map(b => b.text);
   const exclusions = chooseBlocks(item, "exclusions").map(b => b.text);
   const priceBlock = chooseBlocks(item, "price")[0];
   const price = priceBlock ? numberFrom(priceBlock.text) : null;
-  const orientations = chooseBlocks(item, "orientations").map(b => ({title:b.heading || "Orientações",content:b.text}));
+  const guidanceSeen = new Set<string>();
+  const orientations = chooseBlocks(item, "orientations").filter(b => {
+    const key = cleanName(b.heading);
+    if (!key || !b.text.trim() || guidanceSeen.has(key)) return false;
+    guidanceSeen.add(key); return true;
+  }).map(b => ({ title: b.heading.trim(), content: b.text.trim() }));
   const terms = chooseBlocks(item, "terms").map(b => b.text).join("\n\n");
   return { description, short, sections, faqs, variants, inclusions, exclusions, price, orientations, terms };
 }
@@ -108,6 +118,9 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   const existingProduct = useMemo(() => new Map(products.map(p => [cleanName(p.name || ""), p])), [products]);
   const selected = items.filter(item => item.selected);
   const unresolved = selected.flatMap(item => item.blocks.filter(b => b.target === "unmapped").map(b => item.title + ": " + b.heading));
+  const incomplete = selected.flatMap(item => item.blocks.filter(b =>
+    ["faqs", "sections", "orientations"].includes(b.target) && (!b.heading.trim() || !b.text.trim())
+  ).map(b => item.title + ": " + (b.heading || fieldNames[b.target])));
   const getExisting = (item: ReviewItem) => item.type === "product" ? existingProduct.get(cleanName(item.title)) : existingService.get(cleanName(item.title));
   const allowed = (item: ReviewItem) => isService(item.type) ? canService : canProduct;
   const categoryOptions = (item: ReviewItem) => item.type === "product" ? productCategories : categories;
@@ -118,6 +131,20 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   function updateBlock(id: string, blockId: string, changes: Partial<ReviewBlock>) {
     setItems(current => current.map(item => item.id === id ? {
       ...item, blocks: item.blocks.map(block => block.id === blockId ? { ...block, ...changes } : block),
+    } : item));
+  }
+  function addManualBlock(id: string, target: "faqs" | "sections" | "orientations") {
+    setItems(current => current.map(item => item.id === id ? {
+      ...item, blocks: [...item.blocks, {
+        id: "manual-" + Date.now() + "-" + Math.random().toString(36).slice(2),
+        heading: "", text: "", suggestedTarget: target, target,
+        origin: "manual" as const, confidence: "high" as const,
+      }],
+    } : item));
+  }
+  function removeBlock(id: string, blockId: string) {
+    setItems(current => current.map(item => item.id === id ? {
+      ...item, blocks: item.blocks.filter(block => block.id !== blockId),
     } : item));
   }
   async function scan() {
@@ -313,6 +340,7 @@ export function SiteImportWizard({ onClose, onImported, services, products, cate
   async function importSelected() {
     if (saving || !selected.length || !user?.id) return;
     if (unresolved.length) { setError("Defina o destino ou marque Ignorar em todos os trechos pendentes antes de importar."); return; }
+    if (incomplete.length) { setError("Preencha título e conteúdo dos FAQs, informações técnicas e orientações ou selecione Ignorar: " + incomplete.slice(0, 5).join("; ")); return; }
     setSaving(true); setError(""); setStats(null);
     const counts: ImportStats = { created: 0, updated: 0, skipped: 0, failed: 0 };
     const failures: string[] = [];
