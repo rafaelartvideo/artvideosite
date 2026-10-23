@@ -74,7 +74,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const openNew = () => { if (!canCreate) return; setEditItem(null); setDrawerOpen(true); };
   const openEdit = (service: any) => { if (!(canViewDetails && canUpdate)) return; setEditItem(service); setDrawerOpen(true); };
   const closeEditor = () => { setDrawerOpen(false); onRouteChange?.(null, null); };
-  const openNewPage = () => onRouteChange ? onRouteChange("new", null) : openNew();
+  const openNewPage = () => { openNew(); onRouteChange?.("new", null); };
   const openEditPage = (item: any) => { if (!(canViewDetails && canUpdate)) return; openEdit(item); onRouteChange?.(item.id, "edit"); };
 
   useEffect(() => { if (!routeResourceId) { if (drawerOpen) setDrawerOpen(false); return; } if (routeResourceId === "new") { if (canCreate && (!drawerOpen || editItem)) openNew(); return; } if (!(canViewDetails && canUpdate) || routeSubpage !== "edit" || editItem?.id === routeResourceId) return; const item = services.find((entry: any) => entry.id === routeResourceId); if (item) openEdit(item); }, [routeResourceId, routeSubpage, services, drawerOpen, editItem?.id, canCreate, canViewDetails, canUpdate]);
@@ -160,7 +160,7 @@ function ServiceDrawer({ open, onClose, onSaved, editItem, categories, brands, p
   }>({});
 
   const availableTabs = useMemo(() => [
-    { id: "info", label: "Informações", icon: List, visible: canInfo || canMedia },
+    { id: "info", label: "Informações", icon: List, visible: canInfo || canMedia || canToggleActive || canPublication },
     { id: "price", label: "Preço", icon: DollarSign, visible: canPrice || canVariants },
     { id: "features", label: "Incluso", icon: CheckCircle, visible: canFeatures },
     { id: "exclusions", label: "Não incluso", icon: X, visible: canExclusions },
@@ -240,9 +240,57 @@ function ServiceDrawer({ open, onClose, onSaved, editItem, categories, brands, p
       if (canPrice && !editItem?.general_service_id) Object.assign(payload, { base_price: parsedBasePrice, price_mode: priceMode });
       if (canPublication) Object.assign(payload, { is_featured: featured, sort_order: Number(sortOrder) });
       if (creating || canToggleActive) Object.assign(payload, { is_active: active, show_in_catalog: active });
-      if (!creating && Object.keys(payload).length) payload.updated_by = userId;
-      await saveServiceAggregate({ serviceId: editItem?.id, payload, userId, variants, inclusions: features, exclusions, priceFactors, sections, faqs, scope: creating ? undefined : { variants: canVariants, inclusions: canFeatures, exclusions: canExclusions, priceFactors: canFactors, sections: canSections, faqs: canFaq } });
-      onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" }); onClose();
+      // Não regrave relações que não foram alteradas. Antes isso disparava até 12
+      // chamadas extras ao banco em toda edição, inclusive para mudar uma palavra.
+      const differs = (before: unknown[], after: unknown[]) => JSON.stringify(before) !== JSON.stringify(after);
+      const oldVariants = (editItem?.service_variants ?? []).map((v: any) => [v.title || "", v.description || "", v.price == null ? "" : String(Number(v.price))]);
+      const nextVariants = variants.map(v => [v.title, v.description, v.price === "" ? "" : String(Number(v.price))]);
+      const oldInclusions = (editItem?.service_inclusions ?? []).map((v: any) => v.description || "").filter(Boolean);
+      const oldExclusions = (editItem?.service_exclusions ?? []).map((v: any) => v.description || "").filter(Boolean);
+      const oldFactors = (editItem?.service_price_factors ?? []).map((v: any) => [v.name || "", v.description || "", v.impact || "increase", String(Number(v.amount || 0)), v.unit || ""]);
+      const nextFactors = priceFactors.filter(v => v.name.trim()).map(v => [v.name.trim(), v.description || "", v.impact, String(Number(v.amount || 0)), v.unit || ""]);
+      const oldSections = (editItem?.service_sections ?? []).map((v: any) => [v.title?.trim() || "", v.content?.trim() || ""]).filter((v: string[]) => v[0] && v[1]);
+      const nextSections = sections.map(v => [v.title.trim(), v.content.trim()]).filter(v => v[0] && v[1]);
+      const oldFaqs = (editItem?.service_faqs ?? []).map((v: any) => [v.question || "", v.answer || ""]).filter((v: string[]) => v[0]);
+      const nextFaqs = faqs.map(v => [v.question, v.answer]).filter(v => v[0]);
+      const scope = creating ? undefined : {
+        variants: canVariants && differs(oldVariants, nextVariants),
+        inclusions: canFeatures && differs(oldInclusions, features.filter(Boolean)),
+        exclusions: canExclusions && differs(oldExclusions, exclusions.filter(Boolean)),
+        priceFactors: canFactors && differs(oldFactors, nextFactors),
+        sections: canSections && differs(oldSections, nextSections),
+        faqs: canFaq && differs(oldFaqs, nextFaqs),
+      };
+      if (!creating && canInfo && JSON.stringify(bookingConfig(editItem?.public_booking)) === JSON.stringify(booking)) {
+        delete payload.public_booking;
+      }
+      if (!creating) {
+        for (const key of Object.keys(payload)) {
+          if (key === "public_booking") continue;
+          if (JSON.stringify(payload[key] ?? null) === JSON.stringify(editItem?.[key] ?? null)) delete payload[key];
+        }
+        if (Object.keys(payload).length) payload.updated_by = userId;
+      }
+      const savedId = await saveServiceAggregate({
+        serviceId: editItem?.id, payload, userId, variants, inclusions: features,
+        exclusions, priceFactors, sections, faqs, scope,
+      });
+      const savedData: Record<string, unknown> = { ...payload };
+      if (creating || scope?.variants) savedData.service_variants = variants.map((v,i) => ({ ...v, price: v.price === "" ? null : Number(v.price), sort_order:i, is_active:true }));
+      if (creating || scope?.inclusions) savedData.service_inclusions = features.filter(Boolean).map((description,i) => ({ description, sort_order:i }));
+      if (creating || scope?.exclusions) savedData.service_exclusions = exclusions.filter(Boolean).map((description,i) => ({ description, sort_order:i }));
+      if (creating || scope?.priceFactors) savedData.service_price_factors = priceFactors.filter(v => v.name.trim()).map((v,i) => ({ ...v, amount:Number(v.amount)||0, sort_order:i }));
+      if (creating || scope?.sections) savedData.service_sections = sections.filter(v => v.title.trim() && v.content.trim()).map((v,i) => ({ ...v, sort_order:i }));
+      if (creating || scope?.faqs) savedData.service_faqs = faqs.filter(v => v.question).map((v,i) => ({ ...v, sort_order:i, is_active:true }));
+      if (creating) {
+        savedData.title = name.trim();
+        savedData.public_booking = payload.public_booking ?? booking;
+        savedData.is_active = active;
+        savedData.show_in_catalog = active;
+      }
+      onSaved(savedId, savedData);
+      onToast({ msg: editItem ? "Serviço atualizado com sucesso!" : "Serviço criado com sucesso!", type: "success" });
+      onClose();
     } catch (error) { onToast({ msg: `Erro ao salvar: ${systemErrorMessage(error, "Erro desconhecido")}`, type: "error" }); }
     finally { setSaving(false); }
   };
