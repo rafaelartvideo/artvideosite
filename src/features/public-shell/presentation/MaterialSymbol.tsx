@@ -10,102 +10,45 @@ const fontNames: Record<MaterialSymbolStyle, string> = {
   sharp: "Material Symbols Sharp",
 };
 
-type Listener = { name: string; notify: (ready: boolean) => void };
-type FontState = {
-  listeners: Set<Listener>;
-  loadedNames: Set<string>;
-  fullFont: boolean;
-  stylesheet: HTMLLinkElement | null;
-  timer: ReturnType<typeof setTimeout> | null;
-  pending: boolean;
-  lastFailedKey: string | null;
-};
-const styles = new Map<MaterialSymbolStyle, FontState>();
+// The optimized icon_names endpoint currently omits Unicode private-use glyphs
+// from its declared unicode-range. Using those subsets made remote_gen render as
+// a square; using ligatures could expose raw text instead. A complete font per
+// style fixes both issues and is cached by the browser across page visits.
+const fontLoaders = new Map<MaterialSymbolStyle, Promise<boolean>>();
 
-function getState(style: MaterialSymbolStyle): FontState {
-  let state = styles.get(style);
-  if (!state) {
-    state = { listeners: new Set(), loadedNames: new Set(), fullFont: false,
-      stylesheet: null, timer: null, pending: false, lastFailedKey: null };
-    styles.set(style, state);
-  }
-  return state;
+function loadFont(style: MaterialSymbolStyle, sample: string): Promise<boolean> {
+  if (typeof document === "undefined" || !document.fonts) return Promise.resolve(false);
+  const cached = fontLoaders.get(style);
+  if (cached) return cached;
+
+  const promise = new Promise<boolean>(resolve => {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+" +
+      (style === "outlined" ? "Outlined" : style === "rounded" ? "Rounded" : "Sharp") +
+      ":wght@100..700&display=block";
+    link.dataset.artvideoMaterialSymbols = style;
+
+    link.onerror = () => {
+      link.remove();
+      resolve(false);
+    };
+    link.onload = () => {
+      // A CSS response alone does not mean the font data has downloaded.
+      // document.fonts.load uses a real Unicode icon instead of a ligature name.
+      void document.fonts.load(`400 24px "${fontNames[style]}"`, sample)
+        .then(faces => resolve(faces.some(face => face.status === "loaded")))
+        .catch(() => resolve(false));
+    };
+    document.head.appendChild(link);
+  });
+  fontLoaders.set(style, promise);
+  // A temporary network failure must not permanently poison later visits.
+  void promise.then(ok => { if (!ok) fontLoaders.delete(style); });
+  return promise;
 }
 
-function isReady(state: FontState, name: string): boolean {
-  return state.fullFont || state.loadedNames.has(name);
-}
-
-function inform(state: FontState) {
-  state.listeners.forEach(item => item.notify(isReady(state, item.name)));
-}
-
-function planFontLoad(style: MaterialSymbolStyle, state: FontState) {
-  if (state.timer) clearTimeout(state.timer);
-  if (state.pending || state.fullFont ||
-      [...state.listeners].every(item => isReady(state, item.name))) return;
-  // One debounced stylesheet per visible group, never one request per icon.
-  state.timer = setTimeout(() => {
-    state.timer = null;
-    void loadFont(style, state);
-  }, 200);
-}
-
-async function loadFont(style: MaterialSymbolStyle, state: FontState) {
-  if (typeof document === "undefined" || !("fonts" in document) || state.pending) return;
-  const required = [...state.listeners].filter(item => !isReady(state, item.name));
-  if (!required.length) return;
-  const names = [...new Set([...state.loadedNames, ...[...state.listeners].map(item => item.name)])].sort();
-  const useFullFont = names.length > 350;
-  const key = useFullFont ? "*" : names.join(",");
-  if (key === state.lastFailedKey) return;
-
-  state.pending = true;
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  const family = "Material+Symbols+" + (style === "outlined" ? "Outlined" : style === "rounded" ? "Rounded" : "Sharp");
-  // Request ligature subsets only: Google Fonts can exclude private-use Unicode ranges,
-  // even when those glyph codepoints are included in the downloaded subset.
-  link.href = "https://fonts.googleapis.com/css2?family=" + family +
-    ":wght@100..700" + (useFullFont ? "" : "&icon_names=" + names.join(",")) +
-    "&display=block";
-  link.dataset.artvideoMaterialSymbols = style;
-
-  const onFailure = () => {
-    link.remove();
-    state.pending = false;
-    state.lastFailedKey = key;
-    inform(state); // Display safe Lucide fallback, never clipped icon names.
-  };
-
-  link.onerror = onFailure;
-  link.onload = () => {
-    // Wait for the actual font, not merely the CSS response. Ligature letters are
-    // covered by the subset unicode-range even when private-use codepoints are not.
-    void document.fonts.load(`400 24px "${fontNames[style]}"`, required[0].name)
-      .then(faces => {
-        if (!faces.some(face => face.status === "loaded")) {
-          onFailure();
-          return;
-        }
-        state.stylesheet?.remove();
-        state.stylesheet = link;
-        state.fullFont = useFullFont;
-        state.loadedNames = new Set(names);
-        state.pending = false;
-        state.lastFailedKey = null;
-        inform(state);
-        planFontLoad(style, state); // Newly mounted icons are batched next.
-      })
-      .catch(onFailure);
-  };
-  document.head.appendChild(link);
-}
-
-/**
- * Existing values such as material-rounded:tv remain compatible (weight 400).
- * Non-default weights persist inside the same icon string, without a DB migration.
- */
+/** Older saved icon strings without a weight remain compatible (weight 400). */
 export function parseMaterialIcon(value: unknown): {
   name: string;
   style: MaterialSymbolStyle;
@@ -140,38 +83,45 @@ export function MaterialSymbol({
   const name = parsed?.name;
   const style = parsed?.style;
   const weight = parsed?.weight ?? 400;
+  const [glyph, setGlyph] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    let active = true;
+    setGlyph(null);
     setReady(false);
     if (!style || !name) return;
-    const state = getState(style);
-    const listener: Listener = { name, notify: setReady };
-    state.listeners.add(listener);
-    setReady(isReady(state, name));
-    planFontLoad(style, state);
-    return () => { state.listeners.delete(listener); };
+
+    // The official Unicode codepoint map is bundled locally and loaded only
+    // when the Material Symbols feature is actually used.
+    void import("../domain/material-symbols-catalog")
+      .then(async ({ materialSymbolGlyph }) => {
+        const char = materialSymbolGlyph(name);
+        if (!char || !active) return;
+        const loaded = await loadFont(style, char);
+        if (!active || !loaded) return;
+        setGlyph(char);
+        setReady(true);
+      })
+      .catch(() => { if (active) setReady(false); });
+
+    return () => { active = false; };
   }, [style, name]);
 
-  // Never put a ligature's underlying text into the page before the font is ready.
-  if (!parsed || !ready) {
+  // Do not ever show a raw ligature name or an uninitialized private-use glyph.
+  if (!parsed || !glyph || !ready) {
     return <Shapes aria-hidden="true" size={size} className={className} strokeWidth={1.6}/>;
   }
 
-  return <span aria-hidden="true"
-    className={`inline-flex shrink-0 items-center justify-center select-none ${className}`}
+  return <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center select-none ${className}`}
     style={{
-      fontFamily: `"${fontNames[style!]}"`,
+      fontFamily: `"${fontNames[parsed.style]}"`,
       fontWeight: weight,
       fontStyle: "normal",
       fontSize: size,
       lineHeight: 1,
       letterSpacing: "normal",
       whiteSpace: "nowrap",
-      textTransform: "none",
-      direction: "ltr",
-      fontFeatureSettings: "'liga' 1",
-      fontVariantLigatures: "common-ligatures",
       fontVariationSettings: `'FILL' 0, 'wght' ${weight}, 'GRAD' 0, 'opsz' 24`,
-    }}>{name}</span>;
+    }}>{glyph}</span>;
 }
