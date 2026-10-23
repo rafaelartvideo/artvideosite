@@ -12,21 +12,48 @@ Deno.serve(async req => {
   });
   let orderId = "";
   try {
-    // A configuração pertence à loja, não ao navegador.
+    const input = await req.json();
+    // O site nao recebe acesso administrativo. Apenas um convite aleatorio
+    // criado no painel, enviado no corpo e confirmado no servidor, pode
+    // liberar UMA criacao de pedido enquanto o publico permanece bloqueado.
+    const rawToken=typeof input?.homologation_token==="string"
+      ?input.homologation_token.trim().toLowerCase():"";
+    const validToken=/^[a-f0-9]{64}$/.test(rawToken);
+    const tokenHash=validToken?Array.from(new Uint8Array(
+      await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rawToken))
+    )).map(n=>n.toString(16).padStart(2,"0")).join(""):"";
+    if(input?.action==="homologation_status"){
+      if(!validToken) return json({available:false,publicCheckout:false});
+      const {data:valid,error}=await admin.rpc("artvideo_store_homologation_available_v1",{
+        p_token_hash:tokenHash,
+      });
+      return json({available:!error && valid===true,publicCheckout:false});
+    }
     const {data:paymentStatus,error:statusError}=await admin.rpc("artvideo_store_payment_status_v1");
-    const providerKey=String(paymentStatus?.provider||"");
-    const adapter=paymentStatus?.available===true ? getStorePaymentAdapter(providerKey) : null;
-    if(statusError || !adapter){
-      return json({error:"O pagamento online está sendo preparado. Nenhum valor foi cobrado."},503);
+    const publicAvailable=!statusError && paymentStatus?.available===true;
+    let isHomologation=false;
+    if(!publicAvailable && validToken){
+      const {data:valid,error}=await admin.rpc("artvideo_store_homologation_available_v1",{
+        p_token_hash:tokenHash,
+      });
+      isHomologation=!error && valid===true;
+    }
+    const providerKey=publicAvailable?String(paymentStatus.provider||""):
+      isHomologation?"mercado_pago":"";
+    const adapter=getStorePaymentAdapter(providerKey);
+    if(!adapter || (!publicAvailable&&!isHomologation)){
+      return json({error:"O pagamento online esta desativado. Gere um convite no painel para homologar a compra."},503);
     }
     const {data:paymentSetting,error:settingError}=await admin
-      .from("artvideo_store_payment_settings").select("environment")
-      .eq("provider_key",providerKey).eq("enabled",true).maybeSingle();
-    if(settingError || !paymentSetting
-      || !["sandbox","production"].includes(paymentSetting.environment)) {
-      return json({error:"O ambiente de pagamento não está configurado."},503);
+      .from("artvideo_store_payment_settings").select("environment,provider_key,enabled")
+      .eq("provider_key",providerKey).maybeSingle();
+    if(settingError || !paymentSetting || (
+      isHomologation?(paymentSetting.enabled!==false):
+      (paymentSetting.enabled!==true || !["sandbox","production"].includes(paymentSetting.environment))
+    )){
+      return json({error:"O ambiente de pagamento nao esta configurado para esta operacao."},503);
     }
-    const input = await req.json();
+    const paymentEnvironment=isHomologation?"production":paymentSetting.environment;
     const cart = Array.isArray(input.items) ? input.items : [
       { product_id: input.product_id, quantity: input.quantity },
     ];
@@ -104,7 +131,9 @@ Deno.serve(async req => {
     const buyer = { buyer_name: name, buyer_email: email, buyer_phone: phone,
       postal_code: finalZip, ...pickupAddress, delivery_method: wantsPickup ? "pickup" : "delivery",
       ...(wantsPickup ? { pickup_hours: pickup?.opening_hours, pickup_instructions: pickup?.instructions } : {}) };
-    const { data: order, error: orderError } = await admin.rpc("artvideo_store_begin_multi_v1", {
+    const { data: order, error: orderError } = await admin.rpc(
+      isHomologation?"artvideo_store_begin_homologation_multi_v1":"artvideo_store_begin_multi_v1", {
+      ...(isHomologation?{p_token_hash:tokenHash}:{}),
       p_items: validated,
       p_shipping_price: selected.price, p_shipping_service_id: selected.id,
       p_shipping_name: `${selected.company} — ${selected.name}`, p_postal_code: finalZip, p_buyer: buyer,
@@ -126,7 +155,7 @@ Deno.serve(async req => {
       orderId,
       amountCents:Math.round(Number(order.total)*100),
       currency:"BRL",
-      environment:paymentSetting.environment,
+      environment:paymentEnvironment,
       items:((order.items||[]) as Array<{product_id:string;title:string;quantity:number;unit_price:number}>).map(item=>({
         productId:item.product_id,description:item.title,
         quantity:item.quantity,unitPriceCents:Math.round(Number(item.unit_price)*100),
