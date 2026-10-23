@@ -49,6 +49,60 @@ Deno.serve(async (req:Request) => {
     const action=String(input?.action||"");
     // Retoma testes do usuário mesmo após atualizar ou fechar a página.
     // Apenas IDs, status e metadados; nunca revela tokens ou dados de outros usuários.
+    if(action==="homologation_create"){
+      // Exige comprovacao previa de um pagamento REAL validado com webhook HMAC.
+      const {data:proof,error:proofError}=await admin.from("artvideo_payment_live_checks")
+        .select("id").eq("status","approved").not("webhook_received_at","is",null)
+        .order("created_at",{ascending:false}).limit(1);
+      if(proofError||!proof?.length)
+        return reply({error:"Conclua a validacao real do webhook antes de testar uma compra na loja."},403);
+      const tokenValue=Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"";
+      if(!tokenValue)return reply({error:"Credencial de producao indisponivel."},503);
+      const now=new Date(),dayAgo=new Date(now.getTime()-86400000).toISOString();
+      const {data:issued,error:issuedError}=await admin.from("artvideo_store_homologation_tokens")
+        .select("id,created_at,used_at,order_id").eq("created_by",userData.user.id)
+        .gte("created_at",dayAgo).order("created_at",{ascending:false}).limit(5);
+      if(issuedError)return reply({error:"Nao foi possivel conferir o limite de convites."},503);
+      if((issued||[]).length>=3)
+        return reply({error:"Limite de tres convites de homologacao em 24 horas."},429);
+      // Invalida o convite anterior ainda nao utilizado. Nunca apaga pedidos.
+      const {error:revokeError}=await admin.from("artvideo_store_homologation_tokens")
+        .update({revoked_at:now.toISOString()}).eq("created_by",userData.user.id)
+        .is("used_at",null).is("revoked_at",null);
+      if(revokeError)return reply({error:"Nao foi possivel revogar o convite anterior."},503);
+      const random=new Uint8Array(32);
+      crypto.getRandomValues(random);
+      const secret=Array.from(random).map(v=>v.toString(16).padStart(2,"0")).join("");
+      const hash=Array.from(new Uint8Array(await crypto.subtle.digest(
+        "SHA-256",new TextEncoder().encode(secret)
+      ))).map(v=>v.toString(16).padStart(2,"0")).join("");
+      const expires=new Date(now.getTime()+2*60*60*1000).toISOString();
+      const {data:created,error:createError}=await admin.from("artvideo_store_homologation_tokens")
+        .insert({token_hash:hash,created_by:userData.user.id,expires_at:expires})
+        .select("id,expires_at").single();
+      if(createError||!created)return reply({error:"Nao foi possivel gerar o convite."},503);
+      return reply({
+        invitation:{id:created.id,expiresAt:created.expires_at,
+          url:"https://eletronicaartvideo.com.br/loja#homologacao="+secret},
+        message:"Convite privado gerado. Válido por duas horas e para iniciar apenas um pedido real.",
+      });
+    }
+    if(action==="homologation_revoke"){
+      if(!safeId(input.invitation_id))return reply({error:"Convite invalido."},400);
+      const {error}=await admin.from("artvideo_store_homologation_tokens")
+        .update({revoked_at:new Date().toISOString()})
+        .eq("id",input.invitation_id).eq("created_by",userData.user.id)
+        .is("used_at",null).is("revoked_at",null);
+      if(error)return reply({error:"Nao foi possivel revogar convite."},503);
+      return reply({revoked:true,message:"Convite nao utilizado revogado."});
+    }
+    if(action==="homologation_latest"){
+      const {data,error}=await admin.from("artvideo_store_homologation_tokens")
+        .select("id,created_at,expires_at,used_at,order_id,revoked_at")
+        .eq("created_by",userData.user.id).order("created_at",{ascending:false}).limit(5);
+      if(error)return reply({error:"Nao foi possivel consultar convites."},503);
+      return reply({invitations:data||[]});
+    }
     if(action==="production_latest"){
       const {data,error}=await admin.from("artvideo_payment_live_checks")
         .select("id,status,amount,payment_id,checkout_url,webhook_received_at,legacy_notification_received_at,created_at,updated_at")
