@@ -92,10 +92,15 @@ Deno.serve(async (req:Request) => {
           });
         }
         const account=await response.json();
-        const match=String(account?.id||"")===collector.trim();
+        // User ID é apenas o identificador público da conta titular do token.
+        // Ele pode ser mostrado a quem tem a permissão administrativa do site.
+        // Nunca devolver Access Token, assinatura ou dados pessoais do vendedor.
+        const accountId=String(account?.id||"");
+        const match=/^\d{5,20}$/.test(accountId) && accountId===collector.trim();
         return reply({
           environment:"production",credentials:presence,
           accountVerified:match,configurationValid:match,
+          accountUserId:/^\d{5,20}$/.test(accountId)?accountId:null,
           webhookValidated:false,livePaymentValidated:false,
           message:match?
             "Credenciais de produção reconhecidas. Falta validar o webhook assinado e um pagamento real controlado antes de liberar a loja.":

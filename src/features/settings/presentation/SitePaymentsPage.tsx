@@ -36,6 +36,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [prodStatus,setProdStatus]=useState<{
     credentials:{token:boolean;seller:boolean;webhook:boolean};
     accountVerified:boolean;configurationValid:boolean;
+    accountUserId?:string|null;
     webhookValidated:boolean;livePaymentValidated:boolean;
     message:string;
   }|null>(null);
@@ -272,6 +273,21 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             </strong></p>
           </div>
           <p className="font-semibold">{prodStatus.message}</p>
+          {!prodStatus.accountVerified&&prodStatus.accountUserId&&<div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <p className="font-bold">User ID correto retornado pelo Mercado Pago</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <code className="select-all rounded bg-background px-2 py-1 font-semibold text-foreground">{prodStatus.accountUserId}</code>
+              <BtnSecondary onClick={()=>void navigator.clipboard.writeText(prodStatus.accountUserId||"")
+                .then(()=>notifyAdmin("User ID copiado.","success"))
+                .catch(()=>notifyAdmin("Selecione e copie o User ID exibido.","error"))}>
+                Copiar User ID
+              </BtnSecondary>
+            </div>
+            <p className="text-muted-foreground">No Supabase → Edge Functions → Secrets, atualize somente
+              <strong> MERCADO_PAGO_COLLECTOR_ID</strong> com o número acima.
+              Salve e clique novamente em Verificar credenciais de produção.
+              Não altere o Access Token nem o segredo do webhook.</p>
+          </div>}
           <p className="text-muted-foreground">
             A chave secreta cadastrada não significa que o webhook real foi validado.
             O envio de uma notificação assinada e a conciliação de uma transação real são etapas separadas.
