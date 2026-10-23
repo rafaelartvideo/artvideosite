@@ -69,3 +69,9 @@ Referência: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-pref
 - Para simulação manual do painel do Mercado Pago, use evento `payment.updated` e o Data ID reservado `999999999999999`, que só retorna HTTP 200 se o HMAC for válido e o registro for persistido. Nenhum pagamento é criado/liquidado por este teste.
 - O painel consulta apenas o último registro autenticado e diferencia simulado de evento real. `webhookValidated=true` significa apenas autenticação da mensagem; NÃO comprova liquidação nem autoriza `integration_ready=true`.
 - O checkout público permanece desativado até homologação com transação real, incluindo estoque, pedido, confirmação e eventual estorno.
+
+## Correção: simulação do webhook assinada em sandbox vs produção
+- A simulação no painel pode informar `live_mode=false`, inclusive selecionando URL de produção. Isso não indica transação financeira real.
+- Após validar HMAC, se o ID de simulação reservado `999999999999999` vier no evento `payment.updated` com `live_mode=false`, o servidor registra o ambiente cuja assinatura foi validada, devolve HTTP 200 e NÃO tenta consultar `/v1/payments/999999999999999`.
+- O painel só considera assinatura de **produção** validada se houve evento autenticado pelo segredo de produção. Se somente a assinatura de sandbox foi verificada, mostra aviso, mantendo homologação de produção pendente.
+- Outras notificações continuam passando pela verificação de pagamento na API e conciliação do pedido.

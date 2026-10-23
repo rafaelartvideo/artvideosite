@@ -48,28 +48,38 @@ Deno.serve(async req => {
       }
     }
     if(!config) return new Response("unauthorized",{status:401});
-    if(!config.token || !config.collector) return new Response("not configured",{status:503});
-
     const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{
       auth:{persistSession:false},
     });
-    // Esse identificador é reservado exclusivamente à simulação manual do
-    // evento payment.updated no painel do Mercado Pago. Exige HMAC válido.
-    // Não representa pagamento, pedido, recebimento ou conciliação financeira.
-    const signedSimulation=config.environment==="production"
-      && id==="999999999999999"
-      && payload?.action==="payment.updated";
-    if(config.environment==="production"){
+
+    // O painel do Mercado Pago pode enviar uma simulação live_mode=false
+    // mesmo quando a URL selecionada é a de produção. O ID reservado não
+    // existe na API /v1/payments e NUNCA deve ser consultado como uma compra.
+    // É obrigatório validar o HMAC primeiro, em qualquer ambiente.
+    const signedSimulation=id==="999999999999999"
+      && payload?.action==="payment.updated"
+      && payload?.live_mode===false
+      && String(payload?.data?.id||"")===id;
+    if(signedSimulation){
       const {error:auditError}=await admin.from("artvideo_store_webhook_checks").insert({
-        environment:"production",event_type:"payment",resource_id:id,
-        simulated:signedSimulation,
+        environment:config.environment,event_type:"payment",resource_id:id,
+        simulated:true,
       });
       if(auditError){
-        console.error("Mercado Pago webhook signed audit unavailable");
-        if(signedSimulation)return new Response("signed audit unavailable",{status:503});
+        console.error("Mercado Pago signed simulation audit failed",auditError.code||"unknown");
+        return new Response("signed simulation audit failed",{status:503});
       }
+      // 200 confirma apenas entrega + assinatura + log.
+      // Em sandbox, não homologa o segredo de produção.
+      return new Response("signed simulation accepted",{status:200});
     }
-    if(signedSimulation)return new Response("signed simulation received",{status:200});
+    if(!config.token || !config.collector) return new Response("not configured",{status:503});
+    if(config.environment==="production"){
+      const {error:auditError}=await admin.from("artvideo_store_webhook_checks").insert({
+        environment:"production",event_type:"payment",resource_id:id,simulated:false,
+      });
+      if(auditError)console.error("Mercado Pago signed webhook audit failed",auditError.code||"unknown");
+    }
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
       headers:{Authorization:`Bearer ${config.token}`,Accept:"application/json"},
       signal:AbortSignal.timeout(15000),

@@ -98,12 +98,22 @@ Deno.serve(async (req:Request) => {
         const accountId=String(account?.id||"");
         const match=/^\d{5,20}$/.test(accountId) && accountId===collector.trim();
         let receipt: {received_at:string;simulated:boolean}|null=null;
+        let sandboxReceipt: {received_at:string}|null=null;
         if(match){
-          const {data,error}=await admin.from("artvideo_store_webhook_checks")
-            .select("received_at,simulated").eq("environment","production")
-            .order("received_at",{ascending:false}).limit(1).maybeSingle();
-          if(error)console.error("Production webhook diagnostics unavailable");
-          else receipt=data;
+          const [prodResult,testResult]=await Promise.all([
+            admin.from("artvideo_store_webhook_checks")
+              .select("received_at,simulated").eq("environment","production")
+              .order("received_at",{ascending:false}).limit(1).maybeSingle(),
+            admin.from("artvideo_store_webhook_checks")
+              .select("received_at").eq("environment","sandbox").eq("simulated",true)
+              .order("received_at",{ascending:false}).limit(1).maybeSingle(),
+          ]);
+          if(prodResult.error||testResult.error){
+            console.error("Production webhook diagnostics unavailable");
+          }else{
+            receipt=prodResult.data;
+            sandboxReceipt=testResult.data;
+          }
         }
         return reply({
           environment:"production",credentials:presence,
@@ -111,9 +121,11 @@ Deno.serve(async (req:Request) => {
           accountUserId:/^\d{5,20}$/.test(accountId)?accountId:null,
           webhookValidated:Boolean(receipt),webhookVerifiedAt:receipt?.received_at||null,
           webhookSimulated:receipt?.simulated===true,
+          sandboxWebhookSimulationSeen:!receipt&&Boolean(sandboxReceipt),
           livePaymentValidated:false,
           message:!match?"O User ID de produção não corresponde ao titular do Access Token.":
-            receipt?"Credenciais reconhecidas e notificação com assinatura válida recebida. Falta homologar uma transação real controlada.":
+            receipt?"Credenciais reconhecidas e notificação de produção com assinatura válida recebida. Falta homologar uma transação real controlada.":
+            sandboxReceipt?"Simulação recebida, mas assinada com a chave de testes. Verifique a URL e o segredo do modo produção.":
             "Credenciais de produção reconhecidas. Falta simular uma notificação assinada e homologar uma transação real controlada.",
         });
       }catch{

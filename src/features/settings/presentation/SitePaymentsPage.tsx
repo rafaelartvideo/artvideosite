@@ -38,6 +38,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     accountVerified:boolean;configurationValid:boolean;
     accountUserId?:string|null;
     webhookValidated:boolean;webhookVerifiedAt?:string|null;webhookSimulated?:boolean;
+    sandboxWebhookSimulationSeen?:boolean;
     livePaymentValidated:boolean;
     message:string;
   }|null>(null);
@@ -303,8 +304,10 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             <p className="font-bold">Webhook de produção</p>
             <p className={prodStatus.webhookValidated?"text-emerald-600 dark:text-emerald-300":"text-amber-700 dark:text-amber-300"}>
               {prodStatus.webhookValidated?
-                "Assinatura de notificação validada pelo servidor":
-                "Aguardando uma notificação com assinatura válida"}
+                "Assinatura de produção validada pelo servidor":
+                prodStatus.sandboxWebhookSimulationSeen?
+                  "Simulação autenticada apenas com assinatura de testes":
+                  "Aguardando uma notificação com assinatura válida de produção"}
             </p>
             {prodStatus.webhookVerifiedAt&&<p className="text-muted-foreground">
               Última notificação autenticada: {new Date(prodStatus.webhookVerifiedAt).toLocaleString("pt-BR")}
