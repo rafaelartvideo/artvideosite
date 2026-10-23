@@ -158,7 +158,7 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
-    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || hasPermission("whatsapp.inbox.view")) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
+    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || hasPermission("whatsapp.inbox.view") || (hasPermission("settings.update") && hasPermission("site.view"))) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
