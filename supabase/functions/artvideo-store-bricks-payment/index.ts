@@ -174,7 +174,7 @@ Deno.serve(async(req:Request)=>{
     const response=await fetch("https://api.mercadopago.com/v1/payments",{
       method:"POST",signal:AbortSignal.timeout(20000),
       headers:{...gatewayHeaders,"Content-Type":"application/json",
-        "X-Idempotency-Key":idempotencyKey},
+        "X-Idempotency-Key":orderId},
       body:JSON.stringify(payload),
     });
     if(!response.ok){
