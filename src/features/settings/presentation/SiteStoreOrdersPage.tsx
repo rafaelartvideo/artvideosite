@@ -20,6 +20,7 @@ type StoreOrder = {
   shipping_service_name: string; shipping_service_id: string; postal_code: string;
   buyer: Record<string, string>; preference_id: string | null;
   payment_id: string | null; payment_provider: string | null; paid_at: string | null; expires_at: string;
+  payment_issue_status: "refunded"|"charged_back"|null; payment_issue_at:string|null;
 };
 type StoreOrderLine = {
   id: string; order_id: string; product_name: string; quantity: number; unit_price: number;
@@ -121,7 +122,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
     setError("");
     const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
-        .select("id,created_at,status,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
+        .select("id,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
       supabase.from("artvideo_store_order_items")
         .select("id,order_id,product_name,quantity,unit_price")
@@ -298,7 +299,9 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
                 <span className="block max-w-[200px] truncate text-xs text-muted-foreground">{order.buyer?.buyer_email || ""}</span></td>
               <td className="p-3">{orderLines(order).reduce((sum,line) => sum + line.quantity,0)} itens</td>
               <td className="p-3 font-bold">{formatCurrency(total(order))}</td>
-              <td className="p-3"><span className={"inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold " + paymentColor(order.status)}>{paymentLabels[order.status] || order.status}</span></td>
+              <td className="p-3"><span className={"inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold " + paymentColor(order.status)}>{order.payment_issue_status==="refunded"?"Estornado · revisar":
+                  order.payment_issue_status==="charged_back"?"Contestado · revisar":
+                  paymentLabels[order.status] || order.status}</span></td>
               <td className="p-3">{order.status === "paid"
                 ? <><span className="mr-1 text-[11px] text-muted-foreground">{order.shipping_service_id === "pickup" ? "Retirada" : "Entrega"}</span><DeliveryBadge status={deliveryOf(order)}/></>
                 : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>

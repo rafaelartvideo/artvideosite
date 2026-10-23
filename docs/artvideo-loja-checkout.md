@@ -48,3 +48,10 @@ Implementação exclusiva do site público da Eletrônica Artvideo. **Não é ma
 ## Estado da implantação
 
 Código pronto para homologação e revisão. A presença dos arquivos no repositório **não aplica migrações**, **não publica Edge Functions** nem **habilita transações reais**. Não anuncie que o checkout está ativo antes da configuração e dos testes de ponta a ponta.
+
+## Auditoria de homologação do checkout (23/10/2026)
+- O checkout público permanece desativado. A função server-side valida itens, preços, CEP, frete e total antes de chamar a reserva de estoque.
+- Teste transacional no Supabase com `BEGIN ... ROLLBACK` em dois produtos do catálogo: preço R$ 50 + R$ 27, frete R$ 0, criação do pedido/itens, tracking, preferência simulada, confirmação `approved` e duas baixas. Notificação repetida com o mesmo ID não duplicou movimentos; estorno colocou o pedido em `manual_review` e não restocou automaticamente. Todas as alterações do teste foram revertidas.
+- O token de acompanhamento agora é gerado **antes** de criar a preferência hospedada, para reduzir pedidos cobrados sem retorno de acompanhamento.
+- Novos campos `payment_issue_status` e `payment_issue_at` registram `refunded`/`charged_back`; tanto a rotina multi-itens quanto a antiga (um item) preservam histórico, mantêm movimentações e colocam a venda em revisão humana. A equipe e o cliente recebem identificação de estorno ou contestação no acompanhamento.
+- Este teste simula a conciliação SQL, mas não comprova uma compra real no fluxo do site. Para liberar produção, ainda testar ponta a ponta em ambiente controlado, incluindo frete, carrinho, retorno, autorização, webhook assinado, estoques, e estorno operacional.

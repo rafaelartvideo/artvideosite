@@ -153,6 +153,7 @@ export async function loadCatalogAvailability(productIds: string[]): Promise<Rec
 
 export type StoreTracking = {
   id: string; number: string; createdAt: string; paymentStatus: string; paidAt: string | null;
+  paymentIssueStatus?: "refunded"|"charged_back"|null; paymentIssueAt?: string|null;
   deliveryMethod: "pickup" | "delivery"; fulfillmentStatus: string; fulfillmentUpdatedAt: string | null;
   deliveryName: string; shippingPrice: number; subtotal: number; total: number;
   items: { title: string; quantity: number; unitPrice: number }[];

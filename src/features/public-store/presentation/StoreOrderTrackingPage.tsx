@@ -89,6 +89,8 @@ export function StoreOrderTrackingPage() {
 
   const pickup=order?.deliveryMethod==="pickup";
   const paid=order?.paymentStatus==="paid";
+  const paymentIssueText=order?.paymentIssueStatus==="refunded"?"Pagamento estornado":
+    order?.paymentIssueStatus==="charged_back"?"Pagamento contestado":null;
   const finished=order?.fulfillmentStatus==="delivered" || order?.fulfillmentStatus==="picked_up";
   const allSteps=pickup?stepsPickup:stepsDelivery;
   const index=order?allSteps.findIndex(s=>s.key===order.fulfillmentStatus):-1;
@@ -146,17 +148,19 @@ export function StoreOrderTrackingPage() {
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e5edf7] p-5 sm:p-6">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wide text-[#6e85a0]">Pedido #{order.number}</p>
-                <h2 className="mt-2 text-[22px] font-extrabold tracking-tight">{paid?(finished?"Pedido concluído":resultText):paymentNames[order.paymentStatus]||"Em análise"}</h2>
+                <h2 className="mt-2 text-[22px] font-extrabold tracking-tight">{paid?(finished?"Pedido concluído":resultText):paymentIssueText||paymentNames[order.paymentStatus]||"Em análise"}</h2>
                 <p className="mt-1 text-[12px] text-[#74849a]">Realizado em {displayDate(order.createdAt)}</p>
               </div>
               <span className={"rounded-full px-3 py-2 text-[11px] font-bold "+(finished?"bg-emerald-50 text-emerald-700":paid?"bg-blue-50 text-blue-700":"bg-amber-50 text-amber-700")}>
-                {paid?"Pagamento confirmado":paymentNames[order.paymentStatus]||"Pagamento em análise"}
+                {paid?"Pagamento confirmado":paymentIssueText||paymentNames[order.paymentStatus]||"Pagamento em análise"}
               </span>
             </div>
             <div className="p-5 sm:p-6">
               {!paid?<div className="flex items-start gap-3 rounded-lg border border-amber-100 bg-amber-50 p-4 text-[12px] leading-6 text-[#936323]">
                 <Clock3 size={20} className="mt-0.5 shrink-0"/>
-                {order.paymentStatus==="manual_review"?"Seu pagamento precisa ser conferido pela equipe. Não é necessário realizar uma nova cobrança nesta página.":
+                {paymentIssueText?
+                  paymentIssueText+". A equipe da Artvideo precisa analisar essa ocorrência. Não faça novo pagamento por esta página.":
+                  order.paymentStatus==="manual_review"?"Seu pagamento precisa ser conferido pela equipe. Não é necessário realizar uma nova cobrança nesta página.":
                   order.paymentStatus==="cancelled"||order.paymentStatus==="expired"?"O pagamento não foi confirmado. Você pode entrar em contato com a Artvideo caso precise de ajuda.":
                   "Estamos aguardando a confirmação de pagamento. Esta página será atualizada automaticamente."}
               </div>:<>

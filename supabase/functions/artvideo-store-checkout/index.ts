@@ -111,6 +111,10 @@ Deno.serve(async req => {
     });
     if (orderError || !order?.id) throw new Error(orderError?.message || "Não foi possível reservar o estoque.");
     orderId = order.id;
+    // Se o acompanhamento falhar, nao criar preferencia no provedor:
+    // evita checkout real sem um codigo privado recuperavel pelo cliente.
+    const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
+    if(trackingError || !trackingToken) throw new Error("Não foi possível preparar o acompanhamento da compra.");
 
     const deadline = new Date(Date.now() + 20*60*1000).toISOString();
     const detailUrl = "https://eletronicaartvideo.com.br/acompanhar-pedido";
@@ -141,8 +145,7 @@ Deno.serve(async req => {
       p_order_id:orderId,p_provider:adapter.providerKey,p_checkout_reference:hosted.checkoutReference,
     });
     if(checkoutError) throw checkoutError;
-    const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
-    if(trackingError || !trackingToken) throw new Error("Não foi possível preparar o acompanhamento da compra.");
+
     return json({ checkout_url: checkoutUrl, order_id: orderId, payment_provider:providerKey, tracking_token:trackingToken });
   } catch (error) {
     if (orderId) await admin.rpc("artvideo_store_cancel_v1", { p_order_id: orderId });
