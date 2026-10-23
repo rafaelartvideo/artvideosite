@@ -148,7 +148,9 @@ Deno.serve(async(req:Request)=>{
     const idNumber=String(identity?.number||"").replace(/\D/g,"");
     if(!["CPF","CNPJ"].includes(idType)||
       (idType==="CPF"&&idNumber.length!==11)||(idType==="CNPJ"&&idNumber.length!==14))
-      return reply({error:"Documento do pagador invalido."},400);
+      return reply({error:paymentMethod==="pix"
+        ?"Informe o CPF ou CNPJ do pagador para gerar o Pix."
+        :"Confira o documento CPF/CNPJ informado no formulario do cartao."},400);
     const buyer=order.buyer&&typeof order.buyer==="object"?order.buyer:{};
     const payerEmail=String(buyer.buyer_email||"").trim().toLowerCase();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payerEmail))

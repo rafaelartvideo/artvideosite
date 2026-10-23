@@ -46,6 +46,17 @@ export function EmbeddedMercadoPagoPayment({
 }){
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  // O Payment Brick envia somente e-mail para transferencia bancaria/Pix.
+  // Coletamos CPF/CNPJ separadamente, apenas em memoria, para completar
+  // a requisicao de pagamento conforme o contrato do Mercado Pago.
+  const [pixDocument,setPixDocument]=useState("");
+  const pixDocumentRef=useRef("");
+  const changePixDocument=(value:string)=>{
+    const digits=value.replace(/\D/g,"").slice(0,14);
+    pixDocumentRef.current=digits;
+    setPixDocument(digits);
+    if(error)setError("");
+  };
   const callback=useRef(onResult);
   useEffect(()=>{callback.current=onResult;},[onResult]);
   const containerId="artvideo-payment-brick-"+session.orderId.replace(/-/g,"");
@@ -76,7 +87,18 @@ export function EmbeddedMercadoPagoPayment({
             if(cancelled)throw new Error("O formulário foi fechado.");
             try{
               setError("");
-              const result=await submitEmbeddedPayment(session,formData);
+              const method=String(formData.payment_method_id||"");
+              let payload=formData;
+              if(method==="pix"){
+                const digits=pixDocumentRef.current;
+                if(digits.length!==11&&digits.length!==14)
+                  throw new Error("Para pagar com Pix, informe o CPF (11 dígitos) ou CNPJ (14 dígitos) do pagador.");
+                const payer=formData.payer&&typeof formData.payer==="object"&&!Array.isArray(formData.payer)
+                  ?formData.payer as Record<string,unknown>:{};
+                payload={...formData,payer:{...payer,
+                  identification:{type:digits.length===11?"CPF":"CNPJ",number:digits}}};
+              }
+              const result=await submitEmbeddedPayment(session,payload);
               if(!cancelled)callback.current(result);
             }catch(reason){
               if(!cancelled)setError(reason instanceof Error?reason.message:"Pagamento indisponível.");
@@ -99,6 +121,21 @@ export function EmbeddedMercadoPagoPayment({
       <ShieldCheck className="shrink-0 text-[var(--art-primary)]" size={19}/>
       Os dados do cartão são preenchidos no formulário seguro do Mercado Pago.
       A Artvideo não recebe o número nem o código de segurança do cartão.
+    </div>
+    <div className="space-y-2 rounded-lg border border-[#dbe6f4] bg-white p-4">
+      <label htmlFor={"artvideo-pix-document-"+session.orderId} className="block text-[13px] font-bold text-[#203650]">
+        CPF ou CNPJ do pagador · para Pix
+      </label>
+      <input id={"artvideo-pix-document-"+session.orderId} value={pixDocument}
+        onChange={event=>changePixDocument(event.target.value)}
+        type="text" inputMode="numeric" autoComplete="off"
+        maxLength={18} placeholder="Digite somente os números"
+        className="min-h-11 w-full rounded-lg border border-[#dce5f2] bg-white px-3 text-[14px] text-[#10243d] outline-none focus:border-[var(--art-primary)]"
+        aria-describedby={"artvideo-pix-document-hint-"+session.orderId}/>
+      <p id={"artvideo-pix-document-hint-"+session.orderId} className="text-[11px] leading-5 text-[#647791]">
+        Necessário para gerar Pix. Se escolher cartão, preencha o documento apenas
+        no formulário seguro do Mercado Pago abaixo. Este dado não fica salvo na loja.
+      </p>
     </div>
     {loading&&<div className="flex min-h-20 items-center justify-center gap-2 text-sm text-[#617792]">
       <LoaderCircle className="animate-spin" size={20}/> Carregando pagamento...
