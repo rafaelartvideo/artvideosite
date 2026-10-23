@@ -484,11 +484,11 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   </button> : null;
 
   return <div className="art-checkout-page min-h-screen bg-[#f6f9fd] text-[#10243d]">
-    {homologationAvailable&&<div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold leading-5 text-amber-900">
+    {(homologationAvailable||Boolean(brickSession))&&<div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold leading-5 text-amber-900">
       Homologação privada ativa. Este é um pedido REAL: a compra será cobrada pelo Mercado Pago
       e, se aprovada, poderá baixar o estoque da Artvideo.
     </div>}
-    {homologationToken&&!homologationAvailable&&!testAccess.isPending&&<div role="alert"
+    {homologationToken&&!homologationAvailable&&!brickSession&&!testAccess.isPending&&<div role="alert"
       className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold text-amber-900">
       O convite privado expirou ou já foi utilizado. Gere outro convite na Union World.
     </div>}
