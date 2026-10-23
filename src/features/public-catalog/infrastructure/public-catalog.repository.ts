@@ -113,5 +113,5 @@ export const getBrands = () =>
   supabase.from("brands").select("*").eq("is_active", true).order("sort_order", { ascending: true });
 
 export const getProductCategories = () =>
-  supabase.from("product_categories").select("id,name,slug,description,sort_order,is_active")
+  supabase.from("product_categories").select("id,name,slug,description,sort_order,is_active,icon,image_media_id")
     .eq("is_active", true).order("sort_order", { ascending: true });
