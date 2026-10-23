@@ -68,7 +68,7 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
       </label>
       <nav aria-label="Categorias de serviços" className="art-category-carousel -mx-5 mt-7 snap-x snap-mandatory overflow-x-auto overscroll-x-contain px-5 pb-3 scroll-smooth sm:mx-0 sm:mt-9 sm:px-0">
-        <div className="mx-auto flex w-max min-w-full items-start justify-center gap-5 sm:gap-8">
+        <div className="mx-auto flex w-max min-w-full flex-nowrap items-center justify-center gap-3 sm:gap-4">
         {categoryChoices.map(item => <PublicCategoryChip key={item.id} name={item.name}
           icon={item.icon} mediaId={item.mediaId} fallbackIcon={item.fallbackIcon}
           active={category === item.id} onClick={() => choose(item.id)} />)}
