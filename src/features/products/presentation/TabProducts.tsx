@@ -489,6 +489,7 @@ export function TabProducts({
     onRouteChange?.(null, null);
   };
 
+  const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
   const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
 
   useEffect(() => {
@@ -769,6 +770,7 @@ export function TabProducts({
       <PageHeader
         title="Estoque"
         subtitle={`${products.length} item${products.length !== 1 ? "s" : ""} cadastrado${products.length !== 1 ? "s" : ""}`}
+        actions={canCreate ? <AdminButton onClick={openNewPage} className="text-xs"><Plus size={14} /> Novo item</AdminButton> : null}
       />
 
       {canViewTable && <AdminSearchPanel title="Buscar no estoque" headerActions={<>
