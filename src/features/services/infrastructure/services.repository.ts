@@ -77,7 +77,7 @@ export async function setServicePublication(serviceId: string, published: boolea
 
 export async function setServiceActive(serviceId: string, isActive: boolean): Promise<void> {
   const organizationId = await getArtVideoOrganizationId();
-  const { error } = await supabase.from("services").update({ is_active: isActive }).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
+  const { error } = await supabase.from("services").update({ is_active: isActive, show_in_catalog: isActive }).eq("organization_id", organizationId).eq("id", serviceId).select("id").single();
   if (error) throw error;
 }
 
