@@ -25,15 +25,21 @@ Deno.serve(async req => {
     if(input?.action==="bricks_status"){
       // A chave publica somente e divulgada se a modalidade estiver
       // autorizada. Nenhuma credencial privada e retornada.
-      const publicKey=Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"";
-      const keyReady=/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(publicKey);
+      const {data:config}=await admin.from("artvideo_store_payment_settings")
+        .select("mercado_pago_public_key,environment,provider_key")
+        .eq("provider_key","mercado_pago").maybeSingle();
+      const publicKey=String(config?.mercado_pago_public_key||
+        Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"");
+      const keyReady=/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(publicKey)
+        && config?.environment==="production";
       const {data:regular}=await admin.rpc("artvideo_store_payment_status_v1");
       let invited=false;
       if(validToken){
         const {data:granted}=await admin.rpc("artvideo_store_homologation_available_v1",{p_token_hash:tokenHash});
         invited=granted===true;
       }
-      return json({available:keyReady && (regular?.available===true||invited),
+      return json({available:keyReady &&
+        ((regular?.available===true&&regular?.provider==="mercado_pago")||invited),
         publicKeyConfigured:keyReady});
     }
     if(input?.action==="homologation_status"){
@@ -59,7 +65,7 @@ Deno.serve(async req => {
       return json({error:"O pagamento online esta desativado. Gere um convite no painel para homologar a compra."},503);
     }
     const {data:paymentSetting,error:settingError}=await admin
-      .from("artvideo_store_payment_settings").select("environment,provider_key,enabled")
+      .from("artvideo_store_payment_settings").select("environment,provider_key,enabled,mercado_pago_public_key")
       .eq("provider_key",providerKey).maybeSingle();
     if(settingError || !paymentSetting || (
       isHomologation?(paymentSetting.enabled!==false):
@@ -69,7 +75,8 @@ Deno.serve(async req => {
     }
     const paymentEnvironment=isHomologation?"production":paymentSetting.environment;
     const bricksPrepare=input?.action==="bricks_prepare";
-    const brickPublicKey=Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"";
+    const brickPublicKey=String(paymentSetting.mercado_pago_public_key||
+      Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"");
     if(bricksPrepare && (providerKey!=="mercado_pago" ||
        paymentEnvironment!=="production" ||
        !/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(brickPublicKey))) {

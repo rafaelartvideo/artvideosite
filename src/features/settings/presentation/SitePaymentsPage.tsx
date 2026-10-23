@@ -13,6 +13,7 @@ type PaymentSettings={
   provider_key:string;
   environment:"sandbox"|"production";
   enabled:boolean;
+  mercado_pago_public_key?:string|null;
 };
 type RealPaymentCheck={
   id:string;status:string;amount:number;paymentId?:string|null;
@@ -205,7 +206,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       supabase.from("artvideo_store_payment_providers")
         .select("provider_key,display_name,description,integration_ready").order("display_name"),
       supabase.from("artvideo_store_payment_settings")
-        .select("provider_key,environment,enabled")
+        .select("provider_key,environment,enabled,mercado_pago_public_key")
         .eq("organization_id",orgId).maybeSingle(),
     ]).then(([providerResult,settingResult])=>{
       if(!live)return;
@@ -306,8 +307,8 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
         </div>}
         <p className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
           <LockKeyhole size={17} className="mt-0.5 shrink-0 text-primary"/>
-          Tokens, chaves e senhas de pagamento nunca são armazenados nos campos do site ou enviados ao navegador.
-          Cada conector utiliza credenciais privadas no servidor.
+          Access Tokens e segredos de pagamento continuam armazenados apenas no servidor.
+          A Public Key, por definição, é enviada ao navegador para inicializar o formulário seguro.
         </p>
       </div>
     </Section>
@@ -330,6 +331,27 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             <p className="font-semibold">{item.label}</p>
             <code className="mt-1 block break-all text-[11px] text-muted-foreground">{item.name}</code>
           </div>)}
+        </div>
+        <div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4">
+          <label htmlFor="mercado-pago-public-key" className="block font-semibold">
+            Public Key · Pagamento dentro do site (Checkout Bricks)
+          </label>
+          <input id="mercado-pago-public-key" type="text" autoComplete="off"
+            value={current.mercado_pago_public_key||""}
+            onChange={e=>patch({mercado_pago_public_key:e.target.value.trim()})}
+            disabled={!canUpdate||saving} placeholder="APP_USR-..."
+            className="h-11 w-full rounded-lg border border-border bg-background px-3 font-mono text-xs outline-none focus:border-primary"/>
+          <p className="text-muted-foreground">
+            Copie a <strong>Public Key de produção</strong> da mesma aplicação do
+            Mercado Pago usada no Access Token e clique em Salvar.
+            É uma chave pública; não insira o Access Token neste campo.
+            O Checkout Pro continuará disponível. A modalidade incorporada só
+            aparecerá no site depois de configurar esta chave.
+          </p>
+          <a href="https://www.mercadopago.com.br/developers/pt/docs/checkout-bricks/common-initialization"
+            target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 font-bold text-primary hover:underline">
+            Documentação Checkout Bricks <ExternalLink size={14}/>
+          </a>
         </div>
         <p className="text-muted-foreground">
           Em Mercado Pago → Webhooks → <strong>Modo de produção</strong>, use a URL abaixo e
