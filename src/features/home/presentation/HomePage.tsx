@@ -159,14 +159,14 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
             {heroTitle} <span className="text-[#1680ff]">{highlight}</span>
           </h1>
           <p className="mt-4 max-w-[560px] text-[14px] leading-[1.6] text-white/85 sm:text-[15px]">{t("hero_subtitle", "Produtos, assistência técnica, instalações e manutenção para sua casa ou seu negócio. Qualidade, confiança e experiência em eletrônica.")}</p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <PublicButton onClick={() => setPage("loja")} className="!min-h-11 gap-2.5 px-6"><ShoppingCart size={18} strokeWidth={1.7}/> Comprar na loja <ArrowRight size={16}/></PublicButton>
-            <PublicButton onClick={() => setPage("orcamento")} variant="outline" className="!min-h-11 !border-white/80 !text-white hover:!bg-white/10"><FileText size={18}/> Solicitar orçamento</PublicButton>
+          <div className="mt-6 grid w-full grid-cols-2 gap-2.5 sm:max-w-[470px] sm:gap-3">
+            <PublicButton onClick={() => setPage("loja")} className="!min-h-11 w-full !gap-2 !px-2 !text-[12px] sm:!px-4 sm:!text-[13px]"><ShoppingCart size={17} strokeWidth={1.7} className="shrink-0"/> Produtos</PublicButton>
+            <PublicButton onClick={() => setPage("orcamento")} variant="outline" className="!min-h-11 w-full !gap-1.5 !border-white/80 !px-2 !text-[12px] !text-white hover:!bg-white/10 sm:!px-4 sm:!text-[13px]"><FileText size={17} className="shrink-0"/> Solicitar orçamento</PublicButton>
           </div>
-          <div className="mt-7 flex flex-wrap gap-x-5 gap-y-3 text-[11px] font-semibold text-white/85 sm:text-[12px]">
-            <span className="inline-flex items-center gap-2"><ShieldCheck size={17}/> Atendimento especializado</span>
-            <span className="inline-flex items-center gap-2"><Star size={17} fill="currentColor"/> Produtos de qualidade</span>
-            <span className="inline-flex items-center gap-2"><Settings2 size={17}/> Suporte pós-venda</span>
+          <div className="mt-6 flex flex-col items-start gap-2.5 text-[11px] font-semibold text-white/85 sm:mt-7 sm:flex-row sm:flex-wrap sm:gap-x-5 sm:gap-y-3 sm:text-[12px]">
+            <span className="inline-flex items-center gap-2 whitespace-nowrap"><ShieldCheck size={17} className="shrink-0"/> Atendimento especializado</span>
+            <span className="inline-flex items-center gap-2 whitespace-nowrap"><Star size={17} className="shrink-0" fill="currentColor"/> Produtos de qualidade</span>
+            <span className="inline-flex items-center gap-2 whitespace-nowrap"><Settings2 size={17} className="shrink-0"/> Suporte pós-venda</span>
           </div>
         </div>
       </div>
@@ -177,10 +177,10 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
       <div className="mx-auto grid max-w-7xl gap-4 px-4 sm:px-6 md:grid-cols-3 lg:px-8">
         {paths.map(({ Icon, title: label, description, onClick, label: accessibleLabel }) =>
           <button key={label} type="button" onClick={onClick} aria-label={accessibleLabel}
-            className="group flex min-h-[157px] w-full items-start gap-4 rounded-[7px] border border-[#e8edf4] bg-white px-5 py-6 text-left shadow-[0_3px_15px_rgba(7,33,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(16,53,96,.11)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">
-            <Icon size={40} strokeWidth={1.65} className="mt-0.5 shrink-0 text-[var(--art-primary)] transition-transform duration-200 group-hover:scale-105"/>
-            <div className="flex min-h-[105px] flex-col items-start">
-              <h2 className="text-[15px] font-extrabold tracking-[-.02em] text-[#0c1a32]">{label}</h2>
+            className="art-home-quick-card group flex min-h-[128px] w-full items-start gap-3 rounded-[7px] border border-[#e8edf4] bg-white px-4 py-4 text-left sm:min-h-[157px] sm:gap-4 sm:px-5 sm:py-6 shadow-[0_3px_15px_rgba(7,33,71,.03)] transition-all duration-200 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_14px_28px_rgba(16,53,96,.11)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">
+            <Icon size={32} strokeWidth={1.65} className="mt-0.5 shrink-0 text-[var(--art-primary)] sm:h-10 sm:w-10 transition-transform duration-200 group-hover:scale-105"/>
+            <div className="flex min-h-[95px] min-w-0 flex-col items-start sm:min-h-[105px]">
+              <h2 className="text-[15px] font-extrabold leading-snug tracking-[-.02em] text-[#0c1a32]">{label}</h2>
               <p className="mt-2 text-[12px] leading-[1.48] text-[#57657b]">{description}</p>
               <span className="mt-auto flex h-7 w-7 items-center justify-center rounded-full border border-[#e0e7f0] bg-white text-[var(--art-primary)] transition-all group-hover:translate-x-1 group-hover:border-blue-300 group-hover:bg-blue-50">
                 <ArrowRight size={15} strokeWidth={1.7}/>
@@ -300,9 +300,9 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
             <p className="mt-1 text-[12px] leading-relaxed text-white/85">{t("home_cta_subtitle", "Conte com a Eletrônica Artvideo para encontrar a melhor solução em eletrônicos.")}</p>
           </div>
         </div>
-        <div className="flex w-full flex-wrap gap-3 md:w-auto">
-          <button type="button" onClick={() => setPage("loja")} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-white px-5 text-[12px] font-bold text-[var(--art-primary)] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:flex-none"><ShoppingCart size={17}/> Comprar na loja</button>
-          <button type="button" onClick={() => setPage("orcamento")} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md border border-white/85 px-5 text-[12px] font-bold text-white transition-all hover:-translate-y-0.5 hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:flex-none"><FileText size={17}/> Solicitar orçamento</button>
+        <div className="grid w-full grid-cols-2 gap-2.5 md:w-[430px] md:gap-3">
+          <button type="button" onClick={() => setPage("loja")} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-md bg-white px-2 text-[12px] font-bold text-[var(--art-primary)] shadow-sm transition-all hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:px-5"><ShoppingCart size={17} className="shrink-0"/> Produtos</button>
+          <button type="button" onClick={() => setPage("orcamento")} className="inline-flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md border border-white/85 px-2 text-[12px] font-bold text-white transition-all hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white md:px-5"><FileText size={17} className="shrink-0"/> Solicitar orçamento</button>
         </div>
       </div>
     </section>
