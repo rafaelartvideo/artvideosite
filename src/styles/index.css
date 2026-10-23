@@ -1015,3 +1015,17 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
     display: none;
   }
 }
+
+
+/* Categorias dos catálogos: deslize em uma única linha no celular, sem trilha de scrollbar. */
+@media (max-width: 639px) {
+  .artvideo-public .art-category-carousel {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    -webkit-overflow-scrolling: touch;
+    scroll-padding-inline: 20px;
+  }
+  .artvideo-public .art-category-carousel::-webkit-scrollbar { display: none; }
+  .artvideo-public .art-home-quick-card h2 { font-size: 16px !important; line-height: 1.35; }
+  .artvideo-public .art-home-quick-card p { font-size: 12px; line-height: 1.5; }
+}
