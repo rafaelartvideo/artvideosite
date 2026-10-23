@@ -1,5 +1,6 @@
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import { recordAuthActivity } from "./session-audit.repository";
 import { isValidUsername, normalizeUsername } from "../domain/username";
 
 export type AdminAuthenticationResult = "authenticated" | "invalid_credentials" | "inactive_user" | "ip_not_allowed";
@@ -41,6 +42,8 @@ export async function authenticateAdmin(identifier: string, password: string): P
   // A Edge Function username-auth já verifica profiles.is_active antes de
   // autenticar. Repetir SELECT profiles após setSession acrescentava latência
   // e duplicava a checagem sem benefício; o bootstrap também valida o acesso.
+  // Registro assíncrono não acrescenta latência à autenticação.
+  void recordAuthActivity("login");
   return "authenticated";
 }
 
