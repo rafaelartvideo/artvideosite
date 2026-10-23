@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Search, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, Grid3X3, Search, Star } from "lucide-react";
+import { PublicCategoryChip } from "@/features/public-catalog/presentation/PublicCategoryChip";
 import { useServiceCategories, useServices, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
 import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
-import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
+import { inferredServiceIcon } from "@/features/public-shell/domain/site-appearance";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 
@@ -45,12 +46,14 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
   const visible = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
   const choose = (id: string) => { setCategory(id); setPageNumber(1); };
   const categoryChoices = [
-    { id: "all", name: "Todos", count: services.length, icon: Star },
-    ...(featured.length ? [{ id: "featured", name: "Destaques", count: featured.length, icon: Star }] : []),
+    { id: "all", name: "Todos", count: services.length, icon: null, mediaId: null, fallbackIcon: Grid3X3 },
+    ...(featured.length ? [{ id: "featured", name: "Destaques", count: featured.length, icon: null, mediaId: null, fallbackIcon: Star }] : []),
     ...categoriesWithServices.map(item => ({
       id: item.id, name: item.name,
       count: services.filter(service => service.category_id === item.id).length,
-      icon: publicIcon(inferredServiceIcon(item.name)),
+      icon: item.icon || null,
+      mediaId: item.image_media_id || null,
+      fallbackIcon: Star,
     })),
   ];
 
@@ -64,16 +67,10 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
           className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
       </label>
-      <nav aria-label="Categorias de serviços" className="art-category-carousel -mx-5 mt-6 flex snap-x snap-mandatory items-start gap-2 overflow-x-auto overscroll-x-contain px-5 pb-4 scroll-smooth sm:mx-0 sm:mt-8 sm:flex-wrap sm:justify-center sm:gap-x-3 sm:gap-y-3 sm:overflow-visible sm:px-0">
-        {categoryChoices.map(item => { const Icon = item.icon; const active = category === item.id;
-          return <button type="button" key={item.id} onClick={() => choose(item.id)} aria-pressed={active}
-            className="group flex w-[86px] shrink-0 snap-start flex-col items-center gap-1.5 text-center sm:w-[96px] sm:snap-normal">
-            <span className={`flex h-[68px] w-[68px] items-center justify-center rounded-xl transition-colors ${active?"bg-[#eef1ff] text-[var(--art-primary)]":"bg-[#f5f5f5] text-[#273747] group-hover:bg-[#ededed]"}`}>
-              <Icon size={26} strokeWidth={1.4}/>
-            </span>
-            <span className="max-w-[125px] text-[11px] leading-4 text-[#2d3a4a] sm:text-[12px]">{item.name}</span>
-          </button>;
-        })}
+      <nav aria-label="Categorias de serviços" className="art-category-carousel -mx-5 mt-7 flex snap-x snap-mandatory items-center gap-3 overflow-x-auto overscroll-x-contain px-5 pb-3 scroll-smooth sm:mx-0 sm:mt-9 sm:flex-wrap sm:justify-center sm:gap-4 sm:overflow-visible sm:px-0">
+        {categoryChoices.map(item => <PublicCategoryChip key={item.id} name={item.name}
+          icon={item.icon} mediaId={item.mediaId} fallbackIcon={item.fallbackIcon}
+          active={category === item.id} onClick={() => choose(item.id)} />)}
       </nav>
       <div className="mb-6 mt-7 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13px] text-[#24374a]"><strong>{loading ? "—" : filtered.length}</strong> {filtered.length === 1 ? "serviço disponível" : "serviços disponíveis"}</p>
