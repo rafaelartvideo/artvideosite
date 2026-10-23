@@ -19,6 +19,13 @@ Deno.serve(async req => {
     if(statusError || !adapter){
       return json({error:"O pagamento online está sendo preparado. Nenhum valor foi cobrado."},503);
     }
+    const {data:paymentSetting,error:settingError}=await admin
+      .from("artvideo_store_payment_settings").select("environment")
+      .eq("provider_key",providerKey).eq("enabled",true).maybeSingle();
+    if(settingError || !paymentSetting
+      || !["sandbox","production"].includes(paymentSetting.environment)) {
+      return json({error:"O ambiente de pagamento não está configurado."},503);
+    }
     const input = await req.json();
     const cart = Array.isArray(input.items) ? input.items : [
       { product_id: input.product_id, quantity: input.quantity },
@@ -115,6 +122,7 @@ Deno.serve(async req => {
       orderId,
       amountCents:Math.round(Number(order.total)*100),
       currency:"BRL",
+      environment:paymentSetting.environment,
       items:((order.items||[]) as Array<{product_id:string;title:string;quantity:number;unit_price:number}>).map(item=>({
         productId:item.product_id,description:item.title,
         quantity:item.quantity,unitPriceCents:Math.round(Number(item.unit_price)*100),

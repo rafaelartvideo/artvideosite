@@ -3,8 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.112.3";
 // Endpoint exclusivamente para eventos assinados do Mercado Pago.
 // Não aceita status/valores enviados pelo navegador e nunca libera estoque
 // antes de consultar o pagamento real no gateway.
-async function verifySignature(req: Request, dataId: string): Promise<boolean> {
-  const secret = Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET") || "";
+async function verifySignature(req: Request, dataId: string, secret: string): Promise<boolean> {
   const signature = req.headers.get("x-signature") || "";
   const requestId = req.headers.get("x-request-id") || "";
   const timestamp = /(?:^|,)\s*ts\s*=\s*([0-9]+)/.exec(signature)?.[1] || "";
@@ -33,18 +32,32 @@ Deno.serve(async req => {
     const type = String(url.searchParams.get("type") || payload?.type || "");
     if (type !== "payment" || !/^\d{5,25}$/.test(id))
       return new Response("ignored",{status:200});
-    if (!await verifySignature(req, id)) return new Response("unauthorized",{status:401});
-    const accessToken = Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN");
-    const collectorId = Deno.env.get("MERCADO_PAGO_COLLECTOR_ID");
-    if (!accessToken || !collectorId) return new Response("not configured",{status:503});
+
+    const configs=[
+      {environment:"sandbox",secret:Deno.env.get("MERCADO_PAGO_TEST_WEBHOOK_SECRET")||"",
+       token:Deno.env.get("MERCADO_PAGO_TEST_ACCESS_TOKEN")||"",
+       collector:Deno.env.get("MERCADO_PAGO_TEST_COLLECTOR_ID")||""},
+      {environment:"production",secret:Deno.env.get("MERCADO_PAGO_WEBHOOK_SECRET")||"",
+       token:Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"",
+       collector:Deno.env.get("MERCADO_PAGO_COLLECTOR_ID")||""},
+    ] as const;
+    let config:typeof configs[number]|undefined;
+    for(const candidate of configs) {
+      if(candidate.secret && await verifySignature(req,id,candidate.secret)){
+        config=candidate;break;
+      }
+    }
+    if(!config) return new Response("unauthorized",{status:401});
+    if(!config.token || !config.collector) return new Response("not configured",{status:503});
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
-      headers:{Authorization:`Bearer ${accessToken}`,Accept:"application/json"},
+      headers:{Authorization:`Bearer ${config.token}`,Accept:"application/json"},
       signal:AbortSignal.timeout(15000),
     });
     if (!response.ok) return new Response("gateway lookup failed",{status:503});
     const payment = await response.json();
-    if (String(payment.id) !== id || String(payment.collector_id) !== String(collectorId)
-      || payment.currency_id !== "BRL") return new Response("payment mismatch",{status:403});
+    if (String(payment.id) !== id || String(payment.collector_id) !== config.collector
+      || payment.currency_id !== "BRL"
+      || (typeof payment.live_mode === "boolean" && payment.live_mode !== (config.environment === "production"))) return new Response("payment mismatch",{status:403});
     const orderId = String(payment.external_reference || "");
     if (!/^[0-9a-f-]{36}$/i.test(orderId)) return new Response("external reference invalid",{status:400});
     const status = String(payment.status || "");
@@ -57,9 +70,10 @@ Deno.serve(async req => {
     // O endpoint legado nunca pode confirmar um pedido criado pela Getnet
     // ou por qualquer outro conector selecionado futuramente.
     const {data:order,error:orderError}=await admin.from("artvideo_store_orders")
-      .select("payment_provider").eq("id",orderId).maybeSingle();
+      .select("payment_provider,payment_environment").eq("id",orderId).maybeSingle();
     if(orderError) return new Response("order lookup failed",{status:503});
-    if(!order || order.payment_provider!=="mercado_pago") {
+    if(!order || order.payment_provider!=="mercado_pago"
+      || (order.payment_environment || "production") !== config.environment) {
       return new Response("provider mismatch",{status:403});
     }
     const { data: lines, error: linesError } = await admin.from("artvideo_store_order_items")

@@ -139,8 +139,9 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       </div>
     </Section>
 
-    <Section title="Próxima integração" description="A Artvideo já pode escolher o provedor desejado; a habilitação da cobrança depende dos dados técnicos de contratação.">
+    <Section title="Próxima integração" description="Configure as credenciais no servidor e homologue antes de ativar pagamentos.">
       <div className="space-y-3 text-xs leading-6 text-muted-foreground">
+        {current.provider_key==="mercado_pago"&&<p className="flex gap-2"><PlugZap size={17} className="mt-0.5 shrink-0 text-primary"/>O Checkout Pro usa o redirecionamento seguro do Mercado Pago. Configure no Supabase o Access Token, o ID da conta recebedora e o segredo do webhook (teste e produção). Depois valide pagamentos aprovados, recusados e pendentes.</p>}
         <p className="flex gap-2"><PlugZap size={17} className="mt-0.5 shrink-0 text-primary"/>
           Para a Getnet, confirme se o contrato da loja libera a API de links GetPay ou a solução Get Checkout.
           O credenciamento da maquininha não garante, por si só, o acesso à API de e-commerce.
@@ -149,6 +150,7 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
           O futuro conector deverá criar a cobrança pelo valor confirmado no servidor,
           validar notificações assinadas e conciliar o pagamento antes de liberar o pedido e descontar o estoque.
         </p>
+        {current.provider_key==="mercado_pago"&&<p className="break-all">Webhook: https://wmjmtcjpunmzvonlkjcu.supabase.co/functions/v1/artvideo-store-webhook</p>}
         <a href="https://docs.globalgetnet.com/pt/products/online-payments"
           target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 font-bold text-primary hover:underline">
           Documentação oficial da Getnet <ExternalLink size={15}/>
