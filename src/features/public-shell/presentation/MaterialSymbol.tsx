@@ -9,28 +9,101 @@ const fontNames: Record<MaterialSymbolStyle, string> = {
   sharp: "Material Symbols Sharp",
 };
 
-const loadedStyles = new Map<MaterialSymbolStyle, Promise<boolean>>();
+type Listener = { name: string; notify: (loaded: boolean) => void };
+type FontState = {
+  subscribers: Set<Listener>;
+  readyNames: Set<string>;
+  allReady: boolean;
+  link: HTMLLinkElement | null;
+  timer: ReturnType<typeof setTimeout> | null;
+  requestNumber: number;
+  failedKey: string;
+};
+const states = new Map<MaterialSymbolStyle, FontState>();
 
-function ensureMaterialFont(style: MaterialSymbolStyle): Promise<boolean> {
-  if (typeof document === "undefined") return Promise.resolve(false);
-  const cached = loadedStyles.get(style);
-  if (cached) return cached;
-  const promise = new Promise<boolean>((resolve) => {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = "https://fonts.googleapis.com/css2?family=Material+Symbols+" +
-      (style === "outlined" ? "Outlined" : style === "rounded" ? "Rounded" : "Sharp") +
-      "&display=block";
-    link.dataset.artvideoMaterialSymbols = style;
-    link.onload = () => resolve(true);
-    link.onerror = () => resolve(false);
-    document.head.appendChild(link);
-  });
-  loadedStyles.set(style, promise);
-  return promise;
+function stateFor(style: MaterialSymbolStyle): FontState {
+  let state = states.get(style);
+  if (!state) {
+    state = { subscribers: new Set(), readyNames: new Set(), allReady: false,
+      link: null, timer: null, requestNumber: 0, failedKey: "" };
+    states.set(style, state);
+  }
+  return state;
 }
 
-/** Material Symbols are stored with a prefix so existing Lucide category icons remain compatible. */
+function isReady(state: FontState, name: string): boolean {
+  return state.allReady || state.readyNames.has(name);
+}
+
+function broadcast(state: FontState) {
+  state.subscribers.forEach(subscriber => subscriber.notify(isReady(state, subscriber.name)));
+}
+
+/**
+ * Request ONE Google Fonts stylesheet for the currently visible symbols, not one
+ * request per icon. The documented icon_names parameter downloads a glyph subset,
+ * rather than the entire Material Symbols font.
+ */
+function loadVisibleSymbols(style: MaterialSymbolStyle, state: FontState) {
+  if (typeof document === "undefined") return;
+  const names = [...new Set([...state.subscribers].map(sub => sub.name))].sort();
+  if (!names.length || names.every(name => isReady(state, name))) return;
+  const fullFont = names.length > 400;
+  const key = fullFont ? "full" : names.join(",");
+  if (state.failedKey === key) return;
+
+  const requestNumber = ++state.requestNumber;
+  // Avoid leaving stale requests active when a user searches or changes style.
+  const stylesheet = document.createElement("link");
+  stylesheet.rel = "stylesheet";
+  stylesheet.href = "https://fonts.googleapis.com/css2?family=" +
+    "Material+Symbols+" + (style === "outlined" ? "Outlined" : style === "rounded" ? "Rounded" : "Sharp") +
+    (fullFont ? "" : "&icon_names=" + names.join(",")) + "&display=block";
+  stylesheet.dataset.artvideoMaterialSymbols = style;
+
+  stylesheet.onload = () => {
+    if (state.requestNumber !== requestNumber) { stylesheet.remove(); return; }
+    state.link?.remove();
+    state.link = stylesheet;
+    state.allReady = fullFont;
+    state.readyNames = new Set(names);
+    state.failedKey = "";
+    broadcast(state);
+    // New symbols might have arrived while the request was in flight.
+    scheduleLoad(style, state);
+  };
+  stylesheet.onerror = () => {
+    stylesheet.remove();
+    if (state.requestNumber !== requestNumber) return;
+    state.failedKey = key;
+    broadcast(state); // Keep a safe Lucide placeholder if Google Fonts is unavailable.
+  };
+  document.head.appendChild(stylesheet);
+}
+
+function scheduleLoad(style: MaterialSymbolStyle, state: FontState) {
+  if (state.timer) clearTimeout(state.timer);
+  if (state.allReady || [...state.subscribers].every(sub => isReady(state, sub.name))) return;
+  // Batch the icons mounted together and debounce filtering in the admin picker.
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    loadVisibleSymbols(style, state);
+  }, 180);
+}
+
+function subscribe(style: MaterialSymbolStyle, name: string, notify: (loaded: boolean) => void) {
+  const state = stateFor(style);
+  const listener = { name, notify };
+  state.subscribers.add(listener);
+  notify(isReady(state, name));
+  scheduleLoad(style, state);
+  return () => {
+    state.subscribers.delete(listener);
+    // No request on removal: the existing subset is reused until new icons appear.
+  };
+}
+
+/** Prefix keeps previously saved Lucide icon values fully compatible. */
 export function parseMaterialIcon(value: unknown): { name: string; style: MaterialSymbolStyle } | null {
   if (typeof value !== "string") return null;
   const match = /^material(?:-(outlined|rounded|sharp))?:([a-z0-9_]+)$/.exec(value);
@@ -50,18 +123,22 @@ export function MaterialSymbol({
   className?: string;
 }) {
   const parsed = parseMaterialIcon(icon);
-  const [loaded, setLoaded] = useState(false);
+  const style = parsed?.style;
+  const name = parsed?.name;
+  const [loaded, setLoaded] = useState(() => Boolean(style && name && isReady(stateFor(style), name)));
+
   useEffect(() => {
     setLoaded(false);
-    if (!parsed) return;
-    let active = true;
-    void ensureMaterialFont(parsed.style).then(ok => { if (active) setLoaded(ok); });
-    return () => { active = false; };
-  }, [parsed?.style]);
-  if (!parsed || !loaded) return <Shapes aria-hidden="true" size={size} className={className} strokeWidth={1.6}/>;
+    if (!style || !name) return;
+    return subscribe(style, name, setLoaded);
+  }, [style, name]);
+
+  if (!style || !name || !loaded) {
+    return <Shapes aria-hidden="true" size={size} className={className} strokeWidth={1.6}/>;
+  }
   return <span aria-hidden="true" className={`inline-flex shrink-0 items-center justify-center select-none ${className}`}
     style={{
-      fontFamily: fontNames[parsed.style],
+      fontFamily: fontNames[style],
       fontWeight: "normal",
       fontStyle: "normal",
       fontSize: size,
@@ -72,5 +149,5 @@ export function MaterialSymbol({
       direction: "ltr",
       fontFeatureSettings: "'liga'",
       fontVariationSettings: "'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24",
-    }}>{parsed.name}</span>;
+    }}>{name}</span>;
 }
