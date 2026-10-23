@@ -67,10 +67,12 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
           className="h-[62px] w-full rounded-md border border-[#cfd3d8] bg-white pl-5 pr-16 text-[15px] text-[#1a2b3d] outline-none placeholder:text-[#788492] focus:border-[var(--art-primary)] sm:h-[70px] sm:text-[17px]"/>
         <Search size={23} className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#21344d]"/>
       </label>
-      <nav aria-label="Categorias de serviços" className="art-category-carousel -mx-5 mt-7 flex snap-x snap-mandatory items-center gap-3 overflow-x-auto overscroll-x-contain px-5 pb-3 scroll-smooth sm:mx-0 sm:mt-9 sm:flex-wrap sm:justify-center sm:gap-4 sm:overflow-visible sm:px-0">
+      <nav aria-label="Categorias de serviços" className="art-category-carousel -mx-5 mt-7 snap-x snap-mandatory overflow-x-auto overscroll-x-contain px-5 pb-3 scroll-smooth sm:mx-0 sm:mt-9 sm:px-0">
+        <div className="mx-auto flex w-max min-w-full items-start justify-center gap-5 sm:gap-8">
         {categoryChoices.map(item => <PublicCategoryChip key={item.id} name={item.name}
           icon={item.icon} mediaId={item.mediaId} fallbackIcon={item.fallbackIcon}
           active={category === item.id} onClick={() => choose(item.id)} />)}
+        </div>
       </nav>
       <div className="mb-6 mt-7 flex flex-wrap items-center justify-between gap-2">
         <p className="text-[13px] text-[#24374a]"><strong>{loading ? "—" : filtered.length}</strong> {filtered.length === 1 ? "serviço disponível" : "serviços disponíveis"}</p>
