@@ -39,7 +39,7 @@ Deno.serve(async req => {
         invited=granted===true;
       }
       return json({available:keyReady &&
-        ((regular?.available===true&&regular?.provider==="mercado_pago")||invited),
+        invited,
         publicKeyConfigured:keyReady});
     }
     if(input?.action==="homologation_status"){
@@ -77,7 +77,7 @@ Deno.serve(async req => {
     const bricksPrepare=input?.action==="bricks_prepare";
     const brickPublicKey=String(paymentSetting.mercado_pago_public_key||
       Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"");
-    if(bricksPrepare && (providerKey!=="mercado_pago" ||
+    if(bricksPrepare && (!isHomologation || providerKey!=="mercado_pago" ||
        paymentEnvironment!=="production" ||
        !/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(brickPublicKey))) {
       return json({error:"O pagamento integrado ainda nao esta configurado. Use o Checkout Pro."},503);
