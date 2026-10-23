@@ -5,7 +5,7 @@ import { useServiceCategories, useServices, useProducts } from "@/features/publi
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { PublicCatalogCarousel } from "@/features/public-catalog/presentation/PublicCatalogCarousel";
 import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/domain/site-banners";
-import { inferredServiceIcon } from "@/features/public-shell/domain/site-appearance";
+import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
 
@@ -53,7 +53,7 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
       count: services.filter(service => service.category_id === item.id).length,
       icon: item.icon || null,
       mediaId: item.image_media_id || null,
-      fallbackIcon: Star,
+      fallbackIcon: publicIcon(inferredServiceIcon(item.name)),
     })),
   ];
 
