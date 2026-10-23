@@ -97,14 +97,24 @@ Deno.serve(async (req:Request) => {
         // Nunca devolver Access Token, assinatura ou dados pessoais do vendedor.
         const accountId=String(account?.id||"");
         const match=/^\d{5,20}$/.test(accountId) && accountId===collector.trim();
+        let receipt: {received_at:string;simulated:boolean}|null=null;
+        if(match){
+          const {data,error}=await admin.from("artvideo_store_webhook_checks")
+            .select("received_at,simulated").eq("environment","production")
+            .order("received_at",{ascending:false}).limit(1).maybeSingle();
+          if(error)console.error("Production webhook diagnostics unavailable");
+          else receipt=data;
+        }
         return reply({
           environment:"production",credentials:presence,
           accountVerified:match,configurationValid:match,
           accountUserId:/^\d{5,20}$/.test(accountId)?accountId:null,
-          webhookValidated:false,livePaymentValidated:false,
-          message:match?
-            "Credenciais de produção reconhecidas. Falta validar o webhook assinado e um pagamento real controlado antes de liberar a loja.":
-            "O User ID de produção não corresponde ao titular do Access Token.",
+          webhookValidated:Boolean(receipt),webhookVerifiedAt:receipt?.received_at||null,
+          webhookSimulated:receipt?.simulated===true,
+          livePaymentValidated:false,
+          message:!match?"O User ID de produção não corresponde ao titular do Access Token.":
+            receipt?"Credenciais reconhecidas e notificação com assinatura válida recebida. Falta homologar uma transação real controlada.":
+            "Credenciais de produção reconhecidas. Falta simular uma notificação assinada e homologar uma transação real controlada.",
         });
       }catch{
         return reply({

@@ -37,7 +37,8 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     credentials:{token:boolean;seller:boolean;webhook:boolean};
     accountVerified:boolean;configurationValid:boolean;
     accountUserId?:string|null;
-    webhookValidated:boolean;livePaymentValidated:boolean;
+    webhookValidated:boolean;webhookVerifiedAt?:string|null;webhookSimulated?:boolean;
+    livePaymentValidated:boolean;
     message:string;
   }|null>(null);
   const invokeLab=async(action:"diagnose"|"create"|"status"|"latest"|"production_diagnose",testId?:string)=>{
@@ -262,6 +263,31 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             Instruções do Mercado Pago <ExternalLink size={14}/>
           </a>
         </div>
+        <div className="space-y-2 rounded-lg border border-border p-4">
+          <p className="font-bold">Verificar recebimento do webhook sem cobrar</p>
+          <p className="text-muted-foreground">
+            No Mercado Pago Developers → sua aplicação → Webhooks → Modo de produção,
+            confira a URL acima e o evento <strong>Pagamentos (legacy)</strong>.
+            Clique em <strong>Simular</strong>, selecione <strong>Pagamento</strong> e
+            informe o Data ID abaixo. Esse número é reservado apenas à simulação;
+            não corresponde a uma transação existente.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <code className="select-all rounded-md bg-muted px-3 py-2 font-bold text-foreground">
+              999999999999999
+            </code>
+            <BtnSecondary onClick={()=>void navigator.clipboard.writeText("999999999999999").then(
+              ()=>notifyAdmin("Data ID da simulação copiado.","success"),
+              ()=>notifyAdmin("Selecione e copie o Data ID.","error"))}>
+              Copiar Data ID
+            </BtnSecondary>
+          </div>
+          <p className="text-muted-foreground">
+            Após enviar a simulação, clique novamente em
+            <strong> Verificar credenciais de produção</strong>.
+            Isso verifica a assinatura recebida, mas não homologa pagamentos reais.
+          </p>
+        </div>
         {prodStatus&&<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4" role="status">
           <p className="font-bold">Diagnóstico de produção</p>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -273,6 +299,18 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             </strong></p>
           </div>
           <p className="font-semibold">{prodStatus.message}</p>
+          <div className="rounded-lg border border-border bg-background p-3 space-y-2">
+            <p className="font-bold">Webhook de produção</p>
+            <p className={prodStatus.webhookValidated?"text-emerald-600 dark:text-emerald-300":"text-amber-700 dark:text-amber-300"}>
+              {prodStatus.webhookValidated?
+                "Assinatura de notificação validada pelo servidor":
+                "Aguardando uma notificação com assinatura válida"}
+            </p>
+            {prodStatus.webhookVerifiedAt&&<p className="text-muted-foreground">
+              Última notificação autenticada: {new Date(prodStatus.webhookVerifiedAt).toLocaleString("pt-BR")}
+              {prodStatus.webhookSimulated?" · Simulação (não é pagamento real)":" · Evento real"}
+            </p>}
+          </div>
           {!prodStatus.accountVerified&&prodStatus.accountUserId&&<div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
             <p className="font-bold">User ID correto retornado pelo Mercado Pago</p>
             <div className="flex flex-wrap items-center gap-2">

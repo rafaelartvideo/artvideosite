@@ -49,6 +49,27 @@ Deno.serve(async req => {
     }
     if(!config) return new Response("unauthorized",{status:401});
     if(!config.token || !config.collector) return new Response("not configured",{status:503});
+
+    const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{
+      auth:{persistSession:false},
+    });
+    // Esse identificador é reservado exclusivamente à simulação manual do
+    // evento payment.updated no painel do Mercado Pago. Exige HMAC válido.
+    // Não representa pagamento, pedido, recebimento ou conciliação financeira.
+    const signedSimulation=config.environment==="production"
+      && id==="999999999999999"
+      && payload?.action==="payment.updated";
+    if(config.environment==="production"){
+      const {error:auditError}=await admin.from("artvideo_store_webhook_checks").insert({
+        environment:"production",event_type:"payment",resource_id:id,
+        simulated:signedSimulation,
+      });
+      if(auditError){
+        console.error("Mercado Pago webhook signed audit unavailable");
+        if(signedSimulation)return new Response("signed audit unavailable",{status:503});
+      }
+    }
+    if(signedSimulation)return new Response("signed simulation received",{status:200});
     const response = await fetch(`https://api.mercadopago.com/v1/payments/${id}`, {
       headers:{Authorization:`Bearer ${config.token}`,Accept:"application/json"},
       signal:AbortSignal.timeout(15000),
@@ -63,9 +84,6 @@ Deno.serve(async req => {
     const status = String(payment.status || "");
     const amount = Number(payment.transaction_amount);
     if (!Number.isFinite(amount) || amount < 0) return new Response("amount invalid",{status:400});
-    const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
-      auth:{persistSession:false},
-    });
     // Compatibilidade exclusivamente com transações históricas deste provedor.
     // O endpoint legado nunca pode confirmar um pedido criado pela Getnet
     // ou por qualquer outro conector selecionado futuramente.
