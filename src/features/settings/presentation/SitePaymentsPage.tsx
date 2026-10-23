@@ -14,6 +14,11 @@ type PaymentSettings={
   environment:"sandbox"|"production";
   enabled:boolean;
 };
+type RealPaymentCheck={
+  id:string;status:string;amount:number;paymentId?:string|null;
+  webhookReceivedAt?:string|null;checkoutUrl?:string|null;
+  createdAt?:string;updatedAt?:string;
+};
 const initial:PaymentSettings={provider_key:"none",environment:"sandbox",enabled:false};
 export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const {activeOrganization,hasPermission}=useAuth();
@@ -33,6 +38,11 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [labHistory,setLabHistory]=useState<Array<{id:string;status:string;paymentId?:string|null;amount?:number;createdAt?:string;updatedAt?:string}>>([]);
   const [labHistoryLoading,setLabHistoryLoading]=useState(false);
   const [prodChecking,setProdChecking]=useState(false);
+  const [realLoading,setRealLoading]=useState(false);
+  const [realHistoryLoading,setRealHistoryLoading]=useState(false);
+  const [realCheck,setRealCheck]=useState<RealPaymentCheck|null>(null);
+  const [realHistory,setRealHistory]=useState<RealPaymentCheck[]>([]);
+  const [realMessage,setRealMessage]=useState("");
   const [prodStatus,setProdStatus]=useState<{
     credentials:{token:boolean;seller:boolean;webhook:boolean};
     accountVerified:boolean;configurationValid:boolean;
@@ -42,9 +52,11 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     livePaymentValidated:boolean;
     message:string;
   }|null>(null);
-  const invokeLab=async(action:"diagnose"|"create"|"status"|"latest"|"production_diagnose",testId?:string)=>{
+  const invokeLab=async(action:"diagnose"|"create"|"status"|"latest"|"production_diagnose"|
+    "production_latest"|"production_create"|"production_status",testId?:string)=>{
     const {data,error}=await supabase.functions.invoke("artvideo-store-payment-lab",{
-      body:{action,...(testId?{test_id:testId}:{})},
+      body:{action,...(testId?{test_id:testId}:{}),
+        ...(action==="production_create"?{confirm_real_payment:true}:{})},
     });
     if(error){
       const response=error.context;
@@ -68,6 +80,35 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
       notifyAdmin(systemErrorMessage(error,"Não foi possível validar as credenciais de produção."),"error");
     }finally{
       setProdChecking(false);
+    }
+  };
+  const realAction=async(action:"production_create"|"production_status")=>{
+    if(realLoading||!canUpdate)return;
+    if(action==="production_create"){
+      if(!prodStatus?.accountVerified){
+        notifyAdmin("Verifique a conta vendedora de produção antes de gerar a cobrança.","error");
+        return;
+      }
+      if(!window.confirm("ATENÇÃO: este é um pagamento REAL de R$ 1,00, sujeito às tarifas do Mercado Pago. "+
+        "O link será criado somente para homologação e não fará cobrança até que um comprador real conclua a compra. "+
+        "Ele não cria pedidos nem movimenta o estoque. Deseja gerar o link real?"))return;
+    }else if(!realCheck?.id){
+      notifyAdmin("Selecione uma validação real para consultar.","error");return;
+    }
+    setRealLoading(true);
+    try{
+      const result=await invokeLab(action,action==="production_status"?realCheck?.id:undefined);
+      if(result.test){
+        const next=result.test as RealPaymentCheck;
+        setRealCheck(next);
+        setRealHistory(previous=>[next,...previous.filter(t=>t.id!==next.id)]
+          .sort((a,b)=>new Date(b.createdAt||0).getTime()-new Date(a.createdAt||0).getTime()).slice(0,8));
+      }
+      if(result.message)setRealMessage(String(result.message));
+    }catch(error){
+      notifyAdmin(systemErrorMessage(error,"Falha ao consultar a validação real."),"error");
+    }finally{
+      setRealLoading(false);
     }
   };
   const labAction=async(action:"diagnose"|"create"|"status")=>{
@@ -111,6 +152,25 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     }).catch(error=>{
       if(live)notifyAdmin(systemErrorMessage(error,"Não foi possível recuperar os testes anteriores."),"error");
     }).finally(()=>{if(live)setLabHistoryLoading(false);});
+    return()=>{live=false;};
+  },[orgId,canUpdate]);
+
+  useEffect(()=>{
+    let live=true;
+    if(!orgId||!canUpdate){
+      setRealCheck(null);setRealHistory([]);setRealMessage("");return;
+    }
+    setRealCheck(null);setRealHistory([]);setRealMessage("");
+    setRealHistoryLoading(true);
+    void invokeLab("production_latest").then(result=>{
+      if(!live)return;
+      const recovered=Array.isArray(result.tests)?result.tests as RealPaymentCheck[]:[];
+      setRealHistory(recovered);
+      setRealCheck(result.test||null);
+      if(result.test)setRealMessage("Última validação real recuperada; não gere outro link antes de consultar.");
+    }).catch(error=>{
+      if(live)notifyAdmin(systemErrorMessage(error,"Não foi possível recuperar as validações reais."),"error");
+    }).finally(()=>{if(live)setRealHistoryLoading(false);});
     return()=>{live=false;};
   },[orgId,canUpdate]);
 
@@ -284,9 +344,10 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             </BtnSecondary>
           </div>
           <p className="text-muted-foreground">
-            Após enviar a simulação, clique novamente em
-            <strong> Verificar credenciais de produção</strong>.
-            Isso verifica a assinatura recebida, mas não homologa pagamentos reais.
+            O simulador pode enviar um evento <code>live_mode: false</code> assinado
+            pela chave de testes. O HTTP 200 confirma a entrega, mas não
+            garante a autenticação do webhook de produção.
+            O teste real controlado abaixo validará esse caminho separadamente.
           </p>
         </div>
         {prodStatus&&<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-4" role="status">
@@ -334,9 +395,80 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             O envio de uma notificação assinada e a conciliação de uma transação real são etapas separadas.
           </p>
         </div>}
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <div className="space-y-1">
+            <p className="font-bold">Pagamento real controlado · R$ 1,00</p>
+            <p className="text-muted-foreground">
+              Esta etapa utiliza dinheiro REAL e pode gerar tarifas do Mercado Pago.
+              Nenhuma cobrança é efetuada só por gerar o link: ela depende de um
+              comprador real concluir o checkout. Não utilize cartão de teste nem
+              a própria conta vendedora como compradora.
+              A validação fica isolada dos pedidos, do estoque e do financeiro.
+            </p>
+          </div>
+          <BtnSecondary onClick={()=>void realAction("production_create")}
+            disabled={!canUpdate||realLoading||!prodStatus?.accountVerified}>
+            {realLoading?"Processando...":"Gerar link de validação REAL · R$ 1,00"}
+          </BtnSecondary>
+          {!prodStatus?.accountVerified&&<p className="text-muted-foreground">
+            Execute Verificar credenciais de produção para liberar a geração do link real.
+          </p>}
+          {realHistoryLoading&&<p className="text-muted-foreground">Recuperando validações anteriores...</p>}
+          {realHistory.length>0&&<div className="space-y-2">
+            <p className="font-semibold">Histórico de validações reais</p>
+            <div className="flex flex-wrap gap-2">
+              {realHistory.map(test=><button key={test.id} type="button"
+                onClick={()=>{setRealCheck(test);setRealMessage("Validação selecionada. Consulte o resultado antes de gerar outra.");}}
+                aria-pressed={realCheck?.id===test.id}
+                className={"rounded-lg border px-3 py-2 text-left transition-colors hover:border-primary/50 "+
+                  (realCheck?.id===test.id?"border-primary bg-primary/5":"border-border bg-muted/20")}>
+                <span className="font-semibold">{test.id.slice(0,8)}</span>
+                <span className="ml-2">{test.status==="approved"?"Aprovado":test.status==="awaiting_payment"?"Aguardando":test.status}</span>
+              </button>)}
+            </div>
+          </div>}
+          {realCheck&&<div className="space-y-3 rounded-lg border border-border bg-muted/20 p-3" role="status">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <strong>Validação real · {realCheck.id.slice(0,8)}</strong>
+              <span className={"rounded-full px-2.5 py-1 font-semibold "+
+                (realCheck.status==="approved"?"bg-emerald-500/10 text-emerald-600":
+                 realCheck.status==="rejected"||realCheck.status==="cancelled"?"bg-red-500/10 text-red-600":
+                 "bg-amber-500/10 text-amber-700")}>
+                {({approved:"Aprovado",awaiting_payment:"Aguardando pagamento",pending:"Pendente",
+                  in_process:"Processando",rejected:"Recusado",cancelled:"Cancelado",
+                  refunded:"Reembolsado",charged_back:"Contestado",
+                  error:"Erro ao preparar",creating:"Preparando"} as Record<string,string>)[realCheck.status]||realCheck.status}
+              </span>
+            </div>
+            <p>Valor: <strong>R$ 1,00 real</strong> · Ambiente: <strong>Produção</strong></p>
+            <p>Webhook de produção autenticado para esta transação:
+              <strong className={realCheck.webhookReceivedAt?"text-emerald-600":"text-amber-700"}>
+                {realCheck.webhookReceivedAt?" Sim":" Ainda não"}
+              </strong>
+            </p>
+            {realCheck.webhookReceivedAt&&<p>Recebido em:
+              {" "+new Date(realCheck.webhookReceivedAt).toLocaleString("pt-BR")}
+            </p>}
+            {realCheck.paymentId&&<p className="break-all">Transação: {realCheck.paymentId}</p>}
+            {realCheck.checkoutUrl&&realCheck.status==="awaiting_payment"&&
+              <a href={realCheck.checkoutUrl} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 font-bold text-primary hover:underline">
+                Abrir checkout REAL de R$ 1,00 <ExternalLink size={14}/>
+              </a>}
+            <BtnSecondary onClick={()=>void realAction("production_status")} disabled={realLoading}>
+              <RefreshCw size={14}/>{realLoading?"Consultando...":"Consultar pagamento real e webhook"}
+            </BtnSecondary>
+          </div>}
+          {realMessage&&<p className="text-muted-foreground" role="status">{realMessage}</p>}
+          <p className="text-muted-foreground">
+            A aprovação via API não prova que o webhook foi recebido: os dois resultados são
+            mostrados separadamente. Após o pagamento, avalie eventuais tarifas antes de
+            solicitar estorno no Mercado Pago. Este módulo não realiza estornos automáticos.
+          </p>
+        </div>
         <p className="text-muted-foreground">
-          O botão Aceitar pagamentos online continuará bloqueado até concluirmos a homologação de produção.
-          Nenhuma cobrança real é criada por esta verificação.
+          Aceitar pagamentos online continuará bloqueado até a homologação completa do checkout
+          da loja. A criação de um link isolado não ativa o site público.
         </p>
       </div>
     </Section>}
