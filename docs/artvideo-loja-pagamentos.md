@@ -85,3 +85,11 @@ Referência: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-pref
 - O painel mantém histórico e permite reabrir link após atualizar. Mostra pagamento confirmado e webhook autenticado separadamente.
 - Não há estorno automático, e o pagamento real pode sofrer taxas. Estornos devem ser avaliados pelo titular no painel Mercado Pago.
 - Somente após confirmar pagamento real assinado, e um teste do checkout normal com pedido/estoque, deve-se estudar a ativação pública.
+
+## IPN legado com conciliação autenticada (23/10/2026)
+- Checkout Pro envia tanto Webhooks assinados (`data.id`, `type=payment`) quanto notificações IPN (`id`, `topic=payment`).
+- O IPN é aceito apenas como **sinal**: o servidor consulta `GET /v1/payments/{id}` utilizando token de PRODUÇÃO e exige correspondência do ID, `collector_id`, `live_mode=true`, moeda BRL, referência UUID e valor contra um pedido ou teste real criado no servidor.
+- Não confundir sinais: `legacy_notification_received_at` representa observação IPN + confirmação na API, enquanto `webhook_received_at` representa recebimento HMAC autenticado.
+- A transação 185730654834 (teste real R$ 1,00) foi confirmada pela API e o IPN consta nos logs do Supabase às 16:39:10 UTC. Isso foi registrado historicamente, SEM afirmar assinatura HMAC ou liquidação automática na ocasião.
+- O IPN é um meio legado em descontinuação. Os Webhooks com assinatura HMAC continuam necessários para a homologação final e são o método principal.
+- A integração da loja pública continua desativada; o recebimento histórico do IPN não altera esse bloqueio.
