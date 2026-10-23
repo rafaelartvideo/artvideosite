@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, quoteStoreShipping, startStoreCheckout, type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 
 type Step = 1 | 2 | 3;
@@ -122,7 +122,18 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     queryFn:loadStorePaymentStatus,
     staleTime:10_000,
   });
-  const paymentsAvailable=paymentQuery.data?.available===true;
+  const [homologationToken]=useState(()=>{
+    try{return sessionStorage.getItem("artvideo-store-homologation")||"";}
+    catch{return "";}
+  });
+  const testAccess=useQuery({
+    queryKey:["artvideo-homologation-access",homologationToken],
+    queryFn:()=>checkStoreHomologationAccess(homologationToken),
+    enabled:homologationToken.length===64,
+    staleTime:0,refetchOnWindowFocus:true,
+  });
+  const homologationAvailable=homologationToken.length===64 && testAccess.data===true;
+  const paymentsAvailable=paymentQuery.data?.available===true || homologationAvailable;
   const [options, setOptions] = useState<ShippingOption[]>([]);
   const [quoteKey, setQuoteKey] = useState("");
   const [shippingId, setShippingId] = useState("");
@@ -316,6 +327,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         return;
       }
       const checkout = await startStoreCheckout({
+        ...(homologationAvailable ? {homologation_token:homologationToken}:{}),
         product_id: productId, quantity,
         ...(cartMode ? { items: cartItems.map(i => ({ product_id: i.productId, quantity: i.quantity })) } : {}),
         expected_items: cartMode
@@ -675,7 +687,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   <LockKeyhole size={22} className="mt-0.5 shrink-0 text-[var(--art-primary)]"/>
                   <div>
                     <h3 className="text-[14px] font-extrabold text-[#14385d]">
-                      {paymentsAvailable ? "Pagamento com " + (paymentQuery.data?.providerName || "provedor seguro") : "Pagamento online em preparação"}
+                      {paymentsAvailable ? "Pagamento com " + (homologationAvailable?"Mercado Pago · Homologação privada":paymentQuery.data?.providerName || "provedor seguro") : "Pagamento online em preparação"}
                     </h3>
                     <p className="mt-1 text-[12px] leading-relaxed text-[#58728e]">
                       {paymentsAvailable

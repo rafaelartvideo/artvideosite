@@ -38,6 +38,8 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
   const [labHistory,setLabHistory]=useState<Array<{id:string;status:string;paymentId?:string|null;amount?:number;createdAt?:string;updatedAt?:string}>>([]);
   const [labHistoryLoading,setLabHistoryLoading]=useState(false);
   const [prodChecking,setProdChecking]=useState(false);
+  const [invitationLoading,setInvitationLoading]=useState(false);
+  const [invitation,setInvitation]=useState<{id:string;url:string;expiresAt:string}|null>(null);
   const [realLoading,setRealLoading]=useState(false);
   const [realHistoryLoading,setRealHistoryLoading]=useState(false);
   const [realCheck,setRealCheck]=useState<RealPaymentCheck|null>(null);
@@ -54,9 +56,10 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     message:string;
   }|null>(null);
   const invokeLab=async(action:"diagnose"|"create"|"status"|"latest"|"production_diagnose"|
-    "production_latest"|"production_create"|"production_status",testId?:string)=>{
+    "production_latest"|"production_create"|"production_status"|
+    "homologation_create"|"homologation_revoke",testId?:string)=>{
     const {data,error}=await supabase.functions.invoke("artvideo-store-payment-lab",{
-      body:{action,...(testId?{test_id:testId}:{}),
+      body:{action,...(testId?(action==="homologation_revoke"?{invitation_id:testId}:{test_id:testId}):{}),
         ...(action==="production_create"?{confirm_real_payment:true}:{})},
     });
     if(error){
@@ -82,6 +85,25 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
     }finally{
       setProdChecking(false);
     }
+  };
+  const inviteAction=async(action:"homologation_create"|"homologation_revoke")=>{
+    if(invitationLoading||!canUpdate)return;
+    if(action==="homologation_create" && !window.confirm(
+      "Gerar um convite privado para UMA compra real da loja? "+
+      "O convite expira em 2 horas e o pagamento pode gerar cobranca real e baixa de estoque "+
+      "quando uma compra for concluida. O checkout publico permanecera desativado."
+    ))return;
+    setInvitationLoading(true);
+    try{
+      const response=await invokeLab(action,
+        action==="homologation_revoke"?invitation?.id:undefined);
+      if(action==="homologation_create"&&response.invitation)
+        setInvitation(response.invitation);
+      if(action==="homologation_revoke")setInvitation(null);
+      notifyAdmin(String(response.message||"Convite atualizado."),"success");
+    }catch(error){
+      notifyAdmin(systemErrorMessage(error,"Nao foi possivel administrar o convite."),"error");
+    }finally{setInvitationLoading(false);}
   };
   const realAction=async(action:"production_create"|"production_status")=>{
     if(realLoading||!canUpdate)return;
@@ -400,6 +422,43 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
             O envio de uma notificação assinada e a conciliação de uma transação real são etapas separadas.
           </p>
         </div>}
+        <div className="space-y-3 rounded-lg border border-border p-4">
+          <p className="font-bold">Teste completo da loja · Convite privado</p>
+          <p className="text-muted-foreground">
+            Gere um convite de homologacao valido por 2 horas, para iniciar somente
+            um pedido real. Ao abrir o link, voce pode navegar nos produtos, montar o carrinho,
+            selecionar frete/retirada e pagar no Mercado Pago. Apenas quem possui o
+            convite pode iniciar o pagamento; demais visitantes continuam bloqueados.
+            Uma compra concluida movimentara o estoque real e podera gerar tarifas.
+            Use outro comprador, nunca a conta vendedora Artvideo.
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <BtnSecondary disabled={!canUpdate||invitationLoading}
+              onClick={()=>void inviteAction("homologation_create")}>
+              {invitationLoading?"Processando...":"Gerar convite de homologação"}
+            </BtnSecondary>
+            {invitation&&<BtnSecondary disabled={invitationLoading}
+              onClick={()=>void inviteAction("homologation_revoke")}>
+              Revogar convite
+            </BtnSecondary>}
+          </div>
+          {invitation&&<div className="space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+            <p className="font-bold">Convite ativo até {new Date(invitation.expiresAt).toLocaleString("pt-BR")}</p>
+            <p className="text-muted-foreground">Este link é privado; nao compartilhe com clientes.
+              Se atualizar esta pagina, sera necessario gerar outro convite para recuperar a URL.</p>
+            <div className="flex flex-wrap gap-2">
+              <a href={invitation.url} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 font-bold text-primary hover:underline">
+                Abrir site com acesso restrito <ExternalLink size={14}/>
+              </a>
+              <BtnSecondary onClick={()=>void navigator.clipboard.writeText(invitation.url).then(
+                ()=>notifyAdmin("Convite copiado.","success"),
+                ()=>notifyAdmin("Nao foi possivel copiar o convite.","error"))}>
+                Copiar link
+              </BtnSecondary>
+            </div>
+          </div>}
+        </div>
         <div className="space-y-3 rounded-lg border border-border p-4">
           <div className="space-y-1">
             <p className="font-bold">Pagamento real controlado · R$ 1,00</p>

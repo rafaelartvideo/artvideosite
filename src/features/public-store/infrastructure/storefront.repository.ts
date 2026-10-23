@@ -68,7 +68,16 @@ export async function quoteStoreShipping(productId: string, quantity: number, po
       price: Number(v.price), deliveryDays: v.delivery_days == null ? null : Number.isFinite(Number(v.delivery_days)) ? Number(v.delivery_days) : null }));
 }
 
+/** Confere um convite privado sem alterar pedidos e sem criar cobrancas. */
+export async function checkStoreHomologationAccess(token:string):Promise<boolean>{
+  if(!/^[a-f0-9]{64}$/i.test(token))return false;
+  const {data,error}=await supabase.functions.invoke("artvideo-store-checkout",{
+    body:{action:"homologation_status",homologation_token:token},
+  });
+  return !error&&data?.available===true;
+}
 export async function startStoreCheckout(payload: {
+  homologation_token?:string;
   product_id: string;
   quantity: number;
   items?: { product_id: string; quantity: number }[];

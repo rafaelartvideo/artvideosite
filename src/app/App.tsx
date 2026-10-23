@@ -116,8 +116,18 @@ function AdminAccessMessage({
 }
 
 function ScrollToTop() {
-  const { pathname } = useLocation();
+  const { pathname, hash } = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [pathname]);
+  useEffect(() => {
+    // O convite circula no fragmento (#), nunca em query, para nao chegar
+    // aos logs do servidor, navegacao, analytics ou cabecalho Referer.
+    if (pathname!=="/loja") return;
+    const token=new URLSearchParams(hash.replace(/^#/,"")).get("homologacao")||"";
+    if (!/^[a-f0-9]{64}$/i.test(token)) return;
+    try { sessionStorage.setItem("artvideo-store-homologation",token.toLowerCase()); }
+    catch { return; }
+    window.history.replaceState(window.history.state,"",pathname+window.location.search);
+  },[pathname,hash]);
   return null;
 }
 
