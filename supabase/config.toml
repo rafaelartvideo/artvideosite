@@ -58,3 +58,6 @@ verify_jwt = false
 verify_jwt = false
 [functions.artvideo-store-webhook]
 verify_jwt = false
+# Laboratorio autenticado manualmente com JWT + permissoes administrativas.
+[functions.artvideo-store-payment-lab]
+verify_jwt = false
