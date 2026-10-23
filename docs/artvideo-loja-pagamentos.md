@@ -75,3 +75,13 @@ Referência: https://www.mercadopago.com.br/developers/pt/docs/checkout-pro-pref
 - Após validar HMAC, se o ID de simulação reservado `999999999999999` vier no evento `payment.updated` com `live_mode=false`, o servidor registra o ambiente cuja assinatura foi validada, devolve HTTP 200 e NÃO tenta consultar `/v1/payments/999999999999999`.
 - O painel só considera assinatura de **produção** validada se houve evento autenticado pelo segredo de produção. Se somente a assinatura de sandbox foi verificada, mostra aviso, mantendo homologação de produção pendente.
 - Outras notificações continuam passando pela verificação de pagamento na API e conciliação do pedido.
+
+## Validação isolada com pagamento REAL de R$ 1,00
+- Ambiente público continua DESATIVADO (`integration_ready=false`, `enabled=false`). O operador precisa executar `production_diagnose` e confirmar explicitamente a criação de um checkout de produção de R$ 1,00.
+- Valor fixo, 1 link por 10 min e até 3 links por 24h/usuário. O link é gerado pela API de Preferences usando `MERCADO_PAGO_ACCESS_TOKEN`, `init_point` e `external_reference` com UUID único.
+- `artvideo_payment_live_checks` é uma tabela privada com RLS e acesso exclusivo do service_role; não cria `artvideo_store_orders`, não baixa estoque nem lança pagamentos no financeiro.
+- O webhook exige HMAC validado pela chave de produção e valida o pagamento pelo endpoint autenticado `GET /v1/payments/{id}`, incluindo ID, vendedor, BRL, valor exato, live_mode=true e external_reference. Só então atualiza a homologação com `webhook_received_at`.
+- O botão Consultar resultado usa busca autenticada `GET /v1/payments/search` e fallback de merchant orders. A consulta não define `webhook_received_at`.
+- O painel mantém histórico e permite reabrir link após atualizar. Mostra pagamento confirmado e webhook autenticado separadamente.
+- Não há estorno automático, e o pagamento real pode sofrer taxas. Estornos devem ser avaliados pelo titular no painel Mercado Pago.
+- Somente após confirmar pagamento real assinado, e um teste do checkout normal com pedido/estoque, deve-se estudar a ativação pública.
