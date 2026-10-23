@@ -22,6 +22,20 @@ Deno.serve(async req => {
     const tokenHash=validToken?Array.from(new Uint8Array(
       await crypto.subtle.digest("SHA-256",new TextEncoder().encode(rawToken))
     )).map(n=>n.toString(16).padStart(2,"0")).join(""):"";
+    if(input?.action==="bricks_status"){
+      // A chave publica somente e divulgada se a modalidade estiver
+      // autorizada. Nenhuma credencial privada e retornada.
+      const publicKey=Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"";
+      const keyReady=/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(publicKey);
+      const {data:regular}=await admin.rpc("artvideo_store_payment_status_v1");
+      let invited=false;
+      if(validToken){
+        const {data:granted}=await admin.rpc("artvideo_store_homologation_available_v1",{p_token_hash:tokenHash});
+        invited=granted===true;
+      }
+      return json({available:keyReady && (regular?.available===true||invited),
+        publicKeyConfigured:keyReady});
+    }
     if(input?.action==="homologation_status"){
       if(!validToken) return json({available:false,publicCheckout:false});
       const {data:valid,error}=await admin.rpc("artvideo_store_homologation_available_v1",{
@@ -54,6 +68,13 @@ Deno.serve(async req => {
       return json({error:"O ambiente de pagamento nao esta configurado para esta operacao."},503);
     }
     const paymentEnvironment=isHomologation?"production":paymentSetting.environment;
+    const bricksPrepare=input?.action==="bricks_prepare";
+    const brickPublicKey=Deno.env.get("MERCADO_PAGO_PUBLIC_KEY")||"";
+    if(bricksPrepare && (providerKey!=="mercado_pago" ||
+       paymentEnvironment!=="production" ||
+       !/^(APP_USR|TEST)-[a-zA-Z0-9_-]{12,}$/.test(brickPublicKey))) {
+      return json({error:"O pagamento integrado ainda nao esta configurado. Use o Checkout Pro."},503);
+    }
     const cart = Array.isArray(input.items) ? input.items : [
       { product_id: input.product_id, quantity: input.quantity },
     ];
@@ -145,6 +166,20 @@ Deno.serve(async req => {
     const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
     if(trackingError || !trackingToken) throw new Error("Não foi possível preparar o acompanhamento da compra.");
 
+    if(bricksPrepare){
+      // Pedido gerado com as MESMAS verificacoes de produtos, estoque e frete
+      // do Checkout Pro. Nao cria uma cobranca antes do clique no Brick.
+      const {error:registrationError}=await admin.rpc("artvideo_store_register_checkout_v1",{
+        p_order_id:orderId,p_provider:adapter.providerKey,
+        p_checkout_reference:"bricks:"+orderId,
+      });
+      if(registrationError)throw registrationError;
+      return json({
+        order_id:orderId,tracking_token:trackingToken,public_key:brickPublicKey,
+        amount:Number(order.total),expires_at:order.expires_at,
+        payment_provider:providerKey,mode:"bricks",
+      });
+    }
     const deadline = new Date(Date.now() + 20*60*1000).toISOString();
     const detailUrl = "https://eletronicaartvideo.com.br/acompanhar-pedido";
     const nationalPhone = phone.replace(/\D/g, "").replace(/^55(?=\d{10,11}$)/, "");
