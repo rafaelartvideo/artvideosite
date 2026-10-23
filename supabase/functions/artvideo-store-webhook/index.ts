@@ -28,8 +28,15 @@ Deno.serve(async req => {
   try {
     const url = new URL(req.url);
     const payload = await req.json();
-    const id = String(url.searchParams.get("data.id") || payload?.data?.id || "");
-    const type = String(url.searchParams.get("type") || payload?.type || "");
+    // IPN legacy: o ID nao e confiavel sozinho. Toda transacao sera buscada
+    // na API oficial e conferida integralmente antes de conciliar.
+    const legacyPayment=url.searchParams.get("topic")==="payment"
+      && !url.searchParams.has("data.id")
+      && /^\d{5,25}$/.test(url.searchParams.get("id")||"");
+    const id = String(legacyPayment?url.searchParams.get("id"):
+      (url.searchParams.get("data.id")||payload?.data?.id||""));
+    const type = String(legacyPayment?"payment":
+      (url.searchParams.get("type")||payload?.type||""));
     if (type !== "payment" || !/^\d{5,25}$/.test(id))
       return new Response("ignored",{status:200});
 
@@ -41,31 +48,37 @@ Deno.serve(async req => {
        token:Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"",
        collector:Deno.env.get("MERCADO_PAGO_COLLECTOR_ID")||""},
     ] as const;
-    // A assinatura e o ambiente devem coincidir. Uma mesma chave pode ser
-    // cadastrada em teste e produção; jamais escolher por ordem do array.
-    // A API de pagamentos é consultada depois para comprovar live_mode.
-    const signatures=await Promise.all(configs.map(async candidate=>({
-      environment:candidate.environment,
-      valid:!!candidate.secret && await verifySignature(req,id,candidate.secret),
-    })));
-    const signed=signatures.filter(candidate=>candidate.valid);
-    if(!signed.length) {
-      console.warn("Artvideo Mercado Pago webhook signature rejected");
-      return new Response("unauthorized",{status:401});
+    let config:typeof configs[number]|undefined;
+    if(legacyPayment){
+      // O IPN nao suporta comprovacao por HMAC. Somente o token REAL e a
+      // consulta autenticada ao /v1/payments autorizam reconciliacao.
+      config=configs.find(c=>c.environment==="production");
+    }else{
+      // Webhooks modernos requerem HMAC correspondente ao ambiente.
+      const signatures=await Promise.all(configs.map(async candidate=>({
+        environment:candidate.environment,
+        valid:!!candidate.secret && await verifySignature(req,id,candidate.secret),
+      })));
+      const signed=signatures.filter(candidate=>candidate.valid);
+      if(!signed.length){
+        console.warn("Artvideo Mercado Pago webhook signature rejected");
+        return new Response("unauthorized",{status:401});
+      }
+      const notifiedMode=payload?.live_mode;
+      if(typeof notifiedMode!=="boolean"){
+        console.warn("Artvideo Mercado Pago webhook environment missing");
+        return new Response("event environment missing",{status:400});
+      }
+      const desiredEnvironment=notifiedMode?"production":"sandbox";
+      config=configs.find(candidate=>candidate.environment===desiredEnvironment
+        && signed.some(valid=>valid.environment===candidate.environment));
+      if(!config){
+        console.warn("Artvideo Mercado Pago webhook signed for different environment",desiredEnvironment);
+        return new Response("signature environment mismatch",{status:403});
+      }
+      console.info("Artvideo Mercado Pago signed webhook accepted",config.environment);
     }
-    const notifiedMode=payload?.live_mode;
-    if(typeof notifiedMode!=="boolean") {
-      console.warn("Artvideo Mercado Pago webhook environment missing");
-      return new Response("event environment missing",{status:400});
-    }
-    const desiredEnvironment=notifiedMode?"production":"sandbox";
-    const config=configs.find(candidate=>candidate.environment===desiredEnvironment
-      && signed.some(valid=>valid.environment===candidate.environment));
-    if(!config) {
-      console.warn("Artvideo Mercado Pago webhook signed for different environment",desiredEnvironment);
-      return new Response("signature environment mismatch",{status:403});
-    }
-    console.info("Artvideo Mercado Pago signed webhook accepted",config.environment);
+    if(!config)return new Response("provider not configured",{status:503});
     const admin = createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{
       auth:{persistSession:false},
     });
@@ -74,7 +87,7 @@ Deno.serve(async req => {
     // mesmo quando a URL selecionada é a de produção. O ID reservado não
     // existe na API /v1/payments e NUNCA deve ser consultado como uma compra.
     // É obrigatório validar o HMAC primeiro, em qualquer ambiente.
-    const signedSimulation=id==="999999999999999"
+    const signedSimulation=!legacyPayment && id==="999999999999999"
       && payload?.action==="payment.updated"
       && payload?.live_mode===false
       && String(payload?.data?.id||"")===id;
@@ -93,7 +106,7 @@ Deno.serve(async req => {
       return new Response("signed simulation accepted",{status:200});
     }
     if(!config.token || !config.collector) return new Response("not configured",{status:503});
-    if(config.environment==="production"){
+    if(config.environment==="production"&&!legacyPayment){
       const {error:auditError}=await admin.from("artvideo_store_webhook_checks").insert({
         environment:"production",event_type:"payment",resource_id:id,simulated:false,
       });
@@ -149,7 +162,15 @@ Deno.serve(async req => {
           p_amount:amount,p_from_signed_webhook:true,
         });
         if(settleError)return new Response("isolated payment reconciliation pending",{status:503});
-        console.info("Artvideo real payment check reconciled from signed webhook");
+        if(legacyPayment){
+          const {error:legacyError}=await admin.from("artvideo_payment_live_checks")
+            .update({legacy_notification_received_at:new Date().toISOString()})
+            .eq("id",orderId).eq("payment_id",id);
+          if(legacyError)return new Response("legacy notification audit pending",{status:503});
+          console.info("Artvideo payment IPN verified and reconciled via official API");
+        }else{
+          console.info("Artvideo real payment check reconciled from signed webhook");
+        }
         return new Response("ok",{status:200});
       }
     }
@@ -167,6 +188,7 @@ Deno.serve(async req => {
       p_order_id:orderId,p_payment_id:id,p_payment_status:status,p_amount:amount,
     });
     if (error) return new Response("order reconciliation pending",{status:503});
+    if(legacyPayment)console.info("Artvideo store legacy IPN validated via official payment API");
     // Avisos automáticos estão pausados. A confirmação do pagamento fica intacta.
     return new Response("ok",{status:200});
   } catch (error) {
