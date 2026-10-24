@@ -435,7 +435,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     finally{setBrickRefreshing(false);}
   };
 
-  if (productLoading || (cartMode && catalogLoading)) return <div className="flex min-h-[65vh] items-center justify-center gap-3 bg-[#f8fbff] text-sm text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={21}/> {cartMode ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</div>;
+  const checkingAvailability = Boolean(productId) && (cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending);
+  if (productLoading || (cartMode && catalogLoading) || checkingAvailability) return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={34}/> {checkingAvailability ? "Confirmando disponibilidade..." : cartMode ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</div>;
   if (productError || (cartMode && catalogError) || (!cartMode && !detail) || !product) return <section className="min-h-[65vh] bg-[#f8fbff] px-4 py-24 text-center">
     <AlertCircle className="mx-auto text-[#dc5a5a]" size={37}/>
     <h1 className="mt-4 text-2xl font-extrabold">Não foi possível abrir o checkout</h1>
@@ -563,8 +564,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px] xl:gap-8">
         <div className="min-w-0">
-          {(cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending) && <div className={cardStyle + " flex items-center gap-2 p-5 text-sm text-[#5f748c]"}><LoaderCircle className="animate-spin" size={18}/> Confirmando disponibilidade...</div>}
-          {(!purchasable && !(cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending)) && <div role="alert" className="mb-5 flex items-start gap-3 rounded-lg border border-[#f1d1d1] bg-[#fff5f5] p-4 text-[13px] text-[#a83e43]">
+          {!purchasable && <div role="alert" className="mb-5 flex items-start gap-3 rounded-lg border border-[#f1d1d1] bg-[#fff5f5] p-4 text-[13px] text-[#a83e43]">
             <AlertCircle size={19} className="shrink-0"/> A quantidade solicitada não está disponível no momento. Ajuste a quantidade ou volte ao produto.
           </div>}
 
