@@ -1036,8 +1036,8 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   .artvideo-checkout-view footer {
     padding-bottom: calc(82px + env(safe-area-inset-bottom, 0px));
   }
-  /* Quando o teclado está aberto, libera todo o espaço para digitação e campos de endereço. */
-  .art-checkout-page:has(input:focus, textarea:focus, select:focus) .art-checkout-mobile-actions {
+  /* Oculta as ações apenas durante digitação: radios de entrega/frete não abrem o teclado. */
+  .art-checkout-page:has(input:is([type="text"], [type="email"], [type="tel"], [type="number"], [type="search"], [type="password"], [type="url"], :not([type])):focus, textarea:focus) .art-checkout-mobile-actions {
     display: none;
   }
 }
