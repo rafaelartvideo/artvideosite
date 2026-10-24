@@ -141,8 +141,9 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         const active = isCurrent(PUBLIC_NAV_MAP[label]);
         return <button key={label} type="button" onClick={() => navigate(PUBLIC_NAV_MAP[label])}
           aria-current={active ? "page" : undefined}
-          className={["group flex w-full items-center border-b border-white/10 py-3 text-left text-sm font-semibold transition-colors hover:text-white", active ? "text-white" : "text-white/75"].join(" ")}>
-          <span className="relative inline-flex py-1">{label}<span aria-hidden="true" className={underlineClass(active)}/></span>
+          className={["group relative flex w-full items-center border-b border-white/10 py-3 pl-4 text-left text-sm font-semibold transition-colors hover:text-white", active ? "text-white" : "text-white/75"].join(" ")}>
+          <span aria-hidden="true" className={"absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-full bg-white transition-opacity " + (active ? "opacity-100" : "opacity-0")}/>
+          <span className="py-1">{label}</span>
         </button>;
       })}
       <div className="mt-4 flex flex-wrap items-center gap-2.5" aria-label="Orçamento, redes sociais e localização">
