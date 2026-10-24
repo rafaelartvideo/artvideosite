@@ -46,7 +46,6 @@ const TabFieldTracking = lazy(() => import("@/features/field-tracking/presentati
 const FieldTrackingReporter = lazy(() => import("@/features/field-tracking/presentation/FieldTrackingReporter").then(({ FieldTrackingReporter }) => ({ default: FieldTrackingReporter })));
 const OrderStatusesAdminPanel = lazy(() => import("@/features/order-statuses/presentation/OrderStatusesAdminPanel").then(({ OrderStatusesAdminPanel }) => ({ default: OrderStatusesAdminPanel })));
 const TabPdv = lazy(() => import("@/features/pdv/presentation/TabPdv").then(({ TabPdv }) => ({ default: TabPdv })));
-const TabQuotes = lazy(() => import("@/features/quotes/presentation/TabQuotes").then(({ TabQuotes }) => ({ default: TabQuotes })));
 const TabRoles = lazy(() => import("@/features/roles/presentation/TabRoles").then(({ TabRoles }) => ({ default: TabRoles })));
 const TabServices = lazy(() => import("@/features/services/presentation/TabServices").then(({ TabServices }) => ({ default: TabServices })));
 const ServiceTypesAdminPanel = lazy(() => import("@/features/service-types/presentation/ServiceTypesAdminPanel").then(({ ServiceTypesAdminPanel }) => ({ default: ServiceTypesAdminPanel })));
@@ -54,7 +53,7 @@ const TabSettings = lazy(() => import("@/features/settings/presentation/TabSetti
 const TabSiteSettings = lazy(() => import("@/features/settings/presentation/TabSiteSettings").then(({ TabSiteSettings }) => ({ default: TabSiteSettings })));
 const SiteDeliveryPage = lazy(() => import("@/features/settings/presentation/SiteDeliveryPage").then(({ SiteDeliveryPage }) => ({ default: SiteDeliveryPage })));
 const SitePaymentsPage = lazy(() => import("@/features/settings/presentation/SitePaymentsPage").then(({ SitePaymentsPage }) => ({ default: SitePaymentsPage })));
-const SiteStoreOrdersPage = lazy(() => import("@/features/settings/presentation/SiteStoreOrdersPage").then(({ SiteStoreOrdersPage }) => ({ default: SiteStoreOrdersPage })));
+const SiteRequestsPage = lazy(() => import("@/features/settings/presentation/SiteRequestsPage").then(({ SiteRequestsPage }) => ({ default: SiteRequestsPage })));
 const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").then(({ TabTerms }) => ({ default: TabTerms })));
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
@@ -73,7 +72,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "quotes", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
+  "home", "dashboard", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "siteRequests", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -152,6 +151,10 @@ export function AdminDashboard({
     if (tab === "nfse") return false;
     if ((tab === "siteDelivery" || tab === "sitePayments" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
+    if (tab === "siteRequests") return !isPlatformOperatorOrganization && (
+      (hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule)) ||
+      (isArtVideoOrganization && hasPermission("site.view") && hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
+    );
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
     if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
@@ -165,7 +168,7 @@ export function AdminDashboard({
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
-    if (tab === "site") return hasPermission("site.view") && siteItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
+    if (tab === "site") return siteItems.some(item => canAccessTab(item.id as AdminTab));
     if (tab === "operation") return !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "tools") return (hasPermission("tools.view") || hasPermission("whatsapp.inbox.view")) && (
       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
@@ -459,7 +462,11 @@ export function AdminDashboard({
             <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
             <Route path="site/entrega/*" element={<SiteDeliveryPage onBack={() => backToParent("siteDelivery")} />} />
             <Route path="site/pagamentos/*" element={<SitePaymentsPage onBack={() => backToParent("sitePayments")} />} />
-            <Route path="site/pedidos-da-loja/*" element={<SiteStoreOrdersPage onBack={() => backToParent("siteStoreOrders")} />} />
+            <Route path="site/solicitacoes/*" element={<SiteRequestsPage section={route.resourceId} quoteId={route.subpage}
+               onSelectSection={section => navigateAdmin("siteRequests", section)}
+               onQuoteRouteChange={id => navigateAdmin("siteRequests", "orcamentos", id)}
+               onNavigate={tab => navigateAdmin(tab)} />} />
+             <Route path="site/pedidos-da-loja/*" element={<Navigate to={adminPath("siteRequests", "pedidos")} replace />} />
             <Route path="operation" element={operationHub} />
             <Route path="tools/*" element={toolsContent} />
             <Route path="operation/equipment/*" element={<EquipmentAdminPanel onBack={() => backToParent("equipment")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("equipment")} />} />
@@ -474,7 +481,7 @@ export function AdminDashboard({
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
             <Route path="operation/integrations/*" element={<IntegrationsPage onBack={() => backToParent("integrations")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
-            <Route path="quotes/*" element={<TabQuotes onNavigate={tab => navigateAdmin(tab)} routeResourceId={route.resourceId} onRouteChange={routeChange("quotes")} />} />
+            <Route path="quotes/*" element={<Navigate to={adminPath("siteRequests", "orcamentos", route.resourceId)} replace />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
               ? <UnionOrderMonitor initialOrderId={route.resourceId} routeSubpage={route.subpage} onOrderRouteChange={(orderId, subpage) => orderId ? navigateOrderRoute(orderId, subpage) : closeOrderRoute()} />
               : <TabOrders

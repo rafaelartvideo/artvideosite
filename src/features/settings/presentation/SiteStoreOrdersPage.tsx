@@ -81,7 +81,7 @@ function DeliveryBadge({ status }: { status: FulfillmentStatus }) {
   </span>;
 }
 
-export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
+export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () => void; embedded?: boolean }) {
   const { activeOrganization, hasPermission } = useAuth();
   const canManage = hasPermission("site_settings.update");
   const [orders, setOrders] = useState<StoreOrder[]>([]);
@@ -227,8 +227,8 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
 
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Pedidos da Loja"
-      subtitle="Acompanhe pagamentos, separação de produtos e entregas da Artvideo."/>
+    {!embedded && <PageHeader title="Pedidos da Loja"
+      subtitle="Acompanhe pagamentos, separação de produtos e entregas da Artvideo."/>}
     <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
       {[
         { label: "Aguardando separação", value: waiting, Icon: ShoppingBag },
@@ -319,7 +319,7 @@ export function SiteStoreOrdersPage({ onBack }: { onBack: () => void }) {
       </div>
     </Section>
     <AdminStickyToolbar>
-      <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+      {!embedded && <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
       <BtnSecondary onClick={() => void refresh()} disabled={loading}><RefreshCw size={15}/> Atualizar</BtnSecondary>
     </AdminStickyToolbar>
 

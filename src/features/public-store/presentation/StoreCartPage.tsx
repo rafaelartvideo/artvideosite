@@ -119,9 +119,11 @@ export function StoreCartPage() {
     {!!items.length && !pageLoading && showFixedBar && <div aria-label="Resumo fixo do carrinho" className="fixed inset-x-0 bottom-0 z-50 border-t border-[#e0e8f2] bg-white/95 px-4 pb-[calc(10px+env(safe-area-inset-bottom,0px))] pt-3 shadow-[0_-6px_24px_rgba(15,38,73,.1)] backdrop-blur-md lg:hidden">
       <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
         <div className="min-w-0 flex-1 text-[11px] leading-5 text-[#647791]">
-          <p>Produtos: <strong className="text-[#10243d]">{formatCurrency(subtotal)}</strong></p>
-          <p>Frete: <strong className="text-[#10243d]">A calcular</strong></p>
-          <p className="text-[13px] font-bold text-[#10243d]">Subtotal: {formatCurrency(subtotal)}</p>
+          <div className="grid grid-cols-2 gap-x-3">
+            <p className="min-w-0">Produtos <strong className="block text-[12px] text-[#10243d]">{formatCurrency(subtotal)}</strong></p>
+            <p className="min-w-0">Frete <strong className="block text-[12px] text-[#10243d]">A calcular</strong></p>
+          </div>
+          <p className="mt-1.5 border-t border-[#e6edf6] pt-1.5 text-[13px] font-bold text-[#10243d]">Subtotal: {formatCurrency(subtotal)}</p>
         </div>
         <button type="button" disabled={!canContinue} onClick={() => navigate("/checkout/carrinho")}
           className="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">

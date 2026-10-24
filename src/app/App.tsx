@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useRef } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
+import { LoaderCircle } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 // A estrutura completa do site público não entra no bundle inicial do CRM.
@@ -60,8 +61,9 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
 function PublicPageFallback({ withinShell = false }: { withinShell?: boolean }) {
   const { pathname } = useLocation();
   if (pathname === "/carrinho" || pathname.startsWith("/checkout/")) {
-    return <div className="flex min-h-[55vh] items-center justify-center bg-[#f8fbff]">
-      <LoadingState text={pathname === "/carrinho" ? "Carregando seu carrinho..." : "Preparando seu pedido..."} />
+    return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]">
+      <LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]" />
+      <span>{pathname === "/carrinho" ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</span>
     </div>;
   }
   const home = pathname === "/" || pathname === "/acompanhar-pedido";

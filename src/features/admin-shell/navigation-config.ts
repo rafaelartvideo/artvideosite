@@ -36,7 +36,6 @@ type PermissionAwareHubItem = AdminHubItem & { permissionKey: string };
 export const mainItems: AdminNavigationItem[] = [
   { id: "home", label: "Home", icon: House },
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { id: "quotes", label: "Orçamentos", icon: FileText },
   { id: "orders", label: "Ordens de Serviço", icon: ClipboardList },
   { id: "customerRequests", label: "Pedidos Avulsos", icon: ClipboardCheck },
   { id: "technicianPanel", label: "Painel do Técnico", icon: HardHat },
@@ -59,7 +58,7 @@ export const siteItems: PermissionAwareHubItem[] = [
   { id: "siteSettings", label: "Configurações do Site", icon: Settings, description: "Gerencie identidade visual e conteúdo do site público.", permissionKey: "site_settings.view" },
   { id: "siteDelivery", label: "Entrega", icon: Truck, description: "Gerencie as áreas de entrega, os CEPs atendidos e os valores do frete.", permissionKey: "site_settings.view" },
   { id: "sitePayments", label: "Pagamentos", icon: CreditCard, description: "Escolha o provedor de pagamento da loja e gerencie sua disponibilidade.", permissionKey: "site_settings.view" },
-  { id: "siteStoreOrders", label: "Pedidos da Loja", icon: ShoppingBag, description: "Acompanhe as vendas feitas no site da Artvideo.", permissionKey: "site_settings.view" },
+  { id: "siteRequests", label: "Solicitações", icon: ClipboardCheck, description: "Consulte orçamentos solicitados e pedidos realizados pelo site.", permissionKey: "quotes.view" },
   { id: "contact", label: "Contato", icon: Phone, description: "Configure telefones, WhatsApp, e-mail, endereço, redes sociais e horário exibidos no site.", permissionKey: "contact.view" },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
@@ -117,6 +116,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   siteDelivery: "site_settings.view",
   sitePayments: "site_settings.view",
   siteStoreOrders: "site_settings.view",
+  siteRequests: "site.view",
   contact: "contact.view",
   site: "site.view",
   operation: "operation.view",
@@ -163,12 +163,14 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   siteDelivery: "site_settings",
   sitePayments: "site_settings",
   siteStoreOrders: "site_settings",
+  siteRequests: null,
   site: null,
   operation: null,
   tools: null,
 };
 
 export const siteModuleKeys = [
+  "quotes",
   "site_categories",
   "site_brands",
   "site_services",

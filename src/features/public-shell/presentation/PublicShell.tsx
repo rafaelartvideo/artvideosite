@@ -259,6 +259,6 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     <PublicHeader page={page} setPage={setPage}/>
     <main>{routeLabel && !isCheckout && <PublicBreadcrumb items={breadcrumbItems}/>}<div className="art-public-page-content">{children}</div></main>
     <PublicFooter setPage={setPage}/>
-    <WhatsAppFloat hideOnMobile={isProductRoute || isCheckout}/>
+    {routePath !== "/carrinho" && <WhatsAppFloat hideOnMobile={isProductRoute || isCheckout}/>}
   </div>;
 }

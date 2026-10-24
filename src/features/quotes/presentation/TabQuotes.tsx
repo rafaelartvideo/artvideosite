@@ -31,6 +31,7 @@ type TabQuotesProps = {
   onNavigate?: (tab: AdminTab) => void;
   routeResourceId?: string | null;
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
+  embedded?: boolean;
 };
 
 type QuoteMobileFilter = "customer" | "document" | "whatsapp" | "protocol" | "status";
@@ -59,7 +60,7 @@ function useDebouncedValue<T>(value: T, delay = 300) {
   return debounced;
 }
 
-export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuotesProps) {
+export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded = false }: TabQuotesProps) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
   const organizationId = activeOrganizationId || "";
   const canViewTable = hasPermission("quotes.table.view");
@@ -257,7 +258,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange }: TabQuo
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
     {!routeResourceId && <>
-      <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />
+      {!embedded && <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />}
       {canViewTable && <AdminSearchPanel title="Buscar orçamentos" headerActions={<>
         {(hasMobileFilters || search) && <AdminSearchClearButton onClick={() => { clearMobileFilters(); setSearch(""); }} />}
         <AdminSearchSortMenu value={orderSort} onChange={setOrderSort}

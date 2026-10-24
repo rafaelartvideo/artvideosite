@@ -40,6 +40,10 @@ export function AdminSidebar({
     if (tab === "home") return true;
     if ((tab === "siteDelivery" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "siteRequests") return !isPlatformOperatorOrganization && (
+      (hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule)) ||
+      (isArtVideoOrganization && hasPermission("site.view") && hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
+    );
     if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "announcements") return isPlatformOperatorOrganization && hasPermission("platform.announcements.view");
@@ -61,9 +65,7 @@ export function AdminSidebar({
   const selectedTab = isPlatformOperatorOrganization && activeTab === "settings"
     ? "settings"
     : activeTab === "fieldTracking" ? "tools" : (parentAdminTab(activeTab) || activeTab);
-  const canAccessSite = hasPermission("site.view") && siteItems.some(item =>
-    canAccessTab(item.id as AdminTab),
-  );
+  const canAccessSite = siteItems.some(item => canAccessTab(item.id as AdminTab));
   const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
@@ -95,7 +97,7 @@ export function AdminSidebar({
   }
   const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
   const serviceItems = visibleMainItems.filter(item =>
-    ["quotes", "orders", "technicianPanel", "customers", "customerRequests", "agenda", "workItems"].includes(item.id),
+    ["orders", "technicianPanel", "customers", "customerRequests", "agenda", "workItems"].includes(item.id),
   );
   const commercialItems = visibleMainItems.filter(item =>
     !isPlatformOperatorOrganization && ["inventory", "pdv", "finance"].includes(item.id),
