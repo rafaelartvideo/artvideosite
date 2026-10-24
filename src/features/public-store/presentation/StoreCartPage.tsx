@@ -70,7 +70,7 @@ export function StoreCartPage() {
     && unavailable.length === 0 && lines.every(item => Number(item.product.price) > 0);
 
   return <div className={"relative min-h-[65vh] bg-[#f7faff] text-[#10243d] " + (items.length ? "pb-24 lg:pb-0" : "")}>
-    {pageLoading && <div role="status" aria-live="polite" className="absolute inset-0 z-30 flex min-h-[65vh] flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]"><LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]"/> Carregando seu carrinho...</div>}
+    {pageLoading && <div role="status" aria-live="polite" className="fixed inset-0 z-[90] flex min-h-dvh flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]"><LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]"/> Carregando seu carrinho...</div>}
     <section className="bg-gradient-to-r from-[#081a32] to-[#16416d] py-9 text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h1 className="text-[29px] font-extrabold tracking-[-.035em] sm:text-[37px]">Meu carrinho</h1>
