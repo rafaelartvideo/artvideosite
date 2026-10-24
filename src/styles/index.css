@@ -1055,3 +1055,19 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
   .artvideo-public .art-home-quick-card h2 { font-size: 16px !important; line-height: 1.35; }
   .artvideo-public .art-home-quick-card p { font-size: 12px; line-height: 1.5; }
 }
+
+/* Confirmação de item adicionado, respeitando preferência de movimento reduzido. */
+@keyframes art-cart-toast-appear {
+  from { opacity: 0; transform: translateY(12px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes art-cart-check-appear {
+  0% { opacity: .3; transform: scale(.7); }
+  70% { opacity: 1; transform: scale(1.12); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.art-cart-confirmation > div { animation: art-cart-toast-appear .28s ease-out both; }
+.art-cart-success-check { animation: art-cart-check-appear .35s ease-out both; }
+@media (prefers-reduced-motion: reduce) {
+  .art-cart-confirmation > div, .art-cart-success-check { animation: none; }
+}

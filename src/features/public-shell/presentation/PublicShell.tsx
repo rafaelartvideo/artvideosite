@@ -126,7 +126,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
             </a>)}
         </div>
       </div>
-      <a href="/carrinho" aria-label={"Meu carrinho, " + cartCount + " produtos"}
+      <a href="/carrinho" data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
         className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 xl:hidden">
         <ShoppingCart size={22}/>
         {cartCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--art-primary)] px-1.5 text-[10px] font-bold">{cartCount > 99 ? "99+" : cartCount}</span>}

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Grid3X3, Search, Star } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Grid3X3, Headset, Search, Star } from "lucide-react";
 import { PublicCategoryChip } from "@/features/public-catalog/presentation/PublicCategoryChip";
 import { useServiceCategories, useServices, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ServiceCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
@@ -8,6 +8,7 @@ import { siteBanners, buildSiteBannerSlides } from "@/features/public-catalog/do
 import { inferredServiceIcon, publicIcon } from "@/features/public-shell/domain/site-appearance";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import type { PublicPage } from "@/features/public-shell/domain/navigation";
+import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
 
 const PAGE_SIZE = 12;
 const normalize = (value: unknown) =>
@@ -96,7 +97,23 @@ export function ServicesPage({ setPage, onSelectService, onSelectProduct }: {
         <span className="text-[12px] text-[#4a596a]">{current} de {pages}</span>
         <button type="button" aria-label="Próxima página" disabled={current>=pages} onClick={()=>setPageNumber(n=>Math.min(pages,n+1))} className="rounded-md border border-[#e0e6eb] p-2 disabled:opacity-40"><ChevronRight size={19}/></button>
       </nav>}
-      <p className="mt-12 border-t border-[#e9edf2] pt-7 text-center text-[13px] text-[#57687a]">Não encontrou o atendimento que procura? <button type="button" onClick={()=>setPage("orcamento")} className="font-semibold text-[var(--art-primary)] hover:underline">Solicitar orçamento</button></p>
+    </section>
+    <section aria-labelledby="services-contact-heading" className="bg-gradient-to-r from-[var(--art-primary)] to-[#123b72] text-white">
+      <div className="mx-auto flex max-w-[1630px] flex-col justify-between gap-5 px-5 py-8 sm:px-8 md:flex-row md:items-center lg:px-12">
+        <div className="flex items-start gap-4 sm:items-center">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-white/20 bg-white/10">
+            <Headset size={26} strokeWidth={1.7} aria-hidden="true"/>
+          </span>
+          <div>
+            <h2 id="services-contact-heading" className="text-[21px] font-semibold">Não encontrou o que procura?</h2>
+            <p className="mt-1 text-[13px] leading-6 text-white/85">Fale com nossa equipe para consultar outras opções de serviços.</p>
+          </div>
+        </div>
+        <PublicButton variant="outline" onClick={()=>setPage("contato")}
+          className="gap-2 self-start !border-white !bg-white !text-[var(--art-primary)] hover:!bg-blue-50 md:self-auto">
+          Entre em contato <ArrowRight size={17} aria-hidden="true"/>
+        </PublicButton>
+      </div>
     </section>
   </div>;
 }

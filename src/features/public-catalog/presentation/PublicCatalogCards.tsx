@@ -1,7 +1,8 @@
-import { useState, type MouseEvent } from "react";
+import { useEffect, useState, type MouseEvent } from "react";
 import { animateProductToCart } from "@/features/public-store/application/cart-animation";
-import { ArrowRight, Package, ShoppingCart, Plus } from "lucide-react";
+import { ArrowRight, CheckCircle2, Package, ShoppingCart, Plus } from "lucide-react";
 import { addStoreCartItem } from "@/features/public-store/application/store-cart";
+import { CartAddToast } from "@/features/public-store/presentation/CartAddToast";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -22,12 +23,24 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
   const { url: imageUrl } = useMediaUrl(product.cover_media_id);
   const [readyCover,setReadyCover] = useState<string | null>(null);
   const [feedback,setFeedback]=useState("");
+  useEffect(() => {
+    if (!feedback) return;
+    const timeout = window.setTimeout(() => setFeedback(""), 2700);
+    return () => window.clearTimeout(timeout);
+  }, [feedback]);
   const oldPrice = Number(product.compare_at_price);
   const nowPrice = Number(product.price);
   const hasDiscount = Number.isFinite(oldPrice) && oldPrice > nowPrice && nowPrice > 0;
   const discount = hasDiscount ? Math.round((1 - nowPrice / oldPrice) * 100) : 0;
   const soldOut = availableQuantity === 0;
-  const addToCart=(event:MouseEvent<HTMLButtonElement>)=>{if(soldOut)return;if(addStoreCartItem(product.id,1)){setFeedback("");animateProductToCart(event.currentTarget);}else setFeedback("Limite do carrinho atingido");};
+  const addToCart=(event:MouseEvent<HTMLButtonElement>)=>{
+    if(soldOut)return;
+    if(addStoreCartItem(product.id,1)){
+      setFeedback("Produto adicionado ao carrinho.");
+      animateProductToCart(event.currentTarget);
+    }else setFeedback("Limite de itens do carrinho atingido.");
+  };
+  const added = feedback === "Produto adicionado ao carrinho.";
   return <article className="group flex min-w-0 flex-col overflow-hidden rounded-[7px] border border-[#e6ecf4] bg-white p-4 shadow-[0_2px_12px_rgba(12,36,71,.03)] transition-colors duration-150 hover:border-[#bad5fb] hover:shadow-[0_14px_30px_rgba(16,53,96,.13)]">
     <div className="relative">
       {hasDiscount && <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-700">{discount}% OFF</span>}
@@ -50,10 +63,10 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
       <ShoppingCart size={17} strokeWidth={1.8}/> Ver produto
     </button>
     <button type="button" onClick={addToCart} disabled={soldOut}
-      className="mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border border-[var(--art-primary)] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-all hover:bg-blue-50 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
-      <Plus size={16}/> Adicionar ao carrinho
+      className={`mt-2 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-md border px-3 text-[12px] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${added ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-[var(--art-primary)] text-[var(--art-primary)] hover:bg-blue-50"}`}>
+      {added ? <><CheckCircle2 size={17} className="art-cart-success-check"/> Adicionado!</> : <><Plus size={16}/> Adicionar ao carrinho</>}
     </button>
-    {feedback && <p role="status" className="mt-2 text-center text-[11px] font-semibold text-[#486785]">{feedback}</p>}
+    <CartAddToast message={feedback}/>
   </article>;
 }
 
