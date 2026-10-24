@@ -20,7 +20,7 @@ export function PublicQuotePage() {
   useEffect(() => {
     const frame = requestAnimationFrame(scrollToQuoteStep);
     return () => cancelAnimationFrame(frame);
-  }, [slug, mode, loading, catalogLoading]);
+  }, [slug, mode, loading]);
 
   // Deep links from a specific service must keep their complete booking workflow.
   if (slug && loading) return <div role="status" className="flex min-h-[55vh] items-center justify-center gap-3"><Loader2 className="animate-spin" size={20}/> Carregando serviço...</div>;
