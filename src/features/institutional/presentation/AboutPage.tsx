@@ -14,7 +14,7 @@ type RevealProps = {
 };
 
 /** Aparece quando entra na tela, uma única vez; preserva acessibilidade e movimento reduzido. */
-function Reveal({ children, className = "", direction = "up", delay = 0 }: RevealProps) {
+export function Reveal({ children, className = "", direction = "up", delay = 0 }: RevealProps) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [visible, setVisible] = useState(false);
   useEffect(() => {
