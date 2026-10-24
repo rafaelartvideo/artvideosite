@@ -29,7 +29,6 @@ const StorePage = lazy(() => import("@/features/public-store/presentation/StoreP
 const ProductDetailPage = lazy(() => import("@/features/public-store/presentation/ProductDetailPage").then(module => ({ default: module.ProductDetailPage })));
 const StoreCheckoutPage = lazy(() => import("@/features/public-store/presentation/StoreCheckoutPage").then(module => ({ default: module.StoreCheckoutPage })));
 const StoreCartPage = lazy(() => import("@/features/public-store/presentation/StoreCartPage").then(module => ({ default: module.StoreCartPage })));
-const StoreOrderTrackingPage = lazy(() => import("@/features/public-store/presentation/StoreOrderTrackingPage").then(module => ({ default: module.StoreOrderTrackingPage })));
 const AboutPage = lazy(() => import("@/features/institutional/presentation/AboutPage").then(module => ({ default: module.AboutPage })));
 const PrivacyPolicyPage = lazy(() => import("@/features/institutional/presentation/PrivacyAndRightsPages").then(module => ({ default: module.PrivacyPolicyPage })));
 const DataDeletionPage = lazy(() => import("@/features/institutional/presentation/PrivacyAndRightsPages").then(module => ({ default: module.DataDeletionPage })));
@@ -58,8 +57,35 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   assistencia: "/assistencia",
 };
 
-function PublicPageFallback() {
-  return <div className="flex min-h-[55vh] items-center justify-center bg-[#f5f7fa]"><LoadingState text="Carregando página..." /></div>;
+function PublicPageFallback({ withinShell = false }: { withinShell?: boolean }) {
+  const { pathname } = useLocation();
+  if (pathname === "/carrinho" || pathname.startsWith("/checkout/")) {
+    return <div className="flex min-h-[55vh] items-center justify-center bg-[#f8fbff]">
+      <LoadingState text={pathname === "/carrinho" ? "Carregando seu carrinho..." : "Preparando seu pedido..."} />
+    </div>;
+  }
+  const home = pathname === "/" || pathname === "/acompanhar-pedido";
+  return <div role="status" aria-label={home ? "Preparando página inicial" : "Carregando conteúdo"} aria-busy="true" className="min-h-[55vh] bg-white">
+    {!withinShell && <div className="h-[76px] bg-gradient-to-r from-[#102c60] to-[#193e78] sm:h-[84px] xl:h-[96px]"/>}
+    {home ? <>
+      <div className="bg-gradient-to-r from-[#08182f] via-[#0b2450] to-[#17447b]">
+        <div className="mx-auto flex min-h-[390px] max-w-7xl flex-col justify-center gap-5 px-4 py-12 sm:px-6 lg:min-h-[428px] lg:px-8">
+          <div className="h-10 w-full max-w-[560px] animate-pulse rounded-md bg-white/15 sm:h-12"/>
+          <div className="h-4 w-full max-w-[460px] animate-pulse rounded bg-white/10"/>
+          <div className="h-4 w-full max-w-[330px] animate-pulse rounded bg-white/10"/>
+          <div className="mt-3 flex gap-3"><div className="h-11 w-36 animate-pulse rounded-md bg-white/20"/><div className="h-11 w-36 animate-pulse rounded-md bg-white/10"/></div>
+        </div>
+      </div>
+      <div className="mx-auto grid max-w-7xl gap-4 px-4 py-6 sm:px-6 md:grid-cols-3 lg:px-8">
+        {Array.from({length:3},(_,i)=><div key={i} className="h-36 animate-pulse rounded-lg border border-[#e8edf4] bg-[#f3f6fb]"/>)}
+      </div>
+      <div className="mx-auto max-w-7xl px-4 pb-6 sm:px-6 lg:px-8"><div className="h-24 animate-pulse rounded-lg bg-[#e7effb]"/></div>
+    </> : <div className="mx-auto max-w-7xl space-y-5 px-4 py-8 sm:px-6 lg:px-8">
+      <div className="h-5 w-44 animate-pulse rounded bg-slate-100"/>
+      <div className="h-9 w-64 max-w-full animate-pulse rounded bg-slate-200"/>
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Array.from({length:4},(_,i)=><div key={i} className="h-56 animate-pulse rounded-lg bg-slate-100"/>)}</div>
+    </div>}
+  </div>;
 }
 
 function StandaloneFallback({ text }: { text: string }) {
@@ -367,6 +393,13 @@ function AdminEntry() {
   );
 }
 
+function LegacyOrderTrackingRedirect() {
+  const { hash, search } = useLocation();
+  const token = new URLSearchParams(hash.replace(/^#/, "")).get("c") || "";
+  const safeToken = /^[a-f0-9]{64}$/i.test(token) ? "&c=" + token.toLowerCase() : "";
+  return <Navigate to={{ pathname: "/", search, hash: "#acompanhar-servico" + safeToken }} replace />;
+}
+
 function PublicRoutes() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -378,14 +411,14 @@ function PublicRoutes() {
   return (
     <Suspense fallback={<PublicPageFallback />}>
       <PublicShell page={page} setPage={setPage}>
-      <Suspense fallback={<PublicPageFallback />}>
+      <Suspense fallback={<PublicPageFallback withinShell />}>
         <Routes>
           <Route path="/" element={<HomePage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} trackingSection={<ServiceTrackingSection />} />} />
           <Route path="/loja" element={<StorePage setPage={setPage} onSelectProduct={selectProduct} onSelectService={selectService} />} />
           <Route path="/loja/:slug" element={<ProductDetailRoute setPage={setPage} />} />
           <Route path="/carrinho" element={<StoreCartPage />} />
           <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
-          <Route path="/acompanhar-pedido" element={<StoreOrderTrackingPage />} />
+          <Route path="/acompanhar-pedido" element={<LegacyOrderTrackingRedirect />} />
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
@@ -419,7 +452,7 @@ function ServiceDetailRoute({ setPage }: { setPage: (page: Page) => void }) {
 }
 
 function pageFromPath(pathname: string): Page {
-  if (pathname === "/carrinho" || pathname === "/acompanhar-pedido") return "loja";
+  if (pathname === "/carrinho") return "loja";
   if (/^\/checkout\/[^/]+$/.test(pathname)) return "loja";
   if (/^\/loja\/[^/]+$/.test(pathname)) return "produto";
   if (/^\/servicos\/[^/]+$/.test(pathname)) return "servico";

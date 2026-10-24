@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft, CheckCircle2, CircleCheck, ClipboardList, Clock3, Copy,
-  CreditCard, Headphones, LoaderCircle, LockKeyhole, MapPin, Package,
+  Headphones, LoaderCircle, LockKeyhole, MapPin, Package,
   PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, Store, Truck,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
@@ -23,7 +23,6 @@ const paymentNames:Record<string,string>={
 const displayDate=(date:string)=>new Date(date).toLocaleString("pt-BR",{
   dateStyle:"medium",timeStyle:"short",
 });
-const isToken=(v:string)=>/^[a-f0-9]{64}$/i.test(v);
 const stepsDelivery=[
   {key:"pending",name:"Pedido recebido",Icon:ClipboardList},
   {key:"preparing",name:"Separação",Icon:Package},
@@ -41,28 +40,23 @@ const primaryButton="inline-flex min-h-11 items-center justify-center gap-2 roun
 const secondaryButton="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#dbe5f2] bg-white px-4 text-[12px] font-bold text-[#425a79] transition-colors hover:bg-[#eaf3ff] focus-visible:outline-2 focus-visible:outline-blue-500";
 const card="rounded-xl border border-[#e0e8f3] bg-white shadow-[0_5px_20px_rgba(13,39,77,.035)]";
 
-export function StoreOrderTrackingPage() {
+/** Painel do pedido utilizado dentro do acompanhamento unificado na página inicial. */
+export function StoreOrderTrackingDetails({ token }: { token: string }) {
   const [params]=useSearchParams();
-  const [token,setToken]=useState(()=>{
-    const hash=new URLSearchParams(typeof window!=="undefined" ? window.location.hash.slice(1):"");
-    const fromLink=hash.get("c")||"";
-    if(isToken(fromLink)) return fromLink.toLowerCase();
-    try {const remembered=sessionStorage.getItem("artvideo-store-tracking")||"";return isToken(remembered)?remembered:"";}catch{return "";}
-  });
-  const [entered,setEntered]=useState("");
   const [order,setOrder]=useState<StoreTracking|null>(null);
-  const [loading,setLoading]=useState(Boolean(token));
+  const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
   const [copied,setCopied]=useState(false);
   const fetchOrder=useCallback(async(code:string,silent=false)=>{
     if(!code)return;
-    if(!silent)setLoading(true);
+    if(!silent){setLoading(true);setOrder(null);}
     setError("");
     try {
       const result=await getStoreTracking(code);
       setOrder(result);
       try{sessionStorage.setItem("artvideo-store-tracking",code);}catch{/* Sessão sem armazenamento. */}
     }catch(err){
+      setOrder(null);
       setError(err instanceof Error?err.message:"Não foi possível consultar o pedido.");
     }finally{setLoading(false);}
   },[]);
@@ -75,18 +69,10 @@ export function StoreOrderTrackingPage() {
     return ()=>window.clearInterval(id);
   },[token,fetchOrder]);
   const share=async()=>{
-    const url=window.location.origin+"/acompanhar-pedido#c="+token;
+    const url=window.location.origin+"/#acompanhar-servico&c="+token;
     try{await navigator.clipboard.writeText(url);setCopied(true);}
     catch{setError("Não foi possível copiar automaticamente. Utilize o endereço desta página.");}
   };
-  const submit=(event:FormEvent)=>{
-    event.preventDefault();
-    const candidate=entered.trim().replace(/[\s-]/g,"").toLowerCase();
-    if(!isToken(candidate)){setError("Informe o código de acesso completo enviado com sua compra.");return;}
-    window.history.replaceState(null,"","/acompanhar-pedido#c="+candidate);
-    setOrder(null);setToken(candidate);setEntered("");setCopied(false);
-  };
-
   const pickup=order?.deliveryMethod==="pickup";
   const paid=order?.paymentStatus==="paid";
   const paymentIssueText=order?.paymentIssueStatus==="refunded"?"Pagamento estornado":
@@ -97,39 +83,11 @@ export function StoreOrderTrackingPage() {
   const effective=index<0 && order?.fulfillmentStatus==="delivery_issue" ? 3 : Math.max(0,index);
   const resultText=order?.fulfillmentStatus==="ready"&&pickup?"Disponível para retirada":statuses[order?.fulfillmentStatus||""]||"Em andamento";
   const returnState=params.get("retorno");
-  return <div className="min-h-[72vh] bg-[#f6f9fd] text-[#112640]">
-    <section className="bg-gradient-to-r from-[#071b34] via-[#0d3158] to-[#174d7f] py-10 text-white sm:py-12">
-      <div className="mx-auto max-w-6xl px-4 sm:px-6">
-        <p className="flex items-center gap-2 text-[12px] font-bold text-blue-200"><ShoppingBag size={16}/> Eletrônica Artvideo</p>
-        <h1 className="mt-3 text-[30px] font-extrabold tracking-tight sm:text-[38px]" style={{fontFamily:"'Poppins','Inter',sans-serif"}}>
-          Acompanhe seu pedido
-        </h1>
-        <p className="mt-2 max-w-xl text-[13px] leading-6 text-white/75">
-          Consulte o pagamento, a preparação e a entrega ou retirada, sem precisar criar uma conta.
-        </p>
-      </div>
-    </section>
-    <div className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+  return <div className="mt-5 text-[#112640]">
+    <div className="space-y-6">
       {returnState&&<div className="flex items-start gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-[12px] leading-5 text-[#3c6087]">
         <ShieldCheck size={19} className="shrink-0 text-[var(--art-primary)]"/>
         Você voltou do ambiente de pagamento. O pagamento não é confirmado apenas pelo retorno: o status abaixo será atualizado depois da validação pelo provedor.
-      </div>}
-      {!token&&<div className={card+" mx-auto max-w-xl p-6 sm:p-8"}>
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-[var(--art-primary)]"><LockKeyhole size={26}/></div>
-        <h2 className="mt-4 text-center text-[20px] font-extrabold">Acesse seu acompanhamento</h2>
-        <p className="mt-2 text-center text-[13px] leading-6 text-[#627993]">
-          Use seu link privado de acompanhamento ou informe o código de acesso da compra.
-          Apenas o número do pedido não permite consultar os dados.
-        </p>
-        <form onSubmit={submit} className="mt-6 space-y-3">
-          <label className="block text-[12px] font-bold" htmlFor="tracking-secret">Código de acesso
-            <input id="tracking-secret" value={entered} onChange={e=>setEntered(e.target.value)} autoComplete="off"
-              placeholder="Cole seu código de acompanhamento"
-              className="mt-2 min-h-12 w-full rounded-lg border border-[#dbe5f1] px-4 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
-          </label>
-          <button type="submit" className={primaryButton+" w-full"}>Consultar pedido</button>
-        </form>
-        <p className="mt-5 text-center text-[11px] text-[#8393a8]">Se perdeu o link, entre em contato com a Artvideo para recuperar o acesso.</p>
       </div>}
       {loading&&<div className={card+" flex min-h-48 items-center justify-center gap-3 text-[13px] text-[#64809f]"}>
         <LoaderCircle size={21} className="animate-spin text-[var(--art-primary)]"/> Consultando pedido...
@@ -137,10 +95,6 @@ export function StoreOrderTrackingPage() {
       {error&&<div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-[13px] text-red-700">
         {error}
         {token&&<button type="button" onClick={()=>void fetchOrder(token)} className="ml-3 font-bold underline">Tentar novamente</button>}
-      </div>}
-      {token&&!loading&&!order&&<div className="flex flex-wrap gap-3">
-        <button type="button" className={secondaryButton} onClick={()=>{setToken("");setError("");window.history.replaceState(null,"","/acompanhar-pedido");}}>Informar outro código</button>
-        <Link to="/loja" className={secondaryButton}>Voltar à loja</Link>
       </div>}
       {order&&<div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <main className="min-w-0 space-y-6">

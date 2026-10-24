@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
-  AlertCircle, ArrowLeft, ArrowRight, BadgeCheck, Check, CheckCircle2,
-  CreditCard, Headphones, LoaderCircle,
+  AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2,
+  CreditCard, LoaderCircle,
   LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, UserRound,
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
@@ -435,7 +435,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     finally{setBrickRefreshing(false);}
   };
 
-  if (productLoading || (cartMode && catalogLoading)) return <div className="flex min-h-[65vh] items-center justify-center gap-3 bg-[#f8fbff] text-sm text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={21}/> Preparando sua compra...</div>;
+  if (productLoading || (cartMode && catalogLoading)) return <div className="flex min-h-[65vh] items-center justify-center gap-3 bg-[#f8fbff] text-sm text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={21}/> {cartMode ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</div>;
   if (productError || (cartMode && catalogError) || (!cartMode && !detail) || !product) return <section className="min-h-[65vh] bg-[#f8fbff] px-4 py-24 text-center">
     <AlertCircle className="mx-auto text-[#dc5a5a]" size={37}/>
     <h1 className="mt-4 text-2xl font-extrabold">Não foi possível abrir o checkout</h1>
@@ -480,11 +480,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
         <span className="text-[22px] font-extrabold tracking-tight text-[var(--art-primary)]">{selectedShipping ? formatCurrency(total) : formatCurrency(subtotal)}</span>
       </div>
       {!selectedShipping && <p className="mt-2 text-[11px] text-[#8793a5]">O valor da entrega será adicionado após a consulta do CEP.</p>}
-    </div>
-    <div className="space-y-3 border-t border-[#edf1f7] bg-[#f7faff] px-5 py-4 text-[12px] text-[#526984]">
-      <p className="flex items-center gap-2"><ShieldCheck size={17} className="shrink-0 text-[var(--art-primary)]"/> Compra protegida durante o pagamento</p>
-      <p className="flex items-center gap-2"><Truck size={17} className="shrink-0 text-[var(--art-primary)]"/> Entrega regional da Artvideo</p>
-      <p className="flex items-center gap-2"><Headphones size={17} className="shrink-0 text-[var(--art-primary)]"/> Atendimento para suas dúvidas</p>
     </div>
   </div>;
 
@@ -844,7 +839,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   {brickRefreshing?<LoaderCircle size={16} className="animate-spin"/>:<CheckCircle2 size={16}/>}
                   Atualizar situação
                 </button>
-                <Link to={"/acompanhar-pedido#c="+brickSession.trackingToken}
+                <Link to={"/#acompanhar-servico&c="+brickSession.trackingToken}
                   className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-bold text-white">
                   Acompanhar pedido <ArrowRight size={16}/>
                 </Link>
@@ -868,8 +863,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
         <aside className="min-w-0 lg:sticky lg:top-[95px]">
           {summary}
-          <p className="mt-4 flex items-start gap-2 px-2 text-[11px] leading-relaxed text-[#8493a9]"><BadgeCheck size={16} className="shrink-0 text-[var(--art-primary)]"/>
-            Valores e disponibilidade são conferidos novamente ao continuar para o pagamento.</p>
         </aside>
       </div>
     </div>

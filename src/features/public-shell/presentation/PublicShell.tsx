@@ -201,7 +201,7 @@ function PublicFooter({ setPage }: { setPage: (page: PublicPage) => void }) {
         <div className="flex flex-col items-start gap-2">
           {PUBLIC_NAV_LINKS.map(label => <button key={label} type="button" onClick={() => setPage(PUBLIC_NAV_MAP[label])}
             className="text-[13px] text-white/75 transition-all hover:translate-x-1 hover:text-white">{label}</button>)}
-          <a href="/acompanhar-pedido" className="text-[13px] text-white/75 transition-all hover:translate-x-1 hover:text-white">Acompanhar meu pedido</a>
+          <Link to="/#acompanhar-servico" className="text-[13px] text-white/75 transition-all hover:translate-x-1 hover:text-white">Acompanhar serviço ou pedido</Link>
         </div>
       </div>
       <div>
@@ -232,7 +232,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
   const routeLabels: Record<string, string> = {
     "/loja": "Produtos", "/servicos": "Serviços", "/assistencia": "Assistência técnica",
     "/sobre": "Sobre nós", "/contato": "Contato", "/orcamento": "Solicitar orçamento",
-    "/carrinho": "Meu carrinho", "/acompanhar-pedido": "Acompanhar pedido",
+    "/carrinho": "Meu carrinho",
     "/politica-de-privacidade": "Política de Privacidade",
     "/exclusao-de-dados": "Exclusão de Dados",
     "/descadastramento": "Descadastramento",
@@ -243,7 +243,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
   const routeLabel = routeLabels[routePath] || (isCheckout ? "Finalizar compra" : "");
   const breadcrumbItems = [
     { label: "Início", onClick: () => setPage("home") },
-    ...((isCheckout || routePath === "/carrinho" || routePath === "/acompanhar-pedido") ? [{ label: "Loja", onClick: () => setPage("loja") }] : []),
+    ...((isCheckout || routePath === "/carrinho") ? [{ label: "Loja", onClick: () => setPage("loja") }] : []),
     ...(isCheckout ? [{ label: "Meu carrinho", onClick: () => navigate("/carrinho") }] : []),
     { label: routeLabel },
   ];

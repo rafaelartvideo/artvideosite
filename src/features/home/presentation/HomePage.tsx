@@ -136,10 +136,10 @@ export function HomePage({ setPage, onSelectService, onSelectProduct, trackingSe
       onClick: () => setPage("assistencia"), label: "Conhecer a assistência",
     },
     {
-      Icon: ClipboardList, title: t("home_tracking_title", "ACOMPANHAR SERVIÇO"),
-      description: t("home_tracking_description", "Acompanhe o status do seu serviço de forma rápida e fácil usando o número da OS."),
+      Icon: ClipboardList, title: t("home_tracking_title", "ACOMPANHAR SERVIÇO OU PEDIDO"),
+      description: t("home_tracking_description", "Consulte o andamento da sua OS ou compra em um só lugar."),
       onClick: () => document.getElementById("acompanhar-servico")?.scrollIntoView({ behavior: "smooth" }),
-      label: "Acompanhar serviço",
+      label: "Acompanhar serviço ou pedido",
     },
   ];
 
