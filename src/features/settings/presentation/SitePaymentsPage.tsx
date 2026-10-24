@@ -448,7 +448,9 @@ export function SitePaymentsPage({onBack}:{onBack:()=>void}){
           <p className="font-bold">Teste completo da loja · Convite privado</p>
           <p className="text-muted-foreground">
             Gere um convite de homologacao valido por 2 horas, para iniciar somente
-            um pedido real. Ao abrir o link, voce pode navegar nos produtos, montar o carrinho,
+            um pedido real. Se precisar repetir os testes, podem ser gerados ate
+            12 convites a cada 24 horas (no maximo 3 por hora). Convites expirados
+            nao ficam ativos e nao precisam ser apagados. Ao abrir o link, voce pode navegar nos produtos, montar o carrinho,
             selecionar frete/retirada e pagar no Mercado Pago. Apenas quem possui o
             convite pode iniciar o pagamento; demais visitantes continuam bloqueados.
             Uma compra concluida movimentara o estoque real e podera gerar tarifas.

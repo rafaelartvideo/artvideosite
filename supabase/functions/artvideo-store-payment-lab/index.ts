@@ -59,12 +59,34 @@ Deno.serve(async (req:Request) => {
       const tokenValue=Deno.env.get("MERCADO_PAGO_ACCESS_TOKEN")||"";
       if(!tokenValue)return reply({error:"Credencial de producao indisponivel."},503);
       const now=new Date(),dayAgo=new Date(now.getTime()-86400000).toISOString();
+      // A validade de um convite e de 2 horas. O limite de criacao e
+      // independente da validade: permite repeticoes de homologacao sem
+      // precisar aguardar 24 horas quando o convite ja foi consumido.
+      // Conserva um teto por periodo para evitar emissao abusiva.
+      const HOURLY_INVITE_LIMIT=3;
+      const DAILY_INVITE_LIMIT=12;
       const {data:issued,error:issuedError}=await admin.from("artvideo_store_homologation_tokens")
-        .select("id,created_at,used_at,order_id").eq("created_by",userData.user.id)
-        .gte("created_at",dayAgo).order("created_at",{ascending:false}).limit(5);
+        .select("id,created_at").eq("created_by",userData.user.id)
+        .gte("created_at",dayAgo).order("created_at",{ascending:false})
+        .limit(DAILY_INVITE_LIMIT);
       if(issuedError)return reply({error:"Nao foi possivel conferir o limite de convites."},503);
-      if((issued||[]).length>=3)
-        return reply({error:"Limite de tres convites de homologacao em 24 horas."},429);
+      const recentInvites=issued||[];
+      if(recentInvites.length>=DAILY_INVITE_LIMIT){
+        const oldest=Date.parse(recentInvites[DAILY_INVITE_LIMIT-1].created_at);
+        const nextAllowedAt=new Date(oldest+86400000).toISOString();
+        return reply({error:"Limite de 12 convites nas ultimas 24 horas. "+
+          "Novos convites serao liberados automaticamente conforme as emissões anteriores completarem 24 horas.",
+          nextAllowedAt},429);
+      }
+      const hourAgo=now.getTime()-3600000;
+      const lastHour=recentInvites.filter(invite=>Date.parse(invite.created_at)>=hourAgo);
+      if(lastHour.length>=HOURLY_INVITE_LIMIT){
+        const oldest=Date.parse(lastHour[lastHour.length-1].created_at);
+        const nextAllowedAt=new Date(oldest+3600000).toISOString();
+        return reply({error:"Limite de 3 convites na ultima hora. "+
+          "Tente novamente depois que a primeira emissao desta hora completar 60 minutos.",
+          nextAllowedAt},429);
+      }
       // Invalida o convite anterior ainda nao utilizado. Nunca apaga pedidos.
       const {error:revokeError}=await admin.from("artvideo_store_homologation_tokens")
         .update({revoked_at:now.toISOString()}).eq("created_by",userData.user.id)
