@@ -3,10 +3,11 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { addStoreCartItem } from "../application/store-cart";
 import { animateProductToCart } from "../application/cart-animation";
+import { CartAddToast } from "./CartAddToast";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight,
-  Image as ImageIcon, LockKeyhole, MessageCircle, Minus,
+  CheckCircle2, Image as ImageIcon, LoaderCircle, LockKeyhole, Minus,
   Package, Plus, ShieldCheck, ShoppingCart, Star, Truck, X,
 } from "lucide-react";
 import { useProductDetailBySlug } from "@/features/public-catalog/application/usePublicCatalog";
@@ -19,6 +20,17 @@ import { formatCurrency } from "@/shared/domain/formatters";
 import { getWhatsAppNumber } from "@/features/public-shell/application/site-settings";
 
 const inputClass = "min-h-11 w-full rounded-[6px] border border-[#dce5f1] bg-white px-3 py-2.5 text-[13px] text-[#0b1d37] outline-none transition-all placeholder:text-[#92a0b3] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-200";
+
+const formatCep = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 8);
+  return digits.length > 5 ? digits.slice(0, 5) + "-" + digits.slice(5) : digits;
+};
+function WhatsAppSymbol() {
+  return <svg aria-hidden="true" width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.148-.669.15-.198.296-.768.965-.94 1.163-.173.198-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.476-.883-.788-1.48-1.761-1.653-2.058-.173-.297-.018-.458.13-.606.134-.133.297-.347.446-.52.149-.173.198-.297.297-.495.099-.198.05-.372-.025-.52-.074-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.372-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.015-1.04 2.479s1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.709.306 1.262.489 1.693.625.711.226 1.359.194 1.87.118.571-.085 1.758-.719 2.005-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347M12.004 2a9.94 9.94 0 0 0-9.968 9.963c0 1.756.462 3.472 1.343 4.984L2 22l5.168-1.356a9.951 9.951 0 0 0 4.832 1.232h.004c5.493 0 9.966-4.473 9.968-9.969A9.902 9.902 0 0 0 19.05 4.9 9.91 9.91 0 0 0 12.004 2zm0 18.195h-.003a8.27 8.27 0 0 1-4.215-1.154l-.302-.18-3.125.819.834-3.046-.197-.312a8.282 8.282 0 0 1-1.27-4.414c.002-4.572 3.724-8.295 8.3-8.295a8.247 8.247 0 0 1 5.868 2.431 8.241 8.241 0 0 1 2.43 5.875c-.003 4.574-3.725 8.296-8.32 8.296z"/>
+  </svg>;
+}
+
 const reviewStars = (rating: number) => Array.from({ length: 5 }, (_, i) =>
   <Star key={i} size={17} fill={i < Math.round(rating) ? "currentColor" : "none"}
     className={i < Math.round(rating) ? "text-[#f59e0b]" : "text-[#cbd5e1]"} strokeWidth={1.8}/>);
@@ -73,6 +85,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const [shippingError, setShippingError] = useState("");
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [cartFeedback,setCartFeedback]=useState("");
+  const cartAdded = cartFeedback === "Produto adicionado ao carrinho.";
   const [reviewOrderId, setReviewOrderId] = useState(() => typeof sessionStorage !== "undefined" ? sessionStorage.getItem("artvideo-last-order") || "" : "");
   const [reviewEmail, setReviewEmail] = useState(() => typeof sessionStorage !== "undefined" ? sessionStorage.getItem("artvideo-last-email") || "" : "");
   const [reviewRating, setReviewRating] = useState(5);
@@ -229,7 +242,6 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             <div className="flex items-center gap-3 text-[12px] text-[#53637a]"><Truck size={19} className="text-[var(--art-primary)]"/> Entrega calculada para o seu CEP.</div>
             <div className="flex items-center gap-3 text-[12px] text-[#53637a]"><BadgeCheck size={19} className="text-[var(--art-primary)]"/> Atendimento e suporte da Eletrônica Artvideo.</div>
           </div>
-          {askUrl && <a href={askUrl} target="_blank" rel="noopener noreferrer" className="mt-6 inline-flex items-center gap-2 text-[13px] font-bold text-[var(--art-primary)] hover:underline"><MessageCircle size={18}/> Perguntar sobre este produto</a>}
         </div>
 
         {/* Caixa de compra */}
@@ -241,8 +253,14 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
           </div>}
           <label className="text-[12px] font-bold text-[#2f445f]" htmlFor="product-cep">CEP de entrega</label>
           <form onSubmit={e => { e.preventDefault(); void quoteShipping(); }} className="mt-2 flex gap-2">
-            <input id="product-cep" inputMode="numeric" value={postalCode} maxLength={9} onChange={e => { setPostalCode(e.target.value.replace(/[^\d-]/g,"").slice(0,9)); setSelectedShippingId(""); }} placeholder="00000-000" className={inputClass}/>
-            <button type="submit" disabled={shippingLoading || !canBuy} className="shrink-0 rounded-md bg-[#e8f1fe] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-200 disabled:opacity-50">{shippingLoading ? "..." : "Calcular"}</button>
+            <input id="product-cep" inputMode="numeric" autoComplete="postal-code" value={postalCode} maxLength={9}
+              onChange={e => { setPostalCode(formatCep(e.target.value)); setShipping(null); setSelectedShippingId(""); setShippingError(""); }}
+              placeholder="00000-000" className={inputClass+" min-w-0 flex-1"}/>
+            <button type="submit" disabled={shippingLoading || !canBuy} aria-busy={shippingLoading}
+              className="inline-flex h-11 w-[108px] shrink-0 items-center justify-center gap-1.5 rounded-md bg-[#e8f1fe] px-3 text-[12px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-200 disabled:opacity-50">
+              {shippingLoading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true"/> : null}
+              <span>Calcular</span>
+            </button>
           </form>
           {shippingError && <p role="alert" className="mt-2 text-[12px] leading-5 text-red-600">{shippingError}</p>}
           {options.length > 0 && <fieldset className="mt-4 space-y-2"><legend className="mb-2 text-[12px] font-bold">Entrega disponível</legend>
@@ -273,13 +291,11 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             <ShoppingCart size={19}/> Comprar agora
           </button>
           <button type="button" disabled={!canBuy} onClick={event => addToCart(event.currentTarget)}
-            className="mt-2 hidden md:inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-[var(--art-primary)] px-4 text-[13px] font-bold text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-50">
-            <Plus size={17}/> Adicionar ao carrinho
+            className={`mt-2 hidden min-h-11 w-full items-center justify-center gap-2 rounded-md border px-4 text-[13px] font-bold transition-colors disabled:opacity-50 md:inline-flex ${cartAdded ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-[var(--art-primary)] text-[var(--art-primary)] hover:bg-blue-50"}`}>
+            {cartAdded ? <><CheckCircle2 size={18} className="art-cart-success-check"/> Adicionado!</> : <><Plus size={17}/> Adicionar ao carrinho</>}
           </button>
-          {cartFeedback && <p role="status" className="mt-2 hidden text-center text-[12px] font-semibold text-[#486785] md:block">{cartFeedback}</p>}
           <p className="mt-3 flex items-center justify-center gap-1.5 text-center text-[11px] text-[#7b8ba1]"><LockKeyhole size={13}/> O pagamento só ocorre no checkout seguro.</p>
           {!canBuy && <p className="mt-2 text-center text-[12px] text-[#9a4851]">Compra online indisponível até confirmar preço e estoque.</p>}
-          {canBuy && !selectedOption && <p className="mt-2 text-center text-[12px] text-[#687b95]">Você poderá consultar o frete durante a finalização da compra.</p>}
         </aside>
       </div>
     </section>
@@ -361,19 +377,23 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
       </div>
     </section>
 
-    {/* Ações fixas somente no celular; o navegador gerencia a barra inferior e o safe-area completa o espaçamento. */}
+    {/* WhatsApp, carrinho e compra sempre acessíveis no celular. */}
     <div className="art-product-mobile-buy-bar fixed inset-x-0 bottom-0 z-[60] border-t border-[#e0e8f2] bg-white/95 pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] shadow-[0_-5px_20px_rgba(15,38,73,.10)] backdrop-blur-md md:hidden" aria-label="Ações de compra do produto">
-      {cartFeedback && <p role="status" className="absolute inset-x-3 bottom-[calc(100%+8px)] rounded-lg border border-[#dce6f3] bg-white px-4 py-3 text-center text-[12px] font-semibold text-[#214a7d] shadow-md">{cartFeedback}</p>}
-      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2 px-3">
-        <button type="button" disabled={!canBuy} onClick={() => addToCart()}
-          className="flex min-h-[52px] items-center justify-center rounded-[7px] border border-[var(--art-primary)] bg-[#ecf2ff] px-2 text-center text-[12px] font-bold leading-[1.2] text-[var(--art-primary)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
-          Adicionar ao carrinho
+      <div className="mx-auto flex max-w-lg items-stretch gap-2 px-3">
+        {askUrl && <a href={askUrl} target="_blank" rel="noopener noreferrer" title="Conversar no WhatsApp" aria-label="Perguntar sobre o produto no WhatsApp"
+          className="flex min-h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[7px] bg-[#25d366] text-white transition-colors hover:bg-[#1db954] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-green-600">
+          <WhatsAppSymbol/>
+        </a>}
+        <button type="button" disabled={!canBuy} onClick={event => addToCart(event.currentTarget)} aria-label={cartAdded ? "Produto adicionado ao carrinho" : "Adicionar ao carrinho"} title="Adicionar ao carrinho"
+          className={`flex min-h-[52px] w-[52px] shrink-0 items-center justify-center rounded-[7px] border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${cartAdded ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-[var(--art-primary)] bg-[#ecf2ff] text-[var(--art-primary)]"}`}>
+          {cartAdded ? <CheckCircle2 size={23} className="art-cart-success-check"/> : <ShoppingCart size={23} strokeWidth={1.9}/>}
         </button>
         <button type="button" disabled={!canBuy} onClick={checkoutNow}
-          className="flex min-h-[52px] items-center justify-center rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[13px] font-bold leading-[1.2] text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
+          className="flex min-h-[52px] min-w-0 flex-1 items-center justify-center rounded-[7px] bg-[var(--art-primary)] px-3 text-center text-[13px] font-bold leading-[1.2] text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50">
           Comprar agora
         </button>
       </div>
     </div>
+    <CartAddToast message={cartFeedback}/>
   </div>;
 }
