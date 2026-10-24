@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { ArrowLeft, ArrowRight, ClipboardList, Loader2, MonitorCog, Search, Wrench } from "lucide-react";
 import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
@@ -6,6 +6,7 @@ import { useServices, useServiceDetailBySlug } from "@/features/public-catalog/a
 import { ServiceQuoteWizard } from "@/features/public-services/presentation/ServiceQuoteWizard";
 import { RepairQuoteWizard } from "./RepairQuoteWizard";
 import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
+import { scrollToQuoteStep } from "@/features/public-quotes/application/quote-scroll";
 
 const normalize = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
 export function PublicQuotePage() {
@@ -16,12 +17,16 @@ export function PublicQuotePage() {
   const { detail, loading, error } = useServiceDetailBySlug(slug);
   const { services, loading: catalogLoading, error: catalogError } = useServices();
   const [search, setSearch] = useState("");
+  useEffect(() => {
+    const frame = requestAnimationFrame(scrollToQuoteStep);
+    return () => cancelAnimationFrame(frame);
+  }, [slug, mode, loading, catalogLoading]);
 
   // Deep links from a specific service must keep their complete booking workflow.
   if (slug && loading) return <div role="status" className="flex min-h-[55vh] items-center justify-center gap-3"><Loader2 className="animate-spin" size={20}/> Carregando serviço...</div>;
   if (slug && detail) return <>
     <PublicPageHeader title="Solicitar orçamento" description={detail.service.title}/>
-    <ServiceQuoteWizard key={detail.service.id} detail={detail} initialCep={params.get("cep") || ""} initialVariant={params.get("opcao") || ""}/>
+    <ServiceQuoteWizard key={detail.service.id} detail={detail} backTo={params.get("origem") === "orcamento" ? "/orcamento?tipo=servico" : `/servicos/${detail.service.slug}`} initialCep={params.get("cep") || ""} initialVariant={params.get("opcao") || ""}/>
   </>;
   if (slug && (error || !detail)) return <section className="mx-auto max-w-xl px-5 py-20 text-center">
     <h1 className="text-2xl font-semibold">Serviço indisponível</h1>
@@ -45,13 +50,13 @@ export function PublicQuotePage() {
           <Search size={19} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#7991ae]"/>
         </label>
       </PublicPageHeader>
-      <section className="mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-8 sm:py-16">
+      <section data-quote-scroll-anchor className="mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-8 sm:py-16">
         <button type="button" onClick={() => navigate("/orcamento")} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)] transition-colors hover:underline"><ArrowLeft size={18}/> Alterar tipo de atendimento</button>
         <div className="mb-6"><h2 className="text-[24px] font-semibold tracking-tight">Escolha o serviço</h2><p className="mt-2 text-sm text-slate-600">Selecione para consultar as opções e preencher o pedido.</p></div>
         {catalogLoading ? <p role="status" className="flex items-center gap-2 py-8 text-sm text-slate-600"><Loader2 className="animate-spin" size={18}/> Carregando serviços...</p>
           : catalogError ? <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-700">{catalogError}</p>
           : filtered.length ? <div className="grid gap-4 md:grid-cols-2">{filtered.map(service =>
-            <button key={service.id} type="button" onClick={() => navigate("/orcamento?servico=" + encodeURIComponent(service.slug))}
+            <button key={service.id} type="button" onClick={() => navigate("/orcamento?servico=" + encodeURIComponent(service.slug) + "&origem=orcamento")}
               className="group flex min-h-[130px] items-center justify-between gap-5 rounded-xl border border-[#dce5ef] bg-white p-6 text-left transition-all hover:border-blue-400 hover:bg-blue-50/50 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
               <div><h3 className="text-[17px] font-semibold">{service.title}</h3>{service.short_description && <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{service.short_description}</p>}</div>
               <ArrowRight size={21} className="shrink-0 text-[var(--art-primary)] transition-transform group-hover:translate-x-1"/>
@@ -63,7 +68,7 @@ export function PublicQuotePage() {
 
   return <>
     <PublicPageHeader title="Solicitar orçamento" description="Precisa contratar um serviço ou consertar um equipamento? Escolha abaixo para começar."/>
-    <section className="mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-8 sm:py-16">
+    <section data-quote-scroll-anchor className="mx-auto w-full max-w-[1200px] px-5 py-12 sm:px-8 sm:py-16">
       <div className="mb-8"><h2 className="text-[26px] font-semibold tracking-tight sm:text-[30px]">Como podemos ajudar você?</h2><p className="mt-2 text-[15px] leading-7 text-slate-600">Escolha o tipo de orçamento. Cada opção terá as informações adequadas ao atendimento solicitado.</p></div>
       <div className="grid gap-6 md:grid-cols-2">
         <button type="button" onClick={() => navigate("/orcamento?tipo=servico")}

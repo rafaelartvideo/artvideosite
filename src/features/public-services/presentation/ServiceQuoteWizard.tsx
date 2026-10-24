@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { scrollToQuoteStep } from "@/features/public-quotes/application/quote-scroll";
 import { useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, CalendarDays, Check, CheckCircle2, MapPin, Wrench, Loader2 } from 'lucide-react';
 import { emptyAddress, type Address } from '@/lib/address';
@@ -12,7 +13,7 @@ import { reservePublicQuoteProtocol } from '@/features/public-quotes/infrastruct
 
 const steps=['Agendamento','Local do serviço','Seus dados','Revisão'];
 function Field({label,required=false,error,children}:{label:string;required?:boolean;error?:string;children:React.ReactNode}) {return <label className="block text-sm font-medium">{label}{required&&<span className="text-red-600"> *</span>}<span className="mt-2 block">{children}</span>{error&&<span role="alert" className="mt-1.5 block text-xs font-medium text-red-600">{error}</span>}</label>;}
-export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{detail:any;initialCep?:string;initialVariant?:string}) {
+export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backTo}:{detail:any;initialCep?:string;initialVariant?:string;backTo?:string}) {
  const navigate=useNavigate(); const c=bookingConfig(detail.service.public_booking),service=detail.service;
  const variants=detail.variants.filter((v:any)=>v.is_active!==false);
  const [dateCount,setDateCount]=useState(6);
@@ -26,7 +27,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{det
  const heading=useRef<HTMLHeadingElement>(null);
  const selected=variants.find((v:any)=>v.id===variant); const dates=bookingDates(c).filter((d:string)=>slotsForDate(c,d).length>0);
  const times=slotsForDate(c,date); const up=(key:string,value:string)=>setForm(f=>({...f,[key]:value}));
- const go=(value:number)=>{setError('');setStep(value);window.scrollTo({top:0,behavior:'smooth'});requestAnimationFrame(()=>heading.current?.focus());};
+ const go=(value:number)=>{setError('');setStep(value);requestAnimationFrame(()=>{scrollToQuoteStep();heading.current?.focus({preventScroll:true});});};
  function validate(stage:number) {
   const issues:Record<string,string>={};
   if(stage===0) {
@@ -61,13 +62,13 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant=''}:{det
   if(sending.current)return;
   for(let i=0;i<3;i++){const message=validate(i);if(message){go(i);setError('');return;}}
   sending.current=true;setBusy(true);setError('');
-  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date,slot},requestProtocol.current));window.scrollTo({top:0,behavior:'smooth'});}
+  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date,slot},requestProtocol.current));requestAnimationFrame(scrollToQuoteStep);}
   catch(e){setError(e instanceof Error?e.message:'Não foi possível enviar. Tente novamente.');}
   finally{sending.current=false;setBusy(false);}
  }
- if(protocol) return <section className="mx-auto max-w-2xl px-5 py-20 text-center"><CheckCircle2 size={56} strokeWidth={1.5} className="mx-auto mb-6 text-emerald-600"/><h1 className="text-3xl font-semibold">Orçamento solicitado!</h1><p className="mt-4 leading-7 text-slate-600">A Artvideo entrará em contato pelo WhatsApp para avaliar o serviço, informar o orçamento e confirmar o atendimento.</p><div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 font-mono text-2xl font-bold tracking-wide">{protocol}</p></div>{date&&<p className="mb-6 text-sm text-slate-600">Preferência: {displayBookingDate(date)} · {slot}. Aguarde a confirmação da equipe.</p>}<PublicButton onClick={()=>navigate(`/servicos/${service.slug}`)}>Voltar ao serviço</PublicButton></section>;
- return <div className="art-booking mx-auto max-w-5xl px-5 py-9 sm:py-14">
-  <button type="button" onClick={()=>step?go(step-1):navigate(`/servicos/${service.slug}`)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)]"><ArrowLeft size={18}/> Voltar</button>
+ if(protocol) return <section data-quote-scroll-anchor className="mx-auto max-w-2xl px-5 py-20 text-center"><span className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 motion-safe:animate-[bounce_650ms_ease-out_1]"><CheckCircle2 size={56} strokeWidth={1.5}/></span><h1 className="text-3xl font-semibold">Orçamento solicitado!</h1><p className="mt-4 leading-7 text-slate-600">A Artvideo entrará em contato pelo WhatsApp para avaliar o serviço, informar o orçamento e confirmar o atendimento.</p><div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 font-mono text-2xl font-bold tracking-wide">{protocol}</p></div>{date&&<p className="mb-6 text-sm text-slate-600">Preferência: {displayBookingDate(date)} · {slot}. Aguarde a confirmação da equipe.</p>}<PublicButton onClick={()=>navigate(`/servicos/${service.slug}`)}>Voltar ao serviço</PublicButton></section>;
+ return <div data-quote-scroll-anchor className="art-booking mx-auto max-w-5xl px-5 py-9 sm:py-14">
+  <button type="button" onClick={()=>step?go(step-1):navigate(backTo || `/servicos/${service.slug}`)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)]"><ArrowLeft size={18}/> Voltar</button>
   <nav aria-label="Etapas da solicitação" className="mb-10"><div className="mb-3 flex justify-between gap-4 text-sm"><p><strong>{step+1} de {steps.length}</strong> — {steps[step]}</p><p className="hidden text-slate-500 sm:block">{step<3?`Próximo passo: ${steps[step+1]}`:'Confira antes de enviar'}</p></div><ol className="flex gap-2">{steps.map((label,i)=><li key={label} aria-current={step===i?'step':undefined} className={`h-1.5 flex-1 rounded-full ${i<=step?'bg-[var(--art-primary)]':'bg-slate-200'}`}><span className="sr-only">{label}</span></li>)}</ol></nav>
   <div className="grid items-start gap-10 lg:grid-cols-[1.2fr_1fr] lg:gap-14">
    <form id="service-quote-step" noValidate onChangeCapture={()=>setFieldErrors({})} onSubmit={next} className="min-w-0 space-y-6">

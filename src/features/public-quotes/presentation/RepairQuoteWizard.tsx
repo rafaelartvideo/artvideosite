@@ -9,6 +9,7 @@ import { isValidBrazilianMobile, isValidCnpj, isValidEmail, formatPhoneInput } f
 import { PublicButton } from "@/features/public-shell/presentation/PublicUi";
 import { supabase } from "@/lib/supabase";
 import { formatCurrency } from "@/shared/domain/formatters";
+import { scrollToQuoteStep } from "@/features/public-quotes/application/quote-scroll";
 
 type RepairLocation = "store" | "collect";
 const deviceTypes = ["Televisão", "Computador / notebook", "Celular / tablet", "Micro-ondas", "Geladeira / freezer", "Máquina de lavar / lava e seca", "Ar-condicionado", "Som / áudio", "Outro equipamento"];
@@ -85,14 +86,14 @@ export function RepairQuoteWizard() {
     const message = validate(stage);
     if (message) { setError(""); return; }
     setError(""); setFieldErrors({});
-    if (stage < 2) { setStage(stage + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }
+    if (stage < 2) { setStage(stage + 1); requestAnimationFrame(scrollToQuoteStep); }
     else void send();
   }
   async function send() {
     if (busy) return;
     for (let i = 0; i < 2; i++) {
       const message = validate(i);
-      if (message) { setStage(i); setError(""); return; }
+      if (message) { setStage(i); setError(""); requestAnimationFrame(scrollToQuoteStep); return; }
     }
     setBusy(true); setError("");
     try {
@@ -113,22 +114,22 @@ export function RepairQuoteWizard() {
         descricao: notes,
       }, address);
       setProtocol(reference);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      requestAnimationFrame(scrollToQuoteStep);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível enviar. Tente novamente.");
     } finally { setBusy(false); }
   }
 
-  if (protocol) return <section className="mx-auto max-w-2xl px-5 py-16 text-center sm:py-20">
-    <CheckCircle2 size={56} className="mx-auto text-emerald-600" strokeWidth={1.5}/>
+  if (protocol) return <section data-quote-scroll-anchor className="mx-auto max-w-2xl px-5 py-16 text-center sm:py-20">
+    <span className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 motion-safe:animate-[bounce_650ms_ease-out_1]"><CheckCircle2 size={56} strokeWidth={1.5}/></span>
     <h2 className="mt-5 text-3xl font-semibold">Solicitação recebida!</h2>
     <p className="mt-4 text-[15px] leading-7 text-slate-600">Recebemos os detalhes do equipamento. A Artvideo entrará em contato para avaliar o conserto e informar as condições do orçamento.</p>
     <div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 font-mono text-2xl font-bold tracking-wide">{protocol}</p></div>
     <PublicButton onClick={() => navigate("/assistencia")}>Ver assistência técnica</PublicButton>
   </section>;
 
-  return <section className="art-booking mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8 sm:py-14">
-    <button type="button" onClick={() => { if (stage > 0) { setStage(stage - 1); setError(""); } else navigate("/orcamento"); }}
+  return <section data-quote-scroll-anchor className="art-booking mx-auto w-full max-w-[1200px] px-5 py-10 sm:px-8 sm:py-14">
+    <button type="button" onClick={() => { if (stage > 0) { setStage(stage - 1); setError(""); requestAnimationFrame(scrollToQuoteStep); } else navigate("/orcamento"); }}
       className="mb-7 inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)] hover:underline"><ArrowLeft size={18}/> Voltar</button>
     <nav aria-label="Etapas do orçamento de conserto" className="mb-9">
       <div className="mb-3 flex items-center justify-between gap-4 text-sm"><span><strong>{stage + 1} de {stageNames.length}</strong> — {stageNames[stage]}</span><span className="hidden text-slate-500 sm:block">Conserto de equipamento</span></div>
@@ -191,13 +192,13 @@ export function RepairQuoteWizard() {
           <div className="rounded-xl border border-slate-200 bg-white p-6"><h3 className="font-semibold">Equipamento e defeito</h3>
             <p className="mt-2 text-sm leading-7 text-slate-600">{device} · {brandName}{form.modelo ? " · " + form.modelo : ""}</p>
             <p className="mt-2 whitespace-pre-line text-sm leading-7 text-slate-600">{form.descricao}</p>
-            <button type="button" onClick={() => setStage(0)} className="mt-4 text-sm font-semibold text-[var(--art-primary)] hover:underline">Alterar equipamento</button>
+            <button type="button" onClick={() => { setStage(0); requestAnimationFrame(scrollToQuoteStep); }} className="mt-4 text-sm font-semibold text-[var(--art-primary)] hover:underline">Alterar equipamento</button>
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-6"><h3 className="font-semibold">Forma de atendimento</h3><p className="mt-2 text-sm text-slate-600">{locationName}{location === "collect" ? " · " + address.zip_code : ""}{location === "collect" && collectionFee !== null ? " · Taxa de coleta: " + formatCurrency(collectionFee) : ""}</p>
             <p className="mt-2 text-xs text-slate-500">Atendimento sujeito à confirmação da equipe. A taxa informada está registrada na solicitação.</p></div>
           <div className="rounded-xl border border-slate-200 bg-white p-6"><h3 className="font-semibold">Contato</h3>
             <p className="mt-2 text-sm text-slate-600">{form.customerType === "PF" ? form.nome : form.tradeName} · {form.whatsapp}</p>
-            <button type="button" onClick={() => setStage(1)} className="mt-4 text-sm font-semibold text-[var(--art-primary)] hover:underline">Alterar dados</button>
+            <button type="button" onClick={() => { setStage(1); requestAnimationFrame(scrollToQuoteStep); }} className="mt-4 text-sm font-semibold text-[var(--art-primary)] hover:underline">Alterar dados</button>
           </div>
           <p className="rounded-lg bg-blue-50 p-5 text-sm leading-6 text-[#244567]">O envio registra um pedido de orçamento, sem cobrança ou agendamento confirmado. A Artvideo entrará em contato para orientar o próximo passo.</p>
         </div>}
