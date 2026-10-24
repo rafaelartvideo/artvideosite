@@ -5,6 +5,7 @@ import { formatPhone, formatPhoneInput } from "@/shared/domain/formatters";
 import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
+import { Reveal } from "@/features/institutional/presentation/AboutPage";
 
 export function ContactPage() {
   const { settings, loading: settingsLoading } = useSiteSettings();
@@ -39,7 +40,7 @@ export function ContactPage() {
       {/* Hero */}
       <PublicPageHeader title="Fale com a ARTVIDEO" description="Precisa de informações sobre produtos, serviços ou assistência técnica? Entre em contato com nossa equipe."/>
 
-      <section className="py-14 bg-[#f5f7fa]">
+      <Reveal><section className="py-14 bg-[#f5f7fa]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 grid lg:grid-cols-2 gap-10">
 
           {/* Contact info */}
@@ -103,9 +104,9 @@ export function ContactPage() {
             )}
           </div>
         </div>
-      </section>
+      </section></Reveal>
 
-      <section className="bg-white py-12 sm:py-16" aria-labelledby="artvideo-location-heading">
+      <Reveal><section className="bg-white py-12 sm:py-16" aria-labelledby="artvideo-location-heading">
         <div className="mx-auto max-w-7xl px-4 sm:px-6">
           <div className="mb-6">
             <SectionLabel>Visite nossa loja</SectionLabel>
@@ -154,7 +155,7 @@ export function ContactPage() {
             </div>
           </div>
         </div>
-      </section>
+      </section></Reveal>
     </>
   );
 }
