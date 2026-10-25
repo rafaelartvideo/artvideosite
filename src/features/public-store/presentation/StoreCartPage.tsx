@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowLeft, ArrowRight, Minus, Package, Plus, ShoppingBag, ShoppingCart, Trash2, Truck, LoaderCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, Minus, Package, Plus, ShoppingBag, ShoppingCart, Trash2, Truck } from "lucide-react";
 import { useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { formatCurrency } from "@/shared/domain/formatters";
@@ -39,7 +39,7 @@ function CartLine({ product, quantity, onOpen, onImageReady }: { product: any; q
   </article>;
 }
 
-export function StoreCartPage() {
+export function StoreCartPage({ onReady }: { onReady: () => void }) {
   const navigate = useNavigate();
   const { items, count } = useStoreCart();
   const { products, loading, error } = useProducts();
@@ -66,11 +66,13 @@ export function StoreCartPage() {
   const subtotal = lines.reduce((sum, item) => sum + Number(item.product.price || 0) * item.quantity, 0);
   const allImagesReady = lines.every(({ product }) => !product.cover_media_id || readyImages[product.id + ":" + product.cover_media_id]);
   const pageLoading = loading || (!error && !allImagesReady);
+  useEffect(() => {
+    if (!pageLoading) onReady();
+  }, [onReady, pageLoading]);
   const canContinue = items.length > 0 && !pageLoading && !error
     && unavailable.length === 0 && lines.every(item => Number(item.product.price) > 0);
 
   return <div className={"relative min-h-[65vh] bg-[#f7faff] text-[#10243d] " + (items.length ? "pb-24 lg:pb-0" : "")}>
-    {pageLoading && <div role="status" aria-live="polite" className="fixed inset-0 z-[90] flex min-h-dvh flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]"><LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]"/> Carregando seu carrinho...</div>}
     <section className="bg-gradient-to-r from-[#081a32] to-[#16416d] py-9 text-white">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <h1 className="text-[29px] font-extrabold tracking-[-.035em] sm:text-[37px]">Meu carrinho</h1>

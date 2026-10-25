@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { LoaderCircle } from "lucide-react";
 import { AuthProvider, useAuth } from "@/lib/auth";
@@ -58,15 +58,16 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
   assistencia: "/assistencia",
 };
 
+// Este indicador permanece montado entre o carregamento do chunk, catálogo e imagens.
+function CartPageLoading() {
+  return <div role="status" aria-live="polite" aria-busy="true" className="fixed inset-0 z-[90] flex min-h-dvh flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]">
+    <LoaderCircle size={34} className="animate-spin text-[#1032dc]" />
+    <span>Carregando seu carrinho...</span>
+  </div>;
+}
+
 function PublicPageFallback({ withinShell = false }: { withinShell?: boolean }) {
   const { pathname } = useLocation();
-  if (pathname === "/carrinho") {
-    // O mesmo loading da página evita a troca de animação durante o carregamento do chunk.
-    return <div role="status" aria-live="polite" aria-busy="true" className="fixed inset-0 z-[90] flex min-h-dvh flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]">
-      <LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]" />
-      Carregando seu carrinho...
-    </div>;
-  }
   if (pathname.startsWith("/checkout/")) {
     return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]">
       <LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]" />
@@ -416,16 +417,21 @@ function PublicRoutes() {
   const setPage = (nextPage: Page) => navigate(PUBLIC_PAGE_PATHS[nextPage]);
   const selectService = (slug: string) => navigate(`/servicos/${encodeURIComponent(slug)}`);
   const selectProduct = (slug: string) => navigate(`/loja/${encodeURIComponent(slug)}`);
+  const isCartRoute = location.pathname === "/carrinho";
+  const [readyCartLocationKey, setReadyCartLocationKey] = useState<string | null>(null);
+  const markCartReady = useCallback(() => setReadyCartLocationKey(location.key), [location.key]);
 
   return (
-    <Suspense fallback={<PublicPageFallback />}>
+    <>
+      {isCartRoute && readyCartLocationKey !== location.key && <CartPageLoading />}
+      <Suspense fallback={isCartRoute ? null : <PublicPageFallback />}>
       <PublicShell page={page} setPage={setPage}>
-      <Suspense fallback={<PublicPageFallback withinShell />}>
+      <Suspense fallback={isCartRoute ? null : <PublicPageFallback withinShell />}>
         <Routes>
           <Route path="/" element={<HomePage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} trackingSection={<ServiceTrackingSection />} />} />
           <Route path="/loja" element={<StorePage setPage={setPage} onSelectProduct={selectProduct} onSelectService={selectService} />} />
           <Route path="/loja/:slug" element={<ProductDetailRoute setPage={setPage} />} />
-          <Route path="/carrinho" element={<StoreCartPage />} />
+          <Route path="/carrinho" element={<StoreCartPage onReady={markCartReady} />} />
           <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
           <Route path="/acompanhar-pedido" element={<LegacyOrderTrackingRedirect />} />
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} />} />
@@ -441,7 +447,8 @@ function PublicRoutes() {
         </Routes>
       </Suspense>
       </PublicShell>
-    </Suspense>
+      </Suspense>
+    </>
   );
 }
 
