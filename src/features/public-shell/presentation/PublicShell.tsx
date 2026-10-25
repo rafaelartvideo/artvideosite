@@ -13,6 +13,10 @@ import { useStoreCart } from "@/features/public-store/application/store-cart";
 
 const WHATSAPP_MESSAGE = "Olá! Gostaria de saber mais sobre os serviços da Artvideo.";
 
+function preloadCartPage() {
+  void import("@/features/public-store/presentation/StoreCartPage");
+}
+
 function safeImageUrl(value: unknown): string {
   return typeof value === "string" && (/^https:\/\//i.test(value) || /^\/(?!\/)/.test(value)) ? value : "";
 }
@@ -110,11 +114,11 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         })}
       </nav>
       <div className="hidden shrink-0 items-center gap-2 xl:flex">
-        <a href="/carrinho" data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
+        <Link to="/carrinho" onPointerEnter={preloadCartPage} onFocus={preloadCartPage} data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
           className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
           <ShoppingCart size={21}/>
           {cartCount > 0 && <span className="absolute -right-2 -top-2 flex h-[19px] min-w-[19px] items-center justify-center rounded-full bg-[var(--art-primary)] px-1 text-[10px] font-bold text-white">{cartCount > 99 ? "99+" : cartCount}</span>}
-        </a>
+        </Link>
         <button type="button" onClick={() => navigate("orcamento")} aria-current={page === "orcamento" ? "page" : undefined}
           className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-3 text-[12px] font-bold text-white shadow-md transition-all duration-200 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-blue-500/30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-400 2xl:px-4">
           <FileText size={16} /> Solicitar orçamento
@@ -126,11 +130,11 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
             </a>)}
         </div>
       </div>
-      <a href="/carrinho" data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
+      <Link to="/carrinho" onPointerEnter={preloadCartPage} onFocus={preloadCartPage} data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
         className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 xl:hidden">
         <ShoppingCart size={22}/>
         {cartCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--art-primary)] px-1.5 text-[10px] font-bold">{cartCount > 99 ? "99+" : cartCount}</span>}
-      </a>
+      </Link>
       <button type="button" aria-label={menuOpen ? "Fechar menu" : "Abrir menu"} aria-expanded={menuOpen}
         onClick={() => setMenuOpen(x => !x)} className="rounded-md p-2 text-white transition-colors hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400 xl:hidden">
         {menuOpen ? <X size={23}/> : <Menu size={23}/>}
