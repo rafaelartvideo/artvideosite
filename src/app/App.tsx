@@ -60,10 +60,17 @@ const PUBLIC_PAGE_PATHS: Record<Page, string> = {
 
 function PublicPageFallback({ withinShell = false }: { withinShell?: boolean }) {
   const { pathname } = useLocation();
-  if (pathname === "/carrinho" || pathname.startsWith("/checkout/")) {
+  if (pathname === "/carrinho") {
+    // O mesmo loading da página evita a troca de animação durante o carregamento do chunk.
+    return <div role="status" aria-live="polite" aria-busy="true" className="fixed inset-0 z-[90] flex min-h-dvh flex-col items-center justify-center gap-4 bg-white text-sm font-semibold text-[#53647b]">
+      <LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]" />
+      Carregando seu carrinho...
+    </div>;
+  }
+  if (pathname.startsWith("/checkout/")) {
     return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]">
       <LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]" />
-      <span>{pathname === "/carrinho" ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</span>
+      <span>Preparando seu pedido...</span>
     </div>;
   }
   const home = pathname === "/" || pathname === "/acompanhar-pedido";
