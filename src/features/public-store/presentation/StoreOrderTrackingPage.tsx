@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft, CheckCircle2, CircleCheck, ClipboardList, Clock3, Copy,
-  Headphones, LoaderCircle, LockKeyhole, MapPin, Package,
+  Headphones, LockKeyhole, MapPin, Package,
   PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, Store, Truck,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { getStoreTracking, type StoreTracking } from "../infrastructure/storefront.repository";
 import { StoreAfterSalesCustomer } from "./StoreAfterSalesCustomer";
+import { TrackingLoading } from "@/features/service-tracking/presentation/TrackingLoading";
 
 const statuses:Record<string,string> = {
   pending:"Aguardando separação",preparing:"Separando produtos",
@@ -41,10 +42,11 @@ const secondaryButton="inline-flex min-h-11 items-center justify-center gap-2 ro
 const card="rounded-xl border border-[#e0e8f3] bg-white shadow-[0_5px_20px_rgba(13,39,77,.035)]";
 
 /** Painel do pedido utilizado dentro do acompanhamento unificado na página inicial. */
-export function StoreOrderTrackingDetails({ token }: { token: string }) {
+export function StoreOrderTrackingDetails({ token, onReady }: { token: string; onReady: () => void }) {
   const [params]=useSearchParams();
   const [order,setOrder]=useState<StoreTracking|null>(null);
   const [loading,setLoading]=useState(true);
+  const [hasLoadedOnce,setHasLoadedOnce]=useState(false);
   const [error,setError]=useState("");
   const [copied,setCopied]=useState(false);
   const fetchOrder=useCallback(async(code:string,silent=false)=>{
@@ -58,8 +60,14 @@ export function StoreOrderTrackingDetails({ token }: { token: string }) {
     }catch(err){
       setOrder(null);
       setError(err instanceof Error?err.message:"Não foi possível consultar o pedido.");
-    }finally{setLoading(false);}
-  },[]);
+    }finally{
+      setLoading(false);
+      if(!silent){
+        setHasLoadedOnce(true);
+        onReady();
+      }
+    }
+  },[onReady]);
   useEffect(()=>{if(token)void fetchOrder(token);},[token,fetchOrder]);
   useEffect(()=>{
     if(!token)return;
@@ -89,9 +97,7 @@ export function StoreOrderTrackingDetails({ token }: { token: string }) {
         <ShieldCheck size={19} className="shrink-0 text-[var(--art-primary)]"/>
         Você voltou do ambiente de pagamento. O pagamento não é confirmado apenas pelo retorno: o status abaixo será atualizado depois da validação pelo provedor.
       </div>}
-      {loading&&<div className={card+" flex min-h-48 items-center justify-center gap-3 text-[13px] text-[#64809f]"}>
-        <LoaderCircle size={21} className="animate-spin text-[var(--art-primary)]"/> Consultando pedido...
-      </div>}
+      {loading&&hasLoadedOnce&&<TrackingLoading subject="pedido"/>}
       {error&&<div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-[13px] text-red-700">
         {error}
         {token&&<button type="button" onClick={()=>void fetchOrder(token)} className="ml-3 font-bold underline">Tentar novamente</button>}

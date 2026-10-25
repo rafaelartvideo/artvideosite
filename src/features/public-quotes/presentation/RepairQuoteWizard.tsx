@@ -202,7 +202,7 @@ export function RepairQuoteWizard() {
           </div>
           <p className="rounded-lg bg-blue-50 p-5 text-sm leading-6 text-[#244567]">O envio registra um pedido de orçamento, sem cobrança ou agendamento confirmado. A Artvideo entrará em contato para orientar o próximo passo.</p>
         </div>}
-        <div className="lg:hidden"><PublicButton type="submit" disabled={busy} className="w-full">{busy ? <Loader2 size={17} className="animate-spin"/> : stage === 2 ? <CheckCircle2 size={17}/> : <ArrowRight size={17}/>} {busy ? "Enviando..." : stage === 2 ? "Solicitar orçamento" : "Continuar"}</PublicButton></div>
+        <div className="lg:hidden"><PublicButton type="submit" disabled={busy} className="w-full">{busy ? <><Loader2 size={17} className="animate-spin"/> Enviando...</> : stage === 2 ? <><CheckCircle2 size={17}/> Solicitar orçamento</> : <>Continuar <ArrowRight size={17}/></>}</PublicButton></div>
       </form>
       <aside className="rounded-2xl bg-[#f5f7fa] p-6 lg:sticky lg:top-28 lg:p-8">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">Seu orçamento</h3>
@@ -214,7 +214,7 @@ export function RepairQuoteWizard() {
           {location === "collect" && <p className="text-sm font-semibold text-[#172b45]">Taxa de coleta: {feeStatus === "ready" && collectionFee !== null ? formatCurrency(collectionFee) : "A calcular pelo CEP"}</p>}
         </div>
         <div className="mt-6 border-t border-slate-200 pt-5"><p className="flex items-center justify-between text-sm"><span>Pagamento agora</span><strong>Sem cobrança</strong></p></div>
-        <div className="mt-6 hidden lg:block"><PublicButton type="submit" form="repair-quote-form" disabled={busy} className="w-full">{busy ? <Loader2 size={17} className="animate-spin"/> : stage === 2 ? <CheckCircle2 size={17}/> : <ArrowRight size={17}/>} {busy ? "Enviando..." : stage === 2 ? "Solicitar orçamento" : "Continuar"}</PublicButton></div>
+        <div className="mt-6 hidden lg:block"><PublicButton type="submit" form="repair-quote-form" disabled={busy} className="w-full">{busy ? <><Loader2 size={17} className="animate-spin"/> Enviando...</> : stage === 2 ? <><CheckCircle2 size={17}/> Solicitar orçamento</> : <>Continuar <ArrowRight size={17}/></>}</PublicButton></div>
       </aside>
     </div>
   </section>;

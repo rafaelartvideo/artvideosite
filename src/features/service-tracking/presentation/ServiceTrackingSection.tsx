@@ -1,9 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useLocation } from "react-router";
-import { CheckCircle2, Clock3, Package, Search, Wrench, X } from "lucide-react";
+import { CheckCircle2, Package, Search, Wrench, X } from "lucide-react";
 import { PublicButton as Btn, PublicHeading as H2 } from "@/features/public-shell/presentation/PublicUi";
 import { findPublicServiceOrder } from "../application/find-public-service-order";
 import { formatTrackingDate, type PublicTrackedOrder } from "../domain/service-tracking";
+import { TrackingLoading } from "./TrackingLoading";
 
 const StoreOrderTrackingDetails = lazy(() => import("@/features/public-store/presentation/StoreOrderTrackingPage")
   .then(module => ({ default: module.StoreOrderTrackingDetails })));
@@ -21,6 +22,8 @@ export function ServiceTrackingSection() {
   const [searched, setSearched] = useState(false);
   const [order, setOrder] = useState<PublicTrackedOrder | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [readyTrackingToken, setReadyTrackingToken] = useState<string | null>(null);
+  const markOrderReady = useCallback((token: string) => setReadyTrackingToken(token), []);
 
   useEffect(() => {
     if (!hash.startsWith("#acompanhar-servico") && !hash.startsWith("#c=")) return;
@@ -48,6 +51,7 @@ export function ServiceTrackingSection() {
       return;
     }
     setTrackingToken("");
+    setReadyTrackingToken(null);
     if (window.location.hash.includes("&c=")) {
       window.history.replaceState(window.history.state, "", "/#acompanhar-servico");
     }
@@ -86,13 +90,11 @@ export function ServiceTrackingSection() {
           placeholder="Número da OS ou código do pedido" autoComplete="off"
           className="min-h-11 min-w-0 flex-1 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20" required/>
         <Btn variant="primary" disabled={loading} className="!min-h-11 shrink-0 whitespace-nowrap px-6">
-          {loading ? <><Clock3 size={16} className="animate-spin"/> Consultando serviço...</> : <><Search size={17}/> Acompanhar</>}
+          {loading ? "Consultando..." : <><Search size={17}/> Acompanhar</>}
         </Btn>
       </form>
     </div>
-    {loading && <div role="status" className="mt-5 flex items-center justify-center gap-3 rounded-lg bg-white p-6 text-sm text-[#536780]">
-      <Clock3 size={19} className="animate-spin text-[var(--art-primary)]"/> Consultando sua Ordem de Serviço...
-    </div>}
+    {loading && <TrackingLoading subject="serviço"/>}
     {!loading && !trackingToken && searched && errorMsg && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-lg border border-red-200 bg-white p-5 text-center">
       <X size={21} className="mx-auto mb-2 text-red-600"/><p className="text-sm font-semibold">Não foi possível consultar</p>
       <p className="mt-1 text-[13px] text-[#64748b]">{errorMsg}</p>
@@ -132,8 +134,11 @@ export function ServiceTrackingSection() {
         </li>)}</ol>
       </div>}
     </div>}
-    {trackingToken && <Suspense fallback={<div role="status" className="mt-5 flex items-center justify-center gap-2 rounded-lg bg-white p-6 text-[13px] text-[#536780]"><Clock3 size={18} className="animate-spin text-[var(--art-primary)]"/> Consultando seu pedido...</div>}>
-      <StoreOrderTrackingDetails key={trackingToken} token={trackingToken}/>
-    </Suspense>}
+    {trackingToken && <>
+      {readyTrackingToken !== trackingToken && <TrackingLoading subject="pedido"/>}
+      <Suspense fallback={null}>
+        <StoreOrderTrackingDetails key={trackingToken} token={trackingToken} onReady={() => markOrderReady(trackingToken)}/>
+      </Suspense>
+    </>}
   </section>;
 }
