@@ -42,7 +42,7 @@ const secondaryButton="inline-flex min-h-11 items-center justify-center gap-2 ro
 const card="rounded-xl border border-[#e0e8f3] bg-white shadow-[0_5px_20px_rgba(13,39,77,.035)]";
 
 /** Painel do pedido utilizado dentro do acompanhamento unificado na página inicial. */
-export function StoreOrderTrackingDetails({ token, onReady }: { token: string; onReady: () => void }) {
+export function StoreOrderTrackingDetails({ token, onReady }: { token: string; onReady: (readyToken: string) => void }) {
   const [params]=useSearchParams();
   const [order,setOrder]=useState<StoreTracking|null>(null);
   const [loading,setLoading]=useState(true);
@@ -64,7 +64,7 @@ export function StoreOrderTrackingDetails({ token, onReady }: { token: string; o
       setLoading(false);
       if(!silent){
         setHasLoadedOnce(true);
-        onReady();
+        onReady(code);
       }
     }
   },[onReady]);

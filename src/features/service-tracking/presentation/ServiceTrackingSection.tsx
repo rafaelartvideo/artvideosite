@@ -137,7 +137,7 @@ export function ServiceTrackingSection() {
     {trackingToken && <>
       {readyTrackingToken !== trackingToken && <TrackingLoading subject="pedido"/>}
       <Suspense fallback={null}>
-        <StoreOrderTrackingDetails key={trackingToken} token={trackingToken} onReady={() => markOrderReady(trackingToken)}/>
+        <StoreOrderTrackingDetails key={trackingToken} token={trackingToken} onReady={markOrderReady}/>
       </Suspense>
     </>}
   </section>;
