@@ -40,19 +40,20 @@ Deno.serve(async (req: Request) => {
      if(lookupError)return reply({error:"Não foi possível consultar o pedido agora."},503);
      if(!verified)return reply({error:"Código indisponível ou não encontrado. Confira os quatro dígitos. Após muitas tentativas, aguarde 15 minutos."},404);
      orderId=String(verified);
-     const [orderResult,deliveryResult]=await Promise.all([
+     const [orderResult,deliveryResult,pickupOptionResult]=await Promise.all([
        admin.from("artvideo_store_orders")
-         .select("id,order_number,created_at,status,paid_at,payment_issue_status,buyer,shipping_service_id,postal_code")
+         .select("id,order_number,created_at,status,paid_at,payment_issue_status,shipping_service_id,postal_code")
          .eq("id",orderId).single(),
        admin.from("artvideo_store_fulfillments")
          .select("status,updated_at").eq("order_id",orderId).maybeSingle(),
+       admin.rpc("artvideo_store_pickup_option_v1"),
      ]);
-     if(orderResult.error||deliveryResult.error||!orderResult.data)
+     if(orderResult.error||deliveryResult.error||pickupOptionResult.error||!orderResult.data)
        return reply({error:"Não foi possível consultar o andamento."},503);
      const order=orderResult.data;
      // No PIN curto só saem as etapas e o endereço público de retirada,
      // nunca o link privado, dados do comprador, itens ou valores.
-     const buyer=order.buyer && typeof order.buyer==="object" ? order.buyer : {};
+     const store=pickupOptionResult.data && typeof pickupOptionResult.data==="object" ? pickupOptionResult.data : null;
      return reply({order:{
        id:order.id,number:"PED-"+String(order.order_number),createdAt:order.created_at,
        paymentStatus:order.status,paidAt:order.paid_at,
@@ -60,12 +61,12 @@ Deno.serve(async (req: Request) => {
        deliveryMethod:"pickup",fulfillmentStatus:order.status==="paid"?(deliveryResult.data?.status||"pending"):"pending",
        fulfillmentUpdatedAt:deliveryResult.data?.updated_at||null,
        pickupCode:deliveryResult.data?.status==="picked_up"?null:code,
-       pickupLocation:{
-         street:String(buyer.street||""),number:String(buyer.number||""),
-         district:String(buyer.district||""),city:String(buyer.city||""),
-         state:String(buyer.state||""),postalCode:String(order.postal_code||""),
-         hours:String(buyer.pickup_hours||""),instructions:String(buyer.pickup_instructions||""),
-       },
+       ...(store?{pickupLocation:{
+         street:String(store.street||""),number:String(store.number||""),
+         district:String(store.district||""),city:String(store.city||""),
+         state:String(store.state||""),postalCode:String(store.postal_code||""),
+         hours:String(store.opening_hours||""),instructions:"",
+       }}:{}),
        deliveryName:"Retirada na loja",items:[],subtotal:0,shippingPrice:0,total:0,
        timeline:[],supportCases:[],
      }});
