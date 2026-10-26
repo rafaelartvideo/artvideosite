@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import type { PrintTemplate } from "@/features/documents/domain/print-template";
 import { cn } from "@/shared/domain/formatters";
-import {
+import { AdminSectionEmpty,
   AdminCard,
   AdminCardHeader,
   AdminDialog,
@@ -385,7 +385,7 @@ export function OrderDocumentsPage({
                   {situationImages.length > 0 ? (
                     <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">{situationImages.map(document => <AttachmentCard key={document.id} document={document} canRemove={!readOnly && controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
                   ) : (
-                    <div className="px-4 py-6 text-center text-xs text-[#7c899c]">Nenhuma imagem registrada nesta situação.</div>
+                    <AdminSectionEmpty>Nenhuma imagem registrada nesta situação.</AdminSectionEmpty>
                   )}
                 </AdminCard>
               );
@@ -393,7 +393,7 @@ export function OrderDocumentsPage({
           ) : activeTab === "solution" ? (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               {solutionImages.length === 0 ? (
-                <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhuma imagem da solução registrada nesta OS.</div>
+                <AdminSectionEmpty>Nenhuma imagem da solução registrada nesta OS.</AdminSectionEmpty>
               ) : (
                 <div className="rounded-xl border border-border bg-muted p-4">
                   <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onView(image)} />)}</div>
@@ -417,7 +417,7 @@ export function OrderDocumentsPage({
           ) : (
             <div className="min-w-0 max-w-full space-y-4 overflow-hidden">
               {typedAttachments.length === 0 ? (
-                <div className="max-w-full rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]">Nenhum anexo registrado nesta OS.</div>
+                <AdminSectionEmpty>Nenhum anexo registrado nesta OS.</AdminSectionEmpty>
               ) : (
                 <div className="grid min-w-0 max-w-full grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">{typedAttachments.map(document => <AttachmentCard key={document.id} document={document} canRemove={!readOnly && controller.canRemove} removing={controller.removingId === document.id} onView={onView} onRemove={remove} />)}</div>
               )}
