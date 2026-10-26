@@ -11,8 +11,9 @@ import { MaterialSymbol, parseMaterialIcon } from "@/features/public-shell/prese
 const MaterialSymbolsPicker = lazy(() => import("./MaterialSymbolsPicker").then(module => ({ default: module.MaterialSymbolsPicker })));
 
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
-import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, InternalBackButton, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FIntegerInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
@@ -241,16 +242,10 @@ export function TabCategories({
       onConfirm={handleDelete} onCancel={() => setDelItem(null)} />}
     {!routeResourceId && <>
       <PageHeader title="Categorias" subtitle="Personalize nome, ordem e ícone ou imagem das categorias exibidas no site." />
-      <div role="tablist" aria-label="Tipo de categoria" className="flex items-center gap-5 border-b border-border">
-        {([{ id: "products", title: "Produtos", Icon: Package }, { id: "services", title: "Serviços", Icon: Wrench }] as const).map(tab =>
-          <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id}
-            onClick={() => { setKind(tab.id); setPage(1); }}
-            className={`inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition-colors ${kind === tab.id
-              ? "border-primary text-primary"
-              : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            <tab.Icon size={17}/>{tab.title}
-          </button>)}
-      </div>
+      <AdminSubsectionButtons value={kind} ariaLabel="Tipo de categoria"
+        items={[{ id: "products", label: "Produtos", Icon: Package },
+          { id: "services", label: "Serviços", Icon: Wrench }]}
+        onChange={value => { setKind(value); setPage(1); }} />
       {canViewTable && <AdminCard>
         {loading ? <LoadingState/> : cats.length === 0
           ? <EmptyState icon={FolderTree} title="Nenhuma categoria cadastrada"
@@ -282,8 +277,8 @@ export function TabCategories({
           </>}
       </AdminCard>}
       <AdminStickyToolbar className="justify-between">
-        <InternalBackButton onBack={onBack} />
-        {canCreate && <AdminButton onClick={openNewPage}><Plus size={16}/> Nova categoria</AdminButton>}
+        <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
+        {canCreate && <AdminButton onClick={openNewPage}><Plus size={16}/> Nova</AdminButton>}
       </AdminStickyToolbar>
     </>}
     {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState/></AdminCard>}
