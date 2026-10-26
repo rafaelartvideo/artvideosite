@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
-  ArrowRight, CalendarDays, CheckCircle2, ClipboardList,
-  MapPin, MessageCircle, PackageCheck, Store,
-  Truck, Wrench, XCircle,
+  ArrowRight, CalendarDays, ClipboardList, MapPin, MessageCircle, Wrench,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
@@ -114,6 +112,12 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
   const parsed=useMemo(()=>parseQuoteRequestMessage(quote?.customer_message),[quote?.customer_message]);
   const address=useMemo(()=>quoteRequestAddress(quote),[quote]);
   const mapText=quoteAddressLabel(address);
+  const location=address?.address;
+  const zipDigits=String(location?.zip_code||parsed.repairPostalCode||"").replace(/\D/g,"");
+  const zipLabel=zipDigits.length===8?`${zipDigits.slice(0,5)}-${zipDigits.slice(5)}`:zipDigits;
+  const report=String(quote?.issue_reported||parsed.issue||"").trim();
+  const customerNotes=String(parsed.notes||"").trim();
+  const hasCustomerReport=Boolean(report||customerNotes);
   const collecting=parsed.repairLocation.toLowerCase().includes("colet")||
     ["COLETA_PENDENTE","COLETA_AGENDADA"].includes(status);
   const stages=repair?(collecting?collectionStages:repairStages):serviceStages;
@@ -210,7 +214,12 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
           </div>
         </Section>}
         <div className="grid min-w-0 gap-4 lg:grid-cols-2">
-          <Section title="Cliente">
+          <Section title="Cliente"
+            actions={mayMessage?<AdminButton variant="success" size="sm"
+              onClick={()=>setSacOpen(true)} aria-label="Abrir conversa no WhatsApp com o cliente"
+              title="Abrir conversa no WhatsApp">
+              <MessageCircle size={16}/> WhatsApp
+            </AdminButton>:undefined}>
             <div className="grid gap-3 sm:grid-cols-2">
               <DetailField label="Nome" value={quote.customer?.full_name||quote.customer?.trade_name}/>
               <DetailField label="Tipo" value={quote.customer?.customer_type==="PJ"?"Pessoa jurídica":"Pessoa física"}/>
@@ -235,19 +244,37 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
               <DetailField label="Recebido em" value={formatDateTime(quote.created_at)}/>
             </div>
           </Section>
+        </div>
+        <div className={hasCustomerReport?"grid min-w-0 gap-4 lg:grid-cols-2":"min-w-0"}>
           <Section title={repair?"Entrega / coleta":"Local de atendimento"}
-            actions={mapText?<a className="inline-flex items-center gap-2 text-xs font-bold text-primary" target="_blank" rel="noopener noreferrer"
-              href={"https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapText)}><MapPin size={15}/> Mapa</a>:undefined}>
-            <p className="whitespace-pre-wrap text-sm">{mapText||(
-              repair&&!collecting?"O cliente escolheu levar o equipamento à loja.":"Endereço não informado.")}</p>
-            {repair&&collecting&&<p className="mt-2 text-xs text-muted-foreground">O agendamento da coleta deve ser confirmado com o cliente. Nenhuma taxa é cobrada automaticamente aqui.</p>}
+            actions={mapText?<AdminButton variant="tertiary" size="sm"
+              onClick={()=>window.open("https://www.google.com/maps/search/?api=1&query="+encodeURIComponent(mapText),"_blank","noopener,noreferrer")}
+              aria-label="Abrir local de atendimento no Google Maps" title="Abrir no Google Maps">
+              <MapPin size={16}/> Mapa
+            </AdminButton>:undefined}>
+            {location&&(location.street||location.number||location.neighborhood||location.city||location.state||zipLabel||location.text)
+              ? <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  <DetailField label="CEP" value={zipLabel}/>
+                  <DetailField label="Rua / Avenida" value={location.street}/>
+                  <DetailField label="Número" value={location.number}/>
+                  <DetailField label="Complemento" value={location.complement}/>
+                  <DetailField label="Bairro" value={location.neighborhood}/>
+                  <DetailField label="Cidade" value={location.city}/>
+                  <DetailField label="Estado" value={location.state}/>
+                  {location.text&&!location.street&&<DetailField label="Endereço informado" value={location.text}/>}
+                </div>
+              : <p className="text-sm text-muted-foreground">{repair&&!collecting?
+                  "O cliente escolheu levar o equipamento à loja.":"Endereço não informado."}</p>}
+            {repair&&collecting&&<p className="mt-3 text-xs text-muted-foreground">
+              A coleta deverá ser confirmada com o cliente. Nenhuma taxa é cobrada automaticamente nesta etapa.
+            </p>}
           </Section>
-          <Section title="Relato do cliente">
+          {hasCustomerReport&&<Section title="Relato do cliente">
             <div className="space-y-3">
-              <DetailField label="Problema / solicitação" value={parsed.issue||parsed.repairType}/>
-              <DetailField label="Mensagem adicional" value={parsed.notes||(!parsed.issue?quote.customer_message:null)}/>
+              <DetailField label={repair?"Problema relatado":"Descrição informada"} value={report}/>
+              <DetailField label="Observações adicionais" value={customerNotes}/>
             </div>
-          </Section>
+          </Section>}
         </div>
         {!repair&&["PROPOSTA_PREPARADA","PROPOSTA_ENVIADA","ACEITO_CLIENTE","AGENDADO","CONCLUIDO"].includes(status)&&
           <Section title="Proposta comercial" description="Somente o aceite informado pelo cliente autoriza o avanço.">
@@ -311,33 +338,27 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
       </div>}
     <AdminStickyToolbar className="justify-between gap-2">
       <BtnSecondary onClick={onBack} disabled={busy}>Voltar</BtnSecondary>
-      {quote&&<div className="flex flex-wrap items-center justify-end gap-2">
-        {mayMessage&&<AdminButton variant="tertiary" size="sm" onClick={()=>setSacOpen(true)}>
-          <MessageCircle size={15}/> WhatsApp
-        </AdminButton>}
-        {linkedOs&&<AdminButton variant="tertiary" size="sm" onClick={()=>navigate(adminPath("orders",linkedOs.id))}>
+      {quote&&<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
+        {linkedOs&&<AdminButton variant="tertiary" className="h-10"
+          onClick={()=>navigate(adminPath("orders",linkedOs.id))}>
           <ClipboardList size={15}/> Abrir OS
         </AdminButton>}
         {!linkedOs&&canCreateOrder&&(
           (repair&&status==="EQUIPAMENTO_RECEBIDO")||
           (!repair&&["ACEITO_CLIENTE","AGENDADO"].includes(status)))&&
-          <AdminButton disabled={busy} loading={busy} onClick={()=>void createOs()}>
-            <ClipboardList size={15}/> Criar OS
+          <AdminButton className="h-10" disabled={busy} loading={busy} onClick={()=>void createOs()}>
+            Criar OS
           </AdminButton>}
         {!action&&canUpdate&&!finished&&<>
-          {actionOptions.map(option=><AdminButton key={option.id} size="sm"
-            variant={option.variant||"primary"} disabled={busy} onClick={()=>choose(option)}>
-            {option.id==="receive_equipment"?<PackageCheck size={15}/>:
-             option.id==="await_dropoff"?<Store size={15}/>:
-             option.id==="request_collection"?<Truck size={15}/>:
-             option.id==="record_acceptance"?<CheckCircle2 size={15}/>:
-             <ArrowRight size={15}/>}
+          <AdminButton variant="secondary" className="h-10 border-red-200 text-red-600 hover:bg-red-50"
+            disabled={busy} onClick={()=>choose({id:"close",label:"Encerrar solicitação",needsNote:true})}>
+            Encerrar
+          </AdminButton>
+          {actionOptions.map(option=><AdminButton key={option.id}
+            variant={option.variant||"primary"} className="h-10" disabled={busy}
+            onClick={()=>choose(option)}>
             {option.label}
           </AdminButton>)}
-          <AdminButton variant="danger" size="sm" disabled={busy}
-            onClick={()=>choose({id:"close",label:"Encerrar solicitação",needsNote:true})}>
-            <XCircle size={15}/> Encerrar
-          </AdminButton>
         </>}
       </div>}
     </AdminStickyToolbar>
