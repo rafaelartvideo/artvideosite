@@ -26,7 +26,7 @@ create or replace function public.artvideo_first_name_key_v1(p_name text)
 returns text language sql immutable set search_path=''
 as $$
   select translate(
-    lower(split_part(btrim(regexp_replace(coalesce(p_name,''),'\\s+',' ','g')),' ',1)),
+    lower(split_part(btrim(regexp_replace(coalesce(p_name,''),'[[:space:]]+',' ','g')),' ',1)),
     'áàâãäåéèêëíìîïóòôõöúùûüçñýÿ',
     'aaaaaaeeeeiiiiooooouuuucnyy'
   );
@@ -40,7 +40,7 @@ as $$
 declare d text:=regexp_replace(coalesce(p_cpf,''),'[^0-9]','','g');
  t int; i int; c int;
 begin
- if length(d)<>11 or d ~ '^([0-9])\\1{10}$' then return false; end if;
+ if length(d)<>11 or d=repeat(substr(d,1,1),11) then return false; end if;
  t:=0;
  for i in 1..9 loop t:=t+(substr(d,i,1)::int)*(11-i); end loop;
  c:=(t*10)%11;
