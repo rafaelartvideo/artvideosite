@@ -182,12 +182,32 @@ export type SiteQuoteWorkflowEvent = {
 };
 
 export async function listSiteQuoteWorkflowEvents(organizationId:string,quoteId:string) {
-  const {data,error}=await supabase.from("quote_site_workflow_events")
-    .select("id,action,from_status,to_status,note,created_at")
-    .eq("organization_id",requireOrganizationId(organizationId))
-    .eq("quote_request_id",quoteId).order("created_at",{ascending:false}).limit(100);
-  if(error)throw error;
-  return (data||[]) as SiteQuoteWorkflowEvent[];
+  const org=requireOrganizationId(organizationId);
+  const [workflow,legacy,statuses]=await Promise.all([
+    supabase.from("quote_site_workflow_events")
+      .select("id,action,from_status,to_status,note,created_at")
+      .eq("organization_id",org).eq("quote_request_id",quoteId)
+      .order("created_at",{ascending:false}).limit(100),
+    supabase.from("quote_status_history")
+      .select("id,to_status_id,created_at")
+      .eq("organization_id",org).eq("quote_request_id",quoteId)
+      .order("created_at",{ascending:false}).limit(100),
+    listRequestStatuses(org),
+  ]);
+  if(workflow.error)throw workflow.error;
+  if(legacy.error)throw legacy.error;
+  if(statuses.error)throw statuses.error;
+  const current=(workflow.data||[]) as SiteQuoteWorkflowEvent[];
+  const byId=new Map((statuses.data||[]).map(x=>[x.id,x.slug]));
+  const historic:SiteQuoteWorkflowEvent[]=(legacy.data||[])
+    .map(row=>({
+      id:row.id,action:"previous_history",from_status:"",
+      to_status:byId.get(row.to_status_id)||"Atualização",
+      note:null,created_at:row.created_at,
+    }))
+    .filter(row=>!current.some(item=>item.to_status===row.to_status
+      && Math.abs(new Date(item.created_at).getTime()-new Date(row.created_at).getTime())<3000));
+  return [...current,...historic].sort((a,b)=>b.created_at.localeCompare(a.created_at));
 }
 
 export async function advanceSiteQuote(
