@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
+import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
 import {
   activateCustomerAccount, getCustomerPortal,
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
@@ -84,6 +85,7 @@ export function CustomerAccountPage() {
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [cpf, setCpf] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -135,6 +137,7 @@ export function CustomerAccountPage() {
     if (busy) return;
     setError("");
     if (mode === "register") {
+      if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
       if (name.trim().length < 3) return setError("Informe seu nome completo.");
       if (password.length < 8) return setError("A senha deve ter no mínimo 8 caracteres.");
       if (password !== confirmPassword) return setError("As senhas não coincidem.");
@@ -156,7 +159,7 @@ export function CustomerAccountPage() {
           password,
           options: {
             emailRedirectTo: window.location.origin + "/minha-conta",
-            data: { registration_origin: "artvideo_customer", full_name: name.trim(), phone: phone.replace(/\D/g, "") },
+            data: { registration_origin: "artvideo_customer", full_name: name.trim(), phone: phone.replace(/\D/g, ""), cpf: cpf.replace(/\D/g, "") },
           },
         });
         if (signupError) throw signupError;
@@ -205,9 +208,10 @@ export function CustomerAccountPage() {
     setBusy(true);
     setError("");
     try {
-      const result = await activateCustomerAccount(name.trim(), phone.trim());
+      const result = await activateCustomerAccount(name.trim(), phone.trim(), cpf.trim());
       if (result.status === "linked") setRefreshIndex(index => index + 1);
       else if (result.status === "invalid_phone") setError("Informe um telefone com DDD válido.");
+      else if (result.status === "invalid_cpf") setError("CPF inválido. Verifique os números informados.");
       else setState(result.status);
     } catch {
       setError("Não foi possível completar o cadastro. Tente novamente.");
@@ -282,6 +286,9 @@ export function CustomerAccountPage() {
               <label className="block text-xs font-semibold text-[#294361]">Nome completo
                 <input className={inputClass + " mt-1.5"} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Seu nome completo"/>
               </label>
+              <label className="block text-xs font-semibold text-[#294361]">CPF
+                <input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/>
+              </label>
               <label className="block text-xs font-semibold text-[#294361]">Telefone (opcional)
                 <input className={inputClass + " mt-1.5"} type="tel" value={phone} onChange={event => setPhone(event.target.value)} autoComplete="tel" placeholder="(00) 00000-0000"/>
               </label>
@@ -309,14 +316,15 @@ export function CustomerAccountPage() {
             {mode !== "register" && <button type="button" onClick={() => { setMode("register"); setError(""); }}>Criar uma conta</button>}
             {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }}>Esqueci minha senha</button>}
           </div>
-          <div className="mt-6 flex items-start gap-2 border-t border-[#e9edf5] pt-4 text-[11px] leading-5 text-[#788ca5]"><ShieldCheck size={16} className="mt-0.5 shrink-0"/> A conta do site não libera acesso a ordens de serviço nem se vincula automaticamente a cadastros antigos do CRM.</div>
+          <div className="mt-6 flex items-start gap-2 border-t border-[#e9edf5] pt-4 text-[11px] leading-5 text-[#788ca5]"><ShieldCheck size={16} className="mt-0.5 shrink-0"/> O CPF e o primeiro nome são comparados ao cadastro da Artvideo. Divergências passam por análise. O acesso às OS permanece pelo acompanhamento por protocolo.</div>
         </>}
       </div> :
-      state === "needs_name" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
+      state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
         <h2 className="text-xl font-bold text-[#173450]">Complete seu cadastro</h2>
-        <p className="mt-2 text-sm text-[#657a95]">Precisamos do seu nome para criar sua conta do site.</p>
+        <p className="mt-2 text-sm text-[#657a95]">Informe seu nome e CPF para comparar seus dados com o cadastro da Artvideo.</p>
         <form onSubmit={event => void completeAccount(event)} className="mt-5 space-y-4">
           <label className="block text-xs font-semibold text-[#294361]">Nome completo<input className={inputClass + " mt-1.5"} value={name} onChange={event => setName(event.target.value)} required minLength={3} maxLength={120}/></label>
+          <label className="block text-xs font-semibold text-[#294361]">CPF<input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/></label>
           <label className="block text-xs font-semibold text-[#294361]">Telefone (opcional)<input className={inputClass + " mt-1.5"} value={phone} onChange={event => setPhone(event.target.value)} type="tel"/></label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
           <button type="submit" disabled={busy} className={primaryClass}>Concluir cadastro <ArrowRight size={16}/></button>
@@ -354,9 +362,16 @@ export function CustomerAccountPage() {
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h2 className="text-xl font-bold text-[#183250]">{tab === "overview" ? "Olá, " + portal.customer.name.split(" ")[0] : headings[tab]}</h2>
-              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Confira seus acompanhamentos mais recentes." : "Informações sincronizadas com os registros da Artvideo."}</p></div>
+              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Confira suas compras e solicitações realizadas no site." : "Informações sincronizadas com os registros da Artvideo."}</p></div>
             <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={secondaryClass} title="Atualizar informações"><RefreshCw size={16}/> Atualizar</button>
           </div>
+          {portal.match_status === "pending_review" && <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <ShieldCheck size={19} className="mt-0.5 shrink-0"/>
+            <div><strong className="block">Vínculo com o CRM em análise</strong>
+              <p className="mt-1 text-xs leading-5">Os dados informados precisam ser conferidos pela equipe da Artvideo. Seus pedidos e orçamentos feitos no site continuam disponíveis normalmente.</p>
+            </div>
+          </div>}
+          {portal.match_status === "rejected" && <div className="mb-4 rounded-xl border border-[#dce5f1] bg-white p-4 text-sm text-[#536982]">O vínculo com o cadastro do CRM não foi confirmado. Seus pedidos e orçamentos do site continuam disponíveis.</div>}
           {tab === "overview" && <>
             <div className="grid gap-3 sm:grid-cols-2">
               {([{ label: "Pedidos", count: orders.length, icon: Package, target: "orders" },
@@ -381,12 +396,13 @@ export function CustomerAccountPage() {
 
           {tab === "quotes" && <RecordList kind="quotes" items={quotes}/>}
           {tab === "profile" && <div className={cardClass}>
-            <h3 className="text-sm font-bold text-[#25405e]">Dados do cadastro</h3>
+            <h3 className="text-sm font-bold text-[#25405e]">Dados da conta</h3>
+            <p className="mt-2 text-xs text-[#647b94]">{portal.match_status === "pending_review" ? "Vinculação ao CRM: Em análise" : portal.match_status === "rejected" ? "Vinculação ao CRM: Não aprovada" : portal.match_status === "matched" || portal.match_status === "approved" || portal.match_status === "created" ? "Vinculação ao CRM: Associada" : "Vinculação ao CRM: Não disponível"}</p>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               {[["Nome", portal.customer.name], ["E-mail", portal.customer.email], ["Telefone", portal.customer.phone || "Não informado"]].map(([label, value]) =>
                 <div key={label}><span className="block text-[11px] uppercase tracking-wide text-[#8493a8]">{label}</span><strong className="mt-1 block break-words text-sm text-[#24405e]">{value}</strong></div>)}
             </div>
-            <p className="mt-5 border-t border-[#ecf0f5] pt-4 text-xs leading-5 text-[#71849c]">Esta conta é exclusiva do site. Para acompanhar uma ordem de serviço, utilize o protocolo na página inicial.</p>
+            <p className="mt-5 border-t border-[#ecf0f5] pt-4 text-xs leading-5 text-[#71849c]">Seus dados são conferidos pelo CPF e primeiro nome. Para acompanhar uma OS, utilize o protocolo na página inicial.</p>
           </div>}
         </div>
       </div>}
