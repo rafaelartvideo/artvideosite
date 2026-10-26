@@ -5,6 +5,7 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/shared/ui/primitives/dropdown-menu";
 import { AdminCard } from "./AdminLayout";
+import { AdminFieldLabel, INPUT } from "./AdminFormControls";
 
 export function AdminSearchPanel({ title, children, headerActions, allowOverflow = false }: { title: string; children: ReactNode; headerActions?: ReactNode; allowOverflow?: boolean }) {
   return <AdminCard square className={allowOverflow ? "overflow-visible p-0" : "overflow-hidden p-0"}>
@@ -17,6 +18,25 @@ export function AdminSearchPanel({ title, children, headerActions, allowOverflow
     </div>
     <div className="min-w-0 p-4 md:p-3">{children}</div>
   </AdminCard>;
+}
+
+/** Campo de busca compacto padronizado para painéis administrativos. */
+export function AdminSearchTextField({ label, value, onChange, placeholder }: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+}) {
+  return <div className="min-w-0">
+    <AdminFieldLabel label={label} />
+    <div className="relative min-w-0">
+      <Search size={15} aria-hidden="true"
+        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+      <input type="search" value={value} onChange={event => onChange(event.target.value)}
+        placeholder={placeholder} aria-label={`Buscar por ${label.toLowerCase()}`}
+        className={cn(INPUT, "h-[42px] min-h-[42px] pl-9 pr-2")} />
+    </div>
+  </div>;
 }
 
 /** Ações padrão da barra azul das buscas: mesma altura, cor e foco da OS. */
