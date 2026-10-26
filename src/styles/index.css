@@ -1071,3 +1071,34 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 @media (prefers-reduced-motion: reduce) {
   .art-cart-confirmation > div, .art-cart-success-check { animation: none; }
 }
+
+/* Pedidos Artvideo: etapa logística atual com movimento sutil, sem indicar
+   percentual fictício; etapas concluídas têm preenchimento final estável. */
+@keyframes art-fulfillment-bar-shimmer {
+  from { transform: translateX(-180%); }
+  to { transform: translateX(300%); }
+}
+@keyframes art-fulfillment-bar-finish {
+  from { transform: scaleX(.12); opacity: .7; }
+  to { transform: scaleX(1); opacity: 1; }
+}
+.art-fulfillment-bar-active::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 55%), transparent);
+  animation: art-fulfillment-bar-shimmer 1.8s ease-in-out infinite;
+  pointer-events: none;
+}
+.art-fulfillment-bar-done {
+  transform-origin: left center;
+  animation: art-fulfillment-bar-finish .45s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .art-fulfillment-bar-active::after,
+  .art-fulfillment-bar-done {
+    animation: none;
+  }
+}
