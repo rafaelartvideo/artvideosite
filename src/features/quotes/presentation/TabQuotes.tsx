@@ -120,7 +120,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
 
   const quotesQuery = useQuery({
     queryKey: [...queryKeys.quotes.lists(), organizationId, listFilters],
-    enabled: Boolean(organizationId) && canViewTable  ,
+    enabled: Boolean(organizationId) && canViewTable,
     queryFn: () => listQuotesPage(organizationId, listFilters),
   });
   const quotes = quotesQuery.data?.items ?? [];
@@ -266,7 +266,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
         </>}
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }} />
       </AdminCard>}
-    </>}
+    </>
 
     {routeResourceId && !detail && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     {detail && canViewDetails && <AdminDialog open onClose={closeDetails} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} description="Detalhes da solicitação de orçamento" className="max-w-4xl">
