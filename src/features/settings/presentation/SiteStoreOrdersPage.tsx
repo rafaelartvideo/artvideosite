@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import {
+import { AdminSectionEmpty,
   AdminButton, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -720,7 +720,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         <div className="rounded-lg border border-border p-4">
           <h3 className="mb-3 flex items-center gap-2 font-bold"><ClipboardCheck size={18} className="text-primary"/> Histórico da operação</h3>
           {historyLoading ? <p className="text-xs text-muted-foreground">Carregando histórico...</p>
-          : !events.length ? <p className="text-xs text-muted-foreground">Nenhuma movimentação logística registrada neste pedido.</p>
+          : !events.length ? <AdminSectionEmpty>Nenhuma movimentação logística registrada neste pedido.</AdminSectionEmpty>
           : <ol className="space-y-4">{events.map(event => <li key={event.id} className="border-l-2 border-primary/40 pl-4">
             <p className="text-[13px] font-bold">{deliveryLabels[event.to_status] || event.to_status}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
