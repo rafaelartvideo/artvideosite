@@ -343,7 +343,7 @@ export function AdminDialog({
         "--admin-browser-bottom-half-inset": `${Math.round(browserBottomInset / 2)}px`,
       } as React.CSSProperties}
       className={cn(
-        "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl",
+        "admin-crm z-[150] flex max-h-[calc(100dvh-1.5rem)] max-w-lg flex-col gap-0 overflow-hidden rounded-2xl border-border bg-card p-0 shadow-2xl transition-[max-width,height] duration-300 ease-out motion-reduce:transition-none",
         className,
       )}
     >
