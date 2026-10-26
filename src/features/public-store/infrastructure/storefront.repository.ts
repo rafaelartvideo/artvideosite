@@ -278,6 +278,25 @@ export async function getStoreTracking(token: string): Promise<StoreTracking> {
   return data.order as StoreTracking;
 }
 
+export type PickupTrackingLookup = { orderNumber: string; code: string; email: string };
+
+/** Consulta enxuta sem entregar ao navegador o token privado do link. */
+export async function getStoreTrackingByPickupCode(lookup: PickupTrackingLookup): Promise<StoreTracking> {
+  const number=lookup.orderNumber.trim().replace(/^PED-/i, "").trim();
+  const code=lookup.code.trim();
+  const email=lookup.email.trim().toLowerCase();
+  if(!/^\d{1,9}$/.test(number)||!/^\d{4}$/.test(code)||!email.includes("@"))
+    throw new Error("Informe o número do pedido, o e-mail utilizado na compra e o código de retirada.");
+  const {data,error}=await supabase.functions.invoke("artvideo-store-order-status",{
+    body:{ action:"pickup_lookup",order_number:number,pickup_code:code,email },
+  });
+  if(error) throw new Error("Não foi possível consultar o pedido. Tente novamente.");
+  if(data?.error) throw new Error(String(data.error));
+  if(!data?.order || data.order.deliveryMethod!=="pickup")
+    throw new Error("Não foi possível localizar o pedido.");
+  return data.order as StoreTracking;
+}
+
 export type StoreSupportCase = {
   id: string; type: "cancellation"|"exchange"|"return";
   status: "open"|"in_review"|"approved"|"rejected"|"closed";
