@@ -10,6 +10,7 @@ import {
 } from "./OrderFormControls";
 import { OrderImageDownloadMenu, OrderImageThumb, type OrderImage } from "./OrderImages";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { SiteQuoteMediaGallery } from "@/features/quotes/presentation/SiteQuoteMediaGallery";
 
 export function InfoRow({
   label,
@@ -188,6 +189,10 @@ export function OrderDetailsContent({
           )}
           </div>
         </Section>
+      )}
+
+      {detail.quote_request_id && detail.organization_id && hasPermission("orders.section.images") && (
+        <SiteQuoteMediaGallery quoteId={detail.quote_request_id} organizationId={detail.organization_id}/>
       )}
 
       {hasPermission("orders.section.information") && (
