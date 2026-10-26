@@ -173,7 +173,7 @@ export type SiteQuoteAction =
   | "start_analysis" | "need_info" | "resume_analysis"
   | "await_dropoff" | "request_collection" | "schedule_collection"
   | "receive_equipment" | "link_os" | "prepare_offer" | "edit_offer"
-  | "record_sent" | "record_acceptance" | "schedule_service"
+  | "record_sent" | "reopen_offer" | "record_acceptance" | "schedule_service"
   | "finish_service" | "close";
 
 export type SiteQuoteWorkflowEvent = {
