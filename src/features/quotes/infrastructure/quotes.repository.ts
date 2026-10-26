@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-const QUOTE_SELECT = "id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, service_address, customer_message, estimated_price, final_price, request_status:request_statuses(id,name,color,slug), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)";
+const QUOTE_SELECT = "id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, service_address, customer_message, site_request_kind, proposed_solution, estimated_price, final_price, request_status:request_statuses(id,name,color,slug), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)";
 const QUOTE_FILTER_SELECT = "id,protocol,created_at,status_id,customer_id,customer:customers(id,full_name,trade_name,document,cnpj,whatsapp)";
 
 export type QuotePageInput = {
@@ -166,3 +166,38 @@ export const createServiceOrderFromQuote = (
   const org = requireOrganizationId(organizationId);
   return supabase.from("service_orders").insert({ ...order, organization_id: org });
 };
+
+export type SiteQuoteAction =
+  | "start_analysis" | "need_info" | "resume_analysis"
+  | "await_dropoff" | "request_collection" | "schedule_collection"
+  | "receive_equipment" | "link_os" | "prepare_offer" | "edit_offer"
+  | "record_sent" | "record_acceptance" | "schedule_service"
+  | "finish_service" | "close";
+
+export type SiteQuoteWorkflowEvent = {
+  id:string; action:string; from_status:string; to_status:string;
+  note:string|null; created_at:string;
+};
+
+export async function listSiteQuoteWorkflowEvents(organizationId:string,quoteId:string) {
+  const {data,error}=await supabase.from("quote_site_workflow_events")
+    .select("id,action,from_status,to_status,note,created_at")
+    .eq("organization_id",requireOrganizationId(organizationId))
+    .eq("quote_request_id",quoteId).order("created_at",{ascending:false}).limit(100);
+  if(error)throw error;
+  return (data||[]) as SiteQuoteWorkflowEvent[];
+}
+
+export async function advanceSiteQuote(
+  quoteId:string,expectedSlug:string,action:SiteQuoteAction,values?:{
+    note?:string;price?:number;description?:string;
+  },
+) {
+  const {data,error}=await supabase.rpc("artvideo_site_quote_advance_v1",{
+    p_quote_id:quoteId,p_expected_slug:expectedSlug,p_action:action,
+    p_note:values?.note?.trim()||null,
+    p_price:values?.price??null,p_description:values?.description?.trim()||null,
+  });
+  if(error)throw error;
+  return data as {success:boolean;status:string};
+}
