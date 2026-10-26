@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Unplug } from "lucide-react";
+import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram, Plus, RefreshCw, ShieldCheck, Trash2, Unplug } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -48,8 +48,9 @@ const showError = (message: string) => { if (message) notifyAdmin(message, "erro
 
 export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "configuration" }: { onBack: () => void; onOpenInbox?: () => void; initialSection?: ChannelSection }) {
   const { activeOrganizationId, hasPermission } = useAuth();
-  const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
+  const canView = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete");
   const canManage = hasPermission("settings.channels.manage");
+  const canDelete = hasPermission("settings.channels.delete");
   const [section, setSection] = useState<ChannelSection>(initialSection);
   const [settingsCreateRequest, setSettingsCreateRequest] = useState(0);
   const [channel, setChannel] = useState<WhatsAppChannel | null>(null);
@@ -65,6 +66,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
   const [statusError, setStatusError] = useState("");
   const [qr, setQr] = useState<string | null>(null);
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<WhatsAppChannel | null>(null);
   const [confirmSwitch, setConfirmSwitch] = useState(false);
   const statusInFlight = useRef(false);
   const qrInFlight = useRef(false);
@@ -125,6 +127,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     setConnectionName("");
     setStatusError("");
     setConfirmLogout(false);
+    setDeleteTarget(null);
     setConfirmSwitch(false);
     void load();
   }, [load]);
@@ -317,6 +320,28 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
     }
   };
 
+  const deleteConnection = async () => {
+    if (!activeOrganizationId || !canDelete || !deleteTarget || action) return;
+    setAction("delete");
+    try {
+      const result = await operateWhatsAppChannel(activeOrganizationId, "delete", deleteTarget.id);
+      const remaining = result.channels || channels.filter(item => item.id !== deleteTarget.id);
+      setChannels(remaining);
+      const primary = remaining.find(item => item.state === "connected" || item.state === "connecting") || remaining[0] || null;
+      channelRef.current = primary;
+      setChannel(primary);
+      setQr(null);
+      setQrOpen(false);
+      setStatusError("");
+      setDeleteTarget(null);
+      showSuccess("Conexão removida definitivamente.");
+    } catch (error) {
+      showError(systemErrorMessage(error, "Não foi possível excluir a conexão."));
+    } finally {
+      setAction(null);
+    }
+  };
+
   const closeCreateConnection=()=>{
     if(action==="register")return;
     setCreateConnectionOpen(false);
@@ -434,7 +459,9 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
                       </AdminButton>}
                     {!connected && anotherActive(item.id) &&
                       <span className="self-center text-[11px] text-muted-foreground">Em espera</span>}
-                    {!connected && !canManage && <span className="text-xs text-muted-foreground">Desconectado</span>}
+                    {canDelete && <AdminButton variant="danger" size="sm"
+                      disabled={Boolean(action)} onClick={() => setDeleteTarget(item)}><Trash2 size={15}/> Excluir</AdminButton>}
+                    {!connected && !canManage && !canDelete && <span className="text-xs text-muted-foreground">Desconectado</span>}
                   </div></td>
                 </tr>;
               }) : <tr><td colSpan={6} className="py-12 text-center text-sm text-muted-foreground">
@@ -540,6 +567,20 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       </div>
     </AdminDialog>
 
+    <AdminDialog open={Boolean(deleteTarget)} onClose={() => { if (action !== "delete") setDeleteTarget(null); }}
+      title="Excluir conexão permanentemente?"
+      description={deleteTarget ? `Conexão: ${deleteTarget.display_name || "WhatsApp"}` : undefined}
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" disabled={action === "delete"} onClick={() => setDeleteTarget(null)}>Cancelar</AdminButton>
+        <AdminButton variant="danger" loading={action === "delete"} disabled={Boolean(action)} onClick={() => void deleteConnection()}>
+          <Trash2 size={15}/> Excluir definitivamente
+        </AdminButton>
+      </div>}>
+      <div className="flex items-start gap-3 p-5 text-sm text-muted-foreground">
+        <CircleAlert size={23} className="shrink-0 text-destructive"/>
+        <p>Esta ação é irreversível: removerá a sessão do WhatsApp, os contatos importados, as conversas, as mensagens e os protocolos vinculados a esta conexão. Para pausar o atendimento sem apagar o histórico, use <strong>Desconectar</strong>.</p>
+      </div>
+    </AdminDialog>
     <AdminDialog open={confirmLogout} onClose={() => setConfirmLogout(false)} title="Desconectar WhatsApp?"
       description="A conexão será pausada, mas a sessão e o número permanecerão vinculados."
       footer={<div className="flex gap-2"><AdminButton variant="secondary" onClick={() => setConfirmLogout(false)}>Cancelar</AdminButton>
