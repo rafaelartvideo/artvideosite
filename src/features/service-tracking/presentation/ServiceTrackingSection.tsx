@@ -20,9 +20,7 @@ export function ServiceTrackingSection() {
   const [trackingToken, setTrackingToken] = useState("");
   const [pickupLookup, setPickupLookup] = useState<PickupTrackingLookup | null>(null);
   const [pickupMode, setPickupMode] = useState(false);
-  const [pickupNumber, setPickupNumber] = useState("");
   const [pickupPin, setPickupPin] = useState("");
-  const [pickupEmail, setPickupEmail] = useState("");
   const [osNumber, setOsNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -52,15 +50,13 @@ export function ServiceTrackingSection() {
     if ((!input && !pickupMode) || loading) return;
     setSearched(true); setOrder(null); setErrorMsg("");
     if (pickupMode) {
-      const orderNumber = pickupNumber.replace(/^PED-/i, "").trim();
-      if (!/^\d{1,9}$/.test(orderNumber) || !/^\d{4}$/.test(pickupPin.trim())
-          || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pickupEmail.trim())) {
-        setErrorMsg("Informe o número do pedido, os quatro dígitos da retirada e o e-mail usado na compra.");
+      if (!/^\d{4}$/.test(pickupPin.trim())) {
+        setErrorMsg("Informe os quatro dígitos do código de retirada.");
         return;
       }
       setTrackingToken("");
       setReadyTrackingToken(null);
-      setPickupLookup({orderNumber, code:pickupPin.trim(), email:pickupEmail.trim()});
+      setPickupLookup({code:pickupPin.trim()});
       return;
     }
     setPickupLookup(null);
@@ -105,27 +101,13 @@ export function ServiceTrackingSection() {
         <p className="mt-1 text-[12px] leading-relaxed text-[#5d6e86] sm:text-[13px]">Informe o número da OS ou cole o código/link privado do pedido para consultar o andamento.</p>
       </div>
       <form onSubmit={handleTrack} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:gap-3">
-        {pickupMode ? <>
-          <label className="min-w-0 flex-1 text-[11px] font-bold text-[#365577]">
-            Pedido
-            <input type="text" value={pickupNumber} onChange={e=>setPickupNumber(e.target.value)}
-              placeholder="PED-123" autoComplete="off" required
-              className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-3 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
-          </label>
-          <label className="min-w-0 flex-1 text-[11px] font-bold text-[#365577]">
-            Código de retirada
-            <input type="text" inputMode="numeric" maxLength={4} value={pickupPin}
-              onChange={e=>setPickupPin(e.target.value.replace(/\D/g,"").slice(0,4))}
-              placeholder="4 dígitos" autoComplete="off" required
-              className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-3 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
-          </label>
-          <label className="min-w-0 flex-[1.5] text-[11px] font-bold text-[#365577]">
-            E-mail da compra
-            <input type="email" value={pickupEmail} onChange={e=>setPickupEmail(e.target.value)}
-              placeholder="seu@email.com" autoComplete="email" required
-              className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-3 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
-          </label>
-        </> : <>
+        {pickupMode ? <label className="min-w-0 flex-1">
+          <span className="sr-only">Código de retirada</span>
+          <input type="text" inputMode="numeric" maxLength={4} value={pickupPin}
+            onChange={e=>setPickupPin(e.target.value.replace(/\D/g,"").slice(0,4))}
+            placeholder="Código de retirada (4 dígitos)" autoComplete="off" required
+            className="min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20"/>
+        </label> : <>
           <label htmlFor="artvideo-os-number" className="sr-only">Número da OS ou link de acompanhamento do pedido</label>
           <input id="artvideo-os-number" type="text" value={osNumber}
             onChange={event=>setOsNumber(event.target.value)}
@@ -185,9 +167,9 @@ export function ServiceTrackingSection() {
       </div>}
     </div>}
     {(trackingToken || pickupLookup) && <>
-      {readyTrackingToken !== (trackingToken || (pickupLookup ? "pickup:"+pickupLookup.orderNumber+":"+pickupLookup.code : "")) && <TrackingLoading subject="pedido"/>}
+      {readyTrackingToken !== (trackingToken || (pickupLookup ? "pickup:"+pickupLookup.code : "")) && <TrackingLoading subject="pedido"/>}
       <Suspense fallback={null}>
-        <StoreOrderTrackingDetails key={trackingToken || (pickupLookup ? pickupLookup.orderNumber+":"+pickupLookup.code+":"+pickupLookup.email : "")}
+        <StoreOrderTrackingDetails key={trackingToken || (pickupLookup ? "pickup:"+pickupLookup.code : "")}
           token={trackingToken || undefined} pickupLookup={pickupLookup || undefined} onReady={markOrderReady}/>
       </Suspense>
     </>}
