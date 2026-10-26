@@ -2,7 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck,
-  Clock3, HelpCircle, MapPin, PackageCheck, RefreshCw, RotateCcw, Search, ShoppingBag, Truck,
+  HelpCircle, MapPin, PackageCheck, RefreshCw, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -147,7 +147,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     setError("");
     const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
-        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,inventory_item_id,product_name,unit_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
+        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,inventory_item_id,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
       supabase.from("artvideo_store_order_items")
         .select("id,order_id,inventory_item_id,product_name,quantity,unit_price")
@@ -234,7 +234,11 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   };
   const subtotal = (order: StoreOrder) => orderLines(order)
     .reduce((sum, line) => sum + line.quantity * Number(line.unit_price), 0);
-  const total = (order: StoreOrder) => subtotal(order) + Number(order.shipping_price);
+  // Retirada na loja não tem cobrança de frete. O valor de entrega chega do banco;
+  // campo ausente/nulo não pode transformar o total em NaN.
+  const deliveryCost = (order: StoreOrder) => order.shipping_service_id === "pickup"
+    ? 0 : Number(order.shipping_price ?? 0);
+  const total = (order: StoreOrder) => subtotal(order) + deliveryCost(order);
   const deliveryOf = (order: StoreOrder) => fulfillmentByOrder.get(order.id)?.status || "pending";
 
   const filtered = useMemo(() => orders.filter(order => {
@@ -386,9 +390,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
         {modalView === "afterSales" && <BtnSecondary onClick={() => setModalView("order")}>Voltar ao pedido</BtnSecondary>}
         {modalView === "order" && <BtnSecondary onClick={() => setSelectedId(null)} disabled={saving}>Fechar</BtnSecondary>}
-        {modalView === "order" && selected && <BtnSecondary onClick={() => { setPickupHelp(false); setModalView("afterSales"); }}>
+        {modalView === "order" && selected && <BtnPrimary onClick={() => { setPickupHelp(false); setModalView("afterSales"); }}>
           <RotateCcw size={15}/> Pós-venda
-        </BtnSecondary>}
+        </BtnPrimary>
         {modalView === "order" && selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
           onClick={() => void changeStage()} disabled={saving || (recipientRequired && recipient.trim().length < 3)
             || (issueRequired && note.trim().length < 10)
@@ -457,7 +461,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             <strong className="shrink-0 text-right">{formatCurrency(line.quantity * Number(line.unit_price))}</strong>
           </div>)}
           <div className="mt-3 flex justify-between"><span>Subtotal</span><strong>{formatCurrency(subtotal(selected))}</strong></div>
-          <div className="mt-2 flex justify-between"><span>Entrega</span><strong>{formatCurrency(selected.shipping_price)}</strong></div>
+          {!isPickup && <div className="mt-2 flex justify-between">
+            <span>Entrega</span><strong>{formatCurrency(deliveryCost(selected))}</strong>
+          </div>}
           <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-extrabold">
             <span>Total</span><span>{formatCurrency(total(selected))}</span>
           </div>
@@ -518,10 +524,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               A confirmação é registrada manualmente pela equipe, com o nome de quem recebeu. Não equivale a uma assinatura digital.
             </p>}
           </div>}
-        </div> : <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs leading-5 text-amber-700 dark:text-amber-300">
-          <Clock3 size={17} className="mr-2 inline"/>A preparação e a entrega ficam bloqueadas até o pagamento ser confirmado pelo provedor.
-          {selected.status === "manual_review" && <strong className="mt-2 block">Este pedido precisa de revisão financeira antes de qualquer envio.</strong>}
-        </div>}
+        </div> : selected.status === "manual_review" ? <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 p-4 text-xs font-semibold leading-5 text-amber-700 dark:text-amber-300">
+          Este pedido precisa de revisão financeira antes de qualquer envio.
+        </div> : null}
 
         <div className="rounded-lg border border-border p-4">
           <h3 className="mb-3 flex items-center gap-2 font-bold"><ClipboardCheck size={18} className="text-primary"/> Histórico da operação</h3>
