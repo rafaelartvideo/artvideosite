@@ -77,6 +77,7 @@ function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "order
 export function CustomerAccountPage() {
   const { session, loading: authLoading } = useAuth();
   const [mode, setMode] = useState<AuthMode>("login");
+  const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).has("recovery"));
   const [tab, setTab] = useState<Tab>("overview");
   const [state, setState] = useState<AccountState>("loading");
   const [portal, setPortal] = useState<CustomerPortal | null>(null);
@@ -90,6 +91,13 @@ export function CustomerAccountPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const userId = session?.user?.id;
+
+  useEffect(() => {
+    const { data } = supabase.auth.onAuthStateChange(event => {
+      if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     if (authLoading) return;
@@ -139,7 +147,7 @@ export function CustomerAccountPage() {
     try {
       if (mode === "forgot") {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-          redirectTo: window.location.origin + "/minha-conta",
+          redirectTo: window.location.origin + "/minha-conta?recovery=1",
         });
         if (resetError) throw resetError;
         setMode("email_sent");
@@ -166,6 +174,27 @@ export function CustomerAccountPage() {
       }
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : "Não foi possível concluir sua solicitação.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (password.length < 8) return setError("A senha deve ter no mínimo 8 caracteres.");
+    if (password !== confirmPassword) return setError("As senhas não coincidem.");
+    setBusy(true);
+    setError("");
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) throw updateError;
+      setPassword("");
+      setConfirmPassword("");
+      setPasswordRecovery(false);
+      window.history.replaceState(window.history.state, "", "/minha-conta");
+      setRefreshIndex(index => index + 1);
+    } catch {
+      setError("Não foi possível atualizar sua senha. Solicite um novo link.");
     } finally {
       setBusy(false);
     }
@@ -221,7 +250,20 @@ export function CustomerAccountPage() {
         </button>}
       </div>
 
-      {(authLoading || state === "loading") ? <div role="status" className="flex min-h-[290px] flex-col items-center justify-center gap-3 text-sm font-medium text-[#64809f]">
+      {passwordRecovery && userId && !authLoading ? <div className={"mx-auto max-w-md " + cardClass}>
+        <h2 className="text-xl font-bold text-[#173450]">Criar nova senha</h2>
+        <p className="mt-2 text-sm text-[#6b8098]">Escolha uma senha com pelo menos 8 caracteres.</p>
+        <form onSubmit={event => void updatePassword(event)} className="mt-5 space-y-4">
+          <label className="block text-xs font-semibold text-[#294361]">Nova senha
+            <input className={inputClass + " mt-1.5"} type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required/>
+          </label>
+          <label className="block text-xs font-semibold text-[#294361]">Confirmar nova senha
+            <input className={inputClass + " mt-1.5"} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required/>
+          </label>
+          {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
+          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>Salvar nova senha <ArrowRight size={16}/></button>
+        </form>
+      </div> : (authLoading || state === "loading") ? <div role="status" className="flex min-h-[290px] flex-col items-center justify-center gap-3 text-sm font-medium text-[#64809f]">
         <RefreshCw size={27} className="animate-spin text-[var(--art-primary)]"/> Preparando sua conta...
       </div> :
       state === "anonymous" ? <div className="mx-auto max-w-md rounded-2xl border border-[#e0e8f3] bg-white p-6 shadow-sm sm:p-8">
