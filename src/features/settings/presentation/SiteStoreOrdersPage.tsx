@@ -12,6 +12,9 @@ import {
   AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
+import { AdminCard } from "@/shared/ui/admin/AdminLayout";
+import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
 type StoreOrder = {
@@ -242,8 +245,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       </div>)}
     </div>
 
-    <Section title="Vendas do site" description="Clique em um pedido para consultar detalhes, acompanhar a entrega e registrar movimentações.">
-      <div className="space-y-4">
+    <AdminSearchPanel title="Buscar pedidos" headerActions={search || paymentFilter !== "all" || deliveryFilter !== "all" || supportFilter !== "all" ? <AdminSearchClearButton onClick={() => { setSearch(""); setPaymentFilter("all"); setDeliveryFilter("all"); setSupportFilter("all"); setPage(1); }} /> : undefined}>
         <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_165px_170px_160px]">
           <label className="relative min-w-0">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
@@ -251,28 +253,13 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               placeholder="Buscar cliente, pedido ou produto" aria-label="Buscar pedidos"
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm focus:outline-primary"/>
           </label>
-          <select aria-label="Filtrar pagamento" value={paymentFilter}
-            onChange={e => { setPaymentFilter(e.target.value); setPage(1); }}
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm">
-            <option value="all">Todos os pagamentos</option>
-            {Object.entries(paymentLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-          <select aria-label="Filtrar entrega" value={deliveryFilter}
-            onChange={e => { setDeliveryFilter(e.target.value); setPage(1); }}
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm">
-            <option value="all">Todas as entregas</option>
-            <option value="unpaid">Sem pagamento confirmado</option>
-            {Object.entries(deliveryLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
-          </select>
-          <select aria-label="Filtrar pós-venda" value={supportFilter}
-            onChange={e=>{setSupportFilter(e.target.value);setPage(1);}}
-            className="h-10 rounded-md border border-border bg-background px-3 text-sm">
-            <option value="all">Todo pós-venda</option>
-            <option value="active">Com solicitação ativa</option>
-            <option value="none">Sem solicitações</option>
-          </select>
+          <AdminSelect ariaLabel="Filtrar pagamento" value={paymentFilter} onValueChange={value => { setPaymentFilter(value); setPage(1); }} options={[{ value: "all", label: "Todos os pagamentos" }, ...Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))]} />
+          <AdminSelect ariaLabel="Filtrar entrega" value={deliveryFilter} onValueChange={value => { setDeliveryFilter(value); setPage(1); }} options={[{ value: "all", label: "Todas as entregas" }, { value: "unpaid", label: "Sem pagamento confirmado" }, ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label }))]} />
+          <AdminSelect ariaLabel="Filtrar pós-venda" value={supportFilter} onValueChange={value => { setSupportFilter(value); setPage(1); }} options={[{ value: "all", label: "Todo pós-venda" }, { value: "active", label: "Com solicitação ativa" }, { value: "none", label: "Sem solicitações" }]} />
         </div>
-
+    </AdminSearchPanel>
+    <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
+      <div className="space-y-4">
         {error && <div role="alert" className="rounded-md border border-red-500/20 p-4 text-sm text-red-600">
           Falha ao carregar os pedidos: {error}
           <button type="button" onClick={() => void refresh()} className="ml-2 font-bold underline">Tentar novamente</button>
@@ -282,9 +269,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
           <ShoppingBag size={29} className="mx-auto mb-3"/>
           {orders.length ? "Nenhum pedido encontrado neste filtro." : "Nenhum pedido registrado."}
         </div>
-        : <div className="overflow-x-auto rounded-md border border-border">
-          <table className="w-full min-w-[830px] text-left text-sm">
-            <thead className="bg-muted/40 text-xs font-bold text-muted-foreground">
+        : <div className="overflow-x-auto">
+          <table className="min-w-[830px]">
+            <thead>
               <tr><th className="p-3">Pedido</th><th className="p-3">Cliente</th>
                 <th className="p-3">Itens</th><th className="p-3">Total</th>
                 <th className="p-3">Pagamento</th><th className="p-3">Entrega</th><th className="p-3">Pós-venda</th></tr>
@@ -292,7 +279,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             <tbody>{rows.map(order => <tr key={order.id}
               onClick={() => setSelectedId(order.id)} tabIndex={0} role="button"
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(order.id); } }}
-              className="cursor-pointer border-t border-border transition-colors hover:bg-muted/40 focus-visible:bg-muted/40">
+              className="cursor-pointer transition-colors hover:bg-muted/40 focus-visible:bg-muted/40">
               <td className="p-3"><strong className="block">#{order.id.slice(0,8).toUpperCase()}</strong>
                 <span className="text-xs text-muted-foreground">{timeText(order.created_at)}</span></td>
               <td className="p-3"><strong className="block">{order.buyer?.buyer_name || "Cliente"}</strong>
@@ -317,7 +304,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
           <button type="button" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages,p+1))} aria-label="Próxima página" className="rounded p-1 disabled:opacity-40"><ChevronRight size={19}/></button>
         </div>}
       </div>
-    </Section>
+    </AdminCard>
     <AdminStickyToolbar>
       {!embedded && <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
       <BtnSecondary onClick={() => void refresh()} disabled={loading}><RefreshCw size={15}/> Atualizar</BtnSecondary>
