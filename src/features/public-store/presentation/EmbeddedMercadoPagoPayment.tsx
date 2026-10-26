@@ -19,14 +19,18 @@ type PaymentMode="pix"|"card";
 function formatPixDocument(value:string){
   const digits=value.replace(/\D/g,"").slice(0,14);
   if(digits.length<=11){
-    return digits.replace(/^(\d{3})(\d)/,"$1.$2")
-      .replace(/^(\d{3})\.(\d{3})(\d)/,"$1.$2.$3")
-      .replace(/\.(\d{3})(\d)$/,".$1-$2");
+    let result=digits.slice(0,3);
+    if(digits.length>3)result+="."+digits.slice(3,6);
+    if(digits.length>6)result+="."+digits.slice(6,9);
+    if(digits.length>9)result+="-"+digits.slice(9,11);
+    return result;
   }
-  return digits.replace(/^(\d{2})(\d)/,"$1.$2")
-    .replace(/^(\d{2})\.(\d{3})(\d)/,"$1.$2.$3")
-    .replace(/\.(\d{3})(\d)/,".$1/$2")
-    .replace(/\/(\d{4})(\d)/,"/$1-$2");
+  let result=digits.slice(0,2);
+  if(digits.length>2)result+="."+digits.slice(2,5);
+  if(digits.length>5)result+="."+digits.slice(5,8);
+  if(digits.length>8)result+="/"+digits.slice(8,12);
+  if(digits.length>12)result+="-"+digits.slice(12,14);
+  return result;
 }
 
 const sdkId="artvideo-mercado-pago-payment-bricks-sdk";
