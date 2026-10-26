@@ -1,7 +1,7 @@
 import { FilePenLine, MapPin, MessageCircle, Phone } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
 import { notifyPhoneCallIntegration, phoneContactLinks } from "../domain/order-contact-actions";
 import {
   getPriorityLabel,
@@ -176,14 +176,14 @@ export function OrderDetailsContent({
                   <p className="text-[10px] font-black uppercase tracking-wider text-[#0057e7]">Foto da etiqueta</p>
                   <OrderImageDownloadMenu images={labelImages} label="foto da etiqueta" />
                 </div>
-                {labelImages.length > 0 ? <div className="flex flex-wrap gap-3">{labelImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#7c899c]">Nenhuma foto da etiqueta cadastrada.</p>}
+                {labelImages.length > 0 ? <div className="flex flex-wrap gap-3">{labelImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty compact>Nenhuma foto da etiqueta cadastrada.</AdminSectionEmpty>}
               </div>
               <div>
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <p className="text-[10px] font-black uppercase tracking-wider text-[#5a6a82]">Fotos do equipamento</p>
                   <OrderImageDownloadMenu images={equipmentImages} label="fotos do equipamento" />
                 </div>
-                {equipmentImages.length > 0 ? <div className="flex flex-wrap gap-3">{equipmentImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#7c899c]">Nenhuma foto do equipamento cadastrada.</p>}
+                {equipmentImages.length > 0 ? <div className="flex flex-wrap gap-3">{equipmentImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty compact>Nenhuma foto do equipamento cadastrada.</AdminSectionEmpty>}
               </div>
             </div>
           )}
