@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
    const orderId=access.order_id;
    const [orderQuery,itemsQuery,deliveryQuery,eventsQuery,casesQuery]=await Promise.all([
      admin.from("artvideo_store_orders")
-       .select("id,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,paid_at,buyer")
+       .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,paid_at,buyer")
        .eq("id",orderId).maybeSingle(),
      admin.from("artvideo_store_order_items")
        .select("product_name,quantity,unit_price").eq("order_id",orderId).order("created_at"),
@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
    const subtotal=items.reduce((total,item)=>total+item.quantity*item.unitPrice,0);
    return reply({
      order:{
-       id:o.id,number:String(o.id).slice(0,8).toUpperCase(),createdAt:o.created_at,
+       id:o.id,number:"PED-"+String(o.order_number).padStart(6,"0"),createdAt:o.created_at,
        paymentStatus:o.status,paidAt:o.paid_at,
        paymentIssueStatus:o.payment_issue_status||null,
        paymentIssueAt:o.payment_issue_at||null,
