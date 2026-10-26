@@ -111,6 +111,19 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const [quantity, setQuantity] = useState(
     Number.isInteger(initialQuantity) ? Math.max(1, Math.min(initialQuantity, 10)) : 1
   );
+  // Cada entrada de compra recebe um ID próprio. O mesmo ID permanece no URL após atualizar
+  // a página, sem confundir um pedido já pago com uma nova compra do mesmo produto.
+  const [checkoutId] = useState(() => {
+    const provided = params.get("checkout_id") || "";
+    return /^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(provided) ? provided : crypto.randomUUID();
+  });
+  useEffect(() => {
+    if (params.get("checkout_id") === checkoutId) return;
+    const next = new URLSearchParams(params);
+    next.set("checkout_id", checkoutId);
+    navigate({ search: "?" + next.toString() }, { replace: true });
+  }, [checkoutId, navigate, params]);
+
   const [step, setStep] = useState<Step>(1);
   const [buyer, setBuyer] = useState<Buyer>(initialBuyer);
   const [postalCode, setPostalCode] = useState(displayCep(params.get("cep") || ""));
@@ -149,15 +162,21 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const [restoringPayment,setRestoringPayment]=useState(false);
   const [recoveryNotice,setRecoveryNotice]=useState("");
   const [linkCopied,setLinkCopied]=useState(false);
-  const [lastBrickAccess]=useState(()=>{
-    try{
-      const orderId=sessionStorage.getItem("artvideo-last-order")||"";
-      const token=sessionStorage.getItem("artvideo-store-tracking")||"";
-      const checkoutPath=sessionStorage.getItem("artvideo-last-checkout-path");
-      if(checkoutPath&&checkoutPath!==window.location.pathname)return null;
-      if(/^[0-9a-f-]{36}$/i.test(orderId)&&/^[a-f0-9]{64}$/.test(token))
-        return {orderId,token};
-    }catch{/* navegador sem sessionStorage */}
+  // O token de acompanhamento é independente da recuperação do pagamento.
+  // Só restauramos a reserva vinculada a ESTA sessão e a ESTES itens.
+  const recoveryProductsKey = cartMode
+    ? JSON.stringify(cartItems)
+    : String(slug) + ":" + quantity;
+  const [lastBrickAccess] = useState(() => {
+    try {
+      const record = JSON.parse(sessionStorage.getItem("artvideo-checkout-recovery-v2") || "null");
+      if (record?.checkoutId !== checkoutId
+        || record?.path !== window.location.pathname
+        || record?.productsKey !== recoveryProductsKey) return null;
+      if (/^[0-9a-f-]{36}$/i.test(record.orderId)
+        && /^[a-f0-9]{64}$/.test(record.token))
+        return { orderId: record.orderId as string, token: record.token as string };
+    } catch { /* Sessão não disponível ou dados inválidos. */ }
     return null;
   });
   const [options, setOptions] = useState<ShippingOption[]>([]);
@@ -382,6 +401,10 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           sessionStorage.setItem("artvideo-last-email",buyer.buyer_email.trim());
           sessionStorage.setItem("artvideo-store-tracking",session.trackingToken);
           sessionStorage.setItem("artvideo-last-checkout-path",window.location.pathname);
+          sessionStorage.setItem("artvideo-checkout-recovery-v2", JSON.stringify({
+            checkoutId, orderId: session.orderId, token: session.trackingToken,
+            path: window.location.pathname, productsKey: recoveryProductsKey,
+          }));
         }catch{/* navegador com sessao restrita */}
         setBrickSession(session);
         setBrickResult(null);
@@ -395,6 +418,10 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           sessionStorage.setItem("artvideo-last-email", buyer.buyer_email.trim());
           sessionStorage.setItem("artvideo-store-tracking", checkout.trackingToken);
           sessionStorage.setItem("artvideo-last-checkout-path",window.location.pathname);
+          sessionStorage.setItem("artvideo-checkout-recovery-v2", JSON.stringify({
+            checkoutId, orderId: checkout.orderId, token: checkout.trackingToken,
+            path: window.location.pathname, productsKey: recoveryProductsKey,
+          }));
         } catch {
           // Navegadores sem armazenamento não devem impedir a navegação segura.
         }
@@ -553,6 +580,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
               try{
                 sessionStorage.removeItem("artvideo-last-order");
                 sessionStorage.removeItem("artvideo-last-checkout-path");
+                const stored = JSON.parse(sessionStorage.getItem("artvideo-checkout-recovery-v2") || "null");
+                if (stored?.checkoutId === checkoutId)
+                  sessionStorage.removeItem("artvideo-checkout-recovery-v2");
                 sessionStorage.removeItem("artvideo-store-homologation");
               }catch{/* Navegador sem armazenamento */}
               navigate("/loja");
