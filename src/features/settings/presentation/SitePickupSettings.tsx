@@ -225,17 +225,11 @@ export function SitePickupSettings({ canUpdate, onBack }: { canUpdate: boolean; 
         </div>
       </Section>
 
-      <Section title="Horários e orientações">
-        <div className="space-y-4">
-          <FTextarea label="Horário de funcionamento" required rows={3} maxLength={500}
-            disabled={fieldDisabled} value={form.opening_hours}
-            onChange={(event: any) => patch("opening_hours", event.target.value)}
-            placeholder="Segunda a sexta, 8h às 18h. Sábado, 8h às 12h." />
-          <FTextarea label="Orientações de retirada (opcional)" rows={3} maxLength={1000}
-            disabled={fieldDisabled} value={form.instructions}
-            onChange={(event: any) => patch("instructions", event.target.value)}
-            placeholder="Apresente o código do pedido e um documento no balcão." />
-        </div>
+      <Section title="Horário de retirada">
+        <FTextarea label="Horário de funcionamento" required rows={3} maxLength={500}
+          disabled={fieldDisabled} value={form.opening_hours}
+          onChange={(event: any) => patch("opening_hours", event.target.value)}
+          placeholder="Segunda a sexta, 8h às 18h. Sábado, 8h às 12h." />
       </Section>
     </>}
     <AdminStickyToolbar className="justify-between">
