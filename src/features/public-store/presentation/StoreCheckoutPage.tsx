@@ -485,7 +485,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     onClick={() => void placeOrder(embeddedAvailable?"bricks":"hosted")}
     className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[12px] font-bold leading-tight text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-6 md:text-[13px]">
     {paying ? <><LoaderCircle size={17} className="shrink-0 animate-spin"/> Verificando...</> :
-      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> "Ir para pagamento"</> :
+      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> Ir para pagamento</> :
       "Pagamento indisponível"}
   </button> : null;
 
