@@ -2,7 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ClipboardCheck,
-  HelpCircle, MapPin, PackageCheck, RotateCcw, ShoppingBag, Truck,
+  HelpCircle, MapPin, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -14,7 +14,7 @@ import {
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
-import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
@@ -159,6 +159,10 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const [note, setNote] = useState("");
   const [recipient, setRecipient] = useState("");
   const [pickupCode, setPickupCode] = useState("");
+  const [quickPickupPin, setQuickPickupPin] = useState("");
+  const [quickPickupLoading, setQuickPickupLoading] = useState(false);
+  const [quickPickupError, setQuickPickupError] = useState("");
+  const quickPickupPresetRef = useRef("");
   const [actionMode, setActionMode] = useState<"advance" | "issue">("advance");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -239,7 +243,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   }, [refresh]);
   useEffect(() => {
     if (!selectedId) { setEvents([]); return; }
-    setActionMode("advance"); setNote(""); setRecipient(""); setPickupCode("");
+    setActionMode("advance"); setNote(""); setRecipient("");
+    setPickupCode(quickPickupPresetRef.current);
+    quickPickupPresetRef.current = "";
     void loadHistory(selectedId);
   }, [selectedId, loadHistory]);
 
@@ -307,6 +313,62 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const rows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+
+  /** Localiza a retirada sem depender da paginação dos últimos pedidos. */
+  const locatePickupByPin = async () => {
+    const pin=quickPickupPin.trim();
+    if(!canManage||quickPickupLoading)return;
+    if(!/^\d{4}$/.test(pin)){
+      setQuickPickupError("Informe os quatro dígitos do código de retirada.");
+      return;
+    }
+    setQuickPickupLoading(true);
+    setQuickPickupError("");
+    try{
+      const lookup=await supabase.rpc("artvideo_store_staff_find_pickup_v1",{p_code:pin});
+      if(lookup.error)throw new Error(systemErrorMessage(lookup.error));
+      const result=lookup.data as {
+        order_id?:string;order_number?:number;
+        payment_status?:string;fulfillment_status?:string;error?:string;
+      }|null;
+      if(result?.error||!result?.order_id)
+        throw new Error(result?.error||"Nenhum pedido disponível com este código.");
+      const orderId=result.order_id;
+      if(!orders.some(order=>order.id===orderId)){
+        const [orderResult,linesResult,fulfillmentResult]=await Promise.all([
+          supabase.from("artvideo_store_orders")
+            .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,inventory_item_id,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
+            .eq("id",orderId).eq("organization_id",activeOrganization!.id).maybeSingle(),
+          supabase.from("artvideo_store_order_items")
+            .select("id,order_id,inventory_item_id,product_name,quantity,unit_price")
+            .eq("order_id",orderId),
+          supabase.from("artvideo_store_fulfillments")
+            .select("order_id,status,updated_at,recipient_name,delivered_at")
+            .eq("order_id",orderId).maybeSingle(),
+        ]);
+        const issue=orderResult.error||linesResult.error||fulfillmentResult.error;
+        if(issue)throw new Error(systemErrorMessage(issue));
+        if(!orderResult.data)throw new Error("Pedido localizado, mas sem acesso aos detalhes.");
+        setOrders(previous=>[orderResult.data as StoreOrder,...previous.filter(o=>o.id!==orderId)]);
+        setLines(previous=>[...previous.filter(line=>line.order_id!==orderId),...(linesResult.data||[]) as StoreOrderLine[]]);
+        if(fulfillmentResult.data){
+          setFulfillments(previous=>[...previous.filter(row=>row.order_id!==orderId),
+            fulfillmentResult.data as Fulfillment]);
+        }
+      }
+      quickPickupPresetRef.current=pin;
+      setModalView("order");
+      setSelectedId(orderId);
+      setQuickPickupPin("");
+      setToast({msg:result.payment_status==="paid"&&result.fulfillment_status==="ready"
+        ?"Pedido localizado. Confira os dados e confirme a retirada."
+        :"Pedido localizado. Confira a situação antes de liberar a retirada.",type:"success"});
+    }catch(cause){
+      setQuickPickupError(cause instanceof Error?cause.message:"Não foi possível localizar a retirada.");
+    }finally{
+      setQuickPickupLoading(false);
+    }
+  };
 
   const changeStage = async () => {
     if (!canManage || saving || !selected || !selectedIsPaid || !nextStatus) return;
@@ -378,6 +440,33 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         </div>
       </div>)}
     </div>
+
+    {canManage && <AdminCard className="p-3 sm:p-4">
+      <form onSubmit={event=>{event.preventDefault();void locatePickupByPin();}}
+        className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1">
+          <AdminFieldLabel label="Localizar retirada pelo PIN" />
+          <input type="text" inputMode="numeric" pattern="[0-9]{4}"
+            maxLength={4} autoComplete="off"
+            value={quickPickupPin}
+            onChange={event=>{
+              setQuickPickupPin(event.target.value.replace(/\D/g,"").slice(0,4));
+              setQuickPickupError("");
+            }}
+            placeholder="Código de retirada (4 dígitos)"
+            aria-label="PIN de retirada"
+            className={INPUT+" h-[42px] min-h-[42px] w-full"} />
+        </div>
+        <AdminButton type="submit" size="md" loading={quickPickupLoading}
+          disabled={quickPickupPin.length!==4} className="min-h-[42px] sm:shrink-0">
+          <Search size={16}/> Localizar pedido
+        </AdminButton>
+      </form>
+      {quickPickupError && <p role="alert" className="mt-2 text-xs text-destructive">{quickPickupError}</p>}
+      <p className="mt-2 text-[11px] leading-5 text-muted-foreground">
+        Digite o PIN informado pelo cliente para abrir o pedido. A confirmação da retirada exige pagamento aprovado e pedido pronto.
+      </p>
+    </AdminCard>}
 
     <AdminSearchPanel title="Buscar pedidos" headerActions={
       hasActiveFilters ? <AdminSearchClearButton onClick={() => {
