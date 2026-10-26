@@ -3,7 +3,7 @@ import { Edit2, Plus, Trash2 } from "lucide-react";
 import type { EquipmentBrandRow, EquipmentDraft, EquipmentDraftModel, EquipmentTypeRow } from "../domain/equipment";
 import type { EquipmentBrandDirectoryEntry } from "../infrastructure/equipment.repository";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { AdminButton, AdminCard, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, AdminButton, AdminCard, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { matchesAdminSearch } from "@/shared/ui/admin/AdminInlineSearch";
@@ -71,7 +71,7 @@ export function EquipmentBrandSelector({ draft, choices, canEdit, canCreate, onT
         </label>;
       })}
     </div>
-    {visibleChoices.length === 0 && <p className="py-3 text-xs text-muted-foreground">Nenhuma marca disponível. Adicione uma no cabeçalho desta seção.</p>}
+    {visibleChoices.length === 0 && <AdminSectionEmpty>Nenhuma marca disponível. Adicione uma no cabeçalho desta seção.</AdminSectionEmpty>}
   </div>;
 }
 
@@ -133,7 +133,7 @@ export function EquipmentModelsSelector({ draft, canEdit, canCreate, canDelete, 
     {selected.map(({ brand, index: bi }) => <div key={brand.id || brandKey(brand.name)} className="rounded-lg bg-muted/30 p-3 sm:p-4">
       <div className="mb-3 text-sm font-bold text-foreground">{brand.name}</div>
       {errorFor(bi) && <p className="mb-2 text-xs text-red-600">{errorFor(bi)}</p>}
-      {brand.models.length === 0 ? <p className="text-xs text-muted-foreground">Nenhum modelo vinculado a esta marca.</p>
+      {brand.models.length === 0 ? <AdminSectionEmpty compact>Nenhum modelo vinculado a esta marca.</AdminSectionEmpty>
         : <div className="grid gap-3">{brand.models.map((model, index) => ({ model, index }))
           .sort((a, b) => a.model.name.localeCompare(b.model.name, "pt-BR", { sensitivity: "base" }))
           .map(({ model, index: mi }, order) => <div key={model.id || "new-" + mi} className="flex items-end gap-2">
@@ -212,7 +212,7 @@ export function EquipmentBrandsDirectory({ choices, brands, types, search = "", 
             </tr>;
           })}</tbody>
         </table>
-      </div> : <p className="px-4 py-8 text-center text-sm text-muted-foreground">Nenhuma marca encontrada.</p>}
+      </div> : <AdminSectionEmpty>Nenhuma marca encontrada.</AdminSectionEmpty>}
       <PaginationBar page={safePage} pageSize={pageSize} totalItems={filtered.length}
         onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
     </AdminCard>
