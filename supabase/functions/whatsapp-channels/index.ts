@@ -91,7 +91,7 @@ Deno.serve(async request => {
     const org = String(input?.organization_id || "");
     const action = String(input?.action || "");
     if (!uuid(org)) return json({ success: false, error: "Empresa inválida." }, 400);
-    if (!["list", "register", "activate", "provision", "connect", "disconnect", "status", "qr", "logout", "webhook_setup"].includes(action)) {
+    if (!["list", "register", "activate", "provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup"].includes(action)) {
       return json({ success: false, error: "Operação inválida." }, 400);
     }
     const scoped = createClient(supabaseUrl, publicKey, {
@@ -109,8 +109,9 @@ Deno.serve(async request => {
       (p: Record<string, unknown>) => String(p.permission_key || ""),
     ));
     const canManage = keys.has("settings.channels.manage");
-    const canRead = canManage || keys.has("settings.channels.view");
-    if (!canRead || (action !== "list" && action !== "status" && !canManage)) {
+    const canDelete = keys.has("settings.channels.delete");
+    const canRead = canManage || canDelete || keys.has("settings.channels.view");
+    if (!canRead || (action === "delete" ? !canDelete : action !== "list" && action !== "status" && !canManage)) {
       return json({ success: false, error: "Sem permissão para gerenciar canais nesta empresa." }, 403);
     }
     const fields="id,organization_id,display_name,state,phone,last_checked_at,last_connected_at,webhook_ready,created_at";
@@ -164,6 +165,21 @@ Deno.serve(async request => {
       .eq("id",id).maybeSingle();
     if(readError)throw readError;
     if(!channel)return json({success:false,error:"Conexão não pertence a esta empresa."},404);
+    if (action === "delete") {
+      // Never delete DB rows before the VPS confirms remote credentials were
+      // removed. The FK cascade then cleans messages/contacts/protocols only
+      // for the explicitly selected connection in this organization.
+      try {
+        await signedBridge("delete", channel as ChannelRow);
+      } catch {
+        return json({ success: false, error: "Não foi possível remover a sessão na VPS. Nenhum dado foi excluído do CRM." }, 503);
+      }
+      const { error: deleteError } = await privileged.from("whatsapp_channel_connections")
+        .delete().eq("id", id).eq("organization_id", org).eq("provider", "wuzapi");
+      if (deleteError) throw deleteError;
+      const rows = await getAll();
+      return json({ success: true, deleted: true, channels: rows, channel: primary(rows) });
+    }
     if(action==="webhook_setup" && channel.state!=="connected")
       return json({success:false,error:"Conecte o número antes de ativar o recebimento."},409);
     if(action==="connect"){
