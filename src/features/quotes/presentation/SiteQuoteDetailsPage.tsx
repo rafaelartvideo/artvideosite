@@ -43,7 +43,10 @@ const serviceActions:Record<string,ActionConfig[]> = {
     {id:"record_sent",label:"Registrar envio da proposta",needsNote:true},
     {id:"edit_offer",label:"Editar proposta",variant:"tertiary"},
   ],
-  PROPOSTA_ENVIADA:[{id:"record_acceptance",label:"Registrar aceite do cliente",needsNote:true}],
+  PROPOSTA_ENVIADA:[
+    {id:"record_acceptance",label:"Registrar aceite do cliente",needsNote:true},
+    {id:"reopen_offer",label:"Revisar proposta",variant:"tertiary",needsNote:true},
+  ],
   ACEITO_CLIENTE:[{id:"schedule_service",label:"Confirmar agendamento",needsNote:true}],
   AGENDADO:[{id:"finish_service",label:"Registrar conclusão",needsNote:true}],
 };
