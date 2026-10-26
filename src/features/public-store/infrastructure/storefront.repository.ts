@@ -114,6 +114,15 @@ export async function refreshEmbeddedPayment(session:EmbeddedCheckoutSession):Pr
   return invokeEmbeddedPayment({action:"status",order_id:session.orderId,
     tracking_token:session.trackingToken});
 }
+/** Verificacao leve do banco, sem nova cobrança ou consulta ao Mercado Pago. */
+export async function checkEmbeddedOrderPaid(session:EmbeddedCheckoutSession):Promise<boolean>{
+  const {data,error}=await supabase.functions.invoke("artvideo-store-bricks-payment",{
+    body:{action:"check",order_id:session.orderId,tracking_token:session.trackingToken},
+  });
+  if(error||data?.error||data?.orderId!==session.orderId)
+    throw new Error("Não foi possível consultar a confirmação do pedido.");
+  return data.paid===true;
+}
 export async function resumeEmbeddedStoreCheckout(orderId:string,trackingToken:string):
   Promise<EmbeddedCheckoutSession & {buyerEmail:string}>{
   const {data,error}=await supabase.functions.invoke("artvideo-store-checkout",{
