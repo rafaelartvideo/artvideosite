@@ -6,7 +6,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { InlineLoading, LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { supabase } from "@/lib/supabase";
-import {
+import { AdminSectionEmpty,
   AdminButton,
   AdminDialog,
   AdminIconButton,
@@ -707,7 +707,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     return <div className="min-w-0">
       <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Fotos do técnico</p>
       {!photos.length
-        ? <span className="text-xs text-muted-foreground">Nenhuma foto enviada.</span>
+        ? <AdminSectionEmpty compact>Nenhuma foto enviada.</AdminSectionEmpty>
         : <div className="flex items-center gap-1.5">
           {photos.slice(0, 2).map(photo => <button key={photo.id} type="button"
             onClick={() => void openTaskGallery(item)} aria-label="Visualizar fotos do técnico"
@@ -772,7 +772,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             {label}
             {location?.accuracy_m != null && <span className="font-normal text-muted-foreground">±{Math.round(location.accuracy_m)} m</span>}
           </a>)}
-        </div> : <p className="text-xs text-muted-foreground">Nenhum local registrado.</p>}
+        </div> : <AdminSectionEmpty compact>Nenhum local registrado.</AdminSectionEmpty>}
       </div>
       {renderTaskPhotoPreviews(item)}
     </div>;
@@ -1066,7 +1066,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       {loadingItems
         ? <LoadingState text="Carregando itens da OS..." />
         : items.length === 0
-          ? <div className="p-5 text-sm text-muted-foreground">Nenhum produto ou serviço foi adicionado a esta OS.</div>
+          ? <AdminSectionEmpty>Nenhum produto ou serviço foi adicionado a esta OS.</AdminSectionEmpty>
           : <div className="grid min-w-0 gap-3 p-3 sm:gap-4 sm:p-4">
             {items.map(item => (
               <article key={item.id}
