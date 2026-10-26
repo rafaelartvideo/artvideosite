@@ -22,13 +22,9 @@ Deno.serve(async (req: Request) => {
    });
    let orderId:string;
    if(pickupLookup){
-     const orderNumber=Number(String(input.order_number||"").replace(/^PED-/i,""));
-     const email=String(input.email||"").trim().toLowerCase();
      const code=String(input.pickup_code||"").trim();
-     if(!Number.isSafeInteger(orderNumber)||orderNumber<1||orderNumber>999999999
-        || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254
-        || !/^[0-9]{4}$/.test(code))
-       return reply({error:"Informe o pedido, o e-mail da compra e o código de quatro dígitos."},400);
+     if(!/^[0-9]{4}$/.test(code))
+       return reply({error:"Informe os quatro dígitos do código de retirada."},400);
      // Limite compartilhado entre as tentativas da mesma origem. Chave opaca:
      // não guarda IP nem dados do cliente em texto no banco.
      const remoteAddress=req.headers.get("cf-connecting-ip")
@@ -38,11 +34,11 @@ Deno.serve(async (req: Request) => {
      const bytes=new TextEncoder().encode("artvideo:pickup:"+remoteAddress+":"+secret);
      const digest=await crypto.subtle.digest("SHA-256",bytes);
      const rateKey=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
-     const {data:verified,error:lookupError}=await admin.rpc("artvideo_store_pickup_lookup_v1",{
-       p_order_number:orderNumber,p_email:email,p_code:code,p_rate_key:rateKey,
+     const {data:verified,error:lookupError}=await admin.rpc("artvideo_store_pickup_lookup_pin_v1",{
+       p_code:code,p_rate_key:rateKey,
      });
      if(lookupError)return reply({error:"Não foi possível consultar o pedido agora."},503);
-     if(!verified)return reply({error:"Não foi possível validar os dados. Confira pedido, e-mail e código de retirada; muitas tentativas podem bloquear consultas por 15 minutos."},404);
+     if(!verified)return reply({error:"Código indisponível ou não encontrado. Confira os quatro dígitos. Após muitas tentativas, aguarde 15 minutos."},404);
      orderId=String(verified);
      const [orderResult,deliveryResult]=await Promise.all([
        admin.from("artvideo_store_orders")
@@ -54,6 +50,8 @@ Deno.serve(async (req: Request) => {
      if(orderResult.error||deliveryResult.error||!orderResult.data)
        return reply({error:"Não foi possível consultar o andamento."},503);
      const order=orderResult.data;
+     // No PIN curto só saem as etapas e o endereço público de retirada,
+     // nunca o link privado, dados do comprador, itens ou valores.
      const buyer=order.buyer && typeof order.buyer==="object" ? order.buyer : {};
      return reply({order:{
        id:order.id,number:"PED-"+String(order.order_number),createdAt:order.created_at,
