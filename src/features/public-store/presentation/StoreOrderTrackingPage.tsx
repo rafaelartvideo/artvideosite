@@ -107,7 +107,7 @@ export function StoreOrderTrackingDetails({ token, onReady }: { token: string; o
           <section className={card+" overflow-hidden"}>
             <div className="flex flex-wrap items-start justify-between gap-4 border-b border-[#e5edf7] p-5 sm:p-6">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-wide text-[#6e85a0]">Pedido #{order.number}</p>
+                <p className="text-[11px] font-bold uppercase tracking-wide text-[#6e85a0]">Pedido {order.number}</p>
                 <h2 className="mt-2 text-[22px] font-extrabold tracking-tight">{paid?(finished?"Pedido concluído":resultText):paymentIssueText||paymentNames[order.paymentStatus]||"Em análise"}</h2>
                 <p className="mt-1 text-[12px] text-[#74849a]">Realizado em {displayDate(order.createdAt)}</p>
               </div>
