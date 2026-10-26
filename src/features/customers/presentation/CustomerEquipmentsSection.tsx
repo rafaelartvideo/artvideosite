@@ -1,5 +1,5 @@
 import { Cpu } from "lucide-react";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
 import { formatDateOnly } from "@/shared/domain/formatters";
 
 function technicalValueLabel(value: any) {
@@ -14,7 +14,7 @@ export function CustomerEquipmentsSection({ equipments }: { equipments: any[] })
   return (
     <Section title={`Equipamentos (${equipments.length})`}>
       {equipments.length === 0 ? (
-        <p className="text-xs text-[#5a6a82]">Nenhum equipamento vinculado a este cliente.</p>
+        <AdminSectionEmpty>Nenhum equipamento vinculado a este cliente.</AdminSectionEmpty>
       ) : (
         <div className="space-y-2">
           {equipments.map(equipment => {
