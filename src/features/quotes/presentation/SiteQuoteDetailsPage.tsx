@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import {
-  ArrowRight, CalendarDays, CheckCircle2, ClipboardList, Clock3,
-  FileText, MapPin, MessageCircle, PackageCheck, RefreshCw, Store,
+  ArrowRight, CalendarDays, CheckCircle2, ClipboardList,
+  MapPin, MessageCircle, PackageCheck, Store,
   Truck, Wrench, XCircle,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -115,7 +115,13 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
     ["COLETA_PENDENTE","COLETA_AGENDADA"].includes(status);
   const stages=repair?(collecting?collectionStages:repairStages):serviceStages;
   const currentIndex=stages.indexOf(status);
-  const actionOptions=repair?(repairActions[status]||[]):(serviceActions[status]||[]);
+  const requestedMode=parsed.repairLocation.toLowerCase();
+  const actionOptions=repair
+    ? (repairActions[status]||[]).filter(option=>status!=="PENDENTE"||
+      (!requestedMode.includes("colet")&& !requestedMode.includes("loja"))||
+      (requestedMode.includes("colet")&&option.id==="request_collection")||
+      (requestedMode.includes("loja")&&option.id==="await_dropoff"))
+    : (serviceActions[status]||[]);
   const finished=["CONCLUIDO","OS_VINCULADA","ENCERRADA","CANCELADO"].includes(status);
   const contactDigits=String(quote?.customer?.whatsapp||quote?.customer?.phone||"").replace(/\D/g,"");
   const mayMessage=canMessage&&Boolean(quote?.customer_id&&contactDigits);
@@ -330,8 +336,6 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
             <XCircle size={15}/> Encerrar
           </AdminButton>
         </>}
-        <AdminButton variant="secondary" size="sm" disabled={busy}
-          onClick={()=>void load()}><RefreshCw size={15}/> Atualizar</AdminButton>
       </div>}
     </AdminStickyToolbar>
     {sacOpen&&quote&&<QuoteSacDigitalDialog quote={quote} organizationId={organizationId} onClose={()=>setSacOpen(false)}/>}
