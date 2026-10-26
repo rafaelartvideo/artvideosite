@@ -77,7 +77,7 @@ export async function checkStoreHomologationAccess(token:string):Promise<boolean
   return !error&&data?.available===true;
 }
 export type EmbeddedCheckoutSession={
-  orderId:string;trackingToken:string;publicKey:string;amount:number;expiresAt:string;
+  orderId:string;orderNumber:string;trackingToken:string;publicKey:string;amount:number;expiresAt:string;
 };
 export type EmbeddedPaymentResult={
   orderId:string;status:string;statusDetail?:string;paymentId:string|null;
@@ -132,7 +132,7 @@ export async function resumeEmbeddedStoreCheckout(orderId:string,trackingToken:s
     ||!/^APP_USR-[A-Za-z0-9_-]{12,}$/.test(String(data.public_key))
     ||!/^[a-f0-9]{64}$/.test(data.tracking_token))
     throw new Error("Sessão de pagamento inválida.");
-  return {orderId:data.order_id,trackingToken:data.tracking_token,
+  return {orderId:data.order_id,orderNumber:String(data.order_number||""),trackingToken:data.tracking_token,
     publicKey:data.public_key,amount:Number(data.amount),
     expiresAt:String(data.expires_at),buyerEmail:String(data.buyer_email||"")};
 }
@@ -156,7 +156,7 @@ export async function prepareEmbeddedStoreCheckout(
     ||typeof data.public_key!=="string"
     ||!Number.isFinite(Number(data.amount))||Number(data.amount)<1)
     throw new Error("Sessão de pagamento inválida.");
-  return {orderId:data.order_id,trackingToken:data.tracking_token,
+  return {orderId:data.order_id,orderNumber:String(data.order_number||""),trackingToken:data.tracking_token,
     publicKey:data.public_key,amount:Number(data.amount),
     expiresAt:String(data.expires_at||"")};
 }
