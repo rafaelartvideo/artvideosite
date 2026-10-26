@@ -149,6 +149,11 @@ export function StoreOrderTrackingDetails({ token, onReady }: { token: string; o
           </section>
           {pickup&&order.pickupLocation&&<section className={card+" p-5 sm:p-6"}>
             <h3 className="flex items-center gap-2 text-[16px] font-extrabold"><Store size={20} className="text-[var(--art-primary)]"/> Retirada na loja</h3>
+            {order.pickupCode && !finished && <div className="mt-4 rounded-xl border border-blue-200 bg-blue-50 p-4 text-center">
+              <p className="text-[12px] font-bold text-[#45617f]">Seu código de retirada</p>
+              <strong className="mt-2 block text-[32px] font-extrabold tracking-[0.26em] text-[#104ba3]" aria-label={"Código de retirada: "+order.pickupCode}>{order.pickupCode}</strong>
+              <p className="mt-2 text-[12px] leading-5 text-[#45617f]">Apresente esses quatro dígitos no balcão quando seu pedido estiver pronto. Não é necessário informar o código antes.</p>
+            </div>}
             <div className="mt-4 space-y-2 text-[13px] text-[#4e6782]">
               <p className="flex items-start gap-2"><MapPin size={16} className="mt-0.5 shrink-0 text-[var(--art-primary)]"/>
                 <span>{order.pickupLocation.street}, {order.pickupLocation.number} — {order.pickupLocation.district}, {order.pickupLocation.city}/{order.pickupLocation.state}. CEP {order.pickupLocation.postalCode}</span>
