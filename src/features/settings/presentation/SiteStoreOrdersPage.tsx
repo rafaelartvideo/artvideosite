@@ -548,14 +548,16 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             {(isPickup ? pickupSequence : deliverySequence).map((state,index) => {
               const sequence:readonly FulfillmentStatus[] = isPickup ? pickupSequence : deliverySequence;
               const position = sequence.indexOf(currentStatus === "delivery_issue" ? "out_for_delivery" : currentStatus);
-              const complete = index < position || (index === position && (currentStatus === "picked_up" || currentStatus === "delivered"));
-              const active = index === position && !complete;
+              const complete = isPickup
+                ? index < position || (index === position && currentStatus === "picked_up")
+                : index <= position;
+              const active = isPickup && index === position && !complete;
               const reached = complete || active;
               const tone = isPickup ? pickupProgressTones[state as PickupStep] : null;
               return <div key={state} className="min-w-0" aria-current={active ? "step" : undefined}>
-                <div className={"relative h-2.5 overflow-hidden rounded-full " +
+                <div className={"relative overflow-hidden rounded-full " + (isPickup ? "h-2.5 " : "h-2 ") +
                   (reached ? tone?.bar || "bg-primary" : "bg-muted") +
-                  (active ? " art-fulfillment-bar-active" : complete ? " art-fulfillment-bar-done" : "")}
+                  (isPickup && active ? " art-fulfillment-bar-active" : isPickup && complete ? " art-fulfillment-bar-done" : "")}
                   aria-hidden="true"/>
                 <p className={"mt-1.5 break-words text-[10px] leading-tight " +
                   (reached ? "font-bold " + (tone?.text || "text-foreground") : "text-muted-foreground")}>
