@@ -1,6 +1,6 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
-import { CheckCircle2, History, RotateCcw } from "lucide-react";
-import { AdminCard, AdminCardHeader, AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { CheckCircle2, RotateCcw } from "lucide-react";
+import { AdminSectionEmpty, AdminCard, AdminCardHeader, AdminPage, AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { formatCurrency, formatDateTime } from "@/shared/domain/formatters";
 import type { ServiceOrderSolutionAttempt } from "../infrastructure/order-solution-history.repository";
@@ -36,7 +36,7 @@ export function OrderSolutionRecordsPage({
     <div className="space-y-4 p-4 sm:p-5">
       {loading && <LoadingState text="Carregando registros da solução..." />}
       {!loading && error && <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-xs font-semibold text-red-700">{error}</div>}
-      {!loading && !error && attempts.length === 0 && <div className="rounded-xl border border-dashed border-border px-3 py-10 text-center text-xs text-[#5a6a82]"><History className="mx-auto mb-2 text-[#8b98aa]" size={22} />Nenhuma solução registrada nesta OS.</div>}
+      {!loading && !error && attempts.length === 0 && <AdminSectionEmpty>Nenhuma solução registrada nesta OS.</AdminSectionEmpty>}
 
       {!loading && !error && attempts.map(attempt => {
         const active = !attempt.reverted_at;
