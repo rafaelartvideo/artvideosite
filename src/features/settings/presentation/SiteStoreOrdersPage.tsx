@@ -400,7 +400,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             <thead>
               <tr><th scope="col" className="p-3 text-left">Pedido</th><th scope="col" className="p-3 text-left">Cliente</th>
                 <th scope="col" className="p-3 text-left">Itens</th><th scope="col" className="p-3 text-left">Total</th>
-                <th scope="col" className="p-3 text-left">Pagamento</th><th scope="col" className="p-3 text-left">Entrega</th><th scope="col" className="p-3 text-left">Pós-venda</th></tr>
+                <th scope="col" className="p-3 text-left">Pagamento</th><th scope="col" className="p-3 text-left">Situação</th><th scope="col" className="p-3 text-left">Pós-venda</th></tr>
             </thead>
             <tbody>{rows.map(order => <tr key={order.id}
               onClick={() => setSelectedId(order.id)} tabIndex={0} role="button"
@@ -416,7 +416,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
                   order.payment_issue_status==="charged_back"?"Contestado · revisar":
                   paymentLabels[order.status] || order.status}</span></td>
               <td className="p-3">{order.status === "paid"
-                ? <><span className="mr-1 text-[11px] text-muted-foreground">{order.shipping_service_id === "pickup" ? "Retirada" : "Entrega"}</span><DeliveryBadge status={deliveryOf(order)}/></>
+                ? <DeliveryBadge status={deliveryOf(order)}/>
                 : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>
               <td className="p-3">{supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))
                 ? <span className={`rounded-full border px-2 py-1 text-xs font-bold ${STATUS_TONE_CLASSES.review.badge}`}>Em análise</span>
