@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { Camera, Upload } from "lucide-react";
-import {
+import { AdminSectionEmpty,
   AdminButton,
   AdminPage,
   AdminStickyToolbar,
@@ -68,7 +68,7 @@ export function OrderResolutionPage({
           </Section>
 
           <Section title="Descrição do problema">
-            <p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes || "Nenhuma descrição do problema registrada."}</p>
+            {detail.customer_notes ? <p className="text-sm text-[#0d1b2e] whitespace-pre-line">{detail.customer_notes}</p> : <AdminSectionEmpty>Nenhuma descrição do problema registrada.</AdminSectionEmpty>}
           </Section>
 
           <Section title="Diagnóstico">
@@ -102,7 +102,7 @@ export function OrderResolutionPage({
 
           <Section title="Produtos utilizados">
             <div className="space-y-3">
-              {solveDraft.usedItems.length === 0 ? <p className="text-xs text-[#5a6a82]">Nenhuma peça aprovada para esta OS.</p> : solveDraft.usedItems.map((item: any) => {
+              {solveDraft.usedItems.length === 0 ? <AdminSectionEmpty>Nenhuma peça aprovada para esta OS.</AdminSectionEmpty> : solveDraft.usedItems.map((item: any) => {
                 const stockItem = inventoryItems.find(entry => entry.id === item.inventory_item_id);
                 const available = Number(stockItem?.quantity ?? 0);
                 const requested = Number(item.quantity || 0);
@@ -127,7 +127,7 @@ export function OrderResolutionPage({
           </Section>
 
           <Section title="Imagens da OS">
-            {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem da OS cadastrada.</p>}
+            {orderImages.length > 0 ? <div className="flex flex-wrap gap-3">{orderImages.map(image => <OrderImageThumb key={image.key} image={image} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty>Nenhuma imagem da OS cadastrada.</AdminSectionEmpty>}
           </Section>
 
           <Section title="Imagens da solução">
@@ -156,7 +156,7 @@ export function OrderResolutionPage({
                 }} className="border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Camera size={13} /> Abrir câmera</AdminButton>
               </div>
             </div>
-            {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => onRemoveSolutionImage(image.key)} onView={() => onViewImage(image)} />)}</div> : <p className="text-xs text-[#5a6a82]">Nenhuma imagem adicionada para a solução.</p>}
+            {solutionImages.length > 0 ? <div className="flex flex-wrap gap-3">{solutionImages.map(image => <OrderImageThumb key={image.key} image={image} onRemove={() => onRemoveSolutionImage(image.key)} onView={() => onViewImage(image)} />)}</div> : <AdminSectionEmpty>Nenhuma imagem adicionada para a solução.</AdminSectionEmpty>}
           </Section>
         </div>
         <AdminStickyToolbar className="justify-end">
