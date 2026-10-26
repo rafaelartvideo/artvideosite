@@ -47,9 +47,13 @@ jobs:
     if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    concurrency:
+      group: deploy-hostgator-build
+      cancel-in-progress: true
     outputs:
       crm_hash: ${{ steps.hash.outputs.crm_hash }}
       site_hash: ${{ steps.hash.outputs.site_hash }}
+      fresh: ${{ steps.freshness.outputs.fresh }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,7 +98,24 @@ jobs:
           echo "### Artefatos gerados" >> "$GITHUB_STEP_SUMMARY"
           echo "CRM: $(find dist-crm -type f | wc -l) arquivos; hash $crm_hash" >> "$GITHUB_STEP_SUMMARY"
           echo "Site: $(find dist-site -type f | wc -l) arquivos; hash $site_hash" >> "$GITHUB_STEP_SUMMARY"
+      - name: Discard obsolete builds before publishing
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest_sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/main" | jq -r '.sha')"
+          if [ "$latest_sha" = "$GITHUB_SHA" ]; then
+            echo "fresh=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "fresh=false" >> "$GITHUB_OUTPUT"
+            echo "Compilacao ultrapassada: nao gerar artefatos nem agendar novos FTPS."
+          fi
       - name: Store CRM build
+        if: steps.freshness.outputs.fresh == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: crm-release
@@ -103,6 +124,7 @@ jobs:
           if-no-files-found: error
           retention-days: 2
       - name: Store public site build
+        if: steps.freshness.outputs.fresh == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: site-release
@@ -114,7 +136,7 @@ jobs:
   publish:
     name: Publish ${{ matrix.target }}
     needs: [gate, build]
-    if: needs.gate.outputs.deploy == 'true'
+    if: needs.gate.outputs.deploy == 'true' && needs.build.outputs.fresh == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     strategy:
