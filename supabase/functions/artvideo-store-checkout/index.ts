@@ -36,7 +36,7 @@ Deno.serve(async req => {
       if(!access)return json({error:"Pedido nao autorizado."},403);
       const {data:order,error:orderError}=await admin
         .from("artvideo_store_orders")
-        .select("status,expires_at,preference_id,payment_provider,payment_environment,shipping_price,buyer")
+        .select("status,expires_at,preference_id,payment_provider,payment_environment,shipping_price,buyer,order_number")
         .eq("id",resumeId).maybeSingle();
       if(orderError||!order)return json({error:"Pedido nao encontrado."},404);
       if(order.preference_id!=="bricks:"+resumeId
@@ -59,7 +59,7 @@ Deno.serve(async req => {
       const total=Number(order.shipping_price)+lines.reduce(
         (sum,line)=>sum+Number(line.unit_price)*Number(line.quantity),0);
       if(!Number.isFinite(total)||total<1)return json({error:"Valor do pedido invalido."},400);
-      return json({order_id:resumeId,tracking_token:resumeToken,
+      return json({order_id:resumeId,order_number:"PED-"+String(order.order_number).padStart(6,"0"),tracking_token:resumeToken,
         public_key:publicKey,amount:Math.round(total*100)/100,
         expires_at:order.expires_at,buyer_email:String(order.buyer?.buyer_email||""),
         mode:"bricks"});
@@ -210,6 +210,11 @@ Deno.serve(async req => {
     });
     if (orderError || !order?.id) throw new Error(orderError?.message || "Não foi possível reservar o estoque.");
     orderId = order.id;
+    const {data:numberRow,error:numberError}=await admin.from("artvideo_store_orders")
+      .select("order_number").eq("id",orderId).single();
+    if(numberError || numberRow?.order_number==null)
+      throw new Error("Não foi possível atribuir o número do pedido.");
+    const displayNumber="PED-"+String(numberRow.order_number).padStart(6,"0");
     // Se o acompanhamento falhar, nao criar preferencia no provedor:
     // evita checkout real sem um codigo privado recuperavel pelo cliente.
     const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
@@ -224,7 +229,7 @@ Deno.serve(async req => {
       });
       if(registrationError)throw registrationError;
       return json({
-        order_id:orderId,tracking_token:trackingToken,public_key:brickPublicKey,
+        order_id:orderId,order_number:displayNumber,tracking_token:trackingToken,public_key:brickPublicKey,
         amount:Number(order.total),expires_at:order.expires_at,
         payment_provider:providerKey,mode:"bricks",
       });
@@ -259,7 +264,7 @@ Deno.serve(async req => {
     });
     if(checkoutError) throw checkoutError;
 
-    return json({ checkout_url: checkoutUrl, order_id: orderId, payment_provider:providerKey, tracking_token:trackingToken });
+    return json({ checkout_url: checkoutUrl, order_id: orderId, order_number:displayNumber, payment_provider:providerKey, tracking_token:trackingToken });
   } catch (error) {
     if (orderId) await admin.rpc("artvideo_store_cancel_v1", { p_order_id: orderId });
     return json({ error: error instanceof Error ? error.message : "Compra temporariamente indisponível. Nenhum valor foi cobrado." }, 400);
