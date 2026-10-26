@@ -26,7 +26,7 @@ type ChannelResult = {
 
 export async function operateWhatsAppChannel(
   organizationId: string,
-  action: "list" | "activate" | "register" | "provision" | "connect" | "disconnect" | "status" | "qr" | "logout" | "webhook_setup",
+  action: "list" | "activate" | "register" | "provision" | "connect" | "disconnect" | "delete" | "status" | "qr" | "logout" | "webhook_setup",
   connectionId?: string,
   displayName?: string,
 ): Promise<ChannelResult> {
