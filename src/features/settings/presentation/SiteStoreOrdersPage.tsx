@@ -2,7 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ClipboardCheck,
-  HelpCircle, MapPin, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
+  HelpCircle, MapPin, PackageCheck, RotateCcw, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -13,8 +13,8 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
-import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
@@ -266,6 +266,8 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     return customerMatches && orderMatches && productMatches;
   }), [orders, lines, paymentFilter, deliveryFilter, supportFilter, supportCases,
     customerSearch, orderSearch, productSearch, fulfillmentByOrder]);
+  const hasActiveFilters = Boolean(customerSearch.trim() || orderSearch.trim() || productSearch.trim()
+    || paymentFilter !== "all" || deliveryFilter !== "all" || supportFilter !== "all");
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const rows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
@@ -342,30 +344,44 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     </div>
 
     <AdminSearchPanel title="Buscar pedidos" headerActions={
-      customerSearch || orderSearch || productSearch || paymentFilter !== "all" || deliveryFilter !== "all" || supportFilter !== "all"
-        ? <AdminSearchClearButton onClick={() => { setCustomerSearch(""); setOrderSearch(""); setProductSearch("");
-            setPaymentFilter("all"); setDeliveryFilter("all"); setSupportFilter("all"); setPage(1); }} />
-        : undefined
+      hasActiveFilters ? <AdminSearchClearButton onClick={() => {
+        setCustomerSearch(""); setOrderSearch(""); setProductSearch("");
+        setPaymentFilter("all"); setDeliveryFilter("all"); setSupportFilter("all"); setPage(1);
+      }} /> : undefined
     }>
-      <div className="grid gap-3 md:grid-cols-3">
-        {([
-          { label: "Cliente", value: customerSearch, onChange: setCustomerSearch, placeholder: "Nome, e-mail ou telefone" },
-          { label: "Pedido", value: orderSearch, onChange: setOrderSearch, placeholder: "Número do pedido" },
-          { label: "Produto", value: productSearch, onChange: setProductSearch, placeholder: "Nome do produto" },
-        ] as const).map(field => <label key={field.label} className="min-w-0">
-          <span className="mb-1 block text-xs font-semibold text-foreground">{field.label}</span>
-          <span className="relative block">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-            <input type="search" value={field.value} onChange={event => { field.onChange(event.target.value); setPage(1); }}
-              placeholder={field.placeholder} aria-label={`Buscar por ${field.label.toLowerCase()}`}
-              className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm focus:outline-primary"/>
-          </span>
-        </label>)}
-      </div>
-      <div className="grid gap-2 sm:grid-cols-3">
-        <AdminSelect ariaLabel="Filtrar pagamento" value={paymentFilter} onValueChange={value => { setPaymentFilter(value); setPage(1); }} options={[{ value: "all", label: "Todos os pagamentos" }, ...Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))]} />
-        <AdminSelect ariaLabel="Filtrar entrega" value={deliveryFilter} onValueChange={value => { setDeliveryFilter(value); setPage(1); }} options={[{ value: "all", label: "Todas as entregas" }, { value: "unpaid", label: "Sem pagamento confirmado" }, ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label }))]} />
-        <AdminSelect ariaLabel="Filtrar pós-venda" value={supportFilter} onValueChange={value => { setSupportFilter(value); setPage(1); }} options={[{ value: "all", label: "Todo pós-venda" }, { value: "active", label: "Com solicitação ativa" }, { value: "none", label: "Sem solicitações" }]} />
+      <div className="grid min-w-0 grid-cols-1 items-end gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+        <AdminSearchTextField label="Cliente" value={customerSearch}
+          onChange={value => { setCustomerSearch(value); setPage(1); }}
+          placeholder="Nome, e-mail ou telefone" />
+        <AdminSearchTextField label="Pedido" value={orderSearch}
+          onChange={value => { setOrderSearch(value); setPage(1); }}
+          placeholder="Número do pedido" />
+        <AdminSearchTextField label="Produto" value={productSearch}
+          onChange={value => { setProductSearch(value); setPage(1); }}
+          placeholder="Nome do produto" />
+        <div className="min-w-0">
+          <AdminFieldLabel label="Pagamento" />
+          <AdminSelect className="w-full min-w-0" ariaLabel="Filtrar pagamento"
+            value={paymentFilter} onValueChange={value => { setPaymentFilter(value); setPage(1); }}
+            options={[{ value: "all", label: "Todos os pagamentos" },
+              ...Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))]} />
+        </div>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Entrega" />
+          <AdminSelect className="w-full min-w-0" ariaLabel="Filtrar entrega"
+            value={deliveryFilter} onValueChange={value => { setDeliveryFilter(value); setPage(1); }}
+            options={[{ value: "all", label: "Todas as entregas" },
+              { value: "unpaid", label: "Sem pagamento confirmado" },
+              ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label }))]} />
+        </div>
+        <div className="min-w-0">
+          <AdminFieldLabel label="Pós-venda" />
+          <AdminSelect className="w-full min-w-0" ariaLabel="Filtrar pós-venda"
+            value={supportFilter} onValueChange={value => { setSupportFilter(value); setPage(1); }}
+            options={[{ value: "all", label: "Todo pós-venda" },
+              { value: "active", label: "Com solicitação ativa" },
+              { value: "none", label: "Sem solicitações" }]} />
+        </div>
       </div>
     </AdminSearchPanel>
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
@@ -382,9 +398,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         : <div className="overflow-x-auto">
           <table className="min-w-[830px]">
             <thead>
-              <tr><th className="p-3">Pedido</th><th className="p-3">Cliente</th>
-                <th className="p-3">Itens</th><th className="p-3">Total</th>
-                <th className="p-3">Pagamento</th><th className="p-3">Entrega</th><th className="p-3">Pós-venda</th></tr>
+              <tr><th scope="col" className="p-3 text-left">Pedido</th><th scope="col" className="p-3 text-left">Cliente</th>
+                <th scope="col" className="p-3 text-left">Itens</th><th scope="col" className="p-3 text-left">Total</th>
+                <th scope="col" className="p-3 text-left">Pagamento</th><th scope="col" className="p-3 text-left">Entrega</th><th scope="col" className="p-3 text-left">Pós-venda</th></tr>
             </thead>
             <tbody>{rows.map(order => <tr key={order.id}
               onClick={() => setSelectedId(order.id)} tabIndex={0} role="button"
@@ -408,7 +424,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             </tr>)}</tbody>
           </table>
         </div>}
-        <PaginationBar showFilteredTotal page={safePage} pageSize={pageSize}
+        <PaginationBar showFilteredTotal={hasActiveFilters} page={safePage} pageSize={pageSize}
           totalItems={filtered.length} onPageChange={setPage}
           onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </div>
