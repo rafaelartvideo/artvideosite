@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownWideNarrow, ArrowUpDown, ArrowUpNarrowWide, Check, ClipboardList, Eraser, FileText, MapPin, MessageCircle, Search } from "lucide-react";
+import { Check, ClipboardList, FileText, MapPin, MessageCircle } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
@@ -16,13 +16,11 @@ import {
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
 import { AdminButton, AdminCard, AdminDialog, AdminStickyToolbar, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
-import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
-import { cn, formatCnpj, formatCpf, formatPhone, formatCurrency, formatDateTime } from "@/shared/domain/formatters";
+import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { formatCnpj, formatCpf, formatPhone, formatCurrency, formatDateTime } from "@/shared/domain/formatters";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
 import { OperationProgressDialog } from "@/shared/ui/admin/OperationProgressDialog";
 import { parseQuoteRequestMessage, quoteRequestAddress, quoteAddressLabel } from "../domain/quote-request-details.mjs";
@@ -34,16 +32,8 @@ type TabQuotesProps = {
   embedded?: boolean;
 };
 
-type QuoteMobileFilter = "customer" | "document" | "protocol" | "status";
 type QuoteAction = "AGUARDANDO_APROVACAO" | "APROVADO" | "REPROVADO" | "RENEGOCIACAO";
 type QuoteSort = "" | "asc" | "desc";
-
-const quoteMobileFilters: Array<{ value: QuoteMobileFilter; label: string }> = [
-  { value: "customer", label: "Cliente" },
-  { value: "document", label: "CPF / CNPJ" },
-  { value: "protocol", label: "Protocolo" },
-  { value: "status", label: "Status" },
-];
 
 const normalizeDocument = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const formatDocumentSearch = (value: string) => {
@@ -77,7 +67,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
   const queryClient = useQueryClient();
 
   const [filterStatus, setFilterStatus] = useState("");
-  const [mobileFilter, setMobileFilter] = useState<QuoteMobileFilter>("customer");
   const [mobileCustomerSearch, setMobileCustomerSearch] = useState("");
   const [mobileDocumentSearch, setMobileDocumentSearch] = useState("");
   const [mobileProtocolSearch, setMobileProtocolSearch] = useState("");
@@ -176,11 +165,13 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
   };
   const closeDetails = () => { setSacQuoteOpen(false); setDetail(null); setConfirmAction(null); onRouteChange?.(null, null); };
 
-  const sortLabel = orderSort === "asc" ? "Protocolo crescente" : orderSort === "desc" ? "Protocolo decrescente" : "Ordenação padrão";
-  const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-  const hasMobileFilters = Boolean(mobileCustomerSearch || mobileDocumentSearch || mobileProtocolSearch || filterStatus || orderSort);
+  const hasActiveFilters = Boolean(
+    mobileCustomerSearch.trim() || mobileDocumentSearch.trim()
+      || mobileProtocolSearch.trim() || filterStatus,
+  );
+  const hasFilterAdjustments = hasActiveFilters || Boolean(orderSort);
 
-  const clearMobileFilters = () => {
+  const clearFilters = () => {
     setMobileCustomerSearch("");
     setMobileDocumentSearch("");
     setMobileProtocolSearch("");
@@ -188,35 +179,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
     setOrderSort("");
     setPage(1);
   };
-
-  const renderMobileFilter = () => {
-    if (mobileFilter === "customer") return <MobileSearchField value={mobileCustomerSearch} onChange={setMobileCustomerSearch} placeholder="Digite o nome do cliente" ariaLabel="Buscar por nome do cliente" />;
-    if (mobileFilter === "document") return <MobileSearchField value={mobileDocumentSearch} onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
-    if (mobileFilter === "protocol") return <MobileSearchField value={mobileProtocolSearch} onChange={setMobileProtocolSearch} placeholder="Digite o protocolo" ariaLabel="Buscar por protocolo" />;
-    return <AdminSelect value={filterStatus} onValueChange={value => { setFilterStatus(value); setPage(1); }} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar orçamentos por status" />;
-  };
-
-  const sortMenu = (mobile = false) => <DropdownMenu>
-    <DropdownMenuTrigger asChild>
-      <button
-        type="button"
-        aria-label={`Ordenação atual: ${sortLabel}`}
-        title={`Ordenação: ${sortLabel}`}
-        className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-lg border transition-colors focus-visible:outline-none focus-visible:ring-2",
-          mobile
-            ? "h-[42px] w-[42px] border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm focus-visible:ring-[#0057e7]/40"
-            : "h-9 w-9 border-[#0d1b2e]/15 bg-white text-[#5a6a82] shadow-sm focus-visible:ring-[#0057e7]/40",
-          orderSort && "border-[#0057e7] bg-[#eef5ff] text-[#0057e7]",
-        )}
-      >
-        <SortIcon size={mobile ? 17 : 16} className={cn("shrink-0", mobile && "text-[#0057e7]")} />
-      </button>
-    </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" className="min-w-[220px]">
-      {([["", "Ordenação padrão", ArrowUpDown], ["asc", "Protocolo crescente", ArrowUpNarrowWide], ["desc", "Protocolo decrescente", ArrowDownWideNarrow]] as const).map(([value, label, Icon]) => <DropdownMenuItem key={value || "default"} onSelect={() => setOrderSort(value)} className={cn("cursor-pointer", orderSort === value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Icon size={15} className={orderSort === value ? "text-[#0057e7]" : "text-[#5a6a82]"} /><span>{label}</span>{orderSort === value && <Check size={15} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}
-    </DropdownMenuContent>
-  </DropdownMenu>;
 
   const InfoRow = ({ label, value }: { label: string; value?: string | null }) => value ? <div className="min-w-0"><p className="mb-0.5 break-words text-[10px] font-bold uppercase text-[#5a6a82]">{label}</p><p className="break-words whitespace-pre-line text-sm font-medium text-[#0d1b2e]">{value}</p></div> : null;
 
@@ -233,22 +195,28 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
     <>
       {!embedded && <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />}
       {canViewTable && <AdminSearchPanel title="Buscar orçamentos" headerActions={<>
-        {hasMobileFilters && <AdminSearchClearButton onClick={clearMobileFilters} />}
+        {hasFilterAdjustments && <AdminSearchClearButton onClick={clearFilters} />}
         <AdminSearchSortMenu value={orderSort} onChange={setOrderSort}
-          options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "Protocolo crescente" }, { value: "desc", label: "Protocolo decrescente" }]} />
+          options={[{ value: "", label: "Ordenação padrão" },
+            { value: "asc", label: "Protocolo crescente" },
+            { value: "desc", label: "Protocolo decrescente" }]} />
       </>}>
-        <AdminMobileSearchSwitch
-          value={mobileFilter}
-          options={quoteMobileFilters}
-          onChange={setMobileFilter}
-        >
-          {renderMobileFilter()}
-        </AdminMobileSearchSwitch>
-        <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-4">
-          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">Cliente</span><SearchField value={mobileCustomerSearch} onChange={setMobileCustomerSearch} placeholder="Nome do cliente" /></label>
-          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">CPF/CNPJ</span><SearchField value={mobileDocumentSearch} onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))} placeholder="CPF ou CNPJ" /></label>
-          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">Protocolo</span><SearchField value={mobileProtocolSearch} onChange={setMobileProtocolSearch} placeholder="Número do protocolo" /></label>
-          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">Status</span><AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-9 text-xs" ariaLabel="Filtrar por status" /></label>
+        <div className="grid min-w-0 grid-cols-1 items-end gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+          <AdminSearchTextField label="Cliente" value={mobileCustomerSearch}
+            onChange={setMobileCustomerSearch} placeholder="Nome do cliente" />
+          <AdminSearchTextField label="CPF/CNPJ" value={mobileDocumentSearch}
+            onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))}
+            placeholder="CPF ou CNPJ" />
+          <AdminSearchTextField label="Protocolo" value={mobileProtocolSearch}
+            onChange={setMobileProtocolSearch} placeholder="Número do protocolo" />
+          <div className="min-w-0">
+            <AdminFieldLabel label="Status" />
+            <AdminSelect className="w-full min-w-0" value={filterStatus}
+              onValueChange={value => { setFilterStatus(value); setPage(1); }}
+              options={[{ value: "", label: "Todos os status" },
+                ...statuses.map(status => ({ value: status.id, label: status.name }))]}
+              ariaLabel="Filtrar orçamentos por status" />
+          </div>
         </div>
       </AdminSearchPanel>}
 
@@ -264,7 +232,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
           })}</div>
           <div className="hidden overflow-x-auto md:block"><table className="min-w-[850px]"><thead><tr>{showProtocol && <th className="text-left">Protocolo</th>}{showCustomer && <th className="text-left">Cliente</th>}{showDocument && <th className="text-left">CPF/CNPJ</th>}{showServiceBrand && <th className="text-left">Serviço / Marca</th>}{showStatus && <th className="text-left">Status</th>}{showCreatedAt && <th className="text-left">Recebido em</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{quotes.map(quote => { const customer = quote.customer as any; return <tr key={quote.id} onClick={() => openDetails(quote)} className="cursor-default">{showProtocol && <td className="font-mono text-xs font-black text-[#0057e7]">{quote.protocol || quote.id.slice(0,8)}</td>}{showCustomer && <td><p className="font-bold text-[#0d1b2e]">{customer?.full_name || customer?.trade_name || "—"}</p><p className="text-xs text-[#5a6a82]">{formatPhone(customer?.whatsapp || customer?.phone)}</p></td>}{showDocument && <td className="text-xs text-[#5a6a82]">{customer?.customer_type === "PJ" ? formatCnpj(customer?.cnpj || "") : formatCpf(customer?.document || "")}</td>}{showServiceBrand && <td className="text-xs text-[#5a6a82]">{(quote.service as any)?.title || "—"} · {(quote.brand as any)?.name || "—"}</td>}{showStatus && <td><StatusBadge status={quote.statusName || "Sem status"} color={quote.request_status?.color} /></td>}{showCreatedAt && <td className="text-xs text-[#5a6a82]">{formatDateTime(quote.created_at)}</td>}{showActions && <td onClick={event => event.stopPropagation()}><div className="flex justify-end"><span className="text-xs text-muted-foreground">Abrir para avaliar</span></div></td>}</tr>; })}</tbody></table></div>
         </>}
-        <PaginationBar showFilteredTotal page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }} />
+        <PaginationBar showFilteredTotal={hasActiveFilters} page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }} />
       </AdminCard>}
     </>
 
@@ -397,14 +365,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
       onFinished={() => { setProgressState(null); }} />
     {sacQuoteOpen && detail && <QuoteSacDigitalDialog quote={detail} organizationId={organizationId} onClose={()=>setSacQuoteOpen(false)}/>}
   </div>;
-}
-
-function SearchField({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] w-full pl-9 text-xs md:h-9 md:py-1.5")} /></div>;
-}
-
-function MobileSearchField({ value, onChange, placeholder, ariaLabel, inputMode }: { value: string; onChange: (value: string) => void; placeholder: string; ariaLabel: string; inputMode?: "numeric" }) {
-  return <div className="relative min-w-0 overflow-hidden rounded-lg"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#5a6a82]" /><input inputMode={inputMode} aria-label={ariaLabel} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} className={cn(INPUT, "h-[42px] min-w-0 w-full overflow-hidden text-ellipsis whitespace-nowrap py-2 pl-9 text-sm")} /></div>;
 }
 
 function MobileInfo({ label, value }: { label: string; value: string }) {
