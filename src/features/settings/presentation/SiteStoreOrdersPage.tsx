@@ -2,7 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ClipboardCheck,
-  HelpCircle, MapPin, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
+  HelpCircle, MapPin, MoreVertical, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -16,6 +16,9 @@ import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminFieldLabel, AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from "@/shared/ui/primitives/dropdown-menu";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
 type StoreOrder = {
@@ -313,6 +316,29 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const safePage = Math.min(page, totalPages);
   const rows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const openOrder=(order:StoreOrder,view:"order"|"afterSales"="order")=>{
+    setModalView(view);
+    setSelectedId(order.id);
+  };
+  const quickActions=(order:StoreOrder)=><DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <button type="button" onClick={event=>event.stopPropagation()}
+        aria-label={`Ações do pedido ${orderCode(order)}`}
+        title="Ações rápidas"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+        <MoreVertical size={17}/>
+      </button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-56" onClick={event=>event.stopPropagation()}>
+      <DropdownMenuItem className="font-semibold" onSelect={()=>openOrder(order)}>
+        <ShoppingBag size={15}/> Ver detalhes
+      </DropdownMenuItem>
+      <DropdownMenuSeparator/>
+      <DropdownMenuItem className="font-semibold" onSelect={()=>openOrder(order,"afterSales")}>
+        <RotateCcw size={15}/> Pós-venda
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>;
 
   /** Localiza a retirada sem depender da paginação dos últimos pedidos. */
   const locatePickupByPin = async () => {
@@ -520,16 +546,48 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
           <ShoppingBag size={29} className="mx-auto mb-3"/>
           {orders.length ? "Nenhum pedido encontrado neste filtro." : "Nenhum pedido registrado."}
         </div>
-        : <div className="overflow-x-auto">
+        : <>
+          <div className="divide-y divide-border md:hidden">{rows.map(order=>
+            <article key={order.id} role="button" tabIndex={0}
+              onClick={()=>openOrder(order)}
+              onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();openOrder(order);}}}
+              className="space-y-3 p-4 hover:bg-muted/40 focus-visible:bg-muted/40">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <strong className="block text-sm">{orderCode(order)}</strong>
+                  <span className="text-xs text-muted-foreground">{timeText(order.created_at)}</span>
+                </div>
+                <div onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
+                  {quickActions(order)}
+                </div>
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{order.buyer?.buyer_name||"Cliente"}</p>
+                <p className="truncate text-xs text-muted-foreground">{order.buyer?.buyer_email||""}</p>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <strong className="text-sm">{formatCurrency(total(order))}</strong>
+                <span className={"inline-block whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold "+paymentColor(order.status)}>
+                  {order.payment_issue_status==="refunded"?"Estornado · revisar":
+                    order.payment_issue_status==="charged_back"?"Contestado · revisar":
+                    paymentLabels[order.status]||order.status}
+                </span>
+              </div>
+              {order.status==="paid"&&<div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">Situação:</span>
+                <DeliveryBadge status={deliveryOf(order)}/>
+              </div>}
+            </article>)}</div>
+          <div className="hidden overflow-x-auto md:block">
           <table className="min-w-[830px]">
             <thead>
               <tr><th scope="col" className="p-3 text-left">Pedido</th><th scope="col" className="p-3 text-left">Cliente</th>
                 <th scope="col" className="p-3 text-left">Itens</th><th scope="col" className="p-3 text-left">Total</th>
-                <th scope="col" className="p-3 text-left">Pagamento</th><th scope="col" className="p-3 text-left">Situação</th><th scope="col" className="p-3 text-left">Pós-venda</th></tr>
+                <th scope="col" className="p-3 text-left">Pagamento</th><th scope="col" className="p-3 text-left">Situação</th><th scope="col" className="p-3 text-left">Pós-venda</th><th scope="col" className="p-3 text-right">Ações</th></tr>
             </thead>
             <tbody>{rows.map(order => <tr key={order.id}
-              onClick={() => setSelectedId(order.id)} tabIndex={0} role="button"
-              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(order.id); } }}
+              onClick={() => openOrder(order)} tabIndex={0} role="button"
+              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openOrder(order); } }}
               className="cursor-pointer transition-colors hover:bg-muted/40 focus-visible:bg-muted/40">
               <td className="p-3"><strong className="block">{orderCode(order)}</strong>
                 <span className="text-xs text-muted-foreground">{timeText(order.created_at)}</span></td>
@@ -546,9 +604,14 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               <td className="p-3">{supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))
                 ? <span className={`rounded-full border px-2 py-1 text-xs font-bold ${STATUS_TONE_CLASSES.review.badge}`}>Em análise</span>
                 : supportCases.some(c=>c.order_id===order.id) ? <span className="text-xs text-muted-foreground">Registrado</span> : "—"}</td>
+              <td className="p-3 text-right" onClick={event=>event.stopPropagation()}
+                onKeyDown={event=>event.stopPropagation()}>
+                <div className="flex justify-end">{quickActions(order)}</div>
+              </td>
             </tr>)}</tbody>
           </table>
-        </div>}
+        </div>
+        </>}
         <PaginationBar showFilteredTotal={hasActiveFilters} page={safePage} pageSize={pageSize}
           totalItems={filtered.length} onPageChange={setPage}
           onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
