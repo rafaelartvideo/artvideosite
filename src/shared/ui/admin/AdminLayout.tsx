@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import { ArrowLeft, Pause, Play, X } from "lucide-react";
+import { ArrowLeft, MoreVertical, Pause, Play, X } from "lucide-react";
 import { AdminBackContext, AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import { cn } from "@/shared/domain/formatters";
 import { preventAdminDialogOutsideInteraction, resolveAdminBrowserBottomInset } from "@/shared/ui/admin/admin-dialog-behavior.mjs";
@@ -113,6 +113,21 @@ export function AdminButton({
     {resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? renderedChildren}</> : renderedChildren}
   </button>;
 }
+
+/** Gatilho de ações rápidas compartilhado pelas listas do CRM (OS, pedidos e orçamentos). */
+export const AdminRowActionsTrigger = React.forwardRef<HTMLButtonElement,
+  React.ButtonHTMLAttributes<HTMLButtonElement> & { label: string }
+>(function AdminRowActionsTrigger({ label, className, onClick, ...props }, ref) {
+  return <button {...props} ref={ref} type="button"
+    aria-label={label} title="Ações rápidas"
+    onClick={event => { event.stopPropagation(); onClick?.(event); }}
+    className={cn(
+      "inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
+      className,
+    )}>
+    <MoreVertical size={17}/>
+  </button>;
+});
 
 type AdminIconButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
