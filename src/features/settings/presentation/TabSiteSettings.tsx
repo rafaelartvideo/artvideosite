@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, PanelsTopLeft, ArrowUp, ArrowDown, Plus, Trash2, Phone, Pencil } from "lucide-react";
@@ -232,13 +232,24 @@ export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void
   const [section, setSection] = useState<SiteSection>(initialSection || "identity");
   const [editor, setEditor] = useState<string | null>(null);
   useEffect(() => { if (initialSection) setSection(initialSection); }, [initialSection]);
+  useEffect(() => { if (!canView && canViewContactDetails) setSection("contact"); }, [canView, canViewContactDetails]);
   const [serviceSearch, setServiceSearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const settingsQuery = useSiteSettingsQuery();
   const saveSettings = useSaveSiteSettingsMutation();
   const { services, loading: servicesLoading } = useServices();
 
-  useEffect(() => { if (settingsQuery.data) setSettings(settingsQuery.data); }, [settingsQuery.data]);
+  // Preserve unsaved edits when another screen invalidates the shared settings query.
+  const loadedSnapshot = useRef<string | null>(null);
+  useEffect(() => {
+    if (!settingsQuery.data) return;
+    const incoming = JSON.stringify(settingsQuery.data);
+    setSettings(previous => {
+      const canHydrate = loadedSnapshot.current === null || JSON.stringify(previous) === loadedSnapshot.current;
+      loadedSnapshot.current = incoming;
+      return canHydrate ? settingsQuery.data : previous;
+    });
+  }, [settingsQuery.data]);
   useEffect(() => {
     if (settingsQuery.error) setToast({
       msg: "Erro ao carregar configurações: " + systemErrorMessage(settingsQuery.error), type: "error",
