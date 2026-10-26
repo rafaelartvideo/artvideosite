@@ -108,7 +108,7 @@ export function StoreCartPage({ onReady }: { onReady: () => void }) {
         <div className="mt-5 flex items-center justify-between gap-3 text-[13px]"><span>Produtos ({count})</span><strong>{formatCurrency(subtotal)}</strong></div>
         <div className="mt-3 flex items-center justify-between gap-3 text-[13px] text-[#677990]"><span>Entrega</span><span>Calculada na próxima etapa</span></div>
         <div className="mt-5 flex justify-between border-t border-[#e6edf6] pt-4 text-[17px] font-extrabold"><span>Subtotal</span><span className="text-[var(--art-primary)]">{formatCurrency(subtotal)}</span></div>
-        <button type="button" disabled={!canContinue} onClick={() => navigate("/checkout/carrinho")}
+        <button type="button" disabled={!canContinue} onClick={() => navigate("/checkout/carrinho?checkout_id=" + crypto.randomUUID())}
           className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-[13px] font-extrabold text-white transition-all hover:-translate-y-0.5 hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50">
           Finalizar compra <ArrowRight size={17}/>
         </button>
@@ -127,7 +127,7 @@ export function StoreCartPage({ onReady }: { onReady: () => void }) {
           </div>
           <p className="mt-1.5 border-t border-[#e6edf6] pt-1.5 text-[13px] font-bold text-[#10243d]">Subtotal: {formatCurrency(subtotal)}</p>
         </div>
-        <button type="button" disabled={!canContinue} onClick={() => navigate("/checkout/carrinho")}
+        <button type="button" disabled={!canContinue} onClick={() => navigate("/checkout/carrinho?checkout_id=" + crypto.randomUUID())}
           className="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-[13px] font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
           Finalizar compra <ArrowRight size={17}/>
         </button>
