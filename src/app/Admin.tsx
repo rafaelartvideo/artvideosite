@@ -163,6 +163,9 @@ export function AdminDashboard({
     if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || hasPermission("whatsapp.inbox.view") || (hasPermission("settings.update") && hasPermission("site.view"))) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
+    if (tab === "siteSettings") return hasPermission("site.view")
+      && (hasPermission("site_settings.view") || (hasPermission("contact.view") && hasPermission("contact.details.view")))
+      && isAdminModuleEnabled(tab, hasModule);
     if (tab === "inventory") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "products") return (hasPermission("inventory.view") || hasPermission("products.view")) && isAdminModuleEnabled("inventory", hasModule);
     if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
