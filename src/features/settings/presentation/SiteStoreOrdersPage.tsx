@@ -446,7 +446,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
                   paymentLabels[order.status] || order.status}</span></td>
               <td className="p-3">{order.status === "paid"
                 ? <DeliveryBadge status={deliveryOf(order)}/>
-                : <span className="text-xs text-muted-foreground">Aguardando pagamento</span>}</td>
+                : <span className="text-xs text-muted-foreground" aria-label="Sem situação operacional">—</span>}</td>
               <td className="p-3">{supportCases.some(c=>c.order_id===order.id&&["open","in_review","approved"].includes(c.status))
                 ? <span className={`rounded-full border px-2 py-1 text-xs font-bold ${STATUS_TONE_CLASSES.review.badge}`}>Em análise</span>
                 : supportCases.some(c=>c.order_id===order.id) ? <span className="text-xs text-muted-foreground">Registrado</span> : "—"}</td>
