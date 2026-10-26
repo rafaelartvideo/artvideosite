@@ -30,7 +30,7 @@ const steps: { value: Step; name: string; sub: string; Icon: typeof UserRound }[
   { value: 1, name: "Identificação", sub: "Seus dados", Icon: UserRound },
   { value: 2, name: "Entrega", sub: "Endereço e frete", Icon: Truck },
   { value: 3, name: "Revisão", sub: "Confira o pedido", Icon: Package },
-  { value: 4, name: "Pagamento", sub: "Finalize aqui no site", Icon: CreditCard },
+  { value: 4, name: "Pagamento", sub: "Finalizar compra", Icon: CreditCard },
 ];
 
 function Field({ label, required, children, hint }: {
