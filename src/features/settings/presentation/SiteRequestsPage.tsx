@@ -63,7 +63,7 @@ export function SiteRequestsPage({
     refetchOnWindowFocus: true,
   });
   if (!canQuotes && !canOrders) return null;
-  if (section === "orcamentos" && quoteId && canQuotes) return <SiteQuoteDetailsPage quoteId={quoteId} onBack={() => onQuoteRouteChange(null)} />;
+
 
   const activeSection: RequestsSection =
     section === "orcamentos" && canQuotes ? "orcamentos"
@@ -102,5 +102,7 @@ export function SiteRequestsPage({
       ? <TabQuotes embedded routeResourceId={null}
           onRouteChange={onQuoteRouteChange} onNavigate={onNavigate} />
       : <SiteStoreOrdersPage embedded onBack={() => onSelectSection("orcamentos")} />}
+    {activeSection === "orcamentos" && quoteId && canQuotes &&
+      <SiteQuoteDetailsPage quoteId={quoteId} onBack={() => onQuoteRouteChange(null)} />}
   </div>;
 }
