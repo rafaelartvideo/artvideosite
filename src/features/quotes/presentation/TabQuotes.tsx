@@ -67,7 +67,8 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const total=quotesQuery.data?.total||0;
   const totalPages=Math.max(1,Math.ceil(total/pageSize));
   const safePage=Math.min(page,totalPages);
-  const hasFilters=Boolean(customer||document||protocol||status||sort);
+  const hasActiveFilters=Boolean(customer||document||protocol||status);
+  const hasAdjustments=hasActiveFilters||Boolean(sort);
   useEffect(()=>{setPage(1);},[customer,document,protocol,status,sort]);
   useEffect(()=>{if(page>totalPages)setPage(totalPages);},[page,totalPages]);
   const clear=()=>{setCustomer("");setDocument("");setProtocol("");setStatus("");setSort("");setPage(1);};
@@ -76,7 +77,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   return <div className="min-w-0 space-y-5">
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
     {canView&&<AdminSearchPanel title="Buscar orçamentos" headerActions={<>
-      {hasFilters&&<AdminSearchClearButton onClick={clear}/>}
+      {hasAdjustments&&<AdminSearchClearButton onClick={clear}/>}
       <AdminSearchSortMenu value={sort} onChange={v=>setSort(v as QuoteSort)}
         options={[{value:"",label:"Mais recentes"},{value:"asc",label:"Protocolo crescente"},{value:"desc",label:"Protocolo decrescente"}]}/>
     </>}>
@@ -144,7 +145,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
            })}</tbody></table>
          </div>
        </>}
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={total} showFilteredTotal={hasFilters}
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={total} showFilteredTotal={hasActiveFilters}
         onPageChange={setPage} onPageSizeChange={size=>{setPageSize(size);setPage(1);}}/>
     </AdminCard>}
   </div>;
