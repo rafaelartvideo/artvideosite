@@ -1,8 +1,8 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck,
-  Clock3, PackageCheck, RefreshCw, RotateCcw, Search, ShoppingBag, Truck,
+  Clock3, HelpCircle, MapPin, PackageCheck, RefreshCw, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -18,7 +18,7 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
 type StoreOrder = {
-  id: string; created_at: string; status: string; quantity: number;
+  id: string; order_number: number; created_at: string; status: string; quantity: number;
   product_name: string; unit_price: number; shipping_price: number;
   shipping_service_name: string; shipping_service_id: string; postal_code: string;
   buyer: Record<string, string>; preference_id: string | null;
@@ -26,7 +26,7 @@ type StoreOrder = {
   payment_issue_status: "refunded"|"charged_back"|null; payment_issue_at:string|null;
 };
 type StoreOrderLine = {
-  id: string; order_id: string; product_name: string; quantity: number; unit_price: number;
+  id: string; order_id: string; product_name: string; quantity: number; unit_price: number; inventory_item_id: string | null;
 };
 type SupportCaseSummary = {order_id:string;status:string};
 type FulfillmentStatus =
@@ -62,6 +62,20 @@ const nextActions: Partial<Record<FulfillmentStatus, { status: FulfillmentStatus
   delivery_issue: { status: "out_for_delivery", label: "Retomar entrega" },
 };
 const timeText = (date: string) => new Date(date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+const orderCode = (order: StoreOrder) => "PED-" + String(order.order_number).padStart(6, "0");
+const formatZip = (raw?: string | null) => {
+  const digits = String(raw || "").replace(/\D/g, "");
+  return digits.length === 8 ? digits.slice(0, 5) + "-" + digits.slice(5) : (raw || "Não informado");
+};
+const formatPhone = (raw?: string | null) => {
+  let digits = String(raw || "").replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13)) digits = digits.slice(2);
+  if (digits.length === 11) return "+55 (" + digits.slice(0, 2) + ") " + digits.slice(2, 7) + "-" + digits.slice(7);
+  if (digits.length === 10) return "+55 (" + digits.slice(0, 2) + ") " + digits.slice(2, 6) + "-" + digits.slice(6);
+  return raw || "Não informado";
+};
+type StockAddress = { name: string | null; sku: string | null;
+  storage_shelf: string | null; storage_level: string | null; storage_compartment: string | null };
 
 function paymentColor(status: string) {
   if (status === "paid") return STATUS_TONE_CLASSES.success.badge;
@@ -102,6 +116,13 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const [supportFilter,setSupportFilter]=useState("all");
   const [page, setPage] = useState(1);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [modalView, setModalView] = useState<"order" | "afterSales">("order");
+  const [pickupHelp, setPickupHelp] = useState(false);
+  const [stockLine, setStockLine] = useState<StoreOrderLine | null>(null);
+  const [stockAddress, setStockAddress] = useState<StockAddress | null>(null);
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockError, setStockError] = useState("");
+  const dialogBodyRef = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState("");
   const [recipient, setRecipient] = useState("");
   const [actionMode, setActionMode] = useState<"advance" | "issue">("advance");
@@ -125,10 +146,10 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     setError("");
     const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
-        .select("id,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
+        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
       supabase.from("artvideo_store_order_items")
-        .select("id,order_id,product_name,quantity,unit_price")
+        .select("id,order_id,inventory_item_id,product_name,quantity,unit_price")
         .order("created_at", { ascending: true }).limit(2000),
       supabase.from("artvideo_store_fulfillments")
         .select("order_id,status,updated_at,recipient_name,delivered_at"),
@@ -157,6 +178,27 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  // A confirmação do pagamento chega pelo webhook/conciliador e atualiza a
+  // linha no banco. Realtime avisa este painel, sem simular aprovação no cliente.
+  useEffect(() => {
+    if (!activeOrganization?.id) return;
+    const channel = supabase.channel("artvideo-store-orders-" + activeOrganization.id)
+      .on("postgres_changes", {
+        event: "*", schema: "public", table: "artvideo_store_orders",
+        filter: "organization_id=eq." + activeOrganization.id,
+      }, () => { if (!document.hidden) void refresh(true); })
+      .subscribe();
+    return () => { void supabase.removeChannel(channel); };
+  }, [activeOrganization?.id, refresh]);
+  useEffect(() => {
+    const onVisible = () => { if (!document.hidden) void refresh(true); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [refresh]);
+  useEffect(() => { dialogBodyRef.current?.scrollTo(0, 0); }, [modalView]);
+  useEffect(() => {
+    if (!selectedId) { setModalView("order"); setPickupHelp(false); setStockLine(null); }
+  }, [selectedId]);
   useEffect(() => {
     const id = window.setInterval(() => { if (!document.hidden) void refresh(true); }, 60000);
     return () => window.clearInterval(id);
@@ -171,8 +213,23 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     const found = lines.filter(line => line.order_id === order.id);
     return found.length ? found : [{
       id: order.id, order_id: order.id, product_name: order.product_name,
-      quantity: order.quantity, unit_price: order.unit_price,
+      quantity: order.quantity, unit_price: order.unit_price, inventory_item_id: null,
     }];
+  };
+  const openStockAddress = async (line: StoreOrderLine) => {
+    setStockLine(line);
+    setStockAddress(null);
+    setStockError("");
+    if (!line.inventory_item_id || !activeOrganization?.id) return;
+    setStockLoading(true);
+    const { data, error: lookupError } = await supabase.from("inventory_items")
+      .select("name,sku,storage_shelf,storage_level,storage_compartment")
+      .eq("id", line.inventory_item_id)
+      .eq("organization_id", activeOrganization.id)
+      .maybeSingle();
+    if (lookupError) setStockError(systemErrorMessage(lookupError));
+    else setStockAddress(data as StockAddress | null);
+    setStockLoading(false);
   };
   const subtotal = (order: StoreOrder) => orderLines(order)
     .reduce((sum, line) => sum + line.quantity * Number(line.unit_price), 0);
@@ -188,7 +245,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       && (order.status !== "paid" || deliveryOf(order) !== deliveryFilter)) return false;
     const q = search.trim().toLocaleLowerCase("pt-BR");
     return !q || [
-      order.id, order.buyer?.buyer_name, order.buyer?.buyer_email, order.postal_code,
+      order.id, orderCode(order), order.buyer?.buyer_name, order.buyer?.buyer_email, order.postal_code,
       order.product_name, ...lines.filter(line => line.order_id === order.id)
         .map(line => line.product_name),
     ].some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(q));
@@ -280,7 +337,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               onClick={() => setSelectedId(order.id)} tabIndex={0} role="button"
               onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedId(order.id); } }}
               className="cursor-pointer transition-colors hover:bg-muted/40 focus-visible:bg-muted/40">
-              <td className="p-3"><strong className="block">#{order.id.slice(0,8).toUpperCase()}</strong>
+              <td className="p-3"><strong className="block">{orderCode(order)}</strong>
                 <span className="text-xs text-muted-foreground">{timeText(order.created_at)}</span></td>
               <td className="p-3"><strong className="block">{order.buyer?.buyer_name || "Cliente"}</strong>
                 <span className="block max-w-[200px] truncate text-xs text-muted-foreground">{order.buyer?.buyer_email || ""}</span></td>
@@ -310,57 +367,80 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       <BtnSecondary onClick={() => void refresh()} disabled={loading}><RefreshCw size={15}/> Atualizar</BtnSecondary>
     </AdminStickyToolbar>
 
-    <AdminDialog open={Boolean(selected)} title={selected ? "Pedido #" + selected.id.slice(0,8).toUpperCase() : "Pedido"}
+    <AdminDialog open={Boolean(selected)} title={selected ? (modalView === "afterSales" ? "Pós-venda · " : "Pedido ") + orderCode(selected) : "Pedido"}
       description={selected ? "Compra realizada em " + timeText(selected.created_at) : undefined}
-      className="max-w-3xl" onClose={() => { if (!saving) setSelectedId(null); }}
+      className="max-w-3xl" bodyRef={dialogBodyRef} onClose={() => { if (!saving) setSelectedId(null); }}
       footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
-        <BtnSecondary onClick={() => setSelectedId(null)} disabled={saving}>Fechar</BtnSecondary>
-        {selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
+        {modalView === "afterSales" && <BtnSecondary onClick={() => setModalView("order")}>Voltar ao pedido</BtnSecondary>}
+        {modalView === "order" && <BtnSecondary onClick={() => setSelectedId(null)} disabled={saving}>Fechar</BtnSecondary>}
+        {modalView === "order" && selected && <BtnSecondary onClick={() => { setPickupHelp(false); setModalView("afterSales"); }}>
+          <RotateCcw size={15}/> Pós-venda
+        </BtnSecondary>}
+        {modalView === "order" && selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
           onClick={() => void changeStage()} disabled={saving || (recipientRequired && recipient.trim().length < 3)
             || (issueRequired && note.trim().length < 10)}
           loading={saving} loadingText="Salvando...">{actionLabel}</BtnPrimary>}
       </div>}>
-      {selected && <div className="space-y-5 p-1 text-sm">
+      {selected && (modalView === "afterSales"
+        ? <div key={"after-sales-" + selected.id} className="animate-in fade-in slide-in-from-right-3 duration-200 motion-reduce:animate-none">
+          <StoreAfterSalesStaff orderId={selected.id} paymentStatus={selected.status}
+            canManage={canManage} orderTotal={total(selected)} standalone
+            items={orderLines(selected).map(line => ({
+              lineKey: line.id === selected.id ? "legacy" : line.id,
+              title: line.product_name, quantity: line.quantity,
+            }))}
+            onChange={() => void refresh(true)} />
+        </div>
+        : <div key={"order-" + selected.id} className="space-y-5 p-1 text-sm animate-in fade-in slide-in-from-left-3 duration-200 motion-reduce:animate-none">
+
         <div className="flex flex-wrap items-center gap-2">
           <span className={"inline-block rounded-full border px-2.5 py-1 text-[11px] font-bold " + paymentColor(selected.status)}>
             {paymentLabels[selected.status] || selected.status}
           </span>
           {selectedIsPaid && <DeliveryBadge status={currentStatus}/>}
           {selected.paid_at && <span className="text-xs text-muted-foreground">Pagamento: {timeText(selected.paid_at)}</span>}
-          {selected.payment_provider && <span className="rounded-md bg-muted px-2 py-1 text-[11px] text-muted-foreground">
-            Provedor: {({getpay_link:"GetPay",getnet_checkout:"Getnet Checkout",mercado_pago:"Mercado Pago (histórico)",custom:"Outro provedor"} as Record<string,string>)[selected.payment_provider]||selected.payment_provider}
-          </span>}
+
         </div>
 
-        {isPickup && <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-xs font-semibold text-primary">
-          Retirada na loja · o cliente poderá buscar o pedido após ser marcado como pronto.
-        </div>}
+
         <div className="grid gap-4 rounded-lg border border-border p-4 sm:grid-cols-2">
           <div><h3 className="mb-2 font-bold">Cliente</h3>
             <p>{selected.buyer?.buyer_name}</p>
             <p className="break-all text-muted-foreground">{selected.buyer?.buyer_email}</p>
-            <p>{selected.buyer?.buyer_phone}</p>
+            <p>{formatPhone(selected.buyer?.buyer_phone)}</p>
           </div>
-          <div><h3 className="mb-2 font-bold">{isPickup ? "Ponto de retirada" : "Endereço de entrega"}</h3>
+          <div><h3 className="mb-2 flex items-center gap-2 font-bold">
+              {isPickup ? "Ponto de retirada" : "Endereço de entrega"}
+              {isPickup && <span className="relative inline-flex">
+                <button type="button" aria-label="Ajuda sobre retirada na loja" aria-expanded={pickupHelp}
+                  onClick={() => setPickupHelp(open => !open)}
+                  className="rounded-full text-primary hover:text-primary/80 focus-visible:outline-2 focus-visible:outline-primary">
+                  <HelpCircle size={17}/>
+                </button>
+                {pickupHelp && <span role="tooltip" className="absolute right-0 top-7 z-10 w-64 rounded-lg border border-border bg-popover p-3 text-xs font-normal leading-5 text-popover-foreground shadow-lg sm:right-auto sm:left-0">
+                  Retirada na loja: o cliente poderá buscar o pedido depois que a equipe marcar como pronto.
+                </span>}
+              </span>}
+            </h3>
             <p>{selected.buyer?.street}, {selected.buyer?.number}{selected.buyer?.complement ? " · " + selected.buyer.complement : ""}</p>
             <p>{selected.buyer?.district}, {selected.buyer?.city}/{selected.buyer?.state}</p>
-            <p>CEP {selected.postal_code}</p>
+            <p>CEP {formatZip(selected.postal_code)}</p>
             <p className="mt-1 text-muted-foreground">{selected.shipping_service_name}</p>
           </div>
         </div>
 
-        <StoreAfterSalesStaff key={selected.id} orderId={selected.id} paymentStatus={selected.status}
-          canManage={canManage} orderTotal={total(selected)}
-          items={orderLines(selected).map(line=>({
-            lineKey:line.id===selected.id?"legacy":line.id,
-            title:line.product_name,quantity:line.quantity,
-          }))}
-          onChange={()=>void refresh(true)}/>
         <div className="rounded-lg border border-border p-4">
           <h3 className="mb-2 font-bold">Produtos e valores</h3>
           {orderLines(selected).map(line => <div key={line.id} className="flex justify-between gap-4 border-b border-border py-2">
-            <span>{line.quantity} × {line.product_name}</span>
-            <strong className="shrink-0">{formatCurrency(line.quantity * Number(line.unit_price))}</strong>
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="min-w-0">{line.quantity} × {line.product_name}</span>
+              <button type="button" title="Localização no estoque" aria-label={"Localização de " + line.product_name + " no estoque"}
+                onClick={() => void openStockAddress(line)}
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/20 text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
+                <MapPin size={16}/>
+              </button>
+            </span>
+            <strong className="shrink-0 text-right">{formatCurrency(line.quantity * Number(line.unit_price))}</strong>
           </div>)}
           <div className="mt-3 flex justify-between"><span>Subtotal</span><strong>{formatCurrency(subtotal(selected))}</strong></div>
           <div className="mt-2 flex justify-between"><span>Entrega</span><strong>{formatCurrency(selected.shipping_price)}</strong></div>
@@ -432,7 +512,29 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             {event.note && <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">{event.note}</p>}
           </li>)}</ol>}
         </div>
-      </div>}
+      </div>)}
+    </AdminDialog>
+    <AdminDialog open={Boolean(stockLine)} title="Localização no estoque"
+      description={stockLine?.product_name} className="max-w-md"
+      onClose={() => setStockLine(null)}
+      footer={<div className="flex justify-end"><BtnSecondary onClick={() => setStockLine(null)}>Fechar</BtnSecondary></div>}>
+      {stockLoading ? <p className="text-sm text-muted-foreground">Consultando localização...</p>
+      : stockError ? <p role="alert" className="text-sm text-destructive">{stockError}</p>
+      : stockAddress && (stockAddress.storage_shelf || stockAddress.storage_level || stockAddress.storage_compartment)
+        ? <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">Endereço cadastrado para este item no estoque:</p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              {([
+                ["Prateleira", stockAddress.storage_shelf],
+                ["Nível", stockAddress.storage_level],
+                ["Compartimento", stockAddress.storage_compartment],
+              ] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-border p-3">
+                <p className="text-xs text-muted-foreground">{label}</p>
+                <strong className="mt-1 block break-words">{value || "—"}</strong>
+              </div>)}
+            </div>
+          </div>
+        : <p className="text-sm text-muted-foreground">Este produto não possui uma localização de estoque cadastrada.</p>}
     </AdminDialog>
   </div>;
 }
