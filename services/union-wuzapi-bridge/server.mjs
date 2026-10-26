@@ -200,9 +200,15 @@ async function operate({ action, connection_id: id, organization_id: org, chat_j
       const existing = users.find(user => user?.name === name);
       if (existing) {
         if (existing.token !== stored.token) throw new Error("session_mismatch");
-        const userId = Number(existing.id);
-        if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("provider_user_invalid");
-        await wuzapi("/admin/users/" + userId, adminToken, "DELETE");
+        // WuzAPI supports numeric IDs on older versions and opaque string
+        // identifiers (including hex/UUID IDs) on newer installations.
+        // Never coerce the provider ID through Number: doing so loses hex IDs.
+        const userId = typeof existing.id === "number"
+          ? (Number.isSafeInteger(existing.id) && existing.id > 0 ? String(existing.id) : "")
+          : (typeof existing.id === "string" && /^[a-z0-9_-]{1,64}$/i.test(existing.id)
+            && existing.id !== "0" ? existing.id : "");
+        if (!userId) throw new Error("provider_user_invalid");
+        await wuzapi("/admin/users/" + encodeURIComponent(userId), adminToken, "DELETE");
       }
       // Credentials are removed only after provider confirmation. If anything
       // above fails, retain the token so the operation remains retryable.
@@ -644,7 +650,8 @@ createServer(async (req, res) => {
       "wuzapi_check_session_offline","wuzapi_check_session_missing",
       "wuzapi_check_auth_failed","wuzapi_check_endpoint_missing","wuzapi_check_lookup_failed",
       "wuzapi_check_socket_closed","wuzapi_check_timeout","wuzapi_check_unreachable",
-      "wuzapi_check_internal_error","wuzapi_check_request_rejected"]);
+      "wuzapi_check_internal_error","wuzapi_check_request_rejected",
+      "provider_user_invalid","session_mismatch","provider_error"]);
     reply(res, status, {ok:false,code:known.has(code)?code:status===502?"provider_unavailable":code});
   }
 }).listen(port, host, () => console.log(`Union WuzAPI bridge on ${host}:${port}`));
