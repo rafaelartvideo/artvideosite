@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Camera, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import { Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
 
 type Photo={id:string;name:string;kind:string;url:string};
 const labels:Record<string,string>={
@@ -42,7 +42,7 @@ export function SiteQuoteMediaGallery({quoteId,organizationId}:{
   return <Section title="Fotos da solicitação">
     {loading?<p className="text-xs text-muted-foreground">Carregando fotos...</p>:
       error?<p role="alert" className="text-xs text-destructive">{error}</p>:
-      !items.length?<p className="text-xs text-muted-foreground">Nenhuma foto anexada.</p>:
+      !items.length?<AdminSectionEmpty>Nenhuma foto anexada.</AdminSectionEmpty>:
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         {items.map(photo=><a key={photo.id} href={photo.url}
           target="_blank" rel="noopener noreferrer" aria-label={"Abrir foto: "+(labels[photo.kind]||photo.name)}
