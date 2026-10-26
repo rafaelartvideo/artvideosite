@@ -120,7 +120,7 @@ export function CustomerAccountPage() {
         const data = await getCustomerPortal();
         if (cancelled) return;
         setPortal(data);
-        setState(data.status === "ready" ? "ready" : data.status);
+        setState(data.status === "ready" ? "ready" : data.status === "unlinked" ? "needs_review" : "verify_email");
       } catch {
         if (!cancelled) {
           setState("error");
