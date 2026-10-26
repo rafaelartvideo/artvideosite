@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Check, CheckCircle2, ClipboardList, Clock3, Copy, LockKeyhole, MapPin, Package, PackageCheck, Store, Truck } from "lucide-react";
+import { Check, CheckCircle2, ClipboardList, Clock3, Copy, ExternalLink, MapPin, Package, PackageCheck, Store, Truck } from "lucide-react";
 import { getStoreTracking, getStoreTrackingByPickupCode, type StoreTracking, type PickupTrackingLookup } from "../infrastructure/storefront.repository";
 import { TrackingLoading } from "@/features/service-tracking/presentation/TrackingLoading";
 
@@ -61,12 +61,32 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
   }, [trackingKey, fetchOrder]);
 
   const copyLink = async () => {
-    if (!token) return;
+    const fragment=token ? "&c="+encodeURIComponent(token) :
+      pickupLookup ? "&pin="+encodeURIComponent(pickupLookup.code) : "";
+    if (!fragment) return;
     try {
-      await navigator.clipboard.writeText(window.location.origin + "/#acompanhar-servico&c=" + token);
+      await navigator.clipboard.writeText(window.location.origin + "/#acompanhar-servico"+fragment);
       setCopied(true);
     } catch { setError("Não foi possível copiar o link. Utilize o endereço desta página."); }
   };
+
+  const pickupAddress=order?.pickupLocation
+    ? [order.pickupLocation.street,order.pickupLocation.number,order.pickupLocation.district,
+       order.pickupLocation.city,order.pickupLocation.state,order.pickupLocation.postalCode]
+      .filter(Boolean).join(", ")
+    : "";
+  // O ponto oficial é o mesmo da página de contato. Outras filiais usam o
+  // endereço de retirada registrado nas configurações para evitar rotas erradas.
+  const artvideoMainLocation=Boolean(order?.pickupLocation &&
+    /laranjeiras/i.test(order.pickupLocation.street) &&
+    /^1190$/.test(order.pickupLocation.number.trim()) &&
+    /aracaju/i.test(order.pickupLocation.city));
+  const mapsUrl=artvideoMainLocation
+    ? "https://www.google.com/maps/search/?api=1&query="+
+      encodeURIComponent("Eletrônica Artvideo, Rua Laranjeiras, 1190, Aracaju - SE")+
+      "&query_place_id=ChIJu4y_S5WzGgcR2nYuRXkfPpo"
+    : "https://www.google.com/maps/search/?api=1&query="+
+      encodeURIComponent(pickupAddress || "Eletrônica Artvideo, Aracaju, SE");
 
   const pickup = order?.deliveryMethod === "pickup";
   const finished = order?.fulfillmentStatus === "picked_up" || order?.fulfillmentStatus === "delivered";
@@ -121,6 +141,13 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
             })}
           </div>
         </div>
+        <div className="mt-7 flex justify-center">
+          <button type="button" onClick={() => void copyLink()}
+            className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#d7e4f5] bg-white px-4 text-[12px] font-semibold text-[var(--art-primary)] transition-colors hover:bg-[#f1f6ff]">
+            {copied ? <CheckCircle2 size={16}/> : <Copy size={16}/>}
+            {copied ? "Link copiado" : "Copiar link de acompanhamento"}
+          </button>
+        </div>
       </section>
 
       {pickup && <section className={card}>
@@ -131,9 +158,6 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
                 {order.pickupCode}
               </strong>
             : <p className="mt-3 text-[13px] text-[#657d9b]">{finished ? "Retirada concluída." : "Código temporariamente indisponível."}</p>}
-          {!finished && <p className="mx-auto mt-3 max-w-md text-[12px] leading-5 text-[#657d9b]">
-            Apresente os quatro dígitos no balcão quando o pedido estiver pronto. Guarde também seu link privado para acompanhar as atualizações.
-          </p>}
         </div>
         {order.pickupLocation && <div className="mt-6 grid gap-5 border-t border-[#e5edf7] pt-5 sm:grid-cols-2">
           <div className="min-w-0">
@@ -144,6 +168,10 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
               <span className="block">{order.pickupLocation.city}/{order.pickupLocation.state}
                 {order.pickupLocation.postalCode ? " · CEP " + zip(order.pickupLocation.postalCode) : ""}</span>
             </p>
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+              className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--art-primary)] hover:underline">
+              <MapPin size={14}/> Ver localização no Google Maps <ExternalLink size={13}/>
+            </a>
           </div>
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-[12px] font-bold text-[#244b7b]"><Clock3 size={16}/> Horário de retirada</p>
@@ -151,26 +179,9 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
               {order.pickupLocation.hours || "Consulte o horário com a loja."}
             </p>
           </div>
-          {order.pickupLocation.instructions && <p className="text-[12px] leading-5 text-[#697d97] sm:col-span-2">{order.pickupLocation.instructions}</p>}
         </div>}
       </section>}
 
-      <section className={card}>
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row sm:text-left">
-          <div className="text-center sm:text-left">
-            <p className="flex items-center justify-center gap-2 text-[13px] font-bold text-[#244b7b] sm:justify-start"><LockKeyhole size={16}/> Seu link privado</p>
-            <p className="mt-1 max-w-md text-[12px] leading-5 text-[#647c9a]">
-              {token ? "Guarde este link para acompanhar seu pedido sempre que precisar."
-                : "Você também pode acompanhar pelo link privado recebido quando realizou a compra."}
-            </p>
-          </div>
-          {token && <button type="button" onClick={() => void copyLink()}
-            className="inline-flex min-h-11 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-5 text-[12px] font-bold text-white hover:brightness-110 sm:w-auto">
-            {copied ? <CheckCircle2 size={17}/> : <Copy size={17}/>}
-            {copied ? "Link copiado" : "Copiar link de acompanhamento"}
-          </button>}
-        </div>
-      </section>
     </>}
   </div>;
 }
