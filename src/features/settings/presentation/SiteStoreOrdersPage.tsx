@@ -18,7 +18,7 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
 type StoreOrder = {
-  id: string; order_number: number; created_at: string; status: string; quantity: number;
+  id: string; order_number: number; inventory_item_id: string | null; created_at: string; status: string; quantity: number;
   product_name: string; unit_price: number; shipping_price: number;
   shipping_service_name: string; shipping_service_id: string; postal_code: string;
   buyer: Record<string, string>; preference_id: string | null;
@@ -146,7 +146,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     setError("");
     const [orderResult, lineResult, fulfillmentResult, supportResult] = await Promise.all([
       supabase.from("artvideo_store_orders")
-        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
+        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,inventory_item_id,product_name,unit_price,shipping_service_id,shipping_service_name,postal_code,buyer,preference_id,payment_id,payment_provider,paid_at,expires_at")
         .order("created_at", { ascending: false }).limit(500),
       supabase.from("artvideo_store_order_items")
         .select("id,order_id,inventory_item_id,product_name,quantity,unit_price")
@@ -213,7 +213,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     const found = lines.filter(line => line.order_id === order.id);
     return found.length ? found : [{
       id: order.id, order_id: order.id, product_name: order.product_name,
-      quantity: order.quantity, unit_price: order.unit_price, inventory_item_id: null,
+      quantity: order.quantity, unit_price: order.unit_price, inventory_item_id: order.inventory_item_id,
     }];
   };
   const openStockAddress = async (line: StoreOrderLine) => {
