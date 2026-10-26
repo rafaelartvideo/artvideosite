@@ -6,6 +6,7 @@ import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { isAdminModuleEnabled } from "@/features/admin-shell/navigation-config";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { TabQuotes } from "@/features/quotes/presentation/TabQuotes";
+import { SiteQuoteDetailsPage } from "@/features/quotes/presentation/SiteQuoteDetailsPage";
 import { listQuotesPage } from "@/features/quotes/infrastructure/quotes.repository";
 import { SiteStoreOrdersPage } from "./SiteStoreOrdersPage";
 
@@ -62,6 +63,7 @@ export function SiteRequestsPage({
     refetchOnWindowFocus: true,
   });
   if (!canQuotes && !canOrders) return null;
+  if (section === "orcamentos" && quoteId && canQuotes) return <SiteQuoteDetailsPage quoteId={quoteId} onBack={() => onQuoteRouteChange(null)} />;
 
   const activeSection: RequestsSection =
     section === "orcamentos" && canQuotes ? "orcamentos"
@@ -97,7 +99,7 @@ export function SiteRequestsPage({
       ))}
     </nav>
     {activeSection === "orcamentos"
-      ? <TabQuotes embedded routeResourceId={section === "orcamentos" ? quoteId : null}
+      ? <TabQuotes embedded routeResourceId={null}
           onRouteChange={onQuoteRouteChange} onNavigate={onNavigate} />
       : <SiteStoreOrdersPage embedded onBack={() => onSelectSection("orcamentos")} />}
   </div>;
