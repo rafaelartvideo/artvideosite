@@ -128,7 +128,10 @@ Deno.serve(async (req: Request) => {
      unitPrice:Number(item.unit_price),
    }));
    const pickup=o.shipping_service_id==="pickup";
-   const buyer=o.buyer && typeof o.buyer==="object" ? o.buyer : {};
+   // Endereço e horário públicos do ponto de retirada, nunca os campos do comprador.
+   const pickupOption=pickup ? await admin.rpc("artvideo_store_pickup_option_v1") : {data:null,error:null};
+   if(pickupOption.error)return reply({error:"Não foi possível consultar a loja de retirada."},503);
+   const store=pickupOption.data && typeof pickupOption.data==="object" ? pickupOption.data : null;
    const subtotal=items.reduce((total,item)=>total+item.quantity*item.unitPrice,0);
    // O PIN de retirada (4 dígitos) e o link de acompanhamento (256 bits)
    // são distintos e só são exibidos após validação do link privado.
@@ -153,13 +156,12 @@ Deno.serve(async (req: Request) => {
        supportCases,
        ...(pickup ? {
          pickupCode:pickupCodeQuery.data?.code||null,
-         pickupLocation:{
-           street:String(buyer.street||""),number:String(buyer.number||""),
-           district:String(buyer.district||""),city:String(buyer.city||""),
-           state:String(buyer.state||""),postalCode:String(o.postal_code||""),
-           hours:String(buyer.pickup_hours||""),
-           instructions:String(buyer.pickup_instructions||""),
-         },
+         ...(store?{pickupLocation:{
+           street:String(store.street||""),number:String(store.number||""),
+           district:String(store.district||""),city:String(store.city||""),
+           state:String(store.state||""),postalCode:String(store.postal_code||""),
+           hours:String(store.opening_hours||""),instructions:"",
+         }}:{}),
        } : {}),
      },
    });
