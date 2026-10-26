@@ -69,7 +69,6 @@ const groups: { title: string; subtitle?: string; fields: Field[] }[] = [
     { key: "home_cta_subtitle", label: "Descrição da chamada final", placeholder: "Conte com a Eletrônica Artvideo..." },
     { key: "site_name", label: "Nome do site", placeholder: "Eletrônica Artvideo" },
     { key: "site_description", label: "Descrição do site", placeholder: "Assistência técnica e produtos..." },
-    { key: "whatsapp_number", label: "WhatsApp (com DDI)", placeholder: "5579999999999" },
   ] },
 ];
 
