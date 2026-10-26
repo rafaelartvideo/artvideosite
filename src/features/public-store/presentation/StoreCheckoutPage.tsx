@@ -779,7 +779,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             <div className="space-y-5 p-5 sm:p-7">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dce7f5] bg-[#f7faff] p-4">
                 <div>
-                  <p className="text-[12px] font-semibold text-[#667b95]">Pedido #{brickSession.orderId.slice(0,8).toUpperCase()}</p>
+                  <p className="text-[12px] font-semibold text-[#667b95]">Pedido {brickSession.orderNumber || "em preparação"}</p>
                   <p className="mt-1 text-[12px] text-[#667b95]">Valor calculado e reservado no servidor</p>
                 </div>
                 <strong className="text-[22px] text-[#173b64]">{formatCurrency(brickSession.amount)}</strong>
