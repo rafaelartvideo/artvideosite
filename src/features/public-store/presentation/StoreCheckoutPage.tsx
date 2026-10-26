@@ -124,6 +124,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     navigate({ search: "?" + next.toString() }, { replace: true });
   }, [checkoutId, navigate, params]);
 
+  // Cada compra mantém sua própria recuperação: iniciar outro pedido não sobrescreve o anterior.
+  const checkoutRecoveryKey = "artvideo-checkout-recovery-v2:" + checkoutId;
   const [step, setStep] = useState<Step>(1);
   const [buyer, setBuyer] = useState<Buyer>(initialBuyer);
   const [postalCode, setPostalCode] = useState(displayCep(params.get("cep") || ""));
@@ -169,7 +171,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     : String(slug) + ":" + quantity;
   const [lastBrickAccess] = useState(() => {
     try {
-      const record = JSON.parse(sessionStorage.getItem("artvideo-checkout-recovery-v2") || "null");
+      const record = JSON.parse(sessionStorage.getItem(checkoutRecoveryKey) || "null");
       if (record?.checkoutId !== checkoutId
         || record?.path !== window.location.pathname
         || record?.productsKey !== recoveryProductsKey) return null;
@@ -401,7 +403,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           sessionStorage.setItem("artvideo-last-email",buyer.buyer_email.trim());
           sessionStorage.setItem("artvideo-store-tracking",session.trackingToken);
           sessionStorage.setItem("artvideo-last-checkout-path",window.location.pathname);
-          sessionStorage.setItem("artvideo-checkout-recovery-v2", JSON.stringify({
+          sessionStorage.setItem(checkoutRecoveryKey, JSON.stringify({
             checkoutId, orderId: session.orderId, token: session.trackingToken,
             path: window.location.pathname, productsKey: recoveryProductsKey,
           }));
@@ -418,7 +420,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           sessionStorage.setItem("artvideo-last-email", buyer.buyer_email.trim());
           sessionStorage.setItem("artvideo-store-tracking", checkout.trackingToken);
           sessionStorage.setItem("artvideo-last-checkout-path",window.location.pathname);
-          sessionStorage.setItem("artvideo-checkout-recovery-v2", JSON.stringify({
+          sessionStorage.setItem(checkoutRecoveryKey, JSON.stringify({
             checkoutId, orderId: checkout.orderId, token: checkout.trackingToken,
             path: window.location.pathname, productsKey: recoveryProductsKey,
           }));
@@ -585,9 +587,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
               try{
                 sessionStorage.removeItem("artvideo-last-order");
                 sessionStorage.removeItem("artvideo-last-checkout-path");
-                const stored = JSON.parse(sessionStorage.getItem("artvideo-checkout-recovery-v2") || "null");
+                const stored = JSON.parse(sessionStorage.getItem(checkoutRecoveryKey) || "null");
                 if (stored?.checkoutId === checkoutId)
-                  sessionStorage.removeItem("artvideo-checkout-recovery-v2");
+                  sessionStorage.removeItem(checkoutRecoveryKey);
                 sessionStorage.removeItem("artvideo-store-homologation");
               }catch{/* Navegador sem armazenamento */}
               navigate("/loja");
