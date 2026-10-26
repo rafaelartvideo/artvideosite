@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, FileText, Wrench, CalendarDays } from "lucide-react";
+import { ClipboardList, FileText, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listQuotesPage,listRequestStatuses } from "../infrastructure/quotes.repository";
@@ -12,7 +12,6 @@ import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeed
 import { AdminFieldLabel,AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 
-type QuoteKind = "" | "repair" | "service";
 type QuoteSort = "" | "asc" | "desc";
 type Props = {
   embedded?:boolean;
@@ -45,7 +44,6 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const [document,setDocument]=useState("");
   const [protocol,setProtocol]=useState("");
   const [status,setStatus]=useState("");
-  const [kind,setKind]=useState<QuoteKind>("");
   const [sort,setSort]=useState<QuoteSort>("");
   const [page,setPage]=useState(1);
   const [pageSize,setPageSize]=useState(10);
@@ -54,8 +52,8 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const readyProtocol=useDebounced(protocol);
   const filters=useMemo(()=>({
     page,pageSize,customerSearch:readyCustomer,documentSearch:readyDocument,
-    protocolSearch:readyProtocol,statusId:status,kind,sort,
-  }),[page,pageSize,readyCustomer,readyDocument,readyProtocol,status,kind,sort]);
+    protocolSearch:readyProtocol,statusId:status,sort,
+  }),[page,pageSize,readyCustomer,readyDocument,readyProtocol,status,sort]);
   const statusesQuery=useQuery({
     queryKey:[...queryKeys.quotes.all,org,"statuses"],
     enabled:Boolean(org&&canView),
@@ -69,12 +67,11 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const total=quotesQuery.data?.total||0;
   const totalPages=Math.max(1,Math.ceil(total/pageSize));
   const safePage=Math.min(page,totalPages);
-  const hasFilters=Boolean(customer||document||protocol||status||kind||sort);
-  useEffect(()=>{setPage(1);},[customer,document,protocol,status,kind,sort]);
+  const hasFilters=Boolean(customer||document||protocol||status||sort);
+  useEffect(()=>{setPage(1);},[customer,document,protocol,status,sort]);
   useEffect(()=>{if(page>totalPages)setPage(totalPages);},[page,totalPages]);
-  const clear=()=>{setCustomer("");setDocument("");setProtocol("");setStatus("");setKind("");setSort("");setPage(1);};
+  const clear=()=>{setCustomer("");setDocument("");setProtocol("");setStatus("");setSort("");setPage(1);};
   const open=(quote:any)=>{if(canOpen)onRouteChange?.(quote.id,null);};
-  const kindName=(quote:any)=>quote.site_request_kind==="repair"?"Conserto":"Serviço";
   const statusName=(quote:any)=>quote.request_status?.slug==="PENDENTE"?"Recebida":quote.statusName||"Sem situação";
   return <div className="min-w-0 space-y-5">
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
@@ -83,14 +80,10 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
       <AdminSearchSortMenu value={sort} onChange={v=>setSort(v as QuoteSort)}
         options={[{value:"",label:"Mais recentes"},{value:"asc",label:"Protocolo crescente"},{value:"desc",label:"Protocolo decrescente"}]}/>
     </>}>
-      <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <AdminSearchTextField label="Cliente" value={customer} onChange={setCustomer} placeholder="Nome do cliente"/>
         <AdminSearchTextField label="CPF/CNPJ" value={document} onChange={setDocument} placeholder="CPF ou CNPJ"/>
         <AdminSearchTextField label="Protocolo" value={protocol} onChange={setProtocol} placeholder="Número do orçamento"/>
-        <div className="min-w-0"><AdminFieldLabel label="Tipo"/>
-          <AdminSelect className="w-full min-w-0" value={kind} onValueChange={v=>setKind(v as QuoteKind)}
-            options={[{value:"",label:"Todos"},{value:"repair",label:"Consertos"},{value:"service",label:"Serviços"}]}
-            ariaLabel="Filtrar por tipo de solicitação"/></div>
         <div className="min-w-0"><AdminFieldLabel label="Situação"/>
           <AdminSelect className="w-full min-w-0" value={status} onValueChange={setStatus}
             options={[{value:"",label:"Todas"},...(statusesQuery.data||[]).map(s=>({value:s.id,label:s.name}))]}
@@ -114,9 +107,8 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
                {showStatus&&<StatusBadge status={statusName(quote)} color={quote.request_status?.color}/>}
              </div>
              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-               {quote.site_request_kind==="repair"?<Wrench size={15}/>:<CalendarDays size={15}/>}
-               <span>{kindName(quote)}</span>
-               {showService&&<span>· {(quote.service as any)?.title||"Solicitação de conserto"}</span>}
+               <Wrench size={15}/><span>Serviço</span>
+               {showService&&<span>· {(quote.service as any)?.title||"Serviço solicitado"}</span>}
              </div>
              <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                {showDocument&&<span><DocumentValue customer={person}/></span>}
@@ -127,7 +119,6 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
          <div className="hidden overflow-x-auto md:block">
            <table className="min-w-[810px]"><thead><tr>
              {showProtocol&&<th className="text-left">Protocolo</th>}
-             <th className="text-left">Tipo</th>
              {showCustomer&&<th className="text-left">Cliente</th>}
              {showDocument&&<th className="text-left">CPF/CNPJ</th>}
              {showService&&<th className="text-left">Serviço / Equipamento</th>}
@@ -141,10 +132,9 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
                onKeyDown={event=>{if(canOpen&&(event.key==="Enter"||event.key===" ")){event.preventDefault();open(quote);}}}
                className={canOpen?"cursor-pointer hover:bg-muted/40 focus-visible:bg-muted/40":""}>
                {showProtocol&&<td className="font-mono text-xs font-black text-primary">{quote.protocol||quote.id.slice(0,8)}</td>}
-               <td className="text-xs font-medium">{kindName(quote)}</td>
                {showCustomer&&<td><p className="font-bold">{person?.full_name||person?.trade_name||"—"}</p><p className="text-xs text-muted-foreground">{formatPhone(person?.whatsapp||person?.phone)}</p></td>}
                {showDocument&&<td className="text-xs text-muted-foreground"><DocumentValue customer={person}/></td>}
-               {showService&&<td className="text-xs text-muted-foreground">{(quote.service as any)?.title||"Conserto de equipamento"} · {(quote.brand as any)?.name||"—"}</td>}
+               {showService&&<td className="text-xs text-muted-foreground">{(quote.service as any)?.title||"Serviço solicitado"} · {(quote.brand as any)?.name||"—"}</td>}
                {showStatus&&<td><StatusBadge status={statusName(quote)} color={quote.request_status?.color}/></td>}
                {showDate&&<td className="text-xs">{formatDateTime(quote.created_at)}</td>}
                <td className="text-right text-xs font-semibold text-primary">
