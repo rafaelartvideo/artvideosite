@@ -342,7 +342,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
         {canConvertToOrder && String(detail.request_status?.slug || "").toUpperCase() === "APROVADO" && <AdminButton disabled={actionBusy} onClick={async () => {
           if (actionBusy) return;
           setActionBusy(true);
-          setProgressState("loading");
           try {
             const { data: existing, error: existingError } = await findServiceOrderByQuote(organizationId, detail.id);
             if (existingError) throw existingError;
@@ -357,9 +356,8 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
             });
             if (error) throw error;
             syncQuotes();
-            setProgressState("success");
+            setToast({ msg: "OS criada com sucesso!", type: "success" });
           } catch (error) {
-            setProgressState(null);
             setToast({ msg: systemErrorMessage(error), type: "error" });
           } finally { setActionBusy(false); }
         }}><ClipboardList size={15} /> Criar OS</AdminButton>}
