@@ -55,6 +55,26 @@ const deliveryLabels: Record<FulfillmentStatus,string> = {
 const deliverySequence: FulfillmentStatus[] = [
   "pending", "preparing", "ready", "out_for_delivery", "delivered",
 ];
+const pickupSequence = ["pending", "preparing", "ready", "picked_up"] as const;
+type PickupStep = typeof pickupSequence[number];
+const pickupProgressTones: Record<PickupStep,{ bar:string; text:string }> = {
+  pending: {
+    bar:"bg-amber-500 dark:bg-amber-400",
+    text:"text-amber-700 dark:text-amber-300",
+  },
+  preparing: {
+    bar:"bg-sky-500 dark:bg-sky-400",
+    text:"text-sky-700 dark:text-sky-300",
+  },
+  ready: {
+    bar:"bg-violet-500 dark:bg-violet-400",
+    text:"text-violet-700 dark:text-violet-300",
+  },
+  picked_up: {
+    bar:"bg-emerald-500 dark:bg-emerald-400",
+    text:"text-emerald-700 dark:text-emerald-300",
+  },
+};
 const nextActions: Partial<Record<FulfillmentStatus, { status: FulfillmentStatus; label: string }>> = {
   pending: { status: "preparing", label: "Iniciar separação" },
   preparing: { status: "ready", label: "Pronto para entrega" },
@@ -525,13 +545,20 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         {selectedIsPaid ? <div className="rounded-lg border border-border p-4">
           <h3 className="mb-3 flex items-center gap-2 font-bold"><Truck size={18} className="text-primary"/> {isPickup ? "Acompanhamento da retirada" : "Acompanhamento da entrega"}</h3>
           <div className={"grid gap-1.5 " + (isPickup ? "grid-cols-4" : "grid-cols-5")} aria-label={"Etapa atual: " + deliveryLabels[currentStatus]}>
-            {(isPickup ? (["pending","preparing","ready","picked_up"] as FulfillmentStatus[]) : deliverySequence).map((state,index) => {
-              const sequence = isPickup ? (["pending","preparing","ready","picked_up"] as FulfillmentStatus[]) : deliverySequence;
+            {(isPickup ? pickupSequence : deliverySequence).map((state,index) => {
+              const sequence:readonly FulfillmentStatus[] = isPickup ? pickupSequence : deliverySequence;
               const position = sequence.indexOf(currentStatus === "delivery_issue" ? "out_for_delivery" : currentStatus);
-              const finished = index <= position;
-              return <div key={state} className="min-w-0">
-                <div className={"h-2 rounded-full " + (finished ? "bg-primary" : "bg-muted")}/>
-                <p className={"mt-1.5 break-words text-[10px] leading-tight " + (finished ? "font-bold text-foreground" : "text-muted-foreground")}>
+              const complete = index < position || (index === position && (currentStatus === "picked_up" || currentStatus === "delivered"));
+              const active = index === position && !complete;
+              const reached = complete || active;
+              const tone = isPickup ? pickupProgressTones[state as PickupStep] : null;
+              return <div key={state} className="min-w-0" aria-current={active ? "step" : undefined}>
+                <div className={"relative h-2.5 overflow-hidden rounded-full " +
+                  (reached ? tone?.bar || "bg-primary" : "bg-muted") +
+                  (active ? " art-fulfillment-bar-active" : complete ? " art-fulfillment-bar-done" : "")}
+                  aria-hidden="true"/>
+                <p className={"mt-1.5 break-words text-[10px] leading-tight " +
+                  (reached ? "font-bold " + (tone?.text || "text-foreground") : "text-muted-foreground")}>
                   {isPickup ? ["Pendente","Separação","Pronto","Retirado"][index] : ["Pendente","Separação","Pronto","Em rota","Entregue"][index]}
                 </p>
               </div>;
