@@ -78,9 +78,15 @@ Deno.serve(async (req: Request) => {
    const pickup=o.shipping_service_id==="pickup";
    const buyer=o.buyer && typeof o.buyer==="object" ? o.buyer : {};
    const subtotal=items.reduce((total,item)=>total+item.quantity*item.unitPrice,0);
+   // O acesso a este PIN só existe depois da validação do token aleatório de 256 bits.
+   const pickupCodeQuery=pickup && deliveryQuery.data?.status!=="picked_up"
+     ?await admin.from("artvideo_store_pickup_codes")
+       .select("code").eq("order_id",orderId).maybeSingle()
+     :{data:null,error:null};
+   if(pickupCodeQuery.error)return reply({error:"Não foi possível consultar o código de retirada."},503);
    return reply({
      order:{
-       id:o.id,number:"PED-"+String(o.order_number).padStart(6,"0"),createdAt:o.created_at,
+       id:o.id,number:"PED-"+String(o.order_number),createdAt:o.created_at,
        paymentStatus:o.status,paidAt:o.paid_at,
        paymentIssueStatus:o.payment_issue_status||null,
        paymentIssueAt:o.payment_issue_at||null,
@@ -93,6 +99,7 @@ Deno.serve(async (req: Request) => {
        timeline:(eventsQuery.data||[]).map(e=>({status:e.to_status,createdAt:e.created_at})),
        supportCases,
        ...(pickup ? {
+         pickupCode:pickupCodeQuery.data?.code||null,
          pickupLocation:{
            street:String(buyer.street||""),number:String(buyer.number||""),
            district:String(buyer.district||""),city:String(buyer.city||""),
