@@ -6,6 +6,7 @@ import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { isAdminModuleEnabled } from "@/features/admin-shell/navigation-config";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { TabQuotes } from "@/features/quotes/presentation/TabQuotes";
+import { listQuotesPage } from "@/features/quotes/infrastructure/quotes.repository";
 import { SiteStoreOrdersPage } from "./SiteStoreOrdersPage";
 
 type RequestsSection = "orcamentos" | "pedidos";
@@ -20,13 +21,14 @@ type SiteRequestsPageProps = {
 export function SiteRequestsPage({
   section, quoteId, onSelectSection, onQuoteRouteChange, onNavigate,
 }: SiteRequestsPageProps) {
-  const { hasPermission, hasModule, activeOrganization } = useAuth();
-  const canQuotes = hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule);
+  const { hasPermission, hasModule, activeOrganization, activeOrganizationId } = useAuth();
+  const canQuotes = (hasPermission("quotes.view") || hasPermission("quotes.table.view"))
+    && isAdminModuleEnabled("quotes", hasModule);
   const canOrders = activeOrganization?.is_artvideo_tenant === true
     && hasPermission("site.view")
     && hasPermission("site_settings.view")
     && isAdminModuleEnabled("siteStoreOrders", hasModule);
-  const organizationId = activeOrganization?.id;
+  const organizationId = activeOrganizationId || activeOrganization?.id;
   const quoteCountQuery = useQuery({
     queryKey: ["site-requests", organizationId, "quotes-total"],
     enabled: Boolean(canQuotes && organizationId),
@@ -34,9 +36,15 @@ export function SiteRequestsPage({
       const { count, error } = await supabase.from("quote_requests")
         .select("id", { count: "exact", head: true })
         .eq("organization_id", organizationId!).eq("origin", "site").is("archived_at", null);
-      if (error) throw error;
+      if (error) {
+        // Fallback pela mesma consulta da tabela de orçamentos, quando HEAD/count falha.
+        const listing = await listQuotesPage(organizationId!, { page: 1, pageSize: 1 });
+        return listing.total;
+      }
       return count ?? 0;
     },
+    retry: 1,
+    staleTime: 15_000,
     refetchInterval: 30_000,
     refetchOnWindowFocus: true,
   });
@@ -60,9 +68,16 @@ export function SiteRequestsPage({
     : section === "pedidos" && canOrders ? "pedidos"
     : canQuotes ? "orcamentos" : "pedidos";
 
+  const quoteTotalLabel = quoteCountQuery.isError
+    ? "—" : typeof quoteCountQuery.data === "number"
+      ? quoteCountQuery.data.toLocaleString("pt-BR") : "…";
+  const orderTotalLabel = orderCountQuery.isError
+    ? "—" : typeof orderCountQuery.data === "number"
+      ? orderCountQuery.data.toLocaleString("pt-BR") : "…";
+
   const sections = [
-    ...(canQuotes ? [{ id: "orcamentos" as const, label: "Orçamentos", total: quoteCountQuery.data, Icon: FileText }] : []),
-    ...(canOrders ? [{ id: "pedidos" as const, label: "Pedidos", total: orderCountQuery.data, Icon: ClipboardList }] : []),
+    ...(canQuotes ? [{ id: "orcamentos" as const, label: "Orçamentos", total: quoteTotalLabel, Icon: FileText }] : []),
+    ...(canOrders ? [{ id: "pedidos" as const, label: "Pedidos", total: orderTotalLabel, Icon: ClipboardList }] : []),
   ];
 
   return <div className="min-w-0 space-y-5">
@@ -77,7 +92,7 @@ export function SiteRequestsPage({
           className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeSection === id
             ? "border-primary text-primary"
             : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-          <Icon size={17} className="shrink-0" />{label} ({typeof total === "number" ? total.toLocaleString("pt-BR") : "…"})
+          <Icon size={17} className="shrink-0" />{label} ({total})
         </button>
       ))}
     </nav>
