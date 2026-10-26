@@ -5,7 +5,7 @@ import { Check, History, Pencil, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
@@ -364,9 +364,7 @@ export function TechnicianPanel() {
 
   const renderEquipmentPhotos = (kind: "equipment" | "label") => {
     const files = (orderDetails?.equipment_photos || []).filter(image => image.kind === kind);
-    if (!files.length) return <p className="text-xs text-muted-foreground">
-      {kind === "label" ? "Nenhuma foto da etiqueta cadastrada." : "Nenhuma foto do equipamento cadastrada."}
-    </p>;
+    if (!files.length) return <AdminSectionEmpty compact>{kind === "label" ? "Nenhuma foto da etiqueta cadastrada." : "Nenhuma foto do equipamento cadastrada."}</AdminSectionEmpty>;
     return <div className="flex flex-wrap gap-3">
       {files.map(image => {
         const view = { key: image.id, name: image.name || "Imagem do equipamento", kind, url: equipmentPhotoUrls[image.path] };
@@ -508,16 +506,16 @@ export function TechnicianPanel() {
           </div>
         </Section>
         {hasPermission("technician_panel.data.problem") && <Section title="Descrição do problema">
-          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem || "Ainda não informado."}</p>
+          {selected.problem?<p className="whitespace-pre-wrap break-words text-sm text-foreground">{selected.problem}</p>:<AdminSectionEmpty>Ainda não informado.</AdminSectionEmpty>}
         </Section>}
         {hasPermission("technician_panel.data.internal_notes") && <Section title="Observações internas">
-          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails?.internal_notes || "Ainda não informado."}</p>
+          {orderDetails?.internal_notes?<p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.internal_notes}</p>:<AdminSectionEmpty>Ainda não informado.</AdminSectionEmpty>}
         </Section>}
         {hasPermission("technician_panel.data.diagnosis") && orderDetails && <Section title="Diagnóstico"
           actions={orderDetails.can_edit_diagnosis && !orderDetails.closed && !orderDetails.solved
             ? <BtnSecondary onClick={() => { setDiagnosisDraft(orderDetails.diagnosis || ""); setDiagnosisDialogOpen(true); }}><Pencil size={16} className="shrink-0" aria-hidden="true" /><span>Editar</span></BtnSecondary>
             : undefined}>
-          <p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis || "Ainda não informado."}</p>
+          {orderDetails.diagnosis?<p className="whitespace-pre-wrap break-words text-sm text-foreground">{orderDetails.diagnosis}</p>:<AdminSectionEmpty>Ainda não informado.</AdminSectionEmpty>}
         </Section>}
       </> : <>
       <Section title={<span className="flex flex-wrap items-center gap-2">
@@ -605,7 +603,7 @@ export function TechnicianPanel() {
                   return <OrderImageThumb key={photo.id} image={image}
                     onView={() => setViewEquipmentImage(image)} />;
                 })}
-              </div> : <p className="py-6 text-center text-sm text-muted-foreground">Nenhuma foto enviada.</p>)}
+              </div> : <AdminSectionEmpty>Nenhuma foto enviada.</AdminSectionEmpty>)}
           </Section>}
 
           {hasPermission("technician_panel.data.order_items") && orderDetails &&
