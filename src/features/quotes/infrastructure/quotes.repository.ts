@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const QUOTE_SELECT = "id, protocol, created_at, updated_at, requested_at, assigned_to, status_id, customer_id, service_id, brand_id, product_id, service_address, customer_message, site_request_kind, proposed_solution, estimated_price, final_price, request_status:request_statuses(id,name,color,slug), customer:customers(id,customer_type,full_name,whatsapp,email,document,phone,trade_name,legal_name,cnpj,state_registration,foundation_date,addresses:customer_addresses(*)), service:services(title), brand:brands(name), product:products(name)";
-const QUOTE_FILTER_SELECT = "id,protocol,created_at,status_id,customer_id,customer:customers(id,full_name,trade_name,document,cnpj,whatsapp)";
+const QUOTE_FILTER_SELECT = "id,protocol,created_at,status_id,site_request_kind,customer_id,customer:customers(id,full_name,trade_name,document,cnpj,whatsapp)";
 
 export type QuotePageInput = {
   page: number;
@@ -12,6 +12,7 @@ export type QuotePageInput = {
   whatsappSearch?: string;
   protocolSearch?: string;
   statusId?: string;
+  kind?: "" | "repair" | "service";
   sort?: "" | "asc" | "desc";
 };
 
@@ -37,6 +38,7 @@ export async function listQuotesPage(organizationId: string, input: QuotePageInp
     whatsappSearch = "",
     protocolSearch = "",
     statusId = "",
+    kind = "",
     sort = "",
   } = input;
 
@@ -76,7 +78,7 @@ export async function listQuotesPage(organizationId: string, input: QuotePageInp
     const matchWhatsapp = !whatsappNeedle || normalizeDocument(customerWa).includes(whatsappNeedle);
     const matchProtocol = !protocolNeedle || normalizeText(protocol).includes(protocolNeedle);
 
-    return desktopMatch && matchCustomer && matchDocument && matchWhatsapp && matchProtocol && (!statusId || quote.status_id === statusId);
+    return desktopMatch && matchCustomer && matchDocument && matchWhatsapp && matchProtocol && (!statusId || quote.status_id === statusId) && (!kind || quote.site_request_kind === kind);
   });
 
   const sorted = sort ? [...filtered].sort((left: any, right: any) => {
