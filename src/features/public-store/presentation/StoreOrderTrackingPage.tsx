@@ -27,7 +27,7 @@ type Props = {
 
 /** Acompanhamento compacto: etapas, retirada, local/horários e acesso privado. */
 export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Props) {
-  const trackingKey = token || (pickupLookup ? `pickup:${pickupLookup.orderNumber}:${pickupLookup.code}` : "");
+  const trackingKey = token || (pickupLookup ? `pickup:${pickupLookup.code}` : "");
   const [order, setOrder] = useState<StoreTracking | null>(null);
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
