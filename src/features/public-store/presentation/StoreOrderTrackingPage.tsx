@@ -161,17 +161,18 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
         </div>
         {order.pickupLocation && <div className="mt-6 grid gap-5 border-t border-[#e5edf7] pt-5 sm:grid-cols-2">
           <div className="min-w-0">
-            <p className="flex items-center gap-2 text-[12px] font-bold text-[#244b7b]"><MapPin size={16}/> Local de retirada</p>
+            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+              aria-label="Local de retirada — abrir no Google Maps"
+              title="Abrir localização no Google Maps"
+              className="inline-flex items-center gap-2 text-[12px] font-bold text-[#244b7b] transition-colors hover:text-[var(--art-primary)] hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)]">
+              <MapPin size={16}/> Local de retirada <ExternalLink size={12} aria-hidden="true"/>
+            </a>
             <p className="mt-2 text-[12px] leading-6 text-[#526986]">
               {order.pickupLocation.street}, {order.pickupLocation.number}
               {order.pickupLocation.district ? " — " + order.pickupLocation.district : ""}
               <span className="block">{order.pickupLocation.city}/{order.pickupLocation.state}
                 {order.pickupLocation.postalCode ? " · CEP " + zip(order.pickupLocation.postalCode) : ""}</span>
             </p>
-            <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-              className="mt-2 inline-flex items-center gap-1.5 text-[12px] font-semibold text-[var(--art-primary)] hover:underline">
-              <MapPin size={14}/> Ver localização no Google Maps <ExternalLink size={13}/>
-            </a>
           </div>
           <div className="min-w-0">
             <p className="flex items-center gap-2 text-[12px] font-bold text-[#244b7b]"><Clock3 size={16}/> Horário de retirada</p>
