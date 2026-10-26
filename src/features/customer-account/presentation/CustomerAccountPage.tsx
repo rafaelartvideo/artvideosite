@@ -12,7 +12,7 @@ import {
 } from "../infrastructure/customer-account.repository";
 
 type AuthMode = "login" | "register" | "forgot" | "email_sent";
-type Tab = "overview" | "orders" | "services" | "quotes" | "profile";
+type Tab = "overview" | "orders" | "quotes" | "profile";
 type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "ready" | "error";
 const inputClass = "h-11 w-full rounded-lg border border-[#dce5f1] bg-white px-3.5 text-sm text-[#10213d] outline-none transition-colors focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
 const primaryClass = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-5 text-sm font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
@@ -47,20 +47,19 @@ function EmptyHistory({ title, description }: { title: string; description: stri
     <p className="mt-1 max-w-sm text-[13px] leading-6 text-[#73839a]">{description}</p>
   </div>;
 }
-function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "orders" | "services" | "quotes" }) {
+function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "orders" | "quotes" }) {
   if (!items.length) return <EmptyHistory
-    title={kind === "orders" ? "Nenhum pedido encontrado" : kind === "services" ? "Nenhuma ordem de serviço encontrada" : "Nenhum orçamento encontrado"}
-    description="Quando houver registros vinculados ao seu cadastro, eles aparecerão aqui automaticamente." />;
+    title={kind === "orders" ? "Nenhum pedido encontrado" : "Nenhum orçamento encontrado"}
+    description="Seus pedidos e orçamentos realizados no site com este e-mail aparecerão aqui." />;
   return <div className="grid gap-3">
     {items.map(item => <article key={item.id} className={cardClass}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-[#8090a7]">
-            {kind === "orders" ? "Pedido" : kind === "services" ? "Ordem de serviço" : "Orçamento"} {item.number || "—"}
+            {kind === "orders" ? "Pedido" : "Orçamento"} {item.number || "—"}
           </p>
           <h3 className="mt-1 break-words text-sm font-bold text-[#10213d]">
-            {kind === "orders" ? item.product_name || "Produtos da compra" :
-              kind === "services" ? item.equipment || "Serviço" : item.description || "Solicitação"}
+            {kind === "orders" ? item.product_name || "Produtos da compra" : item.description || "Solicitação"}
           </h3>
           <p className="mt-1 text-xs text-[#8190a5]">Registrado em {displayDate(item.created_at)}</p>
         </div>
@@ -230,11 +229,10 @@ export function CustomerAccountPage() {
   }
 
   const headings: Record<Tab, string> = {
-    overview: "Visão geral", orders: "Meus pedidos", services: "Meus serviços",
+    overview: "Visão geral", orders: "Meus pedidos",
     quotes: "Meus orçamentos", profile: "Meus dados",
   };
   const orders = portal?.orders || [];
-  const services = portal?.services || [];
   const quotes = portal?.quotes || [];
 
   return <div className="min-h-[65vh] bg-[#f6f8fc] pb-16">
@@ -243,8 +241,9 @@ export function CustomerAccountPage() {
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[.12em] text-[var(--art-primary)]">Eletrônica Artvideo</p>
           <h1 className="mt-1 text-[26px] font-bold tracking-tight text-[#122947] sm:text-[32px]">Minha conta</h1>
-          <p className="mt-2 text-sm text-[#657a95]">Seus pedidos, serviços e orçamentos em um só lugar.</p>
+          <p className="mt-2 text-sm text-[#657a95]">Seus pedidos e orçamentos realizados no site em um só lugar.</p>
         </div>
+        <Link to="/#acompanhar-servico" className={secondaryClass}><Wrench size={17}/> Acompanhar serviço <ArrowRight size={16}/></Link>
         {userId && <button type="button" className={secondaryClass} onClick={() => void signOut()} disabled={busy}>
           <LogOut size={16}/> Sair da conta
         </button>}
@@ -276,7 +275,7 @@ export function CustomerAccountPage() {
           <div className="mb-6 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#eff4ff] text-[var(--art-primary)]"><UserRound size={25}/></div>
             <h2 className="mt-4 text-xl font-bold text-[#173450]">{mode === "register" ? "Criar minha conta" : mode === "forgot" ? "Recuperar senha" : "Acessar minha conta"}</h2>
-            <p className="mt-2 text-[13px] leading-5 text-[#73869e]">{mode === "register" ? "Use seu e-mail para acompanhar os atendimentos da Artvideo." : mode === "forgot" ? "Enviaremos instruções para seu e-mail." : "Entre para consultar seu histórico de atendimento."}</p>
+            <p className="mt-2 text-[13px] leading-5 text-[#73869e]">{mode === "register" ? "Crie sua conta para consultar seus pedidos e orçamentos feitos no site." : mode === "forgot" ? "Enviaremos instruções para seu e-mail." : "Entre para consultar suas compras e solicitações do site."}</p>
           </div>
           <form onSubmit={event => void submitAuth(event)} className="space-y-4">
             {mode === "register" && <>
@@ -310,12 +309,12 @@ export function CustomerAccountPage() {
             {mode !== "register" && <button type="button" onClick={() => { setMode("register"); setError(""); }}>Criar uma conta</button>}
             {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }}>Esqueci minha senha</button>}
           </div>
-          <div className="mt-6 flex items-start gap-2 border-t border-[#e9edf5] pt-4 text-[11px] leading-5 text-[#788ca5]"><ShieldCheck size={16} className="mt-0.5 shrink-0"/> Seus dados são vinculados ao cadastro da Artvideo somente após confirmação do e-mail.</div>
+          <div className="mt-6 flex items-start gap-2 border-t border-[#e9edf5] pt-4 text-[11px] leading-5 text-[#788ca5]"><ShieldCheck size={16} className="mt-0.5 shrink-0"/> A conta do site não libera acesso a ordens de serviço nem se vincula automaticamente a cadastros antigos do CRM.</div>
         </>}
       </div> :
       state === "needs_name" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
         <h2 className="text-xl font-bold text-[#173450]">Complete seu cadastro</h2>
-        <p className="mt-2 text-sm text-[#657a95]">Precisamos do seu nome para criar seu cadastro de cliente no CRM.</p>
+        <p className="mt-2 text-sm text-[#657a95]">Precisamos do seu nome para criar sua conta do site.</p>
         <form onSubmit={event => void completeAccount(event)} className="mt-5 space-y-4">
           <label className="block text-xs font-semibold text-[#294361]">Nome completo<input className={inputClass + " mt-1.5"} value={name} onChange={event => setName(event.target.value)} required minLength={3} maxLength={120}/></label>
           <label className="block text-xs font-semibold text-[#294361]">Telefone (opcional)<input className={inputClass + " mt-1.5"} value={phone} onChange={event => setPhone(event.target.value)} type="tel"/></label>
@@ -326,12 +325,12 @@ export function CustomerAccountPage() {
       state === "verify_email" ? <div className={"mx-auto max-w-xl text-center " + cardClass}>
         <Mail className="mx-auto text-[var(--art-primary)]" size={34}/>
         <h2 className="mt-3 text-lg font-bold">Confirme seu e-mail</h2>
-        <p className="mt-2 text-sm text-[#627b96]">Para proteger seus dados, confirme o e-mail antes de acessar o histórico de pedidos e serviços.</p>
+        <p className="mt-2 text-sm text-[#627b96]">Para proteger seus dados, confirme o e-mail antes de acessar seus pedidos e orçamentos do site.</p>
       </div> :
       state === "needs_review" ? <div className={"mx-auto max-w-xl text-center " + cardClass}>
         <ShieldCheck className="mx-auto text-[var(--art-primary)]" size={34}/>
         <h2 className="mt-3 text-lg font-bold">Precisamos confirmar seu cadastro</h2>
-        <p className="mt-2 text-sm leading-6 text-[#627b96]">Encontramos um cadastro que precisa ser conferido pela equipe da Artvideo antes de liberar seu histórico. Entre em contato com nosso atendimento.</p>
+        <p className="mt-2 text-sm leading-6 text-[#627b96]">Não foi possível ativar esta conta do site automaticamente. Entre em contato com a Artvideo para conferirmos o acesso.</p>
         <Link to="/contato" className={"mt-5 " + primaryClass}>Entrar em contato <ArrowRight size={16}/></Link>
       </div> :
       state === "error" || !portal?.customer ? <div className={"mx-auto max-w-lg text-center " + cardClass}>
@@ -344,7 +343,6 @@ export function CustomerAccountPage() {
           {([
             ["overview", "Visão geral", UserRound],
             ["orders", "Meus pedidos", Package],
-            ["services", "Meus serviços", Wrench],
             ["quotes", "Meus orçamentos", FileText],
             ["profile", "Meus dados", ShieldCheck],
           ] as const).map(([key, label, Icon]) => <button key={key} type="button" onClick={() => setTab(key)}
@@ -360,9 +358,8 @@ export function CustomerAccountPage() {
             <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={secondaryClass} title="Atualizar informações"><RefreshCw size={16}/> Atualizar</button>
           </div>
           {tab === "overview" && <>
-            <div className="grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {([{ label: "Pedidos", count: orders.length, icon: Package, target: "orders" },
-                { label: "Serviços", count: services.length, icon: Wrench, target: "services" },
                 { label: "Orçamentos", count: quotes.length, icon: FileText, target: "quotes" }] as const).map(({ label, count, icon: Icon, target }) =>
                 <button type="button" key={target} onClick={() => setTab(target)} className={"flex items-center gap-3 text-left transition-colors hover:border-[#aabde2] " + cardClass}>
                   <span className="rounded-lg bg-[#eef4ff] p-3 text-[var(--art-primary)]"><Icon size={22}/></span>
@@ -375,13 +372,13 @@ export function CustomerAccountPage() {
               {orders.length > 3 && <button type="button" onClick={() => setTab("orders")} className="mt-3 text-sm font-semibold text-[var(--art-primary)]">Ver todos os pedidos <ArrowRight size={15} className="inline"/></button>}
             </div>
             <div className="mt-6">
-              <h3 className="mb-3 text-sm font-bold text-[#24405d]">Últimos serviços</h3>
-              <RecordList kind="services" items={services.slice(0, 3)}/>
-              {services.length > 3 && <button type="button" onClick={() => setTab("services")} className="mt-3 text-sm font-semibold text-[var(--art-primary)]">Ver todos os serviços <ArrowRight size={15} className="inline"/></button>}
+              <h3 className="mb-3 text-sm font-bold text-[#24405d]">Últimos orçamentos do site</h3>
+              <RecordList kind="quotes" items={quotes.slice(0, 3)}/>
+              {quotes.length > 3 && <button type="button" onClick={() => setTab("quotes")} className="mt-3 text-sm font-semibold text-[var(--art-primary)]">Ver todos os orçamentos <ArrowRight size={15} className="inline"/></button>}
             </div>
           </>}
           {tab === "orders" && <RecordList kind="orders" items={orders}/>}
-          {tab === "services" && <><p className="mb-4 text-[13px] text-[#6e829a]">Para consultar informações detalhadas de uma OS, você também pode usar o acompanhamento por protocolo na página inicial.</p><RecordList kind="services" items={services}/></>}
+
           {tab === "quotes" && <RecordList kind="quotes" items={quotes}/>}
           {tab === "profile" && <div className={cardClass}>
             <h3 className="text-sm font-bold text-[#25405e]">Dados do cadastro</h3>
@@ -389,7 +386,7 @@ export function CustomerAccountPage() {
               {[["Nome", portal.customer.name], ["E-mail", portal.customer.email], ["Telefone", portal.customer.phone || "Não informado"]].map(([label, value]) =>
                 <div key={label}><span className="block text-[11px] uppercase tracking-wide text-[#8493a8]">{label}</span><strong className="mt-1 block break-words text-sm text-[#24405e]">{value}</strong></div>)}
             </div>
-            <p className="mt-5 border-t border-[#ecf0f5] pt-4 text-xs leading-5 text-[#71849c]">Se precisar corrigir dados do cadastro existente, entre em contato com a Artvideo. A edição online será disponibilizada em uma próxima etapa.</p>
+            <p className="mt-5 border-t border-[#ecf0f5] pt-4 text-xs leading-5 text-[#71849c]">Esta conta é exclusiva do site. Para acompanhar uma ordem de serviço, utilize o protocolo na página inicial.</p>
           </div>}
         </div>
       </div>}
