@@ -392,7 +392,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         {modalView === "order" && <BtnSecondary onClick={() => setSelectedId(null)} disabled={saving}>Fechar</BtnSecondary>}
         {modalView === "order" && selected && <BtnPrimary onClick={() => { setPickupHelp(false); setModalView("afterSales"); }}>
           <RotateCcw size={15}/> Pós-venda
-        </BtnPrimary>
+        </BtnPrimary>}
         {modalView === "order" && selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
           onClick={() => void changeStage()} disabled={saving || (recipientRequired && recipient.trim().length < 3)
             || (issueRequired && note.trim().length < 10)
