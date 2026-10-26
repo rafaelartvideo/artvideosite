@@ -48,8 +48,10 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
   const issues:Record<string,string>={};
   if(stage===0) {
    if(variants.length&&!selected) issues.variant='Selecione a opção do serviço.';
-   if(scheduling&&!date) issues.date='Escolha uma data disponível.';
+   if(onsite&&!date) issues.date='Escolha uma data disponível.';
    if(scheduling&&date&&!times.some((item:any)=>`${item.start}–${item.end}`===slot)) issues.slot='Selecione um horário disponível.';
+   if(onsite&&!scheduling&&(!/^\d{4}-\d{2}-\d{2}$/.test(date)||date<new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})))issues.date='Escolha uma data de hoje em diante.';
+   if(onsite&&!scheduling&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(slot))issues.slot='Escolha o horário de preferência.';
   }
   if(stage===1) {
    if(onsite&&!['available','consult'].includes(coverage)) issues.cep='Consulte um CEP válido dentro da área atendida.';
@@ -114,7 +116,22 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
       {fieldErrors.date&&<p role="alert" className="mt-2 text-xs font-medium text-red-600">{fieldErrors.date}</p>}
       {fieldErrors.slot&&<p role="alert" className="mt-2 text-xs font-medium text-red-600">{fieldErrors.slot}</p>}
       {date&&<fieldset><legend className="mb-3 text-sm font-medium">Horário de preferência <span className="text-red-600">*</span></legend><div className="space-y-2">{times.map((s:any)=>{const value=`${s.start}–${s.end}`;return <label key={value} className={`art-choice ${slot===value?'is-selected':''}`}><span>{s.start} às {s.end}</span><input className="ml-auto" type="radio" name="time" value={value} checked={slot===value} onChange={()=>setSlot(value)}/></label>;})}</div></fieldset>}
-     </>:<p className="rounded-lg bg-slate-50 p-5 text-sm leading-6 text-slate-600">A equipe combinará o melhor dia e horário com você após analisar a solicitação.</p>}
+     </>:onsite?<div className="space-y-4 rounded-lg border border-slate-200 p-4">
+       <p className="text-sm text-slate-600">Indique um dia e horário de preferência. A equipe confirmará a disponibilidade antes do atendimento.</p>
+       <div className="grid gap-3 sm:grid-cols-2">
+         <Field label="Data de preferência" required error={fieldErrors.date}>
+           <input type="date" className="art-input" value={date}
+             min={new Date().toLocaleDateString('sv-SE',{timeZone:'America/Sao_Paulo'})}
+             onChange={event=>setDate(event.target.value)}/>
+         </Field>
+         <Field label="Horário de preferência" required error={fieldErrors.slot}>
+           <input type="time" className="art-input" value={slot}
+             onChange={event=>setSlot(event.target.value)}/>
+         </Field>
+       </div>
+     </div>:<p className="rounded-lg bg-slate-50 p-5 text-sm leading-6 text-slate-600">
+       Não é necessário agendar horário para levar o equipamento à loja.
+     </p>}
      {onsite&&<p className="rounded-lg bg-slate-50 p-4 text-sm leading-6 text-slate-600">Se o atendimento for em condomínio, confira as regras de acesso e os horários permitidos.</p>}
     </>}
     {step===1&&<>
