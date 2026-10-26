@@ -120,6 +120,7 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
   onChange: (banners: SiteBanner[]) => void;
 }) {
   const { products, loading: productsLoading } = useProducts();
+  const [expandedBannerId, setExpandedBannerId] = useState<string | null>(null);
   const edit = (index: number, patch: Partial<SiteBanner>) =>
     onChange(banners.map((item, i) => i === index ? { ...item, ...patch } : item));
   const move = (index: number, direction: -1 | 1) => {
@@ -129,12 +130,15 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
     [next[index], next[target]] = [next[target], next[index]];
     onChange(next);
   };
-  const add = () => onChange([...banners, {
-    id: "banner-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7),
-    placement: "loja", type: "livre", referenceId: "",
-    title: "", description: "", label: "", actionLabel: "",
-    actionPage: "", imageId: "", active: true,
-  }]);
+  const add = () => {
+    const id = "banner-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 7);
+    onChange([...banners, {
+      id, placement: "loja", type: "livre", referenceId: "",
+      title: "", description: "", label: "", actionLabel: "",
+      actionPage: "", imageId: "", active: true,
+    }]);
+    setExpandedBannerId(id);
+  };
   return <Section title="Banners da loja e dos serviços"
     description="Crie banners próprios com imagem opcional. Escolha onde aparecem, associe a um produto ou serviço ou deixe como banner livre. A ordem abaixo define a sequência do carrossel.">
     <div className="space-y-4">
@@ -144,8 +148,9 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
           : banner.type === "servico"
             ? services.map(service => ({ value: service.id, label: service.title }))
             : [];
-        return <div key={banner.id} className="space-y-4 rounded-xl border border-border bg-background p-4 sm:p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+        const expanded = expandedBannerId === banner.id;
+        return <div key={banner.id} className="space-y-3 rounded-lg border border-border bg-background p-3 sm:p-4">
+          <div className={"flex flex-wrap items-center justify-between gap-3" + (expanded ? " border-b border-border pb-3" : "")}>
             <div className="flex items-center gap-3">
               <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-xs font-extrabold text-primary">{String(index + 1).padStart(2, "0")}</span>
               <div>
@@ -153,7 +158,9 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
                 <p className="text-xs text-muted-foreground">{banner.placement === "ambos" ? "Loja e serviços" : banner.placement === "loja" ? "Loja" : "Serviços"}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <AdminButton size="sm" variant="secondary" onClick={() => setExpandedBannerId(expanded ? null : banner.id)}
+                aria-expanded={expanded}><Pencil size={14}/>{expanded ? "Fechar edição" : "Editar"}</AdminButton>
               <label className="inline-flex items-center gap-2 text-xs font-semibold">
                 <input type="checkbox" role="switch" aria-label={`Ativar banner ${index + 1}`} checked={banner.active} disabled={disabled}
                   onChange={event => edit(index, { active: event.target.checked })} className="h-4 w-4 accent-primary"/>
@@ -163,12 +170,13 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
                 className="rounded-md border border-border p-2 text-muted-foreground hover:bg-muted disabled:opacity-35"><ArrowUp size={16}/></button>
               <button type="button" onClick={() => move(index, 1)} disabled={disabled || index === banners.length - 1} title="Descer banner" aria-label="Descer banner"
                 className="rounded-md border border-border p-2 text-muted-foreground hover:bg-muted disabled:opacity-35"><ArrowDown size={16}/></button>
-              <button type="button" onClick={() => onChange(banners.filter(item => item.id !== banner.id))}
+              <button type="button" onClick={() => { onChange(banners.filter(item => item.id !== banner.id)); if (expanded) setExpandedBannerId(null); }}
                 disabled={disabled} title="Excluir banner" aria-label="Excluir banner"
                 className="rounded-md border border-border p-2 text-destructive hover:bg-destructive/10 disabled:opacity-35"><Trash2 size={16}/></button>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          {expanded && <>
+          <div className="grid gap-3 sm:grid-cols-2">
             <FSelect label="Exibir em" disabled={disabled} value={banner.placement}
               onChange={(event: any) => edit(index, { placement: event.target.value })}
               options={[{ value: "loja", label: "Loja" }, { value: "servicos", label: "Serviços" }, { value: "ambos", label: "Loja e Serviços" }]}/>
@@ -207,6 +215,7 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
             <ImageSetting label="Imagem exclusiva do banner (opcional: sem imagem, usa arte em degradê)"
               mediaId={banner.imageId} onChange={imageId => edit(index, { imageId })} disabled={disabled}/>
           </div>
+          </>}
         </div>;
       })}
       {!banners.length && <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">Nenhum banner cadastrado. A loja e os serviços aparecerão sem carrossel até você adicionar um.</p>}
@@ -214,7 +223,7 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
         className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 text-xs font-bold text-primary transition-colors hover:bg-primary/10 disabled:opacity-50">
         <Plus size={16}/> Adicionar banner
       </button>
-      <p className="text-xs text-muted-foreground">Depois das alterações, clique em Salvar na barra inferior. Os banners não alteram fotos, preços ou destaques cadastrados de produtos e serviços.</p>
+      <p className="text-xs text-muted-foreground">As alterações dos banners são publicadas ao clicar em Salvar alterações no rodapé do modal.</p>
     </div>
   </Section>;
 }
