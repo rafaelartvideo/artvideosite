@@ -3,10 +3,20 @@
 const prefixes = [
  ['service','Serviço: '],['option','Opção: '],['quantity','Quantidade: '],
  ['schedule','Preferência de atendimento (a confirmar): '],
- ['address','Endereço do atendimento: '],['contact','Contato desta solicitação: '],
- ['model','Modelo: '],['equipment','Equipamento: '],['brand','Marca: '],
- ['repairType','Tipo de solicitação: '],['repairLocation','Atendimento solicitado: '],
- ['repairPostalCode','CEP informado para consulta: '],['issue','Problema relatado: '],
+ ['schedule','Preferência de atendimento: '],
+ ['schedule','Preferência de horário (a confirmar): '],
+ ['schedule','Agendamento: '],
+ ['address','Endereço do atendimento: '],['address','Endereço de atendimento: '],
+ ['contact','Contato desta solicitação: '],['contact','Contato: '],
+ ['model','Modelo do equipamento: '],['model','Modelo: '],
+ ['equipment','Equipamento: '],
+ ['brand','Marca do equipamento: '],['brand','Marca: '],
+ ['repairType','Tipo de solicitação: '],
+ ['repairLocation','Atendimento solicitado: '],['repairLocation','Modalidade: '],
+ ['repairPostalCode','CEP informado para consulta: '],
+ ['repairPostalCode','CEP informado para coleta: '],
+ ['issue','Problema relatado: '],['issue','Descrição do problema: '],
+ ['issue','Relato: '],
 ];
 export function parseQuoteRequestMessage(value) {
  const raw=String(value||'').trim();
@@ -18,7 +28,8 @@ export function parseQuoteRequestMessage(value) {
   if(line==='Solicitação pelo site — orçamento sem pagamento antecipado.')continue;
   const match=prefixes.find(([,prefix])=>line.startsWith(prefix));
   if(match){result[match[0]]=line.slice(match[1].length).trim();continue;}
-  if(line.startsWith('Agendamento: ')){result.schedule=line.slice(13);continue;}
+  // Taxa e demais campos criados automaticamente não são relato do cliente.
+  if(/^Taxa de coleta para o CEP /i.test(line))continue;
   content.push(line);
  }
  result.notes=content.join('\n').trim();
@@ -50,4 +61,17 @@ export function quoteAddressLabel(address) {
  const a=address.address;
  if(a.text)return a.text;
  return [a.street,a.number,a.complement,a.neighborhood,a.city,a.state,a.zip_code].filter(Boolean).join(', ');
+}
+
+export function quoteCustomerReport(quote) {
+ const direct=String(quote?.issue_reported||'').trim();
+ // Registros antigos podem ter recebido o resumo automático no campo de relato.
+ // Nunca mostre dados de serviço, endereço ou contato como se fossem descrição.
+ const raw=direct||String(quote?.customer_message||'').trim();
+ if(!raw)return '';
+ const legacy=raw.startsWith('Solicitação pelo site — orçamento sem pagamento antecipado.')
+  || /(?:^|\n)(?:Serviço: |Opção: |Endereço do atendimento: |Contato desta solicitação: )/.test(raw);
+ if(direct&&!legacy)return direct;
+ const parsed=parseQuoteRequestMessage(raw);
+ return parsed.issue||parsed.notes||'';
 }
