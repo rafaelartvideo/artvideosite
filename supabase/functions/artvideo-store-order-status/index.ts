@@ -15,15 +15,68 @@ Deno.serve(async (req: Request) => {
    if (Number(req.headers.get("content-length")||0)>2048) return reply({error:"Solicitação inválida."},400);
    const input=await req.json();
    const token=String(input?.token||"").trim().toLowerCase();
-   if (!/^[a-f0-9]{64}$/.test(token)) return reply({error:"Código de acompanhamento inválido."},400);
+   const pickupLookup=input?.action==="pickup_lookup";
+   if(!pickupLookup&&!/^[a-f0-9]{64}$/.test(token)) return reply({error:"Código de acompanhamento inválido."},400);
    const admin=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{
      auth:{persistSession:false},
    });
+   let orderId:string;
+   if(pickupLookup){
+     const orderNumber=Number(String(input.order_number||"").replace(/^PED-/i,""));
+     const email=String(input.email||"").trim().toLowerCase();
+     const code=String(input.pickup_code||"").trim();
+     if(!Number.isSafeInteger(orderNumber)||orderNumber<1||orderNumber>999999999
+        || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254
+        || !/^[0-9]{4}$/.test(code))
+       return reply({error:"Informe o pedido, o e-mail da compra e o código de quatro dígitos."},400);
+     // Limite compartilhado entre as tentativas da mesma origem. Chave opaca:
+     // não guarda IP nem dados do cliente em texto no banco.
+     const remoteAddress=req.headers.get("cf-connecting-ip")
+       ||req.headers.get("x-real-ip")
+       ||req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()||"unknown";
+     const secret=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+     const bytes=new TextEncoder().encode("artvideo:pickup:"+remoteAddress+":"+secret);
+     const digest=await crypto.subtle.digest("SHA-256",bytes);
+     const rateKey=Array.from(new Uint8Array(digest),b=>b.toString(16).padStart(2,"0")).join("");
+     const {data:verified,error:lookupError}=await admin.rpc("artvideo_store_pickup_lookup_v1",{
+       p_order_number:orderNumber,p_email:email,p_code:code,p_rate_key:rateKey,
+     });
+     if(lookupError)return reply({error:"Não foi possível consultar o pedido agora."},503);
+     if(!verified)return reply({error:"Não foi possível validar os dados. Confira pedido, e-mail e código de retirada; muitas tentativas podem bloquear consultas por 15 minutos."},404);
+     orderId=String(verified);
+     const [orderResult,deliveryResult]=await Promise.all([
+       admin.from("artvideo_store_orders")
+         .select("id,order_number,created_at,status,paid_at,payment_issue_status,buyer,shipping_service_id")
+         .eq("id",orderId).single(),
+       admin.from("artvideo_store_fulfillments")
+         .select("status,updated_at").eq("order_id",orderId).maybeSingle(),
+     ]);
+     if(orderResult.error||deliveryResult.error||!orderResult.data)
+       return reply({error:"Não foi possível consultar o andamento."},503);
+     const order=orderResult.data;
+     const buyer=order.buyer && typeof order.buyer==="object" ? order.buyer : {};
+     return reply({order:{
+       id:order.id,number:"PED-"+String(order.order_number),createdAt:order.created_at,
+       paymentStatus:order.status,paidAt:order.paid_at,
+       paymentIssueStatus:order.payment_issue_status||null,
+       deliveryMethod:"pickup",fulfillmentStatus:order.status==="paid"?(deliveryResult.data?.status||"pending"):"pending",
+       fulfillmentUpdatedAt:deliveryResult.data?.updated_at||null,
+       pickupCode:deliveryResult.data?.status==="picked_up"?null:code,
+       pickupLocation:{
+         street:String(buyer.street||""),number:String(buyer.number||""),
+         district:String(buyer.district||""),city:String(buyer.city||""),
+         state:String(buyer.state||""),postalCode:String(buyer.postal_code||""),
+         hours:String(buyer.pickup_hours||""),instructions:String(buyer.pickup_instructions||""),
+       },
+       deliveryName:"Retirada na loja",items:[],subtotal:0,shippingPrice:0,total:0,
+       timeline:[],supportCases:[],
+     }});
+   }
    const {data:access,error:accessError}=await admin.from("artvideo_store_tracking_access")
      .select("order_id").eq("tracking_token",token).maybeSingle();
    if (accessError) return reply({error:"Não foi possível consultar o pedido."},503);
    if (!access) return reply({error:"Link de acompanhamento inválido ou indisponível."},404);
-   const orderId=access.order_id;
+   orderId=access.order_id;
    const [orderQuery,itemsQuery,deliveryQuery,eventsQuery,casesQuery]=await Promise.all([
      admin.from("artvideo_store_orders")
        .select("id,order_number,created_at,status,payment_issue_status,payment_issue_at,quantity,product_name,unit_price,shipping_price,shipping_service_id,shipping_service_name,postal_code,paid_at,buyer")
@@ -78,9 +131,13 @@ Deno.serve(async (req: Request) => {
    const pickup=o.shipping_service_id==="pickup";
    const buyer=o.buyer && typeof o.buyer==="object" ? o.buyer : {};
    const subtotal=items.reduce((total,item)=>total+item.quantity*item.unitPrice,0);
-   // Código único: o mesmo token aleatório de 256 bits já validado para
-   // acompanhar o pedido é apresentado ao cliente para a retirada presencial.
-   // Nunca expor o PIN legado de quatro dígitos da tabela privada.
+   // O PIN de retirada (4 dígitos) e o link de acompanhamento (256 bits)
+   // são distintos e só são exibidos após validação do link privado.
+   const pickupCodeQuery=pickup && deliveryQuery.data?.status!=="picked_up"
+     ? await admin.from("artvideo_store_pickup_codes")
+       .select("code").eq("order_id",orderId).maybeSingle()
+     : {data:null,error:null};
+   if(pickupCodeQuery.error)return reply({error:"Não foi possível consultar o código de retirada."},503);
    return reply({
      order:{
        id:o.id,number:"PED-"+String(o.order_number),createdAt:o.created_at,
@@ -96,7 +153,7 @@ Deno.serve(async (req: Request) => {
        timeline:(eventsQuery.data||[]).map(e=>({status:e.to_status,createdAt:e.created_at})),
        supportCases,
        ...(pickup ? {
-         pickupCode:deliveryQuery.data?.status!=="picked_up"?token:null,
+         pickupCode:pickupCodeQuery.data?.code||null,
          pickupLocation:{
            street:String(buyer.street||""),number:String(buyer.number||""),
            district:String(buyer.district||""),city:String(buyer.city||""),
