@@ -67,6 +67,16 @@ async function signedBridge(action: string, channel: ChannelRow) {
     });
     const result = await response.json().catch(() => ({})) as Record<string, unknown>;
     if (!response.ok || result.ok !== true) {
+      if (action === "delete") {
+        // Only surface stable, non-sensitive codes returned by our signed bridge.
+        // Never expose raw provider responses, connection tokens or URLs.
+        const allowed = new Set([
+          "bad_request", "unauthorized", "session_missing", "session_mismatch",
+          "provider_user_invalid", "provider_error", "provider_unavailable",
+        ]);
+        const providerCode = String(result.code || "");
+        throw new Error("bridge_delete_" + (allowed.has(providerCode) ? providerCode : "failed"));
+      }
       throw new Error("A ponte WuzAPI não conseguiu executar a operação. Consulte o administrador.");
     }
     return result;
@@ -171,8 +181,24 @@ Deno.serve(async request => {
       // for the explicitly selected connection in this organization.
       try {
         await signedBridge("delete", channel as ChannelRow);
-      } catch {
-        return json({ success: false, error: "Não foi possível remover a sessão na VPS. Nenhum dado foi excluído do CRM." }, 503);
+      } catch (error) {
+        const raw = String((error as Error)?.message || "");
+        const reason = raw.startsWith("bridge_delete_") ? raw.slice("bridge_delete_".length) : "unreachable";
+        // Log the category only, never provider responses or authentication data.
+        console.warn("whatsapp-channels: delete bridge failure", reason);
+        const hints: Record<string,string> = {
+          bad_request: "A ponte na VPS não reconhece a operação de exclusão. Atualize o serviço.",
+          unauthorized: "A ponte recusou a autenticação da solicitação.",
+          session_missing: "A sessão não foi encontrada na VPS.",
+          session_mismatch: "A sessão da VPS não corresponde ao registro desta empresa.",
+          provider_user_invalid: "A WuzAPI retornou um identificador de usuário inválido. Atualize a ponte.",
+          provider_error: "A WuzAPI recusou a remoção do usuário.",
+          provider_unavailable: "A WuzAPI não conseguiu concluir a remoção. Consulte o log da ponte.",
+          unreachable: "A comunicação com a ponte da VPS falhou. Confira se ela está ativa.",
+        };
+        const detail = hints[reason] || "A ponte retornou uma falha inesperada.";
+        return json({ success: false, code: "bridge_delete_" + reason,
+          error: detail + " Nenhum dado foi excluído do CRM." }, 503);
       }
       const { error: deleteError } = await privileged.from("whatsapp_channel_connections")
         .delete().eq("id", id).eq("organization_id", org).eq("provider", "wuzapi");
