@@ -1,7 +1,7 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { PublicBreadcrumb } from "./PublicPageHeader";
-import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, Phone, ShoppingCart, X, Youtube } from "lucide-react";
+import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, Phone, ShoppingCart, UserRound, X, Youtube } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -77,7 +77,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const { count: cartCount } = useStoreCart();
   const { pathname } = useLocation();
   const isLegalPage = ["/politica-de-privacidade", "/exclusao-de-dados", "/descadastramento"].includes(pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname);
-  const isCurrent = (destination: PublicPage) => !isLegalPage &&
+  const isCurrent = (destination: PublicPage) => !isLegalPage && pathname !== "/minha-conta" &&
     (destination === page || (page === "servico" && destination === "servicos") || (page === "produto" && destination === "loja"));
   const instagramUrl = validExternalUrl(settings.instagram, "https://instagram.com/") || "https://www.instagram.com/eletronica_artvideo/";
   const address = getSettingText(settings.address) ||
@@ -114,6 +114,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         })}
       </nav>
       <div className="hidden shrink-0 items-center gap-2 xl:flex">
+        <Link to="/minha-conta" title="Minha conta" aria-label="Minha conta" className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-colors hover:border-white/40 hover:bg-white/10"><UserRound size={21}/></Link>
         <Link to="/carrinho" onPointerEnter={preloadCartPage} onFocus={preloadCartPage} data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
           className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
           <ShoppingCart size={21}/>
@@ -130,8 +131,9 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
             </a>)}
         </div>
       </div>
+      <Link to="/minha-conta" title="Minha conta" aria-label="Minha conta" className="ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/10 xl:hidden"><UserRound size={22}/></Link>
       <Link to="/carrinho" onPointerEnter={preloadCartPage} onFocus={preloadCartPage} data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
-        className="relative ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 xl:hidden">
+        className="relative ml-0 flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 xl:hidden">
         <ShoppingCart size={22}/>
         {cartCount > 0 && <span className="absolute -right-1 -top-1 rounded-full bg-[var(--art-primary)] px-1.5 text-[10px] font-bold">{cartCount > 99 ? "99+" : cartCount}</span>}
       </Link>
@@ -150,6 +152,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
           <span className="py-1">{label}</span>
         </button>;
       })}
+      <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex min-h-11 items-center gap-2 px-4 text-sm font-semibold text-white/85"><UserRound size={18}/> Minha conta</Link>
       <div className="mt-4 flex flex-wrap items-center gap-2.5" aria-label="Orçamento, redes sociais e localização">
         <button type="button" onClick={() => navigate("orcamento")}
           className="inline-flex min-h-11 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-3 text-[12px] font-bold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-blue-300">
@@ -238,6 +241,7 @@ export function PublicShell({ page, setPage, children }: { page: PublicPage; set
     "/loja": "Produtos", "/servicos": "Serviços", "/assistencia": "Assistência técnica",
     "/sobre": "Sobre nós", "/contato": "Contato", "/orcamento": "Solicitar orçamento",
     "/carrinho": "Meu carrinho",
+    "/minha-conta": "Minha conta",
     "/politica-de-privacidade": "Política de Privacidade",
     "/exclusao-de-dados": "Exclusão de Dados",
     "/descadastramento": "Descadastramento",
