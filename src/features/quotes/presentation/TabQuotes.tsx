@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, FileText, MoreVertical, Wrench } from "lucide-react";
+import { ClipboardList, FileText, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listQuotesPage,listRequestStatuses } from "../infrastructure/quotes.repository";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
-import { AdminCard,PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard,AdminRowActionsTrigger,PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel,AdminSearchClearButton,AdminSearchSortMenu,AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { formatCnpj,formatCpf,formatPhone,formatDateTime } from "@/shared/domain/formatters";
 import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeedback";
@@ -80,12 +80,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   // Mesmo menu de ações utilizado na lista de Ordens de Serviço.
   const quickActions=(quote:any)=> <DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <button type="button" onClick={event=>event.stopPropagation()}
-        aria-label={`Ações do orçamento ${quote.protocol||quote.id.slice(0,8)}`}
-        title="Ações rápidas"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
-        <MoreVertical size={17}/>
-      </button>
+      <AdminRowActionsTrigger label={`Ações do orçamento ${quote.protocol||quote.id.slice(0,8)}`}/>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-56" onClick={event=>event.stopPropagation()}>
       {canOpen ? <DropdownMenuItem className="font-semibold" onSelect={()=>open(quote)}>
