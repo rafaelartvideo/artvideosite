@@ -75,6 +75,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
         {!platformUsersOnly && <>
           <div className="flex min-w-0 flex-wrap items-center justify-center gap-2">
             {roles.map(role => <span key={role} className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">{roleLabels[role]}</span>)}
+            {selected.registration_source === "site" && <span title="Cadastro realizado pelo site da Artvideo" className="rounded-full bg-[#eaf2ff] px-3 py-1 text-xs font-black text-[#0057e7]">Origem: Site</span>}
           </div>
           <span className="text-center text-xs text-[#5a6a82] sm:text-left">
             Cadastrado em <strong>{formatDateTime(selected.created_at, "—")}</strong> por{" "}
