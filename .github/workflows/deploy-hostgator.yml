@@ -69,6 +69,11 @@ jobs:
           else
             npm install --prefer-offline --no-audit --no-fund
           fi
+      - name: Export npm lockfile for deterministic installs
+        run: |
+          echo "__LOCKFILE_BASE64_START__"
+          base64 -w76 package-lock.json
+          echo "__LOCKFILE_BASE64_END__"
       - name: Finance domain tests
         run: npm run test:finance
       - name: Regression tests
