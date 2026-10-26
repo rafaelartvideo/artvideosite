@@ -1,8 +1,8 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle, CheckCheck, ChevronLeft, ChevronRight, ClipboardCheck,
-  HelpCircle, MapPin, PackageCheck, RefreshCw, RotateCcw, Search, ShoppingBag, Truck,
+  AlertTriangle, CheckCheck, ClipboardCheck,
+  HelpCircle, MapPin, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -15,6 +15,7 @@ import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { StoreAfterSalesStaff } from "./StoreAfterSalesStaff";
 
 type StoreOrder = {
@@ -110,11 +111,14 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const [historyLoading, setHistoryLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [deliveryFilter, setDeliveryFilter] = useState("all");
   const [supportFilter,setSupportFilter]=useState("all");
   const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modalView, setModalView] = useState<"order" | "afterSales">("order");
   const [pickupHelp, setPickupHelp] = useState(false);
@@ -248,15 +252,23 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     if (deliveryFilter === "unpaid" && order.status === "paid") return false;
     if (deliveryFilter !== "all" && deliveryFilter !== "unpaid"
       && (order.status !== "paid" || deliveryOf(order) !== deliveryFilter)) return false;
-    const q = search.trim().toLocaleLowerCase("pt-BR");
-    return !q || [
-      order.id, orderCode(order), order.buyer?.buyer_name, order.buyer?.buyer_email, order.postal_code,
-      order.product_name, ...lines.filter(line => line.order_id === order.id)
-        .map(line => line.product_name),
-    ].some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(q));
-  }), [orders, lines, paymentFilter, deliveryFilter, supportFilter, supportCases, search, fulfillmentByOrder]);
-  const totalPages = Math.max(1, Math.ceil(filtered.length / 10));
-  const rows = filtered.slice((Math.min(page, totalPages) - 1) * 10, Math.min(page, totalPages) * 10);
+    const customer = customerSearch.trim().toLocaleLowerCase("pt-BR");
+    const orderNeedle = orderSearch.trim().toLocaleLowerCase("pt-BR");
+    const product = productSearch.trim().toLocaleLowerCase("pt-BR");
+    const customerMatches = !customer || [
+      order.buyer?.buyer_name, order.buyer?.buyer_email, order.buyer?.buyer_phone,
+    ].some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(customer));
+    const orderMatches = !orderNeedle || [order.id, orderCode(order), String(order.order_number)]
+      .some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(orderNeedle));
+    const productMatches = !product || [
+      order.product_name, ...lines.filter(line => line.order_id === order.id).map(line => line.product_name),
+    ].some(value => String(value || "").toLocaleLowerCase("pt-BR").includes(product));
+    return customerMatches && orderMatches && productMatches;
+  }), [orders, lines, paymentFilter, deliveryFilter, supportFilter, supportCases,
+    customerSearch, orderSearch, productSearch, fulfillmentByOrder]);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const rows = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   const changeStage = async () => {
     if (!canManage || saving || !selected || !selectedIsPaid || !nextStatus) return;
@@ -302,31 +314,59 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!embedded && <PageHeader title="Pedidos da Loja"
       subtitle="Acompanhe pagamentos, separação de produtos e entregas da Artvideo."/>}
-    <div className="grid gap-3 grid-cols-2 lg:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
       {[
-        { label: "Aguardando separação", value: waiting, Icon: ShoppingBag },
-        { label: "Em preparação", value: preparing, Icon: PackageCheck },
-        { label: "Em entrega", value: delivering, Icon: Truck },
-        { label: "Concluídos", value: completed, Icon: CheckCheck },
-        { label: "Pós-venda", value: postSaleCount, Icon: RotateCcw },
-      ].map(card => <div key={card.label} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-4">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><card.Icon size={20}/></span>
-        <div className="min-w-0"><p className="text-[11px] leading-4 text-muted-foreground">{card.label}</p><strong className="block text-2xl">{card.value}</strong></div>
+        { label: "Aguardando separação", value: waiting, Icon: ShoppingBag,
+          tone: "border-amber-200 bg-amber-50/70 dark:border-amber-800/60 dark:bg-amber-950/20",
+          iconTone: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300" },
+        { label: "Em preparação", value: preparing, Icon: PackageCheck,
+          tone: "border-sky-200 bg-sky-50/70 dark:border-sky-800/60 dark:bg-sky-950/20",
+          iconTone: "bg-sky-100 text-sky-700 dark:bg-sky-900/50 dark:text-sky-300" },
+        { label: "Em entrega", value: delivering, Icon: Truck,
+          tone: "border-violet-200 bg-violet-50/70 dark:border-violet-800/60 dark:bg-violet-950/20",
+          iconTone: "bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300" },
+        { label: "Concluídos", value: completed, Icon: CheckCheck,
+          tone: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-800/60 dark:bg-emerald-950/20",
+          iconTone: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" },
+        { label: "Pós-venda", value: postSaleCount, Icon: RotateCcw,
+          tone: "border-rose-200 bg-rose-50/70 dark:border-rose-800/60 dark:bg-rose-950/20",
+          iconTone: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300" },
+      ].map(card => <div key={card.label} className={`flex min-w-0 items-center gap-3 rounded-lg border p-4 ${card.tone}`}>
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${card.iconTone}`}>
+          <card.Icon size={20}/>
+        </span>
+        <div className="min-w-0"><p className="text-[11px] leading-4 text-muted-foreground">{card.label}</p>
+          <strong className="block text-2xl text-foreground">{card.value}</strong>
+        </div>
       </div>)}
     </div>
 
-    <AdminSearchPanel title="Buscar pedidos" headerActions={search || paymentFilter !== "all" || deliveryFilter !== "all" || supportFilter !== "all" ? <AdminSearchClearButton onClick={() => { setSearch(""); setPaymentFilter("all"); setDeliveryFilter("all"); setSupportFilter("all"); setPage(1); }} /> : undefined}>
-        <div className="grid gap-2 md:grid-cols-[minmax(220px,1fr)_165px_170px_160px]">
-          <label className="relative min-w-0">
+    <AdminSearchPanel title="Buscar pedidos" headerActions={
+      customerSearch || orderSearch || productSearch || paymentFilter !== "all" || deliveryFilter !== "all" || supportFilter !== "all"
+        ? <AdminSearchClearButton onClick={() => { setCustomerSearch(""); setOrderSearch(""); setProductSearch("");
+            setPaymentFilter("all"); setDeliveryFilter("all"); setSupportFilter("all"); setPage(1); }} />
+        : undefined
+    }>
+      <div className="grid gap-3 md:grid-cols-3">
+        {([
+          { label: "Cliente", value: customerSearch, onChange: setCustomerSearch, placeholder: "Nome, e-mail ou telefone" },
+          { label: "Pedido", value: orderSearch, onChange: setOrderSearch, placeholder: "Número do pedido" },
+          { label: "Produto", value: productSearch, onChange: setProductSearch, placeholder: "Nome do produto" },
+        ] as const).map(field => <label key={field.label} className="min-w-0">
+          <span className="mb-1 block text-xs font-semibold text-foreground">{field.label}</span>
+          <span className="relative block">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-            <input type="search" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-              placeholder="Buscar cliente, pedido ou produto" aria-label="Buscar pedidos"
+            <input type="search" value={field.value} onChange={event => { field.onChange(event.target.value); setPage(1); }}
+              placeholder={field.placeholder} aria-label={`Buscar por ${field.label.toLowerCase()}`}
               className="h-10 w-full rounded-md border border-border bg-background pl-9 pr-3 text-sm focus:outline-primary"/>
-          </label>
-          <AdminSelect ariaLabel="Filtrar pagamento" value={paymentFilter} onValueChange={value => { setPaymentFilter(value); setPage(1); }} options={[{ value: "all", label: "Todos os pagamentos" }, ...Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))]} />
-          <AdminSelect ariaLabel="Filtrar entrega" value={deliveryFilter} onValueChange={value => { setDeliveryFilter(value); setPage(1); }} options={[{ value: "all", label: "Todas as entregas" }, { value: "unpaid", label: "Sem pagamento confirmado" }, ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label }))]} />
-          <AdminSelect ariaLabel="Filtrar pós-venda" value={supportFilter} onValueChange={value => { setSupportFilter(value); setPage(1); }} options={[{ value: "all", label: "Todo pós-venda" }, { value: "active", label: "Com solicitação ativa" }, { value: "none", label: "Sem solicitações" }]} />
-        </div>
+          </span>
+        </label>)}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <AdminSelect ariaLabel="Filtrar pagamento" value={paymentFilter} onValueChange={value => { setPaymentFilter(value); setPage(1); }} options={[{ value: "all", label: "Todos os pagamentos" }, ...Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))]} />
+        <AdminSelect ariaLabel="Filtrar entrega" value={deliveryFilter} onValueChange={value => { setDeliveryFilter(value); setPage(1); }} options={[{ value: "all", label: "Todas as entregas" }, { value: "unpaid", label: "Sem pagamento confirmado" }, ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label }))]} />
+        <AdminSelect ariaLabel="Filtrar pós-venda" value={supportFilter} onValueChange={value => { setSupportFilter(value); setPage(1); }} options={[{ value: "all", label: "Todo pós-venda" }, { value: "active", label: "Com solicitação ativa" }, { value: "none", label: "Sem solicitações" }]} />
+      </div>
     </AdminSearchPanel>
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       <div className="space-y-4">
@@ -368,17 +408,14 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             </tr>)}</tbody>
           </table>
         </div>}
-        {filtered.length > 10 && <div className="flex items-center justify-end gap-3 text-sm text-muted-foreground">
-          <button type="button" disabled={page <= 1} onClick={() => setPage(p => Math.max(1,p-1))} aria-label="Página anterior" className="rounded p-1 disabled:opacity-40"><ChevronLeft size={19}/></button>
-          {Math.min(page,totalPages)} de {totalPages}
-          <button type="button" disabled={page >= totalPages} onClick={() => setPage(p => Math.min(totalPages,p+1))} aria-label="Próxima página" className="rounded p-1 disabled:opacity-40"><ChevronRight size={19}/></button>
-        </div>}
+        <PaginationBar showFilteredTotal page={safePage} pageSize={pageSize}
+          totalItems={filtered.length} onPageChange={setPage}
+          onPageSizeChange={size => { setPageSize(size); setPage(1); }} />
       </div>
     </AdminCard>
-    <AdminStickyToolbar>
-      {!embedded && <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>}
-      <BtnSecondary onClick={() => void refresh()} disabled={loading}><RefreshCw size={15}/> Atualizar</BtnSecondary>
-    </AdminStickyToolbar>
+    {!embedded && <AdminStickyToolbar>
+      <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+    </AdminStickyToolbar>}
 
     <AdminDialog open={Boolean(selected)} title={selected ? (modalView === "afterSales" ? "Pós-venda · " : "Pedido ") + orderCode(selected) : "Pedido"}
       description={selected ? "Compra realizada em " + timeText(selected.created_at) : undefined}
