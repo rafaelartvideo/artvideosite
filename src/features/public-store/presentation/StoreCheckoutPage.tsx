@@ -808,7 +808,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <p className="mt-3 text-[13px] text-[#536780]">{pickupQuery.data.street}, {pickupQuery.data.number}{pickupQuery.data.complement ? " · "+pickupQuery.data.complement : ""}</p>
                 <p className="text-[13px] text-[#536780]">{pickupQuery.data.district}, {pickupQuery.data.city}/{pickupQuery.data.state} · CEP {displayCep(pickupQuery.data.postal_code)}</p>
                 <p className="mt-3 whitespace-pre-line text-[12px] leading-5 text-[#536780]"><strong>Horários:</strong> {pickupQuery.data.opening_hours}</p>
-                {pickupQuery.data.instructions&&<p className="mt-2 whitespace-pre-line text-[12px] leading-5 text-[#536780]">{pickupQuery.data.instructions}</p>}
                 <p className="mt-3 text-[12px] font-semibold text-[var(--art-primary)]">Aguarde a confirmação de pedido pronto antes de ir à loja.</p>
               </div>}
               {deliveryMode==="delivery" && <>
