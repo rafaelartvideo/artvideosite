@@ -116,6 +116,6 @@ begin
  return jsonb_build_object('success',coalesce((v_result->>'success')::boolean,false),'error',v_result->>'error','protocol',v_result->>'protocol');
 exception when invalid_text_representation or datetime_field_overflow then
  return jsonb_build_object('success',false,'error','Revise os dados, a data e a opção do serviço.');
-end;$function$
+end;$function$;
 
 commit;
