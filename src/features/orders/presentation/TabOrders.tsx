@@ -43,7 +43,6 @@ import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage"
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
-import { OperationProgressDialog } from "@/shared/ui/admin/OperationProgressDialog";
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
@@ -129,7 +128,6 @@ export function TabOrders({
   };
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
-  const [creationProgress, setCreationProgress] = useState<"loading" | "success" | null>(null);
   const [queueGateOpen, setQueueGateOpen] = useState(false);
   const [subView, setSubView] = useState<"list" | "situations">("list");
   const [displayMode, setDisplayMode] = useState<"list" | "kanban">(() => {
@@ -611,10 +609,10 @@ export function TabOrders({
 
   const saveRoutedOrder = async () => {
     const wasCreating = !editingOS;
-    if (wasCreating) setCreationProgress("loading");
     const queueReservationId = wasCreating ? String(form.queue_reservation_id || "") : "";
     const savedOrderId = await saveOS();
-    if (!savedOrderId) { if (wasCreating) setCreationProgress(null); return; }
+    if (!savedOrderId) return;
+    if (wasCreating) setToast({ msg: "OS criada com sucesso!", type: "success" });
 
     openingEditRouteRef.current = null;
 
@@ -631,7 +629,6 @@ export function TabOrders({
 
     if (wasCreating) {
       if (!workspaceBase.organizationId) {
-        setCreationProgress(null);
         setToast({ msg: "A OS foi criada, mas não foi possível carregar os detalhes.", type: "error" });
         return;
       }
@@ -647,7 +644,6 @@ export function TabOrders({
         setDetailInitialSection("details");
         openFreshDetail(createdOrder);
 
-        setCreationProgress("success");
         if (onOrderRouteChange) {
           onOrderRouteChange(savedOrderId, null);
         } else {
@@ -656,7 +652,6 @@ export function TabOrders({
         }
       } catch (error) {
         creatingDetailRouteRef.current = null;
-        setCreationProgress(null);
         setToast({
           msg: `A OS foi criada, mas não foi possível abrir os detalhes: ${systemErrorMessage(error)}`,
           type: "error",
@@ -723,9 +718,6 @@ export function TabOrders({
 
   return (
     <div className="space-y-5">
-      <OperationProgressDialog open={creationProgress !== null} state={creationProgress || "loading"}
-        loadingTitle="Criando OS..." successTitle="OS criada com sucesso!"
-        onFinished={() => setCreationProgress(null)} />
       {toast && <Toast message={toast.msg} type={toast.type} persistent={toast.type === "error"} onRetry={toast.msg.startsWith("Erro ao carregar dados da OS") ? workspaceBase.retryLoadWorkspace : undefined} onClose={() => setToast(null)} />}
 
       {queueSettings && workspaceBase.organizationId && <QueueOsCodeDialog
