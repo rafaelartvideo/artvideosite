@@ -97,11 +97,11 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
         </div>
         <div className="mx-auto max-w-3xl" role="list" aria-label="Etapas do pedido">
           <div className="relative grid" style={{ gridTemplateColumns: `repeat(${steps.length},minmax(0,1fr))` }}>
-            <div className="pointer-events-none absolute left-[12.5%] right-[12.5%] top-[20px] h-[4px] rounded-full bg-[#e7eef7]" aria-hidden="true">
+            <div className="pointer-events-none absolute top-[20px] h-[4px] rounded-full bg-[#e7eef7]"\n              style={{left:`${50/steps.length}%`,right:`${50/steps.length}%`}} aria-hidden="true">
               <div className="h-full rounded-full bg-gradient-to-r from-[#1157bc] to-[#35a0e7] transition-[width] duration-700 ease-out"
                 style={{width: `${percent}%`}}/>
-              {paid && !finished && <div className="absolute inset-y-0 h-full w-8 animate-pulse rounded-full bg-blue-300/40"
-                style={{left: `clamp(0px, ${percent}% - 16px, 100% - 32px)`}}/>}
+              {paid && !finished && <div className="absolute inset-y-0 left-0 h-full animate-pulse rounded-full bg-blue-300/35"
+                style={{width: `${percent}%`}}/>}
             </div>
             {steps.map((item, i) => {
               const done = paid && i < currentIndex;
