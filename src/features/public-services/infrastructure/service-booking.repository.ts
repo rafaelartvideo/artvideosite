@@ -18,7 +18,8 @@ export async function submitServiceBooking(
    await crypto.subtle.digest('SHA-256',new TextEncoder().encode(secret)),
  ),n=>n.toString(16).padStart(2,'0')).join(''):'';
  const {data,error}=await supabase.rpc('submit_public_service_quote_v1',{
-   p_form:{...form,marca_nome:selection.brand_name},
+   p_form:{...form,marca_nome:selection.brand_name,
+     nome:form.customerType==='PJ'?form.tradeName:form.nome},
    p_address:selection.attendance_mode==='store'?{}:address,
    p_selection:{...selection,media_token_hash},p_protocol:protocol,
  });
