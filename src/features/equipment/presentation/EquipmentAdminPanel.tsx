@@ -2,7 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { findIntroducedDuplicateNameIndices } from "../domain/equipment-name-conflicts.mjs";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Plus, Trash2, Wrench } from "lucide-react";
+import { Edit2, Plus, Settings2, Tags, Trash2, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
@@ -16,6 +16,7 @@ import { brandKey, buildEquipmentBrandChoices, EquipmentBrandCreate, EquipmentBr
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
+import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -514,9 +515,19 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-3 border-b border-[#0d1b2e]/10">
-      <div className="flex min-w-0 flex-wrap gap-1">{canViewTable && <button type="button" onClick={openRegisteredPage} className={`cursor-default border-b-2 px-4 py-2.5 text-xs font-bold ${activeArea === "registered" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>Cadastrados</button>}{canViewFields && <button type="button" onClick={openFieldsPage} className={`cursor-default border-b-2 px-4 py-2.5 text-xs font-bold ${activeArea === "fields" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>Campos Extras</button>}{canViewTable && <button type="button" onClick={openBrandsPage} className={`cursor-default border-b-2 px-4 py-2.5 text-xs font-bold ${activeArea === "brands" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]"}`}>Marcas</button>}</div>
-      <div className="w-full pb-2 sm:ml-auto sm:w-auto sm:pb-1">
+    <AdminSubsectionButtons value={activeArea} ariaLabel="Subseções de equipamentos técnicos"
+      items={[
+        ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
+        ...(canViewFields ? [{ id: "fields" as const, label: "Campos Extras", Icon: Settings2 }] : []),
+        ...(canViewTable ? [{ id: "brands" as const, label: "Marcas", Icon: Tags }] : []),
+      ]}
+      onChange={value => {
+        if (value === "registered") openRegisteredPage();
+        else if (value === "fields") openFieldsPage();
+        else openBrandsPage();
+      }} />
+    <div className="flex justify-end">
+      <div className="w-full sm:w-72">
         <AdminInlineSearch value={activeSearch} onChange={updateAreaSearch}
           placeholder={activeArea === "registered" ? "Buscar equipamentos..." : activeArea === "fields" ? "Buscar campos extras..." : "Buscar marcas..."}
           ariaLabel={activeArea === "registered" ? "Buscar equipamentos, marcas e modelos" : activeArea === "fields" ? "Buscar campos extras" : "Buscar marcas e equipamentos vinculados"} />
