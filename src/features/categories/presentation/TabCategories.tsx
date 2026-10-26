@@ -240,17 +240,14 @@ export function TabCategories({
     {delItem && <ConfirmDialog message={`Excluir a categoria "${delItem.name}"? Itens vinculados poderão perder a referência.`}
       onConfirm={handleDelete} onCancel={() => setDelItem(null)} />}
     {!routeResourceId && <>
-      <PageHeader title="Categorias" subtitle="Personalize nome, ordem e ícone ou imagem das categorias exibidas no site."
-        actions={<div className="flex items-center gap-2"><InternalBackButton onBack={onBack} />
-          {canCreate && <AdminButton onClick={openNewPage} className="text-xs"><Plus size={16}/> Nova categoria</AdminButton>}
-        </div>} />
-      <div role="tablist" aria-label="Tipo de categoria" className="flex items-center gap-5 border-b border-[#e4eaf2]">
+      <PageHeader title="Categorias" subtitle="Personalize nome, ordem e ícone ou imagem das categorias exibidas no site." />
+      <div role="tablist" aria-label="Tipo de categoria" className="flex items-center gap-5 border-b border-border">
         {([{ id: "products", title: "Produtos", Icon: Package }, { id: "services", title: "Serviços", Icon: Wrench }] as const).map(tab =>
           <button key={tab.id} type="button" role="tab" aria-selected={kind === tab.id}
             onClick={() => { setKind(tab.id); setPage(1); }}
             className={`inline-flex items-center gap-2 border-b-2 px-1 pb-3 pt-1 text-sm font-semibold transition-colors ${kind === tab.id
-              ? "border-[var(--art-primary)] text-[var(--art-primary)]"
-              : "border-transparent text-[#64748b] hover:text-[#21344d]"}`}>
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <tab.Icon size={17}/>{tab.title}
           </button>)}
       </div>
@@ -284,6 +281,10 @@ export function TabCategories({
               onPageChange={setPage} onPageSizeChange={size => { setPageSize(size); setPage(1); }}/>
           </>}
       </AdminCard>}
+      <AdminStickyToolbar className="justify-between">
+        <InternalBackButton onBack={onBack} />
+        {canCreate && <AdminButton onClick={openNewPage}><Plus size={16}/> Nova categoria</AdminButton>}
+      </AdminStickyToolbar>
     </>}
     {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState/></AdminCard>}
     <AdminPage open={drawerOpen} onClose={closeEditor}
