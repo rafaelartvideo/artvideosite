@@ -28,7 +28,6 @@ const TabWorkItems = lazy(() => import("@/features/work-items/presentation/TabWo
 const TabBrands = lazy(() => import("@/features/brands/presentation/TabBrands").then(({ TabBrands }) => ({ default: TabBrands })));
 const TabCategories = lazy(() => import("@/features/categories/presentation/TabCategories").then(({ TabCategories }) => ({ default: TabCategories })));
 const ChecklistAdminPanel = lazy(() => import("@/features/checklists/presentation/ChecklistAdminPanel").then(({ ChecklistAdminPanel }) => ({ default: ChecklistAdminPanel })));
-const TabContact = lazy(() => import("@/features/contact/presentation/TabContact").then(({ TabContact }) => ({ default: TabContact })));
 const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCustomers").then(({ TabCustomers }) => ({ default: TabCustomers })));
 const TabCustomerRequests = lazy(() => import("@/features/customer-requests/presentation/TabCustomerRequests").then(({ TabCustomerRequests }) => ({ default: TabCustomerRequests })));
 const AdminHomePage = lazy(() => import("@/features/admin-home/presentation/AdminHomePage").then(({ AdminHomePage }) => ({ default: AdminHomePage })));
@@ -459,7 +458,7 @@ export function AdminDashboard({
             <Route path="site/categories/*" element={<TabCategories onBack={() => backToParent("categories")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("categories")} />} />
             <Route path="site/products/*" element={<Navigate to={adminPath("inventory", route.resourceId, route.subpage)} replace />} />
             <Route path="site/brands/*" element={<TabBrands onBack={() => backToParent("brands")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("brands")} />} />
-            <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} />} />
+            <Route path="site/settings/*" element={<TabSiteSettings onBack={() => backToParent("siteSettings")} initialSection={route.resourceId === "contato" ? "contact" : undefined} />} />
             <Route path="site/entrega/*" element={<SiteDeliveryPage onBack={() => backToParent("siteDelivery")} />} />
             <Route path="site/pagamentos/*" element={<SitePaymentsPage onBack={() => backToParent("sitePayments")} />} />
             <Route path="site/solicitacoes/*" element={<SiteRequestsPage section={route.resourceId} quoteId={route.subpage}
@@ -507,7 +506,7 @@ export function AdminDashboard({
             <Route path="nfse/*" element={<Navigate to="/admin" replace />} />
             <Route path="settings/*" element={<Navigate to={adminPath("settings", route.resourceId, route.subpage)} replace />} />
             <Route path="plan-usage" element={<PlanUsagePage />} />
-            <Route path="contact/*" element={<TabContact />} />
+            <Route path="contact/*" element={<Navigate to="/admin/site/settings/contato" replace />} />
             <Route path="*" element={<Navigate to="/admin" replace />} />
           </Routes>}
         </RetainedAdminWorkspace>
