@@ -9,14 +9,13 @@ import {
   findServiceOrderByQuote,
   getQuote,
   listOrderStatuses,
-  listOrderSituationsForConversion,
   listQuotesPage,
   listRequestStatuses,
   updateQuoteStatus,
 } from "../infrastructure/quotes.repository";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { initialOrderStatus } from "@/features/orders/domain/order-status";
-import { AdminButton, AdminCard, AdminPage, AdminStickyToolbar, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminStickyToolbar, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCnpj, formatCpf, formatPhone, formatCurrency, formatDateTime } from "@/shared/domain/formatters";
@@ -25,6 +24,7 @@ import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
+import { OperationProgressDialog } from "@/shared/ui/admin/OperationProgressDialog";
 import { parseQuoteRequestMessage, quoteRequestAddress, quoteAddressLabel } from "../domain/quote-request-details.mjs";
 
 type TabQuotesProps = {
@@ -34,13 +34,13 @@ type TabQuotesProps = {
   embedded?: boolean;
 };
 
-type QuoteMobileFilter = "customer" | "document" | "whatsapp" | "protocol" | "status";
+type QuoteMobileFilter = "customer" | "document" | "protocol" | "status";
+type QuoteAction = "AGUARDANDO_APROVACAO" | "APROVADO" | "REPROVADO" | "RENEGOCIACAO";
 type QuoteSort = "" | "asc" | "desc";
 
 const quoteMobileFilters: Array<{ value: QuoteMobileFilter; label: string }> = [
   { value: "customer", label: "Cliente" },
   { value: "document", label: "CPF / CNPJ" },
-  { value: "whatsapp", label: "WhatsApp" },
   { value: "protocol", label: "Protocolo" },
   { value: "status", label: "Status" },
 ];
@@ -76,25 +76,23 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
   const showActions = hasPermission("quotes.table.actions");
   const queryClient = useQueryClient();
 
-  const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [mobileFilter, setMobileFilter] = useState<QuoteMobileFilter>("customer");
   const [mobileCustomerSearch, setMobileCustomerSearch] = useState("");
   const [mobileDocumentSearch, setMobileDocumentSearch] = useState("");
-  const [mobileWhatsappSearch, setMobileWhatsappSearch] = useState("");
   const [mobileProtocolSearch, setMobileProtocolSearch] = useState("");
   const [orderSort, setOrderSort] = useState<QuoteSort>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [detail, setDetail] = useState<any>(null);
-  const [conversionSituationId, setConversionSituationId] = useState("");
+  const [confirmAction, setConfirmAction] = useState<QuoteAction | null>(null);
+  const [actionBusy, setActionBusy] = useState(false);
+  const [progressState, setProgressState] = useState<"loading" | "success" | null>(null);
   const [sacQuoteOpen, setSacQuoteOpen] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
-  const debouncedSearch = useDebouncedValue(search);
   const debouncedCustomerSearch = useDebouncedValue(mobileCustomerSearch);
   const debouncedDocumentSearch = useDebouncedValue(mobileDocumentSearch);
-  const debouncedWhatsappSearch = useDebouncedValue(mobileWhatsappSearch);
   const debouncedProtocolSearch = useDebouncedValue(mobileProtocolSearch);
 
   const statusesQuery = useQuery({
@@ -107,32 +105,22 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
     enabled: Boolean(organizationId) && (canViewTable || canViewDetails),
   });
   const statuses = statusesQuery.data ?? [];
-  const conversionSituationsQuery = useQuery({
-    queryKey: [...queryKeys.quotes.all, organizationId, "order-situations"],
-    queryFn: async () => {
-      const { data, error } = await listOrderSituationsForConversion(organizationId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: Boolean(organizationId && detail && canConvertToOrder),
-  });
-  const conversionSituations = conversionSituationsQuery.data ?? [];
 
   const listFilters = useMemo(() => ({
     page,
     pageSize,
-    search: debouncedSearch,
+    search: "",
     customerSearch: debouncedCustomerSearch,
     documentSearch: debouncedDocumentSearch,
-    whatsappSearch: debouncedWhatsappSearch,
+    whatsappSearch: "",
     protocolSearch: debouncedProtocolSearch,
     statusId: filterStatus,
     sort: orderSort,
-  }), [page, pageSize, debouncedSearch, debouncedCustomerSearch, debouncedDocumentSearch, debouncedWhatsappSearch, debouncedProtocolSearch, filterStatus, orderSort]);
+  }), [page, pageSize, debouncedCustomerSearch, debouncedDocumentSearch, debouncedProtocolSearch, filterStatus, orderSort]);
 
   const quotesQuery = useQuery({
     queryKey: [...queryKeys.quotes.lists(), organizationId, listFilters],
-    enabled: Boolean(organizationId) && canViewTable && !routeResourceId,
+    enabled: Boolean(organizationId) && canViewTable  ,
     queryFn: () => listQuotesPage(organizationId, listFilters),
   });
   const quotes = quotesQuery.data?.items ?? [];
@@ -149,7 +137,7 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterStatus, mobileCustomerSearch, mobileDocumentSearch, mobileWhatsappSearch, mobileProtocolSearch, orderSort]);
+  }, [filterStatus, mobileCustomerSearch, mobileDocumentSearch, mobileProtocolSearch, orderSort]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   useEffect(() => {
@@ -180,35 +168,21 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
     void queryClient.invalidateQueries({ queryKey: queryKeys.admin.dashboards() });
   };
 
-  const updateStatus = async (id: string, statusId: string) => {
-    if (!canChangeStatus) return;
-    const selectedStatus = statuses.find(status => status.id === statusId);
-    const { error: updateError } = await updateQuoteStatus(organizationId, id, statusId);
-    if (updateError) {
-      setToast({ msg: `Erro ao atualizar status: ${systemErrorMessage(updateError)}`, type: "error" });
-      return;
-    }
-    if (detail?.id === id) setDetail({ ...detail, status_id: statusId, statusName: selectedStatus?.name || "Sem status", request_status: selectedStatus || detail.request_status });
-    setToast({ msg: "Status atualizado!", type: "success" });
-    syncQuotes();
-  };
-
   const openDetails = (quote: any) => {
     if (!canViewDetails) return;
     setDetail(quote);
-    setConversionSituationId("");
+
     if (onRouteChange) onRouteChange(quote.id, null);
   };
-  const closeDetails = () => { setSacQuoteOpen(false); setDetail(null); setConversionSituationId(""); onRouteChange?.(null, null); };
+  const closeDetails = () => { setSacQuoteOpen(false); setDetail(null); setConfirmAction(null); onRouteChange?.(null, null); };
 
   const sortLabel = orderSort === "asc" ? "Protocolo crescente" : orderSort === "desc" ? "Protocolo decrescente" : "Ordenação padrão";
   const SortIcon = orderSort === "asc" ? ArrowUpNarrowWide : orderSort === "desc" ? ArrowDownWideNarrow : ArrowUpDown;
-  const hasMobileFilters = Boolean(mobileCustomerSearch || mobileDocumentSearch || mobileWhatsappSearch || mobileProtocolSearch || filterStatus || orderSort);
+  const hasMobileFilters = Boolean(mobileCustomerSearch || mobileDocumentSearch || mobileProtocolSearch || filterStatus || orderSort);
 
   const clearMobileFilters = () => {
     setMobileCustomerSearch("");
     setMobileDocumentSearch("");
-    setMobileWhatsappSearch("");
     setMobileProtocolSearch("");
     setFilterStatus("");
     setOrderSort("");
@@ -218,7 +192,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
   const renderMobileFilter = () => {
     if (mobileFilter === "customer") return <MobileSearchField value={mobileCustomerSearch} onChange={setMobileCustomerSearch} placeholder="Digite o nome do cliente" ariaLabel="Buscar por nome do cliente" />;
     if (mobileFilter === "document") return <MobileSearchField value={mobileDocumentSearch} onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
-    if (mobileFilter === "whatsapp") return <MobileSearchField value={mobileWhatsappSearch} onChange={value => setMobileWhatsappSearch(formatPhone(value))} placeholder="Digite o WhatsApp" ariaLabel="Buscar por WhatsApp" inputMode="numeric" />;
     if (mobileFilter === "protocol") return <MobileSearchField value={mobileProtocolSearch} onChange={setMobileProtocolSearch} placeholder="Digite o protocolo" ariaLabel="Buscar por protocolo" />;
     return <AdminSelect value={filterStatus} onValueChange={value => { setFilterStatus(value); setPage(1); }} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar orçamentos por status" />;
   };
@@ -257,10 +230,10 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 
-    {!routeResourceId && <>
+    <>
       {!embedded && <PageHeader title="Orçamentos" subtitle={`${totalItems} solicitaç${totalItems !== 1 ? "ões" : "ão"} recebida${totalItems !== 1 ? "s" : ""}`} />}
       {canViewTable && <AdminSearchPanel title="Buscar orçamentos" headerActions={<>
-        {(hasMobileFilters || search) && <AdminSearchClearButton onClick={() => { clearMobileFilters(); setSearch(""); }} />}
+        {hasMobileFilters && <AdminSearchClearButton onClick={clearMobileFilters} />}
         <AdminSearchSortMenu value={orderSort} onChange={setOrderSort}
           options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "Protocolo crescente" }, { value: "desc", label: "Protocolo decrescente" }]} />
       </>}>
@@ -271,9 +244,11 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
         >
           {renderMobileFilter()}
         </AdminMobileSearchSwitch>
-        <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-[minmax(0,1fr)_220px]">
-          <SearchField value={search} onChange={setSearch} placeholder="Cliente, CPF/CNPJ, WhatsApp ou protocolo" />
-          <AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs md:h-9 md:py-1.5" ariaLabel="Filtrar por status" />
+        <div className="hidden min-w-0 gap-2 md:grid md:grid-cols-4">
+          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">Cliente</span><SearchField value={mobileCustomerSearch} onChange={setMobileCustomerSearch} placeholder="Nome do cliente" /></label>
+          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">CPF/CNPJ</span><SearchField value={mobileDocumentSearch} onChange={value => setMobileDocumentSearch(formatDocumentSearch(value))} placeholder="CPF ou CNPJ" /></label>
+          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">Protocolo</span><SearchField value={mobileProtocolSearch} onChange={setMobileProtocolSearch} placeholder="Número do protocolo" /></label>
+          <label className="min-w-0"><span className="mb-1 block text-xs font-semibold text-foreground">Status</span><AdminSelect value={filterStatus} onValueChange={setFilterStatus} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-9 text-xs" ariaLabel="Filtrar por status" /></label>
         </div>
       </AdminSearchPanel>}
 
@@ -284,17 +259,17 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
             return <article key={quote.id} role={canViewDetails ? "button" : undefined} tabIndex={canViewDetails ? 0 : undefined} onClick={() => openDetails(quote)} className="space-y-3 p-4">
               <div className="flex items-start justify-between gap-3"><div className="min-w-0">{showProtocol && <p className="font-mono text-xs font-black text-[#0057e7]">{quote.protocol || quote.id.slice(0, 8)}</p>}{showCustomer && <p className="truncate text-sm font-bold text-[#0d1b2e]">{customer?.full_name || customer?.trade_name || "—"}</p>}</div>{showStatus && <StatusBadge status={quote.statusName || "Sem status"} color={quote.request_status?.color} />}</div>
               <div className="grid grid-cols-2 gap-2">{showDocument && <MobileInfo label="Documento" value={customer?.customer_type === "PJ" ? formatCnpj(customer?.cnpj || "") : formatCpf(customer?.document || "")} />}{showCreatedAt && <MobileInfo label="Recebido em" value={formatDateTime(quote.created_at)} />}{showServiceBrand && <MobileInfo label="Serviço" value={(quote.service as any)?.title || "—"} />}{showServiceBrand && <MobileInfo label="Marca" value={(quote.brand as any)?.name || "—"} />}</div>
-              {showActions && <div onClick={event => event.stopPropagation()} className="border-t border-[#0d1b2e]/8 pt-3">{canChangeStatus && <AdminSelect value={quote.status_id || ""} onValueChange={value => void updateStatus(quote.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="h-9 text-xs" ariaLabel="Alterar status" />}</div>}
+              {showActions && <div onClick={event => event.stopPropagation()} className="border-t border-[#0d1b2e]/8 pt-3"><span className="text-xs text-muted-foreground">Abra o orçamento para gerenciar a aprovação.</span></div>}
             </article>;
           })}</div>
-          <div className="hidden overflow-x-auto md:block"><table className="min-w-[850px]"><thead><tr>{showProtocol && <th className="text-left">Protocolo</th>}{showCustomer && <th className="text-left">Cliente</th>}{showDocument && <th className="text-left">CPF/CNPJ</th>}{showServiceBrand && <th className="text-left">Serviço / Marca</th>}{showStatus && <th className="text-left">Status</th>}{showCreatedAt && <th className="text-left">Recebido em</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{quotes.map(quote => { const customer = quote.customer as any; return <tr key={quote.id} onClick={() => openDetails(quote)} className="cursor-default">{showProtocol && <td className="font-mono text-xs font-black text-[#0057e7]">{quote.protocol || quote.id.slice(0,8)}</td>}{showCustomer && <td><p className="font-bold text-[#0d1b2e]">{customer?.full_name || customer?.trade_name || "—"}</p><p className="text-xs text-[#5a6a82]">{formatPhone(customer?.whatsapp || customer?.phone)}</p></td>}{showDocument && <td className="text-xs text-[#5a6a82]">{customer?.customer_type === "PJ" ? formatCnpj(customer?.cnpj || "") : formatCpf(customer?.document || "")}</td>}{showServiceBrand && <td className="text-xs text-[#5a6a82]">{(quote.service as any)?.title || "—"} · {(quote.brand as any)?.name || "—"}</td>}{showStatus && <td><StatusBadge status={quote.statusName || "Sem status"} color={quote.request_status?.color} /></td>}{showCreatedAt && <td className="text-xs text-[#5a6a82]">{formatDateTime(quote.created_at)}</td>}{showActions && <td onClick={event => event.stopPropagation()}><div className="flex justify-end">{canChangeStatus && <div className="w-40"><AdminSelect value={quote.status_id || ""} onValueChange={value => void updateStatus(quote.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="h-9 text-xs" ariaLabel="Alterar status" /></div>}</div></td>}</tr>; })}</tbody></table></div>
+          <div className="hidden overflow-x-auto md:block"><table className="min-w-[850px]"><thead><tr>{showProtocol && <th className="text-left">Protocolo</th>}{showCustomer && <th className="text-left">Cliente</th>}{showDocument && <th className="text-left">CPF/CNPJ</th>}{showServiceBrand && <th className="text-left">Serviço / Marca</th>}{showStatus && <th className="text-left">Status</th>}{showCreatedAt && <th className="text-left">Recebido em</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{quotes.map(quote => { const customer = quote.customer as any; return <tr key={quote.id} onClick={() => openDetails(quote)} className="cursor-default">{showProtocol && <td className="font-mono text-xs font-black text-[#0057e7]">{quote.protocol || quote.id.slice(0,8)}</td>}{showCustomer && <td><p className="font-bold text-[#0d1b2e]">{customer?.full_name || customer?.trade_name || "—"}</p><p className="text-xs text-[#5a6a82]">{formatPhone(customer?.whatsapp || customer?.phone)}</p></td>}{showDocument && <td className="text-xs text-[#5a6a82]">{customer?.customer_type === "PJ" ? formatCnpj(customer?.cnpj || "") : formatCpf(customer?.document || "")}</td>}{showServiceBrand && <td className="text-xs text-[#5a6a82]">{(quote.service as any)?.title || "—"} · {(quote.brand as any)?.name || "—"}</td>}{showStatus && <td><StatusBadge status={quote.statusName || "Sem status"} color={quote.request_status?.color} /></td>}{showCreatedAt && <td className="text-xs text-[#5a6a82]">{formatDateTime(quote.created_at)}</td>}{showActions && <td onClick={event => event.stopPropagation()}><div className="flex justify-end"><span className="text-xs text-muted-foreground">Abrir para avaliar</span></div></td>}</tr>; })}</tbody></table></div>
         </>}
         <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }} />
       </AdminCard>}
     </>}
 
     {routeResourceId && !detail && <AdminCard className="p-8"><LoadingState /></AdminCard>}
-    {detail && canViewDetails && <AdminPage open onClose={closeDetails} breadcrumb={`Orçamentos > ${detail.protocol || detail.id.slice(0, 8)}`} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} subtitle="Detalhes da solicitação de orçamento">
+    {detail && canViewDetails && <AdminDialog open onClose={closeDetails} title={detail.protocol || `Orçamento #${detail.id.slice(0, 8)}`} description="Detalhes da solicitação de orçamento" className="max-w-4xl">
       <div className="min-w-0 space-y-4 p-3 sm:p-5">
         <Section title="Dados pessoais / empresariais"
          actions={<button type="button" onClick={()=>setSacQuoteOpen(true)}
@@ -340,7 +315,6 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
           <InfoRow label="Marca" value={(detail.brand as any)?.name||parsedQuote?.brand}/>
           <InfoRow label="Modelo" value={parsedQuote?.model}/>
           <InfoRow label="Produto" value={(detail.product as any)?.name}/>
-          <InfoRow label="Opção" value={parsedQuote?.option}/>
           <InfoRow label="Quantidade" value={parsedQuote?.quantity}/>
           <InfoRow label="Preferência de atendimento" value={parsedQuote?.schedule}/>
           <InfoRow label="Modalidade de atendimento" value={parsedQuote?.repairLocation}/>
@@ -353,21 +327,75 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
           {parsedQuote.notes&&<div className={parsedQuote.issue?"mt-4":""}><InfoRow label="Mensagem" value={parsedQuote.notes}/></div>}
         </Section>}
       </div>
-      <AdminStickyToolbar className="flex-col gap-2 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4"><div className="grid min-w-0 grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:items-center">{canChangeStatus && <div className="min-w-0 sm:min-w-36"><AdminSelect value={detail.status_id || ""} onValueChange={value => void updateStatus(detail.id, value)} options={statuses.map(status => ({ value: status.id, label: status.name }))} className="py-2 text-sm" ariaLabel="Alterar status do orçamento" /></div>}{canConvertToOrder && <div className="w-full sm:w-52"><label className="mb-1 block text-[11px] font-bold text-muted-foreground">Situação da OS *</label><AdminSelect value={conversionSituationId} onValueChange={setConversionSituationId} options={[{ value: "", label: conversionSituationsQuery.isLoading ? "Carregando situações..." : "Selecionar situação..." }, ...conversionSituations.map(situation => ({ value: situation.id, label: situation.name }))]} ariaLabel="Situação obrigatória para converter orçamento em OS" className="min-h-10 w-full" /></div>}{canConvertToOrder && <AdminButton className="w-full sm:w-auto" onClick={async () => {
-        if (!conversionSituationId || !conversionSituations.some(situation => situation.id === conversionSituationId)) { setToast({ msg: "Selecione uma situação válida antes de converter o orçamento em OS.", type: "error" }); return; }
-        const { data: existing } = await findServiceOrderByQuote(organizationId, detail.id);
-        if (existing) { setToast({ msg: `OS ${existing.os_number || existing.id.slice(0,8)} já existe para este orçamento.`, type: "error" }); return; }
-        const { data: availableStatuses, error: statusError } = await listOrderStatuses(organizationId);
-        const status = initialOrderStatus(availableStatuses || []);
-        if (statusError || !status?.id) { setToast({ msg: "Não foi possível identificar um status inicial válido para a OS.", type: "error" }); return; }
-        const { error } = await createServiceOrderFromQuote(organizationId, { service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id, status_id: status.id, situation_id: conversionSituationId, customer_notes: detail.customer_message || null });
-        if (error) { setToast({ msg: `Erro ao criar OS: ${systemErrorMessage(error)}`, type: "error" }); return; }
-        closeDetails();
-        setToast({ msg: "OS criada com sucesso e vinculada ao orçamento.", type: "success" });
-        syncQuotes();
-        onNavigate?.("orders");
-      }}><ClipboardList size={13} /> Converter em OS</AdminButton>}</div><BtnSecondary onClick={closeDetails} className="w-full sm:w-auto">Fechar</BtnSecondary></AdminStickyToolbar>
-    </AdminPage>}
+      <AdminStickyToolbar className="flex flex-wrap items-center justify-end gap-2">
+        {canChangeStatus && (() => {
+          const current = String(detail.request_status?.slug || "").toUpperCase();
+          return <>
+            {!["AGUARDANDO_APROVACAO", "APROVADO"].includes(current) && <AdminButton variant="secondary" disabled={actionBusy} onClick={() => setConfirmAction("AGUARDANDO_APROVACAO")}>Enviar para aprovação</AdminButton>}
+            {current === "AGUARDANDO_APROVACAO" && <>
+              <AdminButton variant="success" disabled={actionBusy} onClick={() => setConfirmAction("APROVADO")}><Check size={15} /> Aprovar</AdminButton>
+              <AdminButton variant="danger" disabled={actionBusy} onClick={() => setConfirmAction("REPROVADO")}>Reprovar</AdminButton>
+            </>}
+            {["REPROVADO", "APROVADO"].includes(current) && <AdminButton variant="secondary" disabled={actionBusy} onClick={() => setConfirmAction("RENEGOCIACAO")}>Reabrir negociação</AdminButton>}
+          </>;
+        })()}
+        {canConvertToOrder && String(detail.request_status?.slug || "").toUpperCase() === "APROVADO" && <AdminButton disabled={actionBusy} onClick={async () => {
+          if (actionBusy) return;
+          setActionBusy(true);
+          setProgressState("loading");
+          try {
+            const { data: existing, error: existingError } = await findServiceOrderByQuote(organizationId, detail.id);
+            if (existingError) throw existingError;
+            if (existing) throw new Error(`OS ${existing.os_number || existing.id.slice(0, 8)} já vinculada a este orçamento.`);
+            const { data: availableStatuses, error: statusError } = await listOrderStatuses(organizationId);
+            if (statusError) throw statusError;
+            const status = initialOrderStatus(availableStatuses || []);
+            if (!status?.id) throw new Error("Não foi possível identificar o status inicial da OS.");
+            const { error } = await createServiceOrderFromQuote(organizationId, {
+              service_id: detail.service_id, quote_request_id: detail.id, customer_id: detail.customer_id,
+              status_id: status.id, situation_id: null, customer_notes: detail.customer_message || null,
+            });
+            if (error) throw error;
+            syncQuotes();
+            setProgressState("success");
+          } catch (error) {
+            setProgressState(null);
+            setToast({ msg: systemErrorMessage(error), type: "error" });
+          } finally { setActionBusy(false); }
+        }}><ClipboardList size={15} /> Criar OS</AdminButton>}
+        <BtnSecondary onClick={closeDetails} disabled={actionBusy}>Fechar</BtnSecondary>
+      </AdminStickyToolbar>
+    </AdminDialog>}
+    <AdminDialog open={Boolean(confirmAction)} onClose={() => { if (!actionBusy) setConfirmAction(null); }}
+      title={confirmAction === "APROVADO" ? "Aprovar orçamento?" : confirmAction === "REPROVADO" ? "Reprovar orçamento?" : confirmAction === "RENEGOCIACAO" ? "Reabrir negociação?" : "Enviar para aprovação?"}
+      description="A situação será atualizada também na consulta do cliente pelo site."
+      footer={<div className="flex justify-end gap-2">
+        <BtnSecondary disabled={actionBusy} onClick={() => setConfirmAction(null)}>Cancelar</BtnSecondary>
+        <AdminButton disabled={actionBusy} loading={actionBusy} onClick={async () => {
+          if (!confirmAction || actionBusy) return;
+          const selectedStatus = statuses.find(status => String(status.slug || "").toUpperCase() === confirmAction);
+          if (!selectedStatus) { setToast({ msg: "Status não configurado nesta empresa.", type: "error" }); return; }
+          setActionBusy(true);
+          setProgressState("loading");
+          const currentId = detail?.id;
+          try {
+            const { error } = await updateQuoteStatus(organizationId, currentId, selectedStatus.id);
+            if (error) throw error;
+            setDetail((current: any) => current?.id === currentId ? { ...current, status_id: selectedStatus.id, statusName: selectedStatus.name, request_status: selectedStatus } : current);
+            syncQuotes();
+            setConfirmAction(null);
+            setProgressState("success");
+          } catch (error) {
+            setProgressState(null);
+            setToast({ msg: systemErrorMessage(error), type: "error" });
+          } finally { setActionBusy(false); }
+        }}>Confirmar</AdminButton>
+      </div>}>
+      <p className="text-sm text-muted-foreground">Confirme para registrar a mudança no orçamento.</p>
+    </AdminDialog>
+    <OperationProgressDialog open={progressState !== null} state={progressState || "loading"}
+      loadingTitle="Atualizando orçamento..." successTitle="Operação concluída!"
+      onFinished={() => { setProgressState(null); }} />
     {sacQuoteOpen && detail && <QuoteSacDigitalDialog quote={detail} organizationId={organizationId} onClose={()=>setSacQuoteOpen(false)}/>}
   </div>;
 }
