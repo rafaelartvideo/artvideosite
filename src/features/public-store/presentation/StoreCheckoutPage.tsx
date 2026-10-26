@@ -199,12 +199,15 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   }, [checkoutProductsKey, purchasable]);
 
   useEffect(() => {
+    // O carregamento tardio do catálogo não pode voltar à etapa 1
+    // enquanto um pagamento está sendo retomado ou foi confirmado.
+    if(brickSession||confirmedOrder)return;
     setStep(1);
     setError("");
     setOptions([]);
     setQuoteKey("");
     setShippingId("");
-  }, [productId]);
+  }, [productId,brickSession,confirmedOrder]);
 
   const move = (next: Step) => {
     setStep(next);
