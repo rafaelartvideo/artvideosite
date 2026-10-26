@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, FileText, Wrench } from "lucide-react";
+import { ClipboardList, FileText, MoreVertical, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listQuotesPage,listRequestStatuses } from "../infrastructure/quotes.repository";
@@ -11,6 +11,9 @@ import { formatCnpj,formatCpf,formatPhone,formatDateTime } from "@/shared/domain
 import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminFieldLabel,AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/shared/ui/primitives/dropdown-menu";
 
 type QuoteSort = "" | "asc" | "desc";
 type Props = {
@@ -74,6 +77,22 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const clear=()=>{setCustomer("");setDocument("");setProtocol("");setStatus("");setSort("");setPage(1);};
   const open=(quote:any)=>{if(canOpen)onRouteChange?.(quote.id,null);};
   const statusName=(quote:any)=>quote.request_status?.slug==="PENDENTE"?"Recebida":quote.statusName||"Sem situação";
+  // Mesmo menu de ações utilizado na lista de Ordens de Serviço.
+  const quickActions=(quote:any)=> <DropdownMenu>
+    <DropdownMenuTrigger asChild>
+      <button type="button" onClick={event=>event.stopPropagation()}
+        aria-label={`Ações do orçamento ${quote.protocol||quote.id.slice(0,8)}`}
+        title="Ações rápidas"
+        className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+        <MoreVertical size={17}/>
+      </button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" className="w-56" onClick={event=>event.stopPropagation()}>
+      {canOpen ? <DropdownMenuItem className="font-semibold" onSelect={()=>open(quote)}>
+        <ClipboardList size={15}/> Ver detalhes
+      </DropdownMenuItem>:<DropdownMenuItem disabled>Sem ações disponíveis</DropdownMenuItem>}
+    </DropdownMenuContent>
+  </DropdownMenu>;
   return <div className="min-w-0 space-y-5">
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
     {canView&&<AdminSearchPanel title="Buscar orçamentos" headerActions={<>
@@ -97,15 +116,22 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
        !rows.length?<EmptyState icon={FileText} title="Nenhum orçamento encontrado" message="Ajuste os filtros ou aguarde novas solicitações."/>:
        <>
          <div className="divide-y divide-border md:hidden">{rows.map(quote=>{
-           const person=quote.customer as any;return <button key={quote.id} type="button"
-             disabled={!canOpen} onClick={()=>open(quote)}
-             className="w-full space-y-3 p-4 text-left hover:bg-muted/30 disabled:cursor-default">
+           const person=quote.customer as any;return <article key={quote.id}
+             role={canOpen?"button":undefined} tabIndex={canOpen?0:undefined}
+             onClick={()=>open(quote)}
+             onKeyDown={event=>{if(canOpen&&(event.key==="Enter"||event.key===" ")){event.preventDefault();open(quote);}}}
+             className="w-full space-y-3 p-4 text-left hover:bg-muted/30">
              <div className="flex items-start justify-between gap-3">
                <div className="min-w-0">
                  {showProtocol&&<p className="font-mono text-xs font-black text-primary">{quote.protocol||quote.id.slice(0,8)}</p>}
                  {showCustomer&&<p className="truncate text-sm font-bold">{person?.full_name||person?.trade_name||"—"}</p>}
                </div>
-               {showStatus&&<StatusBadge status={statusName(quote)} color={quote.request_status?.color}/>}
+               <div className="flex shrink-0 items-center gap-1">
+                 {showStatus&&<StatusBadge status={statusName(quote)} color={quote.request_status?.color}/>}
+                 <div onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}>
+                   {quickActions(quote)}
+                 </div>
+               </div>
              </div>
              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                <Wrench size={15}/><span>Serviço</span>
@@ -115,7 +141,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
                {showDocument&&<span><DocumentValue customer={person}/></span>}
                {showDate&&<span>{formatDateTime(quote.created_at)}</span>}
              </div>
-           </button>;
+           </article>;
          })}</div>
          <div className="hidden overflow-x-auto md:block">
            <table className="min-w-[810px]"><thead><tr>
@@ -138,8 +164,9 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
                {showService&&<td className="text-xs text-muted-foreground">{(quote.service as any)?.title||"Serviço solicitado"} · {(quote.brand as any)?.name||"—"}</td>}
                {showStatus&&<td><StatusBadge status={statusName(quote)} color={quote.request_status?.color}/></td>}
                {showDate&&<td className="text-xs">{formatDateTime(quote.created_at)}</td>}
-               <td className="text-right text-xs font-semibold text-primary">
-                 {canOpen?<span className="inline-flex items-center gap-1">Abrir detalhes <ClipboardList size={14}/></span>:"—"}
+               <td onClick={event=>event.stopPropagation()} onKeyDown={event=>event.stopPropagation()}
+                 className="text-right">
+                 <div className="flex justify-end">{quickActions(quote)}</div>
                </td>
              </tr>;
            })}</tbody></table>
