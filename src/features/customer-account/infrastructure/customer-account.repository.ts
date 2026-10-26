@@ -6,7 +6,6 @@ export type CustomerPortalItem = {
   status: string;
   created_at: string;
   product_name?: string;
-  equipment?: string;
   description?: string;
   delivery_status?: string;
   total?: number;
@@ -15,7 +14,6 @@ export type CustomerPortal = {
   status: "ready" | "unlinked" | "verify_email";
   customer?: { name: string; email: string; phone: string | null };
   orders?: CustomerPortalItem[];
-  services?: CustomerPortalItem[];
   quotes?: CustomerPortalItem[];
 };
 export type CustomerActivation = {
