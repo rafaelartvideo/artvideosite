@@ -165,7 +165,9 @@ Deno.serve(async(req:Request)=>{
     if(insertError)return reply({error:"Nao foi possivel iniciar a tentativa."},503);
     const baseUrl=Deno.env.get("SUPABASE_URL")||"";
     const payload:any={
-      transaction_amount:amount,currency_id:"BRL",
+      // BRL e a moeda da conta e sera validada na resposta do provedor.
+      // currency_id nao e necessario na criacao do pagamento.
+      transaction_amount:amount,
       description:"Compra online Eletronica Artvideo",external_reference:orderId,
       payment_method_id:paymentMethod,installments,
       notification_url:baseUrl+"/functions/v1/artvideo-store-webhook",
@@ -206,6 +208,14 @@ Deno.serve(async(req:Request)=>{
           (cause as Record<string,unknown>).description:""),
       ].filter((entry):entry is string=>typeof entry==="string")
         .join(" ").slice(0,1400).toLowerCase();
+      // Somente nomes fixos de campos para diagnostico, sem dados do cliente.
+      const knownFields=[
+        "currency_id","transaction_amount","payment_method_id","installments",
+        "notification_url","external_reference","payer.email",
+        "payer.identification","payer.identification.type","payer.identification.number",
+        "payer.first_name","payer.last_name","issuer_id","token",
+      ];
+      const invalidFields=knownFields.filter(field=>diagnosticText.includes(field));
       const category=/identification|document|cpf|cnpj/.test(diagnosticText)?"identification":
         /e-mail|email/.test(diagnosticText)?"email":
         /installment|parcel/.test(diagnosticText)?"installments":
@@ -219,7 +229,7 @@ Deno.serve(async(req:Request)=>{
       const requestId=/^[a-zA-Z0-9-]{1,100}$/.test(providerRequestId)
         ?providerRequestId:null;
       console.warn("Artvideo Bricks Mercado Pago rejection",JSON.stringify({
-        httpStatus:response.status,paymentMethod,category,errorCode,causeCodes,requestId,
+        httpStatus:response.status,paymentMethod,category,errorCode,causeCodes,invalidFields,requestId,
       }));
       const temporary=response.status>=500||response.status===429||
         response.status===401||response.status===403;
