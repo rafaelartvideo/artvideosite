@@ -7,7 +7,7 @@ alter table public.artvideo_customer_accounts
   add column if not exists phone text;
 update public.artvideo_customer_accounts
 set full_name=coalesce(nullif(btrim(full_name),''),e.name,'Cliente Artvideo'),
-    phone=coalesce(phone,e.phone),
+    phone=coalesce(artvideo_customer_accounts.phone,e.phone),
     entity_id=null
 from public.entities e
 where e.id=artvideo_customer_accounts.entity_id;
