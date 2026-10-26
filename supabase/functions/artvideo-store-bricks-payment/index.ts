@@ -184,10 +184,63 @@ Deno.serve(async(req:Request)=>{
       body:JSON.stringify(payload),
     });
     if(!response.ok){
-      console.warn("Artvideo Bricks Payment API status",response.status);
-      return reply({error:response.status>=500?
-        "O provedor esta temporariamente indisponivel. Confira o pedido antes de repetir.":
-        "O pagamento nao foi autorizado. Consulte o acompanhamento do pedido."},response.status>=500?503:422);
+      // Diagnostico minimo: nunca registrar payload, documento, email, token
+      // ou texto livre devolvido pelo provedor (pode conter dados pessoais).
+      const body=await response.json().catch(()=>null);
+      const providerError=body&&typeof body==="object"&&!Array.isArray(body)?body:{};
+      const safeCode=(value:unknown):string|null=>{
+        if(typeof value==="number"&&Number.isSafeInteger(value))
+          return String(value).slice(0,16);
+        if(typeof value==="string"&&/^[a-zA-Z0-9_-]{1,64}$/.test(value))
+          return value;
+        return null;
+      };
+      const errorCode=safeCode(providerError.error);
+      const causes=Array.isArray(providerError.cause)?providerError.cause.slice(0,5):[];
+      const causeCodes=causes.map((cause:unknown)=>
+        safeCode(cause&&typeof cause==="object"?(cause as Record<string,unknown>).code:null)
+      ).filter((code:string|null):code is string=>Boolean(code));
+      const diagnosticText=[
+        providerError.message,providerError.error,
+        ...causes.map((cause:unknown)=>cause&&typeof cause==="object"?
+          (cause as Record<string,unknown>).description:""),
+      ].filter((entry):entry is string=>typeof entry==="string")
+        .join(" ").slice(0,1400).toLowerCase();
+      const category=/identification|document|cpf|cnpj/.test(diagnosticText)?"identification":
+        /e-mail|email/.test(diagnosticText)?"email":
+        /installment|parcel/.test(diagnosticText)?"installments":
+        /issuer|emissor/.test(diagnosticText)?"issuer":
+        /token|security.code/.test(diagnosticText)?"card_data":
+        /payment.method|payment_method/.test(diagnosticText)?"payment_method":
+        /notification.url|notification_url|webhook/.test(diagnosticText)?"notification_url":
+        /collector|seller|merchant|account/.test(diagnosticText)?"merchant_account":
+        /idempoten/.test(diagnosticText)?"idempotency":"other";
+      const providerRequestId=response.headers.get("x-request-id")||"";
+      const requestId=/^[a-zA-Z0-9-]{1,100}$/.test(providerRequestId)
+        ?providerRequestId:null;
+      console.warn("Artvideo Bricks Mercado Pago rejection",JSON.stringify({
+        httpStatus:response.status,paymentMethod,category,errorCode,causeCodes,requestId,
+      }));
+      const temporary=response.status>=500||response.status===429||
+        response.status===401||response.status===403;
+      const messages:Record<string,string>={
+        identification:"O Mercado Pago nao aceitou os dados do documento do pagador.",
+        email:"O Mercado Pago nao aceitou o email do pagador.",
+        installments:"O Mercado Pago nao aceitou as parcelas selecionadas.",
+        issuer:"O Mercado Pago nao aceitou o emissor do cartao.",
+        card_data:"O Mercado Pago nao aceitou os dados de pagamento do cartao.",
+        payment_method:"O meio de pagamento nao foi aceito pelo Mercado Pago.",
+        notification_url:"Nao foi possivel iniciar o pagamento devido a configuracao do provedor.",
+        merchant_account:"Nao foi possivel iniciar o pagamento devido a configuracao da conta recebedora.",
+        idempotency:"A tentativa de pagamento precisa ser verificada antes de ser repetida.",
+        other:"O Mercado Pago rejeitou os dados enviados para iniciar o pagamento.",
+      };
+      return reply({
+        error:temporary?
+          "O Mercado Pago esta temporariamente indisponivel. Consulte o pedido antes de tentar novamente.":
+          messages[category],
+        provider_code:causeCodes[0]||errorCode||null,
+      },temporary?503:422);
     }
     const created=await response.json();
     const paymentId=String(created?.id||"");
