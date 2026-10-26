@@ -192,7 +192,7 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
     {toast&&<Toast message={toast.msg} type={toast.type} onClose={()=>setToast(null)}/>}
     {loading?<LoadingState text="Carregando solicitação..."/>:!quote||!canView?
       <Section title="Solicitação indisponível"><p className="text-sm text-muted-foreground">{error||"Você não tem permissão para visualizar."}</p></Section>:
-      <div className="space-y-4 pb-3">
+      <div className="space-y-5 p-5">
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-card p-4">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -336,26 +336,26 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
           </div>
         </Section>}
       </div>}
-    <AdminStickyToolbar className="justify-between gap-2">
+    <AdminStickyToolbar className="justify-between">
       <BtnSecondary onClick={onBack} disabled={busy}>Voltar</BtnSecondary>
-      {quote&&<div className="flex min-w-0 flex-wrap items-center justify-end gap-2">
-        {linkedOs&&<AdminButton variant="tertiary" className="h-10"
+      {quote&&<div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2">
+        {linkedOs&&<AdminButton variant="tertiary"
           onClick={()=>navigate(adminPath("orders",linkedOs.id))}>
           <ClipboardList size={15}/> Abrir OS
         </AdminButton>}
         {!linkedOs&&canCreateOrder&&(
           (repair&&status==="EQUIPAMENTO_RECEBIDO")||
           (!repair&&["ACEITO_CLIENTE","AGENDADO"].includes(status)))&&
-          <AdminButton className="h-10" disabled={busy} loading={busy} onClick={()=>void createOs()}>
+          <AdminButton disabled={busy} loading={busy} onClick={()=>void createOs()}>
             Criar OS
           </AdminButton>}
         {!action&&canUpdate&&!finished&&<>
-          <AdminButton variant="secondary" className="h-10 border-red-200 text-red-600 hover:bg-red-50"
+          <AdminButton variant="secondary"
             disabled={busy} onClick={()=>choose({id:"close",label:"Encerrar solicitação",needsNote:true})}>
             Encerrar
           </AdminButton>
           {actionOptions.map(option=><AdminButton key={option.id}
-            variant={option.variant||"primary"} className="h-10" disabled={busy}
+            variant={option.variant||"primary"} disabled={busy}
             onClick={()=>choose(option)}>
             {option.label}
           </AdminButton>)}
