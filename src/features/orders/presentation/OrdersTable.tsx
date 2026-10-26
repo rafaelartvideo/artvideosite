@@ -1,12 +1,12 @@
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
-import { Check, ClipboardList, Clock3, Edit2, MoreVertical, Printer } from "lucide-react";
+import { Check, ClipboardList, Clock3, Edit2, Printer } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { formatPhone } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminRowActionsTrigger } from "@/shared/ui/admin/AdminLayout";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -119,15 +119,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
     return <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
-          type="button"
-          onClick={event => event.stopPropagation()}
-          aria-label={`Ações rápidas da OS ${order.os_number || ""}`}
-          title="Ações rápidas"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
-        >
-          <MoreVertical size={17} />
-        </button>
+        <AdminRowActionsTrigger label={`Ações rápidas da OS ${order.os_number || ""}`}/>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56" onClick={event => event.stopPropagation()}>
         {!hasAnyAction && <DropdownMenuItem disabled>Nenhuma ação disponível</DropdownMenuItem>}
