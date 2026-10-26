@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
-import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, X, PanelsTopLeft, ArrowUp, ArrowDown, Plus, Trash2 } from "lucide-react";
+import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, X, PanelsTopLeft, ArrowUp, ArrowDown, Plus, Trash2, Phone, Pencil, ChevronRight } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useAuth } from "@/lib/auth";
 import { useProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
@@ -9,7 +9,9 @@ import type { Service } from "@/lib/database.types";
 import { siteBanners, type SiteBanner, type SiteBannerType } from "@/features/public-catalog/domain/site-banners";
 import { DEFAULT_HOME_CATEGORIES, homeCategories, homeServiceDisplay, PUBLIC_ICON_OPTIONS } from "@/features/public-shell/domain/site-appearance";
 import { useSaveSiteSettingsMutation, useSiteSettingsQuery } from "./useSiteSettingsQuery";
-import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
+import { SiteContactFields, siteContactGroups } from "./SiteContactFields";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -88,7 +90,7 @@ function ImageSetting({ label, mediaId, onChange, disabled }: {
   </div>;
 }
 
-type SiteSection = "identity" | "home" | "banners" | "catalog" | "assistance" | "testimonials" | "general";
+type SiteSection = "identity" | "home" | "banners" | "catalog" | "assistance" | "testimonials" | "general" | "contact";
 
 const sections = [
   { id: "identity", label: "Identidade", icon: Image, hint: "Cores, logo e imagens institucionais." },
@@ -98,6 +100,7 @@ const sections = [
   { id: "assistance", label: "Assistência", icon: MonitorPlay, hint: "Marcas e categorias atendidas." },
   { id: "testimonials", label: "Depoimentos", icon: MessagesSquare, hint: "Textos ilustrativos da página inicial." },
   { id: "general", label: "Informações", icon: Settings2, hint: "Dados institucionais e informações do site." },
+  { id: "contact", label: "Contato", icon: Phone, hint: "Telefone, WhatsApp, redes sociais, endereço e horários." },
 ] as const;
 
 const sectionGroups: Record<SiteSection, string[]> = {
@@ -108,6 +111,7 @@ const sectionGroups: Record<SiteSection, string[]> = {
   assistance: ["Assistência e marcas"],
   testimonials: ["Depoimentos temporários"],
   general: ["Chamada final e informações"],
+  contact: [],
 };
 
 function BannerSettingsEditor({ banners, services, disabled, onChange }: {
@@ -216,13 +220,18 @@ function BannerSettingsEditor({ banners, services, disabled, onChange }: {
   </Section>;
 }
 
-export function TabSiteSettings({ onBack }: { onBack: () => void }) {
+export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void; initialSection?: SiteSection }) {
   const { user, hasPermission } = useAuth();
   const canView = hasPermission("site_settings.view");
   const canViewDetails = hasPermission("site_settings.details.view");
   const canUpdate = hasPermission("site_settings.update");
+  const canViewContact = hasPermission("contact.view");
+  const canViewContactDetails = hasPermission("contact.details.view");
+  const canUpdateContact = hasPermission("contact.update");
   const [settings, setSettings] = useState<Record<string, any>>({});
-  const [section, setSection] = useState<SiteSection>("identity");
+  const [section, setSection] = useState<SiteSection>(initialSection || "identity");
+  const [editor, setEditor] = useState<string | null>(null);
+  useEffect(() => { if (initialSection) setSection(initialSection); }, [initialSection]);
   const [serviceSearch, setServiceSearch] = useState("");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const settingsQuery = useSiteSettingsQuery();
@@ -237,7 +246,9 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
   }, [settingsQuery.error]);
 
   const busy = saveSettings.isPending;
-  const disabled = !canUpdate || busy;
+  const contactSection = section === "contact";
+  const canEditCurrent = contactSection ? canUpdateContact : canUpdate;
+  const disabled = !canEditCurrent || busy;
   const dirty = Boolean(settingsQuery.data) && JSON.stringify(settings) !== JSON.stringify(settingsQuery.data);
   const display = homeServiceDisplay(settings.home_service_display);
   const categories = homeCategories(settings.home_categories);
@@ -261,163 +272,227 @@ export function TabSiteSettings({ onBack }: { onBack: () => void }) {
   };
 
   const handleSave = async () => {
-    if (disabled) return;
+    if (disabled) return false;
     try {
       await saveSettings.mutateAsync({ settings, updatedBy: user?.id ?? null });
-      setToast({ msg: "Configurações do site salvas com sucesso!", type: "success" });
+      setToast({ msg: "Configurações salvas com sucesso!", type: "success" });
+      return true;
     } catch (error) {
       setToast({ msg: "Erro ao salvar: " + systemErrorMessage(error), type: "error" });
+      return false;
     }
   };
 
-  if (!canView) return null;
+  if (!canView && !canViewContact) return null;
+  const availableSections = sections.filter(item => item.id === "contact"
+    ? canViewContact && canViewContactDetails : canView);
   const current = sections.find(item => item.id === section)!;
   const CurrentIcon = current.icon;
   const visibleGroups = groups.filter(group => sectionGroups[section].includes(group.title));
 
-  return <div className="min-w-0 space-y-5">
+  const editableGroups = visibleGroups.map(group => ({
+    ...group,
+    title: group.title === "Chamada final e informações"
+      ? section === "home" ? "Chamada final" : "Informações do site" : group.title,
+    fields: group.title === "Chamada final e informações"
+      ? group.fields.filter(field => section === "home" ? field.key.startsWith("home_cta_") : !field.key.startsWith("home_cta_"))
+      : group.fields,
+  })).filter(group => group.fields.length > 0);
+  const editingGroup = editor?.startsWith("group:")
+    ? editableGroups.find(group => group.title === editor.slice(6)) : undefined;
+  const editingService = editor?.startsWith("service:")
+    ? services.find(service => service.id === editor.slice(8)) : undefined;
+  const editingCategoryIndex = editor?.startsWith("category:") ? Number(editor.slice(9)) : -1;
+  const editingCategory = editingCategoryIndex >= 0 ? categories[editingCategoryIndex] : null;
+  const editingContact = editor?.startsWith("contact:")
+    ? siteContactGroups.find(group => group.id === editor.slice(8)) : undefined;
+  const modalTitle = editingGroup?.title || editingService?.title ||
+    (editingCategory ? "Editar categoria" : "") || editingContact?.title ||
+    (editor === "banners" ? "Banners" : editor === "institutional" ? "Imagens institucionais" : "");
+  const modalDescription = editingGroup?.subtitle || editingContact?.description ||
+    "Edite os dados e salve para publicá-los no site.";
+  const closeEditor = () => { if (!busy) setEditor(null); };
+
+  return <div className="min-w-0 space-y-4">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    <PageHeader title="Configurações do Site" eyebrow="Site"
-      subtitle="Organize a aparência e o conteúdo da Artvideo em subseções." />
-    <nav aria-label="Subseções das configurações do site"
-      className="min-w-0 overflow-x-auto rounded-xl border border-border bg-card p-2">
-      <div className="grid min-w-[770px] grid-cols-7 gap-1.5">
-        {sections.map(item => {
-          const Icon = item.icon;
-          const active = item.id === section;
-          return <button type="button" key={item.id}
-            aria-current={active ? "page" : undefined}
-            onClick={() => setSection(item.id)}
-            className={"flex min-h-[78px] flex-col items-center justify-center gap-2 rounded-lg border px-2 py-3 text-center text-xs font-bold transition-colors " +
-              (active ? "border-primary/30 bg-primary/10 text-primary" : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground")}>
-            <Icon size={20} strokeWidth={1.8} />
-            <span className="leading-tight">{item.label}</span>
-          </button>;
-        })}
-      </div>
-    </nav>
-    {settingsQuery.isPending ? <LoadingState /> : settingsQuery.isError ? (
-      <Section title="Falha ao carregar dados">
-        <button type="button" onClick={() => void settingsQuery.refetch()}
-          className="text-sm font-bold text-primary hover:underline">Tentar novamente</button>
-      </Section>
-    ) : canViewDetails ? <div className="min-w-0 space-y-5">
-      <div className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <CurrentIcon size={20} />
-        </span>
-        <div>
-          <h2 className="text-sm font-black text-foreground">{current.label}</h2>
-          <p className="mt-1 text-xs text-muted-foreground">{current.hint}</p>
-        </div>
-      </div>
-      {visibleGroups.map(group => {
-        const fields = group.title === "Chamada final e informações"
-          ? group.fields.filter(field => section === "home"
-              ? field.key.startsWith("home_cta_")
-              : !field.key.startsWith("home_cta_"))
-          : group.fields;
-        if (!fields.length) return null;
-        const title = group.title === "Chamada final e informações"
-          ? section === "home" ? "Chamada final" : "Informações do site"
-          : group.title;
-        return <Section key={title} title={title} description={group.subtitle}>
-          <div className="space-y-4">
-            <div className="grid min-w-0 gap-4 sm:grid-cols-2">
-              {fields.map(field => <div key={field.key} className={field.type === "textarea" ? "min-w-0 sm:col-span-2" : "min-w-0"}>
-                {field.type === "textarea" ? <FTextarea label={field.label} rows={3}
-                  value={String(settings[field.key] ?? "")} disabled={disabled}
-                  placeholder={field.placeholder}
-                  onChange={(event: any) => updateSetting(field.key, event.target.value)} /> :
-                  <FInput label={field.label} type={field.type || "text"}
-                    value={field.type === "color" ? String(settings[field.key] || field.placeholder) : String(settings[field.key] ?? "")}
-                    disabled={disabled} placeholder={field.placeholder}
-                    onChange={(event: any) => updateSetting(field.key, event.target.value)} />}
-              </div>)}
-            </div>
-            {group.title === "Identidade visual" && <ImageSetting label="Logotipo do site"
-              mediaId={String(settings.logo_media_id || "")}
-              onChange={id => updateSetting("logo_media_id", id)} disabled={disabled} />}
-            {group.title === "Capa da página inicial" && <ImageSetting label="Foto da capa"
-              mediaId={String(settings.hero_image_media_id || "")}
-              onChange={id => updateSetting("hero_image_media_id", id)} disabled={disabled} />}
-          </div>
-        </Section>;
-      })}
-      {section === "banners" && <BannerSettingsEditor banners={siteBanners(settings.site_banners)} services={services}
-        disabled={disabled} onChange={value => updateSetting("site_banners", value)}/>}
-      {section === "identity" && <Section title="Imagens institucionais"
-        description="Fotos das páginas Sobre nós e Assistência. O degradê permanece até escolher uma imagem.">
-        <div className="grid min-w-0 gap-5 sm:grid-cols-2">
-          {[
-            { key: "assistance_image_media_id", label: "Capa da assistência técnica" },
-            { key: "about_image_media_id", label: "Imagem da empresa" },
-            { key: "team_image_media_id", label: "Imagem da equipe" },
-          ].map(item => <ImageSetting key={item.key} label={item.label}
-            mediaId={String(settings[item.key] || "")}
-            onChange={id => updateSetting(item.key, id)} disabled={disabled} />)}
-        </div>
-      </Section>}
-      {section === "catalog" && <Section title="Ícones e imagens dos serviços"
-        description="Personalize a apresentação de cada serviço no site.">
-        <div className="space-y-4">
-          <div className="relative max-w-md">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input value={serviceSearch} onChange={event => setServiceSearch(event.target.value)}
-              placeholder="Buscar serviço" aria-label="Buscar serviço"
-              className="h-10 w-full rounded-lg border border-border bg-background pl-9 pr-9 text-sm outline-none focus:border-primary" />
-            {serviceSearch && <button type="button" onClick={() => setServiceSearch("")}
-              aria-label="Limpar busca"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
-              <X size={16} />
-            </button>}
-          </div>
-          {servicesLoading ? <p className="text-sm text-muted-foreground">Carregando serviços...</p>
-          : filteredServices.length ? <div className="space-y-3">
-            {filteredServices.map(service => <details key={service.id}
-              className="rounded-lg border border-border bg-background p-4">
-              <summary className="cursor-pointer text-sm font-bold">{service.title}</summary>
-              <div className="mt-4 grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
-                <FSelect label="Ícone" disabled={disabled}
-                  value={display[service.id]?.icon || service.public_icon || "wrench"}
-                  onChange={(event: any) => updateService(service.id, "icon", event.target.value)}
-                  options={PUBLIC_ICON_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
-                <ImageSetting label="Imagem exclusiva na home (opcional)"
-                  mediaId={display[service.id]?.media_id || ""}
-                  onChange={id => updateService(service.id, "media_id", id)} disabled={disabled} />
+    <PageHeader title="Configurações do Site"
+      subtitle="Personalize a aparência, os textos e os dados públicos da Artvideo." />
+
+    <AdminSubsectionButtons value={section} ariaLabel="Subseções das configurações do site"
+      items={availableSections.map(item => ({
+        id: item.id,
+        label: item.label,
+        Icon: item.icon,
+      }))}
+      onChange={value => { setEditor(null); setSection(value); }} />
+
+    {settingsQuery.isPending ? <LoadingState /> : settingsQuery.isError
+      ? <Section title="Falha ao carregar dados">
+          <AdminButton variant="secondary" onClick={() => void settingsQuery.refetch()}>Tentar novamente</AdminButton>
+        </Section>
+      : (contactSection ? canViewContactDetails : canViewDetails) ? <div className="min-w-0 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {editableGroups.map(group => {
+            const filled = group.fields.filter(field => String(settings[field.key] || "").trim()).length;
+            return <AdminCard key={group.title} className="flex min-w-0 flex-col justify-between gap-3 p-4">
+              <div className="min-w-0">
+                <h2 className="text-sm font-bold text-foreground">{group.title}</h2>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{group.subtitle || group.fields.map(field => field.label).slice(0, 3).join(" · ")}</p>
+                <p className="mt-2 text-xs font-medium text-muted-foreground">{filled} de {group.fields.length} campos preenchidos</p>
               </div>
-            </details>)}
-          </div> : <p className="text-sm text-muted-foreground">{serviceSearch ? "Nenhum serviço encontrado." : "Não há serviços publicados."}</p>}
+              <AdminButton size="sm" variant="secondary" onClick={() => setEditor("group:" + group.title)}
+                className="self-start"><Pencil size={14}/> {canEditCurrent ? "Editar" : "Visualizar"}</AdminButton>
+            </AdminCard>;
+          })}
+
+          {section === "identity" && <AdminCard className="flex min-w-0 flex-col justify-between gap-3 p-4">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Imagens institucionais</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Fotos de assistência, empresa e equipe.</p>
+            </div>
+            <AdminButton size="sm" variant="secondary" onClick={() => setEditor("institutional")} className="self-start">
+              <Image size={14}/> {canEditCurrent ? "Editar imagens" : "Visualizar"}
+            </AdminButton>
+          </AdminCard>}
+
+          {section === "banners" && <AdminCard className="flex min-w-0 flex-col justify-between gap-3 p-4">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Banners da loja e serviços</h2>
+              <p className="mt-1 text-xs text-muted-foreground">Organize títulos, destinos, imagens e a sequência.</p>
+              <p className="mt-2 text-xs font-medium text-muted-foreground">{siteBanners(settings.site_banners).length} banner(s) cadastrado(s)</p>
+            </div>
+            <AdminButton size="sm" variant="secondary" onClick={() => setEditor("banners")} className="self-start">
+              <PanelsTopLeft size={14}/> Gerenciar banners
+            </AdminButton>
+          </AdminCard>}
+
+          {section === "contact" && siteContactGroups.map(group => {
+            const keys: Record<string,string[]> = {
+              channels: ["phone","whatsapp","email"], social: ["instagram"],
+              address: ["zip_code","street","number","complement","neighborhood","city","state"],
+              hours: ["business_hours"], business: ["company_name"],
+            };
+            const filled = keys[group.id].filter(key => String(settings[key] || "").trim()).length;
+            return <AdminCard key={group.id} className="flex min-w-0 flex-col justify-between gap-3 p-4">
+              <div>
+                <h2 className="text-sm font-bold text-foreground">{group.title}</h2>
+                <p className="mt-1 text-xs text-muted-foreground">{group.description}</p>
+                <p className="mt-2 text-xs font-medium text-muted-foreground">{filled} de {keys[group.id].length} campos preenchidos</p>
+              </div>
+              <AdminButton size="sm" variant="secondary" onClick={() => setEditor("contact:" + group.id)}
+                className="self-start"><Pencil size={14}/> {canEditCurrent ? "Editar" : "Visualizar"}</AdminButton>
+            </AdminCard>;
+          })}
         </div>
-      </Section>}
-      {section === "assistance" && <Section title="Categorias da assistência"
-        description="Atalhos com ícones exibidos na página inicial.">
-        <div className="space-y-3">
-          {categories.map((category, i) => <div key={i}
-            className="grid items-end gap-3 rounded-lg border border-border p-3 sm:grid-cols-[1fr_1fr_auto]">
-            <FInput label={"Categoria " + (i + 1)} value={category.title} disabled={disabled}
-              onChange={(event: any) => updateCategory(i, "title", event.target.value)} />
-            <FSelect label="Ícone" value={category.icon} disabled={disabled}
-              onChange={(event: any) => updateCategory(i, "icon", event.target.value)}
-              options={PUBLIC_ICON_OPTIONS.map(item => ({ value: item.value, label: item.label }))} />
-            {canUpdate && <button type="button" disabled={busy}
-              className="mb-2 rounded-lg px-3 py-2 text-xs font-bold text-destructive hover:bg-destructive/10"
-              onClick={() => updateSetting("home_categories", categories.filter((_, index) => index !== i))}>Remover</button>}
-          </div>)}
-          {canUpdate && <div className="flex flex-wrap gap-4">
-            <button type="button" className="text-xs font-bold text-primary hover:underline"
-              onClick={() => updateSetting("home_categories", [...categories, { title: "Nova categoria", icon: "wrench" }])}>Adicionar categoria</button>
-            <button type="button" className="text-xs font-bold text-muted-foreground hover:underline"
-              onClick={() => updateSetting("home_categories", DEFAULT_HOME_CATEGORIES)}>Restaurar categorias padrão</button>
+
+        {section === "catalog" && <AdminCard className="min-w-0 p-4">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Ícones e imagens dos serviços</h2>
+              <p className="text-xs text-muted-foreground">Configure somente o serviço que deseja alterar.</p>
+            </div>
+            <div className="relative w-full sm:w-64">
+              <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+              <input value={serviceSearch} onChange={event => setServiceSearch(event.target.value)}
+                placeholder="Buscar serviço" aria-label="Buscar serviço" className="h-9 w-full rounded-md border border-border bg-background pl-9 pr-3 text-xs outline-none focus:border-primary"/>
+            </div>
+          </div>
+          {servicesLoading ? <LoadingState /> : <div className="max-h-96 divide-y divide-border overflow-y-auto">
+            {filteredServices.map(service => <div key={service.id} className="flex items-center justify-between gap-3 py-2">
+              <span className="min-w-0 truncate text-sm font-medium text-foreground">{service.title}</span>
+              <AdminButton size="sm" variant="secondary" onClick={() => setEditor("service:" + service.id)}><Pencil size={14}/> Editar</AdminButton>
+            </div>)}
+            {!filteredServices.length && <p className="py-4 text-sm text-muted-foreground">Nenhum serviço encontrado.</p>}
           </div>}
+        </AdminCard>}
+
+        {section === "assistance" && <AdminCard className="min-w-0 p-4">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-bold text-foreground">Categorias da assistência</h2>
+              <p className="text-xs text-muted-foreground">Atalhos exibidos na página inicial.</p>
+            </div>
+            {canEditCurrent && <AdminButton size="sm" onClick={() => {
+              updateSetting("home_categories", [...categories, { title: "Nova categoria", icon: "wrench" }]);
+              setEditor("category:" + categories.length);
+            }}><Plus size={14}/> Nova</AdminButton>}
+          </div>
+          <div className="divide-y divide-border">
+            {categories.map((category, index) => <div key={index} className="flex min-w-0 items-center justify-between gap-3 py-2">
+              <span className="truncate text-sm font-medium text-foreground">{category.title || "Sem título"}</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <AdminButton size="sm" variant="secondary" onClick={() => setEditor("category:" + index)}><Pencil size={14}/> Editar</AdminButton>
+                {canEditCurrent && <AdminButton size="sm" variant="danger" onClick={() =>
+                  updateSetting("home_categories", categories.filter((_, i) => i !== index))} aria-label="Remover categoria"><Trash2 size={14}/></AdminButton>}
+              </div>
+            </div>)}
+          </div>
+          {canEditCurrent && <button type="button" onClick={() => updateSetting("home_categories", DEFAULT_HOME_CATEGORIES)}
+            className="mt-3 text-xs font-semibold text-muted-foreground hover:text-primary">Restaurar categorias padrão</button>}
+        </AdminCard>}
+
+        <p className="px-1 text-xs text-muted-foreground">As alterações ficam pendentes até clicar em Salvar. Você pode editar várias subseções antes de salvar.</p>
+      </div> : null}
+
+    <AdminDialog open={Boolean(editor)} onClose={closeEditor} title={modalTitle} description={modalDescription}
+      className="max-w-3xl" bodyClassName="p-4 sm:p-5" footer={
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <AdminButton variant="secondary" disabled={busy} onClick={closeEditor}>Fechar</AdminButton>
+          {canEditCurrent && <AdminButton disabled={busy || !dirty} loading={busy}
+            onClick={async () => { if (await handleSave()) setEditor(null); }}>Salvar alterações</AdminButton>}
         </div>
-      </Section>}
-      <p className="px-1 text-xs text-muted-foreground">As alterações são salvas juntas, independentemente da subseção aberta.</p>
-    </div> : null}
-    <AdminStickyToolbar className="mt-5">
+      }>
+      {editingGroup && <div className="space-y-3">
+        <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+          {editingGroup.fields.map(field => <div key={field.key} className={field.type === "textarea" ? "min-w-0 sm:col-span-2" : "min-w-0"}>
+            {field.type === "textarea" ? <FTextarea label={field.label} rows={2} value={String(settings[field.key] ?? "")}
+              disabled={disabled} placeholder={field.placeholder}
+              onChange={(event: any) => updateSetting(field.key, event.target.value)} /> :
+            <FInput label={field.label} type={field.type || "text"}
+              value={field.type === "color" ? String(settings[field.key] || field.placeholder) : String(settings[field.key] ?? "")}
+              disabled={disabled} placeholder={field.placeholder}
+              onChange={(event: any) => updateSetting(field.key, event.target.value)} />}
+          </div>)}
+        </div>
+        {editingGroup.title === "Identidade visual" && <ImageSetting label="Logotipo do site"
+          mediaId={String(settings.logo_media_id || "")} onChange={id => updateSetting("logo_media_id", id)} disabled={disabled}/>}
+        {editingGroup.title === "Capa da página inicial" && <ImageSetting label="Foto da capa"
+          mediaId={String(settings.hero_image_media_id || "")} onChange={id => updateSetting("hero_image_media_id", id)} disabled={disabled}/>}
+      </div>}
+      {editor === "institutional" && <div className="grid gap-4 sm:grid-cols-2">
+        {[
+          { key: "assistance_image_media_id", label: "Capa da assistência técnica" },
+          { key: "about_image_media_id", label: "Imagem da empresa" },
+          { key: "team_image_media_id", label: "Imagem da equipe" },
+        ].map(item => <ImageSetting key={item.key} label={item.label}
+          mediaId={String(settings[item.key] || "")} onChange={id => updateSetting(item.key, id)} disabled={disabled} />)}
+      </div>}
+      {editor === "banners" && <BannerSettingsEditor banners={siteBanners(settings.site_banners)} services={services}
+        disabled={disabled} onChange={value => updateSetting("site_banners", value)}/>}
+      {editingService && <div className="grid gap-4 sm:grid-cols-2">
+        <FSelect label="Ícone" disabled={disabled}
+          value={display[editingService.id]?.icon || editingService.public_icon || "wrench"}
+          onChange={(event: any) => updateService(editingService.id, "icon", event.target.value)}
+          options={PUBLIC_ICON_OPTIONS.map(item => ({ value: item.value, label: item.label }))}/>
+        <ImageSetting label="Imagem exclusiva na home"
+          mediaId={display[editingService.id]?.media_id || ""}
+          onChange={id => updateService(editingService.id, "media_id", id)} disabled={disabled}/>
+      </div>}
+      {editingCategory && <div className="grid gap-3 sm:grid-cols-2">
+        <FInput label="Nome da categoria" value={editingCategory.title} disabled={disabled}
+          onChange={(event: any) => updateCategory(editingCategoryIndex, "title", event.target.value)} />
+        <FSelect label="Ícone" value={editingCategory.icon} disabled={disabled}
+          onChange={(event: any) => updateCategory(editingCategoryIndex, "icon", event.target.value)}
+          options={PUBLIC_ICON_OPTIONS.map(item => ({ value: item.value, label: item.label }))}/>
+      </div>}
+      {editingContact && <SiteContactFields group={editingContact.id} settings={settings}
+        onChange={(key, value) => updateSetting(key, value)} disabled={disabled}/>}
+    </AdminDialog>
+
+    <AdminStickyToolbar className="mt-4">
       <BtnSecondary onClick={back} disabled={busy}>Voltar</BtnSecondary>
       {dirty && <span className="hidden text-xs font-semibold text-amber-600 sm:inline">Alterações não salvas</span>}
-      {canUpdate && <BtnPrimary onClick={handleSave} disabled={settingsQuery.isPending || settingsQuery.isError || !dirty}
+      {canEditCurrent && <BtnPrimary onClick={handleSave} disabled={settingsQuery.isPending || settingsQuery.isError || !dirty}
         loading={busy} loadingText="Salvando...">Salvar</BtnPrimary>}
     </AdminStickyToolbar>
   </div>;
