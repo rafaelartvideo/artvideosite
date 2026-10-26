@@ -28,9 +28,9 @@ const actionNext:Partial<Record<CaseStatus,{status:CaseStatus;label:string}[]>>=
 };
 const input="min-h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
 
-export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orderTotal,onChange}:{
+export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orderTotal,onChange,standalone=false}:{
   orderId:string;paymentStatus:string;canManage:boolean;
-  items:StoreSoldLine[];orderTotal:number;onChange?:()=>void;
+  items:StoreSoldLine[];orderTotal:number;onChange?:()=>void;standalone?:boolean;
 }){
   const [cases,setCases]=useState<AfterSale[]>([]);
   const [events,setEvents]=useState<CaseEvent[]>([]);
@@ -95,10 +95,10 @@ export function StoreAfterSalesStaff({orderId,paymentStatus,canManage,items,orde
     }
     setBusy(false);
   };
-  return <div className="rounded-lg border border-border p-4">
+  return <div className={standalone ? "space-y-4" : "rounded-lg border border-border p-4"}>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h3 className="flex items-center gap-2 text-sm font-bold"><RotateCcw size={18} className="text-primary"/> Pós-venda</h3>
+        <h3 className="flex items-center gap-2 text-sm font-bold"><RotateCcw size={18} className="text-primary"/> Solicitações de pós-venda</h3>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           Cancelamentos, trocas e devoluções, com parecer e histórico.
         </p>
