@@ -244,11 +244,11 @@ export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void
   useEffect(() => {
     if (!settingsQuery.data) return;
     const incoming = JSON.stringify(settingsQuery.data);
-    setSettings(previous => {
-      const canHydrate = loadedSnapshot.current === null || JSON.stringify(previous) === loadedSnapshot.current;
-      loadedSnapshot.current = incoming;
-      return canHydrate ? settingsQuery.data : previous;
-    });
+    const priorSnapshot = loadedSnapshot.current;
+    loadedSnapshot.current = incoming;
+    setSettings(previous =>
+      priorSnapshot === null || JSON.stringify(previous) === priorSnapshot
+        ? settingsQuery.data : previous);
   }, [settingsQuery.data]);
   useEffect(() => {
     if (settingsQuery.error) setToast({
