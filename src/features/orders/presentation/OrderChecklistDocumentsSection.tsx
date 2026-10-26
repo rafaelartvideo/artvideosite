@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ClipboardCheck } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminCard, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, AdminCard, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import type { OrderChecklistItem, OrderChecklistStage } from "@/features/checklists/domain/checklist";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
@@ -59,9 +59,7 @@ export function OrderChecklistDocumentsSection({
       </div>
 
       {checklist.stages.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[#0d1b2e]/10 px-3 py-10 text-center text-xs text-[#5a6a82]">
-          Nenhuma etapa de checklist registrada nesta OS.
-        </div>
+        <AdminSectionEmpty>Nenhuma etapa de checklist registrada nesta OS.</AdminSectionEmpty>
       ) : checklist.stages.map(stage => {
         const photoCount = stagePhotoCount(stage);
         const itemsWithPhotos = stage.items.filter(item => item.media.length > 0);
@@ -80,7 +78,7 @@ export function OrderChecklistDocumentsSection({
             </AdminCardHeader>
 
             {itemsWithPhotos.length === 0 ? (
-              <div className="px-4 py-6 text-center text-xs text-[#7c899c]">Nenhuma foto registrada nesta etapa.</div>
+              <AdminSectionEmpty compact>Nenhuma foto registrada nesta etapa.</AdminSectionEmpty>
             ) : (
               <div className="divide-y divide-[#0d1b2e]/8">
                 {itemsWithPhotos.map(item => {
