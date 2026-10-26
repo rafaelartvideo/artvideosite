@@ -165,7 +165,7 @@ export function OrderDetailsContent({
             <div className="grid min-w-0 content-start gap-3 sm:grid-cols-2">
             <InfoRow label="Equipamento" value={(detail.equipment_type as any)?.name || undefined} />
             <InfoRow label="Marca" value={(detail.equipment_brand as any)?.name || undefined} />
-            <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || undefined} />
+            <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || undefined} />
             <InfoRow label="Número de série" value={detail.serial_number || undefined} />
             {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? undefined : String(value.value_number))} />)}
             </div>
