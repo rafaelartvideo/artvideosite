@@ -4,7 +4,7 @@
 // No Supabase secret key is required on the VPS.
 import { createServer, request as httpRequest } from "node:http";
 import { randomBytes, createHmac, createHash, timingSafeEqual } from "node:crypto";
-import { mkdir, readFile, writeFile, rename } from "node:fs/promises";
+import { mkdir, readFile, writeFile, rename, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
 
@@ -187,8 +187,32 @@ async function provision(id, org) {
 
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
-  if (!["provision", "connect", "disconnect", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
+  if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
+  if (action === "delete") {
+    const stored = await readSession(id, org);
+    if (stored) {
+      // Match both the deterministic name and the persisted secret. Never
+      // delete another provider user even if the provider recycled its ID.
+      const name = "union_" + id.replaceAll("-", "");
+      const response = await wuzapi("/admin/users", adminToken);
+      const users = Array.isArray(response) ? response : Array.isArray(response?.data) ? response.data : [];
+      const existing = users.find(user => user?.name === name);
+      if (existing) {
+        if (existing.token !== stored.token) throw new Error("session_mismatch");
+        const userId = Number(existing.id);
+        if (!Number.isSafeInteger(userId) || userId <= 0) throw new Error("provider_user_invalid");
+        await wuzapi("/admin/users/" + userId, adminToken, "DELETE");
+      }
+      // Credentials are removed only after provider confirmation. If anything
+      // above fails, retain the token so the operation remains retryable.
+      await unlink(tokenFile(id)).catch(error => {
+        if (error?.code !== "ENOENT") throw error;
+      });
+    }
+    pendingProvision.delete(id);
+    return { ok: true, deleted: true };
+  }
   const session = await readSession(id, org);
   if (!session) throw new Error("session_missing");
   if (session.ready !== true) throw new Error("session_not_ready");
