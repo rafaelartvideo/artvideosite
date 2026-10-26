@@ -488,6 +488,30 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   </div></AdminPageCloseContext.Provider>;
 }
 
+/** Estado sem conteúdo padronizado para qualquer seção do CRM.
+ * Centraliza a mensagem nos dois eixos, sem criar uma nova caixa ou ícone
+ * e sem alterar o alinhamento de registros que efetivamente existem.
+ */
+export function AdminSectionEmpty({
+  children,
+  className = "",
+  compact = false,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  compact?: boolean;
+}) {
+  return <div
+    data-admin-section-empty="true"
+    role="status"
+    className={cn(
+      "flex w-full min-w-0 flex-col items-center justify-center px-3 text-center text-xs leading-relaxed text-muted-foreground",
+      compact ? "min-h-16 py-3" : "min-h-24 py-6",
+      className,
+    )}
+  >{children}</div>;
+}
+
 export function Section({
   title,
   description,
