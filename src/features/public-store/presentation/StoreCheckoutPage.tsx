@@ -501,7 +501,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     onClick={() => void placeOrder(embeddedAvailable?"bricks":"hosted")}
     className="inline-flex min-h-[52px] min-w-0 items-center justify-center gap-1.5 rounded-[7px] bg-[var(--art-primary)] px-2 text-center text-[12px] font-bold leading-tight text-white transition-colors hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] disabled:cursor-not-allowed disabled:opacity-50 md:min-h-12 md:px-6 md:text-[13px]">
     {paying ? <><LoaderCircle size={17} className="shrink-0 animate-spin"/> Verificando...</> :
-      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> {embeddedAvailable?"Pagar aqui no site":"Ir para pagamento"}</> :
+      paymentsAvailable ? <><LockKeyhole size={16} className="shrink-0"/> "Ir para pagamento"</> :
       "Pagamento indisponível"}
   </button> : null;
 
@@ -779,12 +779,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <CheckCircle2 size={15} className="mt-0.5 shrink-0 text-[#278a61]"/>
                 O pedido só será considerado pago após a confirmação do provedor.
               </p>
-              {embeddedAvailable && <button type="button"
-                disabled={paying || !selectedShipping}
-                onClick={()=>void placeOrder("hosted")}
-                className="text-[12px] font-bold text-[var(--art-primary)] hover:underline disabled:opacity-50">
-                Prefiro pagar na página do Mercado Pago (Checkout Pro)
-              </button>}
               {!paymentsAvailable && <Link to="/contato"
                 className="inline-flex min-h-10 items-center gap-2 text-[12px] font-bold text-[var(--art-primary)] hover:underline">
                 Entre em contato com a Artvideo para consultar opções de compra <ArrowRight size={16}/>
