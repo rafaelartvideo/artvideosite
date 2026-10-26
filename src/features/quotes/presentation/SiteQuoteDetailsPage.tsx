@@ -3,7 +3,7 @@ import { useNavigate } from "react-router";
 import { ArrowRight, ClipboardList, MapPin, MessageCircle, Wrench } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, AdminSectionEmpty, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { formatDateTime, formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -179,7 +179,7 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
               </div>}
           </Section>
           <Section title="Relato do cliente">
-            <p className="whitespace-pre-wrap text-sm leading-6">{report||"Nenhum relato informado pelo cliente."}</p>
+            {report?<p className="whitespace-pre-wrap text-sm leading-6">{report}</p>:<AdminSectionEmpty>Nenhum relato informado pelo cliente.</AdminSectionEmpty>}
           </Section>
         </div>
         <SiteQuoteMediaGallery quoteId={quote.id} organizationId={organizationId}/>
@@ -193,7 +193,7 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
           </div>
         </Section>}
         <Section title="Histórico">
-          {!events.length?<p className="text-xs text-muted-foreground">Solicitação recebida em {formatDateTime(quote.created_at)}.</p>:
+          {!events.length?<AdminSectionEmpty>Solicitação recebida em {formatDateTime(quote.created_at)}.</AdminSectionEmpty>:
             <ol className="space-y-3">{events.map(event=><li key={event.id}
               className="border-l-2 border-primary/30 pl-3">
               <p className="text-sm font-semibold">{labels[event.to_status]||event.to_status}</p>
