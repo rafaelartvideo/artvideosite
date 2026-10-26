@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getArtVideoOrganizationId } from "@/lib/organization-identity";
-import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, X, PanelsTopLeft, ArrowUp, ArrowDown, Plus, Trash2, Phone, Pencil, ChevronRight } from "lucide-react";
+import { Image, LayoutTemplate, Layers3, MonitorPlay, MessagesSquare, Settings2, Search, PanelsTopLeft, ArrowUp, ArrowDown, Plus, Trash2, Phone, Pencil } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useAuth } from "@/lib/auth";
 import { useProducts, useServices } from "@/features/public-catalog/application/usePublicCatalog";
@@ -286,8 +286,6 @@ export function TabSiteSettings({ onBack, initialSection }: { onBack: () => void
   if (!canView && !canViewContact) return null;
   const availableSections = sections.filter(item => item.id === "contact"
     ? canViewContact && canViewContactDetails : canView);
-  const current = sections.find(item => item.id === section)!;
-  const CurrentIcon = current.icon;
   const visibleGroups = groups.filter(group => sectionGroups[section].includes(group.title));
 
   const editableGroups = visibleGroups.map(group => ({
