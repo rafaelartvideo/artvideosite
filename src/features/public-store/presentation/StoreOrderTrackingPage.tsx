@@ -97,7 +97,8 @@ export function StoreOrderTrackingDetails({ token, pickupLookup, onReady }: Prop
         </div>
         <div className="mx-auto max-w-3xl" role="list" aria-label="Etapas do pedido">
           <div className="relative grid" style={{ gridTemplateColumns: `repeat(${steps.length},minmax(0,1fr))` }}>
-            <div className="pointer-events-none absolute top-[20px] h-[4px] rounded-full bg-[#e7eef7]"\n              style={{left:`${50/steps.length}%`,right:`${50/steps.length}%`}} aria-hidden="true">
+            <div className="pointer-events-none absolute top-[20px] h-[4px] rounded-full bg-[#e7eef7]"
+              style={{left:`${50/steps.length}%`,right:`${50/steps.length}%`}} aria-hidden="true">
               <div className="h-full rounded-full bg-gradient-to-r from-[#1157bc] to-[#35a0e7] transition-[width] duration-700 ease-out"
                 style={{width: `${percent}%`}}/>
               {paid && !finished && <div className="absolute inset-y-0 left-0 h-full animate-pulse rounded-full bg-blue-300/35"
