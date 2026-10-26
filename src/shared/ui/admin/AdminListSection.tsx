@@ -3,6 +3,7 @@ import { Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 
 type AdminListSectionProps = {
   title: ReactNode;
@@ -76,7 +77,7 @@ export function AdminListSection({
       : error
         ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
         : empty
-          ? <div className="flex min-h-40 flex-col items-center justify-center px-4 text-center"><Search size={20} className="mb-2 text-muted-foreground/70" /><p className="text-xs font-bold text-muted-foreground">{emptyText}</p></div>
+          ? <AdminSectionEmpty className="min-h-40 gap-2"><Search size={20} className="text-muted-foreground/70" /><p className="text-xs font-bold">{emptyText}</p></AdminSectionEmpty>
           : <div className="min-h-40 divide-y divide-border px-4">{children}</div>}
 
     {footer}
