@@ -3,12 +3,12 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2,
-  CreditCard, LoaderCircle,
+  CreditCard, LoaderCircle, Copy,
   LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, UserRound,
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, resumeEmbeddedStoreCheckout, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, resumeEmbeddedStoreCheckout, refreshEmbeddedPayment, getStoreTracking, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type StoreTracking,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {QRCodeSVG} from "qrcode.react";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
@@ -145,7 +145,10 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const embeddedAvailable=embeddedQuery.data===true;
   const [brickSession,setBrickSession]=useState<EmbeddedCheckoutSession|null>(null);
   const [brickResult,setBrickResult]=useState<EmbeddedPaymentResult|null>(null);
-  const [resumingBrick,setResumingBrick]=useState(false);
+  const [confirmedOrder,setConfirmedOrder]=useState<StoreTracking|null>(null);
+  const [restoringPayment,setRestoringPayment]=useState(false);
+  const [recoveryNotice,setRecoveryNotice]=useState("");
+  const [linkCopied,setLinkCopied]=useState(false);
   const [lastBrickAccess]=useState(()=>{
     try{
       const orderId=sessionStorage.getItem("artvideo-last-order")||"";
@@ -403,22 +406,144 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
   };
 
-  const resumeBrick=async()=>{
-    if(!lastBrickAccess||resumingBrick)return;
-    setResumingBrick(true);
-    setError("");
+  // Recupera o pedido pelo acesso privado salvo antes de iniciar o Mercado Pago.
+  // NUNCA considera o estado local como prova de pagamento.
+  useEffect(()=>{
+    if(!lastBrickAccess)return;
+    let cancelled=false;
+    const restore=async()=>{
+      setRestoringPayment(true);
+      try{
+        const tracking=await getStoreTracking(lastBrickAccess.token);
+        if(cancelled||tracking.id!==lastBrickAccess.orderId)return;
+        if(tracking.paymentStatus==="paid"){
+          setConfirmedOrder(tracking);
+          setStep(4);
+          return;
+        }
+        if(tracking.paymentStatus==="awaiting_payment"){
+          try{
+            const session=await resumeEmbeddedStoreCheckout(
+              lastBrickAccess.orderId,lastBrickAccess.token);
+            if(cancelled)return;
+            setBuyer(current=>({...current,buyer_email:session.buyerEmail}));
+            setBrickSession(session);
+            setStep(4);
+            // Restaura o QR Code sem iniciar outra cobranca.
+            const result=await refreshEmbeddedPayment(session).catch(()=>null);
+            if(!cancelled&&result&&result.status!=="not_started")setBrickResult(result);
+          }catch{
+            if(!cancelled)setRecoveryNotice(
+              "A reserva anterior não pode mais ser retomada. Consulte o pedido pelo link privado.");
+          }
+        }
+      }catch{
+        if(!cancelled)setRecoveryNotice("Não foi possível recuperar o último pedido automaticamente.");
+      }finally{
+        if(!cancelled)setRestoringPayment(false);
+      }
+    };
+    void restore();
+    return ()=>{cancelled=true;};
+  },[lastBrickAccess]);
+
+  // O webhook concilia o Pix no servidor; a tela observa apenas o estado
+  // confirmado no banco. Polling leve enquanto a tela esta visivel.
+  useEffect(()=>{
+    if(!brickSession||confirmedOrder||step!==4)return;
+    let cancelled=false;
+    let busy=false;
+    const check=async()=>{
+      if(cancelled||busy||document.hidden)return;
+      busy=true;
+      try{
+        const order=await getStoreTracking(brickSession.trackingToken);
+        if(!cancelled&&order.id===brickSession.orderId&&order.paymentStatus==="paid"){
+          setConfirmedOrder(order);
+          setBrickResult(current=>current?{...current,status:"approved"}:current);
+        }
+      }catch{/* Oscilações de rede não anulam nem reiniciam o pagamento. */}
+      finally{busy=false;}
+    };
+    void check();
+    const timer=window.setInterval(()=>void check(),5000);
+    const onFocus=()=>void check();
+    document.addEventListener("visibilitychange",onFocus);
+    window.addEventListener("focus",onFocus);
+    return ()=>{
+      cancelled=true;
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange",onFocus);
+      window.removeEventListener("focus",onFocus);
+    };
+  },[brickSession,confirmedOrder,step]);
+
+  const trackingToken=brickSession?.trackingToken||lastBrickAccess?.token||"";
+  const trackingLink=trackingToken?"/#acompanhar-servico&c="+trackingToken:"";
+  const copyTrackingLink=async()=>{
+    if(!trackingLink)return;
     try{
-      const session=await resumeEmbeddedStoreCheckout(
-        lastBrickAccess.orderId,lastBrickAccess.token);
-      setBuyer(current=>({...current,buyer_email:session.buyerEmail}));
-      setBrickSession(session);
-      setBrickResult(null);
-      move(4);
-    }catch(err){
-      setError(err instanceof Error?err.message:"Nao foi possivel retomar o pedido.");
-      mainRef.current?.scrollIntoView({behavior:"smooth",block:"start"});
-    }finally{setResumingBrick(false);}
+      await navigator.clipboard.writeText(window.location.origin+trackingLink);
+      setLinkCopied(true);
+    }catch{setLinkCopied(false);}
   };
+  if(confirmedOrder){
+    return <div className="art-checkout-page min-h-screen bg-[#f6f9fd] px-4 py-10 text-[#10243d] sm:py-16">
+      <section className="mx-auto max-w-2xl overflow-hidden rounded-2xl border border-[#dce7f2] bg-white shadow-[0_10px_35px_rgba(13,39,77,.07)]">
+        <div className="flex flex-col items-center border-b border-emerald-100 bg-emerald-50 px-6 py-9 text-center sm:px-10">
+          <span className="flex h-20 w-20 items-center justify-center rounded-full bg-emerald-600 text-white" aria-hidden="true">
+            <Check size={42} strokeWidth={3}/>
+          </span>
+          <h1 className="mt-5 text-[26px] font-extrabold tracking-tight text-emerald-900">Pagamento confirmado!</h1>
+          <p className="mt-2 max-w-md text-[14px] leading-6 text-emerald-800">
+            Recebemos seu pagamento com segurança. Seu pedido foi registrado e seguirá para preparação.
+          </p>
+        </div>
+        <div className="space-y-6 p-6 sm:p-9">
+          <div className="grid grid-cols-2 gap-4 rounded-xl border border-[#e2eaf5] bg-[#f8fbff] p-5">
+            <div><p className="text-xs text-[#647791]">Número do pedido</p>
+              <strong className="mt-1 block text-lg font-extrabold">{confirmedOrder.number}</strong></div>
+            <div className="text-right"><p className="text-xs text-[#647791]">Total pago</p>
+              <strong className="mt-1 block text-lg font-extrabold">{formatCurrency(confirmedOrder.total)}</strong></div>
+          </div>
+          {confirmedOrder.deliveryMethod==="pickup"&&<div className="rounded-xl border border-blue-200 bg-blue-50 p-5 text-center">
+            <div className="flex items-center justify-center gap-2 text-[13px] font-bold text-[#244b7c]">
+              <Store size={18}/> Retirada na loja
+            </div>
+            {confirmedOrder.pickupCode?<><p className="mt-3 text-xs text-[#536f90]">Seu código de retirada</p>
+              <strong className="mt-2 block text-[34px] font-extrabold tracking-[.22em] text-[var(--art-primary)]">
+                {confirmedOrder.pickupCode}
+              </strong>
+              <p className="mt-2 text-xs leading-5 text-[#536f90]">
+                Guarde este código e apresente-o quando seu pedido estiver pronto para retirada.
+              </p></>:<p className="mt-3 text-xs text-[#536f90]">
+              O código de retirada ficará disponível no acompanhamento do pedido.
+            </p>}
+          </div>}
+          <div className="space-y-3">
+            <h2 className="text-[15px] font-extrabold">Acompanhe seu pedido</h2>
+            <p className="text-[13px] leading-5 text-[#637791]">
+              Guarde seu link privado para consultar as próximas atualizações e o código de retirada quando necessário.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              {trackingLink&&<Link to={trackingLink}
+                className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-[13px] font-bold text-white hover:brightness-110">
+                Acompanhar pedido <ArrowRight size={17}/>
+              </Link>}
+              {trackingLink&&<button type="button" onClick={()=>void copyTrackingLink()}
+                className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-lg border border-[#c7d9ed] bg-white px-4 text-[13px] font-bold text-[var(--art-primary)] hover:bg-[#f4f9ff]">
+                {linkCopied?<Check size={17}/>:<Copy size={17}/>}
+                {linkCopied?"Link copiado":"Copiar link de acompanhamento"}
+              </button>}
+            </div>
+            <p className="text-[11px] leading-5 text-[#8392a6]">
+              Este link é privado: compartilhe somente com quem deve acompanhar o pedido.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>;
+  }
   const checkingAvailability = Boolean(productId) && (cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending);
   if (productLoading || (cartMode && catalogLoading) || checkingAvailability) return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={34}/> {checkingAvailability ? "Confirmando disponibilidade..." : cartMode ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</div>;
   if (productError || (cartMode && catalogError) || (!cartMode && !detail) || !product) return <section className="min-h-[65vh] bg-[#f8fbff] px-4 py-24 text-center">
@@ -498,12 +623,11 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold text-amber-900">
       O convite privado expirou ou já foi utilizado. Gere outro convite na Union World.
     </div>}
-    {!brickSession&&lastBrickAccess&&<div className="border-b border-[#dce6f4] bg-[#f1f7ff] px-5 py-3 text-center">
-      <button type="button" onClick={()=>void resumeBrick()} disabled={resumingBrick}
-        className="inline-flex min-h-10 items-center gap-2 text-[12px] font-bold text-[var(--art-primary)] disabled:opacity-50">
-        {resumingBrick?<LoaderCircle className="animate-spin" size={17}/>:<CreditCard size={17}/>}
-        Retomar pagamento do último pedido de homologação
-      </button>
+    {!brickSession&&lastBrickAccess&&restoringPayment&&<div role="status" className="border-b border-[#dce6f4] bg-[#f1f7ff] px-5 py-3 text-center text-[12px] font-bold text-[var(--art-primary)]">
+      <LoaderCircle className="mr-2 inline animate-spin" size={16}/> Recuperando a situação do último pedido...
+    </div>}
+    {!brickSession&&lastBrickAccess&&!restoringPayment&&recoveryNotice&&<div className="border-b border-[#dce6f4] bg-[#f1f7ff] px-5 py-3 text-center text-[12px] text-[#425f80]">
+      {recoveryNotice} <Link className="font-bold underline" to={trackingLink}>Ver acompanhamento</Link>
     </div>}
     <div className="bg-gradient-to-r from-[#0b1c34] via-[#0e2a51] to-[#114577]">
       <div className="mx-auto max-w-7xl px-4 py-6 text-white sm:px-6 sm:py-10 lg:px-8">
@@ -796,7 +920,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                     brickResult.status==="in_process"?"Pagamento em análise":
                     ["rejected","cancelled"].includes(brickResult.status)?"Pagamento não aprovado":
                     "Situação do pagamento: "+brickResult.status}</strong>
-                  <p className="mt-1 leading-5">O estoque somente será baixado após a confirmação válida do pagamento.</p>
+                  <p className="mt-1 leading-5">{brickResult.status==="approved"
+                    ?"O pagamento foi validado. Recuperando os detalhes do pedido..."
+                    :"O status será atualizado automaticamente quando o Mercado Pago confirmar o pagamento."}</p>
                 </div>
                 {brickResult.qrCode && <div className="flex flex-col items-center gap-4 rounded-lg border border-[#e2e9f4] p-4">
                   <p className="text-sm font-bold">Pague com Pix</p>
