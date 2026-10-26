@@ -2,10 +2,14 @@ name: Deploy HostGator
 
 on:
   push:
-    branches:
-      - main
-
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      force_deploy:
+        description: Publicar os dois sites mesmo se o build for identico
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -16,232 +20,196 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy: ${{ steps.latest.outputs.deploy }}
-
     steps:
       - name: Debounce rapid pushes
         if: github.event_name == 'push'
         run: sleep 15
-
       - name: Check latest main commit
         id: latest
         env:
           GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
-          latest_sha="$(curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
+          set -euo pipefail
+          latest_sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" \
-            | jq -r '.sha')"
-
-          if [ "${latest_sha}" = "${GITHUB_SHA}" ]; then
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
-            echo "Este é o commit mais recente da main. O deploy será executado."
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/main" | jq -r '.sha')"
+          if [ "$latest_sha" = "$GITHUB_SHA" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
           else
-            echo "deploy=false" >> "${GITHUB_OUTPUT}"
-            echo "Commit mais novo detectado (${latest_sha}). Este deploy intermediário será ignorado com sucesso."
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Commit intermediario: a main ja possui uma versao mais nova."
           fi
 
-  deploy:
-    name: deploy
+  build:
+    name: Validate and build once
     needs: gate
     if: needs.gate.outputs.deploy == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 55
-    env:
-      FTP_CRM_SERVER: ${{ secrets.FTP_CRM_SERVER || secrets.FTP_SERVER }}
-      FTP_CRM_USERNAME: ${{ secrets.FTP_CRM_USERNAME || secrets.FTP_USERNAME }}
-      FTP_CRM_PASSWORD: ${{ secrets.FTP_CRM_PASSWORD || secrets.FTP_PASSWORD }}
-      FTP_PROD_USERNAME: ${{ secrets.FTP_PROD_USERNAME }}
-      FTP_PROD_PASSWORD: ${{ secrets.FTP_PROD_PASSWORD }}
-
-    concurrency:
-      group: deploy-hostgator-production
-      cancel-in-progress: false
-
+    timeout-minutes: 15
+    outputs:
+      crm_hash: ${{ steps.hash.outputs.crm_hash }}
+      site_hash: ${{ steps.hash.outputs.site_hash }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Detect deploy targets
-        id: targets
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" != "push" ]; then
-            echo "crm=true" >> "${GITHUB_OUTPUT}"
-            echo "site=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          mapfile -t changed_files < <(jq -r '.commits[]? | (.added[]?, .modified[]?, .removed[]?)' "${GITHUB_EVENT_PATH}" | sed '/^$/d' | sort -u)
-
-          if [ "${#changed_files[@]}" -eq 0 ]; then
-            echo "crm=true" >> "${GITHUB_OUTPUT}"
-            echo "site=true" >> "${GITHUB_OUTPUT}"
-            exit 0
-          fi
-
-          site_required=false
-          for file in "${changed_files[@]}"; do
-            if [[ ! "${file}" =~ ^src/features/(admin-home|admin-shell|audit|dashboard|finance|notifications|partner-companies|pdv|platform-billing|queue-integration|roles|subscriptions|telephony)/ ]]; then
-              site_required=true
-              break
-            fi
-          done
-
-          echo "crm=true" >> "${GITHUB_OUTPUT}"
-          echo "site=${site_required}" >> "${GITHUB_OUTPUT}"
-          echo "Arquivos alterados:"
-          printf ' - %s\n' "${changed_files[@]}"
-          echo "Build do site público: ${site_required}"
-
-      - name: Restore previous CRM assets
-        id: previous_crm_assets
-        uses: actions/cache/restore@v4
-        with:
-          path: .previous-crm-assets
-          key: restore-crm-assets-${{ github.run_id }}
-          restore-keys: |
-            crm-assets-
-
-      - name: Restore previous public site assets
-        if: steps.targets.outputs.site == 'true'
-        id: previous_site_assets
-        uses: actions/cache/restore@v4
-        with:
-          path: .previous-site-assets
-          key: restore-site-assets-${{ github.run_id }}
-          restore-keys: |
-            site-assets-
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - name: Restore npm download cache
+      - name: Cache npm downloads
         uses: actions/cache@v4
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package.json') }}
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json', 'package.json') }}
           restore-keys: |
             ${{ runner.os }}-npm-
-
       - name: Install dependencies
-        run: npm install --prefer-offline --no-audit --no-fund
-
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --prefer-offline --no-audit --no-fund
+          else
+            npm install --prefer-offline --no-audit --no-fund
+          fi
       - name: Finance domain tests
         run: npm run test:finance
-
-      - name: Error and service-type regression tests
+      - name: Regression tests
         run: npm run test:regressions
-
-      - name: SAC Digital contract and event tests
+      - name: SAC Digital tests
         run: npm run test:sac
-
       - name: Build public site
-        if: steps.targets.outputs.site == 'true'
         run: npm run build:site
-
       - name: Build CRM
         run: npm run build:crm
+      - name: Fingerprint exact build contents
+        id: hash
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_hash() {
+            (cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+          }
+          crm_hash="$(release_hash dist-crm)"
+          site_hash="$(release_hash dist-site)"
+          echo "crm_hash=$crm_hash" >> "$GITHUB_OUTPUT"
+          echo "site_hash=$site_hash" >> "$GITHUB_OUTPUT"
+          echo "### Artefatos gerados" >> "$GITHUB_STEP_SUMMARY"
+          echo "CRM: $(find dist-crm -type f | wc -l) arquivos; hash $crm_hash" >> "$GITHUB_STEP_SUMMARY"
+          echo "Site: $(find dist-site -type f | wc -l) arquivos; hash $site_hash" >> "$GITHUB_STEP_SUMMARY"
+      - name: Store CRM build
+        uses: actions/upload-artifact@v4
+        with:
+          name: crm-release
+          path: dist-crm/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 2
+      - name: Store public site build
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-release
+          path: dist-site/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 2
 
-      - name: Confirm commit is still current
-        id: current
+  publish:
+    name: Publish ${{ matrix.target }}
+    needs: [gate, build]
+    if: needs.gate.outputs.deploy == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [crm, site]
+    concurrency:
+      group: deploy-hostgator-${{ matrix.target }}
+      cancel-in-progress: false
+    env:
+      TARGET: ${{ matrix.target }}
+      BUILD_HASH: ${{ matrix.target == 'crm' && needs.build.outputs.crm_hash || needs.build.outputs.site_hash }}
+      FTP_SERVER: ${{ matrix.target == 'crm' && (secrets.FTP_CRM_SERVER || secrets.FTP_SERVER) || secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ matrix.target == 'crm' && (secrets.FTP_CRM_USERNAME || secrets.FTP_USERNAME) || secrets.FTP_PROD_USERNAME }}
+      FTP_PASSWORD: ${{ matrix.target == 'crm' && (secrets.FTP_CRM_PASSWORD || secrets.FTP_PASSWORD) || secrets.FTP_PROD_PASSWORD }}
+      FORCE_DEPLOY: ${{ inputs.force_deploy || false }}
+    steps:
+      - name: Download release
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.target }}-release
+          path: dist-${{ matrix.target }}/
+
+      - name: Restore last published fingerprint
+        uses: actions/cache/restore@v4
+        with:
+          path: .deploy-state/${{ matrix.target }}.sha
+          key: published-${{ matrix.target }}-lookup-${{ github.run_id }}
+          restore-keys: |
+            published-${{ matrix.target }}-
+
+      - name: Check latest commit, credentials and content changes
+        id: plan
+        shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          latest_sha="$(curl -fsSL \
-            -H "Authorization: Bearer ${GH_TOKEN}" \
+          set -euo pipefail
+          if [ -z "$FTP_SERVER" ] || [ -z "$FTP_USERNAME" ] || [ -z "$FTP_PASSWORD" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Credenciais FTPS ausentes para $TARGET."
+            exit 0
+          fi
+          latest_sha="$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/commits/main" \
-            | jq -r '.sha')"
-
-          if [ "${latest_sha}" = "${GITHUB_SHA}" ]; then
-            echo "deploy=true" >> "${GITHUB_OUTPUT}"
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/commits/main" | jq -r '.sha')"
+          if [ "$latest_sha" != "$GITHUB_SHA" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Nova versao detectada; nao iniciar envio FTPS antigo."
+          elif [ "$FORCE_DEPLOY" != "true" ] && [ -s ".deploy-state/$TARGET.sha" ] && [ "$(cat ".deploy-state/$TARGET.sha")" = "$BUILD_HASH" ]; then
+            echo "deploy=false" >> "$GITHUB_OUTPUT"
+            echo "Build do $TARGET identico ao ja publicado. Sem envio FTPS."
           else
-            echo "deploy=false" >> "${GITHUB_OUTPUT}"
-            echo "Um commit mais novo chegou durante o build. O FTPS desta versão será ignorado."
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+            echo "Publicacao $TARGET necessaria."
           fi
 
-      - name: Keep current and previous release assets
-        if: steps.current.outputs.deploy == 'true'
+      - name: Restore previous assets
+        if: steps.plan.outputs.deploy == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: .current-${{ matrix.target }}-assets
+          key: restore-${{ matrix.target }}-assets-${{ github.run_id }}
+          restore-keys: |
+            ${{ matrix.target }}-assets-
+
+      - name: Preserve new and preceding assets
+        if: steps.plan.outputs.deploy == 'true'
+        shell: bash
         run: |
-          rm -rf .current-crm-assets
-          mkdir -p .current-crm-assets
-          cp -a dist-crm/assets/. .current-crm-assets/
-
-          if [ -d .previous-crm-assets ]; then
-            echo "Mantendo os chunks da versão anterior do CRM como janela de compatibilidade."
-            cp -an .previous-crm-assets/. dist-crm/assets/
-          else
-            echo "Nenhum cache anterior de assets do CRM disponível."
+          set -euo pipefail
+          mkdir -p ".next-$TARGET-assets"
+          cp -a "dist-$TARGET/assets/." ".next-$TARGET-assets/"
+          if [ -d ".current-$TARGET-assets" ]; then
+            cp -an ".current-$TARGET-assets/." "dist-$TARGET/assets/"
           fi
+          echo "Publicacao $TARGET: $(find "dist-$TARGET" -type f | wc -l) arquivos com compatibilidade." >> "$GITHUB_STEP_SUMMARY"
 
-          if [ "${{ steps.targets.outputs.site }}" = "true" ]; then
-            rm -rf .current-site-assets
-            mkdir -p .current-site-assets
-            cp -a dist-site/assets/. .current-site-assets/
-
-            if [ -d .previous-site-assets ]; then
-              echo "Mantendo os chunks da versão anterior do site como janela de compatibilidade."
-              cp -an .previous-site-assets/. dist-site/assets/
-            else
-              echo "Nenhum cache anterior de assets do site disponível."
-            fi
-          fi
-
-      - name: Deploy CRM to unionworld.com.br via FTPS
-        if: steps.current.outputs.deploy == 'true'
-        id: ftp_crm_deploy
+      - name: Publish via FTPS
+        if: steps.plan.outputs.deploy == 'true'
+        id: ftp
         continue-on-error: true
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
-          server: ${{ env.FTP_CRM_SERVER }}
-          username: ${{ env.FTP_CRM_USERNAME }}
-          password: ${{ env.FTP_CRM_PASSWORD }}
+          server: ${{ env.FTP_SERVER }}
+          username: ${{ env.FTP_USERNAME }}
+          password: ${{ env.FTP_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist-crm/
+          local-dir: ./dist-${{ matrix.target }}/
           server-dir: ./
           timeout: 120000
-          log-level: verbose
-
-      - name: Retry CRM deploy after transient failure
-        if: steps.current.outputs.deploy == 'true' && steps.ftp_crm_deploy.outcome == 'failure'
-        id: ftp_crm_retry
-        timeout-minutes: 15
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ${{ env.FTP_CRM_SERVER }}
-          username: ${{ env.FTP_CRM_USERNAME }}
-          password: ${{ env.FTP_CRM_PASSWORD }}
-          protocol: ftps
-          port: 21
-          local-dir: ./dist-crm/
-          server-dir: ./
-          timeout: 120000
-          log-level: verbose
-
-      - name: Deploy public site to eletronicaartvideo.com.br via FTPS
-        if: steps.current.outputs.deploy == 'true' && steps.targets.outputs.site == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != ''
-        id: ftp_site_deploy
-        continue-on-error: true
-        timeout-minutes: 15
-        uses: SamKirkland/FTP-Deploy-Action@v4.4.0
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ env.FTP_PROD_USERNAME }}
-          password: ${{ env.FTP_PROD_PASSWORD }}
-          protocol: ftps
-          port: 21
-          local-dir: ./dist-site/
-          server-dir: ./
-          timeout: 120000
-          log-level: verbose
-          exclude: |
+          log-level: standard
+          exclude: &protected_paths |
             **/.git*
             **/.git*/**
             **/node_modules/**
@@ -257,47 +225,55 @@ jobs:
             .htaccess.phpupgrader.*
             mail_accounts_deletion.log
 
-      - name: Retry public site deploy after transient failure
-        if: steps.current.outputs.deploy == 'true' && steps.targets.outputs.site == 'true' && env.FTP_PROD_USERNAME != '' && env.FTP_PROD_PASSWORD != '' && steps.ftp_site_deploy.outcome == 'failure'
-        id: ftp_site_retry
+      - name: Retry FTPS on transient failure
+        if: steps.plan.outputs.deploy == 'true' && steps.ftp.outcome == 'failure'
+        id: retry
         timeout-minutes: 15
         uses: SamKirkland/FTP-Deploy-Action@v4.4.0
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ env.FTP_PROD_USERNAME }}
-          password: ${{ env.FTP_PROD_PASSWORD }}
+          server: ${{ env.FTP_SERVER }}
+          username: ${{ env.FTP_USERNAME }}
+          password: ${{ env.FTP_PASSWORD }}
           protocol: ftps
           port: 21
-          local-dir: ./dist-site/
+          local-dir: ./dist-${{ matrix.target }}/
           server-dir: ./
           timeout: 120000
-          log-level: verbose
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/node_modules/**
-            .well-known/**
-            cgi-bin/**
-            faturasartvideo.com.br/**
-            folhaartvideo.com.br/**
-            garantiacerta.com/**
-            public/**
-            public_html/**
-            .ftpquota
-            .htaccess.no_htaccess.phpupgrader
-            .htaccess.phpupgrader.*
-            mail_accounts_deletion.log
+          log-level: standard
+          exclude: *protected_paths
 
-      - name: Save current CRM assets for next deploy
-        if: steps.current.outputs.deploy == 'true' && (steps.ftp_crm_deploy.outcome == 'success' || steps.ftp_crm_retry.outcome == 'success')
+      - name: Fail if FTPS could not publish
+        if: steps.plan.outputs.deploy == 'true' && steps.ftp.outcome == 'failure' && steps.retry.outcome != 'success'
+        run: exit 1
+
+      - name: Record successful published files
+        if: steps.plan.outputs.deploy == 'true' && (steps.ftp.outcome == 'success' || steps.retry.outcome == 'success')
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf ".current-$TARGET-assets"
+          mv ".next-$TARGET-assets" ".current-$TARGET-assets"
+          mkdir -p .deploy-state
+          printf '%s\n' "$BUILD_HASH" > ".deploy-state/$TARGET.sha"
+          echo "FTPS $TARGET publicado." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Cache assets for next publication
+        if: steps.plan.outputs.deploy == 'true' && (steps.ftp.outcome == 'success' || steps.retry.outcome == 'success')
         uses: actions/cache/save@v4
         with:
-          path: .current-crm-assets
-          key: crm-assets-${{ github.sha }}
+          path: .current-${{ matrix.target }}-assets
+          key: ${{ matrix.target }}-assets-${{ github.sha }}
 
-      - name: Save current public site assets for next deploy
-        if: steps.current.outputs.deploy == 'true' && steps.targets.outputs.site == 'true' && (steps.ftp_site_deploy.outcome == 'success' || steps.ftp_site_retry.outcome == 'success')
+      - name: Cache published fingerprint
+        if: steps.plan.outputs.deploy == 'true' && (steps.ftp.outcome == 'success' || steps.retry.outcome == 'success')
         uses: actions/cache/save@v4
         with:
-          path: .current-site-assets
-          key: site-assets-${{ github.sha }}
+          path: .deploy-state/${{ matrix.target }}.sha
+          key: published-${{ matrix.target }}-${{ github.sha }}
+
+      - name: Deployment summary
+        if: always()
+        run: |
+          echo "### Deploy $TARGET" >> "$GITHUB_STEP_SUMMARY"
+          echo "Necessario: ${{ steps.plan.outputs.deploy || 'nao avaliado' }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Primeira tentativa: ${{ steps.ftp.outcome || 'ignorada' }}" >> "$GITHUB_STEP_SUMMARY"
