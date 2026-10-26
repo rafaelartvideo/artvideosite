@@ -9,7 +9,7 @@ import { formatDateTime, formatCpf, formatCnpj, formatPhone } from "@/shared/dom
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { adminPath } from "@/features/admin-shell/admin-routes";
 import { getQuote,findServiceOrderByQuote,listSiteQuoteWorkflowEvents,type SiteQuoteWorkflowEvent } from "../infrastructure/quotes.repository";
-import { parseQuoteRequestMessage,quoteRequestAddress,quoteAddressLabel } from "../domain/quote-request-details.mjs";
+import { parseQuoteRequestMessage,quoteRequestAddress,quoteAddressLabel,quoteCustomerReport } from "../domain/quote-request-details.mjs";
 import { QuoteSacDigitalDialog } from "./QuoteSacDigitalDialog";
 import { SiteQuoteMediaGallery } from "./SiteQuoteMediaGallery";
 
@@ -76,7 +76,7 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
     String(parsed.repairLocation||"").toLowerCase().includes("loja")?"store":"onsite";
   const status=String(quote?.request_status?.slug||"").toUpperCase();
   const finished=["CANCELADO","ENCERRADA","CONCLUIDO","OS_VINCULADA"].includes(status);
-  const report=String(quote?.issue_reported||parsed.issue||quote?.customer_message||"").trim();
+  const report=useMemo(()=>quoteCustomerReport(quote),[quote]);
   const contactDigits=String(quote?.customer?.whatsapp||quote?.customer?.phone||"").replace(/\D/g,"");
   const mayMessage=canMessage&&Boolean(quote?.customer_id&&contactDigits);
   const zipDigits=String(location?.zip_code||"").replace(/\D/g,"");
@@ -179,7 +179,7 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
               </div>}
           </Section>
           <Section title="Relato do cliente">
-            <p className="whitespace-pre-wrap text-sm leading-6">{report||"Não informado."}</p>
+            <p className="whitespace-pre-wrap text-sm leading-6">{report||"Nenhum relato informado pelo cliente."}</p>
           </Section>
         </div>
         <SiteQuoteMediaGallery quoteId={quote.id} organizationId={organizationId}/>
