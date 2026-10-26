@@ -24,10 +24,14 @@ export function SiteContactFields({
   const [loadingZip, setLoadingZip] = useState(false);
   const [zipError, setZipError] = useState("");
   const onChangeRef = useRef(onChange);
+  const previousZipRef = useRef(zip);
   onChangeRef.current = onChange;
 
   useEffect(() => {
     if (group !== "address" || disabled) return;
+    // Looking at an existing address must not silently rewrite its saved fields.
+    if (previousZipRef.current === zip) return;
+    previousZipRef.current = zip;
     const digits = zip.replace(/\D/g, "");
     if (digits.length !== 8) { setZipError(""); return; }
     let active = true;
