@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, resumeEmbeddedStoreCheckout, refreshEmbeddedPayment, getStoreTracking, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type StoreTracking,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, resumeEmbeddedStoreCheckout, refreshEmbeddedPayment, checkEmbeddedOrderPaid, getStoreTracking, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type StoreTracking,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {QRCodeSVG} from "qrcode.react";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
@@ -461,10 +461,13 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       if(cancelled||busy||document.hidden)return;
       busy=true;
       try{
-        const order=await getStoreTracking(brickSession.trackingToken);
-        if(!cancelled&&order.id===brickSession.orderId&&order.paymentStatus==="paid"){
-          setConfirmedOrder(order);
-          setBrickResult(current=>current?{...current,status:"approved"}:current);
+        const paid=await checkEmbeddedOrderPaid(brickSession);
+        if(paid&&!cancelled){
+          const order=await getStoreTracking(brickSession.trackingToken);
+          if(!cancelled&&order.id===brickSession.orderId&&order.paymentStatus==="paid"){
+            setConfirmedOrder(order);
+            setBrickResult(current=>current?{...current,status:"approved"}:current);
+          }
         }
       }catch{/* Oscilações de rede não anulam nem reiniciam o pagamento. */}
       finally{busy=false;}
