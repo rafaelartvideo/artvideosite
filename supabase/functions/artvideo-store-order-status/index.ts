@@ -26,7 +26,7 @@ Deno.serve(async (req: Request) => {
      const email=String(input.email||"").trim().toLowerCase();
      const code=String(input.pickup_code||"").trim();
      if(!Number.isSafeInteger(orderNumber)||orderNumber<1||orderNumber>999999999
-        || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)||email.length>254
+        || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)||email.length>254
         || !/^[0-9]{4}$/.test(code))
        return reply({error:"Informe o pedido, o e-mail da compra e o código de quatro dígitos."},400);
      // Limite compartilhado entre as tentativas da mesma origem. Chave opaca:
