@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from "react";
-import {AlertCircle,LoaderCircle,ShieldCheck} from "lucide-react";
+import {AlertCircle,CreditCard,LoaderCircle,QrCode,ShieldCheck} from "lucide-react";
 import {
   submitEmbeddedPayment,
   type EmbeddedCheckoutSession,type EmbeddedPaymentResult,
@@ -13,6 +13,21 @@ type BrickSDK={
   )=>Promise<BrickController>};
 };
 type BrickConstructor=new (publicKey:string,config:{locale:string})=>BrickSDK;
+
+type PaymentMode="pix"|"card";
+
+function formatPixDocument(value:string){
+  const digits=value.replace(/\D/g,"").slice(0,14);
+  if(digits.length<=11){
+    return digits.replace(/^(\d{3})(\d)/,"$1.$2")
+      .replace(/^(\d{3})\.(\d{3})(\d)/,"$1.$2.$3")
+      .replace(/\.(\d{3})(\d)$/,".$1-$2");
+  }
+  return digits.replace(/^(\d{2})(\d)/,"$1.$2")
+    .replace(/^(\d{2})\.(\d{3})(\d)/,"$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/,".$1/$2")
+    .replace(/\/(\d{4})(\d)/,"/$1-$2");
+}
 
 const sdkId="artvideo-mercado-pago-payment-bricks-sdk";
 let sdkPromise:Promise<void>|null=null;
@@ -44,11 +59,11 @@ export function EmbeddedMercadoPagoPayment({
   session:EmbeddedCheckoutSession;buyerEmail:string;
   onResult:(result:EmbeddedPaymentResult)=>void;
 }){
+  const [paymentMode,setPaymentMode]=useState<PaymentMode>("pix");
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
-  // O Payment Brick envia somente e-mail para transferencia bancaria/Pix.
-  // Coletamos CPF/CNPJ separadamente, apenas em memoria, para completar
-  // a requisicao de pagamento conforme o contrato do Mercado Pago.
+  // O SDK solicita somente e-mail para Pix. O CPF/CNPJ é solicitado apenas
+  // na opção Pix e enviado à API de pagamento sem persistência no checkout.
   const [pixDocument,setPixDocument]=useState("");
   const pixDocumentRef=useRef("");
   const changePixDocument=(value:string)=>{
@@ -59,7 +74,7 @@ export function EmbeddedMercadoPagoPayment({
   };
   const callback=useRef(onResult);
   useEffect(()=>{callback.current=onResult;},[onResult]);
-  const containerId="artvideo-payment-brick-"+session.orderId.replace(/-/g,"");
+  const containerId="artvideo-payment-brick-"+session.orderId.replace(/-/g,"")+"-"+paymentMode;
   useEffect(()=>{
     let cancelled=false;
     let controller:BrickController|null=null;
@@ -74,10 +89,9 @@ export function EmbeddedMercadoPagoPayment({
         initialization:{amount:session.amount,
           payer:{email:buyerEmail.trim().toLowerCase()}},
         customization:{
-          paymentMethods:{
-            creditCard:"all",debitCard:"all",
-            bankTransfer:["pix"],
-          },
+          paymentMethods:paymentMode==="pix"
+            ?{bankTransfer:["pix"]}
+            :{creditCard:"all",debitCard:"all"},
           visual:{style:{theme:"default"}},
         },
         callbacks:{
@@ -115,32 +129,52 @@ export function EmbeddedMercadoPagoPayment({
       }
     });
     return ()=>{cancelled=true;controller?.unmount();};
-  },[session.orderId,session.publicKey,session.amount,containerId,buyerEmail]);
+  },[session.orderId,session.publicKey,session.amount,containerId,buyerEmail,paymentMode]);
+  const selectPaymentMode=(mode:PaymentMode)=>{
+    if(mode===paymentMode)return;
+    setError("");
+    setLoading(true);
+    setPaymentMode(mode);
+  };
+
   return <div className="space-y-4">
-    <div className="flex items-start gap-2 rounded-lg border border-[#d8e8fa] bg-[#f2f8ff] p-3 text-xs text-[#4d6987]">
-      <ShieldCheck className="shrink-0 text-[var(--art-primary)]" size={19}/>
-      Os dados do cartão são preenchidos no formulário seguro do Mercado Pago.
-      A Artvideo não recebe o número nem o código de segurança do cartão.
+    <div role="group" aria-label="Forma de pagamento" className="grid grid-cols-2 gap-3">
+      <button type="button" aria-pressed={paymentMode==="pix"}
+        onClick={()=>selectPaymentMode("pix")}
+        className={"inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-[13px] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] "+
+          (paymentMode==="pix"?"border-[var(--art-primary)] bg-[#ecf5ff] text-[var(--art-primary)]":"border-[#dce5f2] bg-white text-[#526983] hover:bg-[#f6f9ff]")}>
+        <QrCode size={18}/> Pix
+      </button>
+      <button type="button" aria-pressed={paymentMode==="card"}
+        onClick={()=>selectPaymentMode("card")}
+        className={"inline-flex min-h-12 items-center justify-center gap-2 rounded-lg border px-4 py-3 text-[13px] font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--art-primary)] "+
+          (paymentMode==="card"?"border-[var(--art-primary)] bg-[#ecf5ff] text-[var(--art-primary)]":"border-[#dce5f2] bg-white text-[#526983] hover:bg-[#f6f9ff]")}>
+        <CreditCard size={18}/> Cartão
+      </button>
     </div>
-    <div className="space-y-2 rounded-lg border border-[#dbe6f4] bg-white p-4">
+    {paymentMode==="pix" ? <div className="space-y-2 rounded-lg border border-[#dbe6f4] bg-[#f7faff] p-4">
       <label htmlFor={"artvideo-pix-document-"+session.orderId} className="block text-[13px] font-bold text-[#203650]">
-        CPF ou CNPJ do pagador · para Pix
+        CPF ou CNPJ do pagador <span className="text-[#e04c52]">*</span>
       </label>
-      <input id={"artvideo-pix-document-"+session.orderId} value={pixDocument}
+      <input id={"artvideo-pix-document-"+session.orderId}
+        value={formatPixDocument(pixDocument)}
         onChange={event=>changePixDocument(event.target.value)}
         type="text" inputMode="numeric" autoComplete="off"
-        maxLength={18} placeholder="Digite somente os números"
+        maxLength={18} placeholder="000.000.000-00 ou 00.000.000/0000-00"
         className="min-h-11 w-full rounded-lg border border-[#dce5f2] bg-white px-3 text-[14px] text-[#10243d] outline-none focus:border-[var(--art-primary)]"
         aria-describedby={"artvideo-pix-document-hint-"+session.orderId}/>
       <p id={"artvideo-pix-document-hint-"+session.orderId} className="text-[11px] leading-5 text-[#647791]">
-        Necessário para gerar Pix. Se escolher cartão, preencha o documento apenas
-        no formulário seguro do Mercado Pago abaixo. Este dado não fica salvo na loja.
+        Informe o documento de quem vai pagar para gerar o código Pix.
       </p>
-    </div>
+    </div> : <div className="flex items-start gap-2 rounded-lg border border-[#d8e8fa] bg-[#f2f8ff] p-3 text-xs text-[#4d6987]">
+      <ShieldCheck className="shrink-0 text-[var(--art-primary)]" size={19}/>
+      Os dados do cartão e o documento do pagador são preenchidos no formulário seguro do Mercado Pago.
+      A Artvideo não recebe o número nem o código de segurança do cartão.
+    </div>}
     {loading&&<div className="flex min-h-20 items-center justify-center gap-2 text-sm text-[#617792]">
       <LoaderCircle className="animate-spin" size={20}/> Carregando pagamento...
     </div>}
-    <div id={containerId} className="min-h-20" />
+    <div key={paymentMode} id={containerId} className="min-h-20" />
     {error&&<div role="alert" className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
       <AlertCircle size={18} className="shrink-0"/>{error}
     </div>}
