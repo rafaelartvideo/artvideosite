@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
-import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, refreshEmbeddedPayment, resumeEmbeddedStoreCheckout, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
+import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, resumeEmbeddedStoreCheckout, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {QRCodeSVG} from "qrcode.react";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
@@ -145,7 +145,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const embeddedAvailable=embeddedQuery.data===true;
   const [brickSession,setBrickSession]=useState<EmbeddedCheckoutSession|null>(null);
   const [brickResult,setBrickResult]=useState<EmbeddedPaymentResult|null>(null);
-  const [brickRefreshing,setBrickRefreshing]=useState(false);
   const [resumingBrick,setResumingBrick]=useState(false);
   const [lastBrickAccess]=useState(()=>{
     try{
@@ -420,21 +419,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       mainRef.current?.scrollIntoView({behavior:"smooth",block:"start"});
     }finally{setResumingBrick(false);}
   };
-  const refreshBrickStatus=async()=>{
-    if(!brickSession||brickRefreshing)return;
-    setBrickRefreshing(true);
-    setError("");
-    try{
-      const result=await refreshEmbeddedPayment(brickSession);
-      if(result.status==="not_started"){
-        setError("Aguardando o envio do pagamento pelo formulário.");
-      }else{
-        setBrickResult(result);
-      }
-    }catch(err){setError(err instanceof Error?err.message:"Nao foi possivel atualizar o pagamento.");}
-    finally{setBrickRefreshing(false);}
-  };
-
   const checkingAvailability = Boolean(productId) && (cartMode ? cartExtras.some(q => q.isPending) : extrasQuery.isPending);
   if (productLoading || (cartMode && catalogLoading) || checkingAvailability) return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]"><LoaderCircle className="animate-spin text-[var(--art-primary)]" size={34}/> {checkingAvailability ? "Confirmando disponibilidade..." : cartMode ? "Carregando seu carrinho..." : "Preparando seu pedido..."}</div>;
   if (productError || (cartMode && catalogError) || (!cartMode && !detail) || !product) return <section className="min-h-[65vh] bg-[#f8fbff] px-4 py-24 text-center">
@@ -790,7 +774,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             <div className="border-b border-[#e9eef6] px-5 py-5 sm:px-7">
               <span className="text-[11px] font-bold uppercase tracking-widest text-[var(--art-primary)]">Etapa 4 de 4</span>
               <h2 id="checkout-pagamento" className="mt-1 text-[22px] font-extrabold tracking-tight">Pagamento seguro</h2>
-              <p className="mt-1 text-[13px] text-[#647791]">Finalize o pedido no próprio site com Pix ou cartão. Outros meios continuam disponíveis no Checkout Pro.</p>
+              <p className="mt-1 text-[13px] text-[#647791]">Escolha Pix ou cartão para concluir sua compra com segurança.</p>
             </div>
             <div className="space-y-5 p-5 sm:p-7">
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dce7f5] bg-[#f7faff] p-4">
@@ -827,21 +811,6 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   Ver boleto bancário
                 </a>}
               </>}
-              <div className="flex flex-wrap items-center gap-3">
-                <button type="button" disabled={brickRefreshing} onClick={()=>void refreshBrickStatus()}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#c8dff9] px-4 text-xs font-bold text-[var(--art-primary)] disabled:opacity-50">
-                  {brickRefreshing?<LoaderCircle size={16} className="animate-spin"/>:<CheckCircle2 size={16}/>}
-                  Atualizar situação
-                </button>
-                <Link to={"/#acompanhar-servico&c="+brickSession.trackingToken}
-                  className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-bold text-white">
-                  Acompanhar pedido <ArrowRight size={16}/>
-                </Link>
-              </div>
-              <p className="text-xs leading-5 text-[#627895]">
-                Se a confirmação demorar, acompanhe seu pedido sem gerar outro pagamento.
-                Você pode sair desta página depois de salvar o link de acompanhamento.
-              </p>
             </div>
           </section>}
 
