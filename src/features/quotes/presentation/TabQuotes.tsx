@@ -7,6 +7,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import {
   createServiceOrderFromQuote,
   findServiceOrderByQuote,
+  insertQuoteStatusHistory,
   getQuote,
   listOrderStatuses,
   listQuotesPage,
@@ -381,6 +382,13 @@ export function TabQuotes({ onNavigate, routeResourceId, onRouteChange, embedded
           try {
             const { error } = await updateQuoteStatus(organizationId, currentId, selectedStatus.id);
             if (error) throw error;
+            // Reutiliza o histórico já existente e a sincronização em tempo real
+            // de quote_requests, como nas demais alterações de orçamento.
+            const { error: historyError } = await insertQuoteStatusHistory(currentId, selectedStatus.id, user?.id || null);
+            if (historyError) {
+              // O status já foi atualizado. Não reenvie a alteração.
+              setToast({ msg: "O status foi atualizado, mas não foi possível registrar o histórico: " + systemErrorMessage(historyError), type: "error" });
+            }
             setDetail((current: any) => current?.id === currentId ? { ...current, status_id: selectedStatus.id, statusName: selectedStatus.name, request_status: selectedStatus } : current);
             syncQuotes();
             setConfirmAction(null);
