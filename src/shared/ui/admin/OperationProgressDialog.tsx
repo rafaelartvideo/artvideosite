@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Check, LoaderCircle } from "lucide-react";
 import { AdminDialog } from "@/shared/ui/admin/AdminLayout";
 
@@ -14,13 +14,15 @@ export function OperationProgressDialog({
   successTitle: string;
   onFinished: () => void;
 }) {
+  const onFinishedRef = useRef(onFinished);
+  onFinishedRef.current = onFinished;
   useEffect(() => {
     if (!open || state !== "success") return;
-    const timer = window.setTimeout(onFinished, 2000);
+    const timer = window.setTimeout(() => onFinishedRef.current(), 2000);
     return () => window.clearTimeout(timer);
-  }, [open, state, onFinished]);
+  }, [open, state]);
 
-  return <AdminDialog open={open} onClose={() => {}} title={state === "loading" ? loadingTitle : successTitle} className="max-w-sm">
+  return <AdminDialog open={open} onClose={() => {}} title={state === "loading" ? loadingTitle : successTitle} className="max-w-sm" minimizable={false} closable={false}>
     <div role="status" aria-live="polite" aria-busy={state === "loading"}
       className="flex min-h-40 flex-col items-center justify-center gap-5 px-4 py-7 text-center">
       {state === "loading"
