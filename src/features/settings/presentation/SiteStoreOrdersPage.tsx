@@ -87,6 +87,7 @@ const orderCode = (order: StoreOrder) => "PED-" + String(order.order_number);
 // Aceita tanto o código privado do acompanhamento quanto o link inteiro.
 const pickupTrackingCode = (value: string): string => {
   const source = value.trim();
+  if (/^\d{4}$/.test(source)) return source;
   if (/^[a-f0-9]{64}$/i.test(source)) return source.toLowerCase();
   return source.match(/(?:[?#&]c=)([a-f0-9]{64})(?=$|[&#])/i)?.[1]?.toLowerCase() || "";
 };
@@ -602,7 +603,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               <input type="text" maxLength={120} value={recipient} onChange={e => setRecipient(e.target.value)}
                 placeholder="Nome do recebedor" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm"/>
             </label>}
-            {nextStatus === "picked_up" && <label className="block text-xs font-bold">Código de acompanhamento e retirada *
+            {nextStatus === "picked_up" && <label className="block text-xs font-bold">Código de retirada ou link de acompanhamento *
               <input type="text" autoComplete="off" spellCheck={false}
                 maxLength={512} value={pickupCode}
                 onChange={e => setPickupCode(e.target.value.slice(0, 512))}
@@ -610,7 +611,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
                 aria-label="Código de acompanhamento e retirada"
                 className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm"/>
               <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
-                Cole o código privado ou o link de acompanhamento apresentado pelo cliente.
+                Informe os quatro dígitos da retirada ou cole o link privado do cliente.
                 A confirmação é validada no servidor para este pedido.
               </span>
             </label>}
