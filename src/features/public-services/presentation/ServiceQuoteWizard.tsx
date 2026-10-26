@@ -102,7 +102,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
         <span><strong className="block">No local</strong><small className="mt-1 block text-slate-500">Informar endereço e preferência de horário</small></span>
        </label>
        <label className={"art-choice "+(!onsite?"is-selected":"")}>
-        <input type="radio" name="attendance" checked={!onsite} onChange={()=>{setAttendance('store');setDate('');setSlot('');}}/>
+        <input type="radio" name="attendance" checked={!onsite} onChange={()=>{setAttendance('store');setDate('');setSlot('');setPhotos(current=>({...current,site:null}));}}/>
         <span><strong className="block">Levar à loja</strong><small className="mt-1 block text-slate-500">Sem necessidade de agendar horário</small></span>
        </label>
       </div>
@@ -170,7 +170,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
      <fieldset className="rounded-xl border border-slate-200 p-4">
       <legend className="px-1 text-sm font-semibold">Fotos (opcionais)</legend>
       <p className="mb-3 text-xs text-slate-500">Fotos do equipamento, da etiqueta e do local do serviço ajudam na avaliação.</p>
-      {([['equipment','Equipamento'],['label','Etiqueta (se tiver)'],['site','Local do serviço']] as const).map(([kind,label])=>
+      {([['equipment','Equipamento'],['label','Etiqueta (se tiver)'],...(onsite?[['site','Local do serviço'] as const]:[])] as Array<readonly [keyof SiteQuotePhotos,string]>).map(([kind,label])=>
        <div key={kind} className="mb-2 flex items-center gap-3 rounded-lg border border-slate-200 px-3 py-2">
         <Camera size={17} className="shrink-0 text-[var(--art-primary)]"/>
         <label className="min-w-0 flex-1 cursor-pointer text-xs font-semibold">
