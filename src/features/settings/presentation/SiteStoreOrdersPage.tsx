@@ -62,7 +62,7 @@ const nextActions: Partial<Record<FulfillmentStatus, { status: FulfillmentStatus
   delivery_issue: { status: "out_for_delivery", label: "Retomar entrega" },
 };
 const timeText = (date: string) => new Date(date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-const orderCode = (order: StoreOrder) => "PED-" + String(order.order_number).padStart(6, "0");
+const orderCode = (order: StoreOrder) => "PED-" + String(order.order_number);
 const formatZip = (raw?: string | null) => {
   const digits = String(raw || "").replace(/\D/g, "");
   return digits.length === 8 ? digits.slice(0, 5) + "-" + digits.slice(5) : (raw || "Não informado");
@@ -125,6 +125,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState("");
   const [recipient, setRecipient] = useState("");
+  const [pickupCode, setPickupCode] = useState("");
   const [actionMode, setActionMode] = useState<"advance" | "issue">("advance");
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
@@ -205,7 +206,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   }, [refresh]);
   useEffect(() => {
     if (!selectedId) { setEvents([]); return; }
-    setActionMode("advance"); setNote(""); setRecipient("");
+    setActionMode("advance"); setNote(""); setRecipient(""); setPickupCode("");
     void loadHistory(selectedId);
   }, [selectedId, loadHistory]);
 
@@ -261,16 +262,24 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     if (issueRequired && note.trim().length < 10) {
       setToast({ msg: "Descreva a ocorrência com pelo menos 10 caracteres.", type: "error" }); return;
     }
+    if (nextStatus === "picked_up" && !/^\d{4}$/.test(pickupCode)) {
+      setToast({ msg: "Informe o código de 4 dígitos apresentado pelo cliente.", type: "error" }); return;
+    }
     setSaving(true);
-    const { error: actionError } = await supabase.rpc("artvideo_store_advance_fulfillment_v1", {
-      p_order_id: selected.id, p_next_status: nextStatus,
-      p_note: note.trim() || null, p_recipient_name: recipient.trim() || null,
-    });
-    if (actionError) {
-      setToast({ msg: systemErrorMessage(actionError), type: "error" });
+    const result = nextStatus === "picked_up"
+      ? await supabase.rpc("artvideo_store_confirm_pickup_v1", {
+          p_order_id: selected.id, p_recipient_name: recipient.trim(),
+          p_pickup_code: pickupCode,
+        })
+      : await supabase.rpc("artvideo_store_advance_fulfillment_v1", {
+          p_order_id: selected.id, p_next_status: nextStatus,
+          p_note: note.trim() || null, p_recipient_name: recipient.trim() || null,
+        });
+    if (result.error || (result.data && typeof result.data === "object" && "error" in result.data)) {
+      setToast({ msg: result.error ? systemErrorMessage(result.error) : String((result.data as {error:string}).error), type: "error" });
     } else {
       setToast({ msg: "Etapa da entrega atualizada.", type: "success" });
-      setNote(""); setRecipient(""); setActionMode("advance");
+      setNote(""); setRecipient(""); setPickupCode(""); setActionMode("advance");
       await Promise.all([refresh(true), loadHistory(selected.id)]);
 
     }
@@ -382,7 +391,8 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         </BtnSecondary>}
         {modalView === "order" && selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
           onClick={() => void changeStage()} disabled={saving || (recipientRequired && recipient.trim().length < 3)
-            || (issueRequired && note.trim().length < 10)}
+            || (issueRequired && note.trim().length < 10)
+            || (nextStatus === "picked_up" && !/^\d{4}$/.test(pickupCode))}
           loading={saving} loadingText="Salvando...">{actionLabel}</BtnPrimary>}
       </div>}>
       {selected && (modalView === "afterSales"
@@ -489,11 +499,21 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               <input type="text" maxLength={120} value={recipient} onChange={e => setRecipient(e.target.value)}
                 placeholder="Nome do recebedor" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm"/>
             </label>}
-            <label className="block text-xs font-bold">Observação {issueRequired ? "*" : "(opcional)"}
+            {nextStatus === "picked_up" && <label className="block text-xs font-bold">Código de retirada (4 dígitos) *
+              <input type="text" inputMode="numeric" autoComplete="off"
+                maxLength={4} value={pickupCode}
+                onChange={e => setPickupCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                placeholder="0000" aria-label="Código de retirada"
+                className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-center text-lg font-bold tracking-[0.35em]"/>
+              <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
+                Peça ao cliente os quatro dígitos exibidos no acompanhamento do pedido.
+              </span>
+            </label>}
+            {nextStatus !== "picked_up" && <label className="block text-xs font-bold">Observação {issueRequired ? "*" : "(opcional)"}
               <textarea rows={2} maxLength={500} value={note} onChange={e => setNote(e.target.value)}
                 placeholder={issueRequired ? "Descreva o que aconteceu com a entrega..." : "Adicione alguma informação sobre a movimentação"}
                 className="mt-1.5 w-full resize-y rounded-md border border-border bg-background p-3 text-sm"/>
-            </label>
+            </label>}
             {recipientRequired && <p className="text-[11px] text-muted-foreground">
               A confirmação é registrada manualmente pela equipe, com o nome de quem recebeu. Não equivale a uma assinatura digital.
             </p>}
