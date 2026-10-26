@@ -146,11 +146,14 @@ Deno.serve(async(req:Request)=>{
     const identity=form?.payer?.identification;
     const idType=String(identity?.type||"").toUpperCase();
     const idNumber=String(identity?.number||"").replace(/\D/g,"");
-    if(!["CPF","CNPJ"].includes(idType)||
-      (idType==="CPF"&&idNumber.length!==11)||(idType==="CNPJ"&&idNumber.length!==14))
-      return reply({error:paymentMethod==="pix"
-        ?"Informe o CPF ou CNPJ do pagador para gerar o Pix."
-        :"Confira o documento CPF/CNPJ informado no formulario do cartao."},400);
+    const hasIdentity=Boolean(idType||idNumber);
+    const validIdentity=["CPF","CNPJ"].includes(idType)&&
+      ((idType==="CPF"&&idNumber.length===11)||(idType==="CNPJ"&&idNumber.length===14));
+    // O Payment Brick fornece a identificacao no cartao. No Pix, o SDK
+    // pode devolver apenas email; a API oficial permite esse payload.
+    // Quando receber um documento, ele ainda precisa ser bem formado.
+    if((paymentMethod!=="pix"||hasIdentity)&&!validIdentity)
+      return reply({error:"Confira o CPF/CNPJ informado no formulario de pagamento."},400);
     const buyer=order.buyer&&typeof order.buyer==="object"?order.buyer:{};
     const payerEmail=String(buyer.buyer_email||"").trim().toLowerCase();
     if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(payerEmail))
@@ -166,7 +169,8 @@ Deno.serve(async(req:Request)=>{
       description:"Compra online Eletronica Artvideo",external_reference:orderId,
       payment_method_id:paymentMethod,installments,
       notification_url:baseUrl+"/functions/v1/artvideo-store-webhook",
-      payer:{email:payerEmail,identification:{type:idType,number:idNumber}},
+      payer:{email:payerEmail,
+        ...(validIdentity?{identification:{type:idType,number:idNumber}}:{})},
     };
     if(!methodWithoutCard)payload.token=cardToken;
     if(form.issuer_id!==undefined && /^[0-9]{1,15}$/.test(String(form.issuer_id)))
