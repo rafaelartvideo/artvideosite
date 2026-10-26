@@ -369,7 +369,11 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
 
     <AdminDialog open={Boolean(selected)} title={selected ? (modalView === "afterSales" ? "Pós-venda · " : "Pedido ") + orderCode(selected) : "Pedido"}
       description={selected ? "Compra realizada em " + timeText(selected.created_at) : undefined}
-      className="max-w-3xl" bodyRef={dialogBodyRef} onClose={() => { if (!saving) setSelectedId(null); }}
+      className={modalView === "afterSales"
+        ? "h-auto max-h-[calc(100dvh-1.5rem)] max-w-3xl"
+        : "h-[min(820px,calc(100dvh-1.5rem))] max-w-4xl"}
+      bodyClassName={modalView === "afterSales" ? "flex-none overscroll-contain" : "overscroll-contain"}
+      bodyRef={dialogBodyRef} onClose={() => { if (!saving) setSelectedId(null); }}
       footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
         {modalView === "afterSales" && <BtnSecondary onClick={() => setModalView("order")}>Voltar ao pedido</BtnSecondary>}
         {modalView === "order" && <BtnSecondary onClick={() => setSelectedId(null)} disabled={saving}>Fechar</BtnSecondary>}
