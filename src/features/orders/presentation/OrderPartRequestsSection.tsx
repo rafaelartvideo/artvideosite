@@ -2,7 +2,7 @@ import { getStatusBadgeClass, STATUS_TONE_CLASSES, STATUS_TONE_HEX } from "@/sha
 import type React from "react";
 import { AlertTriangle, Check, ClipboardCheck, PackageCheck, RotateCcw, Truck, Undo2, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminCard } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionEmpty, AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { purposeLabel } from "../application/part-request.formatters";
 import type { CustodyAction, PartRequestForReview, PartRequestItemForReview } from "../domain/part-request.types";
 
@@ -169,7 +169,7 @@ export function OrderPartRequestsSection({ requests, assignedTo, currentUserId, 
   onDelivery: (request: PartRequestForReview, action?: CustodyAction) => void;
   onTestResult: (request: PartRequestForReview) => void;
 }) {
-  if (requests.length === 0) return <p className="text-xs text-[#5a6a82]">Nenhuma solicitação de peças para esta OS.</p>;
+  if (requests.length === 0) return <AdminSectionEmpty>Nenhuma solicitação de peças para esta OS.</AdminSectionEmpty>;
 
   return <div className="min-w-0 space-y-4">{requests.map((request, requestIndex) => {
     const status = String(request.status || "").toUpperCase();
