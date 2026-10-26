@@ -14,7 +14,6 @@ import {
   Megaphone,
   List,
   Package,
-  Phone,
   Settings,
   Truck,
   CreditCard,
@@ -59,7 +58,6 @@ export const siteItems: PermissionAwareHubItem[] = [
   { id: "siteDelivery", label: "Entrega", icon: Truck, description: "Gerencie as áreas de entrega, os CEPs atendidos e os valores do frete.", permissionKey: "site_settings.view" },
   { id: "sitePayments", label: "Pagamentos", icon: CreditCard, description: "Escolha o provedor de pagamento da loja e gerencie sua disponibilidade.", permissionKey: "site_settings.view" },
   { id: "siteRequests", label: "Solicitações", icon: ClipboardCheck, description: "Consulte orçamentos solicitados e pedidos realizados pelo site.", permissionKey: "quotes.view" },
-  { id: "contact", label: "Contato", icon: Phone, description: "Configure telefones, WhatsApp, e-mail, endereço, redes sociais e horário exibidos no site.", permissionKey: "contact.view" },
 ].sort((a, b) => a.label.localeCompare(b.label, "pt-BR", { sensitivity: "base" }));
 
 export const operationItems: PermissionAwareHubItem[] = [
