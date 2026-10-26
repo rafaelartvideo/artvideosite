@@ -56,7 +56,8 @@ export function SiteContactFields({
   const value = (key: string) => String(settings[key] ?? "");
   if (group === "channels") return <div className="grid gap-3 sm:grid-cols-2">
     <FPhoneInput label="Telefone" value={value("phone")} disabled={disabled} onChange={(event: any) => onChange("phone", event.target.value)} />
-    <FPhoneInput label="WhatsApp" mobile value={value("whatsapp")} disabled={disabled} onChange={(event: any) => onChange("whatsapp", event.target.value)} />
+    <FPhoneInput label="WhatsApp" mobile value={value("whatsapp") || value("whatsapp_number")} disabled={disabled}
+      onChange={(event: any) => { onChange("whatsapp", event.target.value); onChange("whatsapp_number", event.target.value); }} />
     <div className="sm:col-span-2"><FEmailInput label="E-mail" value={value("email")} disabled={disabled} onChange={(event: any) => onChange("email", event.target.value)} /></div>
   </div>;
   if (group === "social") return <FInput label="Instagram" value={value("instagram")} disabled={disabled}
