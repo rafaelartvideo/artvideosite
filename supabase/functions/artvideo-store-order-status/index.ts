@@ -46,7 +46,7 @@ Deno.serve(async (req: Request) => {
      orderId=String(verified);
      const [orderResult,deliveryResult]=await Promise.all([
        admin.from("artvideo_store_orders")
-         .select("id,order_number,created_at,status,paid_at,payment_issue_status,buyer,shipping_service_id")
+         .select("id,order_number,created_at,status,paid_at,payment_issue_status,buyer,shipping_service_id,postal_code")
          .eq("id",orderId).single(),
        admin.from("artvideo_store_fulfillments")
          .select("status,updated_at").eq("order_id",orderId).maybeSingle(),
@@ -65,7 +65,7 @@ Deno.serve(async (req: Request) => {
        pickupLocation:{
          street:String(buyer.street||""),number:String(buyer.number||""),
          district:String(buyer.district||""),city:String(buyer.city||""),
-         state:String(buyer.state||""),postalCode:String(buyer.postal_code||""),
+         state:String(buyer.state||""),postalCode:String(order.postal_code||""),
          hours:String(buyer.pickup_hours||""),instructions:String(buyer.pickup_instructions||""),
        },
        deliveryName:"Retirada na loja",items:[],subtotal:0,shippingPrice:0,total:0,
