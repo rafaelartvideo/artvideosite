@@ -5,7 +5,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
-  AdminButton, AdminPage, AdminStickyToolbar, BtnSecondary, Section,
+  AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, BtnSecondary, Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { formatCurrency, formatDateTime, formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
@@ -302,39 +302,6 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
           </ol>}
         </Section>
         {error&&<div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
-        {canUpdate&&!finished&&action&&<Section title={action.label} description={action.id==="record_sent"?
-          "Registre apenas depois de realmente encaminhar a proposta ao cliente. O sistema não faz o envio por este botão.":
-          action.id==="record_acceptance"?"Informe como e quando o cliente aceitou. Esta ação não envia proposta nem solicita aprovação.":undefined}>
-          <div className="space-y-4">
-            {["prepare_offer","edit_offer"].includes(action.id)&&<>
-              <label className="block text-sm font-semibold">Valor da proposta (R$)
-                <input className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3" type="number" min="0" max="999999.99" step="0.01"
-                  value={price} onChange={e=>setPrice(e.target.value)} placeholder="0,00"/>
-              </label>
-              <label className="block text-sm font-semibold">Descrição e condições
-                <textarea className="mt-2 min-h-24 w-full resize-y rounded-lg border border-border bg-background p-3"
-                  maxLength={400} value={description} onChange={e=>setDescription(e.target.value)}
-                  placeholder="Detalhes do serviço, materiais incluídos e condições da proposta"/>
-              </label>
-            </>}
-            {action.needsNote&&<label className="block text-sm font-semibold">
-              {action.id==="record_sent"?"Canal, data e registro do envio":
-               action.id==="record_acceptance"?"Como o cliente confirmou o aceite":
-               "Observação sobre a movimentação"}
-              <textarea className="mt-2 min-h-20 w-full resize-y rounded-lg border border-border bg-background p-3"
-                maxLength={1500} value={note} onChange={e=>setNote(e.target.value)}
-                placeholder="Registre os detalhes (mínimo 10 caracteres)"/>
-            </label>}
-            <div className="flex flex-wrap justify-end gap-2">
-              <AdminButton variant="secondary" disabled={busy} onClick={()=>{setAction(null);setError("");}}>Cancelar</AdminButton>
-              <AdminButton loading={busy} disabled={busy||
-                (action.needsNote&&note.trim().length<10)||
-                (["prepare_offer","edit_offer"].includes(action.id)&&
-                  (price.trim()===""||!Number.isFinite(Number(price))||Number(price)<0||description.trim().length<10))}
-                onClick={()=>void perform()}>Confirmar alteração</AdminButton>
-            </div>
-          </div>
-        </Section>}
       </div>}
     <AdminStickyToolbar className="justify-between">
       <BtnSecondary onClick={onBack} disabled={busy}>Voltar</BtnSecondary>
@@ -362,6 +329,56 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{
         </>}
       </div>}
     </AdminStickyToolbar>
+    <AdminDialog open={Boolean(canUpdate&&!finished&&action)}
+      onClose={()=>{if(!busy){setAction(null);setError("");}}}
+      title={action?.label||"Confirmar movimentação"}
+      description={
+        action?.id==="start_analysis"
+          ?"Ao confirmar, a solicitação passará para Em análise e a movimentação ficará registrada no histórico."
+          :action?.id==="record_sent"
+            ?"Registre apenas após encaminhar a proposta ao cliente; esta ação não faz o envio."
+          :action?.id==="record_acceptance"
+            ?"Registre como o cliente confirmou o aceite; esta ação não solicita aprovação automaticamente."
+          :"Confirme a movimentação para atualizar a situação e registrar no histórico."
+      }
+      className="max-w-lg" minimizable={false}
+      footer={<div className="flex w-full justify-end gap-2">
+        <AdminButton variant="secondary" disabled={busy}
+          onClick={()=>{setAction(null);setError("");}}>Cancelar</AdminButton>
+        <AdminButton loading={busy} disabled={!action||busy||
+          (Boolean(action?.needsNote)&&note.trim().length<10)||
+          (["prepare_offer","edit_offer"].includes(action?.id||"")&&
+            (price.trim()===""||!Number.isFinite(Number(price))||Number(price)<0||description.trim().length<10))}
+          onClick={()=>void perform()}>
+          Confirmar alteração
+        </AdminButton>
+      </div>}>
+      <div className="space-y-4">
+        {["prepare_offer","edit_offer"].includes(action?.id||"")&&<>
+          <label className="block text-sm font-semibold">Valor da proposta (R$)
+            <input className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3"
+              type="number" min="0" max="999999.99" step="0.01"
+              value={price} onChange={event=>setPrice(event.target.value)} placeholder="0,00"/>
+          </label>
+          <label className="block text-sm font-semibold">Descrição e condições
+            <textarea className="mt-2 min-h-24 w-full resize-y rounded-lg border border-border bg-background p-3"
+              maxLength={400} value={description} onChange={event=>setDescription(event.target.value)}
+              placeholder="Detalhes do serviço, materiais incluídos e condições da proposta"/>
+          </label>
+        </>}
+        {action?.needsNote&&<label className="block text-sm font-semibold">
+          {action.id==="record_sent"?"Canal, data e registro do envio":
+            action.id==="record_acceptance"?"Como o cliente confirmou o aceite":
+            "Observação sobre a movimentação"}
+          <textarea className="mt-2 min-h-20 w-full resize-y rounded-lg border border-border bg-background p-3"
+            maxLength={1500} value={note} onChange={event=>setNote(event.target.value)}
+            placeholder="Registre os detalhes (mínimo 10 caracteres)"/>
+        </label>}
+        {error&&<p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {error}
+        </p>}
+      </div>
+    </AdminDialog>
     {sacOpen&&quote&&<QuoteSacDigitalDialog quote={quote} organizationId={organizationId} onClose={()=>setSacOpen(false)}/>}
   </AdminPage>;
 }
