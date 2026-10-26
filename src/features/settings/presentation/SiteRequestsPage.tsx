@@ -37,16 +37,16 @@ export function SiteRequestsPage({
   ];
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Solicitações" eyebrow="Site"
+    <PageHeader title="Solicitações"
       subtitle="Acompanhe os orçamentos solicitados e os pedidos realizados pelo site da Artvideo." />
-    <nav aria-label="Subseções de solicitações" className="flex min-w-0 gap-1.5 rounded-xl border border-border bg-card p-1.5 sm:w-fit">
+    <nav aria-label="Subseções de solicitações" className="flex min-w-0 flex-wrap items-center gap-5 border-b border-border">
       {sections.map(({ id, label, Icon }) => (
         <button type="button" key={id}
           aria-current={activeSection === id ? "page" : undefined}
           onClick={() => onSelectSection(id)}
-          className={`inline-flex min-h-11 min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors sm:flex-none sm:px-6 ${activeSection === id
-            ? "bg-primary text-white shadow-sm"
-            : "text-muted-foreground hover:bg-muted hover:text-foreground"}`}>
+          className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeSection === id
+            ? "border-primary text-primary"
+            : "border-transparent text-muted-foreground hover:text-foreground"}`}>
           <Icon size={17} className="shrink-0" />{label}
         </button>
       ))}
