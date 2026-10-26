@@ -19,7 +19,7 @@ Deno.serve(async(req:Request)=>{
     const orderId=String(input?.order_id||"");
     const tracking=String(input?.tracking_token||"").toLowerCase();
     if(!uuid.test(orderId)||!trackingPattern.test(tracking)
-      || !["pay","status"].includes(action))
+      || !["pay","status","check"].includes(action))
       return reply({error:"Pedido ou acesso invalido."},400);
     const base=Deno.env.get("SUPABASE_URL")||"";
     const admin=createClient(base,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||"",{
@@ -39,6 +39,11 @@ Deno.serve(async(req:Request)=>{
     if(order.payment_provider!=="mercado_pago"||order.payment_environment!=="production"
       ||order.preference_id!=="bricks:"+orderId)
       return reply({error:"Este pedido nao utiliza pagamento integrado."},403);
+    // Consulta leve e autenticada pelo token do pedido para o checkout ao vivo.
+    // Nao chama o provedor e nao executa conciliacao ou alteracao financeira.
+    if(action==="check")return reply({
+      orderId,paid:order.status==="paid",status:order.status,
+    });
     const {data:lines,error:linesError}=await admin.from("artvideo_store_order_items")
       .select("unit_price,quantity").eq("order_id",orderId).limit(15);
     if(linesError||!lines?.length)return reply({error:"Itens do pedido indisponiveis."},503);
