@@ -19,8 +19,6 @@ export function ServiceTrackingSection() {
   const { hash } = useLocation();
   const [trackingToken, setTrackingToken] = useState("");
   const [pickupLookup, setPickupLookup] = useState<PickupTrackingLookup | null>(null);
-  const [pickupMode, setPickupMode] = useState(false);
-  const [pickupPin, setPickupPin] = useState("");
   const [osNumber, setOsNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -31,32 +29,36 @@ export function ServiceTrackingSection() {
 
   useEffect(() => {
     if (!hash.startsWith("#acompanhar-servico") && !hash.startsWith("#c=")) return;
-    const token = new URLSearchParams(hash.replace(/^#/, "")).get("c") || "";
+    const linkParams=new URLSearchParams(hash.replace(/^#/,""));
+    const token=linkParams.get("c")||"";
+    const pin=linkParams.get("pin")||"";
     if (/^[a-f0-9]{64}$/i.test(token)) {
       setTrackingToken(token.toLowerCase());
       setPickupLookup(null);
-      setPickupMode(false);
-      setOsNumber("");
-      setOrder(null);
-      setErrorMsg("");
-      setSearched(false);
+    } else if (/^\d{4}$/.test(pin)) {
+      setTrackingToken("");
+      setPickupLookup({code:pin});
+    } else {
+      return;
     }
+    setOsNumber("");
+    setReadyTrackingToken(null);
+    setOrder(null);
+    setErrorMsg("");
+    setSearched(false);
     window.requestAnimationFrame(() => document.getElementById("acompanhar-servico")?.scrollIntoView({ block: "start" }));
   }, [hash]);
 
   const handleTrack = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const input = osNumber.trim();
-    if ((!input && !pickupMode) || loading) return;
+    if (!input || loading) return;
     setSearched(true); setOrder(null); setErrorMsg("");
-    if (pickupMode) {
-      if (!/^\d{4}$/.test(pickupPin.trim())) {
-        setErrorMsg("Informe os quatro dígitos do código de retirada.");
-        return;
-      }
+    if (/^\d{4}$/.test(input)) {
       setTrackingToken("");
       setReadyTrackingToken(null);
-      setPickupLookup({code:pickupPin.trim()});
+      setPickupLookup({code:input});
+      window.history.replaceState(window.history.state,"","/#acompanhar-servico&pin="+input);
       return;
     }
     setPickupLookup(null);
@@ -69,11 +71,11 @@ export function ServiceTrackingSection() {
     }
     setTrackingToken("");
     setReadyTrackingToken(null);
-    if (window.location.hash.includes("&c=")) {
+    if (window.location.hash.includes("&c=") || window.location.hash.includes("&pin=")) {
       window.history.replaceState(window.history.state, "", "/#acompanhar-servico");
     }
     if (/^(?:pedido|ped|order)[\s#:-]*\w+/i.test(input)) {
-      setErrorMsg("Para acompanhar um pedido, cole o código ou link privado recebido com a compra. O número do pedido sozinho não permite acesso.");
+      setErrorMsg("Use o código de retirada de 4 dígitos ou o link de acompanhamento do pedido.");
       return;
     }
     const cleanOs = input.replace(/^OS[\s#:-]*/i, "");
@@ -98,34 +100,19 @@ export function ServiceTrackingSection() {
     <div className="grid items-center gap-x-8 gap-y-4 lg:grid-cols-[.95fr_1.05fr]">
       <div>
         <H2 className="!text-[20px] sm:!text-[23px]">Acompanhe seu serviço ou pedido</H2>
-        <p className="mt-1 text-[12px] leading-relaxed text-[#5d6e86] sm:text-[13px]">Informe o número da OS ou cole o código/link privado do pedido para consultar o andamento.</p>
+        <p className="mt-1 text-[12px] leading-relaxed text-[#5d6e86] sm:text-[13px]">Consulte com o código de retirada, número da OS ou link do pedido.</p>
       </div>
       <form onSubmit={handleTrack} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:gap-3">
-        {pickupMode ? <label className="min-w-0 flex-1">
-          <span className="sr-only">Código de retirada</span>
-          <input type="text" inputMode="numeric" maxLength={4} value={pickupPin}
-            onChange={e=>setPickupPin(e.target.value.replace(/\D/g,"").slice(0,4))}
-            placeholder="Código de retirada (4 dígitos)" autoComplete="off" required
-            className="min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20"/>
-        </label> : <>
-          <label htmlFor="artvideo-os-number" className="sr-only">Número da OS ou link de acompanhamento do pedido</label>
-          <input id="artvideo-os-number" type="text" value={osNumber}
-            onChange={event=>setOsNumber(event.target.value)}
-            placeholder="Número da OS ou link privado do pedido" autoComplete="off"
-            className="min-h-11 min-w-0 flex-1 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20" required/>
-        </>}
+        <label htmlFor="artvideo-os-number" className="sr-only">Número da OS, código de retirada ou link do pedido</label>
+        <input id="artvideo-os-number" type="text" value={osNumber}
+          onChange={event=>setOsNumber(event.target.value)}
+          placeholder="Código de retirada, OS ou link do pedido" autoComplete="off"
+          className="min-h-11 min-w-0 flex-1 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20" required/>
         <Btn variant="primary" disabled={loading} className="!min-h-11 shrink-0 whitespace-nowrap px-6">
           {loading ? "Consultando..." : <><Search size={17}/> Acompanhar</>}
         </Btn>
       </form>
     </div>
-    <button type="button" onClick={()=>{
-      setPickupMode(current=>!current);
-      setPickupLookup(null); setTrackingToken(""); setReadyTrackingToken(null);
-      setErrorMsg("");setOrder(null);setSearched(false);
-    }} className="mt-3 text-[12px] font-semibold text-[var(--art-primary)] hover:underline">
-      {pickupMode ? "Usar número da OS ou link privado" : "Acompanhar pedido com código de retirada"}
-    </button>
     {loading && <TrackingLoading subject="serviço"/>}
     {!loading && !trackingToken && searched && errorMsg && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-lg border border-red-200 bg-white p-5 text-center">
       <X size={21} className="mx-auto mb-2 text-red-600"/><p className="text-sm font-semibold">Não foi possível consultar</p>
