@@ -3,7 +3,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { AlertCircle, AlertTriangle, CheckCircle, Package, Plus, X } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
-import { AdminButton } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -191,7 +191,7 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
   onAdd?: () => void;
   addLabel?: string;
 }) {
-  return <div className="flex min-h-[180px] w-full flex-col items-center justify-center gap-4 px-4 py-12 text-center">
+  return <AdminSectionEmpty className="min-h-[180px] gap-4 py-12">
     <div className="w-16 h-16 bg-[#0057e7]/8 rounded-2xl flex items-center justify-center">
       <Icon size={28} className="text-[#0057e7]/50" />
     </div>
@@ -202,7 +202,7 @@ export function EmptyState({ icon: Icon = Package, title, message, onAdd, addLab
     {onAdd && <AdminButton onClick={onAdd}>
       <Plus size={16} /> {addLabel}
     </AdminButton>}
-  </div>;
+  </AdminSectionEmpty>;
 }
 
 export function Toast({ message, type = "success", onClose, persistent = false, onRetry }: { message: unknown; type?: FeedbackType; onClose: () => void; persistent?: boolean; onRetry?: () => void }) {
