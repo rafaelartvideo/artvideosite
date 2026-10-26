@@ -5,6 +5,7 @@ import { PublicButton as Btn, PublicHeading as H2 } from "@/features/public-shel
 import { findPublicServiceOrder } from "../application/find-public-service-order";
 import { formatTrackingDate, type PublicTrackedOrder } from "../domain/service-tracking";
 import { TrackingLoading } from "./TrackingLoading";
+import type { PickupTrackingLookup } from "@/features/public-store/infrastructure/storefront.repository";
 
 const StoreOrderTrackingDetails = lazy(() => import("@/features/public-store/presentation/StoreOrderTrackingPage")
   .then(module => ({ default: module.StoreOrderTrackingDetails })));
@@ -17,6 +18,11 @@ const privateToken = (value: string) => {
 export function ServiceTrackingSection() {
   const { hash } = useLocation();
   const [trackingToken, setTrackingToken] = useState("");
+  const [pickupLookup, setPickupLookup] = useState<PickupTrackingLookup | null>(null);
+  const [pickupMode, setPickupMode] = useState(false);
+  const [pickupNumber, setPickupNumber] = useState("");
+  const [pickupPin, setPickupPin] = useState("");
+  const [pickupEmail, setPickupEmail] = useState("");
   const [osNumber, setOsNumber] = useState("");
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -30,6 +36,8 @@ export function ServiceTrackingSection() {
     const token = new URLSearchParams(hash.replace(/^#/, "")).get("c") || "";
     if (/^[a-f0-9]{64}$/i.test(token)) {
       setTrackingToken(token.toLowerCase());
+      setPickupLookup(null);
+      setPickupMode(false);
       setOsNumber("");
       setOrder(null);
       setErrorMsg("");
@@ -41,8 +49,21 @@ export function ServiceTrackingSection() {
   const handleTrack = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const input = osNumber.trim();
-    if (!input || loading) return;
+    if ((!input && !pickupMode) || loading) return;
     setSearched(true); setOrder(null); setErrorMsg("");
+    if (pickupMode) {
+      const orderNumber = pickupNumber.replace(/^PED-/i, "").trim();
+      if (!/^\d{1,9}$/.test(orderNumber) || !/^\d{4}$/.test(pickupPin.trim())
+          || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pickupEmail.trim())) {
+        setErrorMsg("Informe o número do pedido, os quatro dígitos da retirada e o e-mail usado na compra.");
+        return;
+      }
+      setTrackingToken("");
+      setReadyTrackingToken(null);
+      setPickupLookup({orderNumber, code:pickupPin.trim(), email:pickupEmail.trim()});
+      return;
+    }
+    setPickupLookup(null);
     const token = privateToken(input);
     if (token) {
       setTrackingToken(token);
@@ -83,17 +104,46 @@ export function ServiceTrackingSection() {
         <H2 className="!text-[20px] sm:!text-[23px]">Acompanhe seu serviço ou pedido</H2>
         <p className="mt-1 text-[12px] leading-relaxed text-[#5d6e86] sm:text-[13px]">Informe o número da OS ou cole o código/link privado do pedido para consultar o andamento.</p>
       </div>
-      <form onSubmit={handleTrack} className="flex flex-col gap-2 sm:flex-row sm:gap-3">
-        <label htmlFor="artvideo-os-number" className="sr-only">Número da OS ou código de acompanhamento do pedido</label>
-        <input id="artvideo-os-number" type="text" value={osNumber}
-          onChange={event=>setOsNumber(event.target.value)}
-          placeholder="Número da OS ou código do pedido" autoComplete="off"
-          className="min-h-11 min-w-0 flex-1 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20" required/>
+      <form onSubmit={handleTrack} className="flex min-w-0 flex-col gap-2 sm:flex-row sm:gap-3">
+        {pickupMode ? <>
+          <label className="min-w-0 flex-1 text-[11px] font-bold text-[#365577]">
+            Pedido
+            <input type="text" value={pickupNumber} onChange={e=>setPickupNumber(e.target.value)}
+              placeholder="PED-123" autoComplete="off" required
+              className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-3 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
+          </label>
+          <label className="min-w-0 flex-1 text-[11px] font-bold text-[#365577]">
+            Código de retirada
+            <input type="text" inputMode="numeric" maxLength={4} value={pickupPin}
+              onChange={e=>setPickupPin(e.target.value.replace(/\D/g,"").slice(0,4))}
+              placeholder="4 dígitos" autoComplete="off" required
+              className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-3 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
+          </label>
+          <label className="min-w-0 flex-[1.5] text-[11px] font-bold text-[#365577]">
+            E-mail da compra
+            <input type="email" value={pickupEmail} onChange={e=>setPickupEmail(e.target.value)}
+              placeholder="seu@email.com" autoComplete="email" required
+              className="mt-1 min-h-11 w-full min-w-0 rounded-md border border-[#dbe6f4] bg-white px-3 text-[13px] outline-none focus:border-[var(--art-primary)]"/>
+          </label>
+        </> : <>
+          <label htmlFor="artvideo-os-number" className="sr-only">Número da OS ou link de acompanhamento do pedido</label>
+          <input id="artvideo-os-number" type="text" value={osNumber}
+            onChange={event=>setOsNumber(event.target.value)}
+            placeholder="Número da OS ou link privado do pedido" autoComplete="off"
+            className="min-h-11 min-w-0 flex-1 rounded-md border border-[#dbe6f4] bg-white px-4 py-2.5 text-[13px] font-medium text-[#0d1b2e] placeholder:text-[#8a98ab] shadow-sm focus:border-[var(--art-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--art-primary)]/20" required/>
+        </>}
         <Btn variant="primary" disabled={loading} className="!min-h-11 shrink-0 whitespace-nowrap px-6">
           {loading ? "Consultando..." : <><Search size={17}/> Acompanhar</>}
         </Btn>
       </form>
     </div>
+    <button type="button" onClick={()=>{
+      setPickupMode(current=>!current);
+      setPickupLookup(null); setTrackingToken(""); setReadyTrackingToken(null);
+      setErrorMsg("");setOrder(null);setSearched(false);
+    }} className="mt-3 text-[12px] font-semibold text-[var(--art-primary)] hover:underline">
+      {pickupMode ? "Usar número da OS ou link privado" : "Acompanhar pedido com código de retirada"}
+    </button>
     {loading && <TrackingLoading subject="serviço"/>}
     {!loading && !trackingToken && searched && errorMsg && <div role="alert" className="mx-auto mt-5 max-w-xl rounded-lg border border-red-200 bg-white p-5 text-center">
       <X size={21} className="mx-auto mb-2 text-red-600"/><p className="text-sm font-semibold">Não foi possível consultar</p>
@@ -134,10 +184,11 @@ export function ServiceTrackingSection() {
         </li>)}</ol>
       </div>}
     </div>}
-    {trackingToken && <>
-      {readyTrackingToken !== trackingToken && <TrackingLoading subject="pedido"/>}
+    {(trackingToken || pickupLookup) && <>
+      {readyTrackingToken !== (trackingToken || (pickupLookup ? "pickup:"+pickupLookup.orderNumber+":"+pickupLookup.code : "")) && <TrackingLoading subject="pedido"/>}
       <Suspense fallback={null}>
-        <StoreOrderTrackingDetails key={trackingToken} token={trackingToken} onReady={markOrderReady}/>
+        <StoreOrderTrackingDetails key={trackingToken || (pickupLookup ? pickupLookup.orderNumber+":"+pickupLookup.code+":"+pickupLookup.email : "")}
+          token={trackingToken || undefined} pickupLookup={pickupLookup || undefined} onReady={markOrderReady}/>
       </Suspense>
     </>}
   </section>;
