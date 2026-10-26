@@ -75,6 +75,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const clear=()=>{setCustomer("");setDocument("");setProtocol("");setStatus("");setKind("");setSort("");setPage(1);};
   const open=(quote:any)=>{if(canOpen)onRouteChange?.(quote.id,null);};
   const kindName=(quote:any)=>quote.site_request_kind==="repair"?"Conserto":"Serviço";
+  const statusName=(quote:any)=>quote.request_status?.slug==="PENDENTE"?"Recebida":quote.statusName||"Sem situação";
   return <div className="min-w-0 space-y-5">
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
     {canView&&<AdminSearchPanel title="Buscar orçamentos" headerActions={<>
@@ -110,7 +111,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
                  {showProtocol&&<p className="font-mono text-xs font-black text-primary">{quote.protocol||quote.id.slice(0,8)}</p>}
                  {showCustomer&&<p className="truncate text-sm font-bold">{person?.full_name||person?.trade_name||"—"}</p>}
                </div>
-               {showStatus&&<StatusBadge status={quote.statusName||"Recebida"} color={quote.request_status?.color}/>}
+               {showStatus&&<StatusBadge status={statusName(quote)} color={quote.request_status?.color}/>}
              </div>
              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                {quote.site_request_kind==="repair"?<Wrench size={15}/>:<CalendarDays size={15}/>}
@@ -144,7 +145,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
                {showCustomer&&<td><p className="font-bold">{person?.full_name||person?.trade_name||"—"}</p><p className="text-xs text-muted-foreground">{formatPhone(person?.whatsapp||person?.phone)}</p></td>}
                {showDocument&&<td className="text-xs text-muted-foreground"><DocumentValue customer={person}/></td>}
                {showService&&<td className="text-xs text-muted-foreground">{(quote.service as any)?.title||"Conserto de equipamento"} · {(quote.brand as any)?.name||"—"}</td>}
-               {showStatus&&<td><StatusBadge status={quote.statusName||"Recebida"} color={quote.request_status?.color}/></td>}
+               {showStatus&&<td><StatusBadge status={statusName(quote)} color={quote.request_status?.color}/></td>}
                {showDate&&<td className="text-xs">{formatDateTime(quote.created_at)}</td>}
                <td className="text-right text-xs font-semibold text-primary">
                  {canOpen?<span className="inline-flex items-center gap-1">Abrir detalhes <ClipboardList size={14}/></span>:"—"}
