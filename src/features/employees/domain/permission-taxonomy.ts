@@ -99,6 +99,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   const module = key.split(".")[0];
   if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
   if (key.startsWith("customer_requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
+  if (key.startsWith("settings.channels.")) return "Canais de Atendimento";
   if (module === "tools") {
     if (key === "tools.uniq.use") return "UNIQ";
     if (key === "tools.sac_digital.use") return "SAC Digital";
