@@ -547,14 +547,19 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             <div className="flex items-center justify-center gap-2 text-[13px] font-bold text-[#244b7c]">
               <Store size={18}/> Retirada na loja
             </div>
-            {confirmedOrder.pickupCode?<><p className="mt-3 text-xs text-[#536f90]">Seu código de retirada</p>
-              <strong className="mt-2 block text-[34px] font-extrabold tracking-[.22em] text-[var(--art-primary)]">
+            {confirmedOrder.pickupCode?<><p className="mt-3 text-xs text-[#536f90]">Código de acompanhamento e retirada</p>
+              <strong className="mt-2 block break-all rounded-lg bg-white/80 px-3 py-3 font-mono text-[12px] font-bold leading-relaxed text-[var(--art-primary)]">
                 {confirmedOrder.pickupCode}
               </strong>
+              <button type="button" onClick={() => void navigator.clipboard.writeText(confirmedOrder.pickupCode!)}
+                className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-blue-200 bg-white px-4 text-[12px] font-bold text-[var(--art-primary)] hover:bg-blue-100">
+                <Copy size={15}/> Copiar código
+              </button>
               <p className="mt-2 text-xs leading-5 text-[#536f90]">
-                Guarde este código e apresente-o quando seu pedido estiver pronto para retirada.
+                É o mesmo código privado do acompanhamento. Apresente-o ou compartilhe seu link
+                com a equipe quando o pedido estiver pronto para retirada.
               </p></>:<p className="mt-3 text-xs text-[#536f90]">
-              O código de retirada ficará disponível no acompanhamento do pedido.
+              O código privado estará disponível no acompanhamento do pedido.
             </p>}
           </div>}
           <div className="space-y-3">
