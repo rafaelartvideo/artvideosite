@@ -2,14 +2,14 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle, CheckCheck, ClipboardCheck,
-  HelpCircle, MapPin, MoreVertical, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
+  HelpCircle, MapPin, PackageCheck, RotateCcw, Search, ShoppingBag, Truck,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminSectionEmpty,
-  AdminButton, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
+  AdminButton, AdminDialog, AdminRowActionsTrigger, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
@@ -322,12 +322,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   };
   const quickActions=(order:StoreOrder)=><DropdownMenu>
     <DropdownMenuTrigger asChild>
-      <button type="button" onClick={event=>event.stopPropagation()}
-        aria-label={`Ações do pedido ${orderCode(order)}`}
-        title="Ações rápidas"
-        className="inline-flex h-9 w-9 shrink-0 items-center justify-center bg-transparent text-foreground transition-opacity hover:opacity-65 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
-        <MoreVertical size={17}/>
-      </button>
+      <AdminRowActionsTrigger label={`Ações do pedido ${orderCode(order)}`}/>
     </DropdownMenuTrigger>
     <DropdownMenuContent align="end" className="w-56" onClick={event=>event.stopPropagation()}>
       <DropdownMenuItem className="font-semibold" onSelect={()=>openOrder(order)}>
