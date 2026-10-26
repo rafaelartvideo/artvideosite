@@ -59,7 +59,7 @@ Deno.serve(async req => {
       const total=Number(order.shipping_price)+lines.reduce(
         (sum,line)=>sum+Number(line.unit_price)*Number(line.quantity),0);
       if(!Number.isFinite(total)||total<1)return json({error:"Valor do pedido invalido."},400);
-      return json({order_id:resumeId,order_number:"PED-"+String(order.order_number).padStart(6,"0"),tracking_token:resumeToken,
+      return json({order_id:resumeId,order_number:"PED-"+String(order.order_number),tracking_token:resumeToken,
         public_key:publicKey,amount:Math.round(total*100)/100,
         expires_at:order.expires_at,buyer_email:String(order.buyer?.buyer_email||""),
         mode:"bricks"});
@@ -214,7 +214,7 @@ Deno.serve(async req => {
       .select("order_number").eq("id",orderId).single();
     if(numberError || numberRow?.order_number==null)
       throw new Error("Não foi possível atribuir o número do pedido.");
-    const displayNumber="PED-"+String(numberRow.order_number).padStart(6,"0");
+    const displayNumber="PED-"+String(numberRow.order_number);
     // Se o acompanhamento falhar, nao criar preferencia no provedor:
     // evita checkout real sem um codigo privado recuperavel pelo cliente.
     const {data:trackingToken,error:trackingError}=await admin.rpc("artvideo_store_create_tracking_v1",{p_order_id:orderId});
