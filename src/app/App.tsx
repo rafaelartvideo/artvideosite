@@ -38,6 +38,7 @@ const ContactPage = lazy(() => import("@/features/contact-public/presentation/Co
 const TechnicalAssistancePage = lazy(() => import("@/features/technical-assistance/presentation/TechnicalAssistancePage").then(module => ({ default: module.TechnicalAssistancePage })));
 const ServiceTrackingSection = lazy(() => import("@/features/service-tracking/presentation/ServiceTrackingSection").then(module => ({ default: module.ServiceTrackingSection })));
 const PublicQuotePage = lazy(() => import("@/features/public-quotes/presentation/PublicQuotePage").then(module => ({ default: module.PublicQuotePage })));
+const CustomerAccountPage = lazy(() => import("@/features/customer-account/presentation/CustomerAccountPage").then(module => ({ default: module.CustomerAccountPage })));
 const MobileDeviceCapturePage = lazy(() => import("@/features/device-capture/presentation/MobileDeviceCapturePage").then(module => ({ default: module.MobileDeviceCapturePage })));
 const MobileOrderEditPage = lazy(() => import("@/features/device-capture/presentation/MobileOrderEditPage").then(module => ({ default: module.MobileOrderEditPage })));
 const MobileOrderChecklistPage = lazy(() => import("@/features/checklists/presentation/MobileOrderChecklistPage").then(module => ({ default: module.MobileOrderChecklistPage })));
@@ -434,6 +435,7 @@ function PublicRoutes() {
           <Route path="/carrinho" element={<StoreCartPage onReady={markCartReady} />} />
           <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
           <Route path="/acompanhar-pedido" element={<LegacyOrderTrackingRedirect />} />
+          <Route path="/minha-conta" element={<CustomerAccountPage />} />
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
