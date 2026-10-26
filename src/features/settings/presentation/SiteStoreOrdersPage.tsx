@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
+  AdminButton, AdminDialog, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
@@ -96,7 +96,8 @@ const formatPhone = (raw?: string | null) => {
   return raw || "Não informado";
 };
 type StockAddress = { name: string | null; sku: string | null;
-  storage_shelf: string | null; storage_level: string | null; storage_compartment: string | null };
+  storage_shelf: string | null; storage_level: string | null;
+  storage_compartment: string | null; updated_at?: string | null };
 
 function paymentColor(status: string) {
   if (status === "paid") return STATUS_TONE_CLASSES.success.badge;
@@ -146,6 +147,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const [stockAddress, setStockAddress] = useState<StockAddress | null>(null);
   const [stockLoading, setStockLoading] = useState(false);
   const [stockError, setStockError] = useState("");
+  const stockRequestRef = useRef(0);
   const dialogBodyRef = useRef<HTMLDivElement>(null);
   const [note, setNote] = useState("");
   const [recipient, setRecipient] = useState("");
@@ -242,16 +244,23 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     }];
   };
   const openStockAddress = async (line: StoreOrderLine) => {
+    const requestId = ++stockRequestRef.current;
     setStockLine(line);
     setStockAddress(null);
     setStockError("");
-    if (!line.inventory_item_id || !activeOrganization?.id) return;
+    if (!selected?.id) {
+      setStockError("Não foi possível identificar o pedido.");
+      setStockLoading(false);
+      return;
+    }
     setStockLoading(true);
-    const { data, error: lookupError } = await supabase.from("inventory_items")
-      .select("name,sku,storage_shelf,storage_level,storage_compartment")
-      .eq("id", line.inventory_item_id)
-      .eq("organization_id", activeOrganization.id)
-      .maybeSingle();
+    // A consulta verifica o item e a empresa no servidor e devolve somente
+    // a localização atual, sem expor o restante do inventário.
+    const { data, error: lookupError } = await supabase.rpc(
+      "artvideo_store_order_stock_address_v1",
+      { p_order_id: selected.id, p_line_id: line.id },
+    );
+    if (stockRequestRef.current !== requestId) return;
     if (lookupError) setStockError(systemErrorMessage(lookupError));
     else setStockAddress(data as StockAddress | null);
     setStockLoading(false);
@@ -463,9 +472,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
       footer={<div className="flex w-full flex-wrap items-center justify-end gap-2">
         {modalView === "afterSales" && <BtnSecondary onClick={() => setModalView("order")}>Voltar ao pedido</BtnSecondary>}
         {modalView === "order" && <BtnSecondary onClick={() => setSelectedId(null)} disabled={saving}>Fechar</BtnSecondary>}
-        {modalView === "order" && selected && <BtnPrimary onClick={() => { setPickupHelp(false); setModalView("afterSales"); }}>
+        {modalView === "order" && selected && <AdminButton variant="tertiary" onClick={() => { setPickupHelp(false); setModalView("afterSales"); }}>
           <RotateCcw size={15}/> Pós-venda
-        </BtnPrimary>}
+        </AdminButton>}
         {modalView === "order" && selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
           onClick={() => void changeStage()} disabled={saving || (recipientRequired && recipient.trim().length < 3)
             || (issueRequired && note.trim().length < 10)
@@ -534,9 +543,9 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             <strong className="shrink-0 text-right">{formatCurrency(line.quantity * Number(line.unit_price))}</strong>
           </div>)}
           <div className="mt-3 flex justify-between"><span>Subtotal</span><strong>{formatCurrency(subtotal(selected))}</strong></div>
-          {!isPickup && <div className="mt-2 flex justify-between">
-            <span>Entrega</span><strong>{formatCurrency(deliveryCost(selected))}</strong>
-          </div>}
+          <div className="mt-2 flex justify-between">
+            <span>Entrega</span><strong>{isPickup ? "Grátis" : formatCurrency(deliveryCost(selected))}</strong>
+          </div>
           <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-extrabold">
             <span>Total</span><span>{formatCurrency(total(selected))}</span>
           </div>
@@ -627,8 +636,8 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     </AdminDialog>
     <AdminDialog open={Boolean(stockLine)} title="Localização no estoque"
       description={stockLine?.product_name} className="max-w-md"
-      onClose={() => setStockLine(null)}
-      footer={<div className="flex justify-end"><BtnSecondary onClick={() => setStockLine(null)}>Fechar</BtnSecondary></div>}>
+      onClose={() => { stockRequestRef.current++; setStockLine(null); }}
+      footer={<div className="flex justify-end"><BtnSecondary onClick={() => { stockRequestRef.current++; setStockLine(null); }}>Fechar</BtnSecondary></div>}>
       {stockLoading ? <p className="text-sm text-muted-foreground">Consultando localização...</p>
       : stockError ? <p role="alert" className="text-sm text-destructive">{stockError}</p>
       : stockAddress && (stockAddress.storage_shelf || stockAddress.storage_level || stockAddress.storage_compartment)
@@ -636,14 +645,17 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
             <p className="text-muted-foreground">Endereço cadastrado para este item no estoque:</p>
             <div className="grid gap-3 sm:grid-cols-3">
               {([
-                ["Prateleira", stockAddress.storage_shelf],
-                ["Nível", stockAddress.storage_level],
+                ["Estante", stockAddress.storage_shelf],
+                ["Prateleira", stockAddress.storage_level],
                 ["Compartimento", stockAddress.storage_compartment],
               ] as const).map(([label, value]) => <div key={label} className="rounded-lg border border-border p-3">
                 <p className="text-xs text-muted-foreground">{label}</p>
                 <strong className="mt-1 block break-words">{value || "—"}</strong>
               </div>)}
             </div>
+            {stockAddress.updated_at && <p className="text-xs text-muted-foreground">
+              Cadastro atualizado em {timeText(stockAddress.updated_at)}.
+            </p>}
           </div>
         : <p className="text-sm text-muted-foreground">Este produto não possui uma localização de estoque cadastrada.</p>}
     </AdminDialog>
