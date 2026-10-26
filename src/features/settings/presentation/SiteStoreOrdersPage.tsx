@@ -84,6 +84,12 @@ const nextActions: Partial<Record<FulfillmentStatus, { status: FulfillmentStatus
 };
 const timeText = (date: string) => new Date(date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
 const orderCode = (order: StoreOrder) => "PED-" + String(order.order_number);
+// Aceita tanto o código privado do acompanhamento quanto o link inteiro.
+const pickupTrackingCode = (value: string): string => {
+  const source = value.trim();
+  if (/^[a-f0-9]{64}$/i.test(source)) return source.toLowerCase();
+  return source.match(/(?:[?#&]c=)([a-f0-9]{64})(?=$|[&#])/i)?.[1]?.toLowerCase() || "";
+};
 const formatZip = (raw?: string | null) => {
   const digits = String(raw || "").replace(/\D/g, "");
   return digits.length === 8 ? digits.slice(0, 5) + "-" + digits.slice(5) : (raw || "Não informado");
@@ -309,14 +315,14 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     if (issueRequired && note.trim().length < 10) {
       setToast({ msg: "Descreva a ocorrência com pelo menos 10 caracteres.", type: "error" }); return;
     }
-    if (nextStatus === "picked_up" && !/^\d{4}$/.test(pickupCode)) {
-      setToast({ msg: "Informe o código de 4 dígitos apresentado pelo cliente.", type: "error" }); return;
+    if (nextStatus === "picked_up" && !pickupTrackingCode(pickupCode)) {
+      setToast({ msg: "Cole o código ou link privado de acompanhamento do pedido.", type: "error" }); return;
     }
     setSaving(true);
     const result = nextStatus === "picked_up"
       ? await supabase.rpc("artvideo_store_confirm_pickup_v1", {
           p_order_id: selected.id, p_recipient_name: recipient.trim(),
-          p_pickup_code: pickupCode,
+          p_pickup_code: pickupTrackingCode(pickupCode),
         })
       : await supabase.rpc("artvideo_store_advance_fulfillment_v1", {
           p_order_id: selected.id, p_next_status: nextStatus,
@@ -478,7 +484,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         {modalView === "order" && selected && selectedIsPaid && canManage && nextStatus && <BtnPrimary
           onClick={() => void changeStage()} disabled={saving || (recipientRequired && recipient.trim().length < 3)
             || (issueRequired && note.trim().length < 10)
-            || (nextStatus === "picked_up" && !/^\d{4}$/.test(pickupCode))}
+            || (nextStatus === "picked_up" && !pickupTrackingCode(pickupCode))}
           loading={saving} loadingText="Salvando...">{actionLabel}</BtnPrimary>}
       </div>}>
       {selected && (modalView === "afterSales"
@@ -596,14 +602,16 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
               <input type="text" maxLength={120} value={recipient} onChange={e => setRecipient(e.target.value)}
                 placeholder="Nome do recebedor" className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm"/>
             </label>}
-            {nextStatus === "picked_up" && <label className="block text-xs font-bold">Código de retirada (4 dígitos) *
-              <input type="text" inputMode="numeric" autoComplete="off"
-                maxLength={4} value={pickupCode}
-                onChange={e => setPickupCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
-                placeholder="0000" aria-label="Código de retirada"
-                className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-center text-lg font-bold tracking-[0.35em]"/>
+            {nextStatus === "picked_up" && <label className="block text-xs font-bold">Código de acompanhamento e retirada *
+              <input type="text" autoComplete="off" spellCheck={false}
+                maxLength={512} value={pickupCode}
+                onChange={e => setPickupCode(e.target.value.slice(0, 512))}
+                placeholder="Cole o código ou o link privado do pedido"
+                aria-label="Código de acompanhamento e retirada"
+                className="mt-1.5 h-10 w-full rounded-md border border-border bg-background px-3 text-sm"/>
               <span className="mt-1 block text-[11px] font-normal text-muted-foreground">
-                Peça ao cliente os quatro dígitos exibidos no acompanhamento do pedido.
+                Cole o código privado ou o link de acompanhamento apresentado pelo cliente.
+                A confirmação é validada no servidor para este pedido.
               </span>
             </label>}
             {nextStatus !== "picked_up" && <label className="block text-xs font-bold">Observação {issueRequired ? "*" : "(opcional)"}
