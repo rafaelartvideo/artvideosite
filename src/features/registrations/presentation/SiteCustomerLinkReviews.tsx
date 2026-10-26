@@ -18,7 +18,6 @@ type Review = {
   created_at: string;
   candidate_id: string | null;
   candidate_name: string | null;
-  candidate_email: string | null;
   review_reason: string | null;
 };
 type Decision = { item: Review; approve: boolean };
@@ -30,11 +29,9 @@ type Props = {
 
 const reasons: Record<string, string> = {
   name_mismatch: "Primeiro nome diferente",
-  email_mismatch: "E-mail diferente",
   already_linked: "Cadastro já vinculado",
   inactive_or_not_customer: "Cadastro inativo ou sem vínculo de cliente",
   multiple_matches: "CPF encontrado em mais de um cadastro",
-  email_conflict: "E-mail pertence a outro cadastro",
 };
 
 async function loadReviews(): Promise<Review[]> {
@@ -107,7 +104,6 @@ export function SiteCustomerLinkReviews({ organizationId, canEdit, onOpenRegistr
             <p className="text-xs text-muted-foreground">CPF: {formatCpf(item.cpf)} · {item.site_email}</p>
             <p className="text-xs text-muted-foreground">Motivo: {reasons[item.review_reason || ""] || "Conferência necessária"}</p>
             {item.candidate_name && <p className="text-xs text-muted-foreground">Cadastro encontrado: <span className="font-semibold text-foreground">{item.candidate_name}</span></p>}
-            {item.candidate_email && <p className="text-xs text-muted-foreground">E-mail no CRM: {item.candidate_email}</p>}
           </div>
           {canEdit && <div className="flex flex-wrap items-center gap-2">
             {item.candidate_id && <button type="button" onClick={() => onOpenRegistration(item.candidate_id!)} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold text-foreground hover:bg-muted">Ver cadastro</button>}
