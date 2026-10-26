@@ -10,10 +10,10 @@ export type SiteQuoteSelection={
 
 export async function submitServiceBooking(
  form:PublicQuoteForm,address:Address,selection:SiteQuoteSelection,protocol:string,
- photos:SiteQuotePhotos={},
+ photos:SiteQuotePhotos={},mediaSecret?:string,
 ) {
  const attachments=Object.entries(photos).filter((entry):entry is [string,File]=>entry[1] instanceof File);
- const secret=attachments.length?crypto.randomUUID():'';
+ const secret=attachments.length?(mediaSecret||crypto.randomUUID()):'';
  const media_token_hash=secret?Array.from(new Uint8Array(
    await crypto.subtle.digest('SHA-256',new TextEncoder().encode(secret)),
  ),n=>n.toString(16).padStart(2,'0')).join(''):'';
