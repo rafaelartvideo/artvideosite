@@ -153,6 +153,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     try{
       const orderId=sessionStorage.getItem("artvideo-last-order")||"";
       const token=sessionStorage.getItem("artvideo-store-tracking")||"";
+      const checkoutPath=sessionStorage.getItem("artvideo-last-checkout-path");
+      if(checkoutPath&&checkoutPath!==window.location.pathname)return null;
       if(/^[0-9a-f-]{36}$/i.test(orderId)&&/^[a-f0-9]{64}$/.test(token))
         return {orderId,token};
     }catch{/* navegador sem sessionStorage */}
@@ -376,6 +378,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           sessionStorage.setItem("artvideo-last-order",session.orderId);
           sessionStorage.setItem("artvideo-last-email",buyer.buyer_email.trim());
           sessionStorage.setItem("artvideo-store-tracking",session.trackingToken);
+          sessionStorage.setItem("artvideo-last-checkout-path",window.location.pathname);
         }catch{/* navegador com sessao restrita */}
         setBrickSession(session);
         setBrickResult(null);
@@ -388,6 +391,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
           sessionStorage.setItem("artvideo-last-order", checkout.orderId);
           sessionStorage.setItem("artvideo-last-email", buyer.buyer_email.trim());
           sessionStorage.setItem("artvideo-store-tracking", checkout.trackingToken);
+          sessionStorage.setItem("artvideo-last-checkout-path",window.location.pathname);
         } catch {
           // Navegadores sem armazenamento não devem impedir a navegação segura.
         }
@@ -539,6 +543,16 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
             <p className="text-[11px] leading-5 text-[#8392a6]">
               Este link é privado: compartilhe somente com quem deve acompanhar o pedido.
             </p>
+            <button type="button" onClick={()=>{
+              try{
+                sessionStorage.removeItem("artvideo-last-order");
+                sessionStorage.removeItem("artvideo-last-checkout-path");
+                sessionStorage.removeItem("artvideo-store-homologation");
+              }catch{/* Navegador sem armazenamento */}
+              navigate("/loja");
+            }} className="mx-auto flex min-h-11 items-center justify-center text-[13px] font-bold text-[var(--art-primary)] hover:underline">
+              Continuar comprando
+            </button>
           </div>
         </div>
       </section>
