@@ -38,6 +38,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[protocol,setProtocol]=useState('');
  const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({});
  const sending=useRef(false); const requestProtocol=useRef("");
+ const mediaSecret=useRef(crypto.randomUUID());
  const heading=useRef<HTMLHeadingElement>(null);
  const selected=variants.find((v:any)=>v.id===variant); const dates=bookingDates(c).filter((d:string)=>slotsForDate(c,d).length>0);
  const times=slotsForDate(c,date); const up=(key:string,value:string)=>setForm(f=>({...f,[key]:value}));
@@ -79,7 +80,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
   if(sending.current)return;
   for(let i=0;i<3;i++){const message=validate(i);if(message){go(i);setError('');return;}}
   sending.current=true;setBusy(true);setError('');
-  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date:onsite?date:'',slot:onsite?slot:'',attendance_mode:attendance,brand_name:brandName},requestProtocol.current,photos));requestAnimationFrame(scrollToQuoteStep);}
+  try {if(!requestProtocol.current)requestProtocol.current=await reservePublicQuoteProtocol();setProtocol(await submitServiceBooking(form,address,{variant_id:variant,quantity,date:onsite?date:'',slot:onsite?slot:'',attendance_mode:attendance,brand_name:brandName},requestProtocol.current,photos,mediaSecret.current));requestAnimationFrame(scrollToQuoteStep);}
   catch(e){setError(e instanceof Error?e.message:'Não foi possível enviar. Tente novamente.');}
   finally{sending.current=false;setBusy(false);}
  }
