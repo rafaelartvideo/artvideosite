@@ -33,6 +33,7 @@ export function PaginationBar({
   defaultPageSize = DEFAULT_ADMIN_PAGE_SIZE,
   pageSizeOptions = DEFAULT_ADMIN_PAGE_SIZE_OPTIONS,
   showPageSizeSelector = true,
+  showFilteredTotal = false,
 }: {
   page: number;
   pageSize: number;
@@ -42,6 +43,7 @@ export function PaginationBar({
   defaultPageSize?: number;
   pageSizeOptions?: number[];
   showPageSizeSelector?: boolean;
+  showFilteredTotal?: boolean;
 }) {
   const normalizedRef = useRef(false);
 
@@ -67,13 +69,14 @@ export function PaginationBar({
   };
 
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  if (totalItems === 0) return null;
+  if (totalItems === 0 && !showFilteredTotal) return null;
 
   const pageButton = "flex h-11 w-11 cursor-default items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:opacity-40 sm:h-8 sm:w-8";
   return <div className={`flex min-w-0 flex-col gap-3 border-t border-border bg-muted/55 px-4 py-3 sm:flex-row sm:items-center ${showPageSizeSelector ? "sm:justify-between" : "sm:justify-end"}`}>
     {showPageSizeSelector && <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground sm:justify-start">
       <span>Linhas:</span>
       <div className="w-[88px]"><AdminSelect value={pageSize} onValueChange={value => handlePageSizeChange(Number(value))} options={pageSizeOptions.map(value => ({ value, label: String(value) }))} className="min-h-11 py-2 text-xs sm:min-h-8 sm:py-1.5" ariaLabel="Linhas por página" /></div>
+      {showFilteredTotal && <span className="whitespace-nowrap border-l border-border pl-3 font-semibold text-foreground" aria-live="polite">Total do filtro: {totalItems.toLocaleString("pt-BR")}</span>}
     </div>}
     <div className="grid min-w-0 grid-cols-[44px_44px_1fr_44px_44px] items-center gap-2 sm:flex sm:justify-end">
       <button type="button" onClick={() => onPageChange(1)} disabled={page <= 1} className={pageButton} aria-label="Primeira página">«</button>
