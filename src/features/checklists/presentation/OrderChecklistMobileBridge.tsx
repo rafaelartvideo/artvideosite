@@ -233,7 +233,7 @@ export function OrderChecklistMobileBridge({
 
               {savedChanges > 0 && (
                 <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700">
-                  <CheckCircle2 size={15} /> Checklist atualizado pelo celular.
+                  <CheckCircle2 size={15} /> {scope === "documents" ? "Documentos atualizados pelo celular." : "Checklist atualizado pelo celular."}
                 </div>
               )}
 
@@ -256,7 +256,7 @@ export function OrderChecklistMobileBridge({
               </div>
               <div>
                 <p className="text-base font-black text-[#0d1b2e]">A conexão expirou</p>
-                <p className="mt-1 text-sm text-[#5a6a82]">Gere outra conexão para continuar o checklist pelo celular.</p>
+                <p className="mt-1 text-sm text-[#5a6a82]">{scope === "documents" ? "Gere outra conexão para continuar os documentos pelo celular." : "Gere outra conexão para continuar o checklist pelo celular."}</p>
               </div>
               <AdminButton onClick={() => void startSession()}>
                 <RefreshCw size={14} /> Gerar nova conexão
