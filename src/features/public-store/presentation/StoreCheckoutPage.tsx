@@ -286,6 +286,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   };
   const changePostalCode = (value: string) => {
     shippingRequestRef.current++;
+    setShippingLoading(false);
     setPostalCode(displayCep(value));
     setOptions([]);
     setQuoteKey("");
@@ -350,6 +351,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
 
   const pickSavedAddress = (address: SiteAddress) => {
     shippingRequestRef.current++;
+    setShippingLoading(false);
     setAddressChoice("saved");
     setSelectedSavedAddressId(address.id);
     setPostalCode(displayCep(address.postal_code));
@@ -360,6 +362,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   };
   const chooseDifferentAddress = (choice: "other" | "new") => {
     shippingRequestRef.current++;
+    setShippingLoading(false);
     setAddressChoice(choice);
     setSelectedSavedAddressId(null);
     setPostalCode("");
