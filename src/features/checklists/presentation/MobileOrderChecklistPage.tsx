@@ -564,7 +564,7 @@ export function MobileOrderChecklistPage() {
         )}
 
         {data?.documents && (
-          <nav aria-label="Seções de documentos" className="grid grid-cols-3 gap-2">
+          <nav aria-label="Seções de documentos" className={`grid gap-2 ${data.can_manage_checklist ? "grid-cols-3" : "grid-cols-2"}`}>
             {([
               ["attachments", "Anexos"],
               ["checklist", "Checklist"],
