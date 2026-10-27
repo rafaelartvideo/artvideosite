@@ -132,7 +132,7 @@ export function CustomerAccountPage() {
           behavior: reduceMotion ? "auto" : "smooth",
         });
       }
-    }, 70);
+    }, 380);
     return () => window.clearTimeout(timer);
   }, [mode, state, passwordRecovery, reduceMotion]);
 
