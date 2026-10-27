@@ -12,6 +12,7 @@ import { formatSitePhone } from "../infrastructure/customer-account-settings.rep
 import { CustomerAddresses } from "./CustomerAddresses";
 import { CustomerFavorites } from "./CustomerFavorites";
 import { CustomerProfile } from "./CustomerProfile";
+import { CustomerAccountLoading } from "./CustomerAccountLoading";
 import {
   activateCustomerAccount, getCustomerPortal,
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
@@ -103,6 +104,7 @@ export function CustomerAccountPage() {
   const [state, setState] = useState<AccountState>("loading");
   const [portal, setPortal] = useState<CustomerPortal | null>(null);
   const [busy, setBusy] = useState(false);
+  const [preparingAccount, setPreparingAccount] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -125,6 +127,7 @@ export function CustomerAccountPage() {
     if (authLoading) return;
     if (!userId) {
       setPortal(null);
+      setPreparingAccount(false);
       setState("anonymous");
       return;
     }
@@ -137,15 +140,18 @@ export function CustomerAccountPage() {
         if (cancelled) return;
         if (activated.status !== "linked") {
           setState(activated.status);
+          setPreparingAccount(false);
           return;
         }
         const data = await getCustomerPortal();
         if (cancelled) return;
         setPortal(data);
         setState(data.status === "ready" ? "ready" : data.status === "unlinked" ? "needs_review" : "verify_email");
+        setPreparingAccount(false);
       } catch {
         if (!cancelled) {
           setState("error");
+          setPreparingAccount(false);
           setError("Não foi possível carregar sua conta. Tente novamente.");
         }
       }
@@ -165,6 +171,7 @@ export function CustomerAccountPage() {
       if (password !== confirmPassword) return setError("As senhas não coincidem.");
     }
     setBusy(true);
+    if (mode === "login") setPreparingAccount(true);
     try {
       if (mode === "forgot") {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
@@ -191,9 +198,10 @@ export function CustomerAccountPage() {
         });
         if (loginError) throw new Error("E-mail ou senha inválidos.");
         setPassword("");
-        setRefreshIndex(index => index + 1);
+        // A alteração da sessão já inicia o carregamento. Evita uma segunda requisição.
       }
     } catch (failure) {
+      setPreparingAccount(false);
       setError(failure instanceof Error ? failure.message : "Não foi possível concluir sua solicitação.");
     } finally {
       setBusy(false);
@@ -246,6 +254,7 @@ export function CustomerAccountPage() {
     try {
       await supabase.auth.signOut({ scope: "local" });
       setPortal(null);
+      setPreparingAccount(false);
       setState("anonymous");
       setMode("login");
     } finally {
@@ -288,9 +297,7 @@ export function CustomerAccountPage() {
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
           <button className={"w-full " + primaryClass} type="submit" disabled={busy}>Salvar nova senha <ArrowRight size={16}/></button>
         </form>
-      </div> : (authLoading || state === "loading") ? <div role="status" className="flex min-h-[290px] flex-col items-center justify-center gap-3 text-sm font-medium text-[#64809f]">
-        <RefreshCw size={27} className="animate-spin text-[var(--art-primary)]"/> Preparando sua conta...
-      </div> :
+      </div> : (preparingAccount || authLoading || state === "loading") ? <CustomerAccountLoading/> :
       state === "anonymous" ? <AccountEntryShell>
         <AnimatePresence initial={false} mode="wait">
           <motion.div key={mode}
