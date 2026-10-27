@@ -180,6 +180,20 @@ test("modal da Agenda usa altura pelo conteúdo e limites compartilhados do CRM"
   assert.ok(agendaModal.includes("<AgendaModalCalendar"), "Reutilizar a mesma Agenda da rota");
 });
 
+test("atalhos de agenda e WhatsApp ocupam toda a linha com contadores abaixo dos títulos", () => {
+  assert.ok(panel.includes('grid grid-cols-2 gap-2 sm:gap-4'));
+  assert.ok(panel.includes('Meus agendamentos'));
+  assert.ok(panel.includes('Meus atendimentos'));
+  assert.ok(panel.includes('myAgendaCount'));
+  assert.ok(panel.includes('myConversations.length'));
+  assert.ok(panel.includes('filterAgendaData({'));
+  assert.ok(panel.includes('technicianFilter: myEmployeeId'));
+  assert.ok(panel.includes('event.date >= agendaCountWindow.monthStart'));
+  assert.ok(panel.includes('onClick={() => setAgendaModalOpen(true)}'));
+  assert.ok(panel.includes('setMyConversationsDialogOpen(true)'));
+  assert.doesNotMatch(panel, /actions=\{<div className="grid w-full grid-cols-2/);
+});
+
 test("as telas do Painel do Técnico possuem JSX sintaticamente válido", async () => {
   for (const filename of [
     "TechnicianPanel.tsx",
