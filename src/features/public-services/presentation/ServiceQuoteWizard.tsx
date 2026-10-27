@@ -1,4 +1,7 @@
-import { useRef, useState, type ChangeEvent } from 'react';
+import { useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/lib/auth';
+import { listSiteAddresses, loadSiteProfile } from '@/features/customer-account/infrastructure/customer-account-settings.repository';
 import { scrollToQuoteStep } from "@/features/public-quotes/application/quote-scroll";
 import { useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, CalendarDays, Camera, Check, CheckCircle2, MapPin, Trash2, Wrench, Loader2 } from 'lucide-react';
@@ -15,7 +18,11 @@ import { reservePublicQuoteProtocol } from '@/features/public-quotes/infrastruct
 const steps=['Atendimento','Equipamento e local','Seus dados','Revisão'];
 function Field({label,required=false,error,children}:{label:string;required?:boolean;error?:string;children:React.ReactNode}) {return <label className="block text-sm font-medium">{label}{required&&<span className="text-red-600"> *</span>}<span className="mt-2 block">{children}</span>{error&&<span role="alert" className="mt-1.5 block text-xs font-medium text-red-600">{error}</span>}</label>;}
 export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backTo}:{detail:any;initialCep?:string;initialVariant?:string;backTo?:string}) {
- const navigate=useNavigate(); const c=bookingConfig(detail.service.public_booking),service=detail.service;
+ const navigate=useNavigate(); const {session}=useAuth(); const customerId=session?.user?.id||null;
+ const addressesQuery=useQuery({queryKey:['site-customer-addresses',customerId],queryFn:()=>listSiteAddresses(customerId!),enabled:Boolean(customerId),staleTime:30_000});
+ const profileQuery=useQuery({queryKey:['site-quote-profile',customerId],queryFn:()=>loadSiteProfile(customerId!),enabled:Boolean(customerId),staleTime:60_000});
+ const filledProfile=useRef<string|null>(null);
+ const c=bookingConfig(detail.service.public_booking),service=detail.service;
  const variants=detail.variants.filter((v:any)=>v.is_active!==false);
  const {brands}=useBrands();
  const [attendance,setAttendance]=useState<'onsite'|'store'>('onsite');
@@ -35,6 +42,14 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
  const [address,setAddress]=useState<Address>({...emptyAddress,zip_code:initialCep});
  const [coverage,setCoverage]=useState('idle'); const [noNumber,setNoNumber]=useState(false);
  const [form,setForm]=useState({...EMPTY_PUBLIC_QUOTE_FORM,servico:service.id});
+ useEffect(()=>{
+  if(!customerId||!profileQuery.data||filledProfile.current===customerId)return;
+  filledProfile.current=customerId;
+  setForm(current=>({...current,nome:current.nome||profileQuery.data!.full_name||'',
+    cpf:current.cpf||formatCpf(profileQuery.data!.cpf||''),
+    whatsapp:current.whatsapp||formatPhoneInput(profileQuery.data!.phone||''),
+    email:current.email||session?.user?.email||''}));
+ },[customerId,profileQuery.data,session?.user?.email]);
  const [error,setError]=useState(''),[busy,setBusy]=useState(false),[protocol,setProtocol]=useState('');
  const [fieldErrors,setFieldErrors]=useState<Record<string,string>>({});
  const sending=useRef(false); const requestProtocol=useRef("");
@@ -138,6 +153,20 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
      {!onsite&&<p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-[#37577c]">
        Você levará o equipamento à loja. Não é necessário preencher endereço nem escolher horário.
      </p>}
+     {onsite&&Boolean(addressesQuery.data?.length)&&<div className="rounded-xl border border-[#e1e8f3] bg-[#f8faff] p-4">
+       <h3 className="flex items-center gap-2 text-[13px] font-bold text-[#254364]"><MapPin size={17} className="text-[var(--art-primary)]"/> Seus endereços salvos</h3>
+       <div className="mt-3 grid gap-2 sm:grid-cols-2">
+         {addressesQuery.data!.map(item=><button type="button" key={item.id}
+           onClick={()=>{setAddress({zip_code:item.postal_code,street:item.street,number:item.number,
+             complement:item.complement||'',neighborhood:item.district,city:item.city,state:item.state});
+             setCoverage('idle');setNoNumber(item.number==='S/N');setError('');}}
+           className="rounded-lg border border-[#dce6f2] bg-white px-3 py-3 text-left text-[12px] text-[#526a87] hover:border-[var(--art-primary)] hover:bg-[#f0f6ff]">
+           <strong className="block text-[#234264]">{item.label}{item.is_default?' · Principal':''}</strong>
+           <span className="mt-1 block">{item.street}, {item.number} · {item.city}/{item.state}</span>
+         </button>)}
+       </div>
+       <p className="mt-2 text-[11px] text-[#7185a0]">Após escolher, consulte o CEP abaixo para confirmar a disponibilidade do atendimento.</p>
+     </div>}
      {onsite&&<div><ServiceCepLookup config={c} value={address.zip_code} onChange={zip=>{setAddress({...emptyAddress,zip_code:zip});setCoverage('idle');setNoNumber(false);}} onResolved={(a,status)=>{setCoverage(status);if(a)setAddress(old=>mergeResolvedAddress(old,a));}}/>{fieldErrors.cep&&<p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{fieldErrors.cep}</p>}</div>}
      {onsite&&['available','consult'].includes(coverage)&&<div className="space-y-5">
       <Field label="Rua / avenida" required error={fieldErrors.street}><input className="art-input" required autoComplete="address-line1" value={address.street} onChange={e=>setAddress(a=>({...a,street:e.target.value}))}/></Field>
