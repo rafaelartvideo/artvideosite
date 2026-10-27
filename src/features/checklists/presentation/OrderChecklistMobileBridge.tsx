@@ -171,7 +171,7 @@ export function OrderChecklistMobileBridge({
         onClose={() => setOpen(false)}
         title={`${scope === "documents" ? "Documentos" : "Checklist"} da OS ${osNumber ? `#${osNumber}` : ""} pelo celular`}
         description={scope === "documents"
-          ? "Escaneie o QR para adicionar anexos, preencher checklists e registrar fotos das situações da OS. A conexão é temporária e não exige login no celular."
+          ? "Escaneie o QR Code para acessar os documentos da OS pelo celular, sem precisar fazer login."
           : "Escaneie o QR no celular. A conexão é temporária e abre somente o checklist desta OS, sem exigir login no celular."}
         className="max-w-md"
       >
