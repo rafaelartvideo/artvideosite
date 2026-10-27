@@ -1,9 +1,9 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  Heart, IdCard, KeyRound, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, RefreshCw, ShieldCheck, UserRound, UserRoundPlus,
+  Heart, IdCard, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, RefreshCw, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -86,8 +86,8 @@ function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "order
 
 
 
-function AccountEntryShell({ children }: { children: React.ReactNode }) {
-  return <motion.div layout="size" initial={false} transition={{ layout: { duration: 0.24, ease: "easeOut" } }} className="mx-auto w-full max-w-[456px] rounded-2xl border border-[#e1e7f0] bg-white px-6 py-7 shadow-[0_10px_38px_rgba(17,40,77,.055)] sm:px-10 sm:py-9">
+function AccountEntryShell({ children, containerRef }: { children: React.ReactNode; containerRef: React.RefObject<HTMLDivElement | null> }) {
+  return <motion.div ref={containerRef} layout="size" initial={false} transition={{ layout: { duration: 0.24, ease: "easeOut" } }} className="mx-auto w-full max-w-[456px] rounded-2xl border border-[#e1e7f0] bg-white px-6 py-7 shadow-[0_10px_38px_rgba(17,40,77,.055)] sm:px-10 sm:py-9">
     {children}
   </motion.div>;
 }
@@ -98,13 +98,15 @@ const authIconClass = "pointer-events-none absolute left-3 top-1/2 -translate-y-
 export function CustomerAccountPage() {
   const { session, loading: authLoading } = useAuth();
   const reduceMotion = useReducedMotion();
+  const authCardRef = useRef<HTMLDivElement>(null);
+  const accountContentRef = useRef<HTMLDivElement>(null);
+  const previousModeRef = useRef<AuthMode>("login");
   const [mode, setMode] = useState<AuthMode>("login");
   const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).has("recovery"));
   const [tab, setTab] = useState<Tab>("overview");
   const [state, setState] = useState<AccountState>("loading");
   const [portal, setPortal] = useState<CustomerPortal | null>(null);
   const [busy, setBusy] = useState(false);
-  const [preparingAccount, setPreparingAccount] = useState(false);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -129,7 +131,7 @@ export function CustomerAccountPage() {
     if (waitingForSession) return;
     if (!userId) {
       setPortal(null);
-      setPreparingAccount(false);
+      
       setState("anonymous");
       return;
     }
@@ -142,18 +144,18 @@ export function CustomerAccountPage() {
         if (cancelled) return;
         if (activated.status !== "linked") {
           setState(activated.status);
-          setPreparingAccount(false);
+          
           return;
         }
         const data = await getCustomerPortal();
         if (cancelled) return;
         setPortal(data);
         setState(data.status === "ready" ? "ready" : data.status === "unlinked" ? "needs_review" : "verify_email");
-        setPreparingAccount(false);
+        
       } catch {
         if (!cancelled) {
           setState("error");
-          setPreparingAccount(false);
+          
           setError("Não foi possível carregar sua conta. Tente novamente.");
         }
       }
@@ -173,7 +175,6 @@ export function CustomerAccountPage() {
       if (password !== confirmPassword) return setError("As senhas não coincidem.");
     }
     setBusy(true);
-    if (mode === "login") setPreparingAccount(true);
     try {
       if (mode === "forgot") {
         const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
@@ -203,7 +204,7 @@ export function CustomerAccountPage() {
         // A alteração da sessão já inicia o carregamento. Evita uma segunda requisição.
       }
     } catch (failure) {
-      setPreparingAccount(false);
+      
       setError(failure instanceof Error ? failure.message : "Não foi possível concluir sua solicitação.");
     } finally {
       setBusy(false);
@@ -256,7 +257,7 @@ export function CustomerAccountPage() {
     try {
       await supabase.auth.signOut({ scope: "local" });
       setPortal(null);
-      setPreparingAccount(false);
+      
       setState("anonymous");
       setMode("login");
     } finally {
@@ -299,8 +300,8 @@ export function CustomerAccountPage() {
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
           <button className={"w-full " + primaryClass} type="submit" disabled={busy}>Salvar nova senha <ArrowRight size={16}/></button>
         </form>
-      </div> : (preparingAccount || waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
-      state === "anonymous" ? <AccountEntryShell>
+      </div> : (waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
+      state === "anonymous" ? <AccountEntryShell containerRef={authCardRef}>
         <AnimatePresence initial={false} mode="wait">
           <motion.div key={mode}
             initial={reduceMotion ? false : { opacity: 0, y: 9 }}
