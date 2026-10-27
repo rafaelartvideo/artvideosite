@@ -840,6 +840,10 @@ export function TechnicianPanel() {
       </div>}>
         <AgendaModalCalendar
           embedded
+          onOpenTechnicianOrder={id => {
+            setAgendaModalOpen(false);
+            navigate("/admin/technician-panel/os/" + encodeURIComponent(id));
+          }}
           onOpenOrder={id => {
             setAgendaModalOpen(false);
             navigate("/admin/orders/" + encodeURIComponent(id));
