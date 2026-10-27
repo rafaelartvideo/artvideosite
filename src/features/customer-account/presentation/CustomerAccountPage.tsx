@@ -251,7 +251,7 @@ export function CustomerAccountPage() {
   const quotes = portal?.quotes || [];
 
   return <div className="min-h-[65vh] bg-[#f6f8fc] pb-16">
-    <div className="mx-auto max-w-7xl px-4 pt-9 sm:px-6 lg:px-8">
+    <div className={"mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 " + (state === "anonymous" && !passwordRecovery ? "flex min-h-[68vh] items-center justify-center py-10 sm:py-14" : "pt-9")}>
       {userId && !passwordRecovery && state === "ready" && <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[.12em] text-[var(--art-primary)]">Eletrônica Artvideo</p>
