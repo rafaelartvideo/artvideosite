@@ -572,7 +572,12 @@ export function TechnicianPanel() {
   return <div className="mx-auto max-w-6xl space-y-4">
     {!routeOrderId && <PageHeader title="Painel do Técnico"
       subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={<div className="grid w-full grid-cols-2 gap-2 sm:w-[390px]">
+      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
+        <WifiOff size={16} /> Sem internet
+      </span> : undefined} />}
+
+    {!routeOrderId ? <>
+      {(canViewAgenda || canViewWhatsApp) && <div className={`grid w-full min-w-0 gap-2 sm:gap-4 ${canViewAgenda && canViewWhatsApp ? "grid-cols-2" : "grid-cols-1"}`}>
         {canViewAgenda && <AdminButton variant="secondary" size="sm"
           className="!flex !h-[76px] !w-full !flex-col !gap-2 !px-2"
           onClick={() => setAgendaModalOpen(true)} aria-label="Abrir meus agendamentos">
@@ -602,12 +607,7 @@ export function TechnicianPanel() {
             {myConversationsLoading && myConversations.length === 0 ? "…" : myConversations.length}
           </span>
         </AdminButton>}
-        {!online && <span className="col-span-2 inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
-          <WifiOff size={16} /> Sem internet
-        </span>}
-      </div>} />}
-
-    {!routeOrderId ? <>
+      </div>}
       <div className="space-y-3">
         <div className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Ordens de serviço</h2>
