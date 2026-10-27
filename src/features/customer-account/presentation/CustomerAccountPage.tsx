@@ -412,18 +412,19 @@ export function CustomerAccountPage() {
             ["overview", "Visão geral", UserRound],
             ["orders", "Meus pedidos", Package],
             ["quotes", "Meus orçamentos", FileText],
+            ["addresses", "Meus endereços", MapPin],
+            ["favorites", "Meus favoritos", Heart],
             ["profile", "Meus dados", ShieldCheck],
           ] as const).map(([key, label, Icon]) => <button key={key} type="button" onClick={() => setTab(key)}
             aria-current={tab === key ? "page" : undefined}
-            className={"flex min-h-10 items-center gap-2 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors " + (tab === key ? "bg-[#eef3ff] text-[var(--art-primary)]" : "text-[#627994] hover:bg-[#f5f7fb]")}>
+            className={"flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors " + (tab === key ? "bg-[#eef3ff] text-[var(--art-primary)]" : "text-[#627994] hover:bg-[#f5f7fb]")}>
             <Icon size={17}/> {label}
           </button>)}
         </aside>
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div><h2 className="text-xl font-bold text-[#183250]">{tab === "overview" ? "Olá, " + portal.customer.name.split(" ")[0] : headings[tab]}</h2>
-              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Confira suas compras e solicitações realizadas no site." : "Consulte suas informações sempre que precisar."}</p></div>
-            <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={secondaryClass} title="Atualizar informações"><RefreshCw size={16}/> Atualizar</button>
+            <div><h2 className="text-[20px] font-bold tracking-tight text-[#183250]">{tab === "overview" ? greeting + ", " + displayName + "!" : headings[tab]}</h2>
+              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : "Consulte e organize suas informações."}</p></div>
           </div>
           {portal.match_status === "pending_review" && <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <ShieldCheck size={19} className="mt-0.5 shrink-0"/>
@@ -453,17 +454,12 @@ export function CustomerAccountPage() {
             </div>
           </>}
           {tab === "orders" && <RecordList kind="orders" items={orders}/>}
+          {tab === "addresses" && userId && <CustomerAddresses userId={userId}/>}
+          {tab === "favorites" && <CustomerFavorites/>}
 
           {tab === "quotes" && <RecordList kind="quotes" items={quotes}/>}
-          {tab === "profile" && <div className={cardClass}>
-            <h3 className="text-sm font-bold text-[#25405e]">Dados da conta</h3>
-            {(portal.match_status === "pending_review" || portal.match_status === "rejected") && <p className="mt-2 text-xs text-[#647b94]">{portal.match_status === "pending_review" ? "Cadastro em análise" : "Cadastro precisa de revisão"}</p>}
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              {[["Nome", portal.customer.name], ["E-mail", portal.customer.email], ["Telefone", portal.customer.phone || "Não informado"]].map(([label, value]) =>
-                <div key={label}><span className="block text-[11px] uppercase tracking-wide text-[#8493a8]">{label}</span><strong className="mt-1 block break-words text-sm text-[#24405e]">{value}</strong></div>)}
-            </div>
-            <p className="mt-5 border-t border-[#ecf0f5] pt-4 text-xs leading-5 text-[#71849c]">Confira acima as informações da sua conta Artvideo.</p>
-          </div>}
+          {tab === "profile" && userId && <CustomerProfile userId={userId} email={portal.customer.email} onSaved={() => setRefreshIndex(index => index + 1)}/>}
+
         </div>
       </div>}
     </div>
