@@ -180,18 +180,22 @@ test("modal da Agenda usa altura pelo conteúdo e limites compartilhados do CRM"
   assert.ok(agendaModal.includes("<AgendaModalCalendar"), "Reutilizar a mesma Agenda da rota");
 });
 
-test("atalhos de agenda e WhatsApp ocupam toda a linha com contadores abaixo dos títulos", () => {
-  assert.ok(panel.includes('grid grid-cols-2 gap-2 sm:gap-4'));
-  assert.ok(panel.includes('Meus agendamentos'));
-  assert.ok(panel.includes('Meus atendimentos'));
-  assert.ok(panel.includes('myAgendaCount'));
-  assert.ok(panel.includes('myConversations.length'));
+test("atalhos usam os botões originais do CRM com contador abaixo, sem cards extras", () => {
+  const section = panel.split('title="Painel do Técnico"')[1]?.split('!routeOrderId ? <>')[0] ?? "";
+  assert.ok(section.includes('grid w-full grid-cols-2 gap-2'), "Dois botões na mesma linha");
+  assert.equal(section.split('<AdminButton variant="secondary" size="sm"').length - 1, 2);
+  assert.ok(section.includes('!flex-col !gap-2'), "Contador abaixo do título");
+  assert.ok(section.includes('bg-primary/10'), "Badge azul original");
+  assert.ok(section.includes('Meus agendamentos'));
+  assert.ok(section.includes('Meus atendimentos'));
+  assert.ok(section.includes('myAgendaCount'));
+  assert.ok(section.includes('myConversations.length'));
+  assert.doesNotMatch(section, /<AdminCard/);
   assert.ok(panel.includes('filterAgendaData({'));
   assert.ok(panel.includes('technicianFilter: myEmployeeId'));
   assert.ok(panel.includes('event.date >= agendaCountWindow.monthStart'));
-  assert.ok(panel.includes('onClick={() => setAgendaModalOpen(true)}'));
-  assert.ok(panel.includes('setMyConversationsDialogOpen(true)'));
-  assert.doesNotMatch(panel, /actions=\{<div className="grid w-full grid-cols-2/);
+  assert.ok(section.includes('onClick={() => setAgendaModalOpen(true)}'));
+  assert.ok(section.includes('setMyConversationsDialogOpen(true)'));
 });
 
 test("as telas do Painel do Técnico possuem JSX sintaticamente válido", async () => {
