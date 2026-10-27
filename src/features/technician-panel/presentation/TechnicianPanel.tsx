@@ -813,7 +813,7 @@ export function TechnicianPanel() {
       headerActions={myEmployeeId && activeOrganizationId ?
         <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
           canManage personal /> : undefined}
-      className="!h-[calc(100dvh-1rem)] !w-[calc(100vw-1rem)] !max-w-[1550px] !max-h-[calc(100dvh-1rem)] sm:!h-[calc(100dvh-2rem)] sm:!w-[calc(100vw-2rem)]"
+      className="!h-auto !w-[calc(100vw-1.5rem)] !max-w-[1380px] sm:!w-[calc(100vw-3rem)]"
       bodyClassName="!min-h-0 overscroll-contain !p-3 sm:!p-4"
     >
       {agendaModalOpen && <Suspense fallback={<div className="flex min-h-[50dvh] items-center justify-center">
