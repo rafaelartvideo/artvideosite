@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
   AlertCircle, ArrowLeft, ArrowRight, Check, CheckCircle2,
   CreditCard, LoaderCircle, Copy,
-  LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, UserRound,
+  House, LockKeyhole, MapPin, Minus, Package, Plus, ShieldCheck, ShoppingBag, Store, Truck, UserRound,
 } from "lucide-react";
 import { useProductDetailBySlug, useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { useStoreCart } from "../application/store-cart";
@@ -12,7 +12,7 @@ import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, c
 import { formatCurrency } from "@/shared/domain/formatters";
 import {QRCodeSVG} from "qrcode.react";
 import { useAuth } from "@/lib/auth";
-import { formatSitePhone, listSiteAddresses, loadSiteProfile } from "@/features/customer-account/infrastructure/customer-account-settings.repository";
+import { formatSitePhone, listSiteAddresses, loadSiteProfile, saveSiteAddress, type SiteAddress } from "@/features/customer-account/infrastructure/customer-account-settings.repository";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
 
 type Step = 1 | 2 | 3 | 4;
@@ -86,6 +86,7 @@ function validPhone(phone: string) {
 
 export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { session } = useAuth();
   const customerId = session?.user?.id || null;
   const addressQuery = useQuery({ queryKey: ["site-customer-addresses", customerId], queryFn: () => listSiteAddresses(customerId!), enabled: Boolean(customerId), staleTime: 30_000 });
@@ -147,6 +148,25 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   }, [customerId, profileQuery.data, session?.user?.email]);
   const [postalCode, setPostalCode] = useState(displayCep(params.get("cep") || ""));
   const [deliveryMode, setDeliveryMode] = useState<"delivery"|"pickup">("delivery");
+  const [addressChoice, setAddressChoice] = useState<"saved" | "other" | "new">("other");
+  const [selectedSavedAddressId, setSelectedSavedAddressId] = useState<string | null>(null);
+  const [newAddressLabel, setNewAddressLabel] = useState("Casa");
+  const [savingNewAddress, setSavingNewAddress] = useState(false);
+  const [deliveryNotice, setDeliveryNotice] = useState("");
+  const addressAutoSelectedForRef = useRef<string | null>(null);
+  const shippingRequestRef = useRef(0);
+  useEffect(() => {
+    if (!customerId || !addressQuery.data || addressAutoSelectedForRef.current === customerId) return;
+    addressAutoSelectedForRef.current = customerId;
+    const mainAddress = addressQuery.data.find(address => address.is_default) || addressQuery.data[0];
+    if (!mainAddress) return;
+    setSelectedSavedAddressId(mainAddress.id);
+    setAddressChoice("saved");
+    setPostalCode(displayCep(mainAddress.postal_code));
+    setBuyer(current => ({ ...current, street: mainAddress.street, number: mainAddress.number,
+      complement: mainAddress.complement || "", district: mainAddress.district,
+      city: mainAddress.city, state: mainAddress.state }));
+  }, [customerId, addressQuery.data]);
   const pickupQuery = useQuery({
     queryKey: ["artvideo-store-pickup"],
     queryFn: loadStorePickupOption,
