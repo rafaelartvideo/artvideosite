@@ -3,6 +3,7 @@ import { animateProductToCart } from "@/features/public-store/application/cart-a
 import { ArrowRight, CheckCircle2, Package, ShoppingCart, Plus } from "lucide-react";
 import { addStoreCartItem } from "@/features/public-store/application/store-cart";
 import { CartAddToast } from "@/features/public-store/presentation/CartAddToast";
+import { ProductFavoriteButton } from "@/features/customer-account/presentation/SiteProductFavoriteButton";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
@@ -45,6 +46,7 @@ export function ProductCard({ product, onSelectProduct, availableQuantity }: {
     <div className="relative">
       {hasDiscount && <span className="absolute left-2 top-2 z-10 rounded-md bg-emerald-50 px-2 py-1 text-[11px] font-extrabold text-emerald-700">{discount}% OFF</span>}
       {soldOut && <span className="absolute right-2 top-2 z-10 rounded-md bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-600">Esgotado</span>}
+      <ProductFavoriteButton productId={product.id} className="absolute right-2 top-12 z-20"/>
     <button type="button" aria-label={`Ver produto ${product.name}`} onClick={() => onSelectProduct(product.slug)}
       className="flex h-[190px] w-full items-center justify-center overflow-hidden rounded-md bg-white p-3 focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
       {imageUrl ? <div className="relative h-full w-full">
