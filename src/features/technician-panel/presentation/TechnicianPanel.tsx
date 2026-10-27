@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { CalendarDays, Check, History, Pencil, Play, WifiOff } from "lucide-react";
+import { CalendarDays, Check, History, MessageCircle, Pencil, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
@@ -61,6 +61,58 @@ export function TechnicianPanel() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TechnicianTask[]>([]);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
+  const canViewWhatsApp = hasPermission("whatsapp.inbox.view");
+  const [myConversations,setMyConversations] = useState<Array<{
+    id:string;contact_name:string;contact_phone:string|null;last_message:string|null;
+    last_protocol_number:number|null;unread_count:number;last_message_at:string|null;
+  }>>([]);
+  const [myConversationsLoading,setMyConversationsLoading] = useState(false);
+  const refreshConversations=useCallback(async()=>{
+    if(!activeOrganizationId||!user?.id||!canViewWhatsApp){setMyConversations([]);return;}
+    try{
+      const {data:links,error:linksError}=await supabase
+        .from("union_whatsapp_conversation_participants").select("conversation_id")
+        .eq("organization_id",activeOrganizationId).eq("user_id",user.id).eq("status","active")
+        .limit(100);
+      if(linksError)throw linksError;
+      const columns="id,contact_name,contact_phone,last_message,last_protocol_number,unread_count,last_message_at";
+      const own=supabase.from("union_whatsapp_conversations").select(columns)
+        .eq("organization_id",activeOrganizationId).eq("assigned_to",user.id)
+        .eq("status","in_att").order("last_message_at",{ascending:false}).limit(50);
+      const ids=(links||[]).map(link=>link.conversation_id);
+      const [owned,shared]=await Promise.all([
+        own,
+        ids.length ? supabase.from("union_whatsapp_conversations").select(columns)
+          .eq("organization_id",activeOrganizationId).eq("status","in_att").in("id",ids)
+          .order("last_message_at",{ascending:false}).limit(50)
+        : Promise.resolve({data:[],error:null}),
+      ]);
+      if(owned.error)throw owned.error;
+      if(shared.error)throw shared.error;
+      const all=new Map<string,(typeof myConversations)[number]>();
+      for(const entry of [...(owned.data||[]),...(shared.data||[])])
+        all.set(entry.id,{...entry,unread_count:Number(entry.unread_count||0)} as (typeof myConversations)[number]);
+      setMyConversations([...all.values()].sort((a,b)=>
+        Date.parse(b.last_message_at||"")-Date.parse(a.last_message_at||"")).slice(0,50));
+    }catch{setMyConversations([]);}
+    finally{setMyConversationsLoading(false);}
+  },[activeOrganizationId,user?.id,canViewWhatsApp]);
+  useEffect(()=>{
+    if(!canViewWhatsApp)return;
+    setMyConversationsLoading(true);void refreshConversations();
+    const whenVisible=()=>{if(document.visibilityState==="visible")void refreshConversations();};
+    document.addEventListener("visibilitychange",whenVisible);
+    if(!activeOrganizationId)return()=>document.removeEventListener("visibilitychange",whenVisible);
+    const channel=supabase.channel("technician-whatsapp-participation:"+activeOrganizationId)
+      .on("postgres_changes",{event:"*",schema:"public",
+        table:"union_whatsapp_conversation_participants",
+        filter:"organization_id=eq."+activeOrganizationId},()=>void refreshConversations())
+      .on("postgres_changes",{event:"*",schema:"public",
+        table:"union_whatsapp_conversations",
+        filter:"organization_id=eq."+activeOrganizationId},()=>void refreshConversations())
+      .subscribe();
+    return()=>{document.removeEventListener("visibilitychange",whenVisible);void supabase.removeChannel(channel);};
+  },[activeOrganizationId,canViewWhatsApp,refreshConversations]);
   useEffect(() => {
     let cancelled = false;
     setMyEmployeeId(null);
@@ -437,6 +489,38 @@ export function TechnicianPanel() {
         </div>
       </div>
       <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
+      {canViewWhatsApp && <section className="space-y-2">
+        <div className="flex items-center gap-2">
+          <MessageCircle size={17} className="text-primary"/>
+          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+            Meus atendimentos WhatsApp ({myConversations.length})
+          </h2>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-border bg-card">
+          {myConversationsLoading && myConversations.length===0 ?
+            <div className="flex justify-center p-6"><LoadingState text="Carregando atendimentos..."/></div> :
+          myConversations.length===0 ?
+            <AdminSectionEmpty compact>Nenhuma conversa WhatsApp em andamento atribuída a você ou com sua participação.</AdminSectionEmpty> :
+          myConversations.map(thread=><button key={thread.id} type="button"
+            onClick={()=>navigate("/admin/tools/union-whatsapp?conversation="+encodeURIComponent(thread.id))}
+            className="flex w-full items-center justify-between gap-3 border-b border-border p-3 text-left transition-colors last:border-0 hover:bg-muted/60">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-sm font-bold">
+                {thread.contact_name||thread.contact_phone||"Contato"}
+              </span>
+              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
+                {thread.last_message||"Atendimento em andamento"}
+              </span>
+            </span>
+            {thread.last_protocol_number && <span className="shrink-0 text-[11px] font-semibold text-primary">
+              ATD-{String(thread.last_protocol_number).padStart(6,"0")}
+            </span>}
+            {thread.unread_count>0 && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+              {thread.unread_count}
+            </span>}
+          </button>)}
+        </div>
+      </section>}
     </> : orderLoadError && !orderDetails && !orderDetailsLoading && !loading
       ? <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 text-center">
           <p className="text-sm text-destructive">{orderLoadError}</p>
