@@ -202,8 +202,9 @@ function WhatsAppIcon({size=19}:{size?:number}={}) {
     <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.149-.67.149-.198.297-.768.966-.94 1.164-.173.198-.347.223-.644.074-.297-.149-1.255-.462-2.39-1.475-.883-.788-1.48-1.76-1.653-2.057-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.173.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.15-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.01-.372-.012-.57-.012s-.52.074-.793.372-1.04 1.016-1.04 2.479 1.065 2.875 1.213 3.074c.149.198 2.095 3.2 5.076 4.487.71.306 1.263.489 1.695.625.712.226 1.36.194 1.872.118.571-.085 1.758-.718 2.006-1.412.248-.694.248-1.289.173-1.412-.074-.124-.272-.198-.57-.347zm-5.43 7.287h-.003a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.999-3.648-.236-.374a9.86 9.86 0 01-1.51-5.262c.002-5.442 4.429-9.87 9.874-9.87a9.81 9.81 0 016.986 2.895 9.81 9.81 0 012.89 6.99c-.002 5.444-4.43 9.87-9.866 9.87zm8.405-18.284A11.8 11.8 0 0012.04 0C5.495 0 .169 5.325.166 11.87a11.8 11.8 0 001.586 5.925L.064 23.968l6.318-1.657a11.86 11.86 0 005.653 1.44h.005c6.545 0 11.872-5.325 11.875-11.87a11.81 11.81 0 00-3.468-8.396z"/>
   </svg>;
 }
-export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder }: {
+export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, onOpenOrder, embedded = false, initialConversationId }: {
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
+  embedded?: boolean; initialConversationId?: string | null;
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const location = useLocation();
@@ -550,13 +551,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   // Abrir diretamente a conversa autorizada a partir do Painel do Técnico.
   useEffect(() => {
-    const conversationId=new URLSearchParams(location.search).get("conversation");
+    const conversationId=initialConversationId || (!embedded ? new URLSearchParams(location.search).get("conversation") : null);
     if(!conversationId || !/^[0-9a-f-]{36}$/i.test(conversationId) ||
       channelReady!==true || !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
       readyAccount!==activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone)return;
     setFilter("in_att");
     setSelectedId(conversationId);
-  },[location.search,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,readyAccount]);
+  },[location.search,initialConversationId,embedded,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,readyAccount]);
 
   const checkChannel = useCallback(async () => {
     if (!activeOrganizationId || !canView) return;
@@ -984,12 +985,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const requestParticipation=async()=>{
     if(!activeOrganizationId||participantsBusy)return;
-    const match=requestProtocol.trim().match(/^(?:ATD[-\s]*)?(\d{1,12})$/i);
-    if(!match){reportError("Informe um protocolo no formato ATD-000020.");return;}
+    const input=requestProtocol.trim();
+    const digits=input.replace(/\D/g,"");
+    const isProtocol=/^ATD[-\s]*\d{1,12}$/i.test(input) || (/^\d{1,9}$/.test(input));
+    const isPhone=!isProtocol && /^[\d\s+()\-.]+$/.test(input) && [10,11,12,13].includes(digits.length);
+    if(!isProtocol && !isPhone){reportError("Informe um telefone com DDD ou um protocolo ATD-000020.");return;}
     setParticipantsBusy(true);
     try {
       const response=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),
-        "participant_request_protocol",{protocol_number:Number(match[1])});
+        "participant_request_protocol",isProtocol ? {protocol_number:Number(digits)} : {phone:digits});
       setRequestOpen(false);setRequestProtocol("");
       if(response.participation_status==="active" && response.conversation_id){
         setFilter("in_att");setSelectedId(response.conversation_id);
@@ -1370,8 +1374,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
 
-  return <div className="space-y-5">
-    <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
+  return <div className={embedded ? "flex h-full min-h-0 flex-col" : "space-y-5"}>
+    {!embedded && <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
       <div className="flex min-w-0 flex-1 items-center gap-3">
         <h1 className="shrink-0 whitespace-nowrap text-lg font-black leading-tight text-foreground sm:text-2xl">Atendimentos</h1>
         <span aria-hidden="true" className="h-8 w-px shrink-0 bg-border"/>
@@ -1432,8 +1436,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </AdminButton>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>
-    </header>
-    {bootLoading ? <div className="flex min-h-[520px] items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
+    </header>}
+    {bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
      channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
       <MessageCircle size={36} className="text-muted-foreground"/>
       <div className="space-y-2">
@@ -1449,9 +1453,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             <Settings2 size={16}/> Reconectar WhatsApp
           </AdminButton>}
       </div>
-    </div> : <div className="h-[calc(100dvh-210px)] min-h-[420px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:h-[min(76vh,850px)] md:min-h-[520px]">
-      <div className="grid h-full min-h-0 grid-cols-1 grid-rows-1 md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1">
-        <aside className={`${selectedId ? "hidden md:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r`}>
+    </div> : <div className={embedded ? "min-h-0 flex-1 overflow-hidden bg-card" : "h-[calc(100dvh-210px)] min-h-[420px] overflow-hidden rounded-none border border-border bg-card shadow-sm md:h-[min(76vh,850px)] md:min-h-[520px]"}>
+      <div className={embedded ? "grid h-full min-h-0 grid-cols-1 grid-rows-1" : "grid h-full min-h-0 grid-cols-1 grid-rows-1 md:grid-cols-[340px_minmax(0,1fr)] md:grid-rows-1"}>
+        <aside className={`${embedded ? "hidden" : selectedId ? "hidden md:flex" : "flex"} h-full min-h-0 min-w-0 flex-col overflow-hidden border-b border-border bg-card md:border-b-0 md:border-r`}>
           <div className="border-b border-border bg-muted/35 p-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-base font-black text-foreground">Conversas</p>
@@ -1555,7 +1559,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>
           </div>}
         </aside>
-        <section className={`${selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain md:static md:inset-auto md:h-auto md:w-auto" : "hidden md:flex"} min-h-0 min-w-0 flex-col bg-card`}>
+        <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain md:static md:inset-auto md:h-auto md:w-auto" : "hidden md:flex"} min-h-0 min-w-0 flex-col bg-card`}>
           {!selected ? <div role="status" className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
             {selectedId && <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);}} aria-label="Voltar para conversas"
               className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground md:hidden"><ChevronLeft size={22}/> Conversas</button>}
@@ -1911,15 +1915,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     </AdminDialog>
 
     <AdminDialog open={requestOpen} onClose={()=>{if(!participantsBusy)setRequestOpen(false);}}
-      title="Solicitar participação" description="Informe o protocolo de uma conversa em andamento. O responsável precisará aprovar seu acesso."
+      title="Solicitar participação" description="Informe o telefone com DDD ou um protocolo ATD. Se houver atendimento ativo, o responsável receberá seu pedido."
       className="max-w-md" footer={<div className="flex justify-end gap-2">
         <AdminButton variant="secondary" disabled={participantsBusy} onClick={()=>setRequestOpen(false)}>Cancelar</AdminButton>
         <AdminButton disabled={participantsBusy || !requestProtocol.trim()} loading={participantsBusy}
           onClick={()=>void requestParticipation()}>Solicitar</AdminButton>
       </div>}>
-      <label className="block text-sm font-semibold">Protocolo do atendimento
+      <label className="block text-sm font-semibold">Telefone com DDD ou protocolo
         <input value={requestProtocol} onChange={event=>setRequestProtocol(event.target.value)}
-          placeholder="ATD-000020" maxLength={24}
+          placeholder="(79) 99999-9999 ou ATD-000020" maxLength={28}
           className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
       </label>
     </AdminDialog>
