@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useLocation } from "react-router";
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
@@ -14,7 +15,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   listUnionWhatsAppConversations, listUnionWhatsAppConversationCounts, listUnionWhatsAppMessages, listUnionWhatsAppProtocols, getUnionWhatsAppConversation,
   operateUnionWhatsAppInbox, unionWhatsAppProtocolLabel, DEFAULT_WHATSAPP_QUEUE_SETTINGS,
-  type UnionWhatsAppInboxAction, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
+  type UnionWhatsAppInboxAction, type UnionWhatsAppParticipant, type UnionWhatsAppConversation, type UnionWhatsAppMessage, type UnionWhatsAppContact, type UnionWhatsAppProtocol, type UnionWhatsAppQueueSettings, type UnionWhatsAppConversationCounts, type UnionWhatsAppInboxFilter, type UnionWhatsAppMessageCursor,
 } from "../infrastructure/union-whatsapp-inbox.repository";
 
 const filters = [
@@ -205,6 +206,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
 }) {
   const { activeOrganizationId, hasPermission, user } = useAuth();
+  const location = useLocation();
   const canView = hasPermission("whatsapp.inbox.view");
   const [capabilities,setCapabilities] = useState<Record<string,boolean>>({});
   const canAction=(key:string)=>capabilities[key]===true;
@@ -298,6 +300,13 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const numberCheckSequence=useRef(0);
   const [members, setMembers] = useState<Array<{id:string;name:string}>>([]);
   const [targetUserId, setTargetUserId] = useState("");
+  const [participantsOpen,setParticipantsOpen] = useState(false);
+  const [participants,setParticipants] = useState<UnionWhatsAppParticipant[]>([]);
+  const [participantsRevision,setParticipantsRevision] = useState(0);
+  const [participantsBusy,setParticipantsBusy] = useState(false);
+  const [participantUserId,setParticipantUserId] = useState("");
+  const [requestOpen,setRequestOpen] = useState(false);
+  const [requestProtocol,setRequestProtocol] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const messagesContentRef = useRef<HTMLDivElement | null>(null);
   const chatScrollReadyRef = useRef(false);
@@ -539,6 +548,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[filter,departmentFilter,debouncedQuery,conversationPage,readyAccount,
       activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,refresh]);
 
+  // Abrir diretamente a conversa autorizada a partir do Painel do Técnico.
+  useEffect(() => {
+    const conversationId=new URLSearchParams(location.search).get("conversation");
+    if(!conversationId || !/^[0-9a-f-]{36}$/i.test(conversationId) ||
+      channelReady!==true || !activeOrganizationId || !activeChannelId || !activeChannelPhone ||
+      readyAccount!==activeOrganizationId+":"+activeChannelId+":"+activeChannelPhone)return;
+    setFilter("in_att");
+    setSelectedId(conversationId);
+  },[location.search,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,readyAccount]);
+
   const checkChannel = useCallback(async () => {
     if (!activeOrganizationId || !canView) return;
     try {
@@ -610,6 +629,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const changedConversation=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
       const row=payload.new||payload.old||{};
       if(row.organization_id && row.organization_id!==activeOrganizationId)return;
+      if(String(row.id||"")===selectedIdRef.current)setParticipantsRevision(value=>value+1);
       schedule(String(row.id||""),false);
     };
     const changedMessage=(payload:{new?:Record<string,unknown>;old?:Record<string,unknown>})=>{
@@ -764,6 +784,16 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     return()=>{cancelled=true;};
   },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,conversations]);
 
+  useEffect(()=>{
+    setParticipants([]);
+    if(!selected || !activeOrganizationId || selected.status!=="in_att" || channelReady!==true)return;
+    let cancelled=false;
+    void operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"participants")
+      .then(result=>{if(!cancelled)setParticipants(result.participants||[]);})
+      .catch(()=>{if(!cancelled)setParticipants([]);});
+    return()=>{cancelled=true;};
+  },[activeOrganizationId,selected?.id,selected?.status,participantsRevision,channelReady]);
+
   // Todos os filtros são executados no Supabase, não apenas na página atual.
   const counts=conversationCounts;
   const visible=scopedConversations;
@@ -917,7 +947,57 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
-  const canReply = Boolean(selected && !protocolFilter && canSend && selected.status === "in_att" && (isMine || canManage));
+  const isActiveCollaborator = Boolean(user?.id && participants.some(item=>item.user_id===user.id && item.status==="active"));
+  const canReply = Boolean(selected && !protocolFilter && canSend && selected.status === "in_att" && (isMine || canManage || isActiveCollaborator));
+  const openParticipants = async () => {
+    if(!selected||!activeOrganizationId)return;
+    setParticipantsOpen(true);setParticipantUserId("");setParticipantsBusy(true);
+    try {
+      const [list,operators]=await Promise.all([
+        operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"participants"),
+        canOperateSelected ? operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"members") : Promise.resolve({members:[]}),
+      ]);
+      setParticipants(list.participants||[]);
+      setMembers(operators.members||[]);
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível consultar os participantes."));}
+    finally{setParticipantsBusy(false);}
+  };
+  const changeParticipant = async(action:"participant_add"|"participant_respond"|"participant_remove",targetId:string,approve?:boolean) => {
+    if(!selected||!activeOrganizationId||participantsBusy)return;
+    setParticipantsBusy(true);
+    try {
+      await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,action,
+        {target_user_id:targetId,...(approve===undefined?{}:{approve})});
+      const list=await operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"participants")
+        .catch(()=>({participants:[] as UnionWhatsAppParticipant[]}));
+      setParticipants(list.participants||[]);
+      setParticipantUserId("");
+      setParticipantsRevision(value=>value+1);
+      if(action==="participant_remove"&&targetId===user?.id){
+        setParticipantsOpen(false);setSelectedId(null);
+      }
+      notifyAdmin(action==="participant_add"?"Operador adicionado à conversa.":
+        action==="participant_remove"?"Participação encerrada.":
+        approve?"Participação aprovada.":"Solicitação recusada.","success");
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível atualizar a participação."));}
+    finally{setParticipantsBusy(false);}
+  };
+  const requestParticipation=async()=>{
+    if(!activeOrganizationId||participantsBusy)return;
+    const match=requestProtocol.trim().match(/^(?:ATD[-\\s]*)?(\\d{1,12})$/i);
+    if(!match){reportError("Informe um protocolo no formato ATD-000020.");return;}
+    setParticipantsBusy(true);
+    try {
+      const response=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),
+        "participant_request_protocol",{protocol_number:Number(match[1])});
+      setRequestOpen(false);setRequestProtocol("");
+      if(response.participation_status==="active" && response.conversation_id){
+        setFilter("in_att");setSelectedId(response.conversation_id);
+        notifyAdmin("Você já participa desta conversa.","success");
+      }else notifyAdmin("Solicitação enviada ao responsável pelo atendimento.","success");
+    }catch(reason){reportError(systemErrorMessage(reason,"Não foi possível solicitar participação."));}
+    finally{setParticipantsBusy(false);}
+  };
 
   const operate = async (action: Exclude<UnionWhatsAppInboxAction, "send_text" | "mark_read">) => {
     if (!selected || !activeOrganizationId || runningAction) return;
@@ -1347,6 +1427,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
               </>}
             </div>}
           </div>}
+        {canAction("collaborate") && canSend && <AdminButton variant="secondary" onClick={()=>setRequestOpen(true)}>
+          <Users size={15} className="mr-1.5"/> Solicitar participação
+        </AdminButton>}
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>
     </header>
@@ -1528,6 +1611,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   aria-label="Histórico do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <History size={15}/><span className="hidden xl:inline">Histórico</span>
                 </button>
+                {!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
+                  (canOperateSelected || isActiveCollaborator) &&
+                  <AdminButton variant="secondary" size="sm" onClick={()=>void openParticipants()}>
+                    <Users size={15}/> <span className="hidden sm:inline">Participantes</span>
+                    {participants.filter(item=>item.status==="requested").length>0 && canOperateSelected &&
+                      <span className="rounded-full bg-amber-100 px-1.5 text-[10px] text-amber-900">
+                        {participants.filter(item=>item.status==="requested").length}
+                      </span>}
+                  </AdminButton>}
                 {!protocolFilter && selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
                 {!protocolFilter && selected.status === "in_att" && canOperateSelected && <>
@@ -1815,6 +1907,67 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             {departments.filter(item=>item.is_active).map(item=><option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
         </label>}
+      </div>}
+    </AdminDialog>
+
+    <AdminDialog open={requestOpen} onClose={()=>{if(!participantsBusy)setRequestOpen(false);}}
+      title="Solicitar participação" description="Informe o protocolo de uma conversa em andamento. O responsável precisará aprovar seu acesso."
+      className="max-w-md" footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" disabled={participantsBusy} onClick={()=>setRequestOpen(false)}>Cancelar</AdminButton>
+        <AdminButton disabled={participantsBusy || !requestProtocol.trim()} loading={participantsBusy}
+          onClick={()=>void requestParticipation()}>Solicitar</AdminButton>
+      </div>}>
+      <label className="block text-sm font-semibold">Protocolo do atendimento
+        <input value={requestProtocol} onChange={event=>setRequestProtocol(event.target.value)}
+          placeholder="ATD-000020" maxLength={24}
+          className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary"/>
+      </label>
+    </AdminDialog>
+    <AdminDialog open={participantsOpen} onClose={()=>{if(!participantsBusy)setParticipantsOpen(false);}}
+      title="Participantes da conversa" description="O operador responsável continua com o controle do atendimento."
+      className="max-w-lg" footer={<AdminButton variant="secondary" disabled={participantsBusy}
+        onClick={()=>setParticipantsOpen(false)}>Fechar</AdminButton>}>
+      {participantsBusy && participants.length===0 ? <LoadingState text="Carregando participantes..."/> :
+      <div className="space-y-3">
+        {canOperateSelected && selected?.status==="in_att" && <div className="flex flex-wrap items-end gap-2">
+          <label className="min-w-0 flex-1 text-xs font-semibold">Adicionar operador
+            <select value={participantUserId} onChange={event=>setParticipantUserId(event.target.value)}
+              className="mt-1.5 h-10 w-full rounded-lg border border-border bg-background px-2 text-sm">
+              <option value="">Selecione um operador</option>
+              {members.filter(member=>member.id!==selected.assigned_to &&
+                !participants.some(p=>p.user_id===member.id && p.status==="active"))
+                .map(member=><option key={member.id} value={member.id}>{member.name}</option>)}
+            </select>
+          </label>
+          <AdminButton disabled={!participantUserId||participantsBusy}
+            onClick={()=>void changeParticipant("participant_add",participantUserId)}>Adicionar</AdminButton>
+        </div>}
+        {participants.length===0 ? <p className="py-5 text-center text-xs text-muted-foreground">
+          Nenhum participante adicional neste atendimento.
+        </p> : <div className="divide-y divide-border rounded-lg border border-border">
+          {participants.map(participant=><div key={participant.user_id}
+            className="flex flex-wrap items-center justify-between gap-2 px-3 py-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{participant.name}</p>
+              <p className="text-xs text-muted-foreground">
+                {participant.status==="requested"?"Solicitou participação":"Participando"}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {participant.status==="requested"&&canOperateSelected && <>
+                <AdminButton size="sm" disabled={participantsBusy}
+                  onClick={()=>void changeParticipant("participant_respond",participant.user_id,true)}>Aprovar</AdminButton>
+                <AdminButton size="sm" variant="secondary" disabled={participantsBusy}
+                  onClick={()=>void changeParticipant("participant_respond",participant.user_id,false)}>Recusar</AdminButton>
+              </>}
+              {participant.status==="active" && (canOperateSelected||participant.user_id===user?.id) &&
+                <AdminButton variant="secondary" size="sm" disabled={participantsBusy}
+                  onClick={()=>void changeParticipant("participant_remove",participant.user_id)}>
+                  {participant.user_id===user?.id?"Sair":"Remover"}
+                </AdminButton>}
+            </div>
+          </div>)}
+        </div>}
       </div>}
     </AdminDialog>
     {ordersOpen && selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-3"
