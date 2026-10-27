@@ -11,6 +11,8 @@ import { useStoreCart } from "../application/store-cart";
 import { getStoreProductExtras, loadStorePickupOption, loadStorePaymentStatus, checkStoreHomologationAccess, loadEmbeddedCheckoutAvailability, prepareEmbeddedStoreCheckout, resumeEmbeddedStoreCheckout, refreshEmbeddedPayment, checkEmbeddedOrderPaid, getStoreTracking, quoteStoreShipping, startStoreCheckout, type EmbeddedCheckoutSession,type EmbeddedPaymentResult,type StoreTracking,type ShippingOption } from "@/features/public-store/infrastructure/storefront.repository";
 import { formatCurrency } from "@/shared/domain/formatters";
 import {QRCodeSVG} from "qrcode.react";
+import { useAuth } from "@/lib/auth";
+import { formatSitePhone, listSiteAddresses, loadSiteProfile } from "@/features/customer-account/infrastructure/customer-account-settings.repository";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
 
 type Step = 1 | 2 | 3 | 4;
@@ -84,6 +86,10 @@ function validPhone(phone: string) {
 
 export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const navigate = useNavigate();
+  const { session } = useAuth();
+  const customerId = session?.user?.id || null;
+  const addressQuery = useQuery({ queryKey: ["site-customer-addresses", customerId], queryFn: () => listSiteAddresses(customerId!), enabled: Boolean(customerId), staleTime: 30_000 });
+  const profileQuery = useQuery({ queryKey: ["site-checkout-profile", customerId], queryFn: () => loadSiteProfile(customerId!), enabled: Boolean(customerId), staleTime: 60_000 });
   const [params] = useSearchParams();
   const cartMode = slug === "carrinho";
   const { items: cartItems } = useStoreCart();
@@ -128,6 +134,17 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const checkoutRecoveryKey = "artvideo-checkout-recovery-v2:" + checkoutId;
   const [step, setStep] = useState<Step>(1);
   const [buyer, setBuyer] = useState<Buyer>(initialBuyer);
+  const initializedCustomerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!customerId || !profileQuery.data || initializedCustomerRef.current === customerId) return;
+    initializedCustomerRef.current = customerId;
+    setBuyer(current => ({
+      ...current,
+      buyer_name: current.buyer_name || profileQuery.data!.full_name || "",
+      buyer_email: current.buyer_email || session?.user?.email || "",
+      buyer_phone: current.buyer_phone || formatSitePhone(profileQuery.data!.phone || ""),
+    }));
+  }, [customerId, profileQuery.data, session?.user?.email]);
   const [postalCode, setPostalCode] = useState(displayCep(params.get("cep") || ""));
   const [deliveryMode, setDeliveryMode] = useState<"delivery"|"pickup">("delivery");
   const pickupQuery = useQuery({
@@ -811,6 +828,22 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <p className="mt-3 text-[12px] font-semibold text-[var(--art-primary)]">Aguarde a confirmação de pedido pronto antes de ir à loja.</p>
               </div>}
               {deliveryMode==="delivery" && <>
+              {Boolean(addressQuery.data?.length) && <div className="rounded-xl border border-[#e1e8f3] bg-[#f8faff] p-4">
+                <h3 className="flex items-center gap-2 text-[13px] font-bold text-[#203c5d]"><MapPin size={17} className="text-[var(--art-primary)]"/> Usar endereço salvo</h3>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {addressQuery.data!.map(address => <button key={address.id} type="button"
+                    onClick={() => {
+                      setPostalCode(displayCep(address.postal_code));
+                      setBuyer(current => ({...current, street: address.street, number: address.number,
+                        complement: address.complement || "", district: address.district, city: address.city, state: address.state}));
+                      setOptions([]);setQuoteKey("");setShippingId("");setError("");
+                    }}
+                    className="rounded-lg border border-[#dce6f2] bg-white px-3 py-3 text-left text-[12px] text-[#4d6482] transition-colors hover:border-[var(--art-primary)] hover:bg-[#f0f6ff]">
+                    <strong className="block text-[#223f60]">{address.label}{address.is_default ? " · Principal" : ""}</strong>
+                    <span className="mt-1 block">{address.street}, {address.number} · {address.city}/{address.state}</span>
+                  </button>)}
+                </div>
+              </div>}
               <div>
                 <Field label="CEP de entrega" required hint="Atendemos apenas os CEPs cadastrados para nossa região.">
                   <div className="flex min-w-0 gap-2">
