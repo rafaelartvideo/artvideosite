@@ -306,10 +306,8 @@ export function CustomerAccountPage() {
             </div> : <>
               {mode === "forgot" && <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-[#647b96] hover:text-[var(--art-primary)]"><ArrowLeft size={15}/> Voltar</button>}
               <div className="mb-6 text-center">
-                <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[#e3ebf9] bg-[#f2f6ff] text-[var(--art-primary)]">
-                  {mode === "register" ? <UserRoundPlus size={19} strokeWidth={1.8}/> : mode === "forgot" ? <KeyRound size={19} strokeWidth={1.8}/> : <UserRound size={19} strokeWidth={1.8}/>}
-                </div>
-                <h1 className="text-[21px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[22px]">
+                <h1 className="flex items-center justify-center gap-2 text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
+                  {mode === "register" ? <UserRoundPlus size={19} className="text-[var(--art-primary)]"/> : mode === "forgot" ? <KeyRound size={19} className="text-[var(--art-primary)]"/> : <UserRound size={19} className="text-[var(--art-primary)]"/>}
                   {mode === "register" ? "Criar conta" : mode === "forgot" ? "Recuperar senha" : "Entrar"}
                 </h1>
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6c8099]">
@@ -365,8 +363,9 @@ export function CustomerAccountPage() {
                 </label>}
                 {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
                 <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
-                  {busy ? <RefreshCw size={16} className="animate-spin"/> : mode === "register" ? <UserRoundPlus size={16}/> : mode === "forgot" ? <Mail size={16}/> : <ArrowRight size={16}/>}
-                  {mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}
+                  {busy && <RefreshCw size={16} className="animate-spin"/>}
+                  <span className="flex-1 text-center">{mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}</span>
+                  {!busy && <ArrowRight size={16} className="ml-auto"/>}
                 </button>
               </form>
               {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
