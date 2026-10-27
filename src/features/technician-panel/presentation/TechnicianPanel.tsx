@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { CalendarDays, Check, History, MessageCircle, Pencil, Play, WifiOff } from "lucide-react";
+import { CalendarDays, Check, History, MessageCircle, Pencil, Play, Users, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
@@ -11,6 +11,7 @@ import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
 import { EmployeeAgendaSection } from "@/features/registrations/presentation/EmployeeAgendaDialog";
+import { operateUnionWhatsAppInbox } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
 import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
 import { OrderHistoryPage } from "@/features/orders/presentation/OrderHistoryPage";
@@ -25,6 +26,18 @@ import {
 
 const AgendaModalCalendar = lazy(() => import("@/features/appointments/presentation/TabAgenda")
   .then(({ TabAgenda }) => ({ default: TabAgenda })));
+
+const TechnicianWhatsAppConversation = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage")
+  .then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
+
+type TechnicianSummaryFilter = "orders_open" | "orders_completed" | "service_pending" | "service_in_progress" | "service_completed";
+const technicianSummaryTitles: Record<TechnicianSummaryFilter, string> = {
+  orders_open: "Ordens de serviço abertas",
+  orders_completed: "Ordens de serviço concluídas",
+  service_pending: "Serviços pendentes",
+  service_in_progress: "Serviços em andamento",
+  service_completed: "Serviços concluídos",
+};
 
 type Notice = { kind: "success" | "error"; text: string };
 type PhotoPreview = { id: string; url: string };
@@ -65,6 +78,11 @@ export function TechnicianPanel() {
   const [items, setItems] = useState<TechnicianTask[]>([]);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
+  const [summaryFilter, setSummaryFilter] = useState<TechnicianSummaryFilter | null>(null);
+  const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [participationRequestOpen, setParticipationRequestOpen] = useState(false);
+  const [participationTarget, setParticipationTarget] = useState("");
+  const [participationBusy, setParticipationBusy] = useState(false);
   const canViewWhatsApp = hasPermission("whatsapp.inbox.view");
   const [myConversations,setMyConversations] = useState<Array<{
     id:string;contact_name:string;contact_phone:string|null;last_message:string|null;
@@ -160,6 +178,18 @@ export function TechnicianPanel() {
   }, [items]);
   const completedOrderCount = useMemo(() => assignedOrders.filter(isTechnicianOrderCompleted).length, [assignedOrders]);
   const openOrderCount = assignedOrders.length - completedOrderCount;
+  const summaryItems = useMemo(() => {
+    if (!summaryFilter) return [];
+    if (summaryFilter === "orders_open" || summaryFilter === "orders_completed")
+      return assignedOrders
+        .filter(services => isTechnicianOrderCompleted(services) === (summaryFilter === "orders_completed"))
+        .map(services => ({ id: services[0].service_order_id, task: services[0],
+          detail: services.map(item => item.title).join(" · ") }));
+    const status = summaryFilter === "service_pending" ? "pending"
+      : summaryFilter === "service_in_progress" ? "in_progress" : "completed";
+    return items.filter(item => item.status === status)
+      .map(task => ({ id: task.item_id, task, detail: task.title }));
+  }, [summaryFilter, assignedOrders, items]);
   const orderServices = useMemo(() => routeOrderId
     ? items.filter(item => item.service_order_id === routeOrderId) : [], [items, routeOrderId]);
   const selected = orderServices.find(item => item.item_id === routeServiceId) || orderServices[0] || null;
@@ -168,6 +198,34 @@ export function TechnicianPanel() {
   const photos = servicePhotos?.photos || [];
   const photoCount = servicePhotos?.count || 0;
   const photoLoading = Boolean(selectedId && (canSeePhotos || canSendPhotos) && !servicePhotos);
+  const requestWhatsAppParticipation = async () => {
+    if (!activeOrganizationId || participationBusy) return;
+    const value = participationTarget.trim();
+    const digits = value.replace(/\D/g, "");
+    const isProtocol = /^ATD[-\s]*\d{1,12}$/i.test(value) || /^\d{1,9}$/.test(value);
+    const isPhone = !isProtocol && /^[\d\s+()\-.]+$/.test(value) && [10, 11, 12, 13].includes(digits.length);
+    if (!isProtocol && !isPhone) {
+      notifyAdmin("Informe um telefone com DDD ou protocolo ATD válido.", "error");
+      return;
+    }
+    setParticipationBusy(true);
+    try {
+      const response = await operateUnionWhatsAppInbox(activeOrganizationId, crypto.randomUUID(),
+        "participant_request_protocol", isProtocol ? { protocol_number: Number(digits) } : { phone: digits });
+      setParticipationRequestOpen(false);
+      setParticipationTarget("");
+      if (response.participation_status === "active" && response.conversation_id) {
+        setChatConversationId(response.conversation_id);
+        notifyAdmin("Você já participa deste atendimento.", "success");
+      } else {
+        notifyAdmin("Solicitação enviada. O responsável precisa aprovar sua participação.", "success");
+      }
+    } catch (reason) {
+      notifyAdmin(systemErrorMessage(reason, "Não foi possível solicitar participação."), "error");
+    } finally {
+      setParticipationBusy(false);
+    }
+  };
   const openService = (item: TechnicianTask) => {
     if (item.item_id === selectedId && item.service_order_id === routeOrderId) return;
     navigate("/admin/technician-panel/os/" + encodeURIComponent(item.service_order_id) + "?service=" + encodeURIComponent(item.item_id));
@@ -461,14 +519,18 @@ export function TechnicianPanel() {
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Ordens de serviço</h2>
           <div className="grid grid-cols-2 gap-2 sm:gap-4">
             {([
-              { name: "OS abertas", count: openOrderCount,
+              { name: "OS abertas", count: openOrderCount, filter: "orders_open" as const,
                 tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-              { name: "OS concluídas", count: completedOrderCount,
+              { name: "OS concluídas", count: completedOrderCount, filter: "orders_completed" as const,
                 tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
             ]).map(card => <AdminCard key={card.name}>
-              <AdminCardContent className={"flex h-[104px] flex-col items-center justify-center border p-2 text-center sm:h-auto sm:min-h-[104px] sm:p-4 " + card.tone}>
-                <p className="whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">{card.name}</p>
-                <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
+              <AdminCardContent className={"border p-0 " + card.tone}>
+                <button type="button" onClick={() => setSummaryFilter(card.filter)}
+                  aria-label={`Visualizar ${card.name.toLowerCase()}: ${card.count}`}
+                  className="flex h-[104px] w-full flex-col items-center justify-center rounded-xl p-2 text-center transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary sm:min-h-[104px] sm:p-4">
+                  <p className="whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">{card.name}</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
+                </button>
               </AdminCardContent>
             </AdminCard>)}
           </div>
@@ -477,16 +539,20 @@ export function TechnicianPanel() {
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Serviços atribuídos</h2>
           <div className="grid grid-cols-3 gap-2 sm:gap-4">
             {([
-              { name: "Pendentes", count: items.filter(item => item.status === "pending").length,
+              { name: "Pendentes", count: items.filter(item => item.status === "pending").length, filter: "service_pending" as const,
                 tone: "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300" },
-              { name: "Andamento", count: items.filter(item => item.status === "in_progress").length,
+              { name: "Andamento", count: items.filter(item => item.status === "in_progress").length, filter: "service_in_progress" as const,
                 tone: "border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300" },
-              { name: "Concluídos", count: items.filter(item => item.status === "completed").length,
+              { name: "Concluídos", count: items.filter(item => item.status === "completed").length, filter: "service_completed" as const,
                 tone: "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" },
             ]).map(card => <AdminCard key={card.name}>
-              <AdminCardContent className={"flex h-[104px] flex-col items-center justify-center border p-2 text-center sm:h-auto sm:min-h-[104px] sm:p-4 " + card.tone}>
-                <p className="whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">{card.name}</p>
-                <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
+              <AdminCardContent className={"border p-0 " + card.tone}>
+                <button type="button" onClick={() => setSummaryFilter(card.filter)}
+                  aria-label={`Visualizar ${card.name.toLowerCase()}: ${card.count}`}
+                  className="flex h-[104px] w-full flex-col items-center justify-center rounded-xl p-2 text-center transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary sm:min-h-[104px] sm:p-4">
+                  <p className="whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">{card.name}</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{card.count}</p>
+                </button>
               </AdminCardContent>
             </AdminCard>)}
           </div>
@@ -494,11 +560,15 @@ export function TechnicianPanel() {
       </div>
       <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
       {canViewWhatsApp && <section className="space-y-2">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <MessageCircle size={17} className="text-primary"/>
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
             Meus atendimentos WhatsApp ({myConversations.length})
           </h2>
+          <AdminButton variant="secondary" size="sm" className="ml-auto"
+            onClick={() => setParticipationRequestOpen(true)}>
+            <Users size={15} /> Solicitar participação
+          </AdminButton>
         </div>
         <div className="overflow-hidden rounded-xl border border-border bg-card">
           {myConversationsLoading && myConversations.length===0 ?
@@ -506,7 +576,7 @@ export function TechnicianPanel() {
           myConversations.length===0 ?
             <AdminSectionEmpty compact>Nenhuma conversa WhatsApp em andamento atribuída a você ou com sua participação.</AdminSectionEmpty> :
           myConversations.map(thread=><button key={thread.id} type="button"
-            onClick={()=>navigate("/admin/tools/union-whatsapp?conversation="+encodeURIComponent(thread.id))}
+            onClick={()=>setChatConversationId(thread.id)}
             className="flex w-full items-center justify-between gap-3 border-b border-border p-3 text-left transition-colors last:border-0 hover:bg-muted/60">
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-bold">
@@ -759,8 +829,11 @@ export function TechnicianPanel() {
       open={agendaModalOpen && !routeOrderId && hasPermission("agenda.view")}
       onClose={() => setAgendaModalOpen(false)}
       title="Agenda"
-      className="!w-[calc(100vw-1rem)] !max-w-[1600px] !max-h-[calc(100dvh-1rem)] sm:!w-[calc(100vw-2rem)]"
-      bodyClassName="!min-h-0 overscroll-contain !p-3 sm:!p-5"
+      headerActions={myEmployeeId && activeOrganizationId ?
+        <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
+          canManage personal /> : undefined}
+      className="!h-[calc(100dvh-1rem)] !w-[calc(100vw-1rem)] !max-w-[1550px] !max-h-[calc(100dvh-1rem)] sm:!h-[calc(100dvh-2rem)] sm:!w-[calc(100vw-2rem)]"
+      bodyClassName="!min-h-0 overscroll-contain !p-3 sm:!p-4"
     >
       {agendaModalOpen && <Suspense fallback={<div className="flex min-h-[50dvh] items-center justify-center">
         <LoadingState text="Carregando agenda..." />
