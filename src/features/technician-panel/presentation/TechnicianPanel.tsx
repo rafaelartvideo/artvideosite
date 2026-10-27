@@ -1,5 +1,6 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { CalendarDays, Check, History, MessageCircle, Pencil, Play, Users, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -11,6 +12,9 @@ import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
 import { EmployeeAgendaSection } from "@/features/registrations/presentation/EmployeeAgendaDialog";
+import { filterAgendaData } from "@/features/appointments/application/agenda-calendar";
+import { loadAgendaData } from "@/features/appointments/infrastructure/appointments.repository";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { operateUnionWhatsAppInbox } from "@/features/whatsapp-channels/infrastructure/union-whatsapp-inbox.repository";
 import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
@@ -94,6 +98,62 @@ export function TechnicianPanel() {
   const [participationTarget, setParticipationTarget] = useState("");
   const [participationBusy, setParticipationBusy] = useState(false);
   const canViewWhatsApp = hasPermission("whatsapp.inbox.view");
+  const canViewAgenda = hasPermission("agenda.view");
+  const [agendaCountWindow] = useState(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const key = (date: Date) =>
+      date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" +
+      String(date.getDate()).padStart(2, "0");
+    const start = new Date(year, month - 1, 1);
+    const end = new Date(year, month + 2, 1);
+    return {
+      monthStart: key(new Date(year, month, 1)),
+      monthEnd: key(new Date(year, month + 1, 1)),
+      dateFrom: key(start),
+      dateToExclusive: key(end),
+      timestampFrom: start.toISOString(),
+      timestampToExclusive: end.toISOString(),
+    };
+  });
+  const agendaCountQuery = useQuery({
+    queryKey: queryKeys.appointments.list({
+      organizationId: activeOrganizationId || "",
+      userId: user?.id || null,
+      canViewOtherAgendas: false,
+      windowStart: agendaCountWindow.dateFrom,
+      windowEnd: agendaCountWindow.dateToExclusive,
+    }),
+    queryFn: () => loadAgendaData({
+      organizationId: activeOrganizationId!,
+      userId: user!.id,
+      canViewOtherAgendas: false,
+      dateFrom: agendaCountWindow.dateFrom,
+      dateToExclusive: agendaCountWindow.dateToExclusive,
+      timestampFrom: agendaCountWindow.timestampFrom,
+      timestampToExclusive: agendaCountWindow.timestampToExclusive,
+    }),
+    enabled: !routeOrderId && canViewAgenda && Boolean(activeOrganizationId && user?.id && myEmployeeId),
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const myAgendaCount = useMemo(() => {
+    const data = agendaCountQuery.data;
+    if (!data || !myEmployeeId) return null;
+    const { calendarEvents } = filterAgendaData({
+      orders: data.orders,
+      appointments: data.appointments,
+      taskSchedules: data.taskSchedules,
+      technicianFilter: myEmployeeId,
+      search: "",
+      statusFilter: "",
+      situationFilter: "",
+      serviceFilter: "",
+    });
+    return calendarEvents.filter(event => event.date >= agendaCountWindow.monthStart &&
+      event.date < agendaCountWindow.monthEnd).length;
+  }, [agendaCountQuery.data, myEmployeeId, agendaCountWindow]);
   const [myConversations,setMyConversations] = useState<Array<{
     id:string;contact_name:string;contact_phone:string|null;last_message:string|null;
     last_protocol_number:number|null;unread_count:number;last_message_at:string|null;
@@ -512,27 +572,50 @@ export function TechnicianPanel() {
   return <div className="mx-auto max-w-6xl space-y-4">
     {!routeOrderId && <PageHeader title="Painel do Técnico"
       subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={<div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
-        {hasPermission("agenda.view") && <AdminButton variant="secondary" size="sm"
-          className="w-full !px-2 sm:w-auto sm:!px-3" onClick={() => setAgendaModalOpen(true)}>
-          <CalendarDays size={15} className="shrink-0" />
-          <span className="sm:hidden">Agendamentos</span>
-          <span className="hidden sm:inline">Meus agendamentos</span>
-        </AdminButton>}
-        {canViewWhatsApp && <AdminButton variant="secondary" size="sm"
-          className="w-full !px-2 sm:w-auto sm:!px-3"
-          onClick={() => { setMyConversationsDialogOpen(true); void refreshConversations(); }}>
-          <MessageCircle size={15} className="shrink-0" />
-          <span className="sm:hidden">Atendimentos</span>
-          <span className="hidden sm:inline">Meus atendimentos</span>
-          {myConversations.length > 0 && <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
-            {myConversations.length}
-          </span>}
-        </AdminButton>}
-        {!online && <span className="col-span-2 inline-flex items-center gap-2 text-xs font-semibold text-amber-700 sm:col-auto"><WifiOff size={16} /> Sem internet</span>}
-      </div>} />}
+      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
+        <WifiOff size={16} /> Sem internet
+      </span> : undefined} />}
 
     {!routeOrderId ? <>
+      {(canViewAgenda || canViewWhatsApp) && <div className="grid grid-cols-2 gap-2 sm:gap-4">
+        {canViewAgenda && <AdminCard>
+          <AdminCardContent className="border border-blue-500/30 bg-blue-500/10 p-0 text-blue-700 dark:text-blue-300">
+            <button type="button" onClick={() => setAgendaModalOpen(true)}
+              aria-label="Abrir meus agendamentos"
+              className="flex h-[104px] w-full flex-col items-center justify-center gap-2 rounded-xl p-2 text-center transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary sm:min-h-[104px] sm:p-4">
+              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">
+                <CalendarDays size={16} className="shrink-0" />
+                <span className="sm:hidden">Agendamentos</span>
+                <span className="hidden sm:inline">Meus agendamentos</span>
+              </span>
+              <span className="inline-flex min-w-12 items-center justify-center rounded-lg bg-blue-500/10 px-3 py-0.5 text-2xl font-black tabular-nums sm:text-3xl"
+                title="Agendamentos deste mês">
+                {myAgendaCount ?? (agendaCountQuery.isError ? "—" : "…")}
+              </span>
+            </button>
+          </AdminCardContent>
+        </AdminCard>}
+        {canViewWhatsApp && <AdminCard>
+          <AdminCardContent className="border border-emerald-500/30 bg-emerald-500/10 p-0 text-emerald-700 dark:text-emerald-300">
+            <button type="button" onClick={() => {
+                setMyConversationsDialogOpen(true);
+                void refreshConversations();
+              }}
+              aria-label="Abrir meus atendimentos"
+              className="flex h-[104px] w-full flex-col items-center justify-center gap-2 rounded-xl p-2 text-center transition-colors hover:bg-emerald-500/5 focus-visible:outline-2 focus-visible:outline-primary sm:min-h-[104px] sm:p-4">
+              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">
+                <MessageCircle size={16} className="shrink-0" />
+                <span className="sm:hidden">Atendimentos</span>
+                <span className="hidden sm:inline">Meus atendimentos</span>
+              </span>
+              <span className="inline-flex min-w-12 items-center justify-center rounded-lg bg-emerald-500/10 px-3 py-0.5 text-2xl font-black tabular-nums sm:text-3xl"
+                title="Atendimentos em andamento">
+                {myConversationsLoading && myConversations.length === 0 ? "…" : myConversations.length}
+              </span>
+            </button>
+          </AdminCardContent>
+        </AdminCard>}
+      </div>}
       <div className="space-y-3">
         <div className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Ordens de serviço</h2>
@@ -810,7 +893,10 @@ export function TechnicianPanel() {
     </AdminPage>}
     <AdminDialog
       open={agendaModalOpen && !routeOrderId && hasPermission("agenda.view")}
-      onClose={() => setAgendaModalOpen(false)}
+      onClose={() => {
+        setAgendaModalOpen(false);
+        void agendaCountQuery.refetch();
+      }}
       title="Agenda"
       headerActions={myEmployeeId && activeOrganizationId ?
         <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
