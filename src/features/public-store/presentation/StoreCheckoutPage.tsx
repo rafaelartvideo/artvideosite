@@ -1021,7 +1021,15 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                       value={buyer.state} onChange={e => updateBuyer("state", e.target.value.replace(/[^a-z]/ig, "").toUpperCase().slice(0, 2))} placeholder="SE"/>
                   </Field>
                 </div>
-              </div>
+                {addressChoice === "new" && <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dce7f6] bg-[#f6f9ff] px-4 py-3">
+                  <p className="text-[12px] text-[#5d7694]">Salve este endereço para as próximas compras.</p>
+                  <button type="button" disabled={savingNewAddress || addressLoading} onClick={() => void saveNewDeliveryAddress()}
+                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-50">
+                    {savingNewAddress ? <LoaderCircle size={16} className="animate-spin"/> : <Check size={16}/>}
+                    Salvar e usar endereço
+                  </button>
+                </div>}
+              </div>}
               </>}
             </div>
           </section>}
