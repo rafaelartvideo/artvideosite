@@ -433,7 +433,7 @@ export function CustomerAccountPage() {
         <div className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h2 className="text-[20px] font-bold tracking-tight text-[#183250]">{tab === "overview" ? greeting + ", " + displayName + "!" : headings[tab]}</h2>
-              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : "Consulte e organize suas informações."}</p></div>
+              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : tab === "addresses" ? "Salve seus endereços para facilitar suas próximas compras." : tab === "favorites" ? "Os produtos que você salvou para encontrar mais facilmente." : tab === "profile" ? "Gerencie suas informações de contato." : tab === "orders" ? "Acompanhe suas compras feitas no site." : "Acompanhe os orçamentos solicitados no site."}</p></div>
           </div>
           {portal.match_status === "pending_review" && <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <ShieldCheck size={19} className="mt-0.5 shrink-0"/>
@@ -485,7 +485,12 @@ export function CustomerAccountPage() {
           {tab === "favorites" && <CustomerFavorites/>}
 
           {tab === "quotes" && <RecordList kind="quotes" items={quotes}/>}
-          {tab === "profile" && userId && <CustomerProfile userId={userId} email={portal.customer.email} onSaved={() => setRefreshIndex(index => index + 1)}/>}
+          {tab === "profile" && userId && <CustomerProfile userId={userId} email={portal.customer.email}
+             emailVerified={Boolean(session?.user?.email_confirmed_at)}
+             onSaved={(fullName, pendingReview) => setPortal(current => current ? {
+               ...current, match_status: pendingReview ? "pending_review" : current.match_status,
+               customer: current.customer ? { ...current.customer, name: fullName } : current.customer,
+             } : current)}/>}
 
         </div>
       </div>}
