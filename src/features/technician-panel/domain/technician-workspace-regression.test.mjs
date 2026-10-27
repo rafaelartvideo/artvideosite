@@ -230,9 +230,9 @@ test("resumo técnico usa status dos serviços e mantém layout mobile uniforme"
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
   assert.match(panel, /assignedOrders\.filter\(isTechnicianOrderCompleted\)/);
   assert.match(panel, /openOrderCount = assignedOrders\.length - completedOrderCount/);
-  assert.match(panel, /h-\\[104px\\] w-full flex-col items-center justify-center/);
-  assert.match(panel, /onClick=\\{\\(\\) => setSummaryFilter\\(card\\.filter\\)\\}/);
-  assert.match(panel, /summaryItems\\.map/);
+  assert.ok(panel.includes('h-[104px] w-full flex-col items-center justify-center'));
+  assert.ok(panel.includes('onClick={() => setSummaryFilter(card.filter)}'));
+  assert.ok(panel.includes('summaryItems.map'));
   assert.match(panel, /name: "Andamento"/);
   assert.match(table, /filter === "completed" && !isTechnicianOrderCompleted\(services\)/);
   assert.match(table, /grid w-full grid-cols-2 gap-2/);
