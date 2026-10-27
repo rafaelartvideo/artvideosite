@@ -14,7 +14,7 @@ import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { EmployeeAgendaSection } from "@/features/registrations/presentation/EmployeeAgendaDialog";
 
-export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }) {
+export function TabAgenda({ onOpenOrder, embedded = false }: { onOpenOrder: (id: string) => void; embedded?: boolean }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
   const navigate = useNavigate();
   const canViewAgenda = hasPermission("agenda.view");
@@ -92,9 +92,9 @@ export function TabAgenda({ onOpenOrder }: { onOpenOrder: (id: string) => void }
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <header className="min-w-0 border-b border-border pb-4">
         <div className="flex min-w-0 flex-col gap-3 2xl:flex-row 2xl:items-center 2xl:justify-between">
-          <div className="shrink-0">
+          {!embedded && <div className="shrink-0">
             <h1 className="text-2xl font-black leading-tight text-foreground">Agenda</h1>
-          </div>
+          </div>}
           <div className="min-w-0 flex-1 2xl:flex-initial">
             {toolbar}
           </div>
