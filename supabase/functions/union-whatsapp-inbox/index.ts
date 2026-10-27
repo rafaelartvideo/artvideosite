@@ -979,21 +979,43 @@ Deno.serve(async request => {
       return json({success:true,conversation_id:claimed.id});
     }
 
-    // A solicitação usa apenas o número exato do protocolo. Não revela a
-    // conversa ou seus dados a quem ainda não recebeu autorização.
+    // Busca somente atendimentos ativos nesta empresa, sem entregar o conteúdo
+    // ao solicitante. Um telefone ambíguo exige o protocolo específico.
     if(action==="participant_request_protocol"){
       if(!permissions.has("whatsapp.inbox.send") || !allowed("collaborate"))
         return json({success:false,error:"Seu perfil não pode solicitar participação."},403);
-      const protocol=Number(body.protocol_number);
-      if(!Number.isSafeInteger(protocol)||protocol<1||protocol>999999999999)
-        return json({success:false,error:"Informe um protocolo ATD válido."},400);
-      const {data:threads,error:searchError}=await admin.from("union_whatsapp_conversations")
+      const rawPhone=String(body.phone||"").replace(/\D/g,"");
+      const byPhone=rawPhone.length>0;
+      let lookup=admin.from("union_whatsapp_conversations")
         .select("id,assigned_to,channel_id,account_phone")
-        .eq("organization_id",org).eq("last_protocol_number",protocol)
-        .eq("status","in_att").limit(2);
+        .eq("organization_id",org).eq("status","in_att");
+      if(byPhone){
+        let digits=rawPhone;
+        if(digits.startsWith("55") && [12,13].includes(digits.length))digits=digits.slice(2);
+        if(!/^[1-9][0-9]{9,10}$/.test(digits))
+          return json({success:false,error:"Informe um telefone válido com DDD."},400);
+        // Telefones brasileiros podem estar armazenados com ou sem o nono dígito.
+        const variants=new Set([digits,"55"+digits]);
+        if(digits.length===11 && digits[2]==="9"){
+          const withoutNine=digits.slice(0,2)+digits.slice(3);
+          variants.add(withoutNine);variants.add("55"+withoutNine);
+        }else if(digits.length===10){
+          const withNine=digits.slice(0,2)+"9"+digits.slice(2);
+          variants.add(withNine);variants.add("55"+withNine);
+        }
+        lookup=lookup.in("contact_phone",[...variants]);
+      }else{
+        const protocol=Number(body.protocol_number);
+        if(!Number.isSafeInteger(protocol)||protocol<1||protocol>999999999999)
+          return json({success:false,error:"Informe um protocolo ATD válido."},400);
+        lookup=lookup.eq("last_protocol_number",protocol);
+      }
+      const {data:threads,error:searchError}=await lookup.limit(3);
       if(searchError)throw searchError;
-      if(!threads || threads.length!==1 || !threads[0].assigned_to)
-        return json({success:false,error:"Não foi possível solicitar participação neste protocolo."},404);
+      if(!threads?.length)
+        return json({success:false,error:byPhone?"Não há atendimento ativo para este número.":"Não há atendimento ativo com este protocolo."},404);
+      if(threads.length!==1 || !threads[0].assigned_to)
+        return json({success:false,error:"Há mais de um atendimento possível ou sem responsável. Informe o protocolo ATD."},409);
       const target=threads[0];
       if(target.assigned_to===actorId)
         return json({success:false,error:"Você já é o responsável por esta conversa."},409);
