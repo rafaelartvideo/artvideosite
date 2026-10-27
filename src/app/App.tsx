@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "react-router";
 import { LoaderCircle } from "lucide-react";
+import { CustomerAccountLoading } from "@/features/customer-account/presentation/CustomerAccountLoading";
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 // A estrutura completa do site público não entra no bundle inicial do CRM.
@@ -69,6 +70,7 @@ function CartPageLoading() {
 
 function PublicPageFallback({ withinShell = false }: { withinShell?: boolean }) {
   const { pathname } = useLocation();
+  if (pathname === "/minha-conta") return <CustomerAccountLoading/>;
   if (pathname.startsWith("/checkout/")) {
     return <div role="status" aria-live="polite" className="flex min-h-[75vh] flex-col items-center justify-center gap-4 bg-white px-4 text-center text-sm font-semibold text-[#53647b]">
       <LoaderCircle size={34} className="animate-spin text-[var(--art-primary)]" />
