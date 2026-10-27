@@ -750,7 +750,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     <ArrowLeft size={16} className="shrink-0"/>
     <span>{step === 1 ? cartMode ? "Voltar ao carrinho" : "Voltar ao produto" : "Anterior"}</span>
   </button>;
-  const nextAction = step < 3 ? <button type="button" disabled={!purchasable || shippingLoading || paying}
+  const nextAction = step < 3 ? <button type="button" disabled={!purchasable || shippingLoading || paying || savingNewAddress || (step === 2 && deliveryMode === "delivery" && (Boolean(deliveryNotice) || !selectedShipping || addressChoice === "new"))}
     onClick={() => {
       if (step === 1 && checkIdentity()) move(2);
       if (step === 2 && checkDelivery()) move(3);
