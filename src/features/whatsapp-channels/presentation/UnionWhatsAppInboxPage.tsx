@@ -984,7 +984,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const requestParticipation=async()=>{
     if(!activeOrganizationId||participantsBusy)return;
-    const match=requestProtocol.trim().match(/^(?:ATD[-\\s]*)?(\\d{1,12})$/i);
+    const match=requestProtocol.trim().match(/^(?:ATD[-\s]*)?(\d{1,12})$/i);
     if(!match){reportError("Informe um protocolo no formato ATD-000020.");return;}
     setParticipantsBusy(true);
     try {
