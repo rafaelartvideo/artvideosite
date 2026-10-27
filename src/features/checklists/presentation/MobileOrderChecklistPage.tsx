@@ -28,6 +28,7 @@ import {
   type MobileChecklistStage,
   type MobileOrderChecklistData,
 } from "../infrastructure/order-mobile-checklist.gateway";
+import { MobileOrderDocumentsSection } from "./MobileOrderDocumentsSection";
 
 const STORAGE_KEY = "unionworld:mobile-order-checklist";
 
@@ -292,6 +293,9 @@ export function MobileOrderChecklistPage() {
     : null;
 
   const [pairing, setPairing] = useState<Pairing | null>(() => queryPairing || loadStoredPairing());
+  const [activeMobileTab, setActiveMobileTab] = useState<"attachments" | "checklist" | "situations">(
+    params.get("mode") === "documents" ? "attachments" : "checklist",
+  );
   const [pairingCode, setPairingCode] = useState("");
   const [state, setState] = useState<"checking" | "connect" | "ready" | "expired">("checking");
   const [data, setData] = useState<MobileOrderChecklistData | null>(null);
@@ -313,6 +317,8 @@ export function MobileOrderChecklistPage() {
     try {
       const next = await getMobileOrderChecklist(target.id, target.token);
       setData(next);
+      if (!next.documents) setActiveMobileTab("checklist");
+      else if (!next.can_manage_checklist) setActiveMobileTab(current => current === "checklist" ? "attachments" : current);
       setState("ready");
       storePairing(target);
       if (window.location.search) {
@@ -409,6 +415,7 @@ export function MobileOrderChecklistPage() {
     setNotice(null);
     setPairingCode("");
     setSelectedStageId(null);
+    setActiveMobileTab("checklist");
     setState("connect");
     window.history.replaceState(window.history.state, "", "/checklist-mobile");
   };
@@ -485,7 +492,7 @@ export function MobileOrderChecklistPage() {
           <section className="rounded-3xl border border-[#d9e1ec] bg-white p-5 shadow-sm">
             <div className="text-center">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#eef5ff] text-[#0057e7]"><Hash size={24} /></span>
-              <h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Conectar ao checklist</h2>
+              <h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Conectar à OS</h2>
               <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#64748b]">
                 Escaneie o QR exibido no computador ou digite o código temporário.
               </p>
@@ -512,7 +519,7 @@ export function MobileOrderChecklistPage() {
             </div>
 
             <p className="mt-4 text-center text-[11px] leading-5 text-[#64748b]">
-              O código não dá acesso ao painel administrativo. Ele abre apenas o checklist da OS vinculada e expira automaticamente.
+              O código não dá acesso ao painel administrativo. Ele abre somente os recursos autorizados desta OS e expira automaticamente.
             </p>
           </section>
 
@@ -535,14 +542,14 @@ export function MobileOrderChecklistPage() {
       <header className="sticky top-0 z-30 bg-[#0d1b2e] px-4 pb-4 pt-[calc(0.75rem+env(safe-area-inset-top))] text-white shadow-lg">
         <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/55">Checklist</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/55">{activeMobileTab === "checklist" ? "Checklist" : "Documentos"}</p>
             <h1 className="truncate text-lg font-black">OS {data?.order.os_number || ""}</h1>
           </div>
           <button
             type="button"
             onClick={disconnect}
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/10 text-white"
-            aria-label="Sair do checklist"
+            aria-label="Desconectar celular"
           >
             <LogOut size={18} />
           </button>
@@ -556,6 +563,35 @@ export function MobileOrderChecklistPage() {
           </div>
         )}
 
+        {data?.documents && (
+          <nav aria-label="Seções de documentos" className="grid grid-cols-3 gap-2">
+            {([
+              ["attachments", "Anexos"],
+              ["checklist", "Checklist"],
+              ["situations", "Situações"],
+            ] as const).filter(([tab]) => tab !== "checklist" || data.can_manage_checklist).map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveMobileTab(tab)}
+                className={`min-h-11 rounded-xl border px-2 text-xs font-black ${activeMobileTab === tab ? "border-[#0057e7] bg-[#0057e7] text-white" : "border-[#d9e1ec] bg-white text-[#334155]"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
+
+        {activeMobileTab !== "checklist" && data?.documents && pairing ? (
+          <MobileOrderDocumentsSection
+            section={activeMobileTab}
+            documents={data.documents}
+            pairing={pairing}
+            onRefresh={refresh}
+            onNotice={setNotice}
+          />
+        ) : (
+          <>
         {!checklist ? (
           <section className="rounded-3xl border border-[#d9e1ec] bg-white p-6 text-center shadow-sm">
             <ClipboardCheck className="mx-auto text-[#7b8da6]" size={32} />
@@ -695,6 +731,8 @@ export function MobileOrderChecklistPage() {
                 </div>
               );
             })()}
+          </>
+        )}
           </>
         )}
       </main>
