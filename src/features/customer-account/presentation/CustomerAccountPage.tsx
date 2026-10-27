@@ -458,10 +458,10 @@ export function CustomerAccountPage() {
           </button>)}
         </aside>
         <div ref={accountContentRef} className="min-w-0 scroll-mt-[105px]">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          {tab !== "addresses" && tab !== "profile" && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h2 className="text-[20px] font-bold tracking-tight text-[#183250]">{tab === "overview" ? greeting + ", " + displayName + "!" : headings[tab]}</h2>
-              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : tab === "addresses" ? "Salve seus endereços para facilitar suas próximas compras." : tab === "favorites" ? "Os produtos que você salvou para encontrar mais facilmente." : tab === "profile" ? "Gerencie suas informações de contato." : tab === "orders" ? "Acompanhe suas compras feitas no site." : "Acompanhe os orçamentos solicitados no site."}</p></div>
-          </div>
+              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : tab === "favorites" ? "Os produtos que você salvou para encontrar mais facilmente." : tab === "orders" ? "Acompanhe suas compras feitas no site." : "Acompanhe os orçamentos solicitados no site."}</p></div>
+          </div>}
           {portal.match_status === "pending_review" && <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <ShieldCheck size={19} className="mt-0.5 shrink-0"/>
             <div><strong className="block">Seus dados estão em análise</strong>
