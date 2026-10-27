@@ -14,7 +14,7 @@ import { AppointmentDetailsDialog } from "./AppointmentDetailsDialog";
 import { NewAppointmentDialog } from "./NewAppointmentDialog";
 import { EmployeeAgendaSection } from "@/features/registrations/presentation/EmployeeAgendaDialog";
 
-export function TabAgenda({ onOpenOrder, embedded = false }: { onOpenOrder: (id: string) => void; embedded?: boolean }) {
+export function TabAgenda({ onOpenOrder, onOpenTechnicianOrder, embedded = false }: { onOpenOrder: (id: string) => void; onOpenTechnicianOrder?: (id: string) => void; embedded?: boolean }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
   const navigate = useNavigate();
   const canViewAgenda = hasPermission("agenda.view");
@@ -49,7 +49,7 @@ export function TabAgenda({ onOpenOrder, embedded = false }: { onOpenOrder: (id:
   const canViewCurrent = agenda.view === "agenda" ? canViewList : canViewCalendar;
   const safeOpenOrder = (id: string) => {
     if (canOpenRegularOrder) onOpenOrder(id);
-    else if (canOpenTechnicianOrder) navigate(`/admin/technician-panel/os/${encodeURIComponent(id)}`);
+    else if (canOpenTechnicianOrder) (onOpenTechnicianOrder || ((orderId: string) => navigate(`/admin/technician-panel/os/${encodeURIComponent(orderId)}`)))(id);
   };
   const openAppointment = (appointment: AppointmentWithRelations) => {
     // Técnicos sem acesso à OS administrativa entram pela tela restrita do próprio painel.
