@@ -1,9 +1,12 @@
 import { useState, type CSSProperties, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "react-router";
 import { PublicBreadcrumb } from "./PublicPageHeader";
 import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, Phone, ShoppingCart, UserRound, X, Youtube } from "lucide-react";
 import { ImageWithFallback } from "@/shared/ui/media/ImageWithFallback";
 import { formatPhone } from "@/shared/domain/formatters";
+import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { useSiteSettings } from "@/features/public-shell/application/useSiteSettings";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import logoIcon from "@/imports/LogoSoloSemFundo.png";
@@ -74,7 +77,17 @@ function WhatsAppFloat({ hideOnMobile = false }: { hideOnMobile?: boolean }) {
 function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: PublicPage) => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const { settings } = useSiteSettings();
+  const { session } = useAuth();
   const { count: cartCount } = useStoreCart();
+  const activeUserId = session?.user?.id || null;
+  const accountNameQuery = useQuery({
+    queryKey: ["public-site-account-name", activeUserId],
+    enabled: Boolean(activeUserId), staleTime: 60_000,
+    queryFn: async () => { const { data } = await supabase.from("artvideo_customer_accounts").select("full_name").eq("user_id", activeUserId!).maybeSingle(); return data?.full_name || ""; },
+  });
+  const rawAccountName = accountNameQuery.data || String(session?.user?.user_metadata?.full_name || "");
+  const firstAccountName = rawAccountName.trim().split(/\s+/)[0];
+  const accountLabel = activeUserId && firstAccountName ? "Olá, " + firstAccountName.charAt(0).toUpperCase() + firstAccountName.slice(1) : "Minha Conta";
   const { pathname } = useLocation();
   const isLegalPage = ["/politica-de-privacidade", "/exclusao-de-dados", "/descadastramento"].includes(pathname.endsWith("/") && pathname !== "/" ? pathname.slice(0, -1) : pathname);
   const isCurrent = (destination: PublicPage) => !isLegalPage && pathname !== "/minha-conta" &&
@@ -114,7 +127,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
         })}
       </nav>
       <div className="hidden shrink-0 items-center gap-2 xl:flex">
-        <Link to="/minha-conta" title="Minha conta" aria-label="Minha conta" className="flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-colors hover:border-white/40 hover:bg-white/10"><UserRound size={21}/></Link>
+        <Link to="/minha-conta" title={accountLabel} aria-label={accountLabel} className="flex h-10 max-w-[140px] shrink-0 items-center justify-center gap-2 rounded-lg border border-white/20 px-2.5 text-white transition-colors hover:border-white/40 hover:bg-white/10"><UserRound size={19} className="shrink-0"/><span className="truncate text-[11px] font-semibold">{accountLabel}</span></Link>
         <Link to="/carrinho" onPointerEnter={preloadCartPage} onFocus={preloadCartPage} data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
           className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-white transition-all hover:border-white/40 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-blue-400">
           <ShoppingCart size={21}/>
@@ -131,7 +144,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
             </a>)}
         </div>
       </div>
-      <Link to="/minha-conta" title="Minha conta" aria-label="Minha conta" className="ml-auto flex h-10 w-10 items-center justify-center rounded-lg text-white transition-colors hover:bg-white/10 xl:hidden"><UserRound size={22}/></Link>
+      <Link to="/minha-conta" title={accountLabel} aria-label={accountLabel} className="ml-auto flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-lg px-1.5 text-white transition-colors hover:bg-white/10 xl:hidden"><UserRound size={21} className="shrink-0"/><span className="hidden max-w-[80px] truncate text-[10px] font-semibold sm:inline">{accountLabel}</span></Link>
       <Link to="/carrinho" onPointerEnter={preloadCartPage} onFocus={preloadCartPage} data-artvideo-cart aria-label={"Meu carrinho, " + cartCount + " produtos"}
         className="relative ml-0 flex h-10 w-10 items-center justify-center rounded-lg text-white hover:bg-white/10 xl:hidden">
         <ShoppingCart size={22}/>
@@ -152,7 +165,7 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
           <span className="py-1">{label}</span>
         </button>;
       })}
-      <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex min-h-11 items-center gap-2 px-4 text-sm font-semibold text-white/85"><UserRound size={18}/> Minha conta</Link>
+      <Link to="/minha-conta" onClick={() => setMenuOpen(false)} className="flex min-h-11 items-center gap-2 px-4 text-sm font-semibold text-white/85"><UserRound size={18}/> {accountLabel}</Link>
       <div className="mt-4 flex flex-wrap items-center gap-2.5" aria-label="Orçamento, redes sociais e localização">
         <button type="button" onClick={() => navigate("orcamento")}
           className="inline-flex min-h-11 min-w-[170px] flex-1 items-center justify-center gap-2 rounded-md bg-[var(--art-primary)] px-3 text-[12px] font-bold text-white hover:brightness-110 focus-visible:outline-2 focus-visible:outline-blue-300">
