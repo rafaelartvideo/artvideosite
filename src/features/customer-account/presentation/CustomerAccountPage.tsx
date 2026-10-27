@@ -1,8 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  LogOut, Mail, Package, RefreshCw, ShieldCheck, UserRound,
+  IdCard, KeyRound, LockKeyhole, LogOut, Mail, Package, Phone, RefreshCw, ShieldCheck, UserRound, UserRoundPlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -18,8 +19,8 @@ type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "re
 const inputClass = "h-12 w-full rounded-xl border border-[#dbe5f2] bg-[#fbfcff] px-4 text-[14px] text-[#132b4a] outline-none transition-[border-color,box-shadow] placeholder:text-[#9aabc0] focus:border-[var(--art-primary)] focus:bg-white focus:ring-[3px] focus:ring-blue-500/10";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--art-primary)] px-5 text-sm font-semibold text-white shadow-[0_5px_14px_rgba(23,77,162,.14)] transition-[background-color,box-shadow] hover:bg-blue-800 hover:shadow-[0_7px_18px_rgba(23,77,162,.2)] disabled:cursor-not-allowed disabled:opacity-60";
 const authLabelClass = "block text-[12px] font-medium text-[#344d6a]";
-const authInputClass = "mt-1.5 h-11 w-full rounded-lg border border-[#dbe3ee] bg-white px-3.5 text-[13px] text-[#1b3353] outline-none transition-colors placeholder:text-[#a0aebe] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
-const authButtonClass = "inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
+const authInputClass = "h-11 w-full rounded-lg border border-[#dbe3ee] bg-white pl-10 pr-3.5 text-[13px] text-[#1b3353] outline-none transition-[border-color,box-shadow] placeholder:text-[#a0aebe] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
+const authButtonClass = "inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-5 text-[12.5px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
 const secondaryClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#dce5f1] bg-white px-4 text-sm font-semibold text-[#254360] transition-colors hover:bg-[#f3f7fc]";
 const cardClass = "rounded-xl border border-[#e2e8f1] bg-white p-5 shadow-[0_5px_24px_rgba(15,42,83,.035)]";
 
@@ -79,14 +80,19 @@ function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "order
 
 
 
+
 function AccountEntryShell({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto w-full max-w-[456px] rounded-2xl border border-[#e1e7f0] bg-white px-6 py-8 shadow-[0_8px_32px_rgba(17,40,77,.035)] sm:px-10 sm:py-10">
+  return <motion.div layout="size" initial={false} transition={{ layout: { duration: 0.24, ease: "easeOut" } }} className="mx-auto w-full max-w-[456px] rounded-2xl border border-[#e1e7f0] bg-white px-6 py-7 shadow-[0_10px_38px_rgba(17,40,77,.055)] sm:px-10 sm:py-9">
     {children}
-  </div>;
+  </motion.div>;
 }
+
+const authIconClass = "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#91a1b6]";
+
 
 export function CustomerAccountPage() {
   const { session, loading: authLoading } = useAuth();
+  const reduceMotion = useReducedMotion();
   const [mode, setMode] = useState<AuthMode>("login");
   const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).has("recovery"));
   const [tab, setTab] = useState<Tab>("overview");
@@ -280,65 +286,92 @@ export function CustomerAccountPage() {
         <RefreshCw size={27} className="animate-spin text-[var(--art-primary)]"/> Preparando sua conta...
       </div> :
       state === "anonymous" ? <AccountEntryShell>
-        {mode === "email_sent" ? <div className="py-3 text-center">
-          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef8f2] text-[#23815b]"><CheckCircle2 size={27} strokeWidth={1.8}/></div>
-          <h1 className="mt-5 text-[25px] font-semibold tracking-[-.035em] text-[#172d4b]">Verifique seu e-mail</h1>
-          <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Enviamos as orientações para seu e-mail, caso o endereço esteja disponível. Confira também o spam.</p>
-          <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-7 w-full " + authButtonClass}>Voltar ao login</button>
-        </div> : <>
-          {mode === "forgot" && <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-5 inline-flex items-center gap-2 text-xs font-medium text-[#647b96] hover:text-[var(--art-primary)]"><ArrowLeft size={15}/> Voltar</button>}
-          <div className="mb-7 text-center">
-            <h1 className="text-[27px] font-semibold tracking-[-.045em] text-[#142d4e]">
-              {mode === "register" ? "Criar conta" : mode === "forgot" ? "Recuperar senha" : "Minha conta"}
-            </h1>
-            <p className="mt-2 text-[13px] leading-5 text-[#6c8099]">
-              {mode === "register" ? "Crie sua conta para acompanhar pedidos e orçamentos." : mode === "forgot" ? "Enviaremos um link para redefinir sua senha." : "Acesse seus pedidos e orçamentos."}
-            </p>
-          </div>
-          <form onSubmit={event => void submitAuth(event)} className="space-y-4">
-            {mode === "register" && <>
-              <label className={authLabelClass}>Nome completo
-                <input className={authInputClass} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Seu nome completo"/>
-              </label>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <label className={authLabelClass}>CPF
-                  <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/>
-                </label>
-                <label className={authLabelClass}>Telefone <span className="font-normal text-[#96a3b3]">(opcional)</span>
-                  <input className={authInputClass} type="tel" value={phone} onChange={event => setPhone(event.target.value)} autoComplete="tel" placeholder="(00) 00000-0000"/>
-                </label>
+        <AnimatePresence initial={false} mode="wait">
+          <motion.div key={mode}
+            initial={reduceMotion ? false : { opacity: 0, y: 9 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: -7 }}
+            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}>
+            {mode === "email_sent" ? <div className="py-3 text-center">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#eef8f2] text-[#23815b]"><CheckCircle2 size={24} strokeWidth={1.8}/></div>
+              <h1 className="mt-4 text-[21px] font-semibold tracking-[-.035em] text-[#172d4b]">Verifique seu e-mail</h1>
+              <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Se o endereço estiver disponível, enviaremos as orientações para você. Confira também o spam.</p>
+              <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}><ArrowLeft size={15}/> Voltar ao login</button>
+            </div> : <>
+              {mode === "forgot" && <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-[#647b96] hover:text-[var(--art-primary)]"><ArrowLeft size={15}/> Voltar</button>}
+              <div className="mb-6 text-center">
+                <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl border border-[#e3ebf9] bg-[#f2f6ff] text-[var(--art-primary)]">
+                  {mode === "register" ? <UserRoundPlus size={19} strokeWidth={1.8}/> : mode === "forgot" ? <KeyRound size={19} strokeWidth={1.8}/> : <UserRound size={19} strokeWidth={1.8}/>}
+                </div>
+                <h1 className="text-[21px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[22px]">
+                  {mode === "register" ? "Criar conta" : mode === "forgot" ? "Recuperar senha" : "Entrar"}
+                </h1>
+                <p className="mt-1.5 text-[12.5px] leading-5 text-[#6c8099]">
+                  {mode === "register" ? "Cadastre-se para acompanhar seus pedidos e orçamentos." : mode === "forgot" ? "Receba um link para redefinir sua senha." : "Acesse seus pedidos e orçamentos."}
+                </p>
               </div>
+              <form onSubmit={event => void submitAuth(event)} className="space-y-4">
+                {mode === "register" && <>
+                  <label className={authLabelClass}>Nome completo
+                    <span className="relative mt-1.5 block">
+                      <UserRound size={17} className={authIconClass}/>
+                      <input className={authInputClass} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Seu nome completo"/>
+                    </span>
+                  </label>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <label className={authLabelClass}>CPF
+                      <span className="relative mt-1.5 block">
+                        <IdCard size={17} className={authIconClass}/>
+                        <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/>
+                      </span>
+                    </label>
+                    <label className={authLabelClass}>Telefone <span className="font-normal text-[#96a3b3]">(opcional)</span>
+                      <span className="relative mt-1.5 block">
+                        <Phone size={17} className={authIconClass}/>
+                        <input className={authInputClass} type="tel" value={phone} onChange={event => setPhone(event.target.value)} autoComplete="tel" placeholder="(00) 00000-0000"/>
+                      </span>
+                    </label>
+                  </div>
+                </>}
+                <label className={authLabelClass}>E-mail
+                  <span className="relative mt-1.5 block">
+                    <Mail size={17} className={authIconClass}/>
+                    <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
+                  </span>
+                </label>
+                {mode !== "forgot" && <label className={authLabelClass}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span>Senha</span>
+                    {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-xs font-medium text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>}
+                  </span>
+                  <span className="relative mt-1.5 block">
+                    <LockKeyhole size={17} className={authIconClass}/>
+                    <input className={authInputClass + " pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
+                    <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
+                  </span>
+                </label>}
+                {mode === "register" && <label className={authLabelClass}>Confirmar senha
+                  <span className="relative mt-1.5 block">
+                    <LockKeyhole size={17} className={authIconClass}/>
+                    <input className={authInputClass} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
+                  </span>
+                </label>}
+                {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
+                <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
+                  {busy ? <RefreshCw size={16} className="animate-spin"/> : mode === "register" ? <UserRoundPlus size={16}/> : mode === "forgot" ? <Mail size={16}/> : <ArrowRight size={16}/>}
+                  {mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}
+                </button>
+              </form>
+              {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
+              {mode !== "forgot" && <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
+                {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
+                <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
+                  {mode === "register" ? "Entrar" : "Criar conta"}
+                </button>
+              </div>}
             </>}
-            <label className={authLabelClass}>E-mail
-              <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
-            </label>
-            {mode !== "forgot" && <label className={authLabelClass}>
-              <span className="flex items-center justify-between gap-2">
-                <span>Senha</span>
-                {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-xs font-medium text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>}
-              </span>
-              <span className="relative mt-1.5 block">
-                <input className={authInputClass + " !mt-0 pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
-                <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
-              </span>
-            </label>}
-            {mode === "register" && <label className={authLabelClass}>Confirmar senha
-              <input className={authInputClass} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
-            </label>}
-            {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
-            <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
-              {busy && <RefreshCw size={16} className="animate-spin"/>}
-              {mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}
-            </button>
-          </form>
-          {mode === "register" && <p className="mt-4 text-center text-[12px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
-          {mode !== "forgot" && <div className="mt-6 border-t border-[#edf0f4] pt-5 text-center text-[13px] text-[#73849a]">
-            {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
-            <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
-              {mode === "register" ? "Entrar" : "Criar conta"}
-            </button>
-          </div>}
-        </>}
+          </motion.div>
+        </AnimatePresence>
       </AccountEntryShell> :
       state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
         <h2 className="text-xl font-bold text-[#173450]">Complete seu cadastro</h2>
