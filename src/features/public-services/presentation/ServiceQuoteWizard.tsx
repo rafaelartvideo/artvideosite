@@ -94,7 +94,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
   if(!['available','consult'].includes(coverage)){
    setError('Consulte um CEP atendido antes de salvar o endereço.');return;
   }
-  if(address.zip_code.replace(/\\D/g,'').length!==8||!address.street.trim()||
+  if(address.zip_code.replace(/\D/g,'').length!==8||!address.street.trim()||
     !address.number.trim()||!address.neighborhood.trim()||!address.city.trim()||
     !/^[A-Z]{2}$/.test(address.state.trim().toUpperCase())||!addressLabel.trim()){
    setError('Preencha o CEP e todos os dados do endereço para salvá-lo.');return;
@@ -159,6 +159,7 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
  }
  if(protocol) return <section data-quote-scroll-anchor className="mx-auto max-w-2xl px-5 py-20 text-center"><span className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 motion-safe:animate-[bounce_650ms_ease-out_1]"><CheckCircle2 size={56} strokeWidth={1.5}/></span><h1 className="text-3xl font-semibold">Orçamento solicitado!</h1><p className="mt-4 leading-7 text-slate-600">A Artvideo entrará em contato pelo WhatsApp para avaliar o serviço, informar o orçamento e confirmar o atendimento.</p><div className="my-8 rounded-xl bg-slate-50 p-6"><p className="text-sm text-slate-500">Seu protocolo</p><p className="mt-2 font-mono text-2xl font-bold tracking-wide">{protocol}</p></div>{date&&<p className="mb-6 text-sm text-slate-600">Preferência: {displayBookingDate(date)} · {slot}. Aguarde a confirmação da equipe.</p>}<PublicButton onClick={()=>navigate(`/servicos/${service.slug}`)}>Voltar ao serviço</PublicButton></section>;
  return <div data-quote-scroll-anchor className="art-booking mx-auto max-w-5xl px-5 py-9 sm:py-14">
+   <CustomerFeedbackToast feedback={addressFeedback} onDismiss={dismissAddressFeedback}/>
   <button type="button" onClick={()=>step?go(step-1):navigate(backTo || `/servicos/${service.slug}`)} className="mb-8 inline-flex items-center gap-2 text-sm font-semibold text-[var(--art-primary)]"><ArrowLeft size={18}/> Voltar</button>
   <nav aria-label="Etapas da solicitação" className="mb-10"><div className="mb-3 flex justify-between gap-4 text-sm"><p><strong>{step+1} de {steps.length}</strong> — {steps[step]}</p><p className="hidden text-slate-500 sm:block">{step<3?`Próximo passo: ${steps[step+1]}`:'Confira antes de enviar'}</p></div><ol className="flex gap-2">{steps.map((label,i)=><li key={label} aria-current={step===i?'step':undefined} className={`h-1.5 flex-1 rounded-full ${i<=step?'bg-[var(--art-primary)]':'bg-slate-200'}`}><span className="sr-only">{label}</span></li>)}</ol></nav>
   <div className="grid items-start gap-10 lg:grid-cols-[1.2fr_1fr] lg:gap-14">
@@ -209,27 +210,35 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
      {!onsite&&<p className="rounded-xl border border-blue-100 bg-blue-50 p-4 text-sm leading-6 text-[#37577c]">
        Você levará o equipamento à loja. Não é necessário preencher endereço nem escolher horário.
      </p>}
-     {onsite&&Boolean(addressesQuery.data?.length)&&<div className="rounded-xl border border-[#e1e8f3] bg-[#f8faff] p-4">
-       <h3 className="flex items-center gap-2 text-[13px] font-bold text-[#254364]"><MapPin size={17} className="text-[var(--art-primary)]"/> Seus endereços salvos</h3>
-       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-         {addressesQuery.data!.map(item=><button type="button" key={item.id}
-           onClick={()=>{setAddress({zip_code:item.postal_code,street:item.street,number:item.number,
-             complement:item.complement||'',neighborhood:item.district,city:item.city,state:item.state});
-             setCoverage('idle');setNoNumber(item.number==='S/N');setError('');}}
-           className="rounded-lg border border-[#dce6f2] bg-white px-3 py-3 text-left text-[12px] text-[#526a87] hover:border-[var(--art-primary)] hover:bg-[#f0f6ff]">
-           <strong className="block text-[#234264]">{item.label}{item.is_default?' · Principal':''}</strong>
-           <span className="mt-1 block">{item.street}, {item.number} · {item.city}/{item.state}</span>
-         </button>)}
-       </div>
-       <p className="mt-2 text-[11px] text-[#7185a0]">Após escolher, consulte o CEP abaixo para confirmar a disponibilidade do atendimento.</p>
+     {onsite&&<SiteAddressSelector addresses={addressesQuery.data||[]} choice={addressChoice}
+      selectedId={selectedAddressId} canSave={Boolean(customerId)}
+      onSelectSaved={selectSavedAddress} onSelectOther={()=>useOtherAddress('other')}
+      onAddNew={()=>{useOtherAddress('new');setAddressLabel('Casa');}}/>}
+     {onsite&&<div>
+      {addressChoice==='new'&&<Field label="Nome do endereço" required>
+       <input className="art-input" maxLength={45} value={addressLabel}
+        onChange={e=>setAddressLabel(e.target.value)} placeholder="Casa, Trabalho..."/>
+      </Field>}
+      <ServiceCepLookup config={c} value={address.zip_code}
+       hideInput={addressChoice==='saved'}
+       onChange={zip=>{setAddress({...emptyAddress,zip_code:zip});setCoverage('idle');setNoNumber(false);}}
+       onResolved={(resolved,status)=>{setCoverage(status);if(resolved)setAddress(old=>mergeResolvedAddress(old,resolved));}}/>
+      {fieldErrors.cep&&<p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{fieldErrors.cep}</p>}
      </div>}
-     {onsite&&<div><ServiceCepLookup config={c} value={address.zip_code} onChange={zip=>{setAddress({...emptyAddress,zip_code:zip});setCoverage('idle');setNoNumber(false);}} onResolved={(a,status)=>{setCoverage(status);if(a)setAddress(old=>mergeResolvedAddress(old,a));}}/>{fieldErrors.cep&&<p role="alert" className="mt-1.5 text-xs font-medium text-red-600">{fieldErrors.cep}</p>}</div>}
-     {onsite&&['available','consult'].includes(coverage)&&<div className="space-y-5">
+     {onsite&&addressChoice!=='saved'&&['available','consult'].includes(coverage)&&<div className="space-y-5">
       <Field label="Rua / avenida" required error={fieldErrors.street}><input className="art-input" required autoComplete="address-line1" value={address.street} onChange={e=>setAddress(a=>({...a,street:e.target.value}))}/></Field>
       <div className="grid grid-cols-2 gap-4"><Field label="Número" required error={fieldErrors.number}><input className="art-input" required disabled={noNumber} value={address.number} onChange={e=>setAddress(a=>({...a,number:e.target.value}))}/></Field><Field label="Complemento"><input className="art-input" autoComplete="address-line2" value={address.complement} onChange={e=>setAddress(a=>({...a,complement:e.target.value}))}/></Field></div>
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={noNumber} onChange={e=>{setNoNumber(e.target.checked);setAddress(a=>({...a,number:e.target.checked?'S/N':''}));}}/> Meu endereço não tem número</label>
       <Field label="Bairro"><input className="art-input" value={address.neighborhood} onChange={e=>setAddress(a=>({...a,neighborhood:e.target.value}))}/></Field>
       <div className="grid grid-cols-[1fr_80px] gap-4"><Field label="Cidade" required error={fieldErrors.city}><input className="art-input" required value={address.city} onChange={e=>setAddress(a=>({...a,city:e.target.value}))}/></Field><Field label="UF" required error={fieldErrors.state}><input className="art-input" required maxLength={2} value={address.state} onChange={e=>setAddress(a=>({...a,state:e.target.value.toUpperCase()}))}/></Field></div>
+      {addressChoice==='new'&&<div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#dce7f6] bg-[#f6f9ff] px-4 py-3">
+       <p className="text-[12px] text-[#5d7694]">Salve este endereço para utilizar nas próximas solicitações e compras.</p>
+       <button type="button" disabled={savingAddress} onClick={()=>void saveNewAddress()}
+        className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-[12px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-50">
+        {savingAddress?<Loader2 size={16} className="animate-spin"/>:<Check size={16}/>}
+        Salvar e usar endereço
+       </button>
+      </div>}
      </div>}
     </>}
     {step===2&&<>
