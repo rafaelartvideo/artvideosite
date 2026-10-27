@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import {
@@ -14,6 +14,7 @@ import {QRCodeSVG} from "qrcode.react";
 import { useAuth } from "@/lib/auth";
 import { formatSitePhone, listSiteAddresses, loadSiteProfile, saveSiteAddress, type SiteAddress } from "@/features/customer-account/infrastructure/customer-account-settings.repository";
 import {EmbeddedMercadoPagoPayment} from "./EmbeddedMercadoPagoPayment";
+import { CustomerFeedbackToast, type CustomerFeedback } from "@/features/customer-account/presentation/CustomerFeedbackToast";
 
 type Step = 1 | 2 | 3 | 4;
 type Buyer = {
@@ -153,6 +154,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   const [newAddressLabel, setNewAddressLabel] = useState("Casa");
   const [savingNewAddress, setSavingNewAddress] = useState(false);
   const [deliveryNotice, setDeliveryNotice] = useState("");
+  const [addressFeedback, setAddressFeedback] = useState<CustomerFeedback | null>(null);
+  const dismissAddressFeedback = useCallback(() => setAddressFeedback(null), []);
   const addressAutoSelectedForRef = useRef<string | null>(null);
   const shippingRequestRef = useRef(0);
   useEffect(() => {
@@ -389,6 +392,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
       setSelectedSavedAddressId(savedId);
       setAddressChoice("saved");
       setDeliveryNotice("");
+      setAddressFeedback({ message: "Endereço salvo e selecionado.", type: "success", id: Date.now() });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar o novo endereço.");
     } finally { setSavingNewAddress(false); }
@@ -766,6 +770,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
   </button> : null;
 
   return <div className="art-checkout-page min-h-screen bg-[#f6f9fd] text-[#10243d]">
+    <CustomerFeedbackToast feedback={addressFeedback} onDismiss={dismissAddressFeedback}/>
     {(homologationAvailable||Boolean(brickSession))&&<div role="status" className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-center text-[12px] font-semibold leading-5 text-amber-900">
       Homologação privada ativa. Este é um pedido REAL: a compra será cobrada pelo Mercado Pago
       e, se aprovada, poderá baixar o estoque da Artvideo.
