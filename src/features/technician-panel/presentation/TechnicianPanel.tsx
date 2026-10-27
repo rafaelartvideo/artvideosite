@@ -572,50 +572,42 @@ export function TechnicianPanel() {
   return <div className="mx-auto max-w-6xl space-y-4">
     {!routeOrderId && <PageHeader title="Painel do Técnico"
       subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
-        <WifiOff size={16} /> Sem internet
-      </span> : undefined} />}
+      actions={<div className="grid w-full grid-cols-2 gap-2 sm:w-[390px]">
+        {canViewAgenda && <AdminButton variant="secondary" size="sm"
+          className="!flex !h-[76px] !w-full !flex-col !gap-2 !px-2"
+          onClick={() => setAgendaModalOpen(true)} aria-label="Abrir meus agendamentos">
+          <span className="inline-flex items-center justify-center gap-1.5 text-xs">
+            <CalendarDays size={16} className="shrink-0" />
+            <span className="sm:hidden">Agendamentos</span>
+            <span className="hidden sm:inline">Meus agendamentos</span>
+          </span>
+          <span className="min-w-7 rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-black tabular-nums text-primary"
+            title="Agendamentos deste mês">
+            {myAgendaCount ?? (agendaCountQuery.isError ? "—" : "…")}
+          </span>
+        </AdminButton>}
+        {canViewWhatsApp && <AdminButton variant="secondary" size="sm"
+          className="!flex !h-[76px] !w-full !flex-col !gap-2 !px-2"
+          onClick={() => {
+            setMyConversationsDialogOpen(true);
+            void refreshConversations();
+          }} aria-label="Abrir meus atendimentos">
+          <span className="inline-flex items-center justify-center gap-1.5 text-xs">
+            <MessageCircle size={16} className="shrink-0" />
+            <span className="sm:hidden">Atendimentos</span>
+            <span className="hidden sm:inline">Meus atendimentos</span>
+          </span>
+          <span className="min-w-7 rounded-full bg-primary/10 px-2.5 py-0.5 text-sm font-black tabular-nums text-primary"
+            title="Atendimentos em andamento">
+            {myConversationsLoading && myConversations.length === 0 ? "…" : myConversations.length}
+          </span>
+        </AdminButton>}
+        {!online && <span className="col-span-2 inline-flex items-center gap-2 text-xs font-semibold text-amber-700">
+          <WifiOff size={16} /> Sem internet
+        </span>}
+      </div>} />}
 
     {!routeOrderId ? <>
-      {(canViewAgenda || canViewWhatsApp) && <div className="grid grid-cols-2 gap-2 sm:gap-4">
-        {canViewAgenda && <AdminCard>
-          <AdminCardContent className="border border-blue-500/30 bg-blue-500/10 p-0 text-blue-700 dark:text-blue-300">
-            <button type="button" onClick={() => setAgendaModalOpen(true)}
-              aria-label="Abrir meus agendamentos"
-              className="flex h-[104px] w-full flex-col items-center justify-center gap-2 rounded-xl p-2 text-center transition-colors hover:bg-primary/5 focus-visible:outline-2 focus-visible:outline-primary sm:min-h-[104px] sm:p-4">
-              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">
-                <CalendarDays size={16} className="shrink-0" />
-                <span className="sm:hidden">Agendamentos</span>
-                <span className="hidden sm:inline">Meus agendamentos</span>
-              </span>
-              <span className="inline-flex min-w-12 items-center justify-center rounded-lg bg-blue-500/10 px-3 py-0.5 text-2xl font-black tabular-nums sm:text-3xl"
-                title="Agendamentos deste mês">
-                {myAgendaCount ?? (agendaCountQuery.isError ? "—" : "…")}
-              </span>
-            </button>
-          </AdminCardContent>
-        </AdminCard>}
-        {canViewWhatsApp && <AdminCard>
-          <AdminCardContent className="border border-emerald-500/30 bg-emerald-500/10 p-0 text-emerald-700 dark:text-emerald-300">
-            <button type="button" onClick={() => {
-                setMyConversationsDialogOpen(true);
-                void refreshConversations();
-              }}
-              aria-label="Abrir meus atendimentos"
-              className="flex h-[104px] w-full flex-col items-center justify-center gap-2 rounded-xl p-2 text-center transition-colors hover:bg-emerald-500/5 focus-visible:outline-2 focus-visible:outline-primary sm:min-h-[104px] sm:p-4">
-              <span className="inline-flex items-center justify-center gap-1.5 whitespace-nowrap text-[11px] font-semibold leading-tight sm:text-xs">
-                <MessageCircle size={16} className="shrink-0" />
-                <span className="sm:hidden">Atendimentos</span>
-                <span className="hidden sm:inline">Meus atendimentos</span>
-              </span>
-              <span className="inline-flex min-w-12 items-center justify-center rounded-lg bg-emerald-500/10 px-3 py-0.5 text-2xl font-black tabular-nums sm:text-3xl"
-                title="Atendimentos em andamento">
-                {myConversationsLoading && myConversations.length === 0 ? "…" : myConversations.length}
-              </span>
-            </button>
-          </AdminCardContent>
-        </AdminCard>}
-      </div>}
       <div className="space-y-3">
         <div className="space-y-2">
           <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Ordens de serviço</h2>
