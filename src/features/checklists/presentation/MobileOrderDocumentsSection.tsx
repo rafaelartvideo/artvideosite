@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Camera, FilePlus2, FolderOpen, ImagePlus, Loader2 } from "lucide-react";
+import { Camera, ImagePlus, Loader2 } from "lucide-react";
 import { uploadMobileOrderDocument, type MobileOrderChecklistData } from "../infrastructure/order-mobile-checklist.gateway";
 
 type Documents = NonNullable<MobileOrderChecklistData["documents"]>;
