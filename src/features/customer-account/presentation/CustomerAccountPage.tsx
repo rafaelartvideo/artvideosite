@@ -3,18 +3,22 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  IdCard, KeyRound, LockKeyhole, LogOut, Mail, Package, Phone, RefreshCw, ShieldCheck, UserRound, UserRoundPlus,
+  Heart, IdCard, KeyRound, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, RefreshCw, ShieldCheck, UserRound, UserRoundPlus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
+import { formatSitePhone } from "../infrastructure/customer-account-settings.repository";
+import { CustomerAddresses } from "./CustomerAddresses";
+import { CustomerFavorites } from "./CustomerFavorites";
+import { CustomerProfile } from "./CustomerProfile";
 import {
   activateCustomerAccount, getCustomerPortal,
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
 } from "../infrastructure/customer-account.repository";
 
 type AuthMode = "login" | "register" | "forgot" | "email_sent";
-type Tab = "overview" | "orders" | "quotes" | "profile";
+type Tab = "overview" | "orders" | "quotes" | "addresses" | "favorites" | "profile";
 type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "ready" | "error";
 const inputClass = "h-12 w-full rounded-xl border border-[#dbe5f2] bg-[#fbfcff] px-4 text-[14px] text-[#132b4a] outline-none transition-[border-color,box-shadow] placeholder:text-[#9aabc0] focus:border-[var(--art-primary)] focus:bg-white focus:ring-[3px] focus:ring-blue-500/10";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--art-primary)] px-5 text-sm font-semibold text-white shadow-[0_5px_14px_rgba(23,77,162,.14)] transition-[background-color,box-shadow] hover:bg-blue-800 hover:shadow-[0_7px_18px_rgba(23,77,162,.2)] disabled:cursor-not-allowed disabled:opacity-60";
@@ -156,11 +160,9 @@ export function CustomerAccountPage() {
     if (mode === "register") {
       if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
       if (name.trim().length < 3) return setError("Informe seu nome completo.");
+      if (!/^\d{10,11}$/.test(phone.replace(/\D/g, ""))) return setError("Informe um WhatsApp com DDD válido.");
       if (password.length < 8) return setError("A senha deve ter no mínimo 8 caracteres.");
       if (password !== confirmPassword) return setError("As senhas não coincidem.");
-      if (phone.trim() && !/^\d{10,13}$/.test(phone.replace(/\D/g, ""))) {
-        return setError("Informe um telefone com DDD válido.");
-      }
     }
     setBusy(true);
     try {
@@ -222,6 +224,8 @@ export function CustomerAccountPage() {
   async function completeAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
+    if (!/^\d{10,11}$/.test(phone.replace(/\D/g, ""))) return setError("Informe um WhatsApp com DDD válido.");
     setBusy(true);
     setError("");
     try {
@@ -251,17 +255,19 @@ export function CustomerAccountPage() {
 
   const headings: Record<Tab, string> = {
     overview: "Visão geral", orders: "Meus pedidos",
-    quotes: "Meus orçamentos", profile: "Meus dados",
+    quotes: "Meus orçamentos", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
   };
   const orders = portal?.orders || [];
   const quotes = portal?.quotes || [];
+  const greeting = new Date().getHours() < 12 ? "Bom dia" : new Date().getHours() < 18 ? "Boa tarde" : "Boa noite";
+  const firstName = portal?.customer?.name?.trim().split(/\s+/)[0] || "";
+  const displayName = firstName ? firstName.charAt(0).toUpperCase() + firstName.slice(1) : "";
 
   return <div className="min-h-[65vh] bg-[#f6f8fc] pb-16">
     <div className={"mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 " + (state === "anonymous" && !passwordRecovery ? "flex min-h-[68vh] items-center justify-center py-10 sm:py-14" : "pt-9")}>
       {userId && !passwordRecovery && state === "ready" && <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[.12em] text-[var(--art-primary)]">Eletrônica Artvideo</p>
-          <h1 className="mt-1 text-[26px] font-bold tracking-tight text-[#122947] sm:text-[32px]">Minha conta</h1>
+          <h1 className="text-[24px] font-bold tracking-tight text-[#122947] sm:text-[27px]">Minha conta</h1>
           <p className="mt-2 text-sm text-[#657a95]">Seus pedidos e orçamentos em um só lugar.</p>
         </div>
         <button type="button" className={secondaryClass} onClick={() => void signOut()} disabled={busy}>
@@ -322,13 +328,14 @@ export function CustomerAccountPage() {
                     <label className={authLabelClass}>CPF
                       <span className="relative mt-1.5 block">
                         <IdCard size={17} className={authIconClass}/>
-                        <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/>
+                        <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={cpf.length === 11 && !isValidCpf(cpf)} required/>
+                        {cpf.length === 11 && <span className={"mt-1 block text-[10px] font-medium " + (isValidCpf(cpf) ? "text-emerald-700" : "text-red-600")}>{isValidCpf(cpf) ? "CPF válido" : "Confira o CPF informado"}</span>}
                       </span>
                     </label>
-                    <label className={authLabelClass}>Telefone <span className="font-normal text-[#96a3b3]">(opcional)</span>
+                    <label className={authLabelClass}>WhatsApp
                       <span className="relative mt-1.5 block">
                         <Phone size={17} className={authIconClass}/>
-                        <input className={authInputClass} type="tel" value={phone} onChange={event => setPhone(event.target.value)} autoComplete="tel" placeholder="(00) 00000-0000"/>
+                        <input className={authInputClass} type="tel" inputMode="tel" value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} autoComplete="tel" placeholder="(00) 00000-0000" required/>
                       </span>
                     </label>
                   </div>
@@ -379,7 +386,7 @@ export function CustomerAccountPage() {
         <form onSubmit={event => void completeAccount(event)} className="mt-5 space-y-4">
           <label className="block text-xs font-semibold text-[#294361]">Nome completo<input className={inputClass + " mt-1.5"} value={name} onChange={event => setName(event.target.value)} required minLength={3} maxLength={120}/></label>
           <label className="block text-xs font-semibold text-[#294361]">CPF<input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/></label>
-          <label className="block text-xs font-semibold text-[#294361]">Telefone (opcional)<input className={inputClass + " mt-1.5"} value={phone} onChange={event => setPhone(event.target.value)} type="tel"/></label>
+          <label className="block text-xs font-semibold text-[#294361]">WhatsApp<input className={inputClass + " mt-1.5"} value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} type="tel" required/></label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
           <button type="submit" disabled={busy} className={primaryClass}>Concluir cadastro <ArrowRight size={16}/></button>
         </form>
