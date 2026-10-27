@@ -4,6 +4,7 @@ import { useNavigate } from "react-router";
 import { addStoreCartItem } from "../application/store-cart";
 import { animateProductToCart } from "../application/cart-animation";
 import { CartAddToast } from "./CartAddToast";
+import { ProductFavoriteButton } from "@/features/customer-account/presentation/SiteProductFavoriteButton";
 import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle, ArrowLeft, BadgeCheck, ChevronLeft, ChevronRight,
@@ -211,6 +212,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
             </button>)}
           </div>}
           <div className="relative min-w-0 flex-1 overflow-hidden border-y border-[#e4eaf3] bg-white sm:rounded-[9px] sm:border sm:shadow-sm">
+            <ProductFavoriteButton productId={product.id} className="absolute right-3 top-3 z-20"/>
             <div className="aspect-[1/1] w-full overflow-hidden p-3 sm:p-8"><ProductImage src={selectedImage?.url} alt={selectedImage?.alt || name}/></div>
             {images.length > 1 && <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between gap-2">
               <button type="button" onClick={() => setImageIndex(i => (i + images.length - 1) % images.length)}
