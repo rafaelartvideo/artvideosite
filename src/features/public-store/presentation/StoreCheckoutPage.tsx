@@ -906,34 +906,66 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                 <p className="mt-3 text-[12px] font-semibold text-[var(--art-primary)]">Aguarde a confirmação de pedido pronto antes de ir à loja.</p>
               </div>}
               {deliveryMode==="delivery" && <>
-              {Boolean(addressQuery.data?.length) && <div className="rounded-xl border border-[#e1e8f3] bg-[#f8faff] p-4">
-                <h3 className="flex items-center gap-2 text-[13px] font-bold text-[#203c5d]"><MapPin size={17} className="text-[var(--art-primary)]"/> Usar endereço salvo</h3>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {addressQuery.data!.map(address => <button key={address.id} type="button"
-                    onClick={() => {
-                      setPostalCode(displayCep(address.postal_code));
-                      setBuyer(current => ({...current, street: address.street, number: address.number,
-                        complement: address.complement || "", district: address.district, city: address.city, state: address.state}));
-                      setOptions([]);setQuoteKey("");setShippingId("");setError("");
-                    }}
-                    className="rounded-lg border border-[#dce6f2] bg-white px-3 py-3 text-left text-[12px] text-[#4d6482] transition-colors hover:border-[var(--art-primary)] hover:bg-[#f0f6ff]">
-                    <strong className="block text-[#223f60]">{address.label}{address.is_default ? " · Principal" : ""}</strong>
-                    <span className="mt-1 block">{address.street}, {address.number} · {address.city}/{address.state}</span>
-                  </button>)}
-                </div>
-              </div>}
-              <div>
-                <Field label="CEP de entrega" required hint="Atendemos apenas os CEPs cadastrados para nossa região.">
+
+              <div className="space-y-3">
+                {Boolean(addressQuery.data?.length) && <>
+                  <p className="text-[13px] font-bold text-[#203650]">Onde entregar?</p>
+                  {addressQuery.data!.map(address => <label key={address.id}
+                    className={"flex cursor-pointer items-start gap-3 rounded-lg border p-4 transition-colors " +
+                      (addressChoice === "saved" && selectedSavedAddressId === address.id
+                        ? "border-[var(--art-primary)] bg-[#eff6ff]" : "border-[#e1e9f4] bg-white hover:bg-blue-50")}>
+                    <input type="radio" name="delivery-address" className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                      checked={addressChoice === "saved" && selectedSavedAddressId === address.id}
+                      onChange={() => pickSavedAddress(address)}/>
+                    <House size={20} className="shrink-0 text-[var(--art-primary)]"/>
+                    <span className="min-w-0">
+                      <strong className="block text-[13px] text-[#203650]">{address.label}
+                        {address.is_default && <span className="ml-2 rounded-full bg-[#e0edff] px-2 py-0.5 text-[10px] font-medium text-[var(--art-primary)]">Principal</span>}
+                      </strong>
+                      <span className="mt-1 block text-[12px] leading-5 text-[#63758c]">
+                        {address.street}, {address.number} · {address.district} · {address.city}/{address.state} · CEP {displayCep(address.postal_code)}
+                      </span>
+                    </span>
+                  </label>)}
+                </>}
+                <label className={"flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors " +
+                  (addressChoice === "other" || addressChoice === "new"
+                    ? "border-[var(--art-primary)] bg-[#eff6ff]" : "border-[#e1e9f4] bg-white hover:bg-blue-50")}>
+                  <input type="radio" name="delivery-address" className="h-4 w-4 shrink-0 accent-blue-600"
+                    checked={addressChoice === "other" || addressChoice === "new"}
+                    onChange={() => chooseDifferentAddress("other")}/>
+                  <MapPin size={20} className="shrink-0 text-[var(--art-primary)]"/>
+                  <span><strong className="block text-[13px] text-[#203650]">Usar outro endereço</strong>
+                    <span className="text-[11px] text-[#6c7e94]">Informe um CEP e seus dados de entrega</span></span>
+                </label>
+                {customerId && <button type="button" onClick={() => { chooseDifferentAddress("new"); setNewAddressLabel("Casa"); }}
+                  className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#c8dafa] bg-[#f7faff] px-3.5 text-[12px] font-semibold text-[var(--art-primary)] transition-colors hover:border-[var(--art-primary)] hover:bg-[#edf3ff]">
+                  <Plus size={16}/> Adicionar novo endereço
+                </button>}
+              </div>
+              {addressChoice !== "saved" && <>
+                {addressChoice === "new" && <Field label="Nome do endereço" required>
+                  <input className={inputStyle} maxLength={45} value={newAddressLabel}
+                    onChange={event => setNewAddressLabel(event.target.value)}
+                    placeholder="Casa, Trabalho..."/>
+                </Field>}
+                <Field label="CEP de entrega" required>
                   <div className="flex min-w-0 gap-2">
                     <input className={inputStyle + " min-w-0 flex-1"} inputMode="numeric" autoComplete="postal-code"
                       maxLength={9} value={postalCode} onChange={e => changePostalCode(e.target.value)} placeholder="00000-000"/>
-                    <button type="button" disabled={shippingLoading || !purchasable}
+                    <button type="button" disabled={shippingLoading || !purchasable || zipDigits.length !== 8}
                       onClick={() => void quoteDelivery()} className="mt-1.5 shrink-0 rounded-lg border border-[#a7cafa] bg-[#ecf5ff] px-4 text-[12px] font-extrabold text-[var(--art-primary)] transition-colors hover:bg-[#dcebff] disabled:opacity-50">
                       {shippingLoading ? <LoaderCircle size={17} className="animate-spin"/> : "Consultar"}
                     </button>
                   </div>
                 </Field>
-              </div>
+              </>}
+              {shippingLoading && <div role="status" className="flex items-center gap-2 rounded-lg bg-[#f1f6ff] px-4 py-3 text-[12px] font-medium text-[#315f9b]">
+                <LoaderCircle size={16} className="animate-spin"/> Verificando entrega para {displayCep(zipDigits)}...
+              </div>}
+              {!shippingLoading && deliveryNotice && <div role="alert" className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] font-medium leading-5 text-amber-800">
+                <AlertCircle size={17} className="mt-0.5 shrink-0"/> {deliveryNotice}
+              </div>}
               {quotedOptions.length > 0 && <fieldset>
                 <legend className="mb-3 text-[13px] font-extrabold text-[#203650]">Escolha sua entrega</legend>
                 <div className="space-y-3">
