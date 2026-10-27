@@ -8,6 +8,7 @@ import { AgendaEventCard } from "./AgendaEventCard";
 
 type Props = {
   loading: boolean;
+  compactModal?: boolean;
   view: AgendaView;
   cursor: Date;
   events: CalendarEvent[];
@@ -80,7 +81,7 @@ export function AgendaCalendarView(props: Props) {
       <div className="grid grid-cols-7">{monthGrid.map(date => {
         const adjacent = date.getMonth() !== props.cursor.getMonth();
         const dayEvents = adjacent ? [] : eventsFor(date);
-        return <div key={dayKey(date)} className={cn("relative min-h-[54px] border-r border-b border-[#0d1b2e]/8 p-1 text-center", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(props.cursor) && "bg-[#eef5ff]")}>
+        return <div key={dayKey(date)} className={cn("relative border-r border-b border-[#0d1b2e]/8 p-1 text-center", props.compactModal ? "min-h-[44px]" : "min-h-[54px]", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(props.cursor) && "bg-[#eef5ff]")}>
           <span className={cn("mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold", isToday(date) ? "bg-[#0057e7] text-white" : adjacent ? "text-[#b0bac8]" : "text-[#5a6a82]")}>{date.getDate()}</span>
           {!adjacent && dayEvents.length > 0 && <div className="mt-1 flex justify-center"><span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[#0057e7]/10 px-1 text-[9px] font-bold text-[#0057e7]">{dayEvents.length}</span></div>}
         </div>;
@@ -91,7 +92,7 @@ export function AgendaCalendarView(props: Props) {
       <div className="grid min-w-[720px] grid-cols-7 overflow-hidden">
         {monthGrid.map(date => {
           const adjacent = date.getMonth() !== props.cursor.getMonth();
-          return <div key={dayKey(date)} className={cn("flex h-[150px] min-h-0 flex-col border-r border-b border-[#0d1b2e]/8 p-1", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(props.cursor) && "bg-[#eef5ff] ring-1 ring-inset ring-[#0057e7]")} onDragOver={event => event.preventDefault()} onDrop={event => { if (!adjacent) props.onDropEvent(event.dataTransfer, dayKey(date)); }}>
+          return <div key={dayKey(date)} className={cn("flex min-h-0 flex-col border-r border-b border-[#0d1b2e]/8 p-1", props.compactModal ? "h-[clamp(70px,10dvh,100px)]" : "h-[150px]", adjacent && "bg-[#f8fafc]", dayKey(date) === dayKey(props.cursor) && "bg-[#eef5ff] ring-1 ring-inset ring-[#0057e7]")} onDragOver={event => event.preventDefault()} onDrop={event => { if (!adjacent) props.onDropEvent(event.dataTransfer, dayKey(date)); }}>
             <div className="shrink-0"><p className={cn("mb-1 inline-flex h-6 min-w-6 items-center justify-center rounded-full px-1 text-xs font-bold", isToday(date) ? "bg-[#0057e7] text-white" : adjacent ? "text-[#94a3b8]" : "text-[#5a6a82]")}>{date.getDate()}</p></div>
             <div className="min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain pr-0.5">{adjacent ? null : eventsFor(date).map(eventCard)}</div>
           </div>;
