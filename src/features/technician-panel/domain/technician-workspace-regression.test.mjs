@@ -173,6 +173,13 @@ test("RPCs técnicas rejeitam discriminadores nulos ou desconhecidos", () => {
   assert.match(strictMigration, /private\.can_access_technician_order_v1/);
 });
 
+test("modal da Agenda usa altura pelo conteúdo e limites compartilhados do CRM", () => {
+  const agendaModal = panel.split('title="Agenda"')[1]?.split('</AdminDialog>')[0] ?? "";
+  assert.ok(agendaModal.includes('className="!h-auto'), "O modal não deve ocupar a tela inteira");
+  assert.ok(!agendaModal.includes("!h-[calc(100dvh"), "A altura fixa fazia o calendário invadir o cabeçalho");
+  assert.ok(agendaModal.includes("<AgendaModalCalendar"), "Reutilizar a mesma Agenda da rota");
+});
+
 test("as telas do Painel do Técnico possuem JSX sintaticamente válido", async () => {
   for (const filename of [
     "TechnicianPanel.tsx",
