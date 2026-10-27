@@ -982,7 +982,7 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   </label>)}
                 </div>
               </fieldset>}
-              <div className="border-t border-[#edf1f7] pt-5">
+              {addressChoice !== "saved" && <div className="border-t border-[#edf1f7] pt-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                   <h3 className="flex items-center gap-2 text-[15px] font-extrabold"><MapPin size={18} className="text-[var(--art-primary)]"/> Endereço</h3>
                   <button type="button" disabled={addressLoading || zipDigits.length !== 8}
