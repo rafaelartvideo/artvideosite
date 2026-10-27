@@ -442,15 +442,33 @@ export function CustomerAccountPage() {
                   <span><strong className="block text-xl text-[#153250]">{count}</strong><span className="text-xs text-[#72849b]">{label}</span></span>
                 </button>)}
             </div>
-            <div className="mt-6">
-              <h3 className="mb-3 text-sm font-bold text-[#24405d]">Últimos pedidos</h3>
-              <RecordList kind="orders" items={orders.slice(0, 3)}/>
-              {orders.length > 3 && <button type="button" onClick={() => setTab("orders")} className="mt-3 text-sm font-semibold text-[var(--art-primary)]">Ver todos os pedidos <ArrowRight size={15} className="inline"/></button>}
+            <div className="mt-5 grid items-start gap-4 lg:grid-cols-2">
+              <section>
+                <h3 className="mb-3 text-[13px] font-bold text-[#24405d]">Pedidos recentes</h3>
+                {orders.length ? <RecordList kind="orders" items={orders.slice(0, 2)}/> :
+                  <div className="rounded-xl border border-[#e3eaf3] bg-white p-6 text-center">
+                    <Package size={24} className="mx-auto text-[#98acc4]"/>
+                    <p className="mt-2 text-[12px] font-semibold text-[#24405d]">Nenhum pedido ainda</p>
+                    <Link to="/loja" className="mt-2 inline-block text-[12px] font-semibold text-[var(--art-primary)] hover:underline">Explorar produtos</Link>
+                  </div>}
+              </section>
+              <section>
+                <h3 className="mb-3 text-[13px] font-bold text-[#24405d]">Orçamentos recentes</h3>
+                {quotes.length ? <RecordList kind="quotes" items={quotes.slice(0, 2)}/> :
+                  <div className="rounded-xl border border-[#e3eaf3] bg-white p-6 text-center">
+                    <FileText size={24} className="mx-auto text-[#98acc4]"/>
+                    <p className="mt-2 text-[12px] font-semibold text-[#24405d]">Nenhum orçamento ainda</p>
+                    <Link to="/orcamento" className="mt-2 inline-block text-[12px] font-semibold text-[var(--art-primary)] hover:underline">Solicitar orçamento</Link>
+                  </div>}
+              </section>
             </div>
-            <div className="mt-6">
-              <h3 className="mb-3 text-sm font-bold text-[#24405d]">Últimos orçamentos do site</h3>
-              <RecordList kind="quotes" items={quotes.slice(0, 3)}/>
-              {quotes.length > 3 && <button type="button" onClick={() => setTab("quotes")} className="mt-3 text-sm font-semibold text-[var(--art-primary)]">Ver todos os orçamentos <ArrowRight size={15} className="inline"/></button>}
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <button type="button" onClick={() => setTab("addresses")} className="flex min-h-14 items-center justify-between rounded-xl border border-[#e3eaf3] bg-white px-4 text-[12px] font-semibold text-[#254260] transition-colors hover:border-blue-200">
+                <span className="flex items-center gap-2"><MapPin size={17} className="text-[var(--art-primary)]"/> Meus endereços</span><ArrowRight size={16} className="text-[#8195ae]"/>
+              </button>
+              <button type="button" onClick={() => setTab("favorites")} className="flex min-h-14 items-center justify-between rounded-xl border border-[#e3eaf3] bg-white px-4 text-[12px] font-semibold text-[#254260] transition-colors hover:border-blue-200">
+                <span className="flex items-center gap-2"><Heart size={17} className="text-[var(--art-primary)]"/> Meus favoritos</span><ArrowRight size={16} className="text-[#8195ae]"/>
+              </button>
             </div>
           </>}
           {tab === "orders" && <RecordList kind="orders" items={orders}/>}
