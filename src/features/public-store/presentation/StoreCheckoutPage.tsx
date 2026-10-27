@@ -936,8 +936,8 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                     </span>
                   </label>)}
                 </>}
-                <div className={customerId ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
-                  <label className={"flex min-w-0 cursor-pointer items-center gap-2 rounded-lg border p-3 transition-colors sm:gap-3 sm:p-4 " +
+                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                  <label className={"flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg border p-3 transition-colors sm:gap-3 sm:p-4 " +
                     (addressChoice === "other"
                       ? "border-[var(--art-primary)] bg-[#eff6ff]" : "border-[#e1e9f4] bg-white hover:bg-blue-50")}>
                     <input type="radio" name="delivery-address" className="h-4 w-4 shrink-0 accent-blue-600"
@@ -948,10 +948,10 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
                   </label>
                   {customerId && <button type="button" onClick={() => { chooseDifferentAddress("new"); setNewAddressLabel("Casa"); }}
                     aria-pressed={addressChoice === "new"}
-                    className={"flex min-w-0 items-center justify-center gap-2 rounded-lg border p-3 text-center text-[12px] font-semibold transition-colors sm:p-4 " +
+                    className={"inline-flex h-11 w-auto shrink-0 items-center justify-center gap-1.5 rounded-lg border px-2.5 py-1 text-center text-[11px] font-semibold transition-colors sm:px-3 " +
                       (addressChoice === "new" ? "border-[var(--art-primary)] bg-[#eff6ff] text-[var(--art-primary)]" :
                         "border-[#c8dafa] bg-[#f7faff] text-[var(--art-primary)] hover:border-[var(--art-primary)] hover:bg-[#edf3ff]")}>
-                    <Plus size={18} className="shrink-0"/>
+                    <Plus size={16} className="shrink-0"/>
                     <span className="flex flex-col leading-4"><span>Adicionar</span><span>Novo</span></span>
                   </button>}
                 </div>
