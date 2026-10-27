@@ -1,7 +1,9 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/lib/auth';
-import { listSiteAddresses, loadSiteProfile } from '@/features/customer-account/infrastructure/customer-account-settings.repository';
+import { listSiteAddresses, loadSiteProfile, saveSiteAddress, type SiteAddress } from '@/features/customer-account/infrastructure/customer-account-settings.repository';
+import { SiteAddressSelector, type SiteAddressChoice } from '@/features/customer-account/presentation/SiteAddressSelector';
+import { CustomerFeedbackToast, type CustomerFeedback } from '@/features/customer-account/presentation/CustomerFeedbackToast';
 import { scrollToQuoteStep } from "@/features/public-quotes/application/quote-scroll";
 import { useNavigate } from 'react-router';
 import { ArrowLeft, ArrowRight, CalendarDays, Camera, Check, CheckCircle2, MapPin, Trash2, Wrench, Loader2 } from 'lucide-react';
@@ -18,7 +20,7 @@ import { reservePublicQuoteProtocol } from '@/features/public-quotes/infrastruct
 const steps=['Atendimento','Equipamento e local','Seus dados','Revisão'];
 function Field({label,required=false,error,children}:{label:string;required?:boolean;error?:string;children:React.ReactNode}) {return <label className="block text-sm font-medium">{label}{required&&<span className="text-red-600"> *</span>}<span className="mt-2 block">{children}</span>{error&&<span role="alert" className="mt-1.5 block text-xs font-medium text-red-600">{error}</span>}</label>;}
 export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backTo}:{detail:any;initialCep?:string;initialVariant?:string;backTo?:string}) {
- const navigate=useNavigate(); const {session}=useAuth(); const customerId=session?.user?.id||null;
+ const navigate=useNavigate(); const queryClient=useQueryClient(); const {session}=useAuth(); const customerId=session?.user?.id||null;
  const addressesQuery=useQuery({queryKey:['site-customer-addresses',customerId],queryFn:()=>listSiteAddresses(customerId!),enabled:Boolean(customerId),staleTime:30_000});
  const profileQuery=useQuery({queryKey:['site-quote-profile',customerId],queryFn:()=>loadSiteProfile(customerId!),enabled:Boolean(customerId),staleTime:60_000});
  const filledProfile=useRef<string|null>(null);
@@ -40,6 +42,26 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
  const [dateCount,setDateCount]=useState(6);
  const [step,setStep]=useState(0),[date,setDate]=useState(''),[slot,setSlot]=useState(''),[variant,setVariant]=useState(initialVariant),[quantity,setQuantity]=useState(1);
  const [address,setAddress]=useState<Address>({...emptyAddress,zip_code:initialCep});
+ const [addressChoice,setAddressChoice]=useState<SiteAddressChoice>('other');
+ const [selectedAddressId,setSelectedAddressId]=useState<string|null>(null);
+ const [addressLabel,setAddressLabel]=useState('Casa');
+ const [savingAddress,setSavingAddress]=useState(false);
+ const autoSelectRef=useRef<string|null>(null);
+ const [addressFeedback,setAddressFeedback]=useState<CustomerFeedback|null>(null);
+ const dismissAddressFeedback=useCallback(()=>setAddressFeedback(null),[]);
+ useEffect(()=>{
+  if(!customerId||!addressesQuery.data||autoSelectRef.current===customerId)return;
+  autoSelectRef.current=customerId;
+  const main=addressesQuery.data.find(item=>item.is_default)||addressesQuery.data[0];
+  if(!main)return;
+  setSelectedAddressId(main.id);
+  setAddressChoice('saved');
+  setAddress({zip_code:main.postal_code,street:main.street,number:main.number,
+    complement:main.complement||'',neighborhood:main.district,city:main.city,state:main.state});
+  setNoNumber(main.number==='S/N');
+  setCoverage('idle');
+ },[customerId,addressesQuery.data]);
+
  const [coverage,setCoverage]=useState('idle'); const [noNumber,setNoNumber]=useState(false);
  const [form,setForm]=useState({...EMPTY_PUBLIC_QUOTE_FORM,servico:service.id});
  useEffect(()=>{
@@ -57,6 +79,40 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
  const heading=useRef<HTMLHeadingElement>(null);
  const selected=variants.find((v:any)=>v.id===variant); const dates=bookingDates(c).filter((d:string)=>slotsForDate(c,d).length>0);
  const times=slotsForDate(c,date); const up=(key:string,value:string)=>setForm(f=>({...f,[key]:value}));
+ function selectSavedAddress(item:SiteAddress){
+  setAddressChoice('saved');setSelectedAddressId(item.id);
+  setAddress({zip_code:item.postal_code,street:item.street,number:item.number,
+    complement:item.complement||'',neighborhood:item.district,city:item.city,state:item.state});
+  setNoNumber(item.number==='S/N');setCoverage('idle');setError('');setFieldErrors({});
+ }
+ function useOtherAddress(choice:'other'|'new'){
+  setAddressChoice(choice);setSelectedAddressId(null);setAddress({...emptyAddress});
+  setNoNumber(false);setCoverage('idle');setError('');setFieldErrors({});
+ }
+ async function saveNewAddress(){
+  if(!customerId||savingAddress)return;
+  if(!['available','consult'].includes(coverage)){
+   setError('Consulte um CEP atendido antes de salvar o endereço.');return;
+  }
+  if(address.zip_code.replace(/\\D/g,'').length!==8||!address.street.trim()||
+    !address.number.trim()||!address.neighborhood.trim()||!address.city.trim()||
+    !/^[A-Z]{2}$/.test(address.state.trim().toUpperCase())||!addressLabel.trim()){
+   setError('Preencha o CEP e todos os dados do endereço para salvá-lo.');return;
+  }
+  setSavingAddress(true);setError('');
+  try{
+   const id=await saveSiteAddress(customerId,{
+    label:addressLabel.trim(),postal_code:address.zip_code,street:address.street,
+    number:address.number,complement:address.complement,district:address.neighborhood,
+    city:address.city,state:address.state,is_default:!(addressesQuery.data?.length),
+   });
+   setSelectedAddressId(id);setAddressChoice('saved');
+   await queryClient.invalidateQueries({queryKey:['site-customer-addresses',customerId]});
+   setAddressFeedback({id:Date.now(),message:'Endereço salvo e selecionado.',type:'success'});
+  }catch(e){setError(e instanceof Error?e.message:'Não foi possível salvar o endereço.');}
+  finally{setSavingAddress(false);}
+ }
+
  const brandName=form.marca==='Outra marca'?form.outraMarca.trim():brands.find((brand:any)=>brand.id===form.marca)?.name||'';
  const go=(value:number)=>{setError('');setStep(value);requestAnimationFrame(()=>{scrollToQuoteStep();heading.current?.focus({preventScroll:true});});};
  function validate(stage:number) {
