@@ -1,5 +1,5 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { CalendarDays, Check, History, MessageCircle, Pencil, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -22,6 +22,9 @@ import {
   countMyTechnicianPhotos, listMyTechnicianPhotos, loadMyTechnicianTasks, startMyTechnicianTask, getMyTechnicianEquipmentPhotoUrl,
   updateMyTechnicianOrderDiagnosis, uploadTechnicianPhoto, type TechnicianOrderDetails, type TechnicianTask, type TechnicianTaskStatus,
  } from "../infrastructure/technician-tasks.repository";
+
+const AgendaModalCalendar = lazy(() => import("@/features/appointments/presentation/TabAgenda")
+  .then(({ TabAgenda }) => ({ default: TabAgenda })));
 
 type Notice = { kind: "success" | "error"; text: string };
 type PhotoPreview = { id: string; url: string };
@@ -61,6 +64,7 @@ export function TechnicianPanel() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TechnicianTask[]>([]);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
+  const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const canViewWhatsApp = hasPermission("whatsapp.inbox.view");
   const [myConversations,setMyConversations] = useState<Array<{
     id:string;contact_name:string;contact_phone:string|null;last_message:string|null;
@@ -444,7 +448,7 @@ export function TechnicianPanel() {
         {hasPermission("agenda.view") && <>
           <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
             canManage={Boolean(myEmployeeId)} personal />
-          <AdminButton variant="secondary" size="sm" onClick={() => navigate("/admin/agenda")}>
+          <AdminButton variant="secondary" size="sm" onClick={() => setAgendaModalOpen(true)}>
             <CalendarDays size={15} className="mr-1.5" /> Agenda
           </AdminButton>
         </>}
@@ -751,6 +755,25 @@ export function TechnicianPanel() {
     </>}
       </div>
     </AdminPage>}
+    <AdminDialog
+      open={agendaModalOpen && !routeOrderId && hasPermission("agenda.view")}
+      onClose={() => setAgendaModalOpen(false)}
+      title="Agenda"
+      className="!w-[calc(100vw-1rem)] !max-w-[1600px] !max-h-[calc(100dvh-1rem)] sm:!w-[calc(100vw-2rem)]"
+      bodyClassName="!min-h-0 overscroll-contain !p-3 sm:!p-5"
+    >
+      {agendaModalOpen && <Suspense fallback={<div className="flex min-h-[50dvh] items-center justify-center">
+        <LoadingState text="Carregando agenda..." />
+      </div>}>
+        <AgendaModalCalendar
+          embedded
+          onOpenOrder={id => {
+            setAgendaModalOpen(false);
+            navigate("/admin/orders/" + encodeURIComponent(id));
+          }}
+        />
+      </Suspense>}
+    </AdminDialog>
     <OrderHistoryPage
       open={historyDialogOpen && Boolean(routeOrderId && selected)}
       order={{ id: routeOrderId, organization_id: activeOrganizationId, os_number: selected?.os_number }}
