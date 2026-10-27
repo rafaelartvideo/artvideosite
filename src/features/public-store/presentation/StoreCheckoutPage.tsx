@@ -285,10 +285,12 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     if (step === 3) setStep(2);
   };
   const changePostalCode = (value: string) => {
+    shippingRequestRef.current++;
     setPostalCode(displayCep(value));
     setOptions([]);
     setQuoteKey("");
     setShippingId("");
+    setDeliveryNotice("");
     setError("");
   };
   const checkIdentity = () => {
@@ -395,25 +397,28 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     if (!purchasable) {
       setError("Este produto não está disponível na quantidade selecionada."); return;
     }
+    const requestId = ++shippingRequestRef.current;
     setShippingLoading(true);
-    setError("");
+    setDeliveryNotice("");
     setOptions([]);
     setQuoteKey("");
     setShippingId("");
     try {
       const result = await quoteStoreShipping(productId, cartMode ? 1 : quantity, zipDigits);
+      if (requestId !== shippingRequestRef.current) return;
       if (result.length === 0) {
-        setError("Ainda não entregamos nesse CEP. Informe outro endereço para continuar.");
+        setDeliveryNotice("Ainda não realizamos entregas neste CEP. Selecione outro endereço para continuar.");
         return;
       }
       setOptions(result);
       setQuoteKey(key);
       if (result.length === 1) setShippingId(result[0].id);
-      void fillAddress();
+      if (addressChoice !== "saved") void fillAddress();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível consultar a entrega.");
+      if (requestId !== shippingRequestRef.current) return;
+      setDeliveryNotice(err instanceof Error ? err.message : "Não foi possível verificar a entrega neste CEP.");
     } finally {
-      setShippingLoading(false);
+      if (requestId === shippingRequestRef.current) setShippingLoading(false);
     }
   };
 
