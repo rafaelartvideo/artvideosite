@@ -126,7 +126,7 @@ export function TabAgenda({ onOpenOrder, embedded = false }: { onOpenOrder: (id:
             </div>)
           : <p className="px-4 py-6 text-center text-sm text-muted-foreground">Nenhum agendamento corresponde aos filtros nesta semana.</p>}
       </AdminCard>}
-      {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={openAppointment} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
+      {canViewCurrent && agenda.view !== "availability" && <AgendaCalendarView loading={agenda.loading} compactModal={embedded} view={agenda.view} cursor={agenda.cursor} events={agenda.calendarEvents} draggedEventId={canReschedule ? draggedEventId : null} onDraggedEventChange={canReschedule ? setDraggedEventId : () => undefined} onOpenOrder={safeOpenOrder} onOpenAppointment={openAppointment} onDropEvent={canReschedule ? agenda.dropEvent : () => undefined} />}
     </div>
     {canCreate && <NewAppointmentDialog controller={newAppointment} allowedTechnicianId={agenda.myEmployeeId} />}
     {canViewDetails && <AppointmentDetailsDialog appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onOpenOrder={safeOpenOrder} />}
