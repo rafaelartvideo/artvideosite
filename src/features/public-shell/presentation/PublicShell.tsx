@@ -1,5 +1,6 @@
-import { useState, type CSSProperties, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { Link, useLocation, useNavigate } from "react-router";
 import { PublicBreadcrumb } from "./PublicPageHeader";
 import { Clock3, Facebook, FileText, Instagram, Mail, MapPin, Menu, Phone, ShoppingCart, UserRound, X, Youtube } from "lucide-react";
@@ -80,6 +81,19 @@ function PublicHeader({ page, setPage }: { page: PublicPage; setPage: (page: Pub
   const { session } = useAuth();
   const { count: cartCount } = useStoreCart();
   const activeUserId = session?.user?.id || null;
+  const queryClient = useQueryClient();
+  const lastPublicSessionRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    if (lastPublicSessionRef.current === undefined) {
+      lastPublicSessionRef.current = activeUserId;
+      return;
+    }
+    if (lastPublicSessionRef.current === activeUserId) return;
+    lastPublicSessionRef.current = activeUserId;
+    // Reconsultar o conteúdo público ao alternar de visitante para cliente
+    // e vice-versa, evitando reutilizar dados vazios de outra sessão.
+    void queryClient.invalidateQueries({ queryKey: queryKeys.publicSite.all });
+  }, [activeUserId, queryClient]);
   const accountNameQuery = useQuery({
     queryKey: ["public-site-account-name", activeUserId],
     enabled: Boolean(activeUserId), staleTime: 60_000,
