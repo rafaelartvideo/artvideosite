@@ -181,8 +181,9 @@ test("modal da Agenda usa altura pelo conteúdo e limites compartilhados do CRM"
 });
 
 test("atalhos usam os botões originais do CRM com contador abaixo, sem cards extras", () => {
-  const section = panel.split('title="Painel do Técnico"')[1]?.split('!routeOrderId ? <>')[0] ?? "";
-  assert.ok(section.includes('grid w-full grid-cols-2 gap-2'), "Dois botões na mesma linha");
+  const section = panel.split('!routeOrderId ? <>')[1]?.split('<div className="space-y-3">')[0] ?? "";
+  assert.ok(section.includes('grid w-full min-w-0 gap-2 sm:gap-4'), "A linha ocupa toda a largura do painel");
+  assert.ok(section.includes('canViewAgenda && canViewWhatsApp ? "grid-cols-2" : "grid-cols-1"'), "Dois botões dividem igualmente a linha");
   assert.equal(section.split('<AdminButton variant="secondary" size="sm"').length - 1, 2);
   assert.ok(section.includes('!flex-col !gap-2'), "Contador abaixo do título");
   assert.ok(section.includes('bg-primary/10'), "Badge azul original");
