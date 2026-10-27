@@ -304,6 +304,9 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     setError(""); return true;
   };
   const checkDelivery = () => {
+    if (deliveryMode === "delivery" && addressChoice === "new") {
+      setError("Salve o novo endereço para continuar."); return false;
+    }
     if (deliveryMode === "pickup") {
       if (!pickupQuery.data) { setError("A retirada na loja não está disponível no momento."); return false; }
       setError(""); return true;
@@ -342,6 +345,49 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
   };
 
+
+  const pickSavedAddress = (address: SiteAddress) => {
+    shippingRequestRef.current++;
+    setAddressChoice("saved");
+    setSelectedSavedAddressId(address.id);
+    setPostalCode(displayCep(address.postal_code));
+    setBuyer(current => ({ ...current, street: address.street, number: address.number,
+      complement: address.complement || "", district: address.district,
+      city: address.city, state: address.state }));
+    setOptions([]); setQuoteKey(""); setShippingId(""); setDeliveryNotice(""); setError("");
+  };
+  const chooseDifferentAddress = (choice: "other" | "new") => {
+    shippingRequestRef.current++;
+    setAddressChoice(choice);
+    setSelectedSavedAddressId(null);
+    setPostalCode("");
+    setBuyer(current => ({ ...current, street: "", number: "", complement: "",
+      district: "", city: "", state: "" }));
+    setOptions([]); setQuoteKey(""); setShippingId(""); setDeliveryNotice(""); setError("");
+  };
+  const saveNewDeliveryAddress = async () => {
+    if (!customerId || savingNewAddress) return;
+    if (zipDigits.length !== 8 || !newAddressLabel.trim()
+      || !buyer.street.trim() || !buyer.number.trim() || !buyer.district.trim()
+      || !buyer.city.trim() || !/^[A-Z]{2}$/.test(buyer.state.trim().toUpperCase())) {
+      setError("Preencha o CEP e todos os campos obrigatórios para salvar o endereço.");
+      return;
+    }
+    setSavingNewAddress(true); setError("");
+    try {
+      const savedId = await saveSiteAddress(customerId, {
+        label: newAddressLabel.trim(), postal_code: zipDigits, street: buyer.street,
+        number: buyer.number, complement: buyer.complement, district: buyer.district,
+        city: buyer.city, state: buyer.state, is_default: !(addressQuery.data?.length),
+      });
+      await queryClient.invalidateQueries({ queryKey: ["site-customer-addresses", customerId] });
+      setSelectedSavedAddressId(savedId);
+      setAddressChoice("saved");
+      setDeliveryNotice("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar o novo endereço.");
+    } finally { setSavingNewAddress(false); }
+  };
   const quoteDelivery = async () => {
     if (!/^\d{8}$/.test(zipDigits)) {
       setError("Digite um CEP válido com 8 números."); return;
