@@ -45,6 +45,12 @@ export type MobileChecklistStage = {
 export type MobileOrderChecklistData = {
   expires_at: string;
   order: { id: string; os_number: string | null };
+  can_manage_checklist?: boolean;
+  documents?: {
+    attachment_types: { id: string; name: string }[];
+    attachment_count: number;
+    situations: { id: string; name: string; color: string | null; count: number; can_upload: boolean }[];
+  } | null;
   checklist: {
     id: string;
     profile_name_snapshot: string;
@@ -79,9 +85,11 @@ async function invoke(body: Record<string, unknown> | FormData) {
 export async function createMobileOrderChecklistSession(
   organizationId: string,
   serviceOrderId: string,
+  scope: "checklist" | "documents" = "checklist",
 ): Promise<MobileOrderChecklistSession> {
   const data = await invoke({
     action: "create_session",
+    scope,
     organization_id: organizationId,
     service_order_id: serviceOrderId,
   });
@@ -166,5 +174,25 @@ export async function uploadMobileOrderChecklistPhoto(
   body.append("token", token);
   body.append("item_id", itemId);
   body.append("file", preparedFile, preparedFile.name);
+  return invoke(body);
+}
+
+export async function uploadMobileOrderDocument(
+  sessionId: string,
+  token: string,
+  kind: "attachment" | "situation",
+  targetId: string,
+  file: File,
+) {
+  const prepared = file.type.startsWith("image/")
+    ? await prepareImageForUpload(file, "document-image")
+    : file;
+  const body = new FormData();
+  body.append("action", "upload_document");
+  body.append("session_id", sessionId);
+  body.append("token", token);
+  body.append("kind", kind);
+  body.append(kind === "attachment" ? "attachment_type_id" : "situation_id", targetId);
+  body.append("file", prepared);
   return invoke(body);
 }
