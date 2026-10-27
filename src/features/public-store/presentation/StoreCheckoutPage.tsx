@@ -422,6 +422,13 @@ export function StoreCheckoutPage({ slug }: { slug: string | null }) {
     }
   };
 
+  useEffect(() => {
+    if (step !== 2 || deliveryMode !== "delivery" || zipDigits.length !== 8 || !purchasable) return;
+    if (quoteKey === key && options.length > 0) return;
+    const timer = window.setTimeout(() => { void quoteDelivery(); }, 430);
+    return () => { window.clearTimeout(timer); shippingRequestRef.current++; };
+  }, [step, deliveryMode, zipDigits, key, purchasable, addressChoice, quoteKey, options.length]);
+
   const placeOrder = async (mode:"hosted"|"bricks"="hosted") => {
     if (inFlight.current || paying) return;
     if(!paymentsAvailable){setError("O pagamento online está sendo preparado. Nenhuma cobrança foi realizada.");return;}
