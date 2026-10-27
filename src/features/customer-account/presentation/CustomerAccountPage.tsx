@@ -326,7 +326,7 @@ export function CustomerAccountPage() {
             <input className={inputClass + " mt-1.5"} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required/>
           </label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>Salvar nova senha <ArrowRight size={16}/></button>
+          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Salvar nova senha <ArrowRight size={16}/></>}</button>
         </form>
       </div> : (waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
       state === "anonymous" ? <AccountEntryShell containerRef={authCardRef}>
@@ -344,8 +344,7 @@ export function CustomerAccountPage() {
             </div> : <>
               {mode === "forgot" && <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-[#647b96] hover:text-[var(--art-primary)]"><ArrowLeft size={15}/> Voltar</button>}
               <div className="mb-6 text-center">
-                <h1 className="flex items-center justify-center gap-2 text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
-                  {mode === "register" ? <UserRoundPlus size={19} className="text-[var(--art-primary)]"/> : mode === "forgot" ? <KeyRound size={19} className="text-[var(--art-primary)]"/> : <UserRound size={19} className="text-[var(--art-primary)]"/>}
+                <h1 className="text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
                   {mode === "register" ? "Criar conta" : mode === "forgot" ? "Recuperar senha" : "Entrar"}
                 </h1>
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6c8099]">
@@ -401,9 +400,8 @@ export function CustomerAccountPage() {
                 </label>}
                 {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
                 <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
-                  {busy && <RefreshCw size={16} className="animate-spin"/>}
-                  <span className="flex-1 text-center">{mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}</span>
-                  {!busy && <ArrowRight size={16} className="ml-auto"/>}
+                  {busy ? <RefreshCw size={19} className="animate-spin" aria-label="Processando..."/> :
+                    <><span>{mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}</span><ArrowRight size={16}/></>}
                 </button>
               </form>
               {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
@@ -425,7 +423,7 @@ export function CustomerAccountPage() {
           <label className="block text-xs font-semibold text-[#294361]">CPF<input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/></label>
           <label className="block text-xs font-semibold text-[#294361]">WhatsApp<input className={inputClass + " mt-1.5"} value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} type="tel" required/></label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-          <button type="submit" disabled={busy} className={primaryClass}>Concluir cadastro <ArrowRight size={16}/></button>
+          <button type="submit" disabled={busy} className={"w-full " + primaryClass}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Concluir cadastro <ArrowRight size={16}/></>}</button>
         </form>
       </div> :
       state === "verify_email" ? <div className={"mx-auto max-w-xl text-center " + cardClass}>
