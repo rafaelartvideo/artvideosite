@@ -56,6 +56,15 @@ const STATUS_CLASS: Record<TechnicianTaskStatus, string> = {
   cancelled: STATUS_TONE_CLASSES.danger.badge,
 };
 
+function formatWhatsAppNumber(value: string | null) {
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (digits.startsWith("55") && (digits.length === 12 || digits.length === 13))
+    return "+55 " + formatPhone(digits.slice(2));
+  if (digits.length === 10 || digits.length === 11) return formatPhone(digits);
+  return value;
+}
+
 function formatDate(value?: string | null) {
   if (!value) return "—";
   const date = new Date(value);
@@ -80,6 +89,7 @@ export function TechnicianPanel() {
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [summaryFilter, setSummaryFilter] = useState<TechnicianSummaryFilter | null>(null);
   const [chatConversationId, setChatConversationId] = useState<string | null>(null);
+  const [myConversationsDialogOpen, setMyConversationsDialogOpen] = useState(false);
   const [participationRequestOpen, setParticipationRequestOpen] = useState(false);
   const [participationTarget, setParticipationTarget] = useState("");
   const [participationBusy, setParticipationBusy] = useState(false);
@@ -507,9 +517,16 @@ export function TechnicianPanel() {
           <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
             canManage={Boolean(myEmployeeId)} personal />
           <AdminButton variant="secondary" size="sm" onClick={() => setAgendaModalOpen(true)}>
-            <CalendarDays size={15} className="mr-1.5" /> Agenda
+            <CalendarDays size={15} /> Meus agendamentos
           </AdminButton>
         </>}
+        {canViewWhatsApp && <AdminButton variant="secondary" size="sm"
+          onClick={() => { setMyConversationsDialogOpen(true); void refreshConversations(); }}>
+          <MessageCircle size={15} /> Meus atendimentos
+          {myConversations.length > 0 && <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
+            {myConversations.length}
+          </span>}
+        </AdminButton>}
         {!online && <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span>}
       </div>} />}
 
@@ -559,42 +576,6 @@ export function TechnicianPanel() {
         </div>
       </div>
       <TechnicianOrdersTable orders={assignedOrders} loading={loading} onOpen={openService} />
-      {canViewWhatsApp && <section className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <MessageCircle size={17} className="text-primary"/>
-          <h2 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
-            Meus atendimentos WhatsApp ({myConversations.length})
-          </h2>
-          <AdminButton variant="secondary" size="sm" className="ml-auto"
-            onClick={() => setParticipationRequestOpen(true)}>
-            <Users size={15} /> Solicitar participação
-          </AdminButton>
-        </div>
-        <div className="overflow-hidden rounded-xl border border-border bg-card">
-          {myConversationsLoading && myConversations.length===0 ?
-            <div className="flex justify-center p-6"><LoadingState text="Carregando atendimentos..."/></div> :
-          myConversations.length===0 ?
-            <AdminSectionEmpty compact>Nenhuma conversa WhatsApp em andamento atribuída a você ou com sua participação.</AdminSectionEmpty> :
-          myConversations.map(thread=><button key={thread.id} type="button"
-            onClick={()=>setChatConversationId(thread.id)}
-            className="flex w-full items-center justify-between gap-3 border-b border-border p-3 text-left transition-colors last:border-0 hover:bg-muted/60">
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-sm font-bold">
-                {thread.contact_name||thread.contact_phone||"Contato"}
-              </span>
-              <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                {thread.last_message||"Atendimento em andamento"}
-              </span>
-            </span>
-            {thread.last_protocol_number && <span className="shrink-0 text-[11px] font-semibold text-primary">
-              ATD-{String(thread.last_protocol_number).padStart(6,"0")}
-            </span>}
-            {thread.unread_count>0 && <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
-              {thread.unread_count}
-            </span>}
-          </button>)}
-        </div>
-      </section>}
     </> : orderLoadError && !orderDetails && !orderDetailsLoading && !loading
       ? <div className="mx-auto max-w-4xl space-y-4 px-4 py-8 text-center">
           <p className="text-sm text-destructive">{orderLoadError}</p>
@@ -875,11 +856,60 @@ export function TechnicianPanel() {
         </button>)}
       </div> : <AdminSectionEmpty compact>Nenhum registro nesta situação.</AdminSectionEmpty>}
     </AdminDialog>
+    <AdminDialog open={myConversationsDialogOpen && !routeOrderId && canViewWhatsApp}
+      onClose={() => setMyConversationsDialogOpen(false)}
+      title="Meus atendimentos"
+      description="Conversas em andamento atribuídas a você ou com sua participação."
+      className="max-w-2xl" bodyClassName="!p-3 sm:!p-4">
+      <div className="space-y-3">
+        <div className="flex justify-end">
+          <AdminButton variant="secondary" size="sm" onClick={() => {
+            setMyConversationsDialogOpen(false);
+            setParticipationRequestOpen(true);
+          }}>
+            <Users size={15} /> Solicitar participação
+          </AdminButton>
+        </div>
+        {myConversationsLoading && myConversations.length === 0
+          ? <div className="flex min-h-28 justify-center p-4"><LoadingState text="Carregando atendimentos..." /></div>
+          : myConversations.length === 0
+          ? <AdminSectionEmpty compact>Nenhum atendimento em andamento atribuído a você ou compartilhado.</AdminSectionEmpty>
+          : <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+            {myConversations.map(thread => <button key={thread.id} type="button"
+              onClick={() => {
+                setMyConversationsDialogOpen(false);
+                setChatConversationId(thread.id);
+              }}
+              className="flex w-full min-w-0 items-center gap-3 p-3 text-left transition-colors hover:bg-muted/60 sm:p-4">
+              <MessageCircle size={18} className="shrink-0 text-primary" />
+              <span className="min-w-0 flex-1">
+                <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <span className="max-w-full truncate text-sm font-bold text-foreground">
+                    {thread.contact_name || "Contato"}
+                  </span>
+                  {thread.contact_phone && <span className="text-xs font-medium text-muted-foreground">
+                    {formatWhatsAppNumber(thread.contact_phone)}
+                  </span>}
+                </span>
+                <span className="mt-1 block truncate text-xs text-muted-foreground">
+                  {thread.last_message || "Atendimento em andamento"}
+                </span>
+              </span>
+              {thread.last_protocol_number && <span className="shrink-0 text-[10px] font-semibold text-primary">
+                ATD-{String(thread.last_protocol_number).padStart(6, "0")}
+              </span>}
+              {thread.unread_count > 0 && <span className="shrink-0 rounded-full bg-primary px-2 py-0.5 text-[10px] font-bold text-white">
+                {thread.unread_count}
+              </span>}
+            </button>)}
+          </div>}
+      </div>
+    </AdminDialog>
     <AdminDialog open={Boolean(chatConversationId) && !routeOrderId}
       onClose={() => setChatConversationId(null)}
       title="Atendimento WhatsApp"
-      className="!h-[calc(100dvh-1rem)] !max-h-[calc(100dvh-1rem)] !w-[calc(100vw-1rem)] !max-w-[1300px] sm:!h-[calc(100dvh-2rem)] sm:!w-[calc(100vw-2rem)]"
-      bodyClassName="!min-h-0 !overflow-hidden !p-0">
+      className="!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-var(--admin-browser-bottom-inset,0px)-1.5rem)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1160px] sm:!w-[calc(100vw-2rem)]"
+      bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0">
       {chatConversationId && <Suspense fallback={<div className="flex h-full items-center justify-center">
         <LoadingState text="Carregando conversa..." />
       </div>}>
