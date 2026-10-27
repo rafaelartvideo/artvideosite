@@ -443,7 +443,7 @@ export function CustomerAccountPage() {
         <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={"mt-4 " + primaryClass}><RefreshCw size={16}/> Tentar novamente</button>
       </div> :
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <aside className="flex flex-wrap content-start gap-1 self-start rounded-xl border border-[#e2e8f1] bg-white p-2 lg:flex-col">
+        <aside aria-label="Navegação da minha conta" className="flex w-full flex-col self-start overflow-hidden rounded-none border border-[#e2e8f1] bg-white">
           {([
             ["overview", "Visão geral", UserRound],
             ["orders", "Meus pedidos", Package],
@@ -451,13 +451,13 @@ export function CustomerAccountPage() {
             ["addresses", "Meus endereços", MapPin],
             ["favorites", "Meus favoritos", Heart],
             ["profile", "Meus dados", ShieldCheck],
-          ] as const).map(([key, label, Icon]) => <button key={key} type="button" onClick={() => setTab(key)}
+          ] as const).map(([key, label, Icon]) => <button key={key} type="button" onClick={() => selectAccountTab(key)}
             aria-current={tab === key ? "page" : undefined}
-            className={"flex min-h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-[13px] font-semibold transition-colors " + (tab === key ? "bg-[#eef3ff] text-[var(--art-primary)]" : "text-[#627994] hover:bg-[#f5f7fb]")}>
+            className={"flex min-h-11 w-full items-center gap-2 border-l-[3px] px-4 text-left text-[13px] font-semibold transition-colors " + (tab === key ? "border-[var(--art-primary)] bg-[#eef3ff] text-[var(--art-primary)]" : "border-transparent text-[#627994] hover:bg-[#f5f7fb]")}>
             <Icon size={17}/> {label}
           </button>)}
         </aside>
-        <div className="min-w-0">
+        <div ref={accountContentRef} className="min-w-0 scroll-mt-[105px]">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h2 className="text-[20px] font-bold tracking-tight text-[#183250]">{tab === "overview" ? greeting + ", " + displayName + "!" : headings[tab]}</h2>
               <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : tab === "addresses" ? "Salve seus endereços para facilitar suas próximas compras." : tab === "favorites" ? "Os produtos que você salvou para encontrar mais facilmente." : tab === "profile" ? "Gerencie suas informações de contato." : tab === "orders" ? "Acompanhe suas compras feitas no site." : "Acompanhe os orçamentos solicitados no site."}</p></div>
@@ -473,7 +473,7 @@ export function CustomerAccountPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               {([{ label: "Pedidos", count: orders.length, icon: Package, target: "orders" },
                 { label: "Orçamentos", count: quotes.length, icon: FileText, target: "quotes" }] as const).map(({ label, count, icon: Icon, target }) =>
-                <button type="button" key={target} onClick={() => setTab(target)} className={"flex items-center gap-3 text-left transition-colors hover:border-[#aabde2] " + cardClass}>
+                <button type="button" key={target} onClick={() => selectAccountTab(target)} className={"flex items-center gap-3 text-left transition-colors hover:border-[#aabde2] " + cardClass}>
                   <span className="rounded-lg bg-[#eef4ff] p-3 text-[var(--art-primary)]"><Icon size={22}/></span>
                   <span><strong className="block text-xl text-[#153250]">{count}</strong><span className="text-xs text-[#72849b]">{label}</span></span>
                 </button>)}
@@ -499,10 +499,10 @@ export function CustomerAccountPage() {
               </section>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              <button type="button" onClick={() => setTab("addresses")} className="flex min-h-14 items-center justify-between rounded-xl border border-[#e3eaf3] bg-white px-4 text-[12px] font-semibold text-[#254260] transition-colors hover:border-blue-200">
+              <button type="button" onClick={() => selectAccountTab("addresses")} className="flex min-h-14 items-center justify-between rounded-xl border border-[#e3eaf3] bg-white px-4 text-[12px] font-semibold text-[#254260] transition-colors hover:border-blue-200">
                 <span className="flex items-center gap-2"><MapPin size={17} className="text-[var(--art-primary)]"/> Meus endereços</span><ArrowRight size={16} className="text-[#8195ae]"/>
               </button>
-              <button type="button" onClick={() => setTab("favorites")} className="flex min-h-14 items-center justify-between rounded-xl border border-[#e3eaf3] bg-white px-4 text-[12px] font-semibold text-[#254260] transition-colors hover:border-blue-200">
+              <button type="button" onClick={() => selectAccountTab("favorites")} className="flex min-h-14 items-center justify-between rounded-xl border border-[#e3eaf3] bg-white px-4 text-[12px] font-semibold text-[#254260] transition-colors hover:border-blue-200">
                 <span className="flex items-center gap-2"><Heart size={17} className="text-[var(--art-primary)]"/> Meus favoritos</span><ArrowRight size={16} className="text-[#8195ae]"/>
               </button>
             </div>
