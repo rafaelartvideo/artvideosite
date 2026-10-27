@@ -29,6 +29,7 @@ import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { OrderImageThumb, type OrderImage } from "./OrderImages";
 import { OrderChecklistDocumentsSection } from "./OrderChecklistDocumentsSection";
+import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 import { OrderSignatureRequestsSection } from "./OrderSignatureRequestsSection";
 import type { useOrderSituationDocuments } from "../application/useOrderSituationDocuments";
 import {
@@ -429,6 +430,7 @@ export function OrderDocumentsPage({
         <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
             <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
+            {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" />}
             {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)}>Novo</BtnPrimary>}
             {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)}>Enviar</BtnPrimary>}
           </div>
