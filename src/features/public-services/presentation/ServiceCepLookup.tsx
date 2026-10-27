@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Loader2, MapPin } from 'lucide-react';
+import { CheckCircle2, Info, Loader2, MapPin } from 'lucide-react';
 import { fetchAddressByZipCode, formatZipCode, type Address } from '@/lib/address';
 import { coverageForCep } from '../domain/service-booking.mjs';
 
@@ -27,6 +27,6 @@ export function ServiceCepLookup({config,value,onChange,onResolved,hideInput=fal
   return ()=>{active=false;clearTimeout(timer);};
  },[value,configKey]);
  return <div className="space-y-3">{!hideInput && <label className="block text-sm font-medium">CEP <span className="text-red-600">*</span><div className="relative mt-2"><input aria-label="CEP do atendimento" inputMode="numeric" autoComplete="postal-code" value={value} onChange={e=>{setState({status:'idle',address:null,message:''});onChange(formatZipCode(e.target.value));}} placeholder="00000-000" maxLength={9} className="art-input pr-12"/>{state.status==='loading'&&<Loader2 size={19} className="absolute right-4 top-4 animate-spin text-[var(--art-primary)]"/>}</div></label>}
- {state.message && <div role="status" className={`flex gap-2 text-sm leading-6 ${['available','consult'].includes(state.status)?'text-[#42556c]':'text-red-600'}`}>{state.status==='available'?<CheckCircle2 size={18} className="mt-1 shrink-0 text-emerald-600"/>:<MapPin size={18} className="mt-1 shrink-0"/>}<div>{state.address&&<p className="font-semibold text-[#172b45]">{state.address.street || state.address.neighborhood} · {state.address.city}/{state.address.state}</p>}{state.message}{state.status==='error'&&<button type="button" className="ml-2 underline" onClick={()=>{onChange('');}}>Consultar novamente</button>}</div></div>}
+ {state.message && <div role="status" className={`flex items-start gap-2.5 rounded-lg border px-4 py-3 text-[13px] leading-5 ${state.status==='available'?'border-emerald-200 bg-emerald-50 text-emerald-900':state.status==='consult'?'border-[#c8dafa] bg-[#f2f7ff] text-[#42556c]':'border-red-200 bg-red-50 text-red-700'}`}>{state.status==='available'?<CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600"/>:state.status==='consult'?<Info size={18} className="mt-0.5 shrink-0 text-[var(--art-primary)]"/>:<MapPin size={18} className="mt-0.5 shrink-0"/>}<div className="min-w-0">{state.address&&<p className="font-semibold text-[#172b45]">{state.address.street || state.address.neighborhood} · {state.address.city}/{state.address.state}</p>}<p>{state.message}</p>{state.status==='error'&&<button type="button" className="ml-2 underline" onClick={()=>{onChange('');}}>Consultar novamente</button>}</div></div>}
  </div>;
 }
