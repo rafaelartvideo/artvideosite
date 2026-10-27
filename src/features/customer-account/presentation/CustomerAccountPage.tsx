@@ -121,6 +121,22 @@ export function CustomerAccountPage() {
   const waitingForSession = authLoading && !userId;
 
   useEffect(() => {
+    if (state !== "anonymous" || passwordRecovery || previousModeRef.current === mode) return;
+    previousModeRef.current = mode;
+    const timer = window.setTimeout(() => {
+      const cardTop = authCardRef.current?.getBoundingClientRect().top;
+      if (cardTop === undefined) return;
+      if (window.innerWidth < 1024 || cardTop < 90) {
+        window.scrollTo({
+          top: Math.max(0, window.scrollY + cardTop - (window.innerWidth < 640 ? 92 : 105)),
+          behavior: reduceMotion ? "auto" : "smooth",
+        });
+      }
+    }, 70);
+    return () => window.clearTimeout(timer);
+  }, [mode, state, passwordRecovery, reduceMotion]);
+
+  useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange(event => {
       if (event === "PASSWORD_RECOVERY") setPasswordRecovery(true);
     });
@@ -262,6 +278,16 @@ export function CustomerAccountPage() {
       setMode("login");
     } finally {
       setBusy(false);
+    }
+  }
+
+  function selectAccountTab(nextTab: Tab) {
+    setTab(nextTab);
+    if (window.innerWidth < 1024) {
+      window.requestAnimationFrame(() => accountContentRef.current?.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "start",
+      }));
     }
   }
 
