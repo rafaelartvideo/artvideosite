@@ -847,6 +847,61 @@ export function TechnicianPanel() {
         />
       </Suspense>}
     </AdminDialog>
+    <AdminDialog open={Boolean(summaryFilter) && !routeOrderId}
+      onClose={() => setSummaryFilter(null)}
+      title={summaryFilter ? technicianSummaryTitles[summaryFilter] : "Atividades"}
+      description={`${summaryItems.length} registro(s) encontrado(s)`}
+      className="max-w-3xl" bodyClassName="!p-3 sm:!p-5">
+      {summaryItems.length ? <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+        {summaryItems.map(({ id, task, detail }) => <button type="button" key={id}
+          onClick={() => { setSummaryFilter(null); openService(task); }}
+          className="flex w-full min-w-0 items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/60">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-bold text-foreground">OS {task.os_number} · {task.customer_name || "Cliente"}</p>
+            <p className="mt-1 truncate text-xs text-muted-foreground">{detail}</p>
+            {task.scheduled_at && <p className="mt-1 text-[11px] text-muted-foreground">
+              Agendado: {formatDate(task.scheduled_at)}
+            </p>}
+          </div>
+          <span className={`shrink-0 rounded-md border px-2 py-1 text-[10px] font-bold ${STATUS_CLASS[task.status]}`}>
+            {summaryFilter?.startsWith("orders_")
+              ? summaryFilter === "orders_completed" ? "Concluída" : "Aberta"
+              : STATUS_LABEL[task.status]}
+          </span>
+        </button>)}
+      </div> : <AdminSectionEmpty compact>Nenhum registro nesta situação.</AdminSectionEmpty>}
+    </AdminDialog>
+    <AdminDialog open={Boolean(chatConversationId) && !routeOrderId}
+      onClose={() => setChatConversationId(null)}
+      title="Atendimento WhatsApp"
+      className="!h-[calc(100dvh-1rem)] !max-h-[calc(100dvh-1rem)] !w-[calc(100vw-1rem)] !max-w-[1300px] sm:!h-[calc(100dvh-2rem)] sm:!w-[calc(100vw-2rem)]"
+      bodyClassName="!min-h-0 !overflow-hidden !p-0">
+      {chatConversationId && <Suspense fallback={<div className="flex h-full items-center justify-center">
+        <LoadingState text="Carregando conversa..." />
+      </div>}>
+        <TechnicianWhatsAppConversation embedded initialConversationId={chatConversationId}
+          onBack={() => setChatConversationId(null)}
+          onConfigure={() => setChatConversationId(null)}
+          onOpenOrder={id => { setChatConversationId(null); navigate("/admin/technician-panel/os/" + encodeURIComponent(id)); }} />
+      </Suspense>}
+    </AdminDialog>
+    <AdminDialog open={participationRequestOpen && !routeOrderId}
+      onClose={() => { if (!participationBusy) setParticipationRequestOpen(false); }}
+      title="Solicitar participação"
+      description="Informe o telefone com DDD ou protocolo ATD. Um atendimento ativo precisa da autorização do responsável."
+      className="max-w-md"
+      footer={<div className="flex justify-end gap-2">
+        <BtnSecondary disabled={participationBusy} onClick={() => setParticipationRequestOpen(false)}>Cancelar</BtnSecondary>
+        <BtnPrimary disabled={!participationTarget.trim() || participationBusy} loading={participationBusy}
+          onClick={() => void requestWhatsAppParticipation()}>Solicitar</BtnPrimary>
+      </div>}>
+      <label className="block text-sm font-semibold text-foreground">
+        Número ou protocolo
+        <input value={participationTarget} onChange={event => setParticipationTarget(event.target.value)}
+          placeholder="(79) 99999-9999 ou ATD-000020" maxLength={28}
+          className="mt-2 h-11 w-full rounded-lg border border-border bg-background px-3 text-sm outline-none focus:border-primary" />
+      </label>
+    </AdminDialog>
     <OrderHistoryPage
       open={historyDialogOpen && Boolean(routeOrderId && selected)}
       order={{ id: routeOrderId, organization_id: activeOrganizationId, os_number: selected?.os_number }}
