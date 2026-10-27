@@ -512,22 +512,24 @@ export function TechnicianPanel() {
   return <div className="mx-auto max-w-6xl space-y-4">
     {!routeOrderId && <PageHeader title="Painel do Técnico"
       subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={<div className="flex flex-wrap items-center gap-2">
-        {hasPermission("agenda.view") && <>
-          <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
-            canManage={Boolean(myEmployeeId)} personal />
-          <AdminButton variant="secondary" size="sm" onClick={() => setAgendaModalOpen(true)}>
-            <CalendarDays size={15} /> Meus agendamentos
-          </AdminButton>
-        </>}
+      actions={<div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center">
+        {hasPermission("agenda.view") && <AdminButton variant="secondary" size="sm"
+          className="w-full !px-2 sm:w-auto sm:!px-3" onClick={() => setAgendaModalOpen(true)}>
+          <CalendarDays size={15} className="shrink-0" />
+          <span className="sm:hidden">Agendamentos</span>
+          <span className="hidden sm:inline">Meus agendamentos</span>
+        </AdminButton>}
         {canViewWhatsApp && <AdminButton variant="secondary" size="sm"
+          className="w-full !px-2 sm:w-auto sm:!px-3"
           onClick={() => { setMyConversationsDialogOpen(true); void refreshConversations(); }}>
-          <MessageCircle size={15} /> Meus atendimentos
+          <MessageCircle size={15} className="shrink-0" />
+          <span className="sm:hidden">Atendimentos</span>
+          <span className="hidden sm:inline">Meus atendimentos</span>
           {myConversations.length > 0 && <span className="ml-1 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] font-bold text-primary">
             {myConversations.length}
           </span>}
         </AdminButton>}
-        {!online && <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span>}
+        {!online && <span className="col-span-2 inline-flex items-center gap-2 text-xs font-semibold text-amber-700 sm:col-auto"><WifiOff size={16} /> Sem internet</span>}
       </div>} />}
 
     {!routeOrderId ? <>
