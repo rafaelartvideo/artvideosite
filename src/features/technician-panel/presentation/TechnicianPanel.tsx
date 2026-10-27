@@ -1,7 +1,7 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { Check, History, Pencil, Play, WifiOff } from "lucide-react";
+import { CalendarDays, Check, History, Pencil, Play, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
@@ -10,6 +10,7 @@ import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { OrderDetailSectionTabs, type OrderDetailTab } from "@/features/orders/presentation/OrderDetailSectionTabs";
 import { TechnicianOrdersTable } from "./TechnicianOrdersTable";
+import { EmployeeAgendaSection } from "@/features/registrations/presentation/EmployeeAgendaDialog";
 import { isTechnicianOrderCompleted } from "../domain/technician-order-progress";
 import { TechnicianOrderItemsSection } from "./TechnicianOrderItemsSection";
 import { OrderHistoryPage } from "@/features/orders/presentation/OrderHistoryPage";
@@ -48,7 +49,7 @@ function formatDate(value?: string | null) {
 }
 
 export function TechnicianPanel() {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, hasPermission, user } = useAuth();
   const navigate = useNavigate();
   const { search } = useLocation();
   const orderMatch = useMatch("/admin/technician-panel/os/:orderId");
@@ -59,6 +60,16 @@ export function TechnicianPanel() {
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const [items, setItems] = useState<TechnicianTask[]>([]);
+  const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setMyEmployeeId(null);
+    if (!activeOrganizationId || !user?.id) return;
+    void supabase.from("employees").select("id").eq("organization_id", activeOrganizationId)
+      .eq("profile_id", user.id).eq("is_active", true).maybeSingle()
+      .then(({ data, error }) => { if (!cancelled && !error) setMyEmployeeId(data?.id || null); });
+    return () => { cancelled = true; };
+  }, [activeOrganizationId, user?.id]);
   const [orderDetails, setOrderDetails] = useState<TechnicianOrderDetails | null>(null);
   const [orderDetailsLoading, setOrderDetailsLoading] = useState(false);
   const [detailsRevision, setDetailsRevision] = useState(0);
@@ -377,7 +388,16 @@ export function TechnicianPanel() {
   return <div className="mx-auto max-w-6xl space-y-4">
     {!routeOrderId && <PageHeader title="Painel do Técnico"
       subtitle="Ordens de serviço e atividades atribuídas a você."
-      actions={!online ? <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span> : undefined} />}
+      actions={<div className="flex flex-wrap items-center gap-2">
+        {hasPermission("agenda.view") && <>
+          <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={myEmployeeId}
+            canManage={Boolean(myEmployeeId)} personal />
+          <AdminButton variant="secondary" size="sm" onClick={() => navigate("/admin/agenda")}>
+            <CalendarDays size={15} className="mr-1.5" /> Agenda
+          </AdminButton>
+        </>}
+        {!online && <span className="inline-flex items-center gap-2 text-xs font-semibold text-amber-700"><WifiOff size={16} /> Sem internet</span>}
+      </div>} />}
 
     {!routeOrderId ? <>
       <div className="space-y-3">
