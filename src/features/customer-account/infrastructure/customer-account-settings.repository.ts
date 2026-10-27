@@ -69,8 +69,9 @@ export async function saveSiteAddress(userId: string, input: SiteAddressInput, a
   const query = addressId
     ? supabase.from("artvideo_customer_addresses").update({ ...data, updated_at: new Date().toISOString() }).eq("user_id", userId).eq("id", addressId)
     : supabase.from("artvideo_customer_addresses").insert({ ...data, user_id: userId });
-  const { error } = await query;
+  const { data: saved, error } = await query.select("id").single();
   if (error) throw error;
+  return saved.id as string;
 }
 export async function removeSiteAddress(userId: string, id: string) {
   const { error } = await supabase.from("artvideo_customer_addresses").delete().eq("user_id", userId).eq("id", id);
