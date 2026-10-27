@@ -65,11 +65,16 @@ export function CustomerProfile({ userId, email, emailVerified, onSaved }: { use
   }
 
   const displayed = profile;
-  return <section className="rounded-xl border border-[#e2e8f1] bg-white p-5 sm:p-6">
-    <CustomerFeedbackToast feedback={feedback} onDismiss={dismissFeedback}/>
-    {!editing && !loading && <div className="flex justify-end">
-      <button type="button" onClick={() => {setEditing(true);setFeedback(null);}} className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#c8dafa] bg-[#f7faff] px-3 text-xs font-semibold text-[var(--art-primary)] transition-colors hover:border-[var(--art-primary)] hover:bg-[#edf3ff]"><Pencil size={15}/> Editar</button>
-    </div>}
+  return <>
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-[20px] font-bold tracking-tight text-[#183250]">Meus dados</h2>
+        <p className="mt-1 text-[13px] text-[#72849b]">Gerencie suas informações de contato.</p>
+      </div>
+      {!editing && !loading && <button type="button" onClick={() => {setEditing(true);setFeedback(null);}} className="inline-flex h-9 shrink-0 items-center gap-2 rounded-lg border border-[#c8dafa] bg-[#f7faff] px-3 text-xs font-semibold text-[var(--art-primary)] transition-colors hover:border-[var(--art-primary)] hover:bg-[#edf3ff]"><Pencil size={15}/> Editar</button>}
+    </div>
+    <section className="rounded-xl border border-[#e2e8f1] bg-white p-5 sm:p-6">
+      <CustomerFeedbackToast feedback={feedback} onDismiss={dismissFeedback}/>
     {loading && <div className="mt-2 text-sm text-[#72849b]"><RefreshCw size={16} className="mr-2 inline animate-spin"/>Carregando...</div>}
     {!loading && !editing && <div className="mt-5 grid gap-5 sm:grid-cols-2">
       <div className="min-w-0 border-b border-[#eff2f6] pb-3 sm:border-0 sm:pb-0">
@@ -115,5 +120,6 @@ export function CustomerProfile({ userId, email, emailVerified, onSaved }: { use
         <button type="submit" disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? <RefreshCw size={15} className="animate-spin"/> : <Check size={15}/>} Salvar alterações</button>
       </div>
     </form>}
-  </section>;
+    </section>
+  </>;
 }
