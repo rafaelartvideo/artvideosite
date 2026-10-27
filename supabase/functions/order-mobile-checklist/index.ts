@@ -15,6 +15,13 @@ const SESSION_MINUTES = 20;
 const PAIRING_CODE_DIGITS = 8;
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_ATTACHMENT_TYPES = new Set([
+  ...ACCEPTED_IMAGE_TYPES, "application/pdf", "text/plain",
+  "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/zip", "application/octet-stream",
+]);
+const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at,purpose,service_order_id,order_updated_at,equipment_type_id";
 
 type AdminClient = ReturnType<typeof createClient>;
@@ -141,7 +148,7 @@ async function requireSessionPermission(admin: AdminClient, session: MobileSessi
 
 async function orderById(admin: AdminClient, organizationId: string, orderId: string) {
   const { data, error } = await admin.from("service_orders")
-    .select("id,organization_id,os_number,equipment_type_id")
+    .select("id,organization_id,os_number,equipment_type_id,service_type_id")
     .eq("organization_id", organizationId).eq("id", orderId).maybeSingle();
   if (error) throw error;
   if (!data) throw Object.assign(new Error("OS não encontrada."), { status: 404 });
@@ -345,6 +352,150 @@ async function mediaCounts(admin: AdminClient, organizationId: string, itemIds: 
   return counts;
 }
 
+async function requireDocumentsOrChecklistPermission(admin: AdminClient, session: MobileSession) {
+  if (!(await moduleEnabled(admin, session.organization_id, "orders"))) {
+    throw Object.assign(new Error("O módulo de Ordens de Serviço não está disponível."), { status: 403 });
+  }
+  const [canChecklist, canDocuments] = await Promise.all([
+    memberHasPermission(admin, session.organization_id, session.created_by, "orders.checklists.manage"),
+    memberHasPermission(admin, session.organization_id, session.created_by, "orders.section.images"),
+  ]);
+  if (!canChecklist && !canDocuments) {
+    throw Object.assign(new Error("Seu acesso aos documentos e checklists da OS foi removido."), { status: 403 });
+  }
+  return { canChecklist, canDocuments };
+}
+
+async function loadMobileDocuments(admin: AdminClient, session: MobileSession) {
+  const order = await orderById(admin, session.organization_id, session.service_order_id!);
+  const organizationId = session.organization_id;
+  const [situationsResult, attachmentTypesResult, documentsResult] = await Promise.all([
+    admin.from("os_situations").select("id,name,color,sort_order")
+      .eq("organization_id", organizationId).order("sort_order"),
+    admin.from("attachment_types").select("id,name")
+      .eq("organization_id", organizationId).eq("is_active", true).order("name"),
+    admin.from("service_order_situation_media").select("id,situation_id,attachment_type_id")
+      .eq("organization_id", organizationId).eq("service_order_id", session.service_order_id!),
+  ]);
+  for (const result of [situationsResult, attachmentTypesResult, documentsResult]) {
+    if (result.error) throw result.error;
+  }
+  let situations = situationsResult.data || [];
+  if (order.service_type_id) {
+    const { data: links, error } = await admin.from("service_type_situations")
+      .select("situation_id,sort_order").eq("organization_id", organizationId)
+      .eq("service_type_id", order.service_type_id).order("sort_order");
+    if (error) throw error;
+    const byId = new Map(situations.map((item: any) => [String(item.id), item]));
+    situations = (links || []).map((link: any) => byId.get(String(link.situation_id))).filter(Boolean);
+  }
+  const countBySituation = new Map<string, number>();
+  let attachmentCount = 0;
+  for (const row of documentsResult.data || []) {
+    if (row.attachment_type_id) attachmentCount += 1;
+    else if (row.situation_id) {
+      const key = String(row.situation_id);
+      countBySituation.set(key, (countBySituation.get(key) || 0) + 1);
+    }
+  }
+  const permittedSituations = await Promise.all(situations.map(async (item: any) => ({
+    id: item.id, name: item.name, color: item.color,
+    count: countBySituation.get(String(item.id)) || 0,
+    can_upload: await memberHasPermission(admin, organizationId, session.created_by, "orders.images.situation." + item.id + ".upload"),
+  })));
+  return {
+    attachment_types: attachmentTypesResult.data || [],
+    attachment_count: attachmentCount,
+    situations: permittedSituations,
+  };
+}
+
+async function uploadMobileDocument(context: any) {
+  const { input, admin } = context;
+  const session = await sessionByToken(admin, input.session_id, input.token);
+  if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
+  await requireSessionPermission(admin, session, "orders.section.images", "Seu acesso aos anexos foi removido.");
+  const order = await orderById(admin, session.organization_id, session.service_order_id!);
+  const kind = text(input.kind, 20);
+  if (kind !== "attachment" && kind !== "situation") {
+    throw Object.assign(new Error("Tipo de documento inválido."), { status: 400 });
+  }
+  const file = input.file;
+  if (!(file instanceof File) || !file.size) {
+    throw Object.assign(new Error("Selecione um arquivo para enviar."), { status: 400 });
+  }
+  if (kind === "situation" && (!ACCEPTED_IMAGE_TYPES.has(file.type) || file.size > MAX_IMAGE_BYTES)) {
+    throw Object.assign(new Error("Use JPG, PNG ou WebP com até 10 MB para situações."), { status: 400 });
+  }
+  if (kind === "attachment" && (!ACCEPTED_ATTACHMENT_TYPES.has(file.type) || file.size > MAX_ATTACHMENT_BYTES
+      || /\.(?:html?|svg|js|exe|bat|cmd|sh|php|apk)$/i.test(file.name))) {
+    throw Object.assign(new Error("Arquivo não permitido. Envie imagens, PDFs ou documentos de até 20 MB."), { status: 400 });
+  }
+
+  let situationId: string | null = null;
+  let attachmentTypeId: string | null = null;
+  if (kind === "attachment") {
+    attachmentTypeId = requireUuid(input.attachment_type_id, "Tipo de anexo");
+    const { data, error } = await admin.from("attachment_types").select("id")
+      .eq("organization_id", session.organization_id).eq("id", attachmentTypeId)
+      .eq("is_active", true).maybeSingle();
+    if (error) throw error;
+    if (!data) throw Object.assign(new Error("Tipo de anexo inválido."), { status: 422 });
+  } else {
+    situationId = requireUuid(input.situation_id, "Situação");
+    const { data, error } = await admin.from("os_situations").select("id")
+      .eq("organization_id", session.organization_id).eq("id", situationId).maybeSingle();
+    if (error) throw error;
+    if (!data) throw Object.assign(new Error("Situação não encontrada."), { status: 422 });
+    if (order.service_type_id) {
+      const { data: link, error: linkError } = await admin.from("service_type_situations").select("situation_id")
+        .eq("organization_id", session.organization_id).eq("service_type_id", order.service_type_id)
+        .eq("situation_id", situationId).maybeSingle();
+      if (linkError) throw linkError;
+      if (!link) throw Object.assign(new Error("Situação não pertence ao fluxo desta OS."), { status: 403 });
+    }
+    await requireSessionPermission(admin, session, "orders.images.situation." + situationId + ".upload", "Você não pode anexar imagens nesta situação.");
+  }
+
+  const safeName = safeFileName(file.name || "arquivo");
+  const safeExt = safeName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const storagePath = "orders/" + session.service_order_id + "/" + (kind === "attachment" ? "attachments" : "situations/" + situationId)
+    + "/mobile-" + crypto.randomUUID() + "." + safeExt;
+  const { error: uploadError } = await admin.storage.from("service-images")
+    .upload(storagePath, file, { contentType: file.type, cacheControl: "3600", upsert: false });
+  if (uploadError) throw uploadError;
+  let mediaId: string | null = null;
+  try {
+    const { data: media, error: mediaError } = await admin.from("media").insert({
+      organization_id: session.organization_id,
+      bucket_id: "service-images",
+      storage_path: storagePath,
+      file_name: safeName,
+      mime_type: file.type,
+      file_size: file.size,
+      uploaded_by: session.created_by,
+    }).select("id").single();
+    if (mediaError) throw mediaError;
+    mediaId = String(media.id);
+    const { error: linkError } = await admin.from("service_order_situation_media").insert({
+      organization_id: session.organization_id,
+      service_order_id: session.service_order_id,
+      situation_id: situationId,
+      attachment_type_id: attachmentTypeId,
+      media_id: mediaId,
+      uploaded_by: session.created_by,
+    });
+    if (linkError) throw linkError;
+    const now = new Date().toISOString();
+    await touchSession(admin, session, { order_updated_at: now });
+    return { success: true, media_id: mediaId, saved_at: now };
+  } catch (error) {
+    if (mediaId) await admin.from("media").delete().eq("id", mediaId);
+    await admin.storage.from("service-images").remove([storagePath]);
+    throw error;
+  }
+}
+
 async function createSession(context: any) {
   const { request, input, admin, supabaseUrl, anonKey } = context;
   const user = await authenticatedUser(request, supabaseUrl, anonKey);
@@ -353,16 +504,23 @@ async function createSession(context: any) {
   const organizationId = requireUuid(input.organization_id, "Empresa");
   const orderId = requireUuid(input.service_order_id, "OS");
 
+  const documentsMode = input.scope === "documents";
+  const [canChecklist, canDocuments] = await Promise.all([
+    memberHasPermission(admin, organizationId, user.id, "orders.checklists.manage"),
+    memberHasPermission(admin, organizationId, user.id, "orders.section.images"),
+  ]);
   if (!(await moduleEnabled(admin, organizationId, "orders"))
-      || !(await memberHasPermission(admin, organizationId, user.id, "orders.checklists.manage"))) {
-    throw Object.assign(new Error("Você não possui permissão para preencher checklists desta OS."), { status: 403 });
+      || !(documentsMode ? canDocuments || canChecklist : canChecklist)) {
+    throw Object.assign(new Error("Você não possui permissão para acessar esta OS pelo celular."), { status: 403 });
   }
 
   const order = await orderById(admin, organizationId, orderId);
-  const { data: checklist, error: checklistError } = await admin.from("service_order_checklists")
-    .select("id").eq("organization_id", organizationId).eq("service_order_id", orderId).neq("status", "superseded").maybeSingle();
-  if (checklistError) throw checklistError;
-  if (!checklist) throw Object.assign(new Error("Esta OS não possui checklist disponível."), { status: 409 });
+  if (!documentsMode) {
+    const { data: checklist, error: checklistError } = await admin.from("service_order_checklists")
+      .select("id").eq("organization_id", organizationId).eq("service_order_id", orderId).neq("status", "superseded").maybeSingle();
+    if (checklistError) throw checklistError;
+    if (!checklist) throw Object.assign(new Error("Esta OS não possui checklist disponível."), { status: 409 });
+  }
 
   const now = new Date();
   await admin.from("device_capture_sessions").update({ status: "closed", updated_at: now.toISOString() })
@@ -439,7 +597,7 @@ async function publicStatus(context: any) {
   const session = await sessionByToken(admin, input.session_id, input.token);
   if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
 
-  await requireSessionPermission(admin, session, "orders.checklists.manage", "Seu acesso para preencher checklists foi removido.");
+  await requireDocumentsOrChecklistPermission(admin, session);
   await touchSession(admin, session);
   const order = await orderById(admin, session.organization_id, session.service_order_id!);
 
@@ -495,16 +653,19 @@ async function getChecklist(context: any) {
   const session = await sessionByToken(admin, input.session_id, input.token);
   if (!session) throw Object.assign(new Error("A conexão expirou ou foi encerrada."), { status: 401 });
 
-  await requireSessionPermission(admin, session, "orders.checklists.manage", "Seu acesso para preencher checklists foi removido.");
+  const { canChecklist, canDocuments } = await requireDocumentsOrChecklistPermission(admin, session);
   await touchSession(admin, session);
-  const payload = await loadChecklist(admin, session);
-  const canReopen = await memberHasPermission(admin, session.organization_id, session.created_by, "orders.checklists.reopen");
-
+  const payload = canChecklist
+    ? await loadChecklist(admin, session)
+    : { order: await orderById(admin, session.organization_id, session.service_order_id!), checklist: null };
+  const canReopen = canChecklist && await memberHasPermission(admin, session.organization_id, session.created_by, "orders.checklists.reopen");
   return {
     success: true,
     expires_at: session.expires_at,
     ...payload,
     can_reopen: canReopen,
+    can_manage_checklist: canChecklist,
+    documents: canDocuments ? await loadMobileDocuments(admin, session) : null,
   };
 }
 
@@ -828,6 +989,7 @@ Deno.serve(async request => {
     if (action === "complete_stage") return json(await completeStage(context));
     if (action === "reopen_stage") return json(await reopenStage(context));
     if (action === "upload_photo") return json(await uploadPhoto(context));
+    if (action === "upload_document") return json(await uploadMobileDocument(context));
 
     return json({ success: false, error: "Ação de checklist móvel inválida." }, 400);
   } catch (error) {
