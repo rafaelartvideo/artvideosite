@@ -78,9 +78,13 @@ export function CustomerAddresses({ userId }: { userId: string }) {
   }
   return <section className="space-y-4">
     <CustomerFeedbackToast feedback={feedback} onDismiss={dismissFeedback}/>
-    {!form && <div className="flex justify-end">
-      <button type="button" className={buttonClass+" bg-[var(--art-primary)] text-white hover:bg-blue-800"} onClick={() => openForm()}><Plus size={16}/> Novo endereço</button>
-    </div>}
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h2 className="text-[20px] font-bold tracking-tight text-[#183250]">Meus endereços</h2>
+        <p className="mt-1 text-[13px] text-[#72849b]">Salve seus endereços para facilitar suas próximas compras.</p>
+      </div>
+      {!form && <button type="button" className={buttonClass+" shrink-0 bg-[var(--art-primary)] text-white hover:bg-blue-800"} onClick={() => openForm()}><Plus size={16}/> Novo endereço</button>}
+    </div>
     {query.isLoading && <p className="text-[13px] text-[#73849a]"><RefreshCw size={15} className="mr-2 inline animate-spin"/>Carregando endereços...</p>}
     {query.isError && <button type="button" onClick={() => void query.refetch()} className="text-[13px] text-[var(--art-primary)]">Tentar novamente</button>}
     {!query.isLoading && !query.isError && !form && addresses.length === 0 && <div className="rounded-xl border border-dashed border-[#dbe5f1] bg-white px-5 py-10 text-center">
