@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  LockKeyhole, LogOut, Mail, Package, RefreshCw, ShieldCheck, ShoppingBag, UserRound,
+  LogOut, Mail, Package, RefreshCw, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -17,6 +17,9 @@ type Tab = "overview" | "orders" | "quotes" | "profile";
 type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "ready" | "error";
 const inputClass = "h-12 w-full rounded-xl border border-[#dbe5f2] bg-[#fbfcff] px-4 text-[14px] text-[#132b4a] outline-none transition-[border-color,box-shadow] placeholder:text-[#9aabc0] focus:border-[var(--art-primary)] focus:bg-white focus:ring-[3px] focus:ring-blue-500/10";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--art-primary)] px-5 text-sm font-semibold text-white shadow-[0_5px_14px_rgba(23,77,162,.14)] transition-[background-color,box-shadow] hover:bg-blue-800 hover:shadow-[0_7px_18px_rgba(23,77,162,.2)] disabled:cursor-not-allowed disabled:opacity-60";
+const authLabelClass = "block text-[12px] font-medium text-[#344d6a]";
+const authInputClass = "mt-1.5 h-11 w-full rounded-lg border border-[#dbe3ee] bg-white px-3.5 text-[13px] text-[#1b3353] outline-none transition-colors placeholder:text-[#a0aebe] focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
+const authButtonClass = "inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-5 text-[13px] font-semibold text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60";
 const secondaryClass = "inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#dce5f1] bg-white px-4 text-sm font-semibold text-[#254360] transition-colors hover:bg-[#f3f7fc]";
 const cardClass = "rounded-xl border border-[#e2e8f1] bg-white p-5 shadow-[0_5px_24px_rgba(15,42,83,.035)]";
 
@@ -75,42 +78,10 @@ function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "order
 }
 
 
+
 function AccountEntryShell({ children }: { children: React.ReactNode }) {
-  return <div className="mx-auto grid w-full max-w-[1060px] overflow-hidden rounded-[24px] border border-[#e0e8f3] bg-white shadow-[0_24px_70px_rgba(17,48,91,.09)] lg:min-h-[600px] lg:grid-cols-[.92fr_1.08fr] lg:rounded-[28px]">
-    <div className="relative isolate overflow-hidden bg-gradient-to-br from-[#0b2d65] via-[#12468d] to-[#082653] px-7 py-8 text-white sm:px-10 lg:flex lg:flex-col lg:justify-between lg:px-12 lg:py-12">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10" style={{backgroundImage: "radial-gradient(circle at 90% 12%, rgba(103,176,255,.29), transparent 43%), radial-gradient(circle at 9% 97%, rgba(62,132,231,.27), transparent 42%)"}}/>
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/10"><ShoppingBag size={19} strokeWidth={1.8}/></div>
-        <div className="leading-tight">
-          <span className="block text-[10px] font-bold uppercase tracking-[.16em] text-blue-200">Eletrônica</span>
-          <span className="block text-[17px] font-extrabold tracking-[-.035em]">Artvideo</span>
-        </div>
-      </div>
-      <div className="mt-8 max-w-[390px] lg:my-14">
-        <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/[.09] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[.12em] text-blue-100">
-          <span className="h-1.5 w-1.5 rounded-full bg-[#8cc6ff]"/> Área do cliente
-        </span>
-        <h2 className="mt-5 text-[29px] font-bold leading-[1.15] tracking-[-.045em] sm:text-[35px] lg:text-[43px]">
-          Suas compras, sempre por perto.
-        </h2>
-        <p className="mt-4 max-w-[320px] text-[13px] leading-6 text-blue-100/85 sm:text-[14px]">
-          Um espaço só seu para consultar pedidos e orçamentos, com toda a praticidade que você merece.
-        </p>
-      </div>
-      <div className="mt-8 hidden border-t border-white/15 pt-6 lg:grid lg:grid-cols-2 lg:gap-5">
-        <div className="flex items-center gap-2.5">
-          <Package size={17} className="shrink-0 text-[#94caff]"/>
-          <span className="text-xs font-medium text-white/90">Meus pedidos</span>
-        </div>
-        <div className="flex items-center gap-2.5">
-          <FileText size={17} className="shrink-0 text-[#94caff]"/>
-          <span className="text-xs font-medium text-white/90">Meus orçamentos</span>
-        </div>
-      </div>
-    </div>
-    <div className="flex min-w-0 flex-col justify-center px-6 py-8 sm:px-10 sm:py-11 lg:px-14 lg:py-12">
-      {children}
-    </div>
+  return <div className="mx-auto w-full max-w-[456px] rounded-2xl border border-[#e1e7f0] bg-white px-6 py-8 shadow-[0_8px_32px_rgba(17,40,77,.035)] sm:px-10 sm:py-10">
+    {children}
   </div>;
 }
 
@@ -309,65 +280,64 @@ export function CustomerAccountPage() {
         <RefreshCw size={27} className="animate-spin text-[var(--art-primary)]"/> Preparando sua conta...
       </div> :
       state === "anonymous" ? <AccountEntryShell>
-        {mode === "email_sent" ? <div className="flex flex-col items-center py-8 text-center">
-          <div className="flex h-[76px] w-[76px] items-center justify-center rounded-3xl bg-[#eaf8f2] text-[#16865d]"><CheckCircle2 size={38} strokeWidth={1.7}/></div>
-          <h2 className="mt-7 text-[26px] font-bold tracking-[-.035em] text-[#142d50]">Confira seu e-mail</h2>
-          <p className="mt-3 max-w-[330px] text-[14px] leading-6 text-[#6b7e97]">Se o endereço informado estiver disponível, enviaremos um link para você continuar. Confira também a caixa de spam.</p>
-          <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-8 w-full max-w-[320px] " + primaryClass}>Voltar para entrar <ArrowRight size={17}/></button>
+        {mode === "email_sent" ? <div className="py-3 text-center">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#eef8f2] text-[#23815b]"><CheckCircle2 size={27} strokeWidth={1.8}/></div>
+          <h1 className="mt-5 text-[25px] font-semibold tracking-[-.035em] text-[#172d4b]">Verifique seu e-mail</h1>
+          <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Enviamos as orientações para seu e-mail, caso o endereço esteja disponível. Confira também o spam.</p>
+          <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-7 w-full " + authButtonClass}>Voltar ao login</button>
         </div> : <>
-          {mode === "forgot" ? <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-7 inline-flex w-fit items-center gap-2 text-[13px] font-semibold text-[#57708f] transition-colors hover:text-[var(--art-primary)]"><ArrowLeft size={16}/> Voltar ao login</button> :
-          <div className="mb-8 grid grid-cols-2 rounded-xl bg-[#f2f5fa] p-1" role="tablist" aria-label="Acesso à conta">
-            <button type="button" role="tab" aria-selected={mode === "login"} onClick={() => { setMode("login"); setError(""); }} className={"min-h-10 rounded-lg text-[13px] font-semibold transition-colors " + (mode === "login" ? "bg-white text-[#183f78] shadow-[0_2px_8px_rgba(18,54,97,.08)]" : "text-[#768aa2] hover:text-[#28466a]")}>Entrar</button>
-            <button type="button" role="tab" aria-selected={mode === "register"} onClick={() => { setMode("register"); setError(""); }} className={"min-h-10 rounded-lg text-[13px] font-semibold transition-colors " + (mode === "register" ? "bg-white text-[#183f78] shadow-[0_2px_8px_rgba(18,54,97,.08)]" : "text-[#768aa2] hover:text-[#28466a]")}>Criar conta</button>
-          </div>}
-          <div className="mb-7">
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[.12em] text-[var(--art-primary)]">{mode === "register" ? "Comece por aqui" : mode === "forgot" ? "Recuperação de acesso" : "Bem-vindo de volta"}</p>
-            <h1 className="text-[27px] font-bold leading-tight tracking-[-.045em] text-[#122c50] sm:text-[31px]">{mode === "register" ? "Crie sua conta" : mode === "forgot" ? "Esqueceu sua senha?" : "Entre na sua conta"}</h1>
-            <p className="mt-2 text-[13px] leading-6 text-[#71849b]">{mode === "register" ? "Preencha seus dados para acessar seu espaço na Artvideo." : mode === "forgot" ? "Informe seu e-mail e enviaremos um link para definir uma nova senha." : "Acesse seus pedidos e orçamentos quando quiser."}</p>
+          {mode === "forgot" && <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-5 inline-flex items-center gap-2 text-xs font-medium text-[#647b96] hover:text-[var(--art-primary)]"><ArrowLeft size={15}/> Voltar</button>}
+          <div className="mb-7 text-center">
+            <h1 className="text-[27px] font-semibold tracking-[-.045em] text-[#142d4e]">
+              {mode === "register" ? "Criar conta" : mode === "forgot" ? "Recuperar senha" : "Minha conta"}
+            </h1>
+            <p className="mt-2 text-[13px] leading-5 text-[#6c8099]">
+              {mode === "register" ? "Crie sua conta para acompanhar pedidos e orçamentos." : mode === "forgot" ? "Enviaremos um link para redefinir sua senha." : "Acesse seus pedidos e orçamentos."}
+            </p>
           </div>
-          <form onSubmit={event => void submitAuth(event)} className="space-y-[18px]">
+          <form onSubmit={event => void submitAuth(event)} className="space-y-4">
             {mode === "register" && <>
-              <label className="block text-[13px] font-semibold text-[#294361]">Nome completo
-                <input className={inputClass + " mt-2"} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Como podemos chamar você?"/>
+              <label className={authLabelClass}>Nome completo
+                <input className={authInputClass} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Seu nome completo"/>
               </label>
-              <div className="grid gap-[18px] sm:grid-cols-2">
-                <label className="block text-[13px] font-semibold text-[#294361]">CPF
-                  <input className={inputClass + " mt-2"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className={authLabelClass}>CPF
+                  <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/>
                 </label>
-                <label className="block text-[13px] font-semibold text-[#294361]">Telefone <span className="font-normal text-[#9aabc0]">(opcional)</span>
-                  <input className={inputClass + " mt-2"} type="tel" value={phone} onChange={event => setPhone(event.target.value)} autoComplete="tel" placeholder="(00) 00000-0000"/>
+                <label className={authLabelClass}>Telefone <span className="font-normal text-[#96a3b3]">(opcional)</span>
+                  <input className={authInputClass} type="tel" value={phone} onChange={event => setPhone(event.target.value)} autoComplete="tel" placeholder="(00) 00000-0000"/>
                 </label>
               </div>
             </>}
-            <label className="block text-[13px] font-semibold text-[#294361]">E-mail
-              <input className={inputClass + " mt-2"} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="nome@exemplo.com"/>
+            <label className={authLabelClass}>E-mail
+              <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
             </label>
-            {mode !== "forgot" && <label className="block text-[13px] font-semibold text-[#294361]">
+            {mode !== "forgot" && <label className={authLabelClass}>
               <span className="flex items-center justify-between gap-2">
                 <span>Senha</span>
-                {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-[12px] font-semibold text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>}
+                {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-xs font-medium text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>}
               </span>
-              <span className="relative mt-2 block">
-                <input className={inputClass + " pr-12"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Mínimo de 8 caracteres" : "Digite sua senha"}/>
-                <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2.5 text-[#8195ae] transition-colors hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
+              <span className="relative mt-1.5 block">
+                <input className={authInputClass + " !mt-0 pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
+                <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
               </span>
             </label>}
-            {mode === "register" && <label className="block text-[13px] font-semibold text-[#294361]">Confirme sua senha
-              <input className={inputClass + " mt-2"} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Digite a senha novamente"/>
+            {mode === "register" && <label className={authLabelClass}>Confirmar senha
+              <input className={authInputClass} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
             </label>}
-            {error && <p role="alert" className="rounded-xl border border-red-100 bg-red-50 px-3.5 py-3 text-[13px] leading-5 text-red-700">{error}</p>}
-            <button type="submit" disabled={busy} className={"mt-2 w-full " + primaryClass}>
-              {busy ? <RefreshCw size={17} className="animate-spin"/> : mode === "register" ? <UserRound size={17}/> : mode === "forgot" ? <Mail size={17}/> : <LockKeyhole size={17}/>}
-              {mode === "register" ? "Criar minha conta" : mode === "forgot" ? "Enviar link de recuperação" : "Entrar na minha conta"}
-              {!busy && <ArrowRight size={17} className="ml-0.5"/>}
+            {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
+            <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
+              {busy && <RefreshCw size={16} className="animate-spin"/>}
+              {mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}
             </button>
           </form>
-          {mode === "register" ? <>
-            <p className="mt-4 text-center text-[12px] leading-5 text-[#8293a9]">Você receberá um e-mail para confirmar sua conta.</p>
-            <p className="mt-6 border-t border-[#edf1f6] pt-5 text-center text-[13px] text-[#71849b]">Já possui uma conta? <button type="button" onClick={() => { setMode("login"); setError(""); }} className="font-bold text-[var(--art-primary)] hover:underline">Entrar</button></p>
-          </> : mode === "login" ? <p className="mt-7 border-t border-[#edf1f6] pt-5 text-center text-[13px] text-[#71849b]">
-            Ainda não tem uma conta? <button type="button" onClick={() => { setMode("register"); setError(""); }} className="font-bold text-[var(--art-primary)] hover:underline">Cadastre-se</button>
-          </p> : null}
+          {mode === "register" && <p className="mt-4 text-center text-[12px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
+          {mode !== "forgot" && <div className="mt-6 border-t border-[#edf0f4] pt-5 text-center text-[13px] text-[#73849a]">
+            {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
+            <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
+              {mode === "register" ? "Entrar" : "Criar conta"}
+            </button>
+          </div>}
         </>}
       </AccountEntryShell> :
       state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
