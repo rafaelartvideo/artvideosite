@@ -303,14 +303,16 @@ export function CustomerAccountPage() {
 
   return <div className="min-h-[65vh] bg-[#f6f8fc] pb-16">
     <div className={"mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 " + (state === "anonymous" && !passwordRecovery ? "flex min-h-[68vh] items-center justify-center py-10 sm:py-14" : "pt-9")}>
-      {userId && !passwordRecovery && state === "ready" && <div className="mb-7 flex flex-wrap items-center justify-between gap-3">
-        <div>
+      {userId && !passwordRecovery && state === "ready" && <div className="mb-7">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-[24px] font-bold tracking-tight text-[#122947] sm:text-[27px]">Minha conta</h1>
-          <p className="mt-2 text-sm text-[#657a95]">Seus pedidos e orçamentos em um só lugar.</p>
+          <button type="button" title="Sair da conta" aria-label="Sair da conta"
+            className={secondaryClass + " h-10 min-w-10 !px-2.5 sm:!px-4"} onClick={() => void signOut()} disabled={busy}>
+            {busy ? <RefreshCw size={16} className="animate-spin"/> : <LogOut size={17}/>}
+            <span className="hidden sm:inline">Sair da conta</span>
+          </button>
         </div>
-        <button type="button" className={secondaryClass} onClick={() => void signOut()} disabled={busy}>
-          <LogOut size={16}/> Sair da conta
-        </button>
+        <p className="mt-2 text-sm text-[#657a95]">Seus pedidos e orçamentos em um só lugar.</p>
       </div>}
 
       {passwordRecovery && userId && !waitingForSession ? <div className={"mx-auto max-w-md " + cardClass}>
