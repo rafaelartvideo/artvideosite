@@ -635,7 +635,8 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 	 * root module. This keeps pagination, "Linhas" selectors and final actions
 	 * reachable above Android/iOS browser UI.
 	 */
-	.admin-crm,
+	/* O modal também usa admin-crm; não force nele a altura da shell. */
+	.admin-crm:not([data-admin-dialog-content="true"]),
 	.admin-crm > main {
 		height: 100dvh !important;
 		max-height: 100dvh !important;
