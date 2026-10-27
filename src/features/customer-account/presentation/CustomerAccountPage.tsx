@@ -115,6 +115,8 @@ export function CustomerAccountPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const userId = session?.user?.id;
+  // O cliente do site não precisa aguardar o carregamento das permissões do CRM.
+  const waitingForSession = authLoading && !userId;
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange(event => {
@@ -124,7 +126,7 @@ export function CustomerAccountPage() {
   }, []);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (waitingForSession) return;
     if (!userId) {
       setPortal(null);
       setPreparingAccount(false);
@@ -157,7 +159,7 @@ export function CustomerAccountPage() {
       }
     })();
     return () => { cancelled = true; };
-  }, [userId, authLoading, refreshIndex]);
+  }, [userId, waitingForSession, refreshIndex]);
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -284,7 +286,7 @@ export function CustomerAccountPage() {
         </button>
       </div>}
 
-      {passwordRecovery && userId && !authLoading ? <div className={"mx-auto max-w-md " + cardClass}>
+      {passwordRecovery && userId && !waitingForSession ? <div className={"mx-auto max-w-md " + cardClass}>
         <h2 className="text-xl font-bold text-[#173450]">Criar nova senha</h2>
         <p className="mt-2 text-sm text-[#6b8098]">Escolha uma senha com pelo menos 8 caracteres.</p>
         <form onSubmit={event => void updatePassword(event)} className="mt-5 space-y-4">
@@ -297,7 +299,7 @@ export function CustomerAccountPage() {
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
           <button className={"w-full " + primaryClass} type="submit" disabled={busy}>Salvar nova senha <ArrowRight size={16}/></button>
         </form>
-      </div> : (preparingAccount || authLoading || state === "loading") ? <CustomerAccountLoading/> :
+      </div> : (preparingAccount || waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
       state === "anonymous" ? <AccountEntryShell>
         <AnimatePresence initial={false} mode="wait">
           <motion.div key={mode}
