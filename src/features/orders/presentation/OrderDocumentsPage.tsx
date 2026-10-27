@@ -429,8 +429,8 @@ export function OrderDocumentsPage({
         <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
         <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
+            {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <div className="order-last ml-auto"><OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" /></div>}
             <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
-            {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" />}
             {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)}>Novo</BtnPrimary>}
             {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)}>Enviar</BtnPrimary>}
           </div>
