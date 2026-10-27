@@ -10,8 +10,6 @@ export function CustomerFavorites() {
   const { favoriteIds, loading: loadingFavorites } = useSiteFavorites();
   const favorites = products.filter(product => favoriteIds.includes(product.id));
   return <section className="space-y-5">
-    <div><h3 className="text-[16px] font-bold text-[#183450]">Meus favoritos</h3>
-      <p className="mt-1 text-xs text-[#73849a]">Os produtos que você salvou para encontrar mais facilmente.</p></div>
     {(loading || loadingFavorites) ? <div role="status" className="flex min-h-40 items-center justify-center text-sm text-[#73849a]">Carregando favoritos...</div> :
       favorites.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {favorites.map(product => <ProductCard key={product.id} product={product} onSelectProduct={slug=>navigate("/loja/"+encodeURIComponent(slug))}/>)}
