@@ -171,6 +171,15 @@ async function linkedAccount(org:string,cpf:string){
   if(!customer||cpfDigits(customer.document)!==cpf || normalizePhone(customer.whatsapp)!==a.whatsapp_verified_number)return null;
   return a;
 }
+// CPF + senha deve funcionar para TODAS as contas do site, inclusive as criadas por e-mail.
+// O requisito de WhatsApp validado é exclusivo do método de código de segurança.
+async function passwordAccount(org:string,cpf:string){
+  if(!/^\d{11}$/.test(cpf))return null;
+  const {data,error}=await admin.from("artvideo_customer_accounts")
+    .select("user_id").eq("organization_id",org).eq("cpf",cpf).limit(2);
+  if(error||data?.length!==1)return null;
+  return data[0];
+}
 async function sessionFor(userId:string){
   const {data:user,error:userError}=await admin.auth.admin.getUserById(userId);
   if(userError||!user.user?.email)throw Error("account_unavailable");
@@ -470,7 +479,7 @@ Deno.serve(async request=>{
       const cpf=cpfDigits(body.cpf),password=String(body.password||"");
       if(cpf.length!==11||!password||password.length>256)return response(request,fail("Credenciais inválidas.",401),401);
       await limit("password-login",cpf,12,3600);
-      const account=await linkedAccount(org,cpf);
+      const account=await passwordAccount(org,cpf);
       if(!account)return response(request,fail("Credenciais inválidas.",401),401);
       const {data:user}=await admin.auth.admin.getUserById(account.user_id);
       if(!user?.user?.email)return response(request,fail("Credenciais inválidas.",401),401);
