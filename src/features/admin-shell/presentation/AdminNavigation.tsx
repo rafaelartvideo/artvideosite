@@ -33,7 +33,7 @@ export function SidebarItem({ item, active, onClick, collapsed = false }: Sideba
       title={collapsed ? item.label : undefined}
       aria-label={collapsed ? item.label : undefined}
       className={cn(
-        "flex w-full min-w-0 cursor-default items-center rounded-lg text-sm font-semibold transition-all",
+        "flex w-full min-w-0 cursor-default items-center rounded-lg text-sm font-semibold transition-colors",
         collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2 text-left",
         active
           ? "bg-primary text-white shadow-lg shadow-[#0057e7]/25"
@@ -71,7 +71,7 @@ export function AdminHubPage({
           const Icon = item.icon;
 
           return (
-            <AdminCard key={item.id} className="group min-w-0 transition-all hover:border-primary/40 hover:shadow-md">
+            <AdminCard key={item.id} className="group min-w-0 transition-[border-color,box-shadow] duration-150 hover:border-primary/40 hover:shadow-md">
               <AdminButton
                 variant="ghost"
                 type="button"

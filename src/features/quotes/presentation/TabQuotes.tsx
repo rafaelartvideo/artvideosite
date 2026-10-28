@@ -8,7 +8,7 @@ import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { AdminCard,AdminRowActionsTrigger,PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel,AdminSearchClearButton,AdminSearchSortMenu,AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
 import { formatCnpj,formatCpf,formatPhone,formatDateTime } from "@/shared/domain/formatters";
-import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState,LoadingState,PageLoadingState,StatusBadge,useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
 import { AdminFieldLabel,AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
@@ -66,6 +66,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
     queryKey:[...queryKeys.quotes.lists(),org,filters],
     enabled:Boolean(org&&canView),queryFn:()=>listQuotesPage(org,filters),
   });
+  const initialLoading=useAdminInitialLoading(Boolean(org&&canView&&(quotesQuery.isPending||statusesQuery.isPending)),org);
   const rows=quotesQuery.data?.items||[];
   const total=quotesQuery.data?.total||0;
   const totalPages=Math.max(1,Math.ceil(total/pageSize));
@@ -88,6 +89,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
       </DropdownMenuItem>:<DropdownMenuItem disabled>Sem ações disponíveis</DropdownMenuItem>}
     </DropdownMenuContent>
   </DropdownMenu>;
+  if(initialLoading)return <PageLoadingState text="Carregando orçamentos"/>;
   return <div className="min-w-0 space-y-5">
     {!embedded&&<PageHeader title="Orçamentos" subtitle={total+" solicitações recebidas pelo site"}/>}
     {canView&&<AdminSearchPanel title="Buscar orçamentos" headerActions={<>

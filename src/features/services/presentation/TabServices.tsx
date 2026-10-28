@@ -9,7 +9,7 @@ import { deleteService, loadServicesCatalog, saveServiceAggregate, setServiceAct
 import { AdminCard, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { cn } from "@/shared/domain/formatters";
-import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { ConfirmDialog, EmptyState, LoadingState, PageLoadingState, StatusBadge, Toast, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
 import { FInput, FIntegerInput, FSelect, FTextarea, FToggle, INPUT, FCurrencyInput } from "@/shared/ui/admin/AdminFormControls";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
 import { RichTextContent, RichTextEditor } from "@/shared/ui/admin/RichTextEditor";
@@ -41,6 +41,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
   const brands = catalogQuery.data?.brands ?? [];
   const products = catalogQuery.data?.products ?? [];
   const loading = catalogQuery.isPending;
+  const initialLoading = useAdminInitialLoading(canView && loading, "services");
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -113,6 +114,7 @@ export function TabServices({ onBack, routeResourceId, routeSubpage, onRouteChan
 
   if (!canView) return null;
 
+  if (initialLoading) return <PageLoadingState text="Carregando serviços" />;
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {delId && <ConfirmDialog message="Excluir este serviço e todos os dados associados?" onConfirm={() => handleDelete(delId)} onCancel={() => setDelId(null)} />}
