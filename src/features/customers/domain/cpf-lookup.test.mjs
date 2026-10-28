@@ -24,6 +24,7 @@ test("normalizes an external CPF result", () => {
   }), {
     name: "Joao Souza",
     birthDate: "1990-05-12",
+    gender: null,
     source: "external",
     registrationId: null,
   });
@@ -34,4 +35,19 @@ test("formats a generic duplicate CPF message when the name is unavailable", () 
     cpfAlreadyRegisteredMessage(""),
     "CPF já cadastrado nesta empresa. Abra o cadastro existente.",
   );
+});
+
+
+test("normalizes documented M, F and I gender markers returned by APICPF", () => {
+  for (const gender of ["M", "F", "I"]) {
+    const result = normalizeCpfLookupPayload({success:true,source:"external",name:"Pessoa Teste",gender});
+    assert.equal(result.gender,gender);
+  }
+});
+
+test("does not infer a gender from the name or unknown provider values", () => {
+  for (const gender of ["", "X", null, undefined]) {
+    const result=normalizeCpfLookupPayload({success:true,source:"external",name:"Pessoa Teste",gender});
+    assert.equal(result.gender,null);
+  }
 });
