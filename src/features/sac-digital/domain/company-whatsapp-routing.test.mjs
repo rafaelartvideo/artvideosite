@@ -24,17 +24,19 @@ test("SAC deep link prefills New Conversation without sending messages",async()=
  assert.match(page,/params\.delete\("phone"\)/);
 });
 
-test("Registration details inline creation metadata and put customer file next to contacts",async()=>{
+test("Cadastro unificado substitui Ficha do Cliente sem duplicar navegação",async()=>{
  const details=await source("features/registrations/presentation/RegistrationDetails.tsx");
  const toolbar=await source("features/registrations/presentation/RegistrationDetailsToolbar.tsx");
- assert.doesNotMatch(details,/<Section title="Cadastro">/);
+ const requests=await source("features/registrations/presentation/RegistrationRequestsSection.tsx");
  assert.match(details,/Cadastrado em <strong>/);
- assert.match(details,/onOpenCustomerHistory=\{roles\.includes\("customer"\)/);
- assert.doesNotMatch(details,/<BtnSecondary onClick=\{\(\) => onOpenCustomerHistory/);
- assert.match(toolbar,/Ficha do cliente/);
- const indexContacts=toolbar.indexOf('title="Contatos"');
- const indexCustomer=toolbar.indexOf('title="Ficha do cliente"');
- assert.ok(indexContacts>=0 && indexCustomer>indexContacts,"Customer file goes after contacts");
+ assert.match(details,/<Section title="Dados Pessoais" actions=\{whatsappAction\}/);
+ assert.match(details,/Vincular endereço/);
+ assert.match(details,/Abrir mapa/);
+ assert.match(details,/<RegistrationRequestsSection/);
+ assert.match(details,/<CustomerAccessInviteSection/);
+ assert.doesNotMatch(toolbar,/Ficha do cliente/);
+ assert.match(requests,/Pedidos da loja/);
+ assert.match(requests,/Ordens de serviço/);
 });
 
 test("Customer, contacts, OS completion and partner shortcuts reuse single SAC routing action",async()=>{
