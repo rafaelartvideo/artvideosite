@@ -1,5 +1,6 @@
 import { Plus, Trash2 } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
+import { AddressMapLink } from "@/shared/ui/address/AddressMapLink";
 import { BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
@@ -59,6 +60,7 @@ export function RegistrationAddressesEditor({
               {address.is_primary && <span className="text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Principal</span>}
             </div>
           </div>
+          <AddressMapLink address={address} />
           {!disabled && !address.is_primary && <button type="button" onClick={() => markPrimary(index)} className="rounded-lg border border-[#0057e7]/25 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5">Marcar principal</button>}
           {!disabled && <button type="button" onClick={() => remove(index)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50" aria-label={`Remover endereço ${index + 1}`} title="Remover endereço"><Trash2 size={15} /></button>}
         </div>
