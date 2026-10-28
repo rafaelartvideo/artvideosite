@@ -23,7 +23,9 @@ export function SiteRequestsPage({
   section, quoteId, onSelectSection, onQuoteRouteChange, onNavigate,
 }: SiteRequestsPageProps) {
   const { hasPermission, hasModule, activeOrganization, activeOrganizationId } = useAuth();
-  const canQuotes = (hasPermission("quotes.view") || hasPermission("quotes.table.view"))
+  const isArtvideo = activeOrganization?.is_artvideo_tenant === true;
+  const canQuotes = isArtvideo && hasPermission("site.view")
+    && (hasPermission("quotes.view") || hasPermission("quotes.table.view"))
     && isAdminModuleEnabled("quotes", hasModule);
   const canOrders = activeOrganization?.is_artvideo_tenant === true
     && hasPermission("site.view")

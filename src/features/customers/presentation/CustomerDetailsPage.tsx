@@ -11,6 +11,7 @@ import { formatCnpj, formatCpf, formatDateOnly, formatPhone, todayDateOnly } fro
 import { CustomerEquipmentsSection } from "./CustomerEquipmentsSection";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 import { CustomerAccessInviteSection } from "./CustomerAccessInviteSection";
+import { useAuth } from "@/lib/auth";
 
 type Props = {
   detail: any; detailQuotes: any[]; detailOrders: any[]; detailEquipments: any[]; detailLoading: boolean;
@@ -35,6 +36,8 @@ function normalizeContactPhone(value?: string | null) {
 }
 
 export function CustomerDetailsPage(props: Props) {
+  const { activeOrganization } = useAuth();
+  const isArtvideo = activeOrganization?.is_artvideo_tenant === true;
   const { detail, detailQuotes, detailOrders, detailEquipments, detailLoading, editForm, setEditForm, fieldErrors, setFieldErrors, editAddress, setEditAddress, editingCustomerData, setEditingCustomerData, editingCustomerAddress, setEditingCustomerAddress, savingCustomer, savingAddress, canEdit, canViewAddress, canEditAddress, canViewQuotes, canViewOrders, canOpenOrders, onSaveCustomer: handleSaveCustomerData, onSaveAddress: handleSaveCustomerAddress, onOpenOrder, onClose, onEdit, onCancelEdit } = props;
   const primaryAddress = (detail?.addresses || []).find((item: Address) => item.is_default) || detail?.addresses?.[0];
   const mapUrl = getAddressMapUrl(primaryAddress);
@@ -55,11 +58,11 @@ export function CustomerDetailsPage(props: Props) {
         {editingCustomerAddress && canEditAddress ? <div className="space-y-3"><FInput label="Link compartilhado do endereço" type="url" placeholder="Cole o link do Google Maps, Waze, Apple Maps..." value={editAddress.shared_map_url || ""} onChange={(e: any) => setEditAddress({ ...editAddress, shared_map_url: e.target.value })} /><AddressFields value={editAddress} onChange={setEditAddress} inputClassName={INPUT} /><div className="flex gap-2 pt-1"><BtnPrimary onClick={() => void handleSaveCustomerAddress()} disabled={savingAddress}>{savingAddress ? "Salvando..." : "Salvar endereço"}</BtnPrimary><BtnSecondary onClick={() => { setEditingCustomerAddress(false); setEditAddress({ ...emptyAddress, ...primaryAddress }); }}>Cancelar</BtnSecondary></div></div> : <>{(detail.addresses || []).length > 0 ? <div className="grid gap-3 text-sm sm:grid-cols-2">{(["zip_code", "street", "number", "complement", "neighborhood", "city", "state"] as const).map(key => { const labels: Record<string, string> = { zip_code: "CEP", street: "Rua", number: "Número", complement: "Complemento", neighborhood: "Bairro", city: "Cidade", state: "Estado" }; return primaryAddress?.[key] ? <div key={key}><p className="text-[10px] font-bold uppercase text-[#5a6a82]">{labels[key]}</p><p className="font-medium text-[#0d1b2e]">{primaryAddress[key]}</p></div> : null; })}</div> : <AdminSectionEmpty>Nenhum endereço cadastrado.</AdminSectionEmpty>}{canEditAddress && <AdminButton variant="secondary" size="sm" onClick={() => setEditingCustomerAddress(true)} className="mt-3 border-[#0057e7]/30 text-[#0057e7] hover:bg-[#0057e7]/5"><Edit2 size={12} /> Editar endereço</AdminButton>}</>}
       </Section>}
 
-      {detail.customer_type === "PF" && <CustomerAccessInviteSection customerId={detail.id} whatsapp={detail.whatsapp} canManage={canEdit}/>}
+      {isArtvideo && detail.customer_type === "PF" && <CustomerAccessInviteSection customerId={detail.id} whatsapp={detail.whatsapp} canManage={canEdit}/>}
 
       {detailLoading ? <LoadingState text="Carregando dados do cliente..." /> : <>
         <CustomerEquipmentsSection equipments={detailEquipments} />
-        {canViewQuotes && <Section title={`Orçamentos (${detailQuotes.length})`}>{detailQuotes.length === 0 ? <AdminSectionEmpty>Nenhum orçamento para este cliente.</AdminSectionEmpty> : <div className="space-y-2">{detailQuotes.map(q => <div key={q.id} className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3"><div className="mb-1 flex items-center justify-between"><span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span><StatusBadge status={(q.request_status as any)?.name || "—"} /></div><p className="text-xs text-[#5a6a82]">{(q.service as any)?.title || "Serviço não informado"}{(q.brand as any)?.name ? ` — ${(q.brand as any).name}` : ""}</p></div>)}</div>}</Section>}
+        {isArtvideo && canViewQuotes && <Section title={`Orçamentos (${detailQuotes.length})`}>{detailQuotes.length === 0 ? <AdminSectionEmpty>Nenhum orçamento para este cliente.</AdminSectionEmpty> : <div className="space-y-2">{detailQuotes.map(q => <div key={q.id} className="rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3"><div className="mb-1 flex items-center justify-between"><span className="font-mono text-xs font-bold text-[#0057e7]">{q.protocol || q.id.slice(0, 8)}</span><StatusBadge status={(q.request_status as any)?.name || "—"} /></div><p className="text-xs text-[#5a6a82]">{(q.service as any)?.title || "Serviço não informado"}{(q.brand as any)?.name ? ` — ${(q.brand as any).name}` : ""}</p></div>)}</div>}</Section>}
         {canViewOrders && <Section title={`Ordens de Serviço (${detailOrders.length})`}>{detailOrders.length === 0 ? <AdminSectionEmpty>Nenhuma OS para este cliente.</AdminSectionEmpty> : <div className="space-y-2">{detailOrders.map(o => <button key={o.id} type="button" disabled={!canOpenOrders} onClick={() => canOpenOrders && onOpenOrder?.(o.id, detail.id)} className="w-full cursor-default rounded-lg border border-[#0d1b2e]/8 bg-[#f8fafc] p-3 text-left transition-colors enabled:hover:bg-[#eef5ff]"><div className="mb-1 flex items-center justify-between"><span className="text-xs font-black text-foreground">#{o.os_number || o.id.slice(0, 8)}</span><StatusBadge status={(o.order_status as any)?.name || "—"} color={(o.order_status as any)?.color} /></div><p className="text-xs font-semibold text-[#0d1b2e]">{(o.service as any)?.title || "Ordem de Serviço"}</p><div className="mt-1 text-[10px] text-[#5a6a82]">Criada: {fmtDate(o.created_at)}</div></button>)}</div>}</Section>}
       </>}
     </div>

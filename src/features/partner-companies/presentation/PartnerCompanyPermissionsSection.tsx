@@ -2,6 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
+import { getArtVideoOrganizationId } from "@/lib/organization-identity";
 import { AdminCard, AdminCardContent, AdminCardHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
@@ -14,6 +15,9 @@ import {
   type PartnerShareAccessLevel,
   type PartnerShareConfigLevel,
 } from "../infrastructure/partner-companies.repository";
+
+const ARTVIDEO_ONLY_MODULES = new Set(["quotes", "site_categories", "site_brands", "site_services", "site_settings"]);
+const isArtvideoOnlyModule = (key: string) => ARTVIDEO_ONLY_MODULES.has(key) || key.startsWith("site_");
 
 const PARTNER_MODULE_GROUPS = [
   {
@@ -142,6 +146,12 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const canManageModules = hasPermission("organizations.modules.manage");
   const canManageShares = hasPermission("organizations.data_shares.manage");
+  const artvideoOrganizationQuery = useQuery({
+    queryKey: ["artvideo-organization-id"],
+    queryFn: getArtVideoOrganizationId,
+    staleTime: Infinity,
+  });
+  const isArtvideoTarget = Boolean(artvideoOrganizationQuery.data && artvideoOrganizationQuery.data === organizationId);
 
   const modulesQuery = useQuery({
     queryKey: ["partner-companies", "modules", organizationId],
@@ -182,12 +192,14 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
     const configuredGroups = PARTNER_MODULE_GROUPS
       .map(group => ({
         ...group,
-        moduleKeys: group.moduleKeys.filter(key => systemModuleKeys.has(key)),
+        moduleKeys: group.moduleKeys.filter(key =>
+          systemModuleKeys.has(key) && (isArtvideoTarget || !isArtvideoOnlyModule(key))),
       }))
       .filter(group => group.moduleKeys.length > 0);
 
     const dynamicGroups = (modulesQuery.data?.systemModules || [])
-      .filter((module: any) => !configuredKeys.has(String(module.key)))
+      .filter((module: any) => !configuredKeys.has(String(module.key))
+        && (isArtvideoTarget || !isArtvideoOnlyModule(String(module.key))))
       .map((module: any) => ({
         key: String(module.key),
         label: String(module.name || module.key),
@@ -196,7 +208,7 @@ export function PartnerCompanyPermissionsSection({ organizationId }: { organizat
       }));
 
     return [...configuredGroups, ...dynamicGroups];
-  }, [modulesQuery.data?.systemModules, systemModuleKeys]);
+  }, [modulesQuery.data?.systemModules, systemModuleKeys, isArtvideoTarget]);
 
   const groupedModuleKeys = useMemo(
     () => Array.from(new Set(visibleGroups.flatMap(group => group.moduleKeys))),

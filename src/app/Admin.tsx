@@ -148,12 +148,17 @@ export function AdminDashboard({
   };
 
   const canAccessTab = (tab: AdminTab) => {
+    // O site público, pedidos e orçamentos recebidos pela web pertencem só à Artvideo.
+    // Nunca conceder acesso a partir de quotes.view ou de módulos ativados noutra empresa.
+    if (tab === "site" || tab === "quotes" || parentAdminTab(tab) === "site") {
+      if (!isArtVideoOrganization) return false;
+    }
     if (tab === "nfse") return false;
     if ((tab === "siteDelivery" || tab === "sitePayments" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
-    if (tab === "siteRequests") return !isPlatformOperatorOrganization && (
+    if (tab === "siteRequests") return isArtVideoOrganization && hasPermission("site.view") && (
       (hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule)) ||
-      (isArtVideoOrganization && hasPermission("site.view") && hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
+      (hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
     );
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");

@@ -2,6 +2,7 @@ import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useEffect, useState } from "react";
 import { CheckCircle2, Copy, RefreshCw, ShieldCheck } from "lucide-react";
 import { customerAccessRequest } from "@/lib/customer-access";
+import { useAuth } from "@/lib/auth";
 import { Section, AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 type State={
@@ -15,17 +16,20 @@ async function access(action:string,customerId:string,more:Record<string,unknown
 export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
   customerId:string;canManage:boolean;whatsapp?:string|null;
 }){
+  const {activeOrganization}=useAuth();
+  const isArtvideo=activeOrganization?.is_artvideo_tenant===true;
   const [state,setState]=useState<State|null>(null);
   const [confirmed,setConfirmed]=useState(false);
   const [busy,setBusy]=useState(false);
   const [message,setMessage]=useState("");
   const [link,setLink]=useState("");
   useEffect(()=>{
+    if(!isArtvideo)return;
     let active=true;
     access("staff_status",customerId).then(data=>{if(active)setState(data);})
       .catch(()=>{if(active)setMessage("Não foi possível consultar o acesso do cliente.");});
     return ()=>{active=false;};
-  },[customerId]);
+  },[customerId,isArtvideo]);
   async function run(action:"staff_invite"|"staff_revoke"){
     if(busy)return;
     setBusy(true);setMessage("");
@@ -45,6 +49,7 @@ export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
     }
     finally{setBusy(false);}
   }
+  if(!isArtvideo)return null;
   return <Section title="Acesso ao site">
     <div className="space-y-3 text-sm">
       <div className="flex flex-wrap items-center gap-2">

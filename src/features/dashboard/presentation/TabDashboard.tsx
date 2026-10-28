@@ -253,7 +253,7 @@ function CompactRow({ title, subtitle, aside, onClick }: { title: string; subtit
 }
 
 export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
-  const { activeOrganizationId, hasPermission } = useAuth();
+  const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const [returnState] = useState(() => consumeDashboardReturnState(activeOrganizationId));
   const [activeModule, setActiveModule] = useState<DashboardModule>(returnState?.activeModule || "overview");
   const [periodDays, setPeriodDays] = useState(returnState?.periodDays || 30);
@@ -268,8 +268,8 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     inventory: hasPermission("inventory.view"),
     inventoryCosts: hasPermission("inventory.costs.view"),
     agenda: hasPermission("agenda.view"),
-    quotes: hasPermission("quotes.view"),
-  }), [hasPermission]);
+    quotes: activeOrganization?.is_artvideo_tenant === true && hasPermission("quotes.view"),
+  }), [hasPermission, activeOrganization?.is_artvideo_tenant]);
   const modules = useMemo(() => [
     { id: "overview" as const, label: "Visão geral", icon: LayoutDashboard, visible: true },
     { id: "orders" as const, label: "Ordens de serviço", icon: ClipboardList, visible: access.orders },

@@ -172,7 +172,6 @@ export const moduleForTab: Record<AdminTab, string | null> = {
 };
 
 export const siteModuleKeys = [
-  "quotes",
   "site_categories",
   "site_brands",
   "site_services",
@@ -191,7 +190,6 @@ export const operationModuleKeys = [
   "service_types",
   "order_situations",
   "documents",
-  "quotes",
   "employees",
   "company_settings",
   "sac_digital",
