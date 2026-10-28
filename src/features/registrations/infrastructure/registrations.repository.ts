@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { findCustomerWhatsappConflict, duplicateWhatsappMessage } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
 export type RegistrationRole = "customer" | "employee" | "supplier";
@@ -232,6 +233,16 @@ export async function saveRegistration(input: SaveRegistrationInput) {
     }
   }
 
+  // Consulta antecipada; o trigger do banco protege gravações concorrentes.
+  // Na edição, o trigger compara o valor anterior e não bloqueia legados inalterados.
+  if (!input.id && input.roles.includes("customer") && input.entity.whatsapp) {
+    try {
+      const conflict = await findCustomerWhatsappConflict(input.organizationId, input.entity.whatsapp);
+      if (conflict) return { data: null, error: new Error(duplicateWhatsappMessage(conflict)) };
+    } catch (error) {
+      return { data: null, error: normalizeError(error) };
+    }
+  }
   const result = await supabase.rpc("save_registration", {
     p_registration_id: input.id || null,
     p_organization_id: input.organizationId,

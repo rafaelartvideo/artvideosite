@@ -1,4 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { findCustomerWhatsappConflict, duplicateWhatsappMessage, isDuplicateCustomerWhatsappError } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { useEffect, useState } from "react";
 import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import {
@@ -129,12 +130,24 @@ export function useCustomerDetails({ organizationId, canEdit, canEditAddress, lo
     setSavingCustomer(true);
     try {
       const payload = customerUpdatePayload(form);
+      const formatted = (number: unknown) => {
+        const raw = String(number || "").replace(/\D/g, "");
+        return raw.length >= 12 && raw.startsWith("55") ? raw.slice(2) : raw;
+      };
+      if (formatted(form.whatsapp) !== formatted(detail.whatsapp) && formatted(form.whatsapp)) {
+        const conflict = await findCustomerWhatsappConflict(organizationId, form.whatsapp, detail.id);
+        if (conflict) {
+          setFieldErrors(current => ({ ...current, whatsapp: duplicateWhatsappMessage(conflict) }));
+          return;
+        }
+      }
       await updateCustomer(organizationId, detail.id, payload);
       setDetail({ ...detail, ...payload });
       setEditingData(false);
       onToast("Dados do cliente atualizados.", "success");
       await onRefresh();
     } catch (error) {
+      if (isDuplicateCustomerWhatsappError(error)) setFieldErrors(current => ({ ...current, whatsapp: systemErrorMessage(error) }));
       onToast(`Erro ao salvar: ${systemErrorMessage(error)}`, "error");
     } finally {
       setSavingCustomer(false);

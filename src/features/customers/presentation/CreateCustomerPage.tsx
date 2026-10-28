@@ -26,6 +26,7 @@ type Props = {
   cnpjMessage: string;
   setCnpjMessage: Dispatch<SetStateAction<string>>;
   onLookupCnpj: (value: string, baseForm?: CustomerForm) => Promise<void>;
+  onWhatsappBlur: (whatsapp: string) => Promise<boolean>;
   onCreate: () => void;
   onClose: () => void;
 };
@@ -37,7 +38,7 @@ export function CreateCustomerPage(props: Props) {
     address: createAddress, setAddress: setCreateAddress, fieldErrors, setFieldErrors, saving, canCreate,
     cpfLoading, cpfError, setCpfError, cpfInputRef, onLookupCpf: lookupCreateCpf,
     cnpjLoading, cnpjMessage, setCnpjMessage,
-    onLookupCnpj: lookupCreateCnpj, onCreate, onClose,
+    onLookupCnpj: lookupCreateCnpj, onCreate, onClose, onWhatsappBlur,
   } = props;
   return <>
 {createOpen && (
@@ -68,7 +69,7 @@ export function CreateCustomerPage(props: Props) {
                 </>}
                 <FEmailInput label="E-mail" error={fieldErrors.email} value={createForm.email} onChange={(e: any) => { setFieldErrors(current => ({ ...current, email: undefined })); setCreateForm({ ...createForm, email: e.target.value }); }} />
                 <FPhoneInput label="Telefone" required error={fieldErrors.phone} value={createForm.phone} onChange={(e: any) => { setFieldErrors(current => ({ ...current, phone: undefined, whatsapp: undefined })); setCreateForm({ ...createForm, phone: e.target.value }); }} />
-                <FPhoneInput label="WhatsApp" mobile error={fieldErrors.whatsapp} value={createForm.whatsapp} onChange={(e: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm({ ...createForm, whatsapp: e.target.value }); }} />
+                <FPhoneInput label="WhatsApp" mobile error={fieldErrors.whatsapp} value={createForm.whatsapp} onChange={(e: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm({ ...createForm, whatsapp: e.target.value }); }} onBlur={() => void onWhatsappBlur(createForm.whatsapp)} />
               </div>
             </Section>
             <Section

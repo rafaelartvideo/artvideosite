@@ -1,4 +1,5 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { findCustomerWhatsappConflict, duplicateWhatsappMessage, isDuplicateCustomerWhatsappError } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { useRef, useState } from "react";
 import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
 import { isValidCpf } from "@/shared/domain/formatters";
@@ -104,6 +105,19 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     }
   };
 
+  const checkWhatsapp = async (whatsapp: string) => {
+    if (!organizationId || whatsapp.replace(/\D/g, "").length < 10) return false;
+    try {
+      const conflict = await findCustomerWhatsappConflict(organizationId, whatsapp);
+      if (!conflict) return false;
+      setFieldErrors(current => ({ ...current, whatsapp: duplicateWhatsappMessage(conflict) }));
+      return true;
+    } catch (error) {
+      onToast("Não foi possível verificar o WhatsApp: " + systemErrorMessage(error), "error");
+      return true; // Não criar se a verificação estiver indisponível.
+    }
+  };
+
   const create = async () => {
     if (!organizationId) {
       onToast("Selecione uma empresa ativa antes de cadastrar o cliente.", "error");
@@ -134,11 +148,14 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       }
     }
 
+    if (await checkWhatsapp(form.whatsapp)) return false;
+
     setSaving(true);
     let customer;
     try {
       customer = await createCustomer(organizationId, customerPayload(form));
     } catch (error) {
+      if (isDuplicateCustomerWhatsappError(error)) setFieldErrors(current => ({ ...current, whatsapp: systemErrorMessage(error) }));
       onToast(`Erro ao cadastrar: ${systemErrorMessage(error, "Cliente não criado.")}`, "error");
       setSaving(false);
       return false;
@@ -200,6 +217,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     closePage,
     lookupCpfName,
     lookupCnpj,
+    checkWhatsapp,
     create,
   };
 }
