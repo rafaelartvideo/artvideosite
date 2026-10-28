@@ -42,7 +42,7 @@ import { OrderDetailsPage } from "@/features/orders/presentation/OrderDetailsPag
 import { OrderEditorPage } from "@/features/orders/presentation/OrderEditorPage";
 import { OrdersListWorkspace } from "@/features/orders/presentation/OrdersListWorkspace";
 import { OrderWorkflowModals } from "@/features/orders/presentation/OrderWorkflowModals";
-import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, PageLoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminPage } from "@/shared/ui/admin/AdminLayout";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
@@ -730,7 +730,7 @@ export function TabOrders({
         onCancel={cancelQueueGate}
       />}
 
-      {routedDetailLoading && <LoadingState text="Carregando OS..." />}
+      {routedDetailLoading && <PageLoadingState text="Carregando OS" />}
       {!scopedReadOnly && editingRouteActive && !editingContentReady && (
         <AdminPage open fullPage smoothMotion={false}
           onClose={() => onOrderRouteChange?.(initialOrderId || null, null)}
@@ -741,6 +741,8 @@ export function TabOrders({
           </div>
         </AdminPage>
       )}
+
+      {!scopedReadOnly && initialOrderId === "new" && !formOpen && !queueGateOpen && !creatingDetailRouteRef.current && <PageLoadingState text="Preparando nova OS" />}
 
       <OrdersListWorkspace
         visible={!detailOnly && !initialOrderId && !editingRouteActive && !detail && !formOpen && !solveOpen}

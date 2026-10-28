@@ -26,7 +26,7 @@ import {
   PageHeader,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, PageLoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   closeFinancialCashSession,
   openFinancialCashSession,
@@ -283,7 +283,7 @@ export function TabPdv({
   };
 
   if (bootstrapQuery.isPending) {
-    return <div className="space-y-5"><PageHeader title="PDV" subtitle="Venda rápida, caixa e operação de balcão." /><AdminCard className="p-8"><LoadingState text="Carregando PDV..." /></AdminCard></div>;
+    return <PageLoadingState text="Carregando PDV" />;
   }
 
   const cashOptions = (bootstrap?.cash_accounts || []).map(account => ({ value: account.id, label: account.name }));
