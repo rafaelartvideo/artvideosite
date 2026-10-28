@@ -182,3 +182,36 @@ test("nota fiscal só abre após validação da OS e classificação no servidor
   assert.match(branch,/download:name/);
   assert.doesNotMatch(branch,/getPublicUrl|storage_path:|bucket_id:|service_role/);
 });
+
+test("abrir documento assinado valida cliente verificado pela OS, sem exigir entity_id redundante",()=>{
+  const edge=read("supabase/functions/artvideo-customer-access/index.ts");
+  const signed=edge.slice(edge.indexOf('if(action==="signed_document")'),
+    edge.indexOf('return response(request,fail("Operação inválida."'));
+  assert.match(signed,/portalAssetContext\(request,document\.service_order_id\)/);
+  assert.match(signed,/entry\.id===documentId&&entry\.type==="signature"/);
+  assert.doesNotMatch(signed,/account\.entity_id|\.eq\("customer_id",account/);
+  assert.match(signed,/document\.require_external_signature/);
+  assert.match(signed,/createSignedUrl\(path,120,options\)/);
+  assert.match(signed,/body\.download===true\?\{download:downloadName\}:undefined/);
+});
+
+test("imagens do equipamento, notas fiscais e PDFs assinados têm download com ícone e link novo",()=>{
+  const edge=read("supabase/functions/artvideo-customer-access/index.ts");
+  const details=read("src/features/customer-account/presentation/CustomerOrderDetailsModal.tsx");
+  const signatures=read("src/features/customer-account/presentation/CustomerSignatures.tsx");
+  const photos=edge.slice(edge.indexOf('if(action==="customer_order_media")'),
+    edge.indexOf('if(action==="customer_invoice_file")'));
+  assert.match(photos,/details\.photos/);
+  assert.match(photos,/media\.bucket_id!=="service-images"/);
+  assert.match(photos,/imageOptions=body\.download===true/);
+  assert.match(photos,/createSignedUrl\(media\.storage_path,120,imageOptions\)/);
+  assert.match(details,/function downloadPhoto|async function downloadPhoto/);
+  assert.match(details,/customer_order_media",\{order_id:order\.id,media_id:id,download:true\}/);
+  assert.match(details,/onClick=\{\(\)=>void downloadPhoto\(photo\.id\)\}/);
+  assert.match(details,/aria-label=\{"Baixar "\+\(photo\.name/);
+  assert.match(details,/customerAccessRequest\("signed_document",\{document_id:id,download\}\)/);
+  assert.match(details,/onClick=\{\(\)=>void \(invoice\?openInvoice\(doc\.id,true\):openSigned\(doc\.id,true\)\)\}/);
+  assert.match(details,/Baixar documento assinado/);
+  assert.match(signatures,/customerAccessRequest\("signed_document",\{document_id:item\.id,download\}\)/);
+  assert.match(signatures,/aria-label="Baixar documento assinado"/);
+});
