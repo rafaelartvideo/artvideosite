@@ -296,7 +296,7 @@ export function CustomerAccountPage() {
 
   const headings: Record<Tab, string> = {
     overview: "Visão geral", orders: "Meus pedidos",
-    quotes: "Meus orçamentos", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
+    quotes: "Meus orçamentos", service_orders:"Minhas OS", documents:"Documentos", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
   };
   const orders = portal?.orders || [];
   const quotes = portal?.quotes || [];
