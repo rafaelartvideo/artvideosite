@@ -378,6 +378,12 @@ test("abas técnicas alinhadas: badge compacto na mesma linha sem deslocar o ró
   assert.doesNotMatch(tabs, /flex-col-reverse/);
 });
 
+test("abrir mapa no Endereço usa apenas o ícone no mobile e mantém texto no desktop", () => {
+  assert.match(panel, /<Section title="Endereço" actions=\{addressMapUrl/);
+  assert.match(panel, /className="inline-flex h-9 w-9 shrink-0 items-center justify-center[^"]*sm:w-auto[^"]*"/);
+  assert.match(panel, /<MapPin size=\{15\} aria-hidden="true" \/><span className="hidden sm:inline">Abrir mapa<\/span>/);
+});
+
 test("imagens técnicas: botões alinhados lado a lado e vazio tracejado", () => {
   assert.ok(panel.includes('className="mb-3 grid min-w-0 grid-cols-2 gap-2"'));
   assert.ok(panel.includes('<BtnSecondary className="!min-w-0 !w-full'));
