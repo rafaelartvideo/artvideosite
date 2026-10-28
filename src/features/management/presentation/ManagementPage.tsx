@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, BriefcaseBusiness, Pencil, Archive, Eye, EyeOff, Layers, Trash2 } from "lucide-react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, Layers, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -22,12 +22,6 @@ const TYPES: {value:RecordEditKind;label:string}[] = [
   {value:"note",label:"Anotação"}, {value:"account",label:"Conta / acesso"},
   {value:"website",label:"Site / domínio"}, {value:"campaign",label:"Campanha"}, {value:"link",label:"Link"},
 ];
-const FOLDER_ICONS = [KeyRound, Globe, FileImage, File, Megaphone, FileText, BriefcaseBusiness];
-const FOLDER_LABELS = ["Contas e acessos","Sites e domínios","Imagens e mídias","Arquivos","Campanhas","Documentos","Projetos"];
-function folderIcon(name: string) {
-  const index=FOLDER_LABELS.indexOf(name);
-  return index<0 ? Folder : FOLDER_ICONS[index];
-}
 function formatDate(value:string) {
   return new Date(value).toLocaleDateString("pt-BR");
 }
@@ -276,7 +270,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         <div className="flex flex-wrap items-center gap-2">
           {selectedSpace&&<AdminButton variant="secondary" size="sm" onClick={()=>selectedFolder?navigateFolder(selectedFolder.parent_id):onRouteChange(null,null)}>Voltar</AdminButton>}
           {canManage&&(selectedSpace
-            ? <><AdminButton size="sm" variant="secondary" onClick={()=>openFolder()}>Nova pasta</AdminButton>
+            ? <><AdminButton size="sm" variant="primary" onClick={()=>openFolder()}><FolderPlus size={16} className="shrink-0"/>Nova pasta</AdminButton>
               {visibleFolderId&&<>
                 <AdminButton size="sm" variant="secondary" onClick={()=>uploadRef.current?.click()} loading={uploading}>Enviar arquivo</AdminButton>
                 <AdminButton size="sm" onClick={()=>openRecord()}>Novo registro</AdminButton>
@@ -302,36 +296,42 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         </div>}
         {loading || contentLoading ? <LoadingState text="Carregando Central de Gestão..."/> : !selectedSpace ? <>
           <h3 className="mb-3 text-sm font-bold text-foreground">Espaços</h3>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
-            {spaces.filter(s=>(s.name+" "+s.description).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(space=><div key={space.id}
-              className="group relative flex min-h-36 flex-col justify-between border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40">
-              <button type="button" className="absolute inset-0 z-0" aria-label={`Abrir ${space.name}`} onClick={()=>{setSearch("");onRouteChange(space.id,null);}}/>
-              <div className="pointer-events-none relative flex items-start justify-between gap-2">
-                <div style={{backgroundColor:space.accent_color}} className="flex h-12 w-12 shrink-0 items-center justify-center text-sm font-black text-white">
-                  {space.logo_path&&logoUrls[space.id]?<img className="h-full w-full object-cover" src={logoUrls[space.id]} alt={`Logo de ${space.name}`}/>:space.icon_text||space.name.slice(0,2).toUpperCase()}
+          <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {spaces.filter(s=>(s.name+" "+s.description).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(space=>
+              <div key={space.id} className="group relative min-w-0 pt-4" data-testid="management-space-folder">
+                <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-6 w-[42%] rounded-t-md border border-b-0 border-border bg-card transition-colors group-hover:border-primary/40 group-hover:bg-muted/40"/>
+                <div className="relative flex min-h-[178px] flex-col justify-between border border-border bg-card p-4 transition-colors group-hover:border-primary/40 group-hover:bg-muted/40">
+                  <button type="button" className="absolute inset-0 z-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                    aria-label={`Abrir ${space.name}`} onClick={()=>{setSearch("");onRouteChange(space.id,null);}}/>
+                  <div className="pointer-events-none relative z-10 flex items-start justify-between gap-2">
+                    <div style={{backgroundColor:space.accent_color}} className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-black text-white">
+                      {space.logo_path&&logoUrls[space.id]?<img className="h-full w-full rounded-full object-cover" src={logoUrls[space.id]} alt={`Logo de ${space.name}`}/>:space.icon_text||space.name.slice(0,2).toUpperCase()}
+                    </div>
+                    <Folder size={22} style={{color:space.accent_color}} className="shrink-0" fill="currentColor" fillOpacity={0.08}/>
+                  </div>
+                  <div className="pointer-events-none relative z-10 mt-3 min-w-0">
+                    <p className="truncate text-sm font-bold text-foreground">{space.name}{space.is_archived?" · Arquivado":""}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{space.description||"Espaço de trabalho"}</p>
+                  </div>
+                  {canManage&&<div className="relative z-20 mt-4 flex flex-wrap gap-2">
+                    <AdminButton variant="tertiary" size="sm" className="!rounded-none" aria-label={`Editar espaço ${space.name}`}
+                      onClick={()=>openSpace(space)}><Pencil size={14}/>Editar</AdminButton>
+                    <AdminButton variant="tertiary" size="sm" className="!rounded-none"
+                      aria-label={`${space.is_archived?"Restaurar":"Arquivar"} espaço ${space.name}`}
+                      onClick={()=>void archiveSpace(space)}><Archive size={14}/>{space.is_archived?"Restaurar":"Arquivar"}</AdminButton>
+                  </div>}
                 </div>
-                <Folder size={22} style={{color:space.accent_color}}/>
-              </div>
-              <div className="pointer-events-none relative mt-4 min-w-0">
-                <p className="truncate text-sm font-bold text-foreground">{space.name}{space.is_archived?" · Arquivado":""}</p>
-                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{space.description||"Espaço de trabalho"}</p>
-              </div>
-              {canManage&&<div className="absolute right-3 bottom-3 z-10 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100">
-                <button type="button" title="Editar espaço" aria-label="Editar espaço" className="rounded-md bg-card p-1.5 text-muted-foreground hover:text-primary" onClick={()=>openSpace(space)}><Pencil size={15}/></button>
-                <button type="button" title={space.is_archived?"Restaurar":"Arquivar"} aria-label={space.is_archived?"Restaurar":"Arquivar"} className="rounded-md bg-card p-1.5 text-muted-foreground hover:text-primary" onClick={()=>void archiveSpace(space)}><Archive size={15}/></button>
-              </div>}
-            </div>)}
+              </div>)}
           </div>
           {!spaces.length&&<p className="py-12 text-center text-sm text-muted-foreground">Nenhum espaço cadastrado.</p>}
         </> : <>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 xl:grid-cols-3">
             {folderChildren.map(folder=>{
-              const Icon=folderIcon(folder.name);
-              return <div key={folder.id} className="group relative flex min-w-0 items-center gap-3 border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted/30">
+              return <div key={folder.id} className="group relative flex min-w-0 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-primary/10 focus-within:bg-primary/10" data-testid="management-folder-row">
                 <button type="button" onClick={()=>navigateFolder(folder.id)}
                   className="absolute inset-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                   aria-label={`Abrir pasta ${folder.name}`}/>
-                <Icon size={25} className="pointer-events-none relative shrink-0 text-primary"/>
+                <Folder size={25} fill="currentColor" fillOpacity={0.12} className="pointer-events-none relative shrink-0 text-primary"/>
                 <span className="pointer-events-none relative min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{folder.name}</span>
                 {canManage&&<DropdownMenu>
                   <DropdownMenuTrigger asChild>
