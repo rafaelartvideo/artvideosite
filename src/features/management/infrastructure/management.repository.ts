@@ -11,6 +11,7 @@ export type ManagementFolder = {
 export type ManagementKind = "note" | "account" | "website" | "campaign" | "link" | "file";
 export type ManagementRecord = {
   id: string; space_id: string; folder_id: string; title: string; kind: ManagementKind;
+  deleted_at?: string | null; deleted_by?: string | null;
   description: string; url: string | null; metadata: Record<string, unknown>;
   storage_path: string | null; mime_type: string | null; size_bytes: number | null;
   created_at: string; updated_at: string;
@@ -50,7 +51,11 @@ export async function renameManagementFolder(id: string, name: string) {
   if (error) throw error;
 }
 export async function removeManagementFolder(id: string) {
-  const { error } = await supabase.from("management_folders").delete().eq("id",id);
+  const { error } = await supabase.rpc("management_trash_folder", { p_folder:id, p_restore:false });
+  if (error) throw error;
+}
+export async function restoreManagementFolder(id: string) {
+  const { error } = await supabase.rpc("management_trash_folder", { p_folder:id, p_restore:true });
   if (error) throw error;
 }
 export async function listManagementRecords(spaceId: string): Promise<ManagementRecord[]> {
@@ -72,31 +77,45 @@ export async function saveManagementRecord(input: {
   const query = input.id
     ? supabase.from("management_records").update(payload).eq("id",input.id)
     : supabase.from("management_records").insert(payload);
-  const {error} = await query;
+  const {data,error} = await query.select("id").single();
   if (error) throw error;
+  return (data as { id: string }).id;
 }
 export async function removeManagementRecord(record: ManagementRecord) {
-  if (record.storage_path) {
-    const {error} = await supabase.storage.from(BUCKET).remove([record.storage_path]);
-    if (error) throw error;
-  }
-  const {error} = await supabase.from("management_records").delete().eq("id",record.id);
+  // Lixeira recuperável: não apaga arquivos nem versões neste fluxo.
+  const {error} = await supabase.from("management_records")
+    .update({ deleted_at: new Date().toISOString() }).eq("id",record.id);
   if (error) throw error;
 }
-export async function uploadManagementFiles(spaceId: string, folderId: string, files: File[]) {
+export async function restoreManagementRecord(recordId: string) {
+  const {error} = await supabase.from("management_records")
+    .update({ deleted_at: null, deleted_by: null, deleted_batch_id: null }).eq("id",recordId);
+  if (error) throw error;
+}
+export async function uploadManagementFiles(spaceId: string, folderId: string, files: File[], campaignRecordId?: string) {
   for(const file of files) {
     if(file.size>25*1024*1024) throw new Error("O limite é de 25 MB por arquivo.");
     const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g,"").slice(0,10) || "bin";
     const path = `${spaceId}/${folderId}/${crypto.randomUUID()}.${extension}`;
     const uploaded = await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type || "application/octet-stream"});
     if(uploaded.error) throw uploaded.error;
-    const {error} = await supabase.from("management_records").insert({
+    const {data,error} = await supabase.from("management_records").insert({
       space_id:spaceId,folder_id:folderId,title:file.name,kind:"file",
       description:"",storage_path:path,mime_type:file.type || null,size_bytes:file.size,
-    });
+      metadata:campaignRecordId?{campaign_id:campaignRecordId}:{},
+    }).select("id").single();
     if(error) {
       await supabase.storage.from(BUCKET).remove([path]);
       throw error;
+    }
+    // Todo arquivo nasce com versão 1; versões futuras nunca sobrescrevem o original.
+    const {error:versionError} = await supabase.rpc("management_register_file_version",{
+      p_record:data.id,p_path:path,p_mime:file.type || "application/octet-stream",p_size:file.size,
+    });
+    if(versionError) {
+      await supabase.from("management_records").delete().eq("id",data.id);
+      await supabase.storage.from(BUCKET).remove([path]);
+      throw versionError;
     }
   }
 }
@@ -118,5 +137,87 @@ export async function uploadManagementLogo(spaceId: string, file: File, previous
   if(previousPath)await supabase.storage.from(BUCKET).remove([previousPath]);
 }
 export async function managementLogoUrl(path:string) {
-  return openManagementFile(path);
+  // Blob privado em memória evita que o logotipo pare de aparecer quando expira a URL assinada.
+  const {data,error}=await supabase.storage.from(BUCKET).download(path);
+  if(error)throw error;
+  return URL.createObjectURL(data);
+}
+
+export type ManagementActivity = {
+  id: number; space_id: string; entity_type: string; entity_id: string;
+  operation: string; label: string; actor_user_id: string | null; created_at: string;
+};
+export type ManagementFileVersion = {
+  id: string; record_id: string; version_no: number; storage_path: string;
+  mime_type: string | null; size_bytes: number; created_at: string;
+};
+export async function listManagementActivity(spaceId: string): Promise<ManagementActivity[]> {
+  const {data,error} = await supabase.from("management_activity").select("*")
+    .eq("space_id",spaceId).order("created_at",{ascending:false}).limit(100);
+  if(error) throw error;
+  return (data || []) as ManagementActivity[];
+}
+export async function listManagementFileVersions(recordId: string): Promise<ManagementFileVersion[]> {
+  const {data,error} = await supabase.from("management_file_versions").select("*")
+    .eq("record_id",recordId).order("version_no",{ascending:false});
+  if(error) throw error;
+  return (data || []) as ManagementFileVersion[];
+}
+export async function uploadManagementFileVersion(record: ManagementRecord, file: File) {
+  if(record.kind!=="file" || !record.storage_path) throw new Error("Registro de arquivo inválido.");
+  if(file.size>25*1024*1024) throw new Error("Limite de 25 MB por versão.");
+  const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g,"").slice(0,10) || "bin";
+  const path = `${record.space_id}/${record.folder_id}/${crypto.randomUUID()}.${extension}`;
+  const uploaded = await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type||"application/octet-stream"});
+  if(uploaded.error) throw uploaded.error;
+  const {error} = await supabase.rpc("management_register_file_version",{
+    p_record:record.id, p_path:path, p_mime:file.type||"application/octet-stream", p_size:file.size,
+  });
+  if(error) { await supabase.storage.from(BUCKET).remove([path]); throw error; }
+}
+export async function hasManagementCredential(recordId: string): Promise<boolean> {
+  const {data,error} = await supabase.rpc("management_vault_has_secret",{p_record:recordId});
+  if(error) throw error;
+  return data === true;
+}
+export async function saveManagementCredential(recordId: string, secret: string): Promise<void> {
+  const {error} = await supabase.rpc("management_vault_write",{p_record:recordId,p_secret:secret});
+  if(error) throw error;
+}
+export async function revealManagementCredential(recordId: string): Promise<string | null> {
+  const {data,error} = await supabase.rpc("management_vault_reveal",{p_record:recordId});
+  if(error) throw error;
+  return data as string | null;
+}
+export async function loadManagementTasks(spaceId: string) {
+  const {data,error} = await supabase.from("work_items")
+    .select("id,title,status,due_at,priority,created_at")
+    .eq("management_space_id",spaceId).order("created_at",{ascending:false}).limit(150);
+  if(error) throw error;
+  return (data||[]) as {id:string;title:string;status:string;due_at:string|null;priority:string;created_at:string}[];
+}
+export async function createManagementTask(input:{
+  organizationId:string;spaceId:string;title:string;dueAt:string|null;priority:"normal"|"high"|"urgent";
+}) {
+  const {error} = await supabase.from("work_items").insert({
+    organization_id:input.organizationId, management_space_id:input.spaceId,
+    title:input.title.trim(),kind:"task",status:"pending",priority:input.priority,
+    category:"Central de Gestão",description:"",due_at:input.dueAt,reminder_minutes:input.dueAt?[1440,60]:[],
+    assigned_employee_ids:[],
+  });
+  if(error) throw error;
+}
+
+export async function searchManagementRecords(term: string, spaceId?: string): Promise<ManagementRecord[]> {
+  // Remover metacaracteres de expressões PostgREST; não pesquisar conteúdo de credenciais.
+  const normalized=term.replace(/[^\p{L}\p{N}\s-]/gu," ").trim().replace(/\s+/g," ").slice(0,80);
+  if(normalized.length<3)return [];
+  let query=supabase.from("management_records").select("*")
+    .is("deleted_at",null)
+    .or(`title.ilike.%${normalized}%,description.ilike.%${normalized}%`)
+    .order("updated_at",{ascending:false}).limit(60);
+  if(spaceId)query=query.eq("space_id",spaceId);
+  const {data,error}=await query;
+  if(error)throw error;
+  return (data||[]) as ManagementRecord[];
 }

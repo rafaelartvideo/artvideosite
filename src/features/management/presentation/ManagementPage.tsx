@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, BriefcaseBusiness, Pencil, Archive } from "lucide-react";
+import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, BriefcaseBusiness, Pencil, Archive, Eye, EyeOff, Layers } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -9,6 +10,8 @@ import {
   createManagementFolder, createManagementSpace, listManagementFolders, listManagementRecords, listManagementSpaces, managementLogoUrl, uploadManagementLogo,
   openManagementFile, removeManagementFolder, removeManagementRecord, renameManagementFolder,
   saveManagementRecord, updateManagementSpace, uploadManagementFiles,
+  listManagementFileVersions, uploadManagementFileVersion, saveManagementCredential, revealManagementCredential,
+  searchManagementRecords, type ManagementFileVersion,
   type ManagementFolder, type ManagementKind, type ManagementRecord, type ManagementSpace,
 } from "../infrastructure/management.repository";
 
@@ -36,7 +39,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   spaceId?:string|null;folderId?:string|null;
   onRouteChange:(spaceId:string|null,folderId?:string|null)=>void;
 }) {
-  const {hasPermission}=useAuth();
+  const {hasPermission,activeOrganizationId}=useAuth();
   const canManage=hasPermission("platform.management.manage");
   const [spaces,setSpaces]=useState<ManagementSpace[]>([]);
   const [folders,setFolders]=useState<ManagementFolder[]>([]);
@@ -45,6 +48,8 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [contentLoading,setContentLoading]=useState(false);
   const [saving,setSaving]=useState(false);
   const [search,setSearch]=useState("");
+  const [searchResults,setSearchResults]=useState<ManagementRecord[]>([]);
+  const [searchLoading,setSearchLoading]=useState(false);
   const [dialog,setDialog]=useState<DialogKind>(null);
   const [editingSpace,setEditingSpace]=useState<ManagementSpace|null>(null);
   const [editingFolder,setEditingFolder]=useState<ManagementFolder|null>(null);
@@ -58,6 +63,15 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [kind,setKind]=useState<RecordEditKind>("note");
   const [url,setUrl]=useState("");
   const [accountUser,setAccountUser]=useState("");
+  const [metadata,setMetadata]=useState<Record<string,string>>({});
+  const [newSecret,setNewSecret]=useState("");
+  const [showSecret,setShowSecret]=useState(false);
+  const [vaultRecord,setVaultRecord]=useState<ManagementRecord|null>(null);
+  const [vaultValue,setVaultValue]=useState<string|null>(null);
+  const [vaultLoading,setVaultLoading]=useState(false);
+  const [versionsRecord,setVersionsRecord]=useState<ManagementRecord|null>(null);
+  const [versions,setVersions]=useState<ManagementFileVersion[]>([]);
+  const [versionsLoading,setVersionsLoading]=useState(false);
   const [actionMenu,setActionMenu]=useState<string|null>(null);
   const [uploading,setUploading]=useState(false);
   const [revision,setRevision]=useState(0);
@@ -65,10 +79,10 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const selectedSpace=spaces.find(s=>s.id===spaceId)||null;
   const selectedFolder=folders.find(f=>f.id===folderId)||null;
   const visibleFolderId=selectedFolder?.id||null;
-  const folderChildren=useMemo(()=>folders.filter(f=>f.parent_id===visibleFolderId)
+  const folderChildren=useMemo(()=>folders.filter(f=>f.parent_id===visibleFolderId && !f.deleted_at)
     .filter(f=>f.name.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")))
     .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")), [folders,visibleFolderId,search]);
-  const visibleRecords=useMemo(()=>records.filter(r=>r.folder_id===visibleFolderId)
+  const visibleRecords=useMemo(()=>records.filter(r=>r.folder_id===visibleFolderId && !r.deleted_at)
     .filter(r=>(r.title+" "+r.description).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")))
     .sort((a,b)=>a.title.localeCompare(b.title,"pt-BR")), [records,visibleFolderId,search]);
   const crumbs=useMemo(()=>{
@@ -91,10 +105,17 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   },[revision]);
   useEffect(()=>{
     let active=true;
-    Promise.all(spaces.filter(s=>s.logo_path).map(async s=>[s.id,await managementLogoUrl(s.logo_path!)] as const))
-      .then(items=>{if(active)setLogoUrls(Object.fromEntries(items));})
-      .catch(()=>{if(active)setLogoUrls({});});
-    return()=>{active=false;};
+    let allocated:string[]=[];
+    Promise.all(spaces.filter(s=>s.logo_path).map(async space=>{
+      try{return [space.id,await managementLogoUrl(space.logo_path!)] as const;}
+      catch{return null;}
+    })).then(items=>{
+      const images=items.filter((entry):entry is readonly [string,string]=>entry!==null);
+      if(!active){images.forEach(([,url])=>URL.revokeObjectURL(url));return;}
+      allocated=images.map(([,url])=>url);
+      setLogoUrls(Object.fromEntries(images));
+    });
+    return()=>{active=false;allocated.forEach(url=>URL.revokeObjectURL(url));};
   },[spaces]);
   useEffect(()=>{
     if(!spaceId){setFolders([]);setRecords([]);return;}
@@ -106,9 +127,23 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     return()=>{current=false;};
   },[spaceId,revision]);
 
+  useEffect(()=>{
+    if(search.trim().length<3){setSearchResults([]);setSearchLoading(false);return;}
+    let cancelled=false;
+    setSearchLoading(true);
+    const timer=window.setTimeout(()=>{
+      searchManagementRecords(search,spaceId||undefined)
+        .then(items=>{if(!cancelled)setSearchResults(items);})
+        .catch(error=>{if(!cancelled)notifyAdmin(systemErrorMessage(error,"Não foi possível buscar registros."),"error");})
+        .finally(()=>{if(!cancelled)setSearchLoading(false);});
+    },280);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[search,spaceId,revision]);
+
   const resetForm=()=>{
     setName("");setDescription("");setIconText("");setAccent("#1032DC");setLogoFile(null);
-    setKind("note");setUrl("");setAccountUser("");setEditingSpace(null);setEditingFolder(null);setEditingRecord(null);
+    setKind("note");setUrl("");setAccountUser("");setMetadata({});setNewSecret("");setShowSecret(false);
+    setEditingSpace(null);setEditingFolder(null);setEditingRecord(null);
   };
   const openSpace=(space?:ManagementSpace)=>{
     resetForm();if(space){setEditingSpace(space);setName(space.name);setDescription(space.description);setIconText(space.icon_text);setAccent(space.accent_color);}
@@ -123,6 +158,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       if(record.kind==="file")return;
       setEditingRecord(record);setName(record.title);setDescription(record.description);setKind(record.kind);
       setUrl(record.url||"");setAccountUser(String(record.metadata?.username||""));
+      setMetadata(Object.fromEntries(Object.entries(record.metadata||{}).filter((entry):entry is [string,string]=>typeof entry[1]==="string")));
     }setDialog("record");
   };
   const close=()=>{if(!saving){setDialog(null);resetForm();}};
@@ -140,9 +176,11 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         if(editingFolder)await renameManagementFolder(editingFolder.id,name.trim());
         else await createManagementFolder(spaceId,visibleFolderId,name.trim());
       } else if(dialog==="record"&&spaceId&&visibleFolderId){
-        await saveManagementRecord({id:editingRecord?.id,space_id:spaceId,folder_id:visibleFolderId,
+        const recordId=await saveManagementRecord({id:editingRecord?.id,space_id:spaceId,folder_id:visibleFolderId,
           title:name.trim(),kind,description:description.trim(),url:url.trim()||null,
-          metadata:kind==="account"?{username:accountUser.trim()}:{}});
+          metadata:kind==="account"?{username:accountUser.trim()}:
+            kind==="website"||kind==="campaign"?metadata:{}});
+        if(kind==="account"&&newSecret)await saveManagementCredential(recordId,newSecret);
       }
       notifyAdmin("Registro salvo.");
       setDialog(null);resetForm();refresh();
@@ -155,13 +193,13 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     catch(error){notifyAdmin(systemErrorMessage(error),"error");}
   };
   const deleteFolder=async(folder:ManagementFolder)=>{
-    if(!window.confirm(`Excluir a pasta "${folder.name}" e todo o seu conteúdo? Esta ação não pode ser desfeita.`))return;
-    try{await removeManagementFolder(folder.id);refresh();notifyAdmin("Pasta excluída.");}
+    if(!window.confirm(`Mover a pasta "${folder.name}" e seu conteúdo para a lixeira?`))return;
+    try{await removeManagementFolder(folder.id);refresh();notifyAdmin("Pasta movida para a lixeira.");}
     catch(error){notifyAdmin(systemErrorMessage(error),"error");}
   };
   const deleteRecord=async(record:ManagementRecord)=>{
-    if(!window.confirm(`Excluir "${record.title}" definitivamente?`))return;
-    try{await removeManagementRecord(record);refresh();notifyAdmin("Registro excluído.");}
+    if(!window.confirm(`Mover "${record.title}" para a lixeira?`))return;
+    try{await removeManagementRecord(record);refresh();notifyAdmin("Registro movido para a lixeira.");}
     catch(error){notifyAdmin(systemErrorMessage(error),"error");}
   };
   const upload=async(files:FileList|null)=>{
@@ -179,9 +217,42 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível abrir o arquivo."),"error");}
   };
   const navigateFolder=(id:string|null)=>{setSearch("");setActionMenu(null);onRouteChange(spaceId||null,id);};
+  const setDetail=(key:string,value:string)=>setMetadata(current=>({...current,[key]:value}));
+  const openVault=(record:ManagementRecord)=>{setVaultRecord(record);setVaultValue(null);};
+  const closeVault=()=>{setVaultValue(null);setVaultRecord(null);};
+  useEffect(()=>{
+    if(!vaultValue)return;
+    const timer=window.setTimeout(()=>setVaultValue(null),30_000);
+    return()=>window.clearTimeout(timer);
+  },[vaultValue]);
+  const revealVault=async()=>{
+    if(!vaultRecord||vaultLoading)return;
+    setVaultLoading(true);
+    try{setVaultValue(await revealManagementCredential(vaultRecord.id)||"Nenhuma senha cadastrada.");}
+    catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível acessar o cofre."),"error");}
+    finally{setVaultLoading(false);}
+  };
+  const openVersions=async(record:ManagementRecord)=>{
+    setVersionsRecord(record);setVersions([]);setVersionsLoading(true);
+    try{setVersions(await listManagementFileVersions(record.id));}
+    catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível carregar as versões."),"error");}
+    finally{setVersionsLoading(false);}
+  };
+  const uploadVersion=async(file:File|null)=>{
+    if(!file||!versionsRecord)return;
+    setVersionsLoading(true);
+    try{
+      await uploadManagementFileVersion(versionsRecord,file);
+      setVersions(await listManagementFileVersions(versionsRecord.id));
+      refresh();notifyAdmin("Nova versão salva.");
+    }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível enviar a versão."),"error");}
+    finally{setVersionsLoading(false);}
+  };
 
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Central de Gestão" subtitle="Organize seus projetos, contas, sites, arquivos e campanhas em um só lugar."/>
+    {selectedSpace&&<ManagementWorkspaceTools space={selectedSpace} folders={folders} records={records}
+      canManage={canManage} organizationId={activeOrganizationId} onRefresh={refresh}/>}
     <AdminCard>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
@@ -210,9 +281,18 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       <div className="p-4 sm:p-5">
         <div className="relative mb-5 max-w-lg">
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedSpace?"Buscar nesta pasta...":"Buscar espaços..."}
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedSpace?"Buscar em todas as pastas...":"Buscar espaços e registros..."}
             className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"/>
         </div>
+        {search.trim().length>=3&&<div className="mb-4 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-xs font-semibold text-foreground">{searchLoading?"Pesquisando registros...":`${searchResults.length} resultado(s) em ${selectedSpace?"todas as pastas":"todos os espaços"}`}</p>
+          {searchResults.map(result=><button key={result.id} type="button" className="flex w-full items-center gap-2 rounded-lg border border-border bg-card p-2 text-left text-xs hover:border-primary/40"
+            onClick={()=>{setSearch("");onRouteChange(result.space_id,result.folder_id);}}>
+            <FileText size={15} className="text-primary"/><span className="min-w-0 flex-1 truncate font-semibold">{result.title}</span>
+            <span className="text-muted-foreground">{spaces.find(sp=>sp.id===result.space_id)?.name||"Espaço"}</span>
+          </button>)}
+          {!searchLoading&&!searchResults.length&&<p className="py-3 text-center text-xs text-muted-foreground">Nenhum registro encontrado.</p>}
+        </div>}
         {loading || contentLoading ? <LoadingState text="Carregando Central de Gestão..."/> : !selectedSpace ? <>
           <h3 className="mb-3 text-sm font-bold text-foreground">Espaços</h3>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
@@ -268,6 +348,10 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
                   </span>
                 </button>
                 {record.url&&/^https?:\/\//i.test(record.url)&&<a className="rounded p-2 text-xs font-semibold text-primary hover:underline" href={record.url} target="_blank" rel="noopener noreferrer">Abrir</a>}
+                {record.kind==="account"&&canManage&&<button type="button" onClick={()=>openVault(record)}
+                  className="rounded-md border border-border p-2 text-primary" title="Visualizar senha no cofre" aria-label={`Cofre: ${record.title}`}><KeyRound size={16}/></button>}
+                {record.kind==="file"&&<button type="button" onClick={()=>void openVersions(record)}
+                  className="rounded-md border border-border p-2 text-primary" title="Histórico de versões" aria-label={`Versões: ${record.title}`}><Layers size={16}/></button>}
                 {canManage&&<button type="button" aria-label={`Excluir ${record.title}`} title="Excluir registro" onClick={()=>void deleteRecord(record)} className="rounded p-2 text-xs text-muted-foreground hover:text-red-600">Excluir</button>}
               </div>;
             })}
@@ -301,10 +385,67 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
             <FInput label="Endereço / URL (opcional)" disabled={!canManage} value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://"/>}
           {kind==="account"&&<>
             <FInput label="Usuário ou e-mail da conta" disabled={!canManage} value={accountUser} onChange={e=>setAccountUser(e.target.value)}/>
-            <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-foreground">Não cadastre senhas, tokens ou chaves secretas aqui. Um cofre de credenciais será integrado separadamente.</p>
+            <label className="block space-y-1 text-xs font-semibold text-foreground">Senha protegida (opcional)
+              <div className="flex gap-2"><input autoComplete="new-password" type={showSecret?"text":"password"} value={newSecret}
+                onChange={e=>setNewSecret(e.target.value)} maxLength={4096} placeholder={editingRecord?"Preencha somente para substituir":"Cadastrar no cofre"}
+                className="h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm"/>
+                <button type="button" aria-label={showSecret?"Ocultar senha":"Mostrar senha"} onClick={()=>setShowSecret(x=>!x)}
+                  className="rounded-lg border border-border px-3">{showSecret?<EyeOff size={16}/>:<Eye size={16}/>}</button></div>
+            </label>
+            <p className="text-xs text-muted-foreground">A senha é cifrada pelo Supabase Vault no servidor; nunca aparece em anotações, versões ou histórico. Apenas usuários com permissão de gestão podem revelá-la.</p>
           </>}
+          {kind==="website"&&<div className="grid gap-3 sm:grid-cols-2">
+            <FInput label="Registrador do domínio" value={metadata.registrar||""} onChange={e=>setDetail("registrar",e.target.value)}/>
+            <FInput label="Hospedagem / provedor" value={metadata.hosting||""} onChange={e=>setDetail("hosting",e.target.value)}/>
+            <label className="block space-y-1 text-xs font-semibold">Renovação do domínio<input type="date" value={metadata.renewal_date||""}
+              onChange={e=>setDetail("renewal_date",e.target.value)} className="h-10 w-full rounded-lg border border-border bg-card px-3"/></label>
+            <label className="block space-y-1 text-xs font-semibold">Vencimento SSL<input type="date" value={metadata.ssl_expires_at||""}
+              onChange={e=>setDetail("ssl_expires_at",e.target.value)} className="h-10 w-full rounded-lg border border-border bg-card px-3"/></label>
+            <FInput label="Valor da renovação (R$)" value={metadata.renewal_amount||""} onChange={e=>setDetail("renewal_amount",e.target.value.replace(/[^0-9.,]/g,""))}/>
+            <FInput label="DNS / observações técnicas" value={metadata.dns||""} onChange={e=>setDetail("dns",e.target.value)}/>
+          </div>}
+          {kind==="campaign"&&<div className="grid gap-3 sm:grid-cols-2">
+            <FInput label="Plataforma" value={metadata.platform||""} onChange={e=>setDetail("platform",e.target.value)} placeholder="Instagram, Google Ads..."/>
+            <FInput label="Objetivo" value={metadata.objective||""} onChange={e=>setDetail("objective",e.target.value)}/>
+            <label className="block space-y-1 text-xs font-semibold">Início<input type="date" value={metadata.campaign_start||""}
+              onChange={e=>setDetail("campaign_start",e.target.value)} className="h-10 w-full rounded-lg border border-border bg-card px-3"/></label>
+            <label className="block space-y-1 text-xs font-semibold">Fim<input type="date" value={metadata.campaign_end||""}
+              onChange={e=>setDetail("campaign_end",e.target.value)} className="h-10 w-full rounded-lg border border-border bg-card px-3"/></label>
+            <FInput label="Orçamento (R$)" value={metadata.budget||""} onChange={e=>setDetail("budget",e.target.value.replace(/[^0-9.,]/g,""))}/>
+            <label className="block space-y-1 text-xs font-semibold">Situação<select value={metadata.campaign_status||"Planejada"}
+              onChange={e=>setDetail("campaign_status",e.target.value)} className="h-10 w-full rounded-lg border border-border bg-card px-3 text-sm">
+              <option>Planejada</option><option>Ativa</option><option>Pausada</option><option>Concluída</option><option>Cancelada</option>
+            </select></label>
+            <div className="sm:col-span-2"><FTextarea label="Resultados / indicadores" value={metadata.result||""} onChange={e=>setDetail("result",e.target.value)}/></div>
+          </div>}
           <FTextarea label="Descrição / observações" disabled={!canManage} value={description} onChange={e=>setDescription(e.target.value)}/>
         </>}
+      </div>
+    </AdminDialog>
+    <AdminDialog open={vaultRecord!==null} title={vaultRecord?"Cofre · "+vaultRecord.title:"Cofre"} onClose={closeVault}
+      footer={<AdminButton variant="secondary" onClick={closeVault}>Fechar</AdminButton>}>
+      <div className="space-y-3">
+        <p className="text-xs text-muted-foreground">Revelação restrita a gestores da Union e registrada no histórico. O conteúdo é ocultado automaticamente após 30 segundos.</p>
+        {vaultValue!==null?<div role="status" className="break-all rounded-lg border border-border bg-muted p-3 font-mono text-sm text-foreground">{vaultValue}</div>
+          :<div className="py-3 text-center text-sm text-muted-foreground">Senha oculta</div>}
+        <AdminButton loading={vaultLoading} disabled={!canManage} onClick={()=>void revealVault()}><Eye size={15}/>Visualizar senha</AdminButton>
+      </div>
+    </AdminDialog>
+    <AdminDialog open={versionsRecord!==null} title={versionsRecord?"Versões · "+versionsRecord.title:"Versões"} onClose={()=>setVersionsRecord(null)}
+      footer={<AdminButton variant="secondary" onClick={()=>setVersionsRecord(null)}>Fechar</AdminButton>}>
+      <div className="space-y-3">
+        {canManage&&<label className="block space-y-2 text-xs font-semibold">Enviar nova versão (até 25 MB)
+          <input type="file" disabled={versionsLoading} onChange={e=>{void uploadVersion(e.target.files?.[0]||null);e.target.value="";}}
+            className="block w-full rounded-lg border border-border p-2 text-xs"/>
+        </label>}
+        {versionsLoading?<LoadingState text="Carregando versões"/>:versions.length?
+          versions.map(version=><div key={version.id} className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <div><p className="text-sm font-semibold">Versão {version.version_no}</p><p className="text-xs text-muted-foreground">
+              {formatFileSize(version.size_bytes)} · {formatDate(version.created_at)}</p></div>
+            <AdminButton size="sm" variant="secondary" onClick={()=>void openManagementFile(version.storage_path)
+              .then(url=>window.open(url,"_blank","noopener,noreferrer"))
+              .catch(error=>notifyAdmin(systemErrorMessage(error,"Não foi possível abrir."),"error"))}>Abrir</AdminButton>
+          </div>):<p className="py-6 text-center text-sm text-muted-foreground">Nenhuma versão encontrada.</p>}
       </div>
     </AdminDialog>
   </div>;
