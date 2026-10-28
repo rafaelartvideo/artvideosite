@@ -1,8 +1,12 @@
 import { createClient } from "@supabase/supabase-js";
 import { projectId, publicAnonKey } from "../../utils/supabase/info";
 
+declare const __APP_TARGET__: "site" | "crm" | "combined";
+
 export const supabaseUrl = `https://${projectId}.supabase.co`;
 
+// Esta política de sessão de navegador é EXCLUSIVA do CRM Union.
+// Clientes do site usam a persistência padrão do Supabase (com renovação automática).
 // O marcador é um cookie de SESSÃO (sem Max-Age/Expires): funciona em todas
 // as abas da origem, mas desaparece ao encerrar a sessão do navegador.
 // Os tokens continuam no localStorage para sincronização entre abas, porém
@@ -80,7 +84,7 @@ export const supabase = createClient(supabaseUrl, publicAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: persistentAuthStorage,
+    storage: __APP_TARGET__ === "site" ? undefined : persistentAuthStorage,
   },
 });
 
