@@ -466,7 +466,7 @@ export function PartnerCompanyEditorPage({
               <FInput label="Nome completo" required error={errors.name} value={form.name} onChange={(event: any) => setField("name", event.target.value)} />
               <FInput label="Data de nascimento" type="date" required max={todayDateOnly()} error={errors.birthDate} value={form.birthDate} onChange={(event: any) => setField("birthDate", event.target.value)} />
               <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
-              <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
+              <FPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => setField("whatsapp",phone)} error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
               <div className="min-w-0 md:col-span-2"><FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} /></div>
             </> : <>
               <FCnpjInput
@@ -482,7 +482,7 @@ export function PartnerCompanyEditorPage({
               <FInput label="Inscrição estadual" value={form.stateRegistration} onChange={(event: any) => setField("stateRegistration", event.target.value)} />
               <FInput label="Inscrição municipal" value={form.municipalRegistration} onChange={(event: any) => setField("municipalRegistration", event.target.value)} />
               <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(event: any) => setField("phone", event.target.value)} />
-              <FPhoneInput label="WhatsApp" mobile error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
+              <FPhoneInput label="WhatsApp" mobile copyFromPhone={form.phone} onCopyPhone={phone => setField("whatsapp",phone)} error={errors.whatsapp} value={form.whatsapp} onChange={(event: any) => setField("whatsapp", event.target.value)} />
               <FEmailInput label="E-mail" error={errors.email} value={form.email} onChange={(event: any) => setField("email", event.target.value)} />
             </>}
           </div>
