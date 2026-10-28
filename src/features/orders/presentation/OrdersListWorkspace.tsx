@@ -10,6 +10,7 @@ import type { useOrderServiceAddress } from "../application/useOrderServiceAddre
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 
 type PermissionCheck = (permission: string) => boolean;
 
@@ -134,7 +135,7 @@ export function OrdersListWorkspace(props: Props) {
       }}>Tentar novamente</AdminButton>
     </div>}
 
-    {(filters.error || workspace.error) && !filteredOrders.length && !loading ? null : resolvedDisplayMode === "list" ? <OrdersTable
+    {filters.error && !filteredOrders.length && !loading ? null : resolvedDisplayMode === "list" ? <OrdersTable
       loading={loading}
       filteredOrders={filteredOrders}
       pagedOrders={pagedOrders}
@@ -153,7 +154,7 @@ export function OrdersListWorkspace(props: Props) {
       totalPages={totalPages}
       onPageChange={(nextPage) => setPage(Math.max(1, Math.min(nextPage, totalPages)))}
       onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }}
-    /> : <>
+    /> : workspace.loading ? <LoadingState text="Preparando quadro de ordens" /> : <>
       <OrdersKanban
         filteredOrders={filteredOrders}
         situations={situations}
