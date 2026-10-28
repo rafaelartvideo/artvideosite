@@ -26,6 +26,7 @@ export type UnionWhatsAppConversation = {
   forwarded_by_name: string | null;
   forwarded_to_name: string | null;
   forwarded_at: string | null;
+  viewer_participating?: boolean;
 };
 
 export type UnionWhatsAppProtocol = {
@@ -124,11 +125,17 @@ export async function listUnionWhatsAppConversations(
   options:{filter:UnionWhatsAppInboxFilter;department:string;search:string;page:number;viewerId?:string;canViewAll?:boolean},
 ):Promise<{items:UnionWhatsAppConversation[];hasMore:boolean}>{
   const page=Math.max(0,Math.floor(options.page));
+  // RLS exposes only the current operator's membership. Embed it in the same
+  // paginated request to avoid one participation lookup per conversation.
   let query=supabase.from("union_whatsapp_conversations")
-    .select(columns)
+    .select(`${columns},viewer_membership:union_whatsapp_conversation_participants(user_id,status)`)
     .eq("organization_id",organizationId)
     .eq("channel_id",channelId)
     .eq("account_phone",accountPhone);
+  if(options.viewerId){
+    query=query.eq("viewer_membership.user_id",options.viewerId)
+      .eq("viewer_membership.status","active");
+  }
   if(options.filter==="forwarded"){
     query=query.not("forwarded_at","is",null).neq("status","finished").neq("status","abandoned");
     // The sender does not retain an operator inbox entry after handing off.
@@ -166,8 +173,16 @@ export async function listUnionWhatsAppConversations(
     .order("id",{ascending:options.filter==="waiting"})
     .range(page*INBOX_PAGE_SIZE,(page+1)*INBOX_PAGE_SIZE);
   raise(error);
-  const entries=(data||[]) as UnionWhatsAppConversation[];
-  return {items:entries.slice(0,INBOX_PAGE_SIZE),hasMore:entries.length>INBOX_PAGE_SIZE};
+  const entries=(data||[]) as Array<UnionWhatsAppConversation & {
+    viewer_membership?: Array<{user_id:string;status:string}>;
+  }>;
+  const items=entries.slice(0,INBOX_PAGE_SIZE).map(({viewer_membership,...conversation})=>({
+    ...conversation,
+    viewer_participating:conversation.status==="in_att" &&
+      Boolean(options.viewerId && conversation.assigned_to!==options.viewerId &&
+        viewer_membership?.some(member=>member.user_id===options.viewerId && member.status==="active")),
+  }));
+  return {items,hasMore:entries.length>INBOX_PAGE_SIZE};
 }
 
 // Carrega pontualmente o atendimento aberto por um atalho, mesmo quando
