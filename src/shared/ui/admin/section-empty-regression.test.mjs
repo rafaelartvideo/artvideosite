@@ -30,3 +30,27 @@ test("telas legadas e resumos de OS também usam estado vazio padronizado",()=>{
  assert.match(completion,/<AdminSectionEmpty compact>Nenhum endereço cadastrado para este cliente\.<\/AdminSectionEmpty>/);
  assert.match(services,/<AdminSectionEmpty compact>Ainda não informado\.<\/AdminSectionEmpty>/);
 });
+
+
+test("páginas roteadas do CRM usam transição única sem deslize ou CSS injetado a cada abertura",()=>{
+ const ui=read("src/shared/ui/admin/AdminLayout.tsx");
+ const css=read("src/styles/index.css");
+ const admin=read("src/app/Admin.tsx");
+ const editor=read("src/features/orders/presentation/OrderEditorPage.tsx");
+ assert.match(ui,/pointer-events-none animate-out fade-out duration-150 ease-out/);
+ assert.match(ui,/animate-in fade-in duration-150 ease-out/);
+ assert.doesNotMatch(ui,/slide-in-from-right-4|slide-out-to-right-4/);
+ assert.doesNotMatch(ui,/<style>\{\x60@media/);
+ assert.match(css,/\.admin-page-mobile-safe \.sticky\.bottom-0/);
+ assert.match(css,/\.admin-page-mobile-safe:has\(\.sticky\.bottom-0\) > div/);
+ assert.match(admin,/useLayoutEffect\(\(\) => \{\s*const root = contentRef\.current/);
+ assert.match(admin,/root\.scrollTop = 0/);
+ assert.match(editor,/<AdminPage open onClose=\{closePage\}/);
+});
+
+test("Esc fecha o modal prioritário sem fazer a página do CRM desaparecer",()=>{
+ const ui=read("src/shared/ui/admin/AdminLayout.tsx");
+ assert.match(ui,/event\.defaultPrevented/);
+ assert.match(ui,/\[role="dialog"\]\[data-state="open"\]/);
+ assert.match(ui,/requestClose\(\)/);
+});
