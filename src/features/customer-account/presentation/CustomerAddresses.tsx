@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, House, MapPin, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
 import { formatSiteZip, listSiteAddresses, removeSiteAddress, saveSiteAddress, type SiteAddress, type SiteAddressInput } from "../infrastructure/customer-account-settings.repository";
 import { CustomerFeedbackToast, type CustomerFeedback } from "./CustomerFeedbackToast";
+import { CustomerSectionLoading } from "./CustomerSectionLoading";
 
 const emptyAddress: SiteAddressInput = { label: "Casa", postal_code: "", street: "", number: "",
   complement: "", district: "", city: "", state: "", is_default: false };
@@ -85,7 +86,7 @@ export function CustomerAddresses({ userId }: { userId: string }) {
       </div>
       {!form && <button type="button" className={buttonClass+" shrink-0 bg-[var(--art-primary)] text-white hover:bg-blue-800"} onClick={() => openForm()}><Plus size={16}/> Novo endereço</button>}
     </div>
-    {query.isLoading && <p className="text-[13px] text-[#73849a]"><RefreshCw size={15} className="mr-2 inline animate-spin"/>Carregando endereços...</p>}
+    {query.isLoading && <CustomerSectionLoading label="Carregando meus endereços..."/>}
     {query.isError && <button type="button" onClick={() => void query.refetch()} className="text-[13px] text-[var(--art-primary)]">Tentar novamente</button>}
     {!query.isLoading && !query.isError && !form && addresses.length === 0 && <div className="rounded-xl border border-dashed border-[#dbe5f1] bg-white px-5 py-10 text-center">
       <MapPin size={27} className="mx-auto mb-3 text-[#93a9c4]"/>
