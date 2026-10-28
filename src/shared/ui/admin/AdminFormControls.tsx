@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { Check, Copy } from "lucide-react";
 import type { CustomerType } from "@/features/customers/domain/customer-form";
 import {
   cn,
@@ -8,10 +9,12 @@ import {
   formatCurrency,
   formatPhone,
   formatPhoneInput,
+  isValidBrazilianMobile,
   normalizeDecimalInput,
   normalizeIntegerInput,
 } from "@/shared/domain/formatters";
 import { Switch } from "@/shared/ui/primitives/switch";
+import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/primitives/select";
 
 export const INPUT = "admin-input w-full min-w-0 rounded-lg border border-border bg-muted/55 px-3 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 hover:border-border focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/25";
@@ -51,7 +54,7 @@ export function AdminSelect({ value, defaultValue, onValueChange, options, disab
 
 export function FInput({ label, required, hint, error, disabled = false, ...props }: { label?: string; required?: boolean; hint?: string; error?: string; disabled?: boolean; [key: string]: any }) {
   const isColorInput = props.type === "color";
-  const { className, type, onChange, value, ...restProps } = props;
+  const { className, type, onChange, value, rightAction, ...restProps } = props;
   const commonClassName = cn(INPUT, disabled && "disabled:cursor-default disabled:bg-muted disabled:text-muted-foreground disabled:opacity-65 disabled:hover:bg-muted disabled:focus:ring-0", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40", className);
   const colorText = String(value ?? "");
   const pickerColor = /^#[0-9A-Fa-f]{6}$/.test(colorText.trim()) ? colorText.trim() : "#1032DC";
@@ -79,13 +82,47 @@ export function FInput({ label, required, hint, error, disabled = false, ...prop
         onChange={(event) => onChange?.({ target: { value: event.target.value.toUpperCase() } })}
         className="h-[42px] w-14 shrink-0 cursor-pointer rounded-lg border border-border bg-card p-1 disabled:cursor-default disabled:opacity-60"
       />
-    </div> : <input aria-invalid={Boolean(error) || undefined} className={commonClassName} disabled={disabled} {...restProps} type={type} value={value} onChange={onChange} />}
+    </div> : <div className="relative min-w-0"><input aria-invalid={Boolean(error) || undefined} className={cn(commonClassName, rightAction && "pr-12")} disabled={disabled} {...restProps} type={type} value={value} onChange={onChange} />{rightAction && <div className="absolute inset-y-0 right-1 flex items-center">{rightAction}</div>}</div>}
     {error ? <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p> : (hint || isColorInput) && <p className="mt-1 break-words text-[10px] leading-relaxed text-muted-foreground">{hint || "Digite o HEX ou clique no seletor de cor."}</p>}
   </div>;
 }
 
-export function FPhoneInput({ value, onChange, mobile = false, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; mobile?: boolean; [key: string]: any }) {
-  return <FInput {...props} type="tel" inputMode="tel" autoComplete="tel" maxLength={16} placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")} value={formatPhone(value as any)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: formatPhoneInput(event.target.value, value as any, event.target.selectionStart) } })} />;
+export function FPhoneInput({ value, onChange, mobile = false, copyFromPhone, onCopyPhone, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; mobile?: boolean; copyFromPhone?: string; onCopyPhone?: (phone: string) => void; [key: string]: any }) {
+  const rawPhone = String(copyFromPhone ?? "").replace(/\D/g, "");
+  const phone = rawPhone.startsWith("55") && rawPhone.length === 13 ? rawPhone.slice(2) : rawPhone;
+  const canCopy = isValidBrazilianMobile(phone);
+  const currentWhatsApp = String(value ?? "").replace(/\D/g, "");
+  const alreadyCopied = Boolean(canCopy && (currentWhatsApp === phone || currentWhatsApp === "55" + phone));
+  const action = mobile && onCopyPhone ? <button
+    type="button"
+    onClick={() => onCopyPhone(formatPhone(phone))}
+    disabled={props.disabled || !canCopy || alreadyCopied}
+    title={alreadyCopied ? "Mesmo número do telefone" : "Usar telefone como WhatsApp"}
+    aria-label={alreadyCopied ? "WhatsApp igual ao telefone" : "Preencher WhatsApp com o telefone"}
+    className="inline-flex h-9 w-9 items-center justify-center rounded-md text-primary hover:bg-primary-soft disabled:cursor-default disabled:text-muted-foreground/60 disabled:hover:bg-transparent"
+  >{alreadyCopied ? <Check size={16}/> : <Copy size={16}/>}</button> : undefined;
+  return <FInput {...props} rightAction={action} type="tel" inputMode="tel" autoComplete="tel" maxLength={16} placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")} value={formatPhone(value as any)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: formatPhoneInput(event.target.value, value as any, event.target.selectionStart) } })} />;
+}
+
+/** Radio buttons usados somente na edicao; a consulta de CPF preenche o genero silenciosamente. */
+export function FGenderRadio({ value, onChange, disabled = false }: {
+  value: "M" | "F" | "I" | ""; onChange: (value: "M" | "F" | "I" | "") => void; disabled?: boolean;
+}) {
+  const options = [
+    { value: "M", label: "Masculino" },
+    { value: "F", label: "Feminino" },
+    { value: "I", label: "Outro / Indefinido" },
+    { value: "", label: "Não informado" },
+  ] as const;
+  return <div className="min-w-0 sm:col-span-2">
+    <AdminFieldLabel label="Gênero"/>
+    <RadioGroup value={value || "none"} onValueChange={next => onChange(next === "none" ? "" : next as "M" | "F" | "I")} disabled={disabled} className="flex flex-wrap gap-x-5 gap-y-3 rounded-lg border border-border bg-muted/30 px-3 py-3">
+      {options.map(option => <label key={option.value || "none"} className="flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
+        <RadioGroupItem value={option.value || "none"}/>
+        {option.label}
+      </label>)}
+    </RadioGroup>
+  </div>;
 }
 
 export function FCpfInput({ value, onChange, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; [key: string]: any }) {
