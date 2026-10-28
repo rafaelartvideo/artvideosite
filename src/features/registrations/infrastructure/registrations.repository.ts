@@ -22,6 +22,7 @@ export type Registration = {
   state_registration: string | null;
   municipal_registration: string | null;
   birth_date: string | null;
+  gender: "M" | "F" | "I" | null;
   foundation_date: string | null;
   phone: string | null;
   whatsapp: string | null;
@@ -77,7 +78,7 @@ const REGISTRATION_LIST_SELECT = `
 
 const REGISTRATION_SELECT = `
   id,organization_id,person_type,name,legal_name,trade_name,document,state_registration,municipal_registration,
-  birth_date,foundation_date,phone,whatsapp,email,is_active,legacy_customer_id,legacy_employee_id,
+  birth_date,gender,foundation_date,phone,whatsapp,email,is_active,legacy_customer_id,legacy_employee_id,
   created_by,registration_source,created_at,updated_at,
   created_by_profile:profiles!entities_created_by_fkey(full_name),
   roles:entity_roles(role,is_active),
