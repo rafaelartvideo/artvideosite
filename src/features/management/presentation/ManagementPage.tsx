@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, Layers, Trash2 } from "lucide-react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, Layers, Trash2, Plus, Upload } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
+import { ManagementTrashDialog } from "./ManagementTrashDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -34,7 +35,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   spaceId?:string|null;folderId?:string|null;
   onRouteChange:(spaceId:string|null,folderId?:string|null)=>void;
 }) {
-  const {hasPermission,activeOrganizationId}=useAuth();
+  const {hasPermission}=useAuth();
   const canManage=hasPermission("platform.management.manage");
   const [spaces,setSpaces]=useState<ManagementSpace[]>([]);
   const [folders,setFolders]=useState<ManagementFolder[]>([]);
@@ -68,6 +69,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [versions,setVersions]=useState<ManagementFileVersion[]>([]);
   const [versionsLoading,setVersionsLoading]=useState(false);
   const [uploading,setUploading]=useState(false);
+  const [trashOpen,setTrashOpen]=useState(false);
   const [revision,setRevision]=useState(0);
   const uploadRef=useRef<HTMLInputElement|null>(null);
   const selectedSpace=spaces.find(s=>s.id===spaceId)||null;
@@ -125,7 +127,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   },[spaceId,revision]);
 
   useEffect(()=>{
-    if(search.trim().length<3){setSearchResults([]);setSearchLoading(false);return;}
+    if(!spaceId||search.trim().length<3){setSearchResults([]);setSearchLoading(false);return;}
     let cancelled=false;
     setSearchLoading(true);
     const timer=window.setTimeout(()=>{
@@ -247,9 +249,9 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   };
 
   return <div className="min-w-0 space-y-5">
-    <PageHeader title="Central de Gestão" subtitle="Organize seus projetos, contas, sites, arquivos e campanhas em um só lugar."/>
-    {selectedSpace&&<ManagementWorkspaceTools space={selectedSpace} folders={folders} records={records}
-      canManage={canManage} organizationId={activeOrganizationId} onRefresh={refresh}/>}
+    <PageHeader title="Central de Gestão" subtitle="Organize seus projetos, contas, sites, arquivos e campanhas em um só lugar."
+      actions={<AdminButton size="sm" variant="tertiary" onClick={()=>setTrashOpen(true)}><Trash2 size={16}/>Lixeira</AdminButton>}/>
+    {selectedSpace&&<ManagementWorkspaceTools records={records}/>}
     <AdminCard square>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
@@ -272,20 +274,20 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           {canManage&&(selectedSpace
             ? <><AdminButton size="sm" variant="primary" onClick={()=>openFolder()}><FolderPlus size={16} className="shrink-0"/>Nova pasta</AdminButton>
               {visibleFolderId&&<>
-                <AdminButton size="sm" variant="secondary" onClick={()=>uploadRef.current?.click()} loading={uploading}>Enviar arquivo</AdminButton>
-                <AdminButton size="sm" onClick={()=>openRecord()}>Novo registro</AdminButton>
+                <AdminButton size="sm" variant="tertiary" onClick={()=>uploadRef.current?.click()} loading={uploading}><Upload size={15}/>Enviar arquivo</AdminButton>
+                <AdminButton size="sm" onClick={()=>openRecord()}><Plus size={15}/>Novo registro</AdminButton>
               </>}</>
-            : <AdminButton size="sm" onClick={()=>openSpace()}>Novo espaço</AdminButton>)}
+            : <AdminButton size="sm" onClick={()=>openSpace()}><Plus size={15}/>Novo espaço</AdminButton>)}
           <input ref={uploadRef} className="hidden" type="file" multiple onChange={e=>void upload(e.target.files)}/>
         </div>
       </div>
       <div className="p-4 sm:p-5">
-        <div className="relative mb-5 max-w-lg">
+        {selectedSpace&&<div className="relative mb-5 max-w-lg">
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedSpace?"Buscar em todas as pastas...":"Buscar espaços e registros..."}
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar em todas as pastas..."
             className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"/>
-        </div>
-        {search.trim().length>=3&&<div className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
+        </div>}
+        {selectedSpace&&search.trim().length>=3&&<div className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
           <p className="text-xs font-semibold text-foreground">{searchLoading?"Pesquisando registros...":`${searchResults.length} resultado(s) em ${selectedSpace?"todas as pastas":"todos os espaços"}`}</p>
           {searchResults.map(result=><button key={result.id} type="button" className="flex w-full items-center gap-2 border border-border bg-card p-2 text-left text-xs hover:border-primary/40"
             onClick={()=>{setSearch("");onRouteChange(result.space_id,result.folder_id);}}>
@@ -297,26 +299,25 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         {loading || contentLoading ? <LoadingState text="Carregando Central de Gestão..."/> : !selectedSpace ? <>
           <h3 className="mb-3 text-sm font-bold text-foreground">Espaços</h3>
           <div className="grid grid-cols-1 gap-x-3 gap-y-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {spaces.filter(s=>(s.name+" "+s.description).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(space=>
+            {spaces.map(space=>
               <div key={space.id} className="group relative min-w-0 pt-4" data-testid="management-space-folder">
-                <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-6 w-[42%] rounded-t-md border border-b-0 border-border bg-card transition-colors group-hover:border-primary/40 group-hover:bg-muted/40"/>
-                <div className="relative flex min-h-[178px] flex-col justify-between border border-border bg-card p-4 transition-colors group-hover:border-primary/40 group-hover:bg-muted/40">
+                <div aria-hidden="true" className="pointer-events-none absolute left-0 top-0 h-6 w-[42%] rounded-t-md border border-b-0 border-amber-500/50 bg-[#EAB94D] transition-colors group-hover:bg-[#F4C967] dark:border-amber-600/50 dark:bg-[#B88629]"/>
+                <div className="relative flex min-h-[178px] flex-col justify-between border border-amber-500/50 bg-[#F4CF69] p-4 transition-colors group-hover:bg-[#FFDC80] dark:border-amber-600/50 dark:bg-[#72521C] dark:group-hover:bg-[#815D1E]">
                   <button type="button" className="absolute inset-0 z-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                     aria-label={`Abrir ${space.name}`} onClick={()=>{setSearch("");onRouteChange(space.id,null);}}/>
                   <div className="pointer-events-none relative z-10 flex items-start justify-between gap-2">
                     <div style={{backgroundColor:space.accent_color}} className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full text-sm font-black text-white">
                       {space.logo_path&&logoUrls[space.id]?<img className="h-full w-full rounded-full object-cover" src={logoUrls[space.id]} alt={`Logo de ${space.name}`}/>:space.icon_text||space.name.slice(0,2).toUpperCase()}
                     </div>
-                    <Folder size={22} style={{color:space.accent_color}} className="shrink-0" fill="currentColor" fillOpacity={0.08}/>
                   </div>
-                  <div className="pointer-events-none relative z-10 mt-3 min-w-0">
-                    <p className="truncate text-sm font-bold text-foreground">{space.name}{space.is_archived?" · Arquivado":""}</p>
-                    <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{space.description||"Espaço de trabalho"}</p>
+                  <div className="pointer-events-none relative z-10 mt-3 min-w-0 pb-10">
+                    <p className="truncate text-sm font-bold text-amber-950 dark:text-amber-50">{space.name}{space.is_archived?" · Arquivado":""}</p>
+                    <p className="mt-1 line-clamp-2 text-xs text-amber-950/75 dark:text-amber-100/80">{space.description||"Espaço de trabalho"}</p>
                   </div>
-                  {canManage&&<div className="relative z-20 mt-4 flex flex-wrap gap-2">
-                    <AdminButton variant="tertiary" size="sm" className="!rounded-none" aria-label={`Editar espaço ${space.name}`}
+                  {canManage&&<div className="absolute bottom-3 right-3 z-20 flex gap-2 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 max-sm:opacity-100">
+                    <AdminButton variant="tertiary" size="sm" className="!rounded-lg !bg-card" aria-label={`Editar espaço ${space.name}`}
                       onClick={()=>openSpace(space)}><Pencil size={14}/>Editar</AdminButton>
-                    <AdminButton variant="tertiary" size="sm" className="!rounded-none"
+                    <AdminButton variant="tertiary" size="sm" className="!rounded-lg !bg-card"
                       aria-label={`${space.is_archived?"Restaurar":"Arquivar"} espaço ${space.name}`}
                       onClick={()=>void archiveSpace(space)}><Archive size={14}/>{space.is_archived?"Restaurar":"Arquivar"}</AdminButton>
                   </div>}
@@ -383,6 +384,8 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         </>}
       </div>
     </AdminCard>
+    <ManagementTrashDialog open={trashOpen} spaces={spaces} canManage={canManage}
+      onClose={()=>setTrashOpen(false)} onChanged={refresh}/>
     <AdminDialog open={dialog!==null} title={dialog==="space"?(editingSpace?"Editar espaço":"Novo espaço"):dialog==="folder"?(editingFolder?"Renomear pasta":"Nova pasta"):(editingRecord?"Editar registro":"Novo registro")}
       onClose={close} footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" onClick={close} disabled={saving}>{canManage?"Cancelar":"Fechar"}</AdminButton>{canManage&&<AdminButton onClick={()=>void save()} loading={saving} disabled={!name.trim()}>Salvar</AdminButton>}</div>}>
       <div className="space-y-4">

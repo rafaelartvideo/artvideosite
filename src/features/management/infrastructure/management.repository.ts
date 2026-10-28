@@ -6,6 +6,7 @@ export type ManagementSpace = {
 };
 export type ManagementFolder = {
   id: string; space_id: string; parent_id: string | null; name: string;
+  deleted_at?: string | null; deleted_batch_id?: string | null;
   created_at: string; updated_at: string;
 };
 export type ManagementKind = "note" | "account" | "website" | "campaign" | "link" | "file";
@@ -220,4 +221,23 @@ export async function searchManagementRecords(term: string, spaceId?: string): P
   const {data,error}=await query;
   if(error)throw error;
   return (data||[]) as ManagementRecord[];
+}
+
+export type ManagementTrashPurgeRequest = {
+  kind: "record" | "folder" | "all";
+  id?: string;
+  spaceId?: string;
+};
+export async function purgeManagementTrash(request: ManagementTrashPurgeRequest):
+  Promise<{queued: number; deleted: number; failed: number}> {
+  // A Edge Function valida JWT + permissão da Union no banco.
+  // A exclusão de arquivos e versões ocorre exclusivamente pela Storage API.
+  const {data,error} = await supabase.functions.invoke("union-management-trash-cleanup", {
+    body: { action: "purge", ...request },
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.error || "Não foi possível processar a lixeira.");
+  return {
+    queued: Number(data.queued || 0), deleted: Number(data.deleted || 0), failed: Number(data.failed || 0),
+  };
 }
