@@ -5,7 +5,7 @@ alter table public.artvideo_customer_accounts
   add column if not exists whatsapp_verified_number text,
   add column if not exists crm_access_activated_at timestamptz;
 
-create table if not exists private.artvideo_customer_access_invites (
+create table if not exists public.artvideo_customer_access_invites (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id),
   customer_id uuid not null references public.customers(id),
@@ -19,15 +19,15 @@ create table if not exists private.artvideo_customer_access_invites (
   activated_at timestamptz,
   revoked_at timestamptz
 );
-create index if not exists artvideo_customer_invites_customer_idx on private.artvideo_customer_access_invites(organization_id,customer_id,created_at desc);
-alter table private.artvideo_customer_access_invites enable row level security;
-revoke all on private.artvideo_customer_access_invites from public,anon,authenticated;
-grant all on private.artvideo_customer_access_invites to service_role;
+create index if not exists artvideo_customer_invites_customer_idx on public.artvideo_customer_access_invites(organization_id,customer_id,created_at desc);
+alter table public.artvideo_customer_access_invites enable row level security;
+revoke all on public.artvideo_customer_access_invites from public,anon,authenticated;
+grant all on public.artvideo_customer_access_invites to service_role;
 
-create table if not exists private.artvideo_customer_access_challenges (
+create table if not exists public.artvideo_customer_access_challenges (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid not null references public.organizations(id),
-  invite_id uuid references private.artvideo_customer_access_invites(id),
+  invite_id uuid references public.artvideo_customer_access_invites(id),
   account_user_id uuid references auth.users(id),
   purpose text not null check (purpose in ('activation','login')),
   phone_e164 text not null,
@@ -45,20 +45,20 @@ create table if not exists private.artvideo_customer_access_challenges (
      or (purpose='login' and account_user_id is not null and invite_id is null)
   )
 );
-create index if not exists artvideo_customer_challenges_invite_idx on private.artvideo_customer_access_challenges(invite_id,created_at desc);
-create index if not exists artvideo_customer_challenges_account_idx on private.artvideo_customer_access_challenges(account_user_id,created_at desc);
-alter table private.artvideo_customer_access_challenges enable row level security;
-revoke all on private.artvideo_customer_access_challenges from public,anon,authenticated;
-grant all on private.artvideo_customer_access_challenges to service_role;
+create index if not exists artvideo_customer_challenges_invite_idx on public.artvideo_customer_access_challenges(invite_id,created_at desc);
+create index if not exists artvideo_customer_challenges_account_idx on public.artvideo_customer_access_challenges(account_user_id,created_at desc);
+alter table public.artvideo_customer_access_challenges enable row level security;
+revoke all on public.artvideo_customer_access_challenges from public,anon,authenticated;
+grant all on public.artvideo_customer_access_challenges to service_role;
 
-create table if not exists private.artvideo_customer_access_rate_limits (
+create table if not exists public.artvideo_customer_access_rate_limits (
   rate_key text primary key,
   window_until timestamptz not null,
   attempts integer not null default 1
 );
-alter table private.artvideo_customer_access_rate_limits enable row level security;
-revoke all on private.artvideo_customer_access_rate_limits from public,anon,authenticated;
-grant all on private.artvideo_customer_access_rate_limits to service_role;
+alter table public.artvideo_customer_access_rate_limits enable row level security;
+revoke all on public.artvideo_customer_access_rate_limits from public,anon,authenticated;
+grant all on public.artvideo_customer_access_rate_limits to service_role;
 
 -- Uma chamada privilegiada atomica evita a corrida de contadores concorrentes.
 create or replace function public.artvideo_customer_access_rate_limit_v1(
@@ -73,14 +73,14 @@ begin
   if length(p_key) <> 64 or p_limit not between 1 and 100 or p_seconds not between 60 and 86400 then
     raise exception 'Parametros invalidos.';
   end if;
-  insert into private.artvideo_customer_access_rate_limits(rate_key,window_until,attempts)
+  insert into public.artvideo_customer_access_rate_limits(rate_key,window_until,attempts)
   values(p_key,now()+make_interval(secs=>p_seconds),1)
   on conflict (rate_key) do update
-    set attempts=case when private.artvideo_customer_access_rate_limits.window_until <= now()
-      then 1 else private.artvideo_customer_access_rate_limits.attempts+1 end,
-    window_until=case when private.artvideo_customer_access_rate_limits.window_until <= now()
+    set attempts=case when public.artvideo_customer_access_rate_limits.window_until <= now()
+      then 1 else public.artvideo_customer_access_rate_limits.attempts+1 end,
+    window_until=case when public.artvideo_customer_access_rate_limits.window_until <= now()
       then now()+make_interval(secs=>p_seconds)
-      else private.artvideo_customer_access_rate_limits.window_until end
+      else public.artvideo_customer_access_rate_limits.window_until end
   returning attempts into v_count;
   return v_count <= p_limit;
 end $$;
