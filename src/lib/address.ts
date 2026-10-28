@@ -70,3 +70,29 @@ export function getAddressMapUrl(address?: Partial<Address> | null) {
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
     : "";
 }
+
+export type CustomerAddressField = "zip_code" | "street" | "number" | "neighborhood" | "city" | "state";
+export type CustomerAddressFieldErrors = Partial<Record<CustomerAddressField, string>>;
+
+export function hasCustomerAddressData(address: Partial<Address>): boolean {
+  return Boolean([address.zip_code, address.street, address.number, address.complement,
+    address.neighborhood, address.city, address.state, address.reference, address.shared_map_url]
+    .some(value => String(value || "").trim()));
+}
+
+/** Valida os campos visíveis do endereço; complemento e localização são opcionais. */
+export function validateCustomerAddress(address: Partial<Address>): CustomerAddressFieldErrors {
+  const errors: CustomerAddressFieldErrors = {};
+  const zip = String(address.zip_code || "").replace(/\D/g, "");
+  if (zip.length !== 8) errors.zip_code = "Informe um CEP válido com 8 dígitos.";
+  for (const [key, label] of [
+    ["street", "Rua / Logradouro"], ["number", "Número"], ["neighborhood", "Bairro"],
+    ["city", "Cidade"], ["state", "Estado (UF)"],
+  ] as const) {
+    if (!String(address[key] || "").trim()) errors[key] = `${label} é obrigatório.`;
+  }
+  if (!errors.state && !/^[A-Z]{2}$/.test(String(address.state).trim().toUpperCase())) {
+    errors.state = "Informe a sigla do estado (UF) com 2 letras.";
+  }
+  return errors;
+}
