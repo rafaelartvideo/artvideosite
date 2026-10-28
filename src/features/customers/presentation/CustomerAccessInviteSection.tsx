@@ -1,5 +1,6 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useEffect, useState } from "react";
-import { CheckCircle2, Copy, MessageCircle, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Copy, RefreshCw, ShieldCheck } from "lucide-react";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { Section, AdminButton } from "@/shared/ui/admin/AdminLayout";
 
@@ -68,7 +69,7 @@ export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
         </label>}
         <div className="flex flex-wrap gap-2">
           {!state?.account?.active&&<AdminButton size="sm" disabled={busy||!confirmed||!whatsapp||!!state?.blocker||!state} onClick={()=>void run("staff_invite")}>
-            {busy?<RefreshCw size={15} className="animate-spin"/>:<MessageCircle size={15}/>} {state?.invitation?.status==="pending"?"Reenviar convite":"Convidar para Minha Conta"}
+            {busy?<RefreshCw size={15} className="animate-spin"/>:<WhatsAppBrandIcon size={15}/>} {state?.invitation?.status==="pending"?"Reenviar convite":"Convidar para Minha Conta"}
           </AdminButton>}
           {state?.account?.active&&<AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>void run("staff_revoke")}>
             <ShieldCheck size={15}/> Revogar acesso
