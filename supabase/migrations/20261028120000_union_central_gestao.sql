@@ -7,16 +7,7 @@ insert into public.permissions (key, label, description, module_name, sort_order
  ('platform.management.manage', 'Gerenciar Central de Gestão', 'Criar e editar espaços, pastas, registros e arquivos do acervo interno.', 'Central de Gestão', 986)
 on conflict (key) do update set label=excluded.label, description=excluded.description, module_name=excluded.module_name, sort_order=excluded.sort_order;
 
--- Mantém a nova permissão restrita ao operador da plataforma.
-create or replace function private.is_platform_only_permission_key(p_key text)
-returns boolean language sql immutable set search_path to '' as $$
- select (p_key like 'organizations.%' and p_key <> 'organizations.audit.view')
- or p_key like 'integrations.%' or p_key like 'audit.%'
- or p_key like 'orders.monitor.%' or p_key like 'platform.billing.%'
- or p_key like 'platform.announcements.%' or p_key like 'platform.management.%';
-$$;
-revoke all on function private.is_platform_only_permission_key(text) from public;
-
+-- platform.management.* já é restrito pelo helper existente, que protege todas as chaves platform.*.
 insert into public.role_permissions (role_id,permission_id)
 select distinct src.role_id, dst.id
 from public.role_permissions src
