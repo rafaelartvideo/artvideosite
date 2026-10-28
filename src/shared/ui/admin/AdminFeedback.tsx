@@ -119,7 +119,7 @@ export function StatusBadge({ status, color }: { status: string; color?: string 
   );
 }
 
-/** Animação de carregamento padrão do CRM, adaptável a espaços pequenos. */
+/** Três pontos preservados exclusivamente para os estados de seleção/preparo de conversa nos canais de atendimento. */
 export function LoadingDots({ className = "", size = "md" }: {
   className?: string;
   size?: "sm" | "md" | "lg";
@@ -143,16 +143,15 @@ export function LoadingSpinner({ size = "md" }: { size?: "sm" | "md" | "lg" }) {
   )} />;
 }
 
-/** Para contexto inline, usa bolinha por padrão. Seções podem solicitar pontos. */
-export function InlineLoading({ text = "Carregando...", className = "", size = "sm", indicator = "spinner" }: {
+/** Carregamento inline padronizado: spinner circular para todas as telas e modais do CRM. */
+export function InlineLoading({ text = "Carregando...", className = "", size = "sm" }: {
   text?: React.ReactNode;
   className?: string;
   size?: "sm" | "md" | "lg";
-  indicator?: "spinner" | "dots";
 }) {
   return <span role="status" aria-live="polite" aria-busy="true"
     className={cn("inline-flex min-w-0 items-center justify-center gap-2.5 text-xs font-medium text-muted-foreground", className)}>
-    {indicator === "spinner" ? <LoadingSpinner size={size} /> : <LoadingDots size={size} />}
+    <span className="inline-flex text-primary"><LoadingSpinner size={size}/></span>
     <span>{text}</span>
   </span>;
 }
@@ -167,7 +166,7 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
   >
     <div className="flex min-w-[190px] flex-col items-center gap-3 px-6 py-5 text-center">
       <p className="text-sm font-semibold text-white drop-shadow-sm">{text}</p>
-      <LoadingDots className="text-white" />
+      <span className="text-white"><LoadingSpinner size="md" /></span>
     </div>
   </div>;
 }
@@ -180,7 +179,7 @@ export function LoadingState({ text = "Carregando..." }: { text?: React.ReactNod
     aria-busy="true"
   >
     <p className="text-sm font-semibold text-muted-foreground">{text}</p>
-    <LoadingDots />
+    <span className="text-primary"><LoadingSpinner size="md" /></span>
   </div>;
 }
 
