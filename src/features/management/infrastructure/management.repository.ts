@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 export type ManagementSpace = {
   id: string; slug: string; name: string; description: string; icon_text: string;
-  accent_color: string; is_archived: boolean; created_at: string; updated_at: string;
+  accent_color: string; logo_path: string | null; is_archived: boolean; created_at: string; updated_at: string;
 };
 export type ManagementFolder = {
   id: string; space_id: string; parent_id: string | null; name: string;
@@ -104,4 +104,19 @@ export async function openManagementFile(path: string) {
   const {data,error} = await supabase.storage.from(BUCKET).createSignedUrl(path,60);
   if(error) throw error;
   return data.signedUrl;
+}
+
+export async function uploadManagementLogo(spaceId: string, file: File, previousPath?: string | null) {
+  if(!["image/png","image/jpeg","image/webp"].includes(file.type)) throw new Error("Use PNG, JPG ou WebP para a logomarca.");
+  if(file.size>3*1024*1024) throw new Error("A logomarca deve ter no máximo 3 MB.");
+  const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
+  const path=`${spaceId}/logos/${crypto.randomUUID()}.${ext}`;
+  const uploaded=await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type});
+  if(uploaded.error) throw uploaded.error;
+  const {error}=await supabase.from("management_spaces").update({logo_path:path}).eq("id",spaceId);
+  if(error){await supabase.storage.from(BUCKET).remove([path]);throw error;}
+  if(previousPath)await supabase.storage.from(BUCKET).remove([previousPath]);
+}
+export async function managementLogoUrl(path:string) {
+  return openManagementFile(path);
 }
