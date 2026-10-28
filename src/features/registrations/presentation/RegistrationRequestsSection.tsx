@@ -151,7 +151,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
               </div>)}</div> : <AdminSectionEmpty>Nenhum orçamento vinculado a este cliente.</AdminSectionEmpty>)
           : selectedTab==="orders" ? (ordersQuery.data?.length
             ? <div className="space-y-2">{ordersQuery.data.map(order=><button key={order.id} type="button" disabled={!canOpenOrders}
-                onClick={()=>onOpenOrder?.(order.id,customerId||undefined)}
+                onClick={()=>onOpenOrder?.(order.id,entityId)}
                 className="flex w-full min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 text-left enabled:hover:bg-muted">
                 <div className="min-w-0"><div className="text-sm font-bold text-foreground">OS {order.os_number}</div><p className="truncate text-xs text-muted-foreground">{order.service?.title||"Ordem de serviço"} · {readableDate(order.created_at)}</p></div>
                 <span className="text-xs font-semibold text-muted-foreground">{order.order_status?.name||"—"}</span>
