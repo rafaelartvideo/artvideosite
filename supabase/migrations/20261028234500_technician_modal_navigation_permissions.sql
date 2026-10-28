@@ -37,4 +37,5 @@ join public.permissions as menu_permission on menu_permission.key = permission_p
 join public.role_permissions as existing on existing.permission_id = read_permission.id
 join public.roles as role on role.id = existing.role_id
 where lower(btrim(role.name)) not in ('técnico', 'tecnico')
+  and private.permission_belongs_to_organization(role.organization_id, menu_permission.key)
 on conflict (role_id, permission_id) do nothing;
