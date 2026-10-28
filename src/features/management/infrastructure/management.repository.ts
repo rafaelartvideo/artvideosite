@@ -22,7 +22,7 @@ function unwrap<T>(result: { data: T | null; error: { message: string } | null }
   return result.data as T;
 }
 export async function listManagementSpaces(): Promise<ManagementSpace[]> {
-  return unwrap((await supabase.from("management_spaces").select("*").order("name")) as any) || [];
+  return unwrap<ManagementSpace[]>((await supabase.from("management_spaces").select("*").order("name")) as any) || [];
 }
 export async function createManagementSpace(input: { name: string; description: string; icon_text: string; accent_color: string; }): Promise<ManagementSpace> {
   // Um sufixo aleatório evita colisões entre projetos de nomes iguais.
@@ -39,7 +39,7 @@ export async function updateManagementSpace(id: string, input: Partial<Pick<Mana
   if (error) throw error;
 }
 export async function listManagementFolders(spaceId: string): Promise<ManagementFolder[]> {
-  return unwrap((await supabase.from("management_folders").select("*").eq("space_id",spaceId).order("name")) as any) || [];
+  return unwrap<ManagementFolder[]>((await supabase.from("management_folders").select("*").eq("space_id",spaceId).order("name")) as any) || [];
 }
 export async function createManagementFolder(spaceId: string, parentId: string | null, name: string) {
   const { error } = await supabase.from("management_folders").insert({ space_id:spaceId, parent_id:parentId, name });
