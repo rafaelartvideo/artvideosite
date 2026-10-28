@@ -71,6 +71,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
           ...current,
           full_name: result.name,
           birth_date: result.birthDate || current.birth_date,
+          gender: result.gender || current.gender,
         };
       });
       onToast(result.birthDate ? "Nome e data de nascimento preenchidos pela consulta de CPF." : "Nome preenchido pela consulta de CPF.", "success");
