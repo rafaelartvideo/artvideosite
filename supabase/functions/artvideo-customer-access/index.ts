@@ -325,7 +325,7 @@ Deno.serve(async request=>{
         if(cpfFromCrm.length!==11)throw Error("cpf_invalid");
         const {data:existingAccounts}=await admin.from("artvideo_customer_accounts")
           .select("user_id,whatsapp_verified_at,whatsapp_verified_number,entity_id")
-          .eq("organization_id",org).eq("cpf",cpfFromCrm).limit(3);
+          .eq("organization_id",org).or("cpf.eq."+cpfFromCrm+",entity_id.eq."+invite.customer_id).limit(3);
         if((existingAccounts||[]).length>1)throw Error("account_ambiguous");
         const prior=existingAccounts?.[0];
         if(prior && (!prior.whatsapp_verified_at || prior.whatsapp_verified_number!==c.phone_e164)){
