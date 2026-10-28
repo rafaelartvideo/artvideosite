@@ -4,13 +4,16 @@ import { supabase } from "@/lib/supabase";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
 
-type Method = "password" | "code" | "recovery";
+export type CustomerLoginMethod = "password" | "code" | "recovery";
 const inputClass = "mt-1.5 h-11 w-full rounded-lg border border-[#dbe3ee] bg-white px-3.5 text-sm text-[#1b3353] outline-none focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
 const buttonClass = "inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60";
 
-export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerified?: () => void }) {
+export function CustomerCpfLoginPanel({ onRecoveryVerified, method, onMethodChange }: {
+  onRecoveryVerified?: () => void;
+  method: CustomerLoginMethod;
+  onMethodChange: (method: CustomerLoginMethod) => void;
+}) {
   const [cpf, setCpf] = useState("");
-  const [method, setMethod] = useState<Method>("password");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
@@ -28,14 +31,16 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
     return () => window.clearInterval(timer);
   }, [resendSeconds > 0]);
 
-  const changeMethod = (next: Method) => {
-    setMethod(next);
+  useEffect(() => {
+    // Ao voltar pelo cabeçalho, limpar somente o desafio anterior.
+    // O CPF digitado continua preenchido.
     setChallenge("");
     setCode("");
     setError("");
     setResendSeconds(0);
     setRecoveryEmailSent(false);
-  };
+  }, [method]);
+  const changeMethod = (next: CustomerLoginMethod) => onMethodChange(next);
 
   async function sendCode(resend = false) {
     if (!isValidCpf(cpf)) { setError("Informe um CPF válido."); return; }
@@ -109,10 +114,6 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
 
   const codeMode = method !== "password";
   return <form onSubmit={event => void submit(event)} className="space-y-4">
-    {codeMode && <button type="button" onClick={() => changeMethod("password")}
-      className="inline-flex items-center gap-1.5 !text-xs font-medium text-[var(--art-primary)] hover:underline">
-      Voltar para senha
-    </button>}
     {recoveryEmailSent && <p role="status" className="rounded-lg border border-[#dbe5f2] bg-[#f3f7ff] p-3 text-xs leading-5 text-[#344d6a]">Se a conta possuir um e-mail cadastrado, enviaremos um link para criar outra senha. Confira também o spam.</p>}
     <label className="block text-xs font-semibold text-[#344d6a]">
       CPF
