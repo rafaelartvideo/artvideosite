@@ -254,6 +254,13 @@ Deno.serve(async request => {
     const extended = obj(get(message, "extendedTextMessage", "ExtendedTextMessage"));
     const media = obj(get(message, "imageMessage", "ImageMessage", "videoMessage", "VideoMessage", "audioMessage", "AudioMessage", "documentMessage", "DocumentMessage", "stickerMessage", "StickerMessage"));
     const body = str(get(message, "conversation", "Conversation") ?? get(extended, "text", "Text") ?? get(media, "caption", "Caption"), 4000);
+    // Codigos de autenticacao enviados pela ponte da Union nao sao atendimentos.
+    // A mensagem exata e reconhecida SOMENTE quando foi enviada por nossa conta.
+    // Nunca criar conversa, registrar o OTP ou expo-lo aos operadores.
+    if (isFromMe && typeHint === "text" &&
+        /^Artvideo: seu codigo de acesso e [0-9]{6}\. Valido por 30 minutos\. Nao compartilhe\.$/.test(body)) {
+      return json({ok:true,ignored:"customer_auth_otp"});
+    }
     // WuzAPI can emit a sent/echo envelope without an actual message body.
     // These blank "text" events previously created a phantom contact and
     // made one incoming message look like two separate conversations.

@@ -13,13 +13,15 @@ import { CustomerAddresses } from "./CustomerAddresses";
 import { CustomerFavorites } from "./CustomerFavorites";
 import { CustomerProfile } from "./CustomerProfile";
 import { CustomerAccountLoading } from "./CustomerAccountLoading";
+import { CustomerCpfLoginPanel } from "./CustomerCpfLoginPanel";
+import { CustomerCrmHistory } from "./CustomerCrmHistory";
 import {
   activateCustomerAccount, getCustomerPortal,
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
 } from "../infrastructure/customer-account.repository";
 
 type AuthMode = "login" | "register" | "forgot" | "email_sent";
-type Tab = "overview" | "orders" | "quotes" | "addresses" | "favorites" | "profile";
+type Tab = "overview" | "orders" | "quotes" | "service_orders" | "documents" | "addresses" | "favorites" | "profile";
 type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "ready" | "error";
 const inputClass = "h-12 w-full rounded-xl border border-[#dbe5f2] bg-[#fbfcff] px-4 text-[14px] text-[#132b4a] outline-none transition-[border-color,box-shadow] placeholder:text-[#9aabc0] focus:border-[var(--art-primary)] focus:bg-white focus:ring-[3px] focus:ring-blue-500/10";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--art-primary)] px-5 text-sm font-semibold text-white shadow-[0_5px_14px_rgba(23,77,162,.14)] transition-[background-color,box-shadow] hover:bg-blue-800 hover:shadow-[0_7px_18px_rgba(23,77,162,.2)] disabled:cursor-not-allowed disabled:opacity-60";
@@ -102,6 +104,7 @@ export function CustomerAccountPage() {
   const accountContentRef = useRef<HTMLDivElement>(null);
   const previousModeRef = useRef<AuthMode>("login");
   const [mode, setMode] = useState<AuthMode>("login");
+  const [cpfMode, setCpfMode] = useState(true);
   const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).has("recovery"));
   const [tab, setTab] = useState<Tab>("overview");
   const [state, setState] = useState<AccountState>("loading");
@@ -293,7 +296,7 @@ export function CustomerAccountPage() {
 
   const headings: Record<Tab, string> = {
     overview: "Visão geral", orders: "Meus pedidos",
-    quotes: "Meus orçamentos", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
+    quotes: "Meus orçamentos", service_orders:"Minhas OS", documents:"Documentos", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
   };
   const orders = portal?.orders || [];
   const quotes = portal?.quotes || [];
@@ -351,7 +354,11 @@ export function CustomerAccountPage() {
                   {mode === "register" ? "Cadastre-se para acompanhar seus pedidos e orçamentos." : mode === "forgot" ? "Receba um link para redefinir sua senha." : "Acesse seus pedidos e orçamentos."}
                 </p>
               </div>
-              <form onSubmit={event => void submitAuth(event)} className="space-y-4">
+              {mode === "login" && <div className="mb-4 flex w-full gap-2 rounded-lg bg-[#f0f4fb] p-1 text-xs font-semibold">
+                <button type="button" className={"flex-1 rounded-md p-2 "+(cpfMode?"bg-white text-[var(--art-primary)] shadow-sm":"text-[#6c8099]")} onClick={()=>setCpfMode(true)}>CPF</button>
+                <button type="button" className={"flex-1 rounded-md p-2 "+(!cpfMode?"bg-white text-[var(--art-primary)] shadow-sm":"text-[#6c8099]")} onClick={()=>setCpfMode(false)}>E-mail</button>
+              </div>}
+              {mode === "login" && cpfMode ? <CustomerCpfLoginPanel/> : <form onSubmit={event => void submitAuth(event)} className="space-y-4">
                 {mode === "register" && <>
                   <label className={authLabelClass}>Nome completo
                     <span className="relative mt-1.5 block">
@@ -403,7 +410,7 @@ export function CustomerAccountPage() {
                   {busy ? <RefreshCw size={19} className="animate-spin" aria-label="Processando..."/> :
                     <><span>{mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}</span><ArrowRight size={16}/></>}
                 </button>
-              </form>
+              </form>}
               {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
               {mode !== "forgot" && <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
                 {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
@@ -447,6 +454,7 @@ export function CustomerAccountPage() {
           {([
             ["overview", "Visão geral", UserRound],
             ["orders", "Meus pedidos", Package],
+            ...(portal.crm_access ? [["service_orders", "Minhas OS", ClipboardList], ["documents", "Documentos", FileText]] as const : []),
             ["quotes", "Meus orçamentos", FileText],
             ["addresses", "Meus endereços", MapPin],
             ["favorites", "Meus favoritos", Heart],
@@ -472,7 +480,8 @@ export function CustomerAccountPage() {
           {tab === "overview" && <>
             <div className="grid gap-3 sm:grid-cols-2">
               {([{ label: "Pedidos", count: orders.length, icon: Package, target: "orders" },
-                { label: "Orçamentos", count: quotes.length, icon: FileText, target: "quotes" }] as const).map(({ label, count, icon: Icon, target }) =>
+                { label: "Orçamentos", count: quotes.length, icon: FileText, target: "quotes" },
+                ...(portal.crm_access ? [{label:"Ordens de serviço",count:portal.service_orders?.length||0,icon:ClipboardList,target:"service_orders"}] as const : [])] as const).map(({ label, count, icon: Icon, target }) =>
                 <button type="button" key={target} onClick={() => selectAccountTab(target)} className={"flex items-center gap-3 text-left transition-colors hover:border-[#aabde2] " + cardClass}>
                   <span className="rounded-lg bg-[#eef4ff] p-3 text-[var(--art-primary)]"><Icon size={22}/></span>
                   <span><strong className="block text-xl text-[#153250]">{count}</strong><span className="text-xs text-[#72849b]">{label}</span></span>
@@ -508,6 +517,7 @@ export function CustomerAccountPage() {
             </div>
           </>}
           {tab === "orders" && <RecordList kind="orders" items={orders}/>}
+          {(tab === "service_orders" || tab === "documents") && <CustomerCrmHistory tab={tab} portal={portal}/>}
           {tab === "addresses" && userId && <CustomerAddresses userId={userId}/>}
           {tab === "favorites" && <CustomerFavorites/>}
 

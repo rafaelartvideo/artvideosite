@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate, useParams } from "re
 import { LoaderCircle } from "lucide-react";
 import { CustomerAccountLoading } from "@/features/customer-account/presentation/CustomerAccountLoading";
 import { CustomerAccountPage } from "@/features/customer-account/presentation/CustomerAccountPage";
+const CustomerAccessActivatePage = lazy(() => import("@/features/customer-account/presentation/CustomerAccessActivatePage").then(m=>({ default:m.CustomerAccessActivatePage })));
 import { AuthProvider, useAuth } from "@/lib/auth";
 import type { PublicPage as Page } from "@/features/public-shell/domain/navigation";
 // A estrutura completa do site público não entra no bundle inicial do CRM.
@@ -439,6 +440,7 @@ function PublicRoutes() {
           <Route path="/checkout/:slug" element={<StoreCheckoutRoute />} />
           <Route path="/acompanhar-pedido" element={<LegacyOrderTrackingRedirect />} />
           <Route path="/minha-conta" element={<CustomerAccountPage />} />
+          <Route path="/minha-conta/ativar" element={<CustomerAccessActivatePage />} />
           <Route path="/servicos" element={<ServicesPage setPage={setPage} onSelectService={selectService} onSelectProduct={selectProduct} />} />
           <Route path="/servicos/:slug" element={<ServiceDetailRoute setPage={setPage} />} />
           <Route path="/sobre" element={<AboutPage setPage={setPage} />} />
