@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
-  ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
+  ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
   Heart, IdCard, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -13,7 +13,7 @@ import { CustomerAddresses } from "./CustomerAddresses";
 import { CustomerFavorites } from "./CustomerFavorites";
 import { CustomerProfile } from "./CustomerProfile";
 import { CustomerAccountLoading } from "./CustomerAccountLoading";
-import { CustomerCpfLoginPanel } from "./CustomerCpfLoginPanel";
+import { CustomerCpfLoginPanel, type CustomerLoginMethod } from "./CustomerCpfLoginPanel";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { validateRegistration, validateRegistrationField, type RegistrationField, type RegistrationErrors } from "../domain/customer-registration-validation";
 import { CustomerCrmHistory } from "./CustomerCrmHistory";
@@ -104,6 +104,7 @@ export function CustomerAccountPage() {
   const reduceMotion = useReducedMotion();
   const accountContentRef = useRef<HTMLDivElement>(null);
   const [mode, setMode] = useState<AuthMode>("login");
+  const [loginMethod, setLoginMethod] = useState<CustomerLoginMethod>("password");
   const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).has("recovery"));
   const [tab, setTab] = useState<Tab>("overview");
   const [state, setState] = useState<AccountState>("loading");
@@ -355,15 +356,27 @@ export function CustomerAccountPage() {
               <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Se o endereço estiver disponível, enviaremos as orientações para você. Confira também o spam.</p>
               <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}>Voltar ao login</button>
             </div> : <>
-              <div className="mb-6 text-center">
-                <h1 className="text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
-                  {mode === "register" ? "Criar uma conta" : "Entrar na sua conta"}
+              <div className="relative mb-6 text-center">
+                {mode === "login" && loginMethod !== "password" && <button type="button"
+                  onClick={() => setLoginMethod("password")}
+                  aria-label="Voltar para entrar com senha"
+                  title="Voltar para entrar com senha"
+                  className="absolute left-0 top-0 inline-flex h-7 w-7 items-center justify-center rounded-md text-[#5b718f] transition-colors hover:bg-[#edf2f9] hover:text-[var(--art-primary)] focus-visible:outline-2 focus-visible:outline-[var(--art-primary)]">
+                  <ArrowLeft size={18} aria-hidden="true"/>
+                </button>}
+                <h1 className="px-8 text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
+                  {mode === "register" ? "Criar uma conta" : loginMethod === "recovery" ? "Recuperar senha" : loginMethod === "code" ? "Entrar com código" : "Entrar na sua conta"}
                 </h1>
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6c8099]">
-                  {mode === "register" ? "Preencha seus dados para começar." : "Acompanhe seus pedidos, serviços e orçamentos."}
+                  {mode === "register" ? "Preencha seus dados para começar." : loginMethod === "recovery"
+                    ? "Confirme sua identidade para criar uma nova senha." : loginMethod === "code"
+                      ? "Acesse sua conta usando um código enviado ao WhatsApp." : "Acompanhe seus pedidos, serviços e orçamentos."}
                 </p>
               </div>
-              {mode === "login" ? <CustomerCpfLoginPanel onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> :
+              {mode === "login" ? <CustomerCpfLoginPanel
+                method={loginMethod}
+                onMethodChange={setLoginMethod}
+                onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> :
               registrationChallenge ? <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
                 <p className="text-center text-[13px] leading-5 text-[#60758e]">Enviamos um código ao seu WhatsApp. Digite os seis números para criar sua conta.</p>
                 <label htmlFor="registration-otp" className={authLabelClass}>Código de segurança <span className="text-red-600">*</span></label>
@@ -446,12 +459,16 @@ export function CustomerAccountPage() {
                 </button>
               </form>}
               {mode === "register" && !registrationChallenge && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Se informar um e-mail, enviaremos uma confirmação por ele. Sem e-mail, a confirmação será pelo WhatsApp.</p>}
-              <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
+              {(mode === "register" || loginMethod === "password") && <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
                 {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
-                <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="!text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline">
+                <button type="button" onClick={() => {
+                  setMode(mode === "register" ? "login" : "register");
+                  setLoginMethod("password");
+                  setError("");
+                }} className="!text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline">
                   {mode === "register" ? "Entrar" : "Criar conta"}
                 </button>
-              </div>
+              </div>}
             </>}
           </div>
       </AccountEntryShell> :
