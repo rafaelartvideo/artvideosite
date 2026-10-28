@@ -287,6 +287,17 @@ test("foto técnica tem limite também no banco, com validação de vínculo e s
 
 const scopedMedia = read("supabase/migrations/20261014224000_technician_order_customer_equipment_media.sql");
 
+test("CPF/CNPJ do cliente possui permissão própria e permanece limitado à OS técnica", () => {
+  const documentPermissionMigration = read("supabase/migrations/20261028124442_technician_customer_document_permission.sql");
+  assert.match(documentPermissionMigration, /technician_panel\.data\.customer_document/);
+  assert.match(documentPermissionMigration, /private\.can_access_technician_order_v1\(ord\.id,'technician_panel\.data\.customer_document'\)/);
+  assert.match(documentPermissionMigration, /get_my_technician_order_details_v1/);
+  assert.match(panel, /hasPermission\("technician_panel\.data\.customer_document"\)/);
+  assert.match(panel, /formatCpf\(orderDetails\.customer_document\)/);
+  assert.match(panel, /formatCnpj\(orderDetails\.customer_document\)/);
+  assert.match(taxonomy, /"technician_panel\.data\.customer_document": \["technician_panel\.data\.customer"/);
+});
+
 test("cliente e equipamento da OS técnica são carregados por RPC com permissões", () => {
   assert.match(scopedMedia, /'customer_document'/);
   assert.match(scopedMedia, /'customer_address'/);
