@@ -368,12 +368,14 @@ test("Produtos e Serviços mantêm seções independentes e ações de execuçã
 });
 
 
-test("abad de produtos e serviços do técnico fica acima do rótulo sem scroll horizontal", () => {
+test("abas técnicas alinhadas: badge compacto na mesma linha sem deslocar o rótulo", () => {
   const tabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
   assert.match(panel, /<OrderDetailSectionTabs value=\{detailTab\} onChange=\{setDetailTab\} compactMobile/);
   assert.ok(tabs.includes('grid min-w-0 grid-cols-2 gap-2 sm:flex sm:gap-5'));
-  assert.ok(tabs.includes('flex-col-reverse justify-center text-center'));
-  assert.ok(tabs.includes('max-w-full items-center rounded-md'));
+  assert.ok(tabs.includes('min-h-12 justify-center gap-1 px-0.5 py-2'));
+  assert.ok(tabs.includes('itemBadge.label.match(/^\\d+/)?.[0]'));
+  assert.ok(tabs.includes('className="sm:hidden"'));
+  assert.doesNotMatch(tabs, /flex-col-reverse/);
 });
 
 test("imagens técnicas: botões alinhados lado a lado e vazio tracejado", () => {
