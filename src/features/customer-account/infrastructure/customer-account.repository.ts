@@ -17,6 +17,7 @@ export type CustomerPortal = {
   orders?: CustomerPortalItem[];
   quotes?: CustomerPortalItem[];
   crm_access?: boolean;
+  crm_profile?: {name:string;cpf:string;whatsapp:string;address?:{street:string;number:string;neighborhood:string;city:string;state:string;zip_code:string;complement?:string|null}|null};
   service_orders?: {id:string;os_number:string;description:string;status:string;model?:string;created_at:string;scheduled_at?:string|null;completed_at?:string|null}[];
   documents?: {id:string;os_number:string;title:string;signed_at:string}[];
 };
