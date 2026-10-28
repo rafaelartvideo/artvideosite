@@ -68,12 +68,39 @@ test("contagem contextual aparece ao lado do breadcrumb, sem segundo cabeçalho"
   assert.doesNotMatch(page,/selectedFolder\?\.name\|\|selectedSpace\.name/);
 });
 
-test("fundos e listas da Central são quadrados sem afetar os componentes globais",()=>{
-  const page=read("src/features/management/presentation/ManagementPage.tsx");
+test("a Central reutiliza subseções de Equipamentos e preserva painel fixo tracejado",()=>{
   const workspace=read("src/features/management/presentation/ManagementWorkspaceTools.tsx");
+  const equipment=read("src/features/equipment/presentation/EquipmentAdminPanel.tsx");
+  assert.match(equipment,/AdminSubsectionButtons/);
+  assert.match(workspace,/import \{ AdminSubsectionButtons \}/);
+  assert.match(workspace,/AdminSubsectionButtons value=\{tab\}/);
+  assert.match(workspace,/flex justify-center/);
+  assert.match(workspace,/h-\[330px\] overflow-y-auto overscroll-contain border border-dashed border-border/);
+  assert.match(workspace,/sm:h-\[360px\]/);
+  for(const tab of ["overview","domains","campaigns","activity","tasks","trash"]) {
+    assert.ok(workspace.includes('id:"'+tab+'"'));
+  }
+  assert.match(workspace,/item\.id==="trash"&&trashedRecords\.length\+trashedFolders\.length>0/);
+});
+test("espaços têm formato de pasta, avatar circular e botões terciários visíveis",()=>{
+  const page=read("src/features/management/presentation/ManagementPage.tsx");
   assert.match(page,/<AdminCard square>/);
-  assert.match(page,/min-h-36 flex-col justify-between border border-border/);
-  assert.match(page,/relative flex min-w-0 items-center gap-3 border border-border bg-card/);
-  assert.match(workspace,/className="border border-border bg-card p-4"/);
-  assert.match(workspace,/className=\{\`border px-3 py-2 text-xs font-semibold/);
+  assert.match(page,/data-testid="management-space-folder"/);
+  assert.match(page,/absolute left-0 top-0 h-6 w-\[42%\]/);
+  assert.match(page,/overflow-hidden rounded-full text-sm font-black/);
+  assert.match(page,/rounded-full object-cover/);
+  assert.match(page,/variant="tertiary" size="sm"/);
+  assert.match(page,/onClick=\{\(\)=>openSpace\(space\)\}/);
+  assert.match(page,/onClick=\{\(\)=>void archiveSpace\(space\)\}/);
+});
+test("pastas internas têm interação estilo explorador sem bordas individuais",()=>{
+  const page=read("src/features/management/presentation/ManagementPage.tsx");
+  const row=page.match(/return <div key=\{folder\.id\} className="([^"]+)"/)?.[1];
+  assert.ok(row);
+  assert.ok(!row.includes("border"));
+  assert.match(row,/hover:bg-primary\/10/);
+  assert.match(page,/data-testid="management-folder-row"/);
+  assert.match(page,/<Folder size=\{25\}/);
+  assert.match(page,/variant="primary" onClick=\{\(\)=>openFolder\(\)\}/);
+  assert.match(page,/<FolderPlus size=\{16\}/);
 });
