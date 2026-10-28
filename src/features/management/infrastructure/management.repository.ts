@@ -203,3 +203,17 @@ export async function createManagementTask(input:{
   });
   if(error) throw error;
 }
+
+export async function searchManagementRecords(term: string, spaceId?: string): Promise<ManagementRecord[]> {
+  // Remover metacaracteres de expressões PostgREST; não pesquisar conteúdo de credenciais.
+  const normalized=term.replace(/[^\p{L}\p{N}\s-]/gu," ").trim().replace(/\s+/g," ").slice(0,80);
+  if(normalized.length<3)return [];
+  let query=supabase.from("management_records").select("*")
+    .is("deleted_at",null)
+    .or(`title.ilike.%${normalized}%,description.ilike.%${normalized}%`)
+    .order("updated_at",{ascending:false}).limit(60);
+  if(spaceId)query=query.eq("space_id",spaceId);
+  const {data,error}=await query;
+  if(error)throw error;
+  return (data||[]) as ManagementRecord[];
+}
