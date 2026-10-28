@@ -19,7 +19,10 @@ export type CustomerOrderDetails = {
   situations:{id:string;name:string;color:string|null;visited:boolean;current:boolean}[];
   items:{title:string;description:string;quantity:number;item_type:string}[];
   photos:{id:string;name:string;mime_type:string}[];
-  documents:{id:string;title:string;signed_at:string;type:string}[];
+  documents:{
+    id:string;title:string;signed_at:string|null;type:"signature"|"invoice";
+    created_at?:string|null;file_name?:string|null;mime_type?:string|null;
+  }[];
   certificate:{id:string;number:number;issued_at:string;starts_at:string;expires_at:string;warranty:string}|null;
 };
 export type CustomerSignatureRequest = {
