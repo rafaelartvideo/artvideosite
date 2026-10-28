@@ -10,7 +10,8 @@ import {
   createManagementFolder, createManagementSpace, listManagementFolders, listManagementRecords, listManagementSpaces, managementLogoUrl, uploadManagementLogo,
   openManagementFile, removeManagementFolder, removeManagementRecord, renameManagementFolder,
   saveManagementRecord, updateManagementSpace, uploadManagementFiles,
-  listManagementFileVersions, uploadManagementFileVersion, saveManagementCredential, revealManagementCredential, type ManagementFileVersion,
+  listManagementFileVersions, uploadManagementFileVersion, saveManagementCredential, revealManagementCredential,
+  searchManagementRecords, type ManagementFileVersion,
   type ManagementFolder, type ManagementKind, type ManagementRecord, type ManagementSpace,
 } from "../infrastructure/management.repository";
 
@@ -47,6 +48,8 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [contentLoading,setContentLoading]=useState(false);
   const [saving,setSaving]=useState(false);
   const [search,setSearch]=useState("");
+  const [searchResults,setSearchResults]=useState<ManagementRecord[]>([]);
+  const [searchLoading,setSearchLoading]=useState(false);
   const [dialog,setDialog]=useState<DialogKind>(null);
   const [editingSpace,setEditingSpace]=useState<ManagementSpace|null>(null);
   const [editingFolder,setEditingFolder]=useState<ManagementFolder|null>(null);
@@ -116,6 +119,19 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       .finally(()=>{if(current)setContentLoading(false);});
     return()=>{current=false;};
   },[spaceId,revision]);
+
+  useEffect(()=>{
+    if(search.trim().length<3){setSearchResults([]);setSearchLoading(false);return;}
+    let cancelled=false;
+    setSearchLoading(true);
+    const timer=window.setTimeout(()=>{
+      searchManagementRecords(search,spaceId||undefined)
+        .then(items=>{if(!cancelled)setSearchResults(items);})
+        .catch(error=>{if(!cancelled)notifyAdmin(systemErrorMessage(error,"Não foi possível buscar registros."),"error");})
+        .finally(()=>{if(!cancelled)setSearchLoading(false);});
+    },280);
+    return()=>{cancelled=true;window.clearTimeout(timer);};
+  },[search,spaceId,revision]);
 
   const resetForm=()=>{
     setName("");setDescription("");setIconText("");setAccent("#1032DC");setLogoFile(null);
@@ -258,9 +274,18 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       <div className="p-4 sm:p-5">
         <div className="relative mb-5 max-w-lg">
           <Search size={17} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
-          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedSpace?"Buscar nesta pasta...":"Buscar espaços..."}
+          <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedSpace?"Buscar em todas as pastas...":"Buscar espaços e registros..."}
             className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"/>
         </div>
+        {search.trim().length>=3&&<div className="mb-4 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+          <p className="text-xs font-semibold text-foreground">{searchLoading?"Pesquisando registros...":`${searchResults.length} resultado(s) em ${selectedSpace?"todas as pastas":"todos os espaços"}`}</p>
+          {searchResults.map(result=><button key={result.id} type="button" className="flex w-full items-center gap-2 rounded-lg border border-border bg-card p-2 text-left text-xs hover:border-primary/40"
+            onClick={()=>{setSearch("");onRouteChange(result.space_id,result.folder_id);}}>
+            <FileText size={15} className="text-primary"/><span className="min-w-0 flex-1 truncate font-semibold">{result.title}</span>
+            <span className="text-muted-foreground">{spaces.find(sp=>sp.id===result.space_id)?.name||"Espaço"}</span>
+          </button>)}
+          {!searchLoading&&!searchResults.length&&<p className="py-3 text-center text-xs text-muted-foreground">Nenhum registro encontrado.</p>}
+        </div>}
         {loading || contentLoading ? <LoadingState text="Carregando Central de Gestão..."/> : !selectedSpace ? <>
           <h3 className="mb-3 text-sm font-bold text-foreground">Espaços</h3>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
