@@ -9,7 +9,7 @@ import {
   formatCurrency,
   formatPhone,
   formatPhoneInput,
-  isValidBrazilianMobile,
+  isValidBrazilianPhone,
   normalizeDecimalInput,
   normalizeIntegerInput,
 } from "@/shared/domain/formatters";
@@ -89,8 +89,10 @@ export function FInput({ label, required, hint, error, disabled = false, ...prop
 
 export function FPhoneInput({ value, onChange, mobile = false, copyFromPhone, onCopyPhone, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; mobile?: boolean; copyFromPhone?: string; onCopyPhone?: (phone: string) => void; [key: string]: any }) {
   const rawPhone = String(copyFromPhone ?? "").replace(/\D/g, "");
-  const phone = rawPhone.startsWith("55") && rawPhone.length === 13 ? rawPhone.slice(2) : rawPhone;
-  const canCopy = isValidBrazilianMobile(phone);
+  const phone = rawPhone.startsWith("55") && (rawPhone.length === 12 || rawPhone.length === 13) ? rawPhone.slice(2) : rawPhone;
+  // WhatsApp Business pode estar cadastrado em telefone fixo. Nunca transformar
+  // os 10 dígitos de um fixo em 11 dígitos de celular ao copiar.
+  const canCopy = isValidBrazilianPhone(phone);
   const currentWhatsApp = String(value ?? "").replace(/\D/g, "");
   const alreadyCopied = Boolean(canCopy && (currentWhatsApp === phone || currentWhatsApp === "55" + phone));
   const action = mobile && onCopyPhone ? <button
@@ -240,7 +242,23 @@ export function FHoursInput({ value, onChange, ...props }: { value: unknown; onC
 }
 
 export function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
-  return <div className="min-w-0 sm:col-span-2"><label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de cliente</label><div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card">{[{ value: "PF" as const, label: "PESSOA FÍSICA" }, { value: "PJ" as const, label: "PESSOA JURÍDICA" }].map(option => <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)} className={`cursor-default border px-3 py-2.5 text-xs font-black tracking-wide transition-colors ${value === option.value ? "border-primary bg-primary-soft text-primary" : "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"} ${disabled ? "opacity-70" : ""}`} aria-pressed={value === option.value}>{option.label}</button>)}</div></div>;
+  return <div className="min-w-0 sm:col-span-2">
+    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de cliente</label>
+    <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card">
+      {([{ value: "PF", label: "PESSOA FÍSICA" }, { value: "PJ", label: "PESSOA JURÍDICA" }] as const).map((option, index) => (
+        <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)}
+          aria-pressed={value === option.value}
+          className={cn(
+            "relative min-w-0 border-0 px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-primary",
+            index === 0 ? "rounded-l-[7px] border-r border-r-border" : "rounded-r-[7px]",
+            value === option.value
+              ? "bg-primary-soft text-primary ring-1 ring-inset ring-primary"
+              : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
+            disabled && "opacity-70",
+          )}>{option.label}</button>
+      ))}
+    </div>
+  </div>;
 }
 
 export function FTextarea({ label, rows = 3, error, ...props }: { label?: string; rows?: number; error?: string; [key: string]: any }) { return <div className="min-w-0">{label && <AdminFieldLabel label={label} required={Boolean(props.required)} htmlFor={props.id} />}<textarea aria-invalid={Boolean(error) || undefined} rows={rows} className={cn(INPUT, "resize-none", error && "border-red-500 focus:border-red-500 focus:ring-red-500/40")} {...props} />{error && <p className="mt-1 break-words text-[10px] font-semibold leading-relaxed text-red-600">{error}</p>}</div>; }
