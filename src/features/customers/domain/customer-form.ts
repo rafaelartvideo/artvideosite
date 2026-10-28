@@ -8,7 +8,6 @@ import {
   foundationDateToIso,
   isPastOrTodayBrazilianDate,
   isPastOrTodayIsoDate,
-  isValidBrazilianMobile,
   isValidBrazilianPhone,
   isValidCnpj,
   isValidCpf,
@@ -83,7 +82,7 @@ export function validateCustomerFormFields(form: CustomerForm): CustomerFieldErr
 
   if (!whatsapp && !phone) errors.whatsapp = "Informe um telefone ou WhatsApp.";
   if (phone && !isValidBrazilianPhone(phone)) errors.phone = "Telefone inválido. Informe DDD e número válidos.";
-  if (whatsapp && !isValidBrazilianMobile(whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um celular com DDD no formato (99) 9 9999-9999.";
+  if (whatsapp && !isValidBrazilianPhone(whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um telefone fixo ou celular com DDD válido.";
   if (email && !isValidEmail(email)) errors.email = "E-mail inválido. Verifique o endereço informado.";
 
   if (form.customerType === "PF") {
