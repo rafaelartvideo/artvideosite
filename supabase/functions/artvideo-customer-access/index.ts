@@ -350,6 +350,52 @@ Deno.serve(async request=>{
       const id=await createChallenge(org,"login",account.whatsapp_verified_number,jid,null,account.user_id);
       return response(request,{success:true,challenge_id:id,expires_in_seconds:1800,resend_in_seconds:60});
     }
+    if(action==="registration_verify"){
+      const challengeId=String(body.challenge_id||""),code=String(body.code||"");
+      const cpf=cpfDigits(body.cpf),name=String(body.name||"").trim().replace(/\s+/g," ");
+      const phone=normalizePhone(body.phone),password=String(body.password||"");
+      if(!uuid(challengeId)||!/^\d{6}$/.test(code)||!validCpf(cpf)||
+         name.length<3||name.length>120||password.length<8||password.length>128||!phone)
+        return response(request,fail("Confira os dados obrigatórios.",400),400);
+      await limit("registration-verify",challengeId,12,3600);
+      const {data:c}=await admin.from("artvideo_customer_access_challenges").select("*")
+        .eq("id",challengeId).eq("organization_id",org).eq("purpose","registration")
+        .eq("status","pending").gt("expires_at",new Date().toISOString()).maybeSingle();
+      if(!c||c.attempts>=5||c.phone_e164!==phone)return response(request,fail("Código expirado ou inválido.",410),410);
+      if(!safeEqual(c.code_digest,await hmac(c.id+":"+code))){
+        await admin.from("artvideo_customer_access_challenges").update({
+          attempts:c.attempts+1,status:c.attempts>=4?"locked":"pending",
+        }).eq("id",c.id).eq("status","pending").eq("attempts",c.attempts);
+        return response(request,fail("Código incorreto.",401),401);
+      }
+      const {data:prior,error:lookupError}=await admin.from("artvideo_customer_accounts")
+        .select("user_id").eq("organization_id",org).eq("cpf",cpf).limit(1);
+      if(lookupError)throw Error("account_lookup_failed");
+      if(prior?.length)return response(request,fail("CPF já cadastrado. Entre na conta ou recupere sua senha.",409),409);
+      const {data:consumed}=await admin.from("artvideo_customer_access_challenges")
+        .update({status:"consumed",consumed_at:new Date().toISOString()})
+        .eq("id",c.id).eq("status","pending").eq("code_digest",c.code_digest)
+        .select("id").maybeSingle();
+      if(!consumed)return response(request,fail("Código já utilizado.",410),410);
+      // Credencial técnica interna, como nos convites. O cliente acessa pelo CPF.
+      const internalId=crypto.randomUUID();
+      const {data:user,error:createError}=await admin.auth.admin.createUser({
+        email:"cliente-"+internalId+"@auth.unionworld.app",password,email_confirm:true,
+        user_metadata:{registration_origin:"artvideo_customer",full_name:name,phone:phone.slice(2),cpf},
+      });
+      if(createError||!user.user)throw Error("account_create");
+      const userId=user.user.id, now=new Date().toISOString();
+      const {error:saveError}=await admin.from("artvideo_customer_accounts").upsert({
+        user_id:userId,organization_id:org,cpf,full_name:name,phone,
+        link_status:"created",whatsapp_verified_at:now,whatsapp_verified_number:phone,
+      },{onConflict:"user_id"});
+      if(saveError){
+        await admin.auth.admin.deleteUser(userId);
+        throw Error("account_create");
+      }
+      const session=await sessionFor(userId);
+      return response(request,{success:true,...session});
+    }
     if(action==="resend"){
       const challengeId=String(body.challenge_id||"");
       if(!uuid(challengeId))return response(request,fail("Solicite um novo código.",404),404);
