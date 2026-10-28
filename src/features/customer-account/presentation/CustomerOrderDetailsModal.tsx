@@ -147,13 +147,23 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
     }
     return ()=>{active=false;};
   },[detail,order.id]);
-  async function openSigned(id:string){
+  async function openSigned(id:string,download=false){
     const tab=window.open("about:blank","_blank");if(tab)tab.opener=null;
-    setBusy(id);setError("");
+    setBusy(download?"signed-download:"+id:id);setError("");
     try {
-      const result=await customerAccessRequest("signed_document",{document_id:id});
+      const result=await customerAccessRequest("signed_document",{document_id:id,download});
       if(tab)tab.location.replace(result.url);else window.location.assign(result.url);
     }catch(e){tab?.close();setError(e instanceof Error?e.message:"Documento indisponível.");}
+    finally{setBusy(null);}
+  }
+  async function downloadPhoto(id:string){
+    const tab=window.open("about:blank","_blank");if(tab)tab.opener=null;
+    setBusy("photo-download:"+id);setError("");
+    try {
+      // URL nova em cada clique: os previews expiravam depois de 2 minutos.
+      const result=await customerAccessRequest("customer_order_media",{order_id:order.id,media_id:id,download:true});
+      if(tab)tab.location.replace(result.url);else window.location.assign(result.url);
+    }catch(e){tab?.close();setError(e instanceof Error?e.message:"Não foi possível baixar a imagem.");}
     finally{setBusy(null);}
   }
   async function openInvoice(id:string, download=false){
@@ -235,7 +245,15 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
                 {photos[photo.id] ? <a href={photos[photo.id]} target="_blank" rel="noopener noreferrer"
                   className="block"><img src={photos[photo.id]} alt={photo.name||"Foto anexada à OS"} className="aspect-square w-full object-cover" loading="lazy"/></a>
                   : <div className="flex aspect-square items-center justify-center"><LoaderCircle size={22} className="animate-spin text-[#1032DC]"/></div>}
-                <p className="truncate px-2 py-2 text-[11px] text-[#60758e]">{photo.name||"Foto da OS"}</p>
+                <div className="flex min-w-0 items-center justify-between gap-2 px-2 py-2">
+                  <p className="min-w-0 flex-1 truncate text-[11px] text-[#60758e]" title={photo.name||"Foto da OS"}>{photo.name||"Foto da OS"}</p>
+                  <button type="button" title="Baixar imagem" aria-label={"Baixar "+(photo.name||"foto do equipamento")}
+                    disabled={busy==="photo-download:"+photo.id}
+                    onClick={()=>void downloadPhoto(photo.id)}
+                    className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-blue-200 text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-60">
+                    {busy==="photo-download:"+photo.id?<LoaderCircle size={16} className="animate-spin"/>:<Download size={16}/>}
+                  </button>
+                </div>
               </div>)}</div> : <p className="py-6 text-center text-xs text-[#72849b]">Nenhuma foto disponibilizada nesta OS.</p>}
           </section>
           {detail.certificate&&<WarrantyCertificate item={detail.certificate} detail={detail}
@@ -246,6 +264,7 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
               {detail.documents.map(doc=>{
                 const invoice=doc.type==="invoice";
                 const invoiceBusy=busy==="invoice:"+doc.id||busy==="download:"+doc.id;
+                const signedBusy=busy===doc.id||busy==="signed-download:"+doc.id;
                 return <div key={doc.type+":"+doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8edf4] p-3">
                   <div className="min-w-0 flex-1">
                     <p className="break-words text-xs font-semibold text-[#193756]">{invoice?"Nota Fiscal":doc.title||"Documento assinado"}</p>
@@ -253,17 +272,20 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
                     <p className="mt-1 text-[11px] text-[#72849b]">{invoice?"Anexada em "+date(doc.created_at):"Assinado em "+date(doc.signed_at)}</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" disabled={invoice?invoiceBusy:busy===doc.id}
+                    <button type="button" disabled={invoice?invoiceBusy:signedBusy}
                       onClick={()=>void (invoice?openInvoice(doc.id):openSigned(doc.id))}
-                      className="inline-flex h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
-                      {(invoice?invoiceBusy:busy===doc.id)?<LoaderCircle size={16} className="animate-spin"/>:invoice?"Visualizar nota fiscal":"Abrir documento"}
+                      className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
+                      {(invoice?invoiceBusy:signedBusy)?<LoaderCircle size={16} className="animate-spin"/>:<FileText size={15}/>}
+                      {invoice?"Visualizar nota fiscal":"Abrir documento"}
                     </button>
-                    {invoice&&<button type="button" disabled={invoiceBusy} onClick={()=>void openInvoice(doc.id,true)}
-                      aria-label="Baixar nota fiscal"
-                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
-                      {busy==="download:"+doc.id?<LoaderCircle size={16} className="animate-spin"/>:<Download size={16}/>}
+                    <button type="button" disabled={invoice?invoiceBusy:signedBusy}
+                      onClick={()=>void (invoice?openInvoice(doc.id,true):openSigned(doc.id,true))}
+                      aria-label={invoice?"Baixar nota fiscal":"Baixar documento assinado"}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] transition-colors hover:bg-blue-50 disabled:opacity-60">
+                      {(invoice?busy==="download:"+doc.id:busy==="signed-download:"+doc.id)
+                        ?<LoaderCircle size={16} className="animate-spin"/>:<Download size={16}/>}
                       Baixar
-                    </button>}
+                    </button>
                   </div>
                 </div>;
               })}</div>
