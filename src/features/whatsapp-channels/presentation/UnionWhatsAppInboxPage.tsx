@@ -410,7 +410,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(identity!==messageIdentity.current ||
         organizationRef.current!==activeOrganizationId ||
         accountRef.current!==activeChannelPhone)return;
-      if(!silent){
+      // A realtime refresh can supersede the initial request; it must also unlock the chat.
+      if(!silent || !messageHistoryLoadedRef.current){
         messageHistoryLoadedRef.current=true;
         setMessagesResolvedId(conversationId);
         setMessagesErrorId(null);
