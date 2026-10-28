@@ -89,3 +89,33 @@ test("e-mail opcional é verificado por WhatsApp antes de criar conta com senha"
   assert.match(edge, /safeEqual\(c\.code_digest/);
   assert.match(migration, /purpose in \('activation','login','registration'\)/);
 });
+
+
+test("Ativar Minha Conta mostra/oculta as duas senhas separadamente", () => {
+  const activation = read("src/features/customer-account/presentation/CustomerAccessActivatePage.tsx");
+  assert.match(activation, /setShowPassword/);
+  assert.match(activation, /setShowConfirm/);
+  assert.match(activation, /type=\{showPassword\?"text":"password"\}/);
+  assert.match(activation, /type=\{showConfirm\?"text":"password"\}/);
+  assert.match(activation, /aria-label=\{showPassword\?"Ocultar senha":"Mostrar senha"\}/);
+  assert.match(activation, /aria-label=\{showConfirm\?"Ocultar confirmação":"Mostrar confirmação"\}/);
+});
+
+test("Ativação não usa ícones nos botões de envio, confirmação ou finalização", () => {
+  const activation = read("src/features/customer-account/presentation/CustomerAccessActivatePage.tsx");
+  assert.doesNotMatch(activation, /<CheckCircle2|<MessageCircle|<Loader2/);
+  assert.match(activation, /"Enviar código pelo WhatsApp"/);
+  assert.match(activation, /"Confirmar código"/);
+  assert.match(activation, /"Finalizar cadastro"/);
+  assert.match(activation, /<LoaderCircle className="animate-spin"/);
+});
+
+test("Ativação permite colar código de seis dígitos por ação explícita e sem URL com OTP", () => {
+  const activation = read("src/features/customer-account/presentation/CustomerAccessActivatePage.tsx");
+  assert.match(activation, /async function pasteCode\(\)/);
+  assert.match(activation, /navigator\.clipboard\.readText\(\)/);
+  assert.match(activation, /candidates\.length!==1/);
+  assert.match(activation, /Colar código/);
+  assert.match(activation, /autoComplete="one-time-code"/);
+  assert.doesNotMatch(activation, /location\.href.*code|URLSearchParams.*code/);
+});
