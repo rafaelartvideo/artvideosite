@@ -15,6 +15,15 @@ const origins = new Set([
 ]);
 const uuid = (x: unknown) => /^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(String(x||""));
 const cpfDigits = (x: unknown) => String(x||"").replace(/\D/g,"");
+function validCpf(value:unknown) {
+  const c=cpfDigits(value);
+  if(!/^\d{11}$/.test(c)||/^(\d)\1{10}$/.test(c))return false;
+  for(let i=9;i<11;i++){
+    let sum=0;for(let j=0;j<i;j++)sum+=Number(c[j])*(i+1-j);
+    if((sum*10)%11%10!==Number(c[i]))return false;
+  }
+  return true;
+}
 const bytesHex = (x: ArrayBuffer) => Array.from(new Uint8Array(x)).map(n=>n.toString(16).padStart(2,"0")).join("");
 const sha256 = async (x: string) => bytesHex(await crypto.subtle.digest("SHA-256",encoder.encode(x)));
 const hmac = async (x: string) => {
@@ -134,7 +143,7 @@ async function sendOtp(channel:{id:string;organization_id:string},jid:string,cod
   const sent=await bridge(channel,"send_text","",jid,message);
   if(typeof sent.provider_message_id!=="string"||!sent.provider_message_id)throw Error("send_unconfirmed");
 }
-async function createChallenge(org:string,purpose:"activation"|"login",phone:string,jid:string,inviteId:string|null,accountUserId:string|null){
+async function createChallenge(org:string,purpose:"activation"|"login"|"registration",phone:string,jid:string,inviteId:string|null,accountUserId:string|null){
   const id=crypto.randomUUID(),code=newCode();
   const {error}=await admin.from("artvideo_customer_access_challenges").insert({
     id,organization_id:org,purpose,phone_e164:phone,chat_jid:jid,
@@ -165,10 +174,12 @@ async function linkedAccount(org:string,cpf:string){
     .eq("organization_id",org).eq("cpf",cpf).limit(3);
   if(error||data?.length!==1)return null;
   const a=data[0];
-  if(!a.entity_id||!a.whatsapp_verified_at||!a.crm_access_activated_at||!a.whatsapp_verified_number)return null;
-  const {data:customer}=await admin.from("customers").select("id,document,whatsapp")
-    .eq("id",a.entity_id).eq("organization_id",org).maybeSingle();
-  if(!customer||cpfDigits(customer.document)!==cpf || normalizePhone(customer.whatsapp)!==a.whatsapp_verified_number)return null;
+  if(!a.whatsapp_verified_at||!a.whatsapp_verified_number)return null;
+  if(a.entity_id){
+    const {data:customer}=await admin.from("customers").select("id,document,whatsapp")
+      .eq("id",a.entity_id).eq("organization_id",org).maybeSingle();
+    if(!customer||cpfDigits(customer.document)!==cpf || normalizePhone(customer.whatsapp)!==a.whatsapp_verified_number)return null;
+  }
   return a;
 }
 // CPF + senha deve funcionar para TODAS as contas do site, inclusive as criadas por e-mail.
@@ -320,6 +331,15 @@ Deno.serve(async request=>{
       }
       return response(request,{success:true});
     }
+    if(action==="registration_send"){
+      const phone=normalizePhone(body.phone);
+      if(!phone)return response(request,fail("Informe um WhatsApp com DDD válido.",400),400);
+      await limit("registration-send",phone,5,3600);
+      const channel=await activeChannel(org);
+      const jid=await verifiedJid(channel,phone);
+      const id=await createChallenge(org,"registration",phone,jid,null,null);
+      return response(request,{success:true,challenge_id:id,expires_in_seconds:1800,resend_in_seconds:60});
+    }
     if(action==="login_send"){
       const cpf=cpfDigits(body.cpf);
       if(cpf.length!==11)return response(request,fail("Informe um CPF válido.",400),400);
@@ -407,14 +427,16 @@ Deno.serve(async request=>{
       if(!consumed)return response(request,fail("Código já utilizado.",410),410);
       if(c.purpose==="login"){
         const {data:account}=await admin.from("artvideo_customer_accounts")
-          .select("user_id,entity_id,crm_access_activated_at,whatsapp_verified_number")
+          .select("user_id,entity_id,whatsapp_verified_at,whatsapp_verified_number")
           .eq("user_id",c.account_user_id).eq("organization_id",org).maybeSingle();
-        if(!account?.crm_access_activated_at||account.whatsapp_verified_number!==c.phone_e164)
+        if(!account?.whatsapp_verified_at||account.whatsapp_verified_number!==c.phone_e164)
           return response(request,fail("Acesso indisponível.",403),403);
-        const {data:currentCustomer}=await admin.from("customers").select("whatsapp")
-          .eq("organization_id",org).eq("id",account.entity_id).maybeSingle();
-        if(normalizePhone(currentCustomer?.whatsapp)!==c.phone_e164)
-          return response(request,fail("Atualize a verificação do WhatsApp no cadastro.",403),403);
+        if(account.entity_id){
+          const {data:currentCustomer}=await admin.from("customers").select("whatsapp")
+            .eq("organization_id",org).eq("id",account.entity_id).maybeSingle();
+          if(normalizePhone(currentCustomer?.whatsapp)!==c.phone_e164)
+            return response(request,fail("Atualize a verificação do WhatsApp no cadastro.",403),403);
+        }
         const session=await sessionFor(c.account_user_id);
         return response(request,{success:true,...session,needs_password:false});
       }
