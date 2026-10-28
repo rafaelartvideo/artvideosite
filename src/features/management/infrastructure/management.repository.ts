@@ -89,7 +89,7 @@ export async function removeManagementRecord(record: ManagementRecord) {
 }
 export async function restoreManagementRecord(recordId: string) {
   const {error} = await supabase.from("management_records")
-    .update({ deleted_at: null, deleted_by: null }).eq("id",recordId);
+    .update({ deleted_at: null, deleted_by: null, deleted_batch_id: null }).eq("id",recordId);
   if (error) throw error;
 }
 export async function uploadManagementFiles(spaceId: string, folderId: string, files: File[], campaignRecordId?: string) {
