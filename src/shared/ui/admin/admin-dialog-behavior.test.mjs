@@ -27,11 +27,14 @@ test("mobile bottom inset keeps a minimum browser-bar clearance when measurement
   assert.equal(resolveAdminBrowserBottomInset(28, false), 28);
 });
 
-test("managed dialogs are non-modal so a restored window does not dismiss on portal focus changes", () => {
-  assert.equal(resolveDialogModalMode(true, true), false);
-  assert.equal(resolveDialogModalMode(true, undefined), false);
+test("restored dialogs preserve Radix modal mode, backdrop and body scroll lock", () => {
+  // undefined means the Radix default (modal=true).
+  assert.equal(resolveDialogModalMode(true, true), true);
+  assert.equal(resolveDialogModalMode(true, undefined), undefined);
   assert.equal(resolveDialogModalMode(false, true), true);
   assert.equal(resolveDialogModalMode(false, undefined), undefined);
+  // Explicit non-modal calls remain opt-in.
+  assert.equal(resolveDialogModalMode(true, false), false);
 });
 
 test("admin dialogs do not receive the primitive desktop max-width cap", () => {

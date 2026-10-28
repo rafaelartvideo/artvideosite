@@ -1,8 +1,9 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { CalendarDays, Check, History, MessageCircle, Pencil, Play, Users, WifiOff } from "lucide-react";
+import { CalendarDays, Check, History, Pencil, Play, Users, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
@@ -598,7 +599,7 @@ export function TechnicianPanel() {
             void refreshConversations();
           }} aria-label="Abrir meus atendimentos">
           <span className="inline-flex items-center justify-center gap-1.5 text-xs">
-            <MessageCircle size={16} className="shrink-0" />
+            <WhatsAppBrandIcon size={16} className="shrink-0" />
             <span className="sm:hidden">Atendimentos</span>
             <span className="hidden sm:inline">Meus atendimentos</span>
           </span>
@@ -964,11 +965,11 @@ export function TechnicianPanel() {
                 setChatConversationId(thread.id);
               }}
               className="flex w-full min-w-0 items-center gap-3 p-3 text-left transition-colors hover:bg-muted/60 sm:p-4">
-              <MessageCircle size={18} className="shrink-0 text-primary" />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                  <span className="max-w-full truncate text-sm font-bold text-foreground">
-                    {thread.contact_name || "Contato"}
+                  <span className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-sm font-bold text-foreground">
+                    <WhatsAppBrandIcon size={17} className="shrink-0 text-[#25D366]" />
+                    <span className="truncate">{thread.contact_name || "Contato"}</span>
                   </span>
                   {thread.contact_phone && <span className="text-xs font-medium text-muted-foreground">
                     {formatWhatsAppNumber(thread.contact_phone)}

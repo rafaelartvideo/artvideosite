@@ -69,7 +69,10 @@ function Dialog({
     <DialogPrimitive.Root
       data-slot="dialog"
       {...props}
-      open={effectiveOpen}
+      // A janela minimizada permanece montada para preservar seus dados,
+      // mas a raiz do Radix deve estar fechada para liberar o fundo.
+      // Ao restaurar, abre de novo como modal completo: overlay + scroll lock.
+      open={effectiveOpen && !minimized}
       modal={resolveDialogModalMode(isManaged, modal)}
       onOpenChange={handleOpenChange}
     />
