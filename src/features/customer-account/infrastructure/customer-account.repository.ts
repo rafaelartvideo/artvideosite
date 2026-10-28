@@ -1,5 +1,26 @@
 import { supabase } from "@/lib/supabase";
 
+export type CustomerServiceOrder = {
+  id: string; os_number: string; description: string; status: string;
+  model?: string; created_at: string; scheduled_at?: string|null;
+  completed_at?: string|null;
+};
+export type CustomerOrderDetails = {
+  order: CustomerServiceOrder & {
+    status_slug:string; started_at:string|null; cancelled_at:string|null;
+    problem:string;serial_number:string;accessories:string;
+    equipment_type:string;brand:string;equipment_model:string;
+  };
+  items:{title:string;description:string;quantity:number;item_type:string}[];
+  photos:{id:string;name:string;mime_type:string}[];
+  documents:{id:string;title:string;signed_at:string;type:string}[];
+  certificate:{id:string;number:number;issued_at:string;starts_at:string;expires_at:string;warranty:string}|null;
+};
+export type CustomerSignatureRequest = {
+  id:string;service_order_id:string;os_number:string;title:string;created_at:string;
+  signed_at:string|null;expires_at:string;status:string;
+  customer_status:"pending"|"signed"|"cancelled"|"expired";downloadable:boolean;
+};
 export type CustomerPortalItem = {
   id: string;
   number: string;
@@ -18,7 +39,7 @@ export type CustomerPortal = {
   quotes?: CustomerPortalItem[];
   crm_access?: boolean;
   crm_profile?: {name:string;cpf:string;whatsapp:string;address?:{street:string;number:string;neighborhood:string;city:string;state:string;zip_code:string;complement?:string|null}|null};
-  service_orders?: {id:string;os_number:string;description:string;status:string;model?:string;created_at:string;scheduled_at?:string|null;completed_at?:string|null}[];
+  service_orders?: CustomerServiceOrder[];
   documents?: {id:string;os_number:string;title:string;signed_at:string}[];
 };
 export type CustomerActivation = {
