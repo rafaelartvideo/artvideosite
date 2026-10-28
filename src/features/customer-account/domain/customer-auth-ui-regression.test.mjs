@@ -67,7 +67,7 @@ test("cadastro mostra asteriscos obrigatórios, e erros de validação abaixo de
   const page = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
   const validators = read("src/features/customer-account/domain/customer-registration-validation.ts");
   for(const field of ["name","cpf","phone","password","confirmPassword"]){
-    assert.match(page, new RegExp('registrationError\\\\("'+field+'"\\\\)'));
+    assert.ok(page.includes('registrationError("'+field+'")'));
   }
   assert.match(page, /<span className="text-red-600">\*<\/span>/);
   assert.match(page, /<form onSubmit=\{event => void submitAuth\(event\)\} noValidate/);
