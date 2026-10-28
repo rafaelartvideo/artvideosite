@@ -200,7 +200,7 @@ grant execute on function public.management_cleanup_complete(uuid,boolean,text) 
 
 -- Não restaurar itens que já entraram em remoção definitiva.
 create or replace function private.management_block_restore_during_purge()
-returns trigger language plpgsql security definer set search_path='' as $
+returns trigger language plpgsql security definer set search_path='' as $$
 begin
  if old.deleted_at is not null and new.deleted_at is null and exists(
     select 1 from private.management_purge_jobs j
