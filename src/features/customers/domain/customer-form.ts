@@ -74,13 +74,14 @@ export function customerUpdatePayload(form: CustomerForm) {
 
 export type CustomerFieldErrors = Partial<Record<keyof CustomerForm, string>>;
 
-export function validateCustomerFormFields(form: CustomerForm): CustomerFieldErrors {
+export function validateCustomerFormFields(form: CustomerForm, { requirePhone = false }: { requirePhone?: boolean } = {}): CustomerFieldErrors {
   const errors: CustomerFieldErrors = {};
   const phone = form.phone.trim();
   const whatsapp = form.whatsapp.trim();
   const email = form.email.trim();
 
-  if (!whatsapp && !phone) errors.whatsapp = "Informe um telefone ou WhatsApp.";
+  if (requirePhone && !phone) errors.phone = "Telefone é obrigatório para cadastrar um cliente."; 
+  else if (!whatsapp && !phone) errors.whatsapp = "Informe um telefone ou WhatsApp.";
   if (phone && !isValidBrazilianPhone(phone)) errors.phone = "Telefone inválido. Informe DDD e número válidos.";
   if (whatsapp && !isValidBrazilianPhone(whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um telefone fixo ou celular com DDD válido.";
   if (email && !isValidEmail(email)) errors.email = "E-mail inválido. Verifique o endereço informado.";
