@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { CheckCircle2, MessageCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 
@@ -12,9 +12,12 @@ async function action(name:string,payload:Record<string,unknown>){
   return data;
 }
 export function CustomerAccessActivatePage(){
-  const [params]=useSearchParams();
   const navigate=useNavigate();
-  const token=params.get("convite")||"";
+  const [token]=useState(()=>new URLSearchParams(window.location.search).get("convite")||"");
+  useEffect(()=>{
+    // Evita que o segredo do convite continue visivel no historico/endereco.
+    if(token)window.history.replaceState(window.history.state,"",window.location.pathname);
+  },[token]);
   const [phase,setPhase]=useState<Phase>("loading");
   const [phone,setPhone]=useState("");
   const [code,setCode]=useState("");
