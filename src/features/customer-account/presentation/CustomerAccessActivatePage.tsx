@@ -20,6 +20,7 @@ export function CustomerAccessActivatePage(){
   const [code,setCode]=useState("");
   const [challenge,setChallenge]=useState("");
   const [wait,setWait]=useState(0);
+  const [profile,setProfile]=useState<{full_name:string;cpf:string;phone:string;address?:{street:string;number:string;neighborhood:string;city:string;state:string}|null}|null>(null);
   const [password,setPassword]=useState("");
   const [confirm,setConfirm]=useState("");
   const [busy,setBusy]=useState(false);
@@ -60,7 +61,7 @@ export function CustomerAccessActivatePage(){
       const result=await action("verify",{challenge_id:challenge,code});
       const {error:e}=await supabase.auth.verifyOtp({token_hash:result.token_hash,type:"magiclink"});
       if(e)throw e;
-      if(result.needs_password)setPhase("password");
+      if(result.needs_password){setProfile(result.profile||null);setPhase("password");}
       else navigate("/minha-conta",{replace:true});
     }catch(e){setError(e instanceof Error?e.message:"Não foi possível confirmar.");}
     finally{setBusy(false);}
@@ -111,6 +112,12 @@ export function CustomerAccessActivatePage(){
       </form>:
       <form onSubmit={event=>void setInitialPassword(event)} className="space-y-4">
         <p className="rounded-lg bg-green-50 p-3 text-sm text-green-800">WhatsApp confirmado. Agora crie sua senha de acesso.</p>
+        {profile&&<div className="rounded-xl border border-[#e2e8f1] bg-[#f7f9fc] p-4 text-xs leading-6 text-[#4b627e]">
+          <p><strong>Nome:</strong> {profile.full_name}</p>
+          <p><strong>CPF:</strong> {profile.cpf.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,"$1.$2.$3-$4")}</p>
+          <p><strong>WhatsApp:</strong> {profile.phone}</p>
+          {profile.address&&<p><strong>Endereço:</strong> {profile.address.street}, {profile.address.number} · {profile.address.neighborhood}, {profile.address.city}/{profile.address.state}</p>}
+        </div>}
         <label className="block text-xs font-semibold text-[#344d6a]">Criar senha
           <input className={field+" mt-1.5"} value={password} type="password" autoComplete="new-password" minLength={8} onChange={e=>setPassword(e.target.value)} required/>
         </label>
