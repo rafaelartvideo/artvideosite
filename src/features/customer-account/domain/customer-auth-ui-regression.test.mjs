@@ -7,11 +7,11 @@ const read = path => readFileSync(path, "utf8");
 test("acesso à Minha Conta tem CPF e senha por padrão, sem animação nem seleção de e-mail", () => {
   const account = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
   const login = read("src/features/customer-account/presentation/CustomerCpfLoginPanel.tsx");
-  assert.match(account, /<CustomerCpfLoginPanel onRecoveryVerified=/);
+  assert.match(account, /<CustomerCpfLoginPanel\s+method=\{loginMethod\}/);
   assert.doesNotMatch(account, /<AnimatePresence/);
   assert.doesNotMatch(account, /<motion\.div/);
   assert.doesNotMatch(account, /setCpfMode|cpfMode/);
-  assert.match(login, /useState<Method>\("password"\)/);
+  assert.match(account, /useState<CustomerLoginMethod>\("password"\)/);
   assert.match(login, /Esqueceu a senha\?/);
   assert.match(login, /Entrar com código de segurança/);
   assert.match(login, /type=\{showPassword \? "text" : "password"\}/);
@@ -118,4 +118,20 @@ test("Ativação permite colar código de seis dígitos por ação explícita e 
   assert.match(activation, /Colar código/);
   assert.match(activation, /autoComplete="one-time-code"/);
   assert.doesNotMatch(activation, /location\.href.*code|URLSearchParams.*code/);
+});
+
+
+test("recuperação mostra título e descrição próprios, com seta voltar na mesma linha e à esquerda", () => {
+  const account = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
+  const login = read("src/features/customer-account/presentation/CustomerCpfLoginPanel.tsx");
+  assert.match(account, /loginMethod === "recovery" \? "Recuperar senha"/);
+  assert.match(account, /"Confirme sua identidade para criar uma nova senha\."/);
+  assert.match(account, /className="relative mb-6 text-center"/);
+  assert.match(account, /className="absolute left-0 top-0 inline-flex h-7 w-7/);
+  assert.match(account, /aria-label="Voltar para entrar com senha"/);
+  assert.match(account, /<ArrowLeft size=\{18\}/);
+  assert.match(account, /onClick=\{\(\) => setLoginMethod\("password"\)\}/);
+  assert.doesNotMatch(login, /Voltar para senha/);
+  assert.match(login, /onMethodChange: \(method: CustomerLoginMethod\) => void/);
+  assert.match(login, /\[method\]/);
 });
