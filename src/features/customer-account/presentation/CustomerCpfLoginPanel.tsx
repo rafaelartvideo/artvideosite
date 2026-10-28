@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, ArrowRight, Eye, EyeOff, RefreshCw } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
@@ -104,7 +104,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
   const codeMode = method !== "password";
   return <form onSubmit={event => void submit(event)} className="space-y-4">
     {codeMode && <button type="button" onClick={() => changeMethod("password")}
-      className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--art-primary)] hover:underline">
+      className="inline-flex items-center gap-1.5 !text-xs font-medium text-[var(--art-primary)] hover:underline">
       <ArrowLeft size={14} /> Voltar para senha
     </button>}
     {recoveryEmailSent && <p role="status" className="rounded-lg border border-[#dbe5f2] bg-[#f3f7ff] p-3 text-xs leading-5 text-[#344d6a]">Se a conta possuir um e-mail cadastrado, enviaremos um link para criar outra senha. Confira também o spam.</p>}
@@ -121,7 +121,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
         <span className="flex items-center justify-between gap-2">
           <span>Senha</span>
           <button type="button" onClick={() => changeMethod("recovery")}
-            className="font-semibold text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>
+            className="shrink-0 !text-[11px] font-medium leading-tight text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>
         </span>
         <span className="relative mt-1.5 block">
           <input className={inputClass + " !mt-0 pr-11"} type={showPassword ? "text" : "password"}
@@ -170,12 +170,12 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
     <button type="submit" disabled={busy || (codeMode && !!challenge && code.length !== 6)}
       className={buttonClass}>
-      {busy ? <RefreshCw size={18} className="animate-spin" aria-label="Processando..." /> :
-        <>{method === "password" ? "Entrar" : challenge ? "Confirmar código" : "Enviar código"} <ArrowRight size={16} /></>}
+      {busy ? <LoaderCircle size={18} className="animate-spin" aria-label="Processando..." /> :
+        (method === "password" ? "Entrar" : challenge ? "Confirmar código" : "Enviar código")}
     </button>
     {method === "recovery" && !challenge && !recoveryEmailSent && <button type="button" disabled={busy} onClick={() => void recoverByEmail()}
-      className="block w-full text-center text-xs font-semibold text-[var(--art-primary)] hover:underline disabled:opacity-60">Recuperar pelo e-mail cadastrado</button>}
-    {!codeMode ? <button type="button" className="block w-full text-center text-xs font-semibold text-[var(--art-primary)] hover:underline"
+      className="block w-full text-center !text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline disabled:opacity-60">Recuperar pelo e-mail cadastrado</button>}
+    {!codeMode ? <button type="button" className="block w-full text-center !text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline"
       onClick={() => changeMethod("code")}>Entrar com código de segurança</button> : null}
   </form>;
 }
