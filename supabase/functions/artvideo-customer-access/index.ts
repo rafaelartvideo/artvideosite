@@ -653,6 +653,9 @@ Deno.serve(async request=>{
         .eq("id",document.service_order_id).eq("organization_id",org)
         .eq("customer_id",account.entity_id).maybeSingle();
       if(!order)return response(request,fail("Documento não disponível.",404),404);
+      const details=await portalAssetContext(request,order.id);
+      if(!Array.isArray(details.documents) || !details.documents.some((entry:{id:string})=>entry.id===documentId))
+        return response(request,fail("Documento não disponível.",403),403);
       const path=String(document.final_pdf_storage_path).replace(/^signed-documents\//,"");
       const {data:sign,error:signError}=await admin.storage.from("signed-documents").createSignedUrl(path,120);
       if(signError||!sign?.signedUrl)throw Error("document_unavailable");
