@@ -206,7 +206,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   onBack: () => void; onConfigure: () => void; onOpenCustomer?: (customerId:string) => void; onOpenOrder?: (orderId:string) => void;
   embedded?: boolean; initialConversationId?: string | null;
 }) {
-  const { activeOrganizationId, hasPermission, user } = useAuth();
+  const { activeOrganizationId, hasPermission, user, profile } = useAuth();
   const location = useLocation();
   const canView = hasPermission("whatsapp.inbox.view");
   const [capabilities,setCapabilities] = useState<Record<string,boolean>>({});
@@ -251,6 +251,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [queueSettings,setQueueSettings]=useState<UnionWhatsAppQueueSettings>(DEFAULT_WHATSAPP_QUEUE_SETTINGS);
   const [routingLoading,setRoutingLoading]=useState(false);
   const [messagesLoading, setMessagesLoading] = useState(false);
+  const [messagesResolvedId,setMessagesResolvedId]=useState<string|null>(null);
+  const [messagesErrorId,setMessagesErrorId]=useState<string|null>(null);
   const lastFeedbackRef = useRef<{message:string;at:number}|null>(null);
   const reportError = useCallback((message:string) => {
     if (!message) return;
@@ -303,6 +305,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [targetUserId, setTargetUserId] = useState("");
   const [participantsOpen,setParticipantsOpen] = useState(false);
   const [participants,setParticipants] = useState<UnionWhatsAppParticipant[]>([]);
+  // Preserve the last verified membership while revalidating realtime updates.
+  const [participantsResolvedId,setParticipantsResolvedId]=useState<string|null>(null);
+  const [participantsErrorId,setParticipantsErrorId]=useState<string|null>(null);
   const [participantsRevision,setParticipantsRevision] = useState(0);
   const [participantsBusy,setParticipantsBusy] = useState(false);
   const [participantUserId,setParticipantUserId] = useState("");
@@ -405,7 +410,11 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
       if(identity!==messageIdentity.current ||
         organizationRef.current!==activeOrganizationId ||
         accountRef.current!==activeChannelPhone)return;
-      if(!silent)messageHistoryLoadedRef.current=true;
+      if(!silent){
+        messageHistoryLoadedRef.current=true;
+        setMessagesResolvedId(conversationId);
+        setMessagesErrorId(null);
+      }
       setMessages(current=>{
         if(!silent)return page.items;
         const merged=new Map<string,UnionWhatsAppMessage>(current.map(item=>[item.id,item]));
@@ -418,8 +427,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         setMessagesHasMore(page.hasMore);
       }
     }catch(reason){
-      if(identity===messageIdentity.current && organizationRef.current===activeOrganizationId)
+      if(identity===messageIdentity.current && organizationRef.current===activeOrganizationId){
+        if(!silent)setMessagesErrorId(conversationId);
         reportError(systemErrorMessage(reason,"Não foi possível consultar as mensagens."));
+      }
     }finally{
       if(identity===messageIdentity.current)setMessagesLoading(false);
     }
@@ -664,6 +675,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useLayoutEffect(() => {
     messageCursorRef.current=null;
     messageHistoryLoadedRef.current=false;
+    setMessagesResolvedId(null);
+    setMessagesErrorId(null);
     chatScrollReadyRef.current=false;
     followLatestRef.current=true;
     setShowJumpToLatest(false);
@@ -786,12 +799,25 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   },[selectedId,activeOrganizationId,activeChannelId,activeChannelPhone,channelReady,conversations]);
 
   useEffect(()=>{
-    setParticipants([]);
-    if(!selected || !activeOrganizationId || selected.status!=="in_att" || channelReady!==true)return;
+    if(!selected || !activeOrganizationId || selected.status!=="in_att" || channelReady!==true){
+      setParticipants([]);
+      setParticipantsResolvedId(null);
+      setParticipantsErrorId(null);
+      return;
+    }
     let cancelled=false;
     void operateUnionWhatsAppInbox(activeOrganizationId,selected.id,"participants")
-      .then(result=>{if(!cancelled)setParticipants(result.participants||[]);})
-      .catch(()=>{if(!cancelled)setParticipants([]);});
+      .then(result=>{
+        if(cancelled)return;
+        setParticipants(result.participants||[]);
+        setParticipantsResolvedId(selected.id);
+        setParticipantsErrorId(null);
+      })
+      .catch(()=>{
+        if(cancelled)return;
+        // A transient fetch failure must never appear as another operator owning this chat.
+        if(participantsResolvedId!==selected.id)setParticipantsErrorId(selected.id);
+      });
     return()=>{cancelled=true;};
   },[activeOrganizationId,selected?.id,selected?.status,participantsRevision,channelReady]);
 
@@ -948,8 +974,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   };
   const isMine = Boolean(selected && user?.id && selected.assigned_to === user.id);
   const canOperateSelected = Boolean(selected && (isMine || canManage));
-  const isActiveCollaborator = Boolean(user?.id && participants.some(item=>item.user_id===user.id && item.status==="active"));
-  const canReply = Boolean(selected && !protocolFilter && canSend && selected.status === "in_att" && (isMine || canManage || isActiveCollaborator));
+  const isActiveCollaborator = Boolean(user?.id && selected && participantsResolvedId===selected.id &&
+    participants.some(item=>item.user_id===user.id && item.status==="active"));
+  const conversationOpening = Boolean(selectedId && (!selected || messagesResolvedId!==selectedId ||
+    (selected.status==="in_att" && !isMine && !canManage && participantsResolvedId!==selectedId)));
+  const conversationOpeningError = Boolean(selectedId && (messagesErrorId===selectedId || participantsErrorId===selectedId));
+  const canReply = Boolean(selected && !conversationOpening && !protocolFilter && canSend && selected.status === "in_att" &&
+    (isMine || canManage || isActiveCollaborator));
+  const operatorFirstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
+    .replace(/[*_~`\r\n]/g,"");
   const openParticipants = async () => {
     if(!selected||!activeOrganizationId)return;
     setParticipantsOpen(true);setParticipantUserId("");setParticipantsBusy(true);
@@ -1307,6 +1340,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
     const text = draft.trim();
+    const optimisticText=text && operatorFirstName ? `*${operatorFirstName}*\n${text}` : text;
     const file = attachment;
     const preview = mediaPreview;
     const fileType = file ? file.type==="image/webp" ? "sticker" : file.type.startsWith("image/") ? "image" :
@@ -1324,7 +1358,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     if(fileType==="audio" && preview) pendingAudioUrlsRef.current.add(preview);
     setPending(current => [...current, {
       id: requestId, conversationId: threadId, organizationId,
-      text, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name,
+      text:optimisticText, status: "sending", sentAt: new Date().toISOString(), fileName:file?.name,
       mediaType:fileType || undefined, previewUrl:fileType==="audio" ? preview||undefined : undefined,
     }]);
     scrollToLatest("auto");
@@ -1560,13 +1594,19 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           </div>}
         </aside>
         <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain md:static md:inset-auto md:h-auto md:w-auto" : "hidden md:flex"} min-h-0 min-w-0 flex-col bg-card`}>
-          {!selected ? <div role="status" className="flex h-full flex-col items-center justify-center px-6 py-10 text-center">
+          {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
             {selectedId && <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);}} aria-label="Voltar para conversas"
               className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground md:hidden"><ChevronLeft size={22}/> Conversas</button>}
-            <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">Selecione uma conversa</p>
-            <div aria-hidden="true" className="mt-4 flex gap-2">
-              {[0,1,2].map(index => <span key={index} className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none" style={{ animationDelay: `${index * 160}ms` }}/>)}
-            </div>
+            {selectedId ? <>
+              {conversationOpeningError
+                ? <p className="text-sm text-muted-foreground">Não foi possível preparar a conversa.</p>
+                : <LoadingState text="Preparando conversa..."/>}
+              {conversationOpeningError && <AdminButton size="sm" variant="secondary"
+                onClick={()=>{
+                  setMessagesErrorId(null);setParticipantsErrorId(null);
+                  if(selectedId){void refreshMessages(selectedId);setParticipantsRevision(value=>value+1);}
+                }}>Tentar novamente</AdminButton>}
+            </> : <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">Selecione uma conversa</p>}
           </div> : <>
             <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 md:min-h-16 md:flex-nowrap md:gap-3 md:px-4 md:py-0">
               <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);}} aria-label="Voltar para conversas"
@@ -1584,6 +1624,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    <span className={`inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-[10px] font-bold ${hasForwarding(selected)?"bg-violet-500/15 text-violet-700 dark:text-violet-300":selected.status==="in_att"?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-300":selected.status==="waiting"?"bg-amber-500/15 text-amber-700 dark:text-amber-300":selected.status==="finished"?"bg-blue-500/15 text-blue-700 dark:text-blue-300":"bg-red-500/15 text-red-700 dark:text-red-300"}`}>
                      {hasForwarding(selected)?"Encaminhada":filters.find(item=>item.value===selected.status)?.label}
                    </span>
+                   {isActiveCollaborator && !isMine && selected.status==="in_att" &&
+                     <span className="inline-flex shrink-0 items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                    {hasForwarding(selected) && <span className="shrink-0 text-muted-foreground">›</span>}
                    {forwardedBadge(selected)}
                    </span>
