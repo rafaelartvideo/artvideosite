@@ -362,12 +362,25 @@ test("Produtos e Serviços mantêm seções independentes e ações de execuçã
   assert.match(panel, /<TechnicianOrderItemsSection\s/);
   assert.doesNotMatch(panel, /<TechnicianOrderItemsSection inline/);
   const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="!flex-nowrap'));
-  assert.ok(toolbar.includes('<Play size={18} className="sm:hidden"'));
-  assert.ok(toolbar.includes('<Check size={18} className="sm:hidden"'));
-  assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Iniciar serviço<\/span>/);
-  assert.match(toolbar, /<span className="sr-only sm:not-sr-only">Finalizar serviço<\/span>/);
-  assert.equal(panel.split('Iniciar serviço</span>').length - 1, 1);
-  assert.equal(panel.split('Finalizar serviço</span>').length - 1, 1);
+  assert.match(toolbar, /onClick=\{\(\) => void runWithGps\("start"\)\}>Iniciar<\/BtnPrimary>/);
+  assert.match(toolbar, /onClick=\{\(\) => void runWithGps\("finish"\)\}>Finalizar<\/BtnPrimary>/);
+  assert.doesNotMatch(toolbar, /<Play |<Check |Iniciar serviço<\/span>|Finalizar serviço<\/span>/);
+});
+
+
+test("abad de produtos e serviços do técnico fica acima do rótulo sem scroll horizontal", () => {
+  const tabs = read("src/features/orders/presentation/OrderDetailSectionTabs.tsx");
+  assert.match(panel, /<OrderDetailSectionTabs value=\{detailTab\} onChange=\{setDetailTab\} compactMobile/);
+  assert.ok(tabs.includes('grid min-w-0 grid-cols-2 gap-2 sm:flex sm:gap-5'));
+  assert.ok(tabs.includes('flex-col-reverse justify-center text-center'));
+  assert.ok(tabs.includes('max-w-full items-center rounded-md'));
+});
+
+test("imagens técnicas: botões alinhados lado a lado e vazio tracejado", () => {
+  assert.ok(panel.includes('className="mb-3 grid min-w-0 grid-cols-2 gap-2"'));
+  assert.ok(panel.includes('<BtnSecondary className="!min-w-0 !w-full'));
+  assert.ok(panel.includes('rounded-lg border border-dashed border-border bg-muted/20'));
+  assert.ok(panel.includes('<AdminSectionEmpty compact>Nenhuma foto enviada.</AdminSectionEmpty>'));
 });
 
 test("ações do mobile são mais largas e ocultam o ícone original durante o loading", () => {
@@ -376,7 +389,7 @@ test("ações do mobile são mais largas e ocultam o ícone original durante o l
   const toolbar = panel.slice(panel.lastIndexOf('<AdminStickyToolbar className="!flex-nowrap'));
 
   assert.ok(layout.includes('mobileBackOnly && "max-sm:!h-10 max-sm:!w-[72px]'));
-  assert.ok(toolbar.includes('max-sm:!w-[72px] max-sm:!min-w-[72px]'));
+  assert.ok(toolbar.includes('max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-3'));
   assert.ok(layout.includes('resolvedLoading && "[&_svg]:hidden"'));
   assert.ok(layout.includes('{resolvedLoading ? <><ButtonLoadingSpinner />{loadingText ?? renderedChildren}</> : renderedChildren}'));
   assert.ok(panel.includes('<Pencil size={16} className="shrink-0" aria-hidden="true" /><span>Editar</span>'));
