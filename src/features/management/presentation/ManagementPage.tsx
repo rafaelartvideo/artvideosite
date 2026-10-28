@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Upload, Link2, BriefcaseBusiness, ArrowLeft, Pencil, Archive } from "lucide-react";
+import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, BriefcaseBusiness, Pencil, Archive } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
@@ -267,6 +267,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
                     <span className="block truncate text-xs text-muted-foreground">{record.kind==="file"?formatFileSize(record.size_bytes):record.description||record.url||"Registro"} · {formatDate(record.created_at)}</span>
                   </span>
                 </button>
+                {record.url&&/^https?:\/\//i.test(record.url)&&<a className="rounded p-2 text-xs font-semibold text-primary hover:underline" href={record.url} target="_blank" rel="noopener noreferrer">Abrir</a>}
                 {canManage&&<button type="button" aria-label={`Excluir ${record.title}`} title="Excluir registro" onClick={()=>void deleteRecord(record)} className="rounded p-2 text-xs text-muted-foreground hover:text-red-600">Excluir</button>}
               </div>;
             })}
@@ -280,9 +281,9 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       </div>
     </AdminCard>
     <AdminDialog open={dialog!==null} title={dialog==="space"?(editingSpace?"Editar espaço":"Novo espaço"):dialog==="folder"?(editingFolder?"Renomear pasta":"Nova pasta"):(editingRecord?"Editar registro":"Novo registro")}
-      onClose={close} footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" onClick={close} disabled={saving}>Cancelar</AdminButton><AdminButton onClick={()=>void save()} loading={saving} disabled={!name.trim()}>Salvar</AdminButton></div>}>
+      onClose={close} footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" onClick={close} disabled={saving}>{canManage?"Cancelar":"Fechar"}</AdminButton>{canManage&&<AdminButton onClick={()=>void save()} loading={saving} disabled={!name.trim()}>Salvar</AdminButton>}</div>}>
       <div className="space-y-4">
-        <FInput label="Nome" value={name} required onChange={e=>setName(e.target.value)} maxLength={dialog==="record"?160:100}/>
+        <FInput label="Nome" value={name} required disabled={!canManage} onChange={e=>setName(e.target.value)} maxLength={dialog==="record"?160:100}/>
         {dialog==="space"&&<>
           <FTextarea label="Descrição" value={description} onChange={e=>setDescription(e.target.value)}/>
           <div><label className="mb-2 block text-xs font-semibold text-foreground">Logomarca (opcional)</label><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setLogoFile(e.target.files?.[0]||null)} className="w-full rounded-lg border border-border bg-card p-2 text-xs text-foreground"/><p className="mt-1 text-xs text-muted-foreground">PNG, JPG ou WebP de até 3 MB.</p></div>
@@ -293,16 +294,16 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         </>}
         {dialog==="record"&&<>
           <div><label className="mb-2 block text-xs font-bold text-foreground">Tipo de registro</label>
-            <select value={kind} onChange={e=>setKind(e.target.value as RecordEditKind)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground">
+            <select value={kind} disabled={!canManage} onChange={e=>setKind(e.target.value as RecordEditKind)} className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground">
               {TYPES.map(type=><option value={type.value} key={type.value}>{type.label}</option>)}
             </select></div>
           {(kind==="website"||kind==="link"||kind==="campaign"||kind==="account")&&
-            <FInput label="Endereço / URL (opcional)" value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://"/>}
+            <FInput label="Endereço / URL (opcional)" disabled={!canManage} value={url} onChange={e=>setUrl(e.target.value)} placeholder="https://"/>}
           {kind==="account"&&<>
-            <FInput label="Usuário ou e-mail da conta" value={accountUser} onChange={e=>setAccountUser(e.target.value)}/>
+            <FInput label="Usuário ou e-mail da conta" disabled={!canManage} value={accountUser} onChange={e=>setAccountUser(e.target.value)}/>
             <p className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-foreground">Não cadastre senhas, tokens ou chaves secretas aqui. Um cofre de credenciais será integrado separadamente.</p>
           </>}
-          <FTextarea label="Descrição / observações" value={description} onChange={e=>setDescription(e.target.value)}/>
+          <FTextarea label="Descrição / observações" disabled={!canManage} value={description} onChange={e=>setDescription(e.target.value)}/>
         </>}
       </div>
     </AdminDialog>
