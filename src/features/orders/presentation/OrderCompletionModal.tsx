@@ -1,6 +1,7 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, FileCheck2, MapPin, MessageCircle, Package, Phone, Printer, Wrench } from "lucide-react";
+import { CheckCircle2, FileCheck2, MapPin, Package, Phone, Printer, Wrench } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import {
   AdminButton,
@@ -69,12 +70,12 @@ function CustomerQuickActions({ customer, orderId, organizationId }: { customer:
         title="Abrir conversa no WhatsApp"
         className={`${actionClass} border-emerald-200 bg-card text-emerald-700 hover:bg-emerald-50`}
       >
-        <MessageCircle size={14} />
+        <WhatsAppBrandIcon size={14} />
         <span className="hidden md:inline">WhatsApp</span>
       </CompanyWhatsAppAction>
     ) : (
       <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${actionClass} cursor-not-allowed border-border bg-card text-muted-foreground opacity-50`}>
-        <MessageCircle size={14} />
+        <WhatsAppBrandIcon size={14} />
         <span className="hidden md:inline">WhatsApp</span>
       </button>
     )}
