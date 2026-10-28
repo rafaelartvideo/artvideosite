@@ -11,8 +11,11 @@ export function resolveAdminBrowserBottomInset(measuredInset, isMobile) {
   return isMobile ? Math.max(64, normalized) : normalized;
 }
 
-export function resolveDialogModalMode(isManaged, requestedModal) {
-  return isManaged ? false : requestedModal;
+export function resolveDialogModalMode(_isManaged, requestedModal) {
+  // Um modal restaurado conserva a mesma modalidade da primeira abertura.
+  // O Radix faz o bloqueio de scroll, a camada escura e o focus trap.
+  // Enquanto minimizado, a raiz fica fechada (ver primitives/dialog.tsx).
+  return requestedModal;
 }
 
 export function dialogSizingClass(isAdminDialog) {
