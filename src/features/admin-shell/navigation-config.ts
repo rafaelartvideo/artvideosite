@@ -1,6 +1,7 @@
 import {
   Activity,
   History,
+  Folders,
   Building2,
   CalendarDays,
   ClipboardCheck,
@@ -47,6 +48,7 @@ export const mainItems: AdminNavigationItem[] = [
   { id: "finance", label: "Financeiro", icon: Landmark },
   { id: "partnerCompanies", label: "Empresas Parceiras", icon: Building2 },
   { id: "audit", label: "Auditoria", icon: History },
+  { id: "management", label: "Central de Gestão", icon: Folders },
   { id: "announcements", label: "Avisos", icon: Megaphone },
 ];
 
@@ -80,6 +82,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   dashboard: "dashboard.view",
   crm: "dashboard.view",
   announcements: "platform.announcements.view",
+  management: "platform.management.view",
   quotes: "quotes.view",
   orders: "orders.view",
   customerRequests: "customer_requests.view",
@@ -126,6 +129,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   dashboard: "dashboard",
   crm: null,
   announcements: null,
+  management: null,
   quotes: "quotes",
   orders: "orders",
   customerRequests: "customer_requests",
@@ -199,7 +203,7 @@ export function isAdminModuleEnabled(
 ) {
   if (tab === "nfse") return false;
   if (tab === "integrations") return hasModule("company_settings") || hasModule("sac_digital"); // Etapa fiscal temporariamente suspensa.
-  if (tab === "home" || tab === "crm" || tab === "announcements") return true;
+  if (tab === "home" || tab === "crm" || tab === "announcements" || tab === "management") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
   if (tab === "tools") return true;
