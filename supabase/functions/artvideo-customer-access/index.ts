@@ -659,6 +659,41 @@ Deno.serve(async request=>{
       if(urlError||!url?.signedUrl)return response(request,fail("Imagem indisponível.",404),404);
       return response(request,{success:true,url:url.signedUrl,expires_in_seconds:120});
     }
+    if(action==="customer_invoice_file"){
+      const orderId=String(body.order_id||"");
+      const attachmentId=String(body.attachment_id||"");
+      if(!uuid(orderId)||!uuid(attachmentId))
+        return response(request,fail("Nota fiscal inválida.",400),400);
+      // Valida login, CPF, WhatsApp verificado, organização e propriedade da OS na RPC.
+      const details=await portalAssetContext(request,orderId);
+      if(!Array.isArray(details.documents)||!details.documents.some(
+        (doc:{id:string;type:string})=>doc.id===attachmentId&&doc.type==="invoice"))
+        return response(request,fail("Nota fiscal indisponível.",403),403);
+      // Nunca confiar em caminhos, tipos de documentos ou storage buckets enviados pelo cliente.
+      const {data:link,error:linkError}=await admin.from("service_order_situation_media")
+        .select("media_id,attachment_type_id")
+        .eq("id",attachmentId).eq("service_order_id",orderId)
+        .eq("organization_id",org).maybeSingle();
+      if(linkError||!link?.media_id||!link.attachment_type_id)
+        return response(request,fail("Nota fiscal não encontrada.",404),404);
+      const {data:classification,error:classificationError}=await admin.from("attachment_types")
+        .select("name").eq("id",link.attachment_type_id)
+        .eq("organization_id",org).maybeSingle();
+      if(classificationError||String(classification?.name||"").trim().toLocaleLowerCase("pt-BR")!=="nota fiscal")
+        return response(request,fail("Nota fiscal indisponível.",403),403);
+      const {data:file,error:fileError}=await admin.from("media")
+        .select("bucket_id,storage_path,file_name,mime_type")
+        .eq("id",link.media_id).eq("organization_id",org).maybeSingle();
+      if(fileError||!file?.storage_path||file.bucket_id!=="service-images"||
+        !(file.mime_type==="application/pdf"||String(file.mime_type||"").startsWith("image/")))
+        return response(request,fail("Arquivo da nota fiscal indisponível.",404),404);
+      const name=String(file.file_name||"nota-fiscal").replace(/[\\/\r\n]/g,"_").slice(0,120);
+      const options=body.download===true?{download:name}:undefined;
+      const {data:url,error:urlError}=await admin.storage.from(file.bucket_id)
+        .createSignedUrl(file.storage_path,120,options);
+      if(urlError||!url?.signedUrl)return response(request,fail("Nota fiscal indisponível.",404),404);
+      return response(request,{success:true,url:url.signedUrl,expires_in_seconds:120});
+    }
     if(action==="customer_signature_link"){
       const requestId=String(body.signature_id||"");
       if(!uuid(requestId))return response(request,fail("Assinatura inválida.",400),400);
