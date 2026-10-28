@@ -52,6 +52,7 @@ export function useRegistrationLookups({
         ...current,
         name: result.name || current.name,
         birth_date: result.birthDate ? foundationDateFromIso(result.birthDate) : current.birth_date,
+        gender: result.gender || current.gender,
       }));
     } catch (error) {
       setCpfError(systemErrorMessage(error, "Não foi possível consultar o CPF."));
@@ -91,6 +92,7 @@ export function useRegistrationLookups({
         state_registration: form.state_registration,
         foundation_date: form.foundation_date,
         birth_date: "",
+        gender: "",
       };
       const result = applyCnpjData(customerForm, currentAddress, data);
       setForm(current => ({

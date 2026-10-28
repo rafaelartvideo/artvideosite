@@ -19,5 +19,7 @@ export function normalizeCpfLookupPayload(payload) {
 
   const rawBirthDate = String(payload.birth_date || "").trim();
   const birthDate = /^\d{4}-\d{2}-\d{2}$/.test(rawBirthDate) ? rawBirthDate : null;
-  return { name, birthDate, source, registrationId: null };
+  const rawGender = String(payload.gender || "").trim().toUpperCase();
+  const gender = ["M", "F", "I"].includes(rawGender) ? rawGender : null;
+  return { name, birthDate, gender, source, registrationId: null };
 }

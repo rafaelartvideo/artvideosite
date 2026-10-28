@@ -107,7 +107,7 @@ export function TabContact() {
       <Section title="Canais de contato">
         <div className="grid gap-4 sm:grid-cols-2">
           <FPhoneInput label="Telefone" value={settings.phone || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("phone", event.target.value)} />
-          <FPhoneInput label="WhatsApp" mobile value={settings.whatsapp || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("whatsapp", event.target.value)} />
+          <FPhoneInput label="WhatsApp" mobile copyFromPhone={settings.phone || ""} onCopyPhone={phone => updateSetting("whatsapp",phone)} value={settings.whatsapp || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("whatsapp", event.target.value)} />
           <div className="sm:col-span-2"><FEmailInput label="E-mail" value={settings.email || ""} disabled={!canUpdate} onChange={(event: any) => updateSetting("email", event.target.value)} /></div>
         </div>
       </Section>

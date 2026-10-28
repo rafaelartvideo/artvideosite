@@ -30,11 +30,12 @@ export type CustomerForm = {
   state_registration: string;
   foundation_date: string;
   birth_date: string;
+  gender: "M" | "F" | "I" | "";
 };
 
 export const emptyCustomerForm: CustomerForm = {
   customerType: "PF", full_name: "", email: "", phone: "", whatsapp: "", document: "",
-  trade_name: "", legal_name: "", cnpj: "", state_registration: "", foundation_date: "", birth_date: "",
+  trade_name: "", legal_name: "", cnpj: "", state_registration: "", foundation_date: "", birth_date: "", gender: "",
 };
 
 export function customerFormFromCustomer(customer: any): CustomerForm {
@@ -44,6 +45,7 @@ export function customerFormFromCustomer(customer: any): CustomerForm {
     phone: formatPhone(customer.phone), whatsapp: formatPhone(customer.whatsapp),
     document: formatCpf(customer.document || ""), trade_name: customer.trade_name || "",
     legal_name: customer.legal_name || "", cnpj: formatCnpj(customer.cnpj || ""),
+    gender: ["M","F","I"].includes(customer.gender) ? customer.gender : "",
     state_registration: customer.state_registration || "",
     foundation_date: foundationDateFromIso(customer.foundation_date), birth_date: customer.birth_date || "",
   };
@@ -62,6 +64,7 @@ export function customerPayload(form: CustomerForm) {
     state_registration: form.customerType === "PJ" ? form.state_registration.trim() || null : null,
     foundation_date: form.customerType === "PJ" ? foundationDateToIso(form.foundation_date) : null,
     birth_date: form.customerType === "PF" ? form.birth_date || null : null,
+    gender: form.customerType === "PF" ? form.gender || null : null,
   };
 }
 

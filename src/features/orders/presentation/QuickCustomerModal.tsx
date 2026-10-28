@@ -215,7 +215,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
       const result = await lookupCpf(requestedCpf, activeOrganizationId);
       setForm(current => {
         if (current.customerType !== "PF" || current.document.replace(/\D/g, "") !== requestedCpf) return current;
-        return { ...current, full_name: result.name, birth_date: result.birthDate || current.birth_date };
+        return { ...current, full_name: result.name, birth_date: result.birthDate || current.birth_date, gender: result.gender || current.gender };
       });
       clearFieldError("full_name");
       clearFieldError("birth_date");
@@ -337,7 +337,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
 
               <FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(e: any) => { clearFieldError("email"); setForm({ ...form, email: e.target.value }); }} />
               <FPhoneInput label="Telefone" error={fieldErrors.phone} value={form.phone} onChange={(e: any) => { clearFieldError("phone"); clearFieldError("whatsapp"); setForm({ ...form, phone: e.target.value }); }} />
-              <FPhoneInput label="WhatsApp" required mobile error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
+              <FPhoneInput label="WhatsApp" required mobile copyFromPhone={form.phone} onCopyPhone={phone => { clearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
             </div>
 
             <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} />

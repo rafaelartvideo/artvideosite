@@ -22,6 +22,7 @@ export type RegistrationFormState = {
   state_registration: string;
   municipal_registration: string;
   birth_date: string;
+  gender: "M" | "F" | "I" | "";
   foundation_date: string;
   phone: string;
   whatsapp: string;
@@ -50,6 +51,7 @@ export const emptyRegistrationForm = (): RegistrationFormState => ({
   state_registration: "",
   municipal_registration: "",
   birth_date: "",
+  gender: "",
   foundation_date: "",
   phone: "",
   whatsapp: "",
@@ -101,6 +103,7 @@ export function registrationFormFromRecord(registration: Registration): Registra
     state_registration: registration.state_registration || "",
     municipal_registration: registration.municipal_registration || "",
     birth_date: foundationDateFromIso(registration.birth_date),
+    gender: ["M","F","I"].includes(registration.gender || "") ? registration.gender as "M"|"F"|"I" : "",
     foundation_date: foundationDateFromIso(registration.foundation_date),
     phone: formatPhone(registration.phone),
     whatsapp: formatPhone(registration.whatsapp),
@@ -155,6 +158,7 @@ export function registrationEntityPayload(form: RegistrationFormState) {
     state_registration: form.person_type === "PJ" ? form.state_registration.trim() : "",
     municipal_registration: form.person_type === "PJ" ? form.municipal_registration.trim() : "",
     birth_date: form.person_type === "PF" ? foundationDateToIso(form.birth_date) : "",
+    gender: form.person_type === "PF" ? form.gender : "",
     foundation_date: form.person_type === "PJ" ? foundationDateToIso(form.foundation_date) : "",
     phone: normalizeDigits(form.phone),
     whatsapp: normalizeDigits(form.whatsapp),
