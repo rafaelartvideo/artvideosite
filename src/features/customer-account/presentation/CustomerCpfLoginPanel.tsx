@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { ArrowLeft, Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { Eye, EyeOff, LoaderCircle } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
@@ -18,6 +18,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
   const [challenge, setChallenge] = useState("");
   const [resendSeconds, setResendSeconds] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<"main" | "resend" | "email" | null>(null);
   const [error, setError] = useState("");
   const codeRef = useRef<HTMLInputElement>(null);
 
@@ -39,6 +40,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
   async function sendCode(resend = false) {
     if (!isValidCpf(cpf)) { setError("Informe um CPF válido."); return; }
     setBusy(true);
+    setBusyAction(resend ? "resend" : "main");
     setError("");
     try {
       if (resend && challenge) {
@@ -54,19 +56,21 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
       setError(cause instanceof Error ? cause.message : "Não foi possível enviar o código de segurança.");
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
   async function recoverByEmail() {
     if (!isValidCpf(cpf)) { setError("Informe um CPF válido."); return; }
-    setBusy(true); setError("");
+    setBusy(true); setBusyAction("email"); setError("");
     try {
-      await customerAccessRequest("password_reset_email", { cpf: cpf.replace(/\\D/g, "") });
+      await customerAccessRequest("password_reset_email", { cpf: cpf.replace(/\D/g, "") });
       setRecoveryEmailSent(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível solicitar a recuperação.");
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -76,6 +80,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
     if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
     if (method !== "password" && !challenge) return void sendCode();
     setBusy(true);
+    setBusyAction("main");
     setError("");
     try {
       if (method === "password") {
@@ -98,6 +103,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
       setError(cause instanceof Error ? cause.message : "Não foi possível acessar a conta.");
     } finally {
       setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -105,7 +111,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
   return <form onSubmit={event => void submit(event)} className="space-y-4">
     {codeMode && <button type="button" onClick={() => changeMethod("password")}
       className="inline-flex items-center gap-1.5 !text-xs font-medium text-[var(--art-primary)] hover:underline">
-      <ArrowLeft size={14} /> Voltar para senha
+      Voltar para senha
     </button>}
     {recoveryEmailSent && <p role="status" className="rounded-lg border border-[#dbe5f2] bg-[#f3f7ff] p-3 text-xs leading-5 text-[#344d6a]">Se a conta possuir um e-mail cadastrado, enviaremos um link para criar outra senha. Confira também o spam.</p>}
     <label className="block text-xs font-semibold text-[#344d6a]">
@@ -159,8 +165,8 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
       <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-[#60758e]">
         <span>O código expira em 30 minutos.</span>
         <button type="button" disabled={busy || resendSeconds > 0} onClick={() => void sendCode(true)}
-          className="font-semibold text-[var(--art-primary)] disabled:text-[#91a0b3]">
-          {resendSeconds > 0 ? `Reenviar em ${resendSeconds}s` : "Reenviar código"}
+          className="inline-flex min-w-[100px] items-center justify-center !text-[11px] font-medium text-[var(--art-primary)] disabled:text-[#91a0b3]">
+          {busyAction === "resend" ? <LoaderCircle size={15} className="animate-spin" aria-label="Reenviando..."/> : resendSeconds > 0 ? `Reenviar em ${resendSeconds}s` : "Reenviar código"}
         </button>
       </div>
     </div> : <p className="text-xs leading-5 text-[#60758e]">
@@ -170,11 +176,11 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
     <button type="submit" disabled={busy || (codeMode && !!challenge && code.length !== 6)}
       className={buttonClass}>
-      {busy ? <LoaderCircle size={18} className="animate-spin" aria-label="Processando..." /> :
+      {busyAction === "main" ? <LoaderCircle size={18} className="animate-spin" aria-label="Processando..." /> :
         (method === "password" ? "Entrar" : challenge ? "Confirmar código" : "Enviar código")}
     </button>
     {method === "recovery" && !challenge && !recoveryEmailSent && <button type="button" disabled={busy} onClick={() => void recoverByEmail()}
-      className="block w-full text-center !text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline disabled:opacity-60">Recuperar pelo e-mail cadastrado</button>}
+      className="flex w-full items-center justify-center !text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline disabled:opacity-60">{busyAction === "email" ? <LoaderCircle size={16} className="animate-spin" aria-label="Enviando..."/> : "Recuperar pelo e-mail cadastrado"}</button>}
     {!codeMode ? <button type="button" className="block w-full text-center !text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline"
       onClick={() => changeMethod("code")}>Entrar com código de segurança</button> : null}
   </form>;
