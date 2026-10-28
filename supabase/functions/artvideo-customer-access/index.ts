@@ -130,7 +130,7 @@ async function verifiedJid(channel:{id:string;organization_id:string},phone:stri
 async function sendOtp(channel:{id:string;organization_id:string},jid:string,code:string){
   // Bloco monoespaçado do WhatsApp: permite selecionar/copiar só os 6 dígitos.
   // Não criar um link com o OTP na URL, pois isso exporia o código ao navegador.
-  const message="*Artvideo · Código de segurança*\\n\\n```"+code+"```\\n\\nVálido por 30 minutos. Não compartilhe este código.";
+  const message="*Artvideo · Código de segurança*\n\n```"+code+"```\n\nVálido por 30 minutos. Não compartilhe este código.";
   const sent=await bridge(channel,"send_text","",jid,message);
   if(typeof sent.provider_message_id!=="string"||!sent.provider_message_id)throw Error("send_unconfirmed");
 }
