@@ -523,7 +523,7 @@ export function CustomerAccountPage() {
 
           {tab === "quotes" && <RecordList kind="quotes" items={quotes}/>}
           {tab === "profile" && userId && <CustomerProfile userId={userId} email={portal.customer.email}
-             emailVerified={Boolean(session?.user?.email_confirmed_at)}
+             emailVerified={Boolean(session?.user?.email_confirmed_at)} crmAccess={Boolean(portal.crm_access)}
              onSaved={(fullName, pendingReview) => setPortal(current => current ? {
                ...current, match_status: pendingReview ? "pending_review" : current.match_status,
                customer: current.customer ? { ...current.customer, name: fullName } : current.customer,
