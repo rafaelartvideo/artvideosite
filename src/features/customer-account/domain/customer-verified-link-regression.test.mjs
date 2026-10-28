@@ -22,6 +22,7 @@ test("cliente autenticado também consegue verificar WhatsApp após confirmaçã
   assert.match(edge, /if\(action==="profile_verify"\)/);
   assert.match(edge, /account_user_id",viewer\.user\.id/);
   assert.match(edge, /safeEqual\(c\.code_digest,await hmac/);
+  assert.match(edge, /viewer\.user\?\.id!==c\.account_user_id/);
   assert.match(component, /"profile_send"/);
   assert.match(component, /"profile_verify"/);
   assert.match(page, /<CustomerWhatsAppVerification onVerified=/);
