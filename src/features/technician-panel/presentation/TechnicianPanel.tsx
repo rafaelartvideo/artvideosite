@@ -3,7 +3,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { CalendarDays, Check, History, MessageCircle, Pencil, Play, Users, WifiOff } from "lucide-react";
+import { CalendarDays, Check, History, Pencil, Play, Users, WifiOff } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
