@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
 import { Database, List, MapPinned, MessageSquare, Phone, Store, Sparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -226,10 +226,13 @@ export function AdminDashboard({
   // O scroll principal só reinicia ao mudar de módulo ou de registro.
   // Entre /orders/:id/documents e /orders/:id a área subjacente fica estável,
   // evitando salto/flash quando o modal de documentos é fechado.
-  useEffect(() => {
+  // Fazer o ajuste de scroll antes da pintura evita o frame intermediário
+  // em que uma página de OS/cadastro fecha e o módulo ainda aparece rolado.
+  useLayoutEffect(() => {
     const root = contentRef.current;
     if (!root) return;
-    root.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    root.scrollTop = 0;
+    root.scrollLeft = 0;
   }, [activeOrganizationId, activeTab, route.resourceId]);
 
   useEffect(() => { if (canAccessTab(activeTab) || !fallbackTab || fallbackTab === activeTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, fallbackTab, hasPermission, hasModule]);
