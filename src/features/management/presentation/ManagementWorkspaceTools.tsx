@@ -5,6 +5,7 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   createManagementTask, listManagementActivity, loadManagementTasks,
+  openManagementFile, uploadManagementFiles,
   restoreManagementFolder, restoreManagementRecord,
   type ManagementActivity, type ManagementFolder, type ManagementRecord, type ManagementSpace,
 } from "../infrastructure/management.repository";
@@ -51,6 +52,7 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
   const [taskTitle,setTaskTitle]=useState("");
   const [taskDue,setTaskDue]=useState("");
   const [taskPriority,setTaskPriority]=useState<"normal"|"high"|"urgent">("normal");
+  const [assetUploading,setAssetUploading]=useState<string|null>(null);
   const [revision,setRevision]=useState(0);
   const active=useMemo(()=>records.filter(r=>!r.deleted_at),[records]);
   const domains=useMemo(()=>active.filter(r=>r.kind==="website"),[active]);
@@ -78,6 +80,15 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
       notifyAdmin("Item restaurado.");onRefresh();setRevision(x=>x+1);
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível restaurar."),"error");}
     finally{setBusy(false);}
+  };
+  const uploadCreative=async(record:ManagementRecord,files:FileList|null)=>{
+    if(!files?.length||!canManage)return;
+    setAssetUploading(record.id);
+    try{
+      await uploadManagementFiles(record.space_id,record.folder_id,Array.from(files),record.id);
+      onRefresh();notifyAdmin("Materiais anexados à campanha.");
+    }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível anexar os materiais."),"error");}
+    finally{setAssetUploading(null);}
   };
   const createTask=async()=>{
     if(!canManage||!organizationId||!taskTitle.trim())return;
@@ -123,11 +134,31 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
       </div>)}
     </div>}
     {tab==="campaigns"&&<div className="space-y-2">
-      {!campaigns.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhuma campanha cadastrada.</p>:campaigns.map(r=><div key={r.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3">
-        <Megaphone size={18} className="text-primary"/><div className="min-w-[170px] flex-1"><p className="text-sm font-semibold text-foreground">{r.title}</p><p className="text-xs text-muted-foreground">{metaString(r,"platform")||"Sem plataforma"} · {metaString(r,"objective")||"Sem objetivo"}</p></div>
-        <span className="text-xs text-muted-foreground">{metaString(r,"campaign_status")||"Planejada"}</span>
-        <div className="text-right text-xs text-muted-foreground"><p>{dateLabel(metaString(r,"campaign_start"))} até {dateLabel(metaString(r,"campaign_end"))}</p><p>Orçamento: {Number(metaString(r,"budget")||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"})}</p></div>
-      </div>)}
+      {!campaigns.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhuma campanha cadastrada.</p>:campaigns.map(r=>{
+        const creativeAssets=active.filter(file=>file.kind==="file"&&file.metadata?.campaign_id===r.id);
+        const budget=Number(metaString(r,"budget").replace(",",".")||0);
+        return <div key={r.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Megaphone size={18} className="text-primary"/><div className="min-w-[170px] flex-1"><p className="text-sm font-semibold text-foreground">{r.title}</p><p className="text-xs text-muted-foreground">{metaString(r,"platform")||"Sem plataforma"} · {metaString(r,"objective")||"Sem objetivo"}</p></div>
+            <span className="text-xs text-muted-foreground">{metaString(r,"campaign_status")||"Planejada"}</span>
+            <div className="text-right text-xs text-muted-foreground"><p>{dateLabel(metaString(r,"campaign_start"))} até {dateLabel(metaString(r,"campaign_end"))}</p>
+              <p>Orçamento: {Number.isFinite(budget)?budget.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}):"—"}</p></div>
+          </div>
+          {metaString(r,"result")&&<p className="whitespace-pre-wrap text-xs text-muted-foreground">{metaString(r,"result")}</p>}
+          <div className="flex flex-wrap items-center gap-2 border-t border-border pt-2">
+            <span className="mr-auto text-xs text-muted-foreground">{creativeAssets.length} material(is) anexado(s)</span>
+            {canManage&&<label className={`cursor-pointer rounded-lg border border-border px-3 py-2 text-xs font-semibold text-primary ${assetUploading===r.id?"pointer-events-none opacity-60":""}`}>
+              {assetUploading===r.id?"Enviando...":"Anexar material"}
+              <input type="file" multiple className="hidden" disabled={Boolean(assetUploading)}
+                onChange={e=>{void uploadCreative(r,e.target.files);e.target.value="";}}/>
+            </label>}
+          </div>
+          {creativeAssets.length>0&&<div className="flex flex-wrap gap-2">{creativeAssets.map(file=><button key={file.id} type="button"
+            className="rounded-md bg-muted px-2 py-1 text-xs text-primary hover:underline"
+            onClick={()=>file.storage_path&&void openManagementFile(file.storage_path).then(url=>window.open(url,"_blank","noopener,noreferrer"))
+              .catch(error=>notifyAdmin(systemErrorMessage(error,"Não foi possível abrir o material."),"error"))}>{file.title}</button>)}</div>}
+        </div>;
+      })}
     </div>}
     {loading&&(tab==="activity"||tab==="tasks")?<LoadingState text="Carregando informações"/>:null}
     {!loading&&tab==="activity"&&<div className="max-h-[450px] space-y-2 overflow-y-auto">
