@@ -866,21 +866,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     }
   },[activeOrganizationId,channelReady,previewIds,avatars]);
 
-  useEffect(() => {
-    if (!documentVisible || !activeOrganizationId || !selected || selected.unread_count <= 0 ||
-      (selected.assigned_to !== user?.id && !canManage && !(selected.status==="waiting" && canAction("view_queues")))) return;
-    const threadId=selected.id;
-    setConversations(current => current.map(item =>
-      item.id === threadId ? {...item,unread_count:0} : item));
-    setConversationCounts(current=>({...current,unread:Math.max(0,current.unread-1)}));
-    void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
-      .then(() => void refresh(true))
-      .catch(reason => {
-        reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida."));
-        void refresh(true);
-      });
-  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,selected?.unread_count,user?.id,canManage,capabilities,reportError,refresh,documentVisible]);
-
   const loadDepartments = async () => {
     if(!activeOrganizationId) return [];
     const result=await operateUnionWhatsAppInbox(activeOrganizationId,crypto.randomUUID(),"departments_list");
@@ -964,6 +949,36 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const conversationOpeningError = Boolean(selectedId && (messagesErrorId===selectedId || participantsErrorId===selectedId));
   const canReply = Boolean(selected && !conversationOpening && !protocolFilter && canSend && selected.status === "in_att" &&
     (isMine || canManage || isActiveCollaborator));
+  // Open conversations must clear unread markers only when the messages and
+  // collaboration permissions are ready, including for invited participants.
+  // Avoid duplicate network calls while realtime refreshes are in progress.
+  const markingReadRef=useRef(new Set<string>());
+  useEffect(() => {
+    if (!documentVisible || !activeOrganizationId || !selected || conversationOpening ||
+      selected.unread_count<=0 || messagesResolvedId!==selected.id ||
+      !(isMine || canManage || isActiveCollaborator ||
+        (selected.status==="waiting" && !selected.assigned_to && canAction("view_queues")))) return;
+    const threadId=selected.id;
+    const key=activeOrganizationId+":"+threadId;
+    if(markingReadRef.current.has(key))return;
+    markingReadRef.current.add(key);
+    setConversations(current=>current.map(item=>
+      item.id===threadId ? {...item,unread_count:0}:item));
+    setSelectedFallback(current=>current?.id===threadId
+      ? {...current,unread_count:0}:current);
+    setConversationCounts(current=>({...current,unread:Math.max(0,current.unread-1)}));
+    void operateUnionWhatsAppInbox(activeOrganizationId,threadId,"mark_read")
+      .catch(reason=>{
+        reportError(systemErrorMessage(reason,"Não foi possível marcar a conversa como lida."));
+      })
+      .finally(()=>{
+        markingReadRef.current.delete(key);
+        void refresh(true);
+      });
+  }, [activeOrganizationId,selected?.id,selected?.status,selected?.assigned_to,
+      selected?.unread_count,documentVisible,conversationOpening,messagesResolvedId,
+      isMine,canManage,isActiveCollaborator,capabilities,reportError,refresh]);
+
   const operatorFirstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
     .replace(/[*_~`\r\n]/g,"");
   // The chat timeline is only mounted after both messages and participant access
