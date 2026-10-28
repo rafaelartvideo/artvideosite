@@ -697,10 +697,13 @@ export function TechnicianPanel() {
         <Section title="Cliente">
           <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {info("Nome", selected.customer_name)}
-            {info(orderDetails?.customer_type === "PJ" ? "CNPJ" : "CPF",
+            {hasPermission("technician_panel.data.customer_document") && info(
+              orderDetails?.customer_type === "PJ" || orderDetails?.customer_document?.replace(/\D/g, "").length === 14 ? "CNPJ" : "CPF",
               orderDetails?.customer_document
-                ? orderDetails.customer_type === "PJ" ? formatCnpj(orderDetails.customer_document) : formatCpf(orderDetails.customer_document)
-                : null)}
+                ? orderDetails.customer_type === "PJ" || orderDetails.customer_document.replace(/\D/g, "").length === 14
+                  ? formatCnpj(orderDetails.customer_document) : formatCpf(orderDetails.customer_document)
+                : null,
+            )}
             {info("Contato", selected.customer_contact ? formatPhone(selected.customer_contact) : null)}
           </div>
         </Section>
