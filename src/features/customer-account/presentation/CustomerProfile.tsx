@@ -32,7 +32,7 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
     void loadSiteProfile(userId).then(data => {
       if (!active) return;
       setProfile(data);
-      setDraft({ name: data?.full_name || "", cpf: data?.cpf || "", whatsapp: data?.phone || "", email });
+      setDraft({ name: data?.full_name || "", cpf: data?.cpf || "", whatsapp: data?.phone || "", email: hasEmail ? email : "" });
     }).catch(() => { if (active) notify("Não foi possível carregar seus dados.", "error"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
@@ -47,7 +47,7 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
     if (digits.length !== 10 && digits.length !== 11) { notify("Informe um WhatsApp válido com DDD.", "error"); return; }
     setBusy(true);setFeedback(null);
     try {
-      const result = await updateSiteProfile(draft);
+      const result = await updateSiteProfile({ ...draft, whatsapp: digits });
       let notice = result.pending_review ? "Seus dados foram salvos e estão em análise." : "Seus dados foram atualizados.";
       let noticeType: CustomerFeedback["type"] = "success";
       const newEmail = draft.email.trim().toLowerCase();
@@ -136,7 +136,7 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
       </div>
       <p className="text-[11px] text-[#788aa0]">{crmAccess?"Para alterar CPF ou WhatsApp confirmado, entre em contato com a Artvideo para nova verificação.":"A alteração de informações de identificação poderá precisar de confirmação pela nossa equipe."}</p>
       <div className="flex flex-wrap justify-end gap-2">
-        <button type="button" onClick={() => {setEditing(false);setDraft({name:profile?.full_name || "",cpf:profile?.cpf || "",whatsapp:profile?.phone || "",email});setFeedback(null);}} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c8dafa] bg-[#f7faff] px-4 text-xs font-semibold text-[var(--art-primary)] transition-colors hover:border-[var(--art-primary)] hover:bg-[#edf3ff]"><X size={15}/> Cancelar</button>
+        <button type="button" onClick={() => {setEditing(false);setDraft({name:profile?.full_name || "",cpf:profile?.cpf || "",whatsapp:profile?.phone || "",email:hasEmail?email:""});setFeedback(null);}} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c8dafa] bg-[#f7faff] px-4 text-xs font-semibold text-[var(--art-primary)] transition-colors hover:border-[var(--art-primary)] hover:bg-[#edf3ff]"><X size={15}/> Cancelar</button>
         <button type="submit" disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? <RefreshCw size={15} className="animate-spin"/> : <Check size={15}/>} Salvar alterações</button>
       </div>
     </form>}
