@@ -36,12 +36,13 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
   entityId:string;customerId:string|null;organizationId:string;
   onOpenOrder?:(id:string,customerId?:string)=>void;
 }) {
-  const {hasPermission}=useAuth();
+  const {hasPermission,activeOrganization}=useAuth();
+  const isArtvideo=activeOrganization?.is_artvideo_tenant===true && activeOrganization?.organization_id===organizationId;
   const queryClient=useQueryClient();
   const canViewOrders=hasPermission("orders.view")||hasPermission("orders.details.view");
   const canOpenOrders=hasPermission("orders.details.view");
-  const canViewQuotes=hasPermission("quotes.view");
-  const canViewShop=hasPermission("site_settings.view")&&hasPermission("customers.view");
+  const canViewQuotes=isArtvideo&&hasPermission("quotes.view");
+  const canViewShop=isArtvideo&&hasPermission("site_settings.view")&&hasPermission("customers.view");
   const canLinkShop=canViewShop&&hasPermission("site_settings.update")&&hasPermission("customers.edit");
   const [tab,setTab]=useState<RequestTab>("equipment");
   const [linkOpen,setLinkOpen]=useState(false);
