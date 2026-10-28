@@ -24,7 +24,10 @@ Deno.serve(async (req: Request) => {
   const cronToken = req.headers.get("X-Management-Cron-Token");
   if (cronToken) {
     const { data: authorized, error } = await admin.rpc("management_cleanup_token_valid", { p_token: cronToken });
-    if (error || authorized !== true) return response(403, { error: "Acesso negado" });
+    if (error || authorized !== true) {
+      console.warn("management trash cron access denied", { headerLength: cronToken.length, rpcError: error?.code ?? null, authorized: authorized === true });
+      return response(403, { error: "Acesso negado" });
+    }
   } else {
     const authorization = req.headers.get("Authorization") ?? "";
     if (!authorization.startsWith("Bearer ")) return response(401, { error: "Login obrigatório" });
