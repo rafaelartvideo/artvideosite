@@ -42,7 +42,8 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
     event.preventDefault();
     if (busy) return;
     if (!isValidCpf(draft.cpf)) { notify("Informe um CPF válido.", "error"); return; }
-    const digits = draft.whatsapp.replace(/\D/g, "");
+    const rawDigits = draft.whatsapp.replace(/\D/g, "");
+    const digits = rawDigits.startsWith("55") && (rawDigits.length === 12 || rawDigits.length === 13) ? rawDigits.slice(2) : rawDigits;
     if (digits.length !== 10 && digits.length !== 11) { notify("Informe um WhatsApp válido com DDD.", "error"); return; }
     setBusy(true);setFeedback(null);
     try {
