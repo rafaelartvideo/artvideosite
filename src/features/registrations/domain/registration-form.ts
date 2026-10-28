@@ -4,7 +4,6 @@ import {
   foundationDateFromIso,
   foundationDateToIso,
   isPastOrTodayBrazilianDate,
-  isValidBrazilianMobile,
   isValidBrazilianPhone,
   isValidCnpj,
   isValidCpf,
@@ -195,7 +194,7 @@ export function validateRegistrationFormFields(form: RegistrationFormState): Reg
   if (!form.roles.length) errors.roles = "Selecione ao menos um vínculo.";
   if (!form.phone.trim() && !form.whatsapp.trim()) errors.whatsapp = "Informe um telefone ou WhatsApp.";
   if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Telefone inválido. Informe DDD e número válidos.";
-  if (form.whatsapp && !isValidBrazilianMobile(form.whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um celular com DDD válido.";
+  if (form.whatsapp && !isValidBrazilianPhone(form.whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um telefone fixo ou celular com DDD válido.";
   if (form.email && !isValidEmail(form.email)) errors.email = "E-mail inválido. Verifique o endereço informado.";
 
   if (form.person_type === "PF") {
