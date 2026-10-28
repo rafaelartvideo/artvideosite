@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, House, MapPin, Pencil, Plus, RefreshCw, Trash2, X } from "lucide-react";
+import { Check, House, LoaderCircle, MapPin, Pencil, Plus, Trash2, X } from "lucide-react";
 import { formatSiteZip, listSiteAddresses, removeSiteAddress, saveSiteAddress, type SiteAddress, type SiteAddressInput } from "../infrastructure/customer-account-settings.repository";
 import { CustomerFeedbackToast, type CustomerFeedback } from "./CustomerFeedbackToast";
 import { CustomerSectionLoading } from "./CustomerSectionLoading";
@@ -118,7 +118,7 @@ export function CustomerAddresses({ userId }: { userId: string }) {
         <label className={labelClass}>CEP
           <div className="mt-1.5 flex gap-2">
             <input className={fieldClass+" !mt-0 min-w-0 flex-1"} inputMode="numeric" maxLength={9} value={formatSiteZip(form.postal_code)} onChange={e => change("postal_code",e.target.value.replace(/\D/g,"").slice(0,8))} placeholder="00000-000" required/>
-            <button type="button" disabled={loadingZip} onClick={() => void fillZip()} className="shrink-0 rounded-lg border border-[#dce5f1] px-3 text-xs font-semibold text-[var(--art-primary)]">{loadingZip ? "..." : "Buscar"}</button>
+            <button type="button" disabled={loadingZip} onClick={() => void fillZip()} className="shrink-0 rounded-lg border border-[#dce5f1] px-3 text-xs font-semibold text-[var(--art-primary)]">{loadingZip ? <LoaderCircle size={16} className="mx-auto animate-spin text-[#1032DC]" aria-label="Buscando CEP..."/> : "Buscar"}</button>
           </div>
         </label>
         <label className={labelClass+" sm:col-span-2"}>Rua / Avenida
@@ -143,7 +143,7 @@ export function CustomerAddresses({ userId }: { userId: string }) {
       <label className="flex items-center gap-2 text-xs font-medium text-[#3c546f]"><input type="checkbox" className="accent-blue-700" checked={form.is_default} onChange={e => change("is_default",e.target.checked)}/> Definir como endereço principal</label>
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" onClick={() => setForm(null)} className={buttonClass+" "+tertiaryClass}>Cancelar</button>
-        <button type="submit" disabled={busy} className={buttonClass+" bg-[var(--art-primary)] text-white disabled:opacity-60"}>{busy ? <RefreshCw size={15} className="animate-spin"/> : <Check size={15}/>} Salvar endereço</button>
+        <button type="submit" disabled={busy} className={buttonClass+" bg-[var(--art-primary)] text-white disabled:opacity-60"}>{busy ? <LoaderCircle size={17} className="animate-spin" aria-label="Salvando..."/> : "Salvar endereço"}</button>
       </div>
     </form>}
   </section>;
