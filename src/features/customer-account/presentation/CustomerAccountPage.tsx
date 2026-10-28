@@ -389,62 +389,66 @@ export function CustomerAccountPage() {
                 <button type="button" disabled={busy} onClick={()=>{setRegistrationChallenge("");setRegistrationCode("");setError("");}} className="block w-full text-center !text-xs font-medium text-[var(--art-primary)] hover:underline">Alterar dados</button>
               </form> : <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
                 {mode === "register" && <>
-                  <label className={authLabelClass}>Nome completo
+                  <label className={authLabelClass}>Nome completo <span className="text-red-600">*</span>
                     <span className="relative mt-1.5 block">
                       <UserRound size={17} className={authIconClass}/>
-                      <input className={authInputClass} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Seu nome completo"/>
+                      <input className={authInputClass + (registrationError("name")?" !border-red-500":"")} value={name} onChange={event => {setName(event.target.value);clearRegistrationError("name");}} onBlur={() => checkRegistrationField("name")} autoComplete="name" maxLength={120} placeholder="Seu nome completo" aria-invalid={!!registrationError("name")}/>
                     </span>
+                    {registrationError("name")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("name")}</span>}
                   </label>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className={authLabelClass}>CPF
+                    <label className={authLabelClass}>CPF <span className="text-red-600">*</span>
                       <span className="relative mt-1.5 block">
                         <IdCard size={17} className={authIconClass}/>
-                        <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={cpf.length === 11 && !isValidCpf(cpf)} required/>
-                        {cpf.length === 11 && <span className={"mt-1 block text-[10px] font-medium " + (isValidCpf(cpf) ? "text-emerald-700" : "text-red-600")}>{isValidCpf(cpf) ? "CPF válido" : "Confira o CPF informado"}</span>}
+                        <input className={authInputClass+(registrationError("cpf")?" !border-red-500":"")} value={formatCpf(cpf)} onChange={event => {setCpf(event.target.value.replace(/\D/g,"").slice(0,11));clearRegistrationError("cpf");}} onBlur={()=>checkRegistrationField("cpf")} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={!!registrationError("cpf")}/>
                       </span>
+                      {registrationError("cpf")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("cpf")}</span>}
                     </label>
-                    <label className={authLabelClass}>WhatsApp
+                    <label className={authLabelClass}>WhatsApp <span className="text-red-600">*</span>
                       <span className="relative mt-1.5 block">
                         <Phone size={17} className={authIconClass}/>
-                        <input className={authInputClass} type="tel" inputMode="tel" value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} autoComplete="tel" placeholder="(00) 00000-0000" required/>
+                        <input className={authInputClass+(registrationError("phone")?" !border-red-500":"")} type="tel" inputMode="tel" value={formatSitePhone(phone)} onChange={event => {setPhone(event.target.value.replace(/\D/g,"").slice(0,11));clearRegistrationError("phone");}} onBlur={()=>checkRegistrationField("phone")} autoComplete="tel" placeholder="(00) 00000-0000" aria-invalid={!!registrationError("phone")}/>
                       </span>
+                      {registrationError("phone")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("phone")}</span>}
                     </label>
                   </div>
                 </>}
-                <label className={authLabelClass}>E-mail
+                <label className={authLabelClass}>E-mail <span className="text-[11px] font-normal text-[#8495ab]">(opcional)</span>
                   <span className="relative mt-1.5 block">
                     <Mail size={17} className={authIconClass}/>
-                    <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
+                    <input className={authInputClass+(registrationError("email")?" !border-red-500":"")} type="email" value={email} onChange={event => {setEmail(event.target.value);clearRegistrationError("email");}} onBlur={()=>checkRegistrationField("email")} autoComplete="email" placeholder="voce@exemplo.com" aria-invalid={!!registrationError("email")}/>
                   </span>
+                  {registrationError("email")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("email")}</span>}
                 </label>
                 <label className={authLabelClass}>
                   <span className="flex items-center justify-between gap-2">
-                    <span>Senha</span>
+                    <span>Senha <span className="text-red-600">*</span></span>
                     
                   </span>
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
-                    <input className={authInputClass + " pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
+                    <input className={authInputClass + " pr-11" + (registrationError("password")?" !border-red-500":"")} type={showPassword ? "text" : "password"} value={password} onChange={event => {setPassword(event.target.value);clearRegistrationError("password");clearRegistrationError("confirmPassword");}} onBlur={()=>checkRegistrationField("password")} autoComplete="new-password" aria-invalid={!!registrationError("password")} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
                     <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
+                  {registrationError("password")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("password")}</span>}
                 </label>
-                {mode === "register" && <label className={authLabelClass}>Confirmar senha
+                {mode === "register" && <label className={authLabelClass}>Confirmar senha <span className="text-red-600">*</span>
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
-                    <input className={authInputClass + " pr-11"} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
+                    <input className={authInputClass + " pr-11" + (registrationError("confirmPassword")?" !border-red-500":"")} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => {setConfirmPassword(event.target.value);clearRegistrationError("confirmPassword");}} onBlur={()=>checkRegistrationField("confirmPassword")} autoComplete="new-password" placeholder="Repita sua senha" aria-invalid={!!registrationError("confirmPassword")}/>
                     <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showConfirmPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
+                  {registrationError("confirmPassword")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("confirmPassword")}</span>}
                 </label>}
                 {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
                 <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
-                  {busy ? <RefreshCw size={19} className="animate-spin" aria-label="Processando..."/> :
-                    <><span>{"Criar conta"}</span><ArrowRight size={16}/></>}
+                  {busy ? <LoaderCircle size={19} className="animate-spin" aria-label="Processando..."/> : "Criar conta"}
                 </button>
               </form>}
-              {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
+              {mode === "register" && !registrationChallenge && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Se informar um e-mail, enviaremos uma confirmação por ele. Sem e-mail, a confirmação será pelo WhatsApp.</p>}
               <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
                 {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
-                <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
+                <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="!text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline">
                   {mode === "register" ? "Entrar" : "Criar conta"}
                 </button>
               </div>
