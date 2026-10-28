@@ -105,10 +105,17 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   },[revision]);
   useEffect(()=>{
     let active=true;
-    Promise.all(spaces.filter(s=>s.logo_path).map(async s=>[s.id,await managementLogoUrl(s.logo_path!)] as const))
-      .then(items=>{if(active)setLogoUrls(Object.fromEntries(items));})
-      .catch(()=>{if(active)setLogoUrls({});});
-    return()=>{active=false;};
+    let allocated:string[]=[];
+    Promise.all(spaces.filter(s=>s.logo_path).map(async space=>{
+      try{return [space.id,await managementLogoUrl(space.logo_path!)] as const;}
+      catch{return null;}
+    })).then(items=>{
+      const images=items.filter((entry):entry is readonly [string,string]=>entry!==null);
+      if(!active){images.forEach(([,url])=>URL.revokeObjectURL(url));return;}
+      allocated=images.map(([,url])=>url);
+      setLogoUrls(Object.fromEntries(images));
+    });
+    return()=>{active=false;allocated.forEach(url=>URL.revokeObjectURL(url));};
   },[spaces]);
   useEffect(()=>{
     if(!spaceId){setFolders([]);setRecords([]);return;}
