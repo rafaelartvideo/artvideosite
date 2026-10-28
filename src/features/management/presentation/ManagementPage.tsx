@@ -6,7 +6,7 @@ import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  createManagementFolder, createManagementSpace, listManagementFolders, listManagementRecords, listManagementSpaces,
+  createManagementFolder, createManagementSpace, listManagementFolders, listManagementRecords, listManagementSpaces, managementLogoUrl, uploadManagementLogo,
   openManagementFile, removeManagementFolder, removeManagementRecord, renameManagementFolder,
   saveManagementRecord, updateManagementSpace, uploadManagementFiles,
   type ManagementFolder, type ManagementKind, type ManagementRecord, type ManagementSpace,
@@ -53,6 +53,8 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [description,setDescription]=useState("");
   const [iconText,setIconText]=useState("");
   const [accent,setAccent]=useState("#1032DC");
+  const [logoFile,setLogoFile]=useState<File|null>(null);
+  const [logoUrls,setLogoUrls]=useState<Record<string,string>>({});
   const [kind,setKind]=useState<RecordEditKind>("note");
   const [url,setUrl]=useState("");
   const [accountUser,setAccountUser]=useState("");
@@ -88,6 +90,13 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     return()=>{current=false;};
   },[revision]);
   useEffect(()=>{
+    let active=true;
+    Promise.all(spaces.filter(s=>s.logo_path).map(async s=>[s.id,await managementLogoUrl(s.logo_path!)] as const))
+      .then(items=>{if(active)setLogoUrls(Object.fromEntries(items));})
+      .catch(()=>{if(active)setLogoUrls({});});
+    return()=>{active=false;};
+  },[spaces]);
+  useEffect(()=>{
     if(!spaceId){setFolders([]);setRecords([]);return;}
     let current=true;setContentLoading(true);
     Promise.all([listManagementFolders(spaceId),listManagementRecords(spaceId)]).then(([f,r])=>{
@@ -98,7 +107,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   },[spaceId,revision]);
 
   const resetForm=()=>{
-    setName("");setDescription("");setIconText("");setAccent("#1032DC");
+    setName("");setDescription("");setIconText("");setAccent("#1032DC");setLogoFile(null);
     setKind("note");setUrl("");setAccountUser("");setEditingSpace(null);setEditingFolder(null);setEditingRecord(null);
   };
   const openSpace=(space?:ManagementSpace)=>{
@@ -123,8 +132,10 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     setSaving(true);
     try{
       if(dialog==="space"){
+        let targetId=editingSpace?.id;
         if(editingSpace) await updateManagementSpace(editingSpace.id,{name:name.trim(),description:description.trim(),icon_text:iconText.trim().slice(0,6),accent_color:accent});
-        else await createManagementSpace({name:name.trim(),description:description.trim(),icon_text:iconText.trim().slice(0,6),accent_color:accent});
+        else targetId=(await createManagementSpace({name:name.trim(),description:description.trim(),icon_text:iconText.trim().slice(0,6),accent_color:accent})).id;
+        if(logoFile&&targetId) await uploadManagementLogo(targetId,logoFile,editingSpace?.logo_path);
       } else if(dialog==="folder"&&spaceId){
         if(editingFolder)await renameManagementFolder(editingFolder.id,name.trim());
         else await createManagementFolder(spaceId,visibleFolderId,name.trim());
@@ -210,7 +221,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
               <button type="button" className="absolute inset-0 z-0 rounded-xl" aria-label={`Abrir ${space.name}`} onClick={()=>{setSearch("");onRouteChange(space.id,null);}}/>
               <div className="pointer-events-none relative flex items-start justify-between gap-2">
                 <div style={{backgroundColor:space.accent_color}} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white">
-                  {space.icon_text||space.name.slice(0,2).toUpperCase()}
+                  {space.logo_path&&logoUrls[space.id]?<img className="h-full w-full rounded-xl object-cover" src={logoUrls[space.id]} alt={`Logo de ${space.name}`}/>:space.icon_text||space.name.slice(0,2).toUpperCase()}
                 </div>
                 <Folder size={22} style={{color:space.accent_color}}/>
               </div>
@@ -227,7 +238,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           {!spaces.length&&<p className="py-12 text-center text-sm text-muted-foreground">Nenhum espaço cadastrado.</p>}
         </> : <>
           <div className="mb-4 flex items-center gap-3">
-            <div style={{backgroundColor:selectedSpace.accent_color}} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white">{selectedSpace.icon_text||"P"}</div>
+            <div style={{backgroundColor:selectedSpace.accent_color}} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white">{selectedSpace.logo_path&&logoUrls[selectedSpace.id]?<img className="h-full w-full rounded-lg object-cover" src={logoUrls[selectedSpace.id]} alt={`Logo de ${selectedSpace.name}`}/>:selectedSpace.icon_text||"P"}</div>
             <div><h3 className="font-bold text-foreground">{selectedFolder?.name||selectedSpace.name}</h3>
               <p className="text-xs text-muted-foreground">{folderChildren.length} pastas · {visibleRecords.length} registros</p></div>
           </div>
@@ -274,6 +285,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         <FInput label="Nome" value={name} required onChange={e=>setName(e.target.value)} maxLength={dialog==="record"?160:100}/>
         {dialog==="space"&&<>
           <FTextarea label="Descrição" value={description} onChange={e=>setDescription(e.target.value)}/>
+          <div><label className="mb-2 block text-xs font-semibold text-foreground">Logomarca (opcional)</label><input type="file" accept="image/png,image/jpeg,image/webp" onChange={e=>setLogoFile(e.target.files?.[0]||null)} className="w-full rounded-lg border border-border bg-card p-2 text-xs text-foreground"/><p className="mt-1 text-xs text-muted-foreground">PNG, JPG ou WebP de até 3 MB.</p></div>
           <div className="grid grid-cols-2 gap-3">
             <FInput label="Iniciais / ícone" value={iconText} onChange={e=>setIconText(e.target.value)} maxLength={6}/>
             <div><label className="mb-2 block text-xs font-semibold text-foreground">Cor de identificação</label><input type="color" className="h-10 w-full cursor-pointer rounded border border-border bg-card" value={accent} onChange={e=>setAccent(e.target.value)}/></div>
