@@ -3,7 +3,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { CalendarDays, Check, History, MapPin, Pencil, Play, Users, WifiOff } from "lucide-react";
+import { CalendarDays, History, MapPin, Pencil, Users, WifiOff } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -691,7 +691,7 @@ export function TechnicianPanel() {
             onClick={() => setHistoryDialogOpen(true)}><History size={14} /> Histórico</AdminButton>
         </div>}
       </div>
-      <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab}
+      <OrderDetailSectionTabs value={detailTab} onChange={setDetailTab} compactMobile
         itemBadge={pendingServices > 0
           ? { label: pendingServices + " pendente" + (pendingServices > 1 ? "s" : ""), style: STATUS_CLASS.pending }
           : ongoingServices > 0
@@ -830,10 +830,10 @@ export function TechnicianPanel() {
             Imagens do serviço
             <span className="rounded-md border border-border bg-muted px-2 py-0.5 text-[10px] font-bold text-foreground">{photoLoading ? "…" : photoCount}/3</span>
           </span>}>
-            {selected.status === "in_progress" && canSendPhotos && <div className="mb-3 flex flex-wrap gap-2">
-              <BtnSecondary onClick={() => cameraInputRef.current?.click()}
+            {selected.status === "in_progress" && canSendPhotos && <div className="mb-3 grid min-w-0 grid-cols-2 gap-2">
+              <BtnSecondary className="!min-w-0 !w-full !px-2 text-center text-xs sm:!px-3 sm:text-sm" onClick={() => cameraInputRef.current?.click()}
                 disabled={!online || busy || uploading || photoCount >= 3} loading={uploading}>Abrir câmera</BtnSecondary>
-              <BtnSecondary onClick={() => galleryInputRef.current?.click()}
+              <BtnSecondary className="!min-w-0 !w-full !px-2 text-center text-xs sm:!px-3 sm:text-sm" onClick={() => galleryInputRef.current?.click()}
                 disabled={!online || busy || uploading || photoCount >= 3} loading={uploading}>Selecionar imagem</BtnSecondary>
             </div>}
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="sr-only"
@@ -849,7 +849,7 @@ export function TechnicianPanel() {
                   return <OrderImageThumb key={photo.id} image={image}
                     onView={() => setViewEquipmentImage(image)} />;
                 })}
-              </div> : <AdminSectionEmpty>Nenhuma foto enviada.</AdminSectionEmpty>)}
+              </div> : <div className="min-w-0 rounded-lg border border-dashed border-border bg-muted/20"><AdminSectionEmpty compact>Nenhuma foto enviada.</AdminSectionEmpty></div>)}
           </Section>}
 
           {hasPermission("technician_panel.data.order_items") && orderDetails &&
@@ -867,19 +867,13 @@ export function TechnicianPanel() {
       <AdminStickyToolbar className="!flex-nowrap !gap-2 !px-2 sm:!gap-3 sm:!px-5">
         <BtnSecondary onClick={() => navigate("/admin/technician-panel")} disabled={busy || uploading}>Voltar</BtnSecondary>
         {detailTab === "products-services" && selected.status === "pending" && canStart &&
-          <BtnPrimary className="max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0"
+          <BtnPrimary className="max-sm:!h-10 max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-3"
             disabled={busy || uploading || !online} loading={busy}
-            onClick={() => void runWithGps("start")}>
-            <Play size={18} className="sm:hidden" aria-hidden="true" />
-            <span className="sr-only sm:not-sr-only">Iniciar serviço</span>
-          </BtnPrimary>}
+            onClick={() => void runWithGps("start")}>Iniciar</BtnPrimary>}
         {detailTab === "products-services" && selected.status === "in_progress" && canComplete &&
-          <BtnPrimary className="max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0"
+          <BtnPrimary className="max-sm:!h-10 max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-3"
             disabled={busy || uploading || !online || report.trim().length < 10} loading={busy}
-            onClick={() => void runWithGps("finish")}>
-            <Check size={18} className="sm:hidden" aria-hidden="true" />
-            <span className="sr-only sm:not-sr-only">Finalizar serviço</span>
-          </BtnPrimary>}
+            onClick={() => void runWithGps("finish")}>Finalizar</BtnPrimary>}
       </AdminStickyToolbar>
       <AdminDialog open={diagnosisDialogOpen} onClose={() => { if (!busy) setDiagnosisDialogOpen(false); }}
         title="Editar diagnóstico" description={"OS " + selected.os_number} footer={<div className="flex justify-end gap-2">
