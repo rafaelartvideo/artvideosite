@@ -12,6 +12,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   dashboard: "/admin/dashboard",
   crm: "/admin/crm",
   announcements: "/admin/announcements",
+  management: "/admin/management",
   quotes: "/admin/quotes",
   customerRequests: "/admin/customer-requests",
   orders: "/admin/orders",
