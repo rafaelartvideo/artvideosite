@@ -128,7 +128,9 @@ async function verifiedJid(channel:{id:string;organization_id:string},phone:stri
   return match.jid;
 }
 async function sendOtp(channel:{id:string;organization_id:string},jid:string,code:string){
-  const message="Artvideo: seu codigo de acesso e "+code+". Valido por 30 minutos. Nao compartilhe.";
+  // Bloco monoespaçado do WhatsApp: permite selecionar/copiar só os 6 dígitos.
+  // Não criar um link com o OTP na URL, pois isso exporia o código ao navegador.
+  const message="*Artvideo · Código de segurança*\n\n```"+code+"```\n\nVálido por 30 minutos. Não compartilhe este código.";
   const sent=await bridge(channel,"send_text","",jid,message);
   if(typeof sent.provider_message_id!=="string"||!sent.provider_message_id)throw Error("send_unconfirmed");
 }
@@ -168,6 +170,15 @@ async function linkedAccount(org:string,cpf:string){
     .eq("id",a.entity_id).eq("organization_id",org).maybeSingle();
   if(!customer||cpfDigits(customer.document)!==cpf || normalizePhone(customer.whatsapp)!==a.whatsapp_verified_number)return null;
   return a;
+}
+// CPF + senha deve funcionar para TODAS as contas do site, inclusive as criadas por e-mail.
+// O requisito de WhatsApp validado é exclusivo do método de código de segurança.
+async function passwordAccount(org:string,cpf:string){
+  if(!/^\d{11}$/.test(cpf))return null;
+  const {data,error}=await admin.from("artvideo_customer_accounts")
+    .select("user_id").eq("organization_id",org).eq("cpf",cpf).limit(2);
+  if(error||data?.length!==1)return null;
+  return data[0];
 }
 async function sessionFor(userId:string){
   const {data:user,error:userError}=await admin.auth.admin.getUserById(userId);
@@ -291,6 +302,23 @@ Deno.serve(async request=>{
       const jid=await verifiedJid(channel,invite.phone_e164);
       const id=await createChallenge(org,"activation",invite.phone_e164,jid,invite.id,null);
       return response(request,{success:true,challenge_id:id,expires_in_seconds:1800,resend_in_seconds:60});
+    }
+    if(action==="password_reset_email"){
+      const cpf=cpfDigits(body.cpf);
+      if(cpf.length!==11)return response(request,fail("Informe um CPF válido.",400),400);
+      await limit("password-reset-email",cpf,5,3600);
+      const account=await passwordAccount(org,cpf);
+      if(account){
+        const {data:user}=await admin.auth.admin.getUserById(account.user_id);
+        if(user?.user?.email){
+          // Nunca informar se o CPF/e-mail existe. A senha será alterada somente
+          // por meio de link de recuperação validado pelo próprio Supabase Auth.
+          await admin.auth.resetPasswordForEmail(user.user.email,{
+            redirectTo:"https://eletronicaartvideo.com.br/minha-conta?recovery=1",
+          });
+        }
+      }
+      return response(request,{success:true});
     }
     if(action==="login_send"){
       const cpf=cpfDigits(body.cpf);
@@ -468,7 +496,7 @@ Deno.serve(async request=>{
       const cpf=cpfDigits(body.cpf),password=String(body.password||"");
       if(cpf.length!==11||!password||password.length>256)return response(request,fail("Credenciais inválidas.",401),401);
       await limit("password-login",cpf,12,3600);
-      const account=await linkedAccount(org,cpf);
+      const account=await passwordAccount(org,cpf);
       if(!account)return response(request,fail("Credenciais inválidas.",401),401);
       const {data:user}=await admin.auth.admin.getUserById(account.user_id);
       if(!user?.user?.email)return response(request,fail("Credenciais inválidas.",401),401);

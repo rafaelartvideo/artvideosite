@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
@@ -20,7 +20,7 @@ import {
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
 } from "../infrastructure/customer-account.repository";
 
-type AuthMode = "login" | "register" | "forgot" | "email_sent";
+type AuthMode = "login" | "register" | "email_sent";
 type Tab = "overview" | "orders" | "quotes" | "service_orders" | "documents" | "addresses" | "favorites" | "profile";
 type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "ready" | "error";
 const inputClass = "h-12 w-full rounded-xl border border-[#dbe5f2] bg-[#fbfcff] px-4 text-[14px] text-[#132b4a] outline-none transition-[border-color,box-shadow] placeholder:text-[#9aabc0] focus:border-[var(--art-primary)] focus:bg-white focus:ring-[3px] focus:ring-blue-500/10";
@@ -88,10 +88,10 @@ function RecordList({ items, kind }: { items: CustomerPortalItem[]; kind: "order
 
 
 
-function AccountEntryShell({ children, containerRef }: { children: React.ReactNode; containerRef: React.RefObject<HTMLDivElement | null> }) {
-  return <motion.div ref={containerRef} layout="size" initial={false} transition={{ layout: { duration: 0.24, ease: "easeOut" } }} className="mx-auto w-full max-w-[456px] rounded-2xl border border-[#e1e7f0] bg-white px-6 py-7 shadow-[0_10px_38px_rgba(17,40,77,.055)] sm:px-10 sm:py-9">
+function AccountEntryShell({ children }: { children: React.ReactNode }) {
+  return <div className="mx-auto w-full max-w-[420px] rounded-xl border border-[#e1e7f0] bg-white px-6 py-7 shadow-[0_8px_30px_rgba(17,40,77,.045)] sm:px-8 sm:py-8">
     {children}
-  </motion.div>;
+  </div>;
 }
 
 const authIconClass = "pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#91a1b6]";
@@ -100,11 +100,8 @@ const authIconClass = "pointer-events-none absolute left-3 top-1/2 -translate-y-
 export function CustomerAccountPage() {
   const { session, loading: authLoading } = useAuth();
   const reduceMotion = useReducedMotion();
-  const authCardRef = useRef<HTMLDivElement>(null);
   const accountContentRef = useRef<HTMLDivElement>(null);
-  const previousModeRef = useRef<AuthMode>("login");
   const [mode, setMode] = useState<AuthMode>("login");
-  const [cpfMode, setCpfMode] = useState(true);
   const [passwordRecovery, setPasswordRecovery] = useState(() => new URLSearchParams(window.location.search).has("recovery"));
   const [tab, setTab] = useState<Tab>("overview");
   const [state, setState] = useState<AccountState>("loading");
@@ -118,26 +115,11 @@ export function CustomerAccountPage() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const userId = session?.user?.id;
   // O cliente do site não precisa aguardar o carregamento das permissões do CRM.
   const waitingForSession = authLoading && !userId;
-
-  useEffect(() => {
-    if (state !== "anonymous" || passwordRecovery || previousModeRef.current === mode) return;
-    previousModeRef.current = mode;
-    const timer = window.setTimeout(() => {
-      const cardTop = authCardRef.current?.getBoundingClientRect().top;
-      if (cardTop === undefined) return;
-      if (window.innerWidth < 1024 || cardTop < 90) {
-        window.scrollTo({
-          top: Math.max(0, window.scrollY + cardTop - (window.innerWidth < 640 ? 92 : 105)),
-          behavior: reduceMotion ? "auto" : "smooth",
-        });
-      }
-    }, 380);
-    return () => window.clearTimeout(timer);
-  }, [mode, state, passwordRecovery, reduceMotion]);
 
   useEffect(() => {
     const { data } = supabase.auth.onAuthStateChange(event => {
@@ -195,13 +177,7 @@ export function CustomerAccountPage() {
     }
     setBusy(true);
     try {
-      if (mode === "forgot") {
-        const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
-          redirectTo: window.location.origin + "/minha-conta?recovery=1",
-        });
-        if (resetError) throw resetError;
-        setMode("email_sent");
-      } else if (mode === "register") {
+      if (mode === "register") {
         const { error: signupError } = await supabase.auth.signUp({
           email: email.trim().toLowerCase(),
           password,
@@ -214,13 +190,6 @@ export function CustomerAccountPage() {
         setPassword("");
         setConfirmPassword("");
         setMode("email_sent");
-      } else {
-        const { error: loginError } = await supabase.auth.signInWithPassword({
-          email: email.trim().toLowerCase(), password,
-        });
-        if (loginError) throw new Error("E-mail ou senha inválidos.");
-        setPassword("");
-        // A alteração da sessão já inicia o carregamento. Evita uma segunda requisição.
       }
     } catch (failure) {
       
@@ -323,42 +292,32 @@ export function CustomerAccountPage() {
         <p className="mt-2 text-sm text-[#6b8098]">Escolha uma senha com pelo menos 8 caracteres.</p>
         <form onSubmit={event => void updatePassword(event)} className="mt-5 space-y-4">
           <label className="block text-xs font-semibold text-[#294361]">Nova senha
-            <input className={inputClass + " mt-1.5"} type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required/>
+            <span className="relative mt-1.5 block"><input className={inputClass + " !mt-0 pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" minLength={8} required/><button type="button" onClick={() => setShowPassword(x => !x)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6]">{showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></span>
           </label>
           <label className="block text-xs font-semibold text-[#294361]">Confirmar nova senha
-            <input className={inputClass + " mt-1.5"} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required/>
+            <span className="relative mt-1.5 block"><input className={inputClass + " !mt-0 pr-11"} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required/><button type="button" onClick={() => setShowConfirmPassword(x => !x)} aria-label={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6]">{showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></span>
           </label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
           <button className={"w-full " + primaryClass} type="submit" disabled={busy}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Salvar nova senha <ArrowRight size={16}/></>}</button>
         </form>
       </div> : (waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
-      state === "anonymous" ? <AccountEntryShell containerRef={authCardRef}>
-        <AnimatePresence initial={false} mode="wait">
-          <motion.div key={mode}
-            initial={reduceMotion ? false : { opacity: 0, y: 9 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: -7 }}
-            transition={{ duration: reduceMotion ? 0 : 0.2, ease: "easeOut" }}>
+      state === "anonymous" ? <AccountEntryShell>
+        <div>
             {mode === "email_sent" ? <div className="py-3 text-center">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#eef8f2] text-[#23815b]"><CheckCircle2 size={24} strokeWidth={1.8}/></div>
               <h1 className="mt-4 text-[21px] font-semibold tracking-[-.035em] text-[#172d4b]">Verifique seu e-mail</h1>
               <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Se o endereço estiver disponível, enviaremos as orientações para você. Confira também o spam.</p>
               <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}><ArrowLeft size={15}/> Voltar ao login</button>
             </div> : <>
-              {mode === "forgot" && <button type="button" onClick={() => { setMode("login"); setError(""); }} className="mb-4 inline-flex items-center gap-2 text-xs font-medium text-[#647b96] hover:text-[var(--art-primary)]"><ArrowLeft size={15}/> Voltar</button>}
               <div className="mb-6 text-center">
                 <h1 className="text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
-                  {mode === "register" ? "Criar conta" : mode === "forgot" ? "Recuperar senha" : "Entrar"}
+                  {mode === "register" ? "Criar uma conta" : "Entrar na sua conta"}
                 </h1>
                 <p className="mt-1.5 text-[12.5px] leading-5 text-[#6c8099]">
-                  {mode === "register" ? "Cadastre-se para acompanhar seus pedidos e orçamentos." : mode === "forgot" ? "Receba um link para redefinir sua senha." : "Acesse seus pedidos e orçamentos."}
+                  {mode === "register" ? "Preencha seus dados para começar." : "Acompanhe seus pedidos, serviços e orçamentos."}
                 </p>
               </div>
-              {mode === "login" && <div className="mb-4 flex w-full gap-2 rounded-lg bg-[#f0f4fb] p-1 text-xs font-semibold">
-                <button type="button" className={"flex-1 rounded-md p-2 "+(cpfMode?"bg-white text-[var(--art-primary)] shadow-sm":"text-[#6c8099]")} onClick={()=>setCpfMode(true)}>CPF</button>
-                <button type="button" className={"flex-1 rounded-md p-2 "+(!cpfMode?"bg-white text-[var(--art-primary)] shadow-sm":"text-[#6c8099]")} onClick={()=>setCpfMode(false)}>E-mail</button>
-              </div>}
-              {mode === "login" && cpfMode ? <CustomerCpfLoginPanel/> : <form onSubmit={event => void submitAuth(event)} className="space-y-4">
+              {mode === "login" ? <CustomerCpfLoginPanel onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> : <form onSubmit={event => void submitAuth(event)} className="space-y-4">
                 {mode === "register" && <>
                   <label className={authLabelClass}>Nome completo
                     <span className="relative mt-1.5 block">
@@ -388,39 +347,39 @@ export function CustomerAccountPage() {
                     <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
                   </span>
                 </label>
-                {mode !== "forgot" && <label className={authLabelClass}>
+                <label className={authLabelClass}>
                   <span className="flex items-center justify-between gap-2">
                     <span>Senha</span>
-                    {mode === "login" && <button type="button" onClick={() => { setMode("forgot"); setError(""); }} className="text-xs font-medium text-[var(--art-primary)] hover:underline">Esqueceu a senha?</button>}
+                    
                   </span>
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
                     <input className={authInputClass + " pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
                     <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
-                </label>}
+                </label>
                 {mode === "register" && <label className={authLabelClass}>Confirmar senha
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
-                    <input className={authInputClass} type="password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
+                    <input className={authInputClass + " pr-11"} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
+                    <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showConfirmPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
                 </label>}
                 {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
                 <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
                   {busy ? <RefreshCw size={19} className="animate-spin" aria-label="Processando..."/> :
-                    <><span>{mode === "register" ? "Criar conta" : mode === "forgot" ? "Enviar link" : "Entrar"}</span><ArrowRight size={16}/></>}
+                    <><span>{"Criar conta"}</span><ArrowRight size={16}/></>}
                 </button>
               </form>}
               {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
-              {mode !== "forgot" && <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
+              <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
                 {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
                 <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
                   {mode === "register" ? "Entrar" : "Criar conta"}
                 </button>
-              </div>}
+              </div>
             </>}
-          </motion.div>
-        </AnimatePresence>
+          </div>
       </AccountEntryShell> :
       state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
         <h2 className="text-xl font-bold text-[#173450]">Complete seu cadastro</h2>
