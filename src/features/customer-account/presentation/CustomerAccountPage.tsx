@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
+  ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
   Heart, IdCard, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
@@ -326,7 +326,7 @@ export function CustomerAccountPage() {
           <h1 className="text-[24px] font-bold tracking-tight text-[#122947] sm:text-[27px]">Minha conta</h1>
           <button type="button" title="Sair da conta" aria-label="Sair da conta"
             className={secondaryClass + " h-10 min-w-10 !px-2.5 sm:!px-4"} onClick={() => void signOut()} disabled={busy}>
-            {busy ? <RefreshCw size={16} className="animate-spin"/> : <LogOut size={17}/>}
+            {busy ? <LoaderCircle size={16} className="animate-spin"/> : <LogOut size={17}/>}
             <span className="hidden sm:inline">Sair da conta</span>
           </button>
         </div>
@@ -344,7 +344,7 @@ export function CustomerAccountPage() {
             <span className="relative mt-1.5 block"><input className={inputClass + " !mt-0 pr-11"} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required/><button type="button" onClick={() => setShowConfirmPassword(x => !x)} aria-label={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6]">{showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></span>
           </label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Salvar nova senha <ArrowRight size={16}/></>}</button>
+          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>{busy ? <LoaderCircle size={19} className="animate-spin" aria-label="Salvando..."/> : "Salvar nova senha"}</button>
         </form>
       </div> : (waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
       state === "anonymous" ? <AccountEntryShell>
@@ -353,7 +353,7 @@ export function CustomerAccountPage() {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#eef8f2] text-[#23815b]"><CheckCircle2 size={24} strokeWidth={1.8}/></div>
               <h1 className="mt-4 text-[21px] font-semibold tracking-[-.035em] text-[#172d4b]">Verifique seu e-mail</h1>
               <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Se o endereço estiver disponível, enviaremos as orientações para você. Confira também o spam.</p>
-              <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}><ArrowLeft size={15}/> Voltar ao login</button>
+              <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}>Voltar ao login</button>
             </div> : <>
               <div className="mb-6 text-center">
                 <h1 className="text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
@@ -463,7 +463,7 @@ export function CustomerAccountPage() {
           <label className="block text-xs font-semibold text-[#294361]">CPF<input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/></label>
           <label className="block text-xs font-semibold text-[#294361]">WhatsApp<input className={inputClass + " mt-1.5"} value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} type="tel" required/></label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-          <button type="submit" disabled={busy} className={"w-full " + primaryClass}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Concluir cadastro <ArrowRight size={16}/></>}</button>
+          <button type="submit" disabled={busy} className={"w-full " + primaryClass}>{busy ? <LoaderCircle size={19} className="animate-spin" aria-label="Salvando..."/> : "Concluir cadastro"}</button>
         </form>
       </div> :
       state === "verify_email" ? <div className={"mx-auto max-w-xl text-center " + cardClass}>
@@ -475,12 +475,12 @@ export function CustomerAccountPage() {
         <ShieldCheck className="mx-auto text-[var(--art-primary)]" size={34}/>
         <h2 className="mt-3 text-lg font-bold">Precisamos confirmar seu cadastro</h2>
         <p className="mt-2 text-sm leading-6 text-[#627b96]">Precisamos conferir algumas informações. Nossa equipe poderá ajudar você a concluir seu cadastro.</p>
-        <Link to="/contato" className={"mt-5 " + primaryClass}>Entrar em contato <ArrowRight size={16}/></Link>
+        <Link to="/contato" className={"mt-5 " + primaryClass}>Entrar em contato</Link>
       </div> :
       state === "error" || !portal?.customer ? <div className={"mx-auto max-w-lg text-center " + cardClass}>
         <h2 className="text-lg font-bold">Não foi possível abrir sua conta</h2>
         <p className="mt-2 text-sm text-[#667a92]">{error || "Tente novamente."}</p>
-        <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={"mt-4 " + primaryClass}><RefreshCw size={16}/> Tentar novamente</button>
+        <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={"mt-4 " + primaryClass}>Tentar novamente</button>
       </div> :
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside aria-label="Navegação da minha conta" className="flex w-full flex-col self-start overflow-hidden rounded-none border border-[#e2e8f1] bg-white">
