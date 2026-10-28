@@ -32,6 +32,7 @@ const TabCustomers = lazy(() => import("@/features/customers/presentation/TabCus
 const TabCustomerRequests = lazy(() => import("@/features/customer-requests/presentation/TabCustomerRequests").then(({ TabCustomerRequests }) => ({ default: TabCustomerRequests })));
 const AdminHomePage = lazy(() => import("@/features/admin-home/presentation/AdminHomePage").then(({ AdminHomePage }) => ({ default: AdminHomePage })));
 const PlatformAnnouncementsPage = lazy(() => import("@/features/admin-home/presentation/PlatformAnnouncementsPage").then(({ PlatformAnnouncementsPage }) => ({ default: PlatformAnnouncementsPage })));
+const ManagementPage = lazy(() => import("@/features/management/presentation/ManagementPage").then(({ ManagementPage }) => ({ default: ManagementPage })));
 const TabDashboard = lazy(() => import("@/features/dashboard/presentation/TabDashboard").then(({ TabDashboard }) => ({ default: TabDashboard })));
 const UnionPlatformDashboard = lazy(() => import("@/features/dashboard/presentation/UnionPlatformDashboard").then(({ UnionPlatformDashboard }) => ({ default: UnionPlatformDashboard })));
 const EquipmentAdminPanel = lazy(() => import("@/features/equipment/presentation/EquipmentAdminPanel").then(({ EquipmentAdminPanel }) => ({ default: EquipmentAdminPanel })));
@@ -71,7 +72,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "siteRequests", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
+  "home", "dashboard", "management", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "siteRequests", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -156,6 +157,7 @@ export function AdminDashboard({
     );
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
+    if (tab === "management") return isPlatformOperatorOrganization && !crmMode && (hasPermission("platform.management.view") || hasPermission("platform.management.manage"));
     if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
@@ -453,6 +455,7 @@ export function AdminDashboard({
             />} />
             <Route path="dashboard" element={isPlatformOperatorOrganization && !crmMode ? <UnionPlatformDashboard onNavigate={tab => navigateAdmin(tab)} /> : <TabDashboard onNavigate={tab => navigateAdmin(tab)} onOpenOrder={orderId => openAuthenticatedAdminTab(adminPath("orders", orderId))} />} />
             <Route path="announcements" element={<PlatformAnnouncementsPage />} />
+            <Route path="management/*" element={<ManagementPage spaceId={route.resourceId} folderId={route.subpage} onRouteChange={routeChange("management")} />} />
             <Route path="crm" element={crmHub} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("home")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
             <Route path="audit/*" element={<TabAuditLog />} />
