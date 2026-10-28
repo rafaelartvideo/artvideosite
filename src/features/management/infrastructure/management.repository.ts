@@ -137,7 +137,10 @@ export async function uploadManagementLogo(spaceId: string, file: File, previous
   if(previousPath)await supabase.storage.from(BUCKET).remove([previousPath]);
 }
 export async function managementLogoUrl(path:string) {
-  return openManagementFile(path);
+  // Blob privado em memória evita que o logotipo pare de aparecer quando expira a URL assinada.
+  const {data,error}=await supabase.storage.from(BUCKET).download(path);
+  if(error)throw error;
+  return URL.createObjectURL(data);
 }
 
 export type ManagementActivity = {
