@@ -98,6 +98,7 @@ declare
   v_base jsonb;
   v_orders jsonb;
   v_docs jsonb;
+  v_customer_email text;
 begin
   if v_uid is null then raise exception 'Sessao invalida.' using errcode='42501'; end if;
   v_base := public.artvideo_customer_portal_v1();
@@ -111,6 +112,9 @@ begin
   if v_customer_id is null then
     return v_base || jsonb_build_object('crm_access',false,'service_orders','[]'::jsonb,'documents','[]'::jsonb);
   end if;
+  select coalesce(c.email,'') into v_customer_email from public.customers c
+    where c.id=v_customer_id and c.organization_id=v_org;
+  v_base := jsonb_set(v_base,'{customer,email}',to_jsonb(coalesce(v_customer_email,'')),true);
   select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc),'[]'::jsonb)
     into v_orders from (
       select so.id,so.os_number,so.created_at,so.scheduled_at,so.completed_at,
