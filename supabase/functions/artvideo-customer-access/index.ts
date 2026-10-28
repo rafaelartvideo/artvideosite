@@ -199,6 +199,27 @@ async function sessionFor(userId:string){
   return {token_hash:data.properties.hashed_token,type:"magiclink"};
 }
 
+
+async function portalAssetContext(request:Request,orderId:string){
+  const authClient=scoped(request);
+  const {data:user,error}=await authClient.auth.getUser();
+  if(error||!user.user)throw Error("not_authenticated");
+  const {data:details,error:detailError}=await authClient.rpc("artvideo_customer_order_details_v1",{p_order_id:orderId});
+  if(detailError||!details?.order?.id)throw Error("not_authorized");
+  return details;
+}
+function decodeBase64(value:string){
+  const binary=atob(value);
+  return Uint8Array.from(binary,character=>character.charCodeAt(0));
+}
+async function decryptSignatureToken(secret:string,ciphertext:string,iv:string){
+  const hash=await crypto.subtle.digest("SHA-256",encoder.encode(secret));
+  const key=await crypto.subtle.importKey("raw",hash,{name:"AES-GCM"},false,["decrypt"]);
+  const data=await crypto.subtle.decrypt({name:"AES-GCM",iv:decodeBase64(iv)},
+    key,decodeBase64(ciphertext));
+  return new TextDecoder().decode(data);
+}
+
 Deno.serve(async request=>{
   if(request.method==="OPTIONS")return new Response(null,{status:204,headers:corsHeaders(request)});
   if(request.method!=="POST")return response(request,fail("Método não permitido.",405),405);
@@ -573,6 +594,40 @@ Deno.serve(async request=>{
       if(error||!data.session)return response(request,fail("Credenciais inválidas.",401),401);
       return response(request,{success:true,access_token:data.session.access_token,refresh_token:data.session.refresh_token});
     }
+    if(action==="customer_order_media"){
+      const orderId=String(body.order_id||""),mediaId=String(body.media_id||"");
+      if(!uuid(orderId)||!uuid(mediaId))return response(request,fail("Arquivo inválido.",400),400);
+      const details=await portalAssetContext(request,orderId);
+      if(!(Array.isArray(details.photos)?details.photos:[]).some((x:{id:string})=>x.id===mediaId))
+        return response(request,fail("Imagem indisponível.",403),403);
+      const {data:media,error:lookupError}=await admin.from("media")
+        .select("bucket_id,storage_path,mime_type").eq("id",mediaId).eq("organization_id",org).maybeSingle();
+      if(lookupError||!media?.storage_path||!media.mime_type?.startsWith("image/"))
+        return response(request,fail("Imagem indisponível.",404),404);
+      const {data:url,error:urlError}=await admin.storage.from(media.bucket_id).createSignedUrl(media.storage_path,120);
+      if(urlError||!url?.signedUrl)return response(request,fail("Imagem indisponível.",404),404);
+      return response(request,{success:true,url:url.signedUrl,expires_in_seconds:120});
+    }
+    if(action==="customer_signature_link"){
+      const requestId=String(body.signature_id||"");
+      if(!uuid(requestId))return response(request,fail("Assinatura inválida.",400),400);
+      const {data:user,error:authError}=await scoped(request).auth.getUser();
+      if(authError||!user.user)return response(request,fail("Entre na sua conta.",401),401);
+      const {data:list,error:listError}=await scoped(request).rpc("artvideo_customer_signatures_v1");
+      if(listError||!Array.isArray(list)||!list.some((x:{id:string})=>x.id===requestId))
+        return response(request,fail("Assinatura indisponível.",403),403);
+      const {data:item}=await admin.from("document_signature_requests")
+        .select("id,status,expires_at,signed_at,cancelled_at,token_ciphertext,token_iv,require_external_signature")
+        .eq("organization_id",org).eq("id",requestId).maybeSingle();
+      if(!item||item.signed_at||item.cancelled_at||!item.require_external_signature)
+        return response(request,fail("Assinatura não está pendente.",409),409);
+      if(new Date(item.expires_at).getTime()<=Date.now())
+        return response(request,fail("O prazo deste convite terminou. Solicite um novo convite à Artvideo.",410),410);
+      const secret=Deno.env.get("SIGNATURE_TOKEN_KEY")||"";
+      if(secret.length<16)return response(request,fail("Assinatura temporariamente indisponível.",503),503);
+      const token=await decryptSignatureToken(secret,item.token_ciphertext,item.token_iv);
+      return response(request,{success:true,url:"https://eletronicaartvideo.com.br/assinatura/"+encodeURIComponent(token)});
+    }
     if(action==="signed_document"){
       const {data:user,error}=await scoped(request).auth.getUser();
       if(error||!user.user)return response(request,fail("Entre na sua conta.",401),401);
@@ -598,6 +653,9 @@ Deno.serve(async request=>{
         .eq("id",document.service_order_id).eq("organization_id",org)
         .eq("customer_id",account.entity_id).maybeSingle();
       if(!order)return response(request,fail("Documento não disponível.",404),404);
+      const details=await portalAssetContext(request,order.id);
+      if(!Array.isArray(details.documents) || !details.documents.some((entry:{id:string})=>entry.id===documentId))
+        return response(request,fail("Documento não disponível.",403),403);
       const path=String(document.final_pdf_storage_path).replace(/^signed-documents\//,"");
       const {data:sign,error:signError}=await admin.storage.from("signed-documents").createSignedUrl(path,120);
       if(signError||!sign?.signedUrl)throw Error("document_unavailable");
