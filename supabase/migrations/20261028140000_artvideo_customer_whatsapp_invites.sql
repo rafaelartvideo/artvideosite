@@ -99,6 +99,10 @@ declare
   v_orders jsonb;
   v_docs jsonb;
   v_customer_email text;
+  v_customer_phone text;
+  v_customer_name text;
+  v_customer_cpf text;
+  v_address jsonb;
 begin
   if v_uid is null then raise exception 'Sessao invalida.' using errcode='42501'; end if;
   v_base := public.artvideo_customer_portal_v1();
@@ -112,9 +116,17 @@ begin
   if v_customer_id is null then
     return v_base || jsonb_build_object('crm_access',false,'service_orders','[]'::jsonb,'documents','[]'::jsonb);
   end if;
-  select coalesce(c.email,'') into v_customer_email from public.customers c
-    where c.id=v_customer_id and c.organization_id=v_org;
+  select coalesce(c.email,''),c.full_name,c.document,c.whatsapp
+    into v_customer_email,v_customer_name,v_customer_cpf,v_customer_phone
+    from public.customers c where c.id=v_customer_id and c.organization_id=v_org;
+  select jsonb_build_object('street',a.street,'number',a.number,'neighborhood',a.neighborhood,
+    'city',a.city,'state',a.state,'zip_code',a.zip_code,'complement',a.complement)
+    into v_address from public.customer_addresses a
+    where a.customer_id=v_customer_id and a.organization_id=v_org
+    order by a.is_default desc,a.created_at desc limit 1;
   v_base := jsonb_set(v_base,'{customer,email}',to_jsonb(coalesce(v_customer_email,'')),true);
+  v_base := v_base || jsonb_build_object('crm_profile',jsonb_build_object(
+    'name',v_customer_name,'cpf',v_customer_cpf,'whatsapp',v_customer_phone,'address',v_address));
   select coalesce(jsonb_agg(to_jsonb(x) order by x.created_at desc),'[]'::jsonb)
     into v_orders from (
       select so.id,so.os_number,so.created_at,so.scheduled_at,so.completed_at,
