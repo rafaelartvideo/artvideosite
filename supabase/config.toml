@@ -61,3 +61,7 @@ verify_jwt = false
 # Laboratorio autenticado manualmente com JWT + permissoes administrativas.
 [functions.artvideo-store-payment-lab]
 verify_jwt = false
+
+# Verificacao publica do codigo e entrada por convite; funcao confere OTP e ACL manualmente.
+[functions.artvideo-customer-access]
+verify_jwt = false
