@@ -56,3 +56,16 @@ test("editores de endereço no modal e cadastro exibem mapa pela mesma função 
   assert.match(quick, /<AddressMapLink address=\{address\} \/>/);
   assert.match(registration, /<AddressMapLink address=\{address\} \/>/);
 });
+
+
+test("edição do link de localização deixa campo, Cancelar e Salvar na mesma linha", () => {
+  const registrations = read("src/features/registrations/presentation/RegistrationDetails.tsx");
+  const orderCustomer = read("src/features/orders/presentation/OrderCustomerSection.tsx");
+  for (const source of [registrations, orderCustomer]) {
+    assert.match(source, /className="flex min-w-0 items-center gap-2"/);
+    assert.match(source, /className="shrink-0"[^>]*>Cancelar<\/BtnSecondary>/);
+    assert.match(source, /className="shrink-0"[^>]*>Salvar<\/BtnPrimary>/);
+  }
+  assert.match(registrations, /className="admin-input h-9 min-w-0 flex-1/);
+  assert.match(orderCustomer, /className=\{INPUT \+ " h-9 min-w-0 flex-1"\}/);
+});
