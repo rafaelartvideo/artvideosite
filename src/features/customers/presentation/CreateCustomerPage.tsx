@@ -69,7 +69,7 @@ export function CreateCustomerPage(props: Props) {
                 </>}
                 <FEmailInput label="E-mail" error={fieldErrors.email} value={createForm.email} onChange={(e: any) => { setFieldErrors(current => ({ ...current, email: undefined })); setCreateForm({ ...createForm, email: e.target.value }); }} />
                 <FPhoneInput label="Telefone" required error={fieldErrors.phone} value={createForm.phone} onChange={(e: any) => { setFieldErrors(current => ({ ...current, phone: undefined, whatsapp: undefined })); setCreateForm({ ...createForm, phone: e.target.value }); }} />
-                <FPhoneInput label="WhatsApp" mobile error={fieldErrors.whatsapp} value={createForm.whatsapp} onChange={(e: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm({ ...createForm, whatsapp: e.target.value }); }} onBlur={() => void onWhatsappBlur(createForm.whatsapp)} />
+                <FPhoneInput label="WhatsApp" mobile copyFromPhone={createForm.phone} onCopyPhone={phone => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={createForm.whatsapp} onChange={(e: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm({ ...createForm, whatsapp: e.target.value }); }} onBlur={() => void onWhatsappBlur(createForm.whatsapp)} />
               </div>
             </Section>
             <Section
