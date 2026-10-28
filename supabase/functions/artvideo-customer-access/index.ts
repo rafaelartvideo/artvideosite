@@ -303,6 +303,23 @@ Deno.serve(async request=>{
       const id=await createChallenge(org,"activation",invite.phone_e164,jid,invite.id,null);
       return response(request,{success:true,challenge_id:id,expires_in_seconds:1800,resend_in_seconds:60});
     }
+    if(action==="password_reset_email"){
+      const cpf=cpfDigits(body.cpf);
+      if(cpf.length!==11)return response(request,fail("Informe um CPF válido.",400),400);
+      await limit("password-reset-email",cpf,5,3600);
+      const account=await passwordAccount(org,cpf);
+      if(account){
+        const {data:user}=await admin.auth.admin.getUserById(account.user_id);
+        if(user?.user?.email){
+          // Nunca informar se o CPF/e-mail existe. A senha será alterada somente
+          // por meio de link de recuperação validado pelo próprio Supabase Auth.
+          await admin.auth.resetPasswordForEmail(user.user.email,{
+            redirectTo:"https://eletronicaartvideo.com.br/minha-conta?recovery=1",
+          });
+        }
+      }
+      return response(request,{success:true});
+    }
     if(action==="login_send"){
       const cpf=cpfDigits(body.cpf);
       if(cpf.length!==11)return response(request,fail("Informe um CPF válido.",400),400);
