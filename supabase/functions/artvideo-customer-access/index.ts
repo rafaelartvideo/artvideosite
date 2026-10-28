@@ -339,7 +339,7 @@ Deno.serve(async request=>{
         .eq("organization_id",org).eq("entity_id",customerId).limit(2);
       const {data:byCpf}=await admin.from("artvideo_customer_accounts")
         .select("user_id,entity_id").eq("organization_id",org).eq("cpf",cpf).limit(3);
-      if((byEntity||[]).length>1||(byCpf||[]).length>1)throw Error("account_ambiguous");
+      if((byEntity||[]).length>1||(byCpf||[]).length>1 || (byEntity?.[0]&&byCpf?.[0]&&byEntity[0].user_id!==byCpf[0].user_id))throw Error("account_ambiguous");
       const existing=byEntity?.[0]||byCpf?.[0]||null;
       if(existing?.entity_id&&existing.entity_id!==customerId)throw Error("account_ambiguous");
       let userId=existing?.user_id||"",created=false;
@@ -348,13 +348,14 @@ Deno.serve(async request=>{
         const {data:members}=await admin.from("organization_members").select("id").eq("user_id",userId).limit(1);
         if(profile||members?.length)throw Error("account_conflict");
       }else{
-        userId=crypto.randomUUID();
+        const externalId=crypto.randomUUID();
         const {data:user,error}=await admin.auth.admin.createUser({
-          id:userId,email:"cliente-"+userId+"@auth.unionworld.app",
+          email:"cliente-"+externalId+"@auth.unionworld.app",
           password:randomString(),email_confirm:true,
           user_metadata:{registration_origin:"artvideo_customer",full_name:customer.full_name},
         });
         if(error||!user.user)throw Error("account_create");
+        userId=user.user.id;
         created=true;
       }
       const update={
