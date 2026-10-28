@@ -363,7 +363,31 @@ export function CustomerAccountPage() {
                   {mode === "register" ? "Preencha seus dados para começar." : "Acompanhe seus pedidos, serviços e orçamentos."}
                 </p>
               </div>
-              {mode === "login" ? <CustomerCpfLoginPanel onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> : <form onSubmit={event => void submitAuth(event)} className="space-y-4">
+              {mode === "login" ? <CustomerCpfLoginPanel onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> :
+              registrationChallenge ? <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
+                <p className="text-center text-[13px] leading-5 text-[#60758e]">Enviamos um código ao seu WhatsApp. Digite os seis números para criar sua conta.</p>
+                <label htmlFor="registration-otp" className={authLabelClass}>Código de segurança <span className="text-red-600">*</span></label>
+                <div className="relative cursor-text">
+                  <div className="grid grid-cols-6 gap-2" aria-hidden="true">
+                    {Array.from({length:6},(_,index)=><div key={index} className={"flex h-11 items-center justify-center rounded-lg border bg-white text-lg font-semibold tabular-nums "+(index===registrationCode.length?"border-[var(--art-primary)]":"border-[#dbe3ee]")}>{registrationCode[index]||""}</div>)}
+                  </div>
+                  <input id="registration-otp" autoComplete="one-time-code" inputMode="numeric" maxLength={6}
+                    value={registrationCode} onChange={event=>{setRegistrationCode(event.target.value.replace(/\D/g,"").slice(0,6));setError("");}}
+                    className="absolute inset-0 h-full w-full opacity-0" aria-label="Código recebido no WhatsApp"/>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-xs text-[#60758e]">
+                  <span>Expira em 30 minutos.</span>
+                  <button type="button" disabled={busy||registrationCooldown>0} onClick={()=>void resendRegistrationCode()}
+                    className="!text-[11px] font-medium text-[var(--art-primary)] disabled:text-[#91a0b3]">
+                    {registrationCooldown>0?"Reenviar em "+registrationCooldown+"s":"Reenviar código"}
+                  </button>
+                </div>
+                {error&&<p role="alert" className="text-xs text-red-600">{error}</p>}
+                <button type="submit" disabled={busy||registrationCode.length!==6} className={"w-full "+authButtonClass}>
+                  {busy?<LoaderCircle size={19} className="animate-spin" aria-label="Validando..."/>:"Confirmar e criar conta"}
+                </button>
+                <button type="button" disabled={busy} onClick={()=>{setRegistrationChallenge("");setRegistrationCode("");setError("");}} className="block w-full text-center !text-xs font-medium text-[var(--art-primary)] hover:underline">Alterar dados</button>
+              </form> : <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
                 {mode === "register" && <>
                   <label className={authLabelClass}>Nome completo
                     <span className="relative mt-1.5 block">
