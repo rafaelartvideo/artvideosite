@@ -189,8 +189,9 @@ export function TabOrders({
     loading: ordersLoading,
     error: ordersError,
   } = filters;
-  const loading = workspaceLoading || ordersLoading;
-  const workspace = { ...workspaceBase, orders, setOrders, loading };
+  // Não usar a consulta ampla de referências para segurar a lista paginada.
+  // Detalhes/edição continuam respeitando workspaceLoading separadamente.
+  const workspace = { ...workspaceBase, orders, setOrders, loading: ordersLoading };
 
   useEffect(() => {
     if (!ordersError) return;
