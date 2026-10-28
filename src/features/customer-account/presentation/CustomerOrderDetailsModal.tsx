@@ -128,6 +128,11 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
     return ()=>{active=false;};
   },[order.id]);
   useEffect(()=>{
+    const previousOverflow=document.body.style.overflow;
+    document.body.style.overflow="hidden";
+    return ()=>{document.body.style.overflow=previousOverflow;};
+  },[]);
+  useEffect(()=>{
     function keydown(event:KeyboardEvent){if(event.key==="Escape")onClose();}
     window.addEventListener("keydown",keydown);
     return ()=>window.removeEventListener("keydown",keydown);
@@ -163,7 +168,7 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
   return createPortal(<div className="fixed inset-0 z-[1000] flex items-stretch justify-center bg-[#09172b]/60 sm:items-center sm:p-5"
     onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
     <section role="dialog" aria-modal="true" aria-label={"Detalhes da OS "+order.os_number}
-      className="flex h-[100dvh] min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[#f6f8fc] shadow-2xl sm:h-auto sm:max-h-[90dvh] sm:max-w-[850px] sm:rounded-xl">
+      className="flex h-screen h-[100dvh] min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[#f6f8fc] shadow-2xl sm:h-auto sm:max-h-[90dvh] sm:max-w-[850px] sm:rounded-xl">
       <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#dce5f1] bg-white px-4 py-3 pt-[max(12px,env(safe-area-inset-top))] sm:px-5 sm:py-4">
         <div><h2 className="text-lg font-bold text-[#193756]">OS {order.os_number}</h2>
           <p className="text-xs text-[#72849b]">Detalhes da sua ordem de serviço</p></div>
