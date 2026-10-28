@@ -20,10 +20,20 @@ test("a navegação da Minha Conta usa Minhas Ordens de Serviços e Assinaturas"
   assert.match(page,/<CustomerCrmHistory portal=\{portal\}/);
   assert.match(page,/<CustomerSignatures userId=\{userId\}/);
 });
-test("ordens de serviço aparecem em tabela com status na borda e modal",()=>{
+test("ordens de serviço aparecem em cards no mobile e tabela no desktop com situação real",()=>{
   const page=read("src/features/customer-account/presentation/CustomerCrmHistory.tsx");
   const detail=read("src/features/customer-account/presentation/CustomerOrderDetailsModal.tsx");
   assert.match(page,/<table/);
+  assert.match(page,/md:hidden/);
+  assert.match(page,/md:block/);
+  assert.match(page,/aria-label="Minhas ordens de serviço"/);
+  assert.match(page,/<th className="px-4 py-3">Equipamento<\\/th>/);
+  assert.match(page,/<th className="px-4 py-3">Situação<\\/th>/);
+  assert.doesNotMatch(page,/Equipamento \\/ serviço|>Status<\\/th>/);
+  assert.match(page,/customerOrderEquipment\\(item\\)/);
+  assert.match(page,/item\\.situation_name/);
+  assert.match(page,/item\\.situation_color/);
+  assert.doesNotMatch(page,/item\\.model\\|\\|item\\.description/);
   assert.match(page,/<CustomerOrderDetailsModal order=\{selected\}/);
   assert.match(page,/bg-red-500/);
   assert.match(page,/bg-blue-600/);
@@ -74,4 +84,22 @@ test("a consulta autenticada entrega situações vinculadas ao tipo e passagens 
   assert.match(sql,/o\.customer_id=v_customer/);
   assert.match(sql,/sts\.organization_id=v_org/);
   assert.match(sql,/v\.organization_id=v_org/);
+});
+
+test("portal verificado entrega situação da OS sem confundir com status e sem nome do serviço",()=>{
+  const sql=read("supabase/migrations/20261028224000_customer_account_orders_situation_equipment.sql");
+  const types=read("src/features/customer-account/infrastructure/customer-account.repository.ts");
+  assert.match(sql,/private\.artvideo_verified_portal_customer_v1\(\)/);
+  assert.match(sql,/so\.customer_id=v_customer_id/);
+  assert.match(sql,/sit\.id=so\.situation_id/);
+  assert.match(sql,/sit\.color as situation_color/);
+  assert.match(sql,/sit\.name/);
+  assert.match(sql,/et\.name/);
+  assert.match(sql,/eb\.name/);
+  assert.match(sql,/em\.name/);
+  assert.match(sql,/'Sem situação'/);
+  assert.match(sql,/coalesce\(gs\.name,svc\.title/);
+  assert.match(types,/situation_name\?: string/);
+  assert.match(types,/situation_color\?: string/);
+  assert.match(types,/equipment\?: string/);
 });
