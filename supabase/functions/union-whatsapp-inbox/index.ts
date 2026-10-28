@@ -1617,6 +1617,16 @@ Deno.serve(async request => {
     if(channelError || !channel || channel.state!=="connected" || !channel.webhook_ready) {
       return json({success:false,code:"channel_offline",error:"O canal precisa estar conectado e com recebimento ativo."},409);
     }
+    // Identify the authenticated operator, never a name provided by the browser.
+    const {data:profile}=await admin.from("profiles").select("full_name")
+      .eq("id",actorId).maybeSingle();
+    const firstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
+      .replace(/[*_~`\r\n]/g,"");
+    const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR")+firstName.slice(1) : null;
+    // WhatsApp recognizes *bold*; the customer sees the operator's first name above the message.
+    const outboundText=text && senderName ? `*${senderName}*\n${text}` : text;
+    if(outboundText.length>4000)
+      return json({success:false,error:"Mensagem muito longa. Reduza o texto e envie novamente."},400);
     const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(text);
     const {data:attempt,error:attemptError}=await admin.from("union_whatsapp_send_attempts")
       .upsert({
@@ -1647,7 +1657,7 @@ Deno.serve(async request => {
       signedMedia={url:shortLink.signedUrl,mime,name,type:kind};
     }
     try {
-      messageId=await signedBridge(channel,text,thread.chat_jid,clientId,signedMedia);
+      messageId=await signedBridge(channel,outboundText,thread.chat_jid,clientId,signedMedia);
     } catch (reason) {
       const code=reason instanceof Error?reason.message:"";
       if(code==="audio_encoder_unavailable")
@@ -1663,16 +1673,11 @@ Deno.serve(async request => {
         error:"Não foi possível confirmar o envio. Verifique o WhatsApp antes de tentar novamente."},502);
     }
     const now=new Date().toISOString();
-    // Use the organization's verified profile name for the same styling as SAC.
-    const {data:profile}=await admin.from("profiles").select("full_name")
-      .eq("id",actorId).maybeSingle();
-    const firstName=String(profile?.full_name || "").trim().split(/\\s+/)[0] || "";
-    const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR") + firstName.slice(1) : null;
     const {data:message,error:insertError}=await admin.from("union_whatsapp_messages")
       .upsert({
         organization_id:org,channel_id:thread.channel_id,account_phone:thread.account_phone,conversation_id:thread.id,
         provider_message_id:messageId,direction:"outgoing",message_type:isMedia?kind:"text",
-        body_text:text,sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
+        body_text:outboundText,sender_name:senderName,sent_at:now,delivery_status:"sent",origin:"union",
         media_path:isMedia?mediaPath:null,media_name:isMedia?name:null,media_mime:isMedia?mime:null,
       },{onConflict:"channel_id,account_phone,provider_message_id",ignoreDuplicates:true})
       .select("id").maybeSingle();
@@ -1685,6 +1690,7 @@ Deno.serve(async request => {
       // of showing two separate bubbles or dropping the private attachment.
       const patch:Record<string,unknown>={origin:"union"};
       if(senderName) patch.sender_name=senderName;
+      if(outboundText) patch.body_text=outboundText;
       if(mediaPath) {
         patch.media_path=mediaPath;
         patch.media_name=name;
@@ -1699,7 +1705,7 @@ Deno.serve(async request => {
     }
     if(!thread.last_message_at || new Date(now)>=new Date(thread.last_message_at)) {
       const {error:previewError}=await admin.from("union_whatsapp_conversations")
-        .update({last_message:isMedia ? (text || ({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento"}[kind]||"Anexo")) : text,last_message_at:now,updated_at:now})
+        .update({last_message:isMedia ? (outboundText || ({image:"Imagem",audio:"Áudio",video:"Vídeo",file:"Documento"}[kind]||"Anexo")) : outboundText,last_message_at:now,updated_at:now})
         .eq("id",thread.id).eq("organization_id",org);
       if(previewError) throw previewError;
     }
