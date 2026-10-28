@@ -143,7 +143,7 @@ async function sendOtp(channel:{id:string;organization_id:string},jid:string,cod
   const sent=await bridge(channel,"send_text","",jid,message);
   if(typeof sent.provider_message_id!=="string"||!sent.provider_message_id)throw Error("send_unconfirmed");
 }
-async function createChallenge(org:string,purpose:"activation"|"login"|"registration",phone:string,jid:string,inviteId:string|null,accountUserId:string|null){
+async function createChallenge(org:string,purpose:"activation"|"login"|"registration"|"profile",phone:string,jid:string,inviteId:string|null,accountUserId:string|null){
   const id=crypto.randomUUID(),code=newCode();
   const {error}=await admin.from("artvideo_customer_access_challenges").insert({
     id,organization_id:org,purpose,phone_e164:phone,chat_jid:jid,
@@ -360,6 +360,56 @@ Deno.serve(async request=>{
       const jid=await verifiedJid(channel,phone);
       const id=await createChallenge(org,"registration",phone,jid,null,null);
       return response(request,{success:true,challenge_id:id,expires_in_seconds:1800,resend_in_seconds:60});
+    }
+    if(action==="profile_send"){
+      const {data:viewer,error:authError}=await scoped(request).auth.getUser();
+      if(authError||!viewer.user)return response(request,fail("Entre na sua conta.",401),401);
+      const {data:account,error:accountError}=await admin.from("artvideo_customer_accounts")
+        .select("phone,whatsapp_verified_at,whatsapp_verified_number")
+        .eq("organization_id",org).eq("user_id",viewer.user.id).maybeSingle();
+      if(accountError||!account)return response(request,fail("Conta de cliente indisponível.",404),404);
+      const phone=normalizePhone(account.phone);
+      if(!phone)return response(request,fail("Atualize seu WhatsApp antes de verificar.",400),400);
+      if(account.whatsapp_verified_at&&account.whatsapp_verified_number===phone)
+        return response(request,{success:true,already_verified:true});
+      await limit("profile-send",viewer.user.id,5,3600);
+      const channel=await activeChannel(org),jid=await verifiedJid(channel,phone);
+      const id=await createChallenge(org,"profile",phone,jid,null,viewer.user.id);
+      return response(request,{success:true,challenge_id:id,expires_in_seconds:1800,resend_in_seconds:60});
+    }
+    if(action==="profile_verify"){
+      const {data:viewer,error:authError}=await scoped(request).auth.getUser();
+      if(authError||!viewer.user)return response(request,fail("Entre na sua conta.",401),401);
+      const challengeId=String(body.challenge_id||""),code=String(body.code||"");
+      if(!uuid(challengeId)||!/^[0-9]{6}$/.test(code))
+        return response(request,fail("Código inválido.",400),400);
+      await limit("profile-verify",viewer.user.id,12,3600);
+      const {data:c}=await admin.from("artvideo_customer_access_challenges").select("*")
+        .eq("id",challengeId).eq("organization_id",org).eq("purpose","profile")
+        .eq("account_user_id",viewer.user.id).eq("status","pending")
+        .gt("expires_at",new Date().toISOString()).maybeSingle();
+      if(!c||c.attempts>=5)return response(request,fail("Código expirado ou bloqueado.",410),410);
+      const {data:account}=await admin.from("artvideo_customer_accounts").select("phone")
+        .eq("organization_id",org).eq("user_id",viewer.user.id).maybeSingle();
+      if(!account||normalizePhone(account.phone)!==c.phone_e164)
+        return response(request,fail("Número alterado. Solicite um novo código.",409),409);
+      if(!safeEqual(c.code_digest,await hmac(c.id+":"+code))){
+        await admin.from("artvideo_customer_access_challenges").update({
+          attempts:c.attempts+1,status:c.attempts>=4?"locked":"pending",
+        }).eq("id",c.id).eq("status","pending").eq("attempts",c.attempts);
+        return response(request,fail("Código incorreto.",401),401);
+      }
+      const {data:consumed}=await admin.from("artvideo_customer_access_challenges")
+        .update({status:"consumed",consumed_at:new Date().toISOString()})
+        .eq("id",c.id).eq("status","pending").eq("code_digest",c.code_digest)
+        .select("id").maybeSingle();
+      if(!consumed)return response(request,fail("Código já utilizado.",410),410);
+      const {data:saved,error:saveError}=await admin.from("artvideo_customer_accounts")
+        .update({whatsapp_verified_at:new Date().toISOString(),whatsapp_verified_number:c.phone_e164})
+        .eq("organization_id",org).eq("user_id",viewer.user.id).eq("phone",account.phone)
+        .select("user_id").maybeSingle();
+      if(saveError||!saved)return response(request,fail("Não foi possível confirmar o WhatsApp.",409),409);
+      return response(request,{success:true,verified:true});
     }
     if(action==="login_send"){
       const cpf=cpfDigits(body.cpf);
