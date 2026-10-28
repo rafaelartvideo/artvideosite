@@ -50,7 +50,7 @@ function OrderProgress({ order, situations }: {
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <p className={`min-w-0 break-words text-[13px] font-semibold ${active ? "text-[#1032DC]" : "text-[#233d59]"}`}>{situation.name}</p>
             <span className={`text-[10px] font-semibold ${active ? "text-[#1032DC]" : completed ? "text-[#527399]" : "text-[#8a9ab0]"}`}>
-              {active ? "Atual" : completed ? "Registrada" : "Não iniciada"}
+              {active ? "Atual" : completed ? "Registrada" : "Sem registro"}
             </span>
           </div>
         </div>
