@@ -2,8 +2,13 @@ import { supabase } from "@/lib/supabase";
 
 export type CustomerServiceOrder = {
   id: string; os_number: string; description: string; status: string;
+  /** Situação atual vinculada à OS, independente do status administrativo. */
+  situation_name?: string | null;
+  situation_color?: string | null;
+  /** Equipamento + marca/modelo, sem utilizar a descrição do serviço. */
+  equipment?: string | null;
   model?: string; created_at: string; scheduled_at?: string|null;
-  completed_at?: string|null;
+  completed_at?: string|null; cancelled_at?: string|null;
 };
 export type CustomerOrderDetails = {
   order: CustomerServiceOrder & {
