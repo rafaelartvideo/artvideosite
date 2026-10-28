@@ -10,9 +10,8 @@ function technicalValueText(value: any) {
   return String(value?.value_text ?? (value?.value_number == null ? "—" : value.value_number));
 }
 
-export function CustomerEquipmentsSection({ equipments }: { equipments: any[] }) {
-  return (
-    <Section title={`Equipamentos (${equipments.length})`}>
+export function CustomerEquipmentsSection({ equipments, embedded = false }: { equipments: any[]; embedded?: boolean }) {
+  const content = <>
       {equipments.length === 0 ? (
         <AdminSectionEmpty>Nenhum equipamento vinculado a este cliente.</AdminSectionEmpty>
       ) : (
@@ -61,6 +60,6 @@ export function CustomerEquipmentsSection({ equipments }: { equipments: any[] })
           })}
         </div>
       )}
-    </Section>
-  );
+    </>;
+  return embedded ? content : <Section title={`Equipamentos (${equipments.length})`}>{content}</Section>;
 }
