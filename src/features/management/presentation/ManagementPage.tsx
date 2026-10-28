@@ -356,11 +356,22 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
                   </span>
                 </button>
                 {record.url&&/^https?:\/\//i.test(record.url)&&<a className="rounded p-2 text-xs font-semibold text-primary hover:underline" href={record.url} target="_blank" rel="noopener noreferrer">Abrir</a>}
-                {record.kind==="account"&&canManage&&<button type="button" onClick={()=>openVault(record)}
-                  className="rounded-md border border-border p-2 text-primary" title="Visualizar senha no cofre" aria-label={`Cofre: ${record.title}`}><KeyRound size={16}/></button>}
-                {record.kind==="file"&&<button type="button" onClick={()=>void openVersions(record)}
-                  className="rounded-md border border-border p-2 text-primary" title="Histórico de versões" aria-label={`Versões: ${record.title}`}><Layers size={16}/></button>}
-                {canManage&&<button type="button" aria-label={`Excluir ${record.title}`} title="Excluir registro" onClick={()=>void deleteRecord(record)} className="rounded p-2 text-xs text-muted-foreground hover:text-red-600">Excluir</button>}
+                {(canManage||record.kind==="file")&&<DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="shrink-0 p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label={`Opções do registro ${record.title}`}><MoreVertical size={17}/></button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={5} collisionPadding={10} className="z-[200] min-w-40 rounded-none border-border bg-popover shadow-xl">
+                    <DropdownMenuItem className="rounded-none" onSelect={()=>record.kind==="file"?void openFile(record):openRecord(record)}>
+                      {record.kind==="file"?<Eye size={15}/>:<Pencil size={15}/>}
+                      {record.kind==="file"?"Abrir arquivo":"Editar registro"}
+                    </DropdownMenuItem>
+                    {record.kind==="file"&&<DropdownMenuItem className="rounded-none" onSelect={()=>void openVersions(record)}><Layers size={15}/>Versões</DropdownMenuItem>}
+                    {record.kind==="account"&&canManage&&<DropdownMenuItem className="rounded-none" onSelect={()=>openVault(record)}><KeyRound size={15}/>Cofre de acesso</DropdownMenuItem>}
+                    {canManage&&<DropdownMenuSeparator/>}
+                    {canManage&&<DropdownMenuItem className="rounded-none" variant="destructive" onSelect={()=>void deleteRecord(record)}><Trash2 size={15}/>Mover para lixeira</DropdownMenuItem>}
+                  </DropdownMenuContent>
+                </DropdownMenu>}
               </div>;
             })}
           </div>
