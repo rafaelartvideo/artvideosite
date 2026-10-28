@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArchiveRestore, CalendarClock, CheckCircle2, Clock3, FileClock, Globe, History, Megaphone, Plus, ShieldAlert } from "lucide-react";
+import { ArchiveRestore, CalendarClock, CheckCircle2, Clock3, FileClock, Globe, History, LayoutDashboard, ListTodo, Megaphone, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -11,11 +12,14 @@ import {
 } from "../infrastructure/management.repository";
 
 type Tab = "overview" | "domains" | "campaigns" | "activity" | "tasks" | "trash";
-const TABS: { id:Tab;label:string }[] = [
-  {id:"overview",label:"Visão geral"}, {id:"domains",label:"Sites e domínios"},
-  {id:"campaigns",label:"Campanhas"}, {id:"activity",label:"Histórico"},
-  {id:"tasks",label:"Tarefas"}, {id:"trash",label:"Lixeira"},
-];
+const TABS = [
+  {id:"overview",label:"Visão geral",Icon:LayoutDashboard},
+  {id:"domains",label:"Sites e domínios",Icon:Globe},
+  {id:"campaigns",label:"Campanhas",Icon:Megaphone},
+  {id:"activity",label:"Histórico",Icon:History},
+  {id:"tasks",label:"Tarefas",Icon:ListTodo},
+  {id:"trash",label:"Lixeira",Icon:Trash2},
+] satisfies ReadonlyArray<{id:Tab;label:string;Icon:typeof Globe}>;
 const fieldClass = "h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground focus:border-primary focus:outline-none";
 const metaString = (r:ManagementRecord,key:string) => typeof r.metadata?.[key] === "string" ? String(r.metadata[key]) : "";
 const toDate = (v:string) => /^\d{4}-\d{2}-\d{2}$/.test(v) ? new Date(v+"T12:00:00") : null;
@@ -102,10 +106,16 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
     finally{setBusy(false);}
   };
   return <section className="space-y-3">
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label="Gestão do projeto">
-      {TABS.map(item=><button key={item.id} type="button" role="tab" aria-selected={tab===item.id}
-        onClick={()=>setTab(item.id)} className={`border px-3 py-2 text-xs font-semibold transition-colors ${tab===item.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card text-muted-foreground hover:bg-muted"}`}>{item.label}{item.id==="trash"&&trashedRecords.length+trashedFolders.length>0?` (${trashedRecords.length+trashedFolders.length})`:""}</button>)}
+    <div className="flex justify-center [&>nav]:justify-center [&>nav]:border-b-0">
+      <AdminSubsectionButtons value={tab} onChange={setTab} ariaLabel="Subseções da Central de Gestão"
+        items={TABS.map(item=>({
+          ...item,
+          label:item.id==="trash"&&trashedRecords.length+trashedFolders.length>0
+            ?`${item.label} (${trashedRecords.length+trashedFolders.length})` : item.label,
+        }))}/>
     </div>
+    <div role="tabpanel" aria-label={TABS.find(item=>item.id===tab)?.label}
+      className="h-[330px] overflow-y-auto overscroll-contain border border-dashed border-border bg-card/30 p-3 sm:h-[360px] sm:p-5">
     {tab==="overview"&&<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {[
         {label:"Registros ativos",value:active.length,Icon:FileClock},
@@ -188,6 +198,7 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
         </div>)}
       </>}
     </div>}
+    </div>
     <AdminDialog open={taskDialog} title="Nova tarefa do projeto" onClose={()=>!busy&&setTaskDialog(false)}
       footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" disabled={busy} onClick={()=>setTaskDialog(false)}>Cancelar</AdminButton><AdminButton loading={busy} disabled={!taskTitle.trim()||!organizationId} onClick={()=>void createTask()}>Salvar tarefa</AdminButton></div>}>
       <div className="space-y-4">
