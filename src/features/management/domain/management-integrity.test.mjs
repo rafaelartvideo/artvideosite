@@ -8,7 +8,8 @@ test("a Central usa lixeira recuperável em vez de apagar arquivos",()=>{
   assert.match(repo,/management_trash_folder/);
   assert.match(repo,/deleted_at: new Date\(\).toISOString\(\)/);
   assert.match(repo,/restoreManagementRecord/);
-  assert.doesNotMatch(repo,/export async function removeManagementRecord[\s\S]*?\.storage\.from\(BUCKET\)\.remove\(/);
+  const section=repo.slice(repo.indexOf("export async function removeManagementRecord"),repo.indexOf("export async function uploadManagementFiles"));
+  assert.doesNotMatch(section,/storage\.from\(BUCKET\)\.remove/);
 });
 
 test("o cofre não grava a senha em metadados e usa RPC com autorização no servidor",()=>{
