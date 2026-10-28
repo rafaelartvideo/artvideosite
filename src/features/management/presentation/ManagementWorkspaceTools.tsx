@@ -35,7 +35,7 @@ function deadlineLabel(date:string) {
 }
 function Deadline({date}:{date:string}) {
   const days=daysTo(date);
-  return <span className={`rounded-md px-2 py-1 text-xs font-semibold ${days!==null&&days<=7?"bg-red-500/10 text-red-700 dark:text-red-300":days!==null&&days<=30?"bg-amber-500/10 text-amber-700 dark:text-amber-300":"bg-muted text-muted-foreground"}`}>{deadlineLabel(date)}</span>;
+  return <span className={`px-2 py-1 text-xs font-semibold ${days!==null&&days<=7?"bg-red-500/10 text-red-700 dark:text-red-300":days!==null&&days<=30?"bg-amber-500/10 text-amber-700 dark:text-amber-300":"bg-muted text-muted-foreground"}`}>{deadlineLabel(date)}</span>;
 }
 const openLink=(url:string) => /^https?:\/\//i.test(url) ? url : null;
 
@@ -104,7 +104,7 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
   return <section className="space-y-3">
     <div className="flex flex-wrap gap-2" role="tablist" aria-label="Gestão do projeto">
       {TABS.map(item=><button key={item.id} type="button" role="tab" aria-selected={tab===item.id}
-        onClick={()=>setTab(item.id)} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${tab===item.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card text-muted-foreground hover:bg-muted"}`}>{item.label}{item.id==="trash"&&trashedRecords.length+trashedFolders.length>0?` (${trashedRecords.length+trashedFolders.length})`:""}</button>)}
+        onClick={()=>setTab(item.id)} className={`border px-3 py-2 text-xs font-semibold transition-colors ${tab===item.id?"border-primary bg-primary text-primary-foreground":"border-border bg-card text-muted-foreground hover:bg-muted"}`}>{item.label}{item.id==="trash"&&trashedRecords.length+trashedFolders.length>0?` (${trashedRecords.length+trashedFolders.length})`:""}</button>)}
     </div>
     {tab==="overview"&&<div className="grid grid-cols-2 gap-3 md:grid-cols-4">
       {[
@@ -112,10 +112,10 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
         {label:"Sites e domínios",value:domains.length,Icon:Globe},
         {label:"Campanhas",value:campaigns.length,Icon:Megaphone},
         {label:"Prazos próximos",value:expiring.length,Icon:CalendarClock},
-      ].map(m=><div key={m.label} className="rounded-xl border border-border bg-card p-4">
+      ].map(m=><div key={m.label} className="border border-border bg-card p-4">
         <m.Icon size={19} className="mb-3 text-primary"/><p className="text-2xl font-bold text-foreground">{m.value}</p><p className="text-xs text-muted-foreground">{m.label}</p>
       </div>)}
-      {expiring.length>0&&<div className="col-span-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4 md:col-span-4">
+      {expiring.length>0&&<div className="col-span-2 border border-amber-500/30 bg-amber-500/5 p-4 md:col-span-4">
         <div className="flex items-center gap-2 text-sm font-semibold text-foreground"><ShieldAlert size={17}/>Atenção aos vencimentos</div>
         <div className="mt-3 flex flex-col gap-2">{expiring.slice(0,6).map(e=><div key={e.record.id+e.key} className="flex items-center justify-between gap-3 text-xs">
           <span className="truncate text-foreground">{e.record.title} · {e.key==="renewal_date"?"Renovação do domínio":"Certificado SSL"}</span><Deadline date={e.date}/>
@@ -124,7 +124,7 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
     </div>}
     {tab==="domains"&&<div className="space-y-2">
       <p className="text-xs text-muted-foreground">Prazos sinalizados automaticamente nesta Central. Cadastre ou edite os detalhes pelo registro do tipo Site / domínio.</p>
-      {!domains.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhum site ou domínio cadastrado.</p>:domains.map(r=><div key={r.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3 text-sm">
+      {!domains.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhum site ou domínio cadastrado.</p>:domains.map(r=><div key={r.id} className="flex flex-wrap items-center gap-3 border border-border bg-card p-3 text-sm">
         <Globe size={18} className="text-primary"/><div className="min-w-[160px] flex-1"><p className="font-semibold text-foreground">{r.title}</p>
           <p className="text-xs text-muted-foreground">Registro: {metaString(r,"registrar")||"—"} · Hospedagem: {metaString(r,"hosting")||"—"}</p>
           {r.url&&openLink(r.url)&&<a href={r.url} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline">Abrir site</a>}
@@ -137,7 +137,7 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
       {!campaigns.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhuma campanha cadastrada.</p>:campaigns.map(r=>{
         const creativeAssets=active.filter(file=>file.kind==="file"&&file.metadata?.campaign_id===r.id);
         const budget=Number(metaString(r,"budget").replace(",",".")||0);
-        return <div key={r.id} className="space-y-3 rounded-lg border border-border bg-card p-3">
+        return <div key={r.id} className="space-y-3 border border-border bg-card p-3">
           <div className="flex flex-wrap items-center gap-3">
             <Megaphone size={18} className="text-primary"/><div className="min-w-[170px] flex-1"><p className="text-sm font-semibold text-foreground">{r.title}</p><p className="text-xs text-muted-foreground">{metaString(r,"platform")||"Sem plataforma"} · {metaString(r,"objective")||"Sem objetivo"}</p></div>
             <span className="text-xs text-muted-foreground">{metaString(r,"campaign_status")||"Planejada"}</span>
@@ -162,14 +162,14 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
     </div>}
     {loading&&(tab==="activity"||tab==="tasks")?<LoadingState text="Carregando informações"/>:null}
     {!loading&&tab==="activity"&&<div className="max-h-[450px] space-y-2 overflow-y-auto">
-      {!activity.length?<p className="py-8 text-center text-sm text-muted-foreground">Ainda não há atividades registradas.</p>:activity.map(a=><div key={a.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+      {!activity.length?<p className="py-8 text-center text-sm text-muted-foreground">Ainda não há atividades registradas.</p>:activity.map(a=><div key={a.id} className="flex items-center gap-3 border border-border p-3">
         <History size={16} className="shrink-0 text-primary"/><div className="flex-1"><p className="text-sm font-medium text-foreground">{a.label||a.entity_type}</p><p className="text-xs text-muted-foreground">{a.entity_type} · {a.operation}</p></div>
         <span className="text-xs text-muted-foreground">{new Date(a.created_at).toLocaleString("pt-BR")}</span>
       </div>)}
     </div>}
     {tab==="tasks"&&<div className="space-y-3">
       {canManage&&<div className="flex justify-end"><AdminButton size="sm" onClick={()=>setTaskDialog(true)}><Plus size={14}/>Nova tarefa</AdminButton></div>}
-      {!loading&&(!tasks.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhuma tarefa vinculada. As tarefas criadas aqui também ficam no módulo de Compromissos e Tarefas.</p>:tasks.map(t=><div key={t.id} className="flex items-center gap-3 rounded-lg border border-border bg-card p-3">
+      {!loading&&(!tasks.length?<p className="py-8 text-center text-sm text-muted-foreground">Nenhuma tarefa vinculada. As tarefas criadas aqui também ficam no módulo de Compromissos e Tarefas.</p>:tasks.map(t=><div key={t.id} className="flex items-center gap-3 border border-border bg-card p-3">
         {t.status==="completed"?<CheckCircle2 size={18} className="text-emerald-600"/>:<Clock3 size={18} className="text-primary"/>}
         <div className="flex-1"><p className="text-sm font-semibold text-foreground">{t.title}</p><p className="text-xs text-muted-foreground">{t.status} · {t.priority}</p></div>
         <span className="text-xs text-muted-foreground">{t.due_at?new Date(t.due_at).toLocaleDateString("pt-BR"):"Sem prazo"}</span>
@@ -178,11 +178,11 @@ export function ManagementWorkspaceTools({space,records,folders,canManage,organi
     {tab==="trash"&&<div className="space-y-2">
       {!trashedFolders.length&&!trashedRecords.length?<p className="py-8 text-center text-sm text-muted-foreground">A lixeira está vazia.</p>:<>
         <p className="text-xs text-muted-foreground">Os arquivos e versões são preservados. Para restaurar itens de uma subpasta, restaure primeiro a pasta superior.</p>
-        {trashedFolders.map(f=><div key={f.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+        {trashedFolders.map(f=><div key={f.id} className="flex items-center gap-3 border border-border p-3">
           <span className="flex-1 text-sm text-foreground">Pasta: {f.name}</span>
           {canManage&&<AdminButton size="sm" variant="secondary" disabled={busy} onClick={()=>void restore("folder",f.id)}><ArchiveRestore size={14}/>Restaurar</AdminButton>}
         </div>)}
-        {trashedRecords.filter(r=>!folders.find(f=>f.id===r.folder_id)?.deleted_at).map(r=><div key={r.id} className="flex items-center gap-3 rounded-lg border border-border p-3">
+        {trashedRecords.filter(r=>!folders.find(f=>f.id===r.folder_id)?.deleted_at).map(r=><div key={r.id} className="flex items-center gap-3 border border-border p-3">
           <span className="flex-1 text-sm text-foreground">{r.title}</span>
           {canManage&&<AdminButton size="sm" variant="secondary" disabled={busy} onClick={()=>void restore("record",r.id)}><ArchiveRestore size={14}/>Restaurar</AdminButton>}
         </div>)}

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, BriefcaseBusiness, Pencil, Archive, Eye, EyeOff, Layers } from "lucide-react";
+import { ChevronRight, File, FileImage, FileText, Folder, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, BriefcaseBusiness, Pencil, Archive, Eye, EyeOff, Layers, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -72,13 +73,15 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [versionsRecord,setVersionsRecord]=useState<ManagementRecord|null>(null);
   const [versions,setVersions]=useState<ManagementFileVersion[]>([]);
   const [versionsLoading,setVersionsLoading]=useState(false);
-  const [actionMenu,setActionMenu]=useState<string|null>(null);
   const [uploading,setUploading]=useState(false);
   const [revision,setRevision]=useState(0);
   const uploadRef=useRef<HTMLInputElement|null>(null);
   const selectedSpace=spaces.find(s=>s.id===spaceId)||null;
   const selectedFolder=folders.find(f=>f.id===folderId)||null;
   const visibleFolderId=selectedFolder?.id||null;
+  // A trilha mostra totais do diretório atual, independentemente do filtro de busca.
+  const folderCount=folders.filter(f=>f.parent_id===visibleFolderId && !f.deleted_at).length;
+  const recordCount=records.filter(r=>r.folder_id===visibleFolderId && !r.deleted_at).length;
   const folderChildren=useMemo(()=>folders.filter(f=>f.parent_id===visibleFolderId && !f.deleted_at)
     .filter(f=>f.name.toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR")))
     .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR")), [folders,visibleFolderId,search]);
@@ -216,7 +219,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
       window.open(signedUrl,"_blank","noopener,noreferrer");
     }catch(error){notifyAdmin(systemErrorMessage(error,"Não foi possível abrir o arquivo."),"error");}
   };
-  const navigateFolder=(id:string|null)=>{setSearch("");setActionMenu(null);onRouteChange(spaceId||null,id);};
+  const navigateFolder=(id:string|null)=>{setSearch("");onRouteChange(spaceId||null,id);};
   const setDetail=(key:string,value:string)=>setMetadata(current=>({...current,[key]:value}));
   const openVault=(record:ManagementRecord)=>{setVaultRecord(record);setVaultValue(null);};
   const closeVault=()=>{setVaultValue(null);setVaultRecord(null);};
@@ -253,7 +256,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     <PageHeader title="Central de Gestão" subtitle="Organize seus projetos, contas, sites, arquivos e campanhas em um só lugar."/>
     {selectedSpace&&<ManagementWorkspaceTools space={selectedSpace} folders={folders} records={records}
       canManage={canManage} organizationId={activeOrganizationId} onRefresh={refresh}/>}
-    <AdminCard>
+    <AdminCard square>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
         <div className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
           <button type="button" onClick={()=>{setSearch("");onRouteChange(null,null);}} className="font-semibold text-primary hover:underline">Meus espaços</button>
@@ -264,6 +267,10 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
               <ChevronRight size={15} className="text-muted-foreground"/>
               <button type="button" className={i===crumbs.length-1?"font-semibold text-foreground":"text-primary hover:underline"} onClick={()=>navigateFolder(folder.id)}>{folder.name}</button>
             </span>)}
+            {!contentLoading&&<span data-testid="management-breadcrumb-count" className="ml-1 inline-flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
+              <span aria-hidden="true" className="text-border">|</span>
+              {folderCount} pastas · {recordCount} registros
+            </span>}
           </>}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -284,9 +291,9 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder={selectedSpace?"Buscar em todas as pastas...":"Buscar espaços e registros..."}
             className="h-10 w-full rounded-lg border border-border bg-background pl-10 pr-3 text-sm text-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20"/>
         </div>
-        {search.trim().length>=3&&<div className="mb-4 space-y-2 rounded-lg border border-border bg-muted/30 p-3">
+        {search.trim().length>=3&&<div className="mb-4 space-y-2 border border-border bg-muted/30 p-3">
           <p className="text-xs font-semibold text-foreground">{searchLoading?"Pesquisando registros...":`${searchResults.length} resultado(s) em ${selectedSpace?"todas as pastas":"todos os espaços"}`}</p>
-          {searchResults.map(result=><button key={result.id} type="button" className="flex w-full items-center gap-2 rounded-lg border border-border bg-card p-2 text-left text-xs hover:border-primary/40"
+          {searchResults.map(result=><button key={result.id} type="button" className="flex w-full items-center gap-2 border border-border bg-card p-2 text-left text-xs hover:border-primary/40"
             onClick={()=>{setSearch("");onRouteChange(result.space_id,result.folder_id);}}>
             <FileText size={15} className="text-primary"/><span className="min-w-0 flex-1 truncate font-semibold">{result.title}</span>
             <span className="text-muted-foreground">{spaces.find(sp=>sp.id===result.space_id)?.name||"Espaço"}</span>
@@ -297,11 +304,11 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           <h3 className="mb-3 text-sm font-bold text-foreground">Espaços</h3>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-4">
             {spaces.filter(s=>(s.name+" "+s.description).toLocaleLowerCase("pt-BR").includes(search.toLocaleLowerCase("pt-BR"))).map(space=><div key={space.id}
-              className="group relative flex min-h-36 flex-col justify-between rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40">
-              <button type="button" className="absolute inset-0 z-0 rounded-xl" aria-label={`Abrir ${space.name}`} onClick={()=>{setSearch("");onRouteChange(space.id,null);}}/>
+              className="group relative flex min-h-36 flex-col justify-between border border-border bg-card p-4 transition-colors hover:border-primary/40 hover:bg-muted/40">
+              <button type="button" className="absolute inset-0 z-0" aria-label={`Abrir ${space.name}`} onClick={()=>{setSearch("");onRouteChange(space.id,null);}}/>
               <div className="pointer-events-none relative flex items-start justify-between gap-2">
-                <div style={{backgroundColor:space.accent_color}} className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white">
-                  {space.logo_path&&logoUrls[space.id]?<img className="h-full w-full rounded-xl object-cover" src={logoUrls[space.id]} alt={`Logo de ${space.name}`}/>:space.icon_text||space.name.slice(0,2).toUpperCase()}
+                <div style={{backgroundColor:space.accent_color}} className="flex h-12 w-12 shrink-0 items-center justify-center text-sm font-black text-white">
+                  {space.logo_path&&logoUrls[space.id]?<img className="h-full w-full object-cover" src={logoUrls[space.id]} alt={`Logo de ${space.name}`}/>:space.icon_text||space.name.slice(0,2).toUpperCase()}
                 </div>
                 <Folder size={22} style={{color:space.accent_color}}/>
               </div>
@@ -317,30 +324,31 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           </div>
           {!spaces.length&&<p className="py-12 text-center text-sm text-muted-foreground">Nenhum espaço cadastrado.</p>}
         </> : <>
-          <div className="mb-4 flex items-center gap-3">
-            <div style={{backgroundColor:selectedSpace.accent_color}} className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-xs font-black text-white">{selectedSpace.logo_path&&logoUrls[selectedSpace.id]?<img className="h-full w-full rounded-lg object-cover" src={logoUrls[selectedSpace.id]} alt={`Logo de ${selectedSpace.name}`}/>:selectedSpace.icon_text||"P"}</div>
-            <div><h3 className="font-bold text-foreground">{selectedFolder?.name||selectedSpace.name}</h3>
-              <p className="text-xs text-muted-foreground">{folderChildren.length} pastas · {visibleRecords.length} registros</p></div>
-          </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
             {folderChildren.map(folder=>{
               const Icon=folderIcon(folder.name);
-              return <div key={folder.id} className="group relative flex items-center gap-3 rounded-lg border border-border bg-card p-3 hover:border-primary/40 hover:bg-muted/30">
-                <button type="button" onClick={()=>navigateFolder(folder.id)} className="absolute inset-0" aria-label={`Abrir pasta ${folder.name}`}/>
+              return <div key={folder.id} className="group relative flex min-w-0 items-center gap-3 border border-border bg-card p-3 transition-colors hover:border-primary/40 hover:bg-muted/30">
+                <button type="button" onClick={()=>navigateFolder(folder.id)}
+                  className="absolute inset-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                  aria-label={`Abrir pasta ${folder.name}`}/>
                 <Icon size={25} className="pointer-events-none relative shrink-0 text-primary"/>
                 <span className="pointer-events-none relative min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{folder.name}</span>
-                {canManage&&<div className="relative z-10">
-                  <button type="button" className="rounded-md p-1 text-muted-foreground hover:bg-muted" aria-label={`Opções de ${folder.name}`} onClick={()=>setActionMenu(actionMenu===folder.id?null:folder.id)}><MoreVertical size={17}/></button>
-                  {actionMenu===folder.id&&<div className="absolute right-0 top-full z-30 mt-1 w-36 rounded-lg border border-border bg-card p-1 shadow-xl">
-                    <button className="w-full rounded px-3 py-2 text-left text-xs hover:bg-muted" onClick={()=>{setActionMenu(null);openFolder(folder);}}>Renomear</button>
-                    <button className="w-full rounded px-3 py-2 text-left text-xs text-red-600 hover:bg-muted" onClick={()=>{setActionMenu(null);void deleteFolder(folder);}}>Excluir</button>
-                  </div>}
-                </div>}
+                {canManage&&<DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="relative z-10 shrink-0 p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label={`Opções de ${folder.name}`}><MoreVertical size={17}/></button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={5} collisionPadding={10} className="z-[200] min-w-40 rounded-none border-border bg-popover shadow-xl">
+                    <DropdownMenuItem className="rounded-none" onSelect={()=>openFolder(folder)}><Pencil size={15}/>Renomear</DropdownMenuItem>
+                    <DropdownMenuSeparator/>
+                    <DropdownMenuItem className="rounded-none" variant="destructive" onSelect={()=>void deleteFolder(folder)}><Trash2 size={15}/>Mover para lixeira</DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>}
               </div>;
             })}
             {visibleRecords.map(record=>{
               const Icon=record.kind==="website"?Globe:record.kind==="account"?KeyRound:record.kind==="campaign"?Megaphone:record.kind==="link"?Link2:record.kind==="file"?File:FileText;
-              return <div key={record.id} className="flex min-w-0 items-center gap-3 rounded-lg border border-border bg-card p-3">
+              return <div key={record.id} className="flex min-w-0 items-center gap-3 border border-border bg-card p-3">
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={()=>record.kind==="file"?void openFile(record):openRecord(record)}>
                   <Icon size={24} className="shrink-0 text-muted-foreground"/>
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-foreground">{record.title}</span>
@@ -348,11 +356,22 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
                   </span>
                 </button>
                 {record.url&&/^https?:\/\//i.test(record.url)&&<a className="rounded p-2 text-xs font-semibold text-primary hover:underline" href={record.url} target="_blank" rel="noopener noreferrer">Abrir</a>}
-                {record.kind==="account"&&canManage&&<button type="button" onClick={()=>openVault(record)}
-                  className="rounded-md border border-border p-2 text-primary" title="Visualizar senha no cofre" aria-label={`Cofre: ${record.title}`}><KeyRound size={16}/></button>}
-                {record.kind==="file"&&<button type="button" onClick={()=>void openVersions(record)}
-                  className="rounded-md border border-border p-2 text-primary" title="Histórico de versões" aria-label={`Versões: ${record.title}`}><Layers size={16}/></button>}
-                {canManage&&<button type="button" aria-label={`Excluir ${record.title}`} title="Excluir registro" onClick={()=>void deleteRecord(record)} className="rounded p-2 text-xs text-muted-foreground hover:text-red-600">Excluir</button>}
+                {(canManage||record.kind==="file")&&<DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button type="button" className="shrink-0 p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                      aria-label={`Opções do registro ${record.title}`}><MoreVertical size={17}/></button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" sideOffset={5} collisionPadding={10} className="z-[200] min-w-40 rounded-none border-border bg-popover shadow-xl">
+                    <DropdownMenuItem className="rounded-none" onSelect={()=>record.kind==="file"?void openFile(record):openRecord(record)}>
+                      {record.kind==="file"?<Eye size={15}/>:<Pencil size={15}/>}
+                      {record.kind==="file"?"Abrir arquivo":"Editar registro"}
+                    </DropdownMenuItem>
+                    {record.kind==="file"&&<DropdownMenuItem className="rounded-none" onSelect={()=>void openVersions(record)}><Layers size={15}/>Versões</DropdownMenuItem>}
+                    {record.kind==="account"&&canManage&&<DropdownMenuItem className="rounded-none" onSelect={()=>openVault(record)}><KeyRound size={15}/>Cofre de acesso</DropdownMenuItem>}
+                    {canManage&&<DropdownMenuSeparator/>}
+                    {canManage&&<DropdownMenuItem className="rounded-none" variant="destructive" onSelect={()=>void deleteRecord(record)}><Trash2 size={15}/>Mover para lixeira</DropdownMenuItem>}
+                  </DropdownMenuContent>
+                </DropdownMenu>}
               </div>;
             })}
           </div>
