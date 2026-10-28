@@ -408,7 +408,7 @@ Deno.serve(async request=>{
       const userId=user.user.id, now=new Date().toISOString();
       const {error:saveError}=await admin.from("artvideo_customer_accounts").upsert({
         user_id:userId,organization_id:org,cpf,full_name:name,phone,
-        link_status:"created",whatsapp_verified_at:now,whatsapp_verified_number:phone,
+        link_status:"needs_cpf",whatsapp_verified_at:now,whatsapp_verified_number:phone,
       },{onConflict:"user_id"});
       if(saveError){
         await admin.auth.admin.deleteUser(userId);
