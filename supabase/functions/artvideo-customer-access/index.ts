@@ -226,6 +226,11 @@ Deno.serve(async request=>{
       if(body.identity_confirmed!==true)return response(request,fail("Confirme a identidade do cliente antes de enviar o convite.",400),400);
       const phone=normalizePhone(customer.whatsapp);
       if(!phone)return response(request,fail("WhatsApp do cadastro inválido.",400),400);
+      const {data:shared,error:sharedError}=await admin.rpc("artvideo_customer_has_shared_whatsapp_v1",{
+        p_organization_id:org,p_customer_id:customerId,p_phone:phone,
+      });
+      if(sharedError)throw Error("shared_number_lookup");
+      if(shared)return response(request,fail("Este WhatsApp está associado a mais de um cliente. Confirme e regularize os cadastros antes de ativar o acesso.",409),409);
       await limit("invite:"+customerId,actor,10,86400);
       const channel=await activeChannel(org),jid=await verifiedJid(channel,phone);
       const token=randomString(),url="https://eletronicaartvideo.com.br/minha-conta/ativar?convite="+token;
