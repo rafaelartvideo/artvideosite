@@ -1,6 +1,7 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useState } from "react";
 import { useSearchParams } from "react-router";
-import { MessageCircle, ArrowLeft, ArrowRight, QrCode, Store } from "lucide-react";
+import { ArrowLeft, ArrowRight, QrCode, Store } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { SacDigitalSettingsPage } from "@/features/sac-digital/presentation/SacDigitalSettingsPage";
@@ -45,7 +46,7 @@ export function IntegrationsPage({ onBack }: { onBack: () => void }) {
       </button>}
       {canSac && <button type="button" onClick={() => setSelected("sac")}
         className="group flex min-h-[155px] items-start gap-4 rounded-xl border border-border bg-card p-5 text-left transition-all hover:border-blue-400 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-blue-500">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600"><MessageCircle size={23}/></span>
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600"><WhatsAppBrandIcon size={23}/></span>
         <span className="min-w-0 flex-1">
           <strong className="text-base font-semibold">SAC Digital</strong>
           <span className="mt-2 block text-sm leading-6 text-muted-foreground">Conta e conexão, operadores, mensagens para OS e orçamentos, webhooks e menus personalizados.</span>
