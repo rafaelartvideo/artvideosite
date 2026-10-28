@@ -444,7 +444,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     const addressRequired = creating && form.roles.includes("customer");
     const addressCandidates = addressRequired ? addresses : creating ? addresses.filter(hasCustomerAddressData) : [];
     const missingAddress = addressRequired && addresses.length === 0;
-    const invalidAddress = addressCandidates.some(address => Object.keys(validateCustomerAddress(address)).length > 0);
+    const invalidAddress = addressCandidates.some(address => Object.keys(validateCustomerAddress(address)).length > 0 || (addressRequired && !address.type.trim()));
     setAddressValidationAttempted(true);
     setRegistrationFieldErrors(nextFieldErrors);
     if (Object.keys(nextFieldErrors).length || missingAddress || invalidAddress) {
