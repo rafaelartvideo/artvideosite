@@ -163,12 +163,14 @@ Deno.serve(async (request) => {
 
     const name = String(payload?.data?.nome || "").trim();
     const birthDate = normalizeBirthDate(payload?.data?.data_nascimento);
+    const rawGender = String(payload?.data?.genero || "").trim().toUpperCase();
+    const gender = rawGender === "M" || rawGender === "F" || rawGender === "I" ? rawGender : null;
     if (!name) {
       console.error("[CPF LOOKUP] provider response without name", payload);
       return json({ success: false, error: "A consulta foi concluída, mas não retornou o nome da pessoa." });
     }
 
-    return json({ success: true, source: "external", name, birth_date: birthDate || null });
+    return json({ success: true, source: "external", name, birth_date: birthDate || null, gender });
   } catch (error) {
     console.error("[CPF LOOKUP]", error);
     return json({
