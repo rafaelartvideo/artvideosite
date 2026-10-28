@@ -197,13 +197,39 @@ Deno.serve(async request=>{
         .eq("id",customerId).eq("organization_id",org).maybeSingle();
       if(!customer)return response(request,fail("Cliente não encontrado.",404),404);
       if(action==="staff_status"){
+        // Diagnostico para o funcionario autorizado, sem expor CPF/WhatsApp completo.
+        let blocker: {code:string;message:string}|null=null;
+        const number=normalizePhone(customer.whatsapp);
+        const cpf=cpfDigits(customer.document);
+        if(customer.customer_type&&customer.customer_type!=="PF"){
+          blocker={code:"customer_type",message:"O acesso por convite está disponível apenas para pessoa física."};
+        }else if(cpf.length!==11){
+          blocker={code:"missing_cpf",message:"Cadastre um CPF válido para liberar o convite."};
+        }else if(!number){
+          blocker={code:"missing_whatsapp",message:"Cadastre um WhatsApp válido para liberar o convite."};
+        }else{
+          const {data:entity,error:entityError}=await admin.from("entities").select("is_active")
+            .eq("id",customerId).eq("organization_id",org).maybeSingle();
+          if(entityError)throw Error("customer_entity_lookup");
+          if(!entity?.is_active){
+            blocker={code:"customer_link",message:"O cadastro do cliente está sem vínculo interno ativo. Regularize o cadastro no CRM antes de convidar."};
+          }else{
+            const {data:shared,error:sharedError}=await admin.rpc("artvideo_customer_has_shared_whatsapp_v1",{
+              p_organization_id:org,p_customer_id:customerId,p_phone:number,
+            });
+            if(sharedError)throw Error("shared_number_lookup");
+            if(shared===true){
+              blocker={code:"shared_whatsapp",message:"Este número WhatsApp está em mais de um cadastro de cliente. Regularize os números ou confirme um contato exclusivo antes de enviar o convite."};
+            }
+          }
+        }
         const {data:invitations}=await admin.from("artvideo_customer_access_invites")
           .select("id,status,created_at,expires_at,activated_at").eq("organization_id",org)
           .eq("customer_id",customerId).order("created_at",{ascending:false}).limit(1);
         const {data:accounts}=await admin.from("artvideo_customer_accounts")
           .select("whatsapp_verified_at,crm_access_activated_at,whatsapp_verified_number")
           .eq("organization_id",org).eq("entity_id",customerId).limit(1);
-        return response(request,{success:true,invitation:invitations?.[0]||null,
+        return response(request,{success:true,blocker,invitation:invitations?.[0]||null,
           account:accounts?.[0]?{active:!!accounts[0].crm_access_activated_at,
             whatsapp_verified_at:accounts[0].whatsapp_verified_at,phone_mask:maskedPhone(accounts[0].whatsapp_verified_number||"")}:null});
       }
