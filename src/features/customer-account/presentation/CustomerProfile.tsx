@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { AlertCircle, Check, CheckCircle2, IdCard, Mail, Pencil, RefreshCw, UserRound, X } from "lucide-react";
+import { AlertCircle, Check, CheckCircle2, IdCard, Mail, LoaderCircle, Pencil, UserRound, X } from "lucide-react";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
 import { supabase } from "@/lib/supabase";
 import { formatSitePhone, loadSiteProfile, updateSiteProfile, type SiteProfile } from "../infrastructure/customer-account-settings.repository";
@@ -138,7 +138,7 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
       <p className="text-[11px] text-[#788aa0]">{crmAccess?"Para alterar CPF ou WhatsApp confirmado, entre em contato com a Artvideo para nova verificação.":"A alteração de informações de identificação poderá precisar de confirmação pela nossa equipe."}</p>
       <div className="flex flex-wrap justify-end gap-2">
         <button type="button" onClick={() => {setEditing(false);setDraft({name:profile?.full_name || "",cpf:profile?.cpf || "",whatsapp:profile?.phone || "",email:hasEmail?email:""});setFeedback(null);}} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#c8dafa] bg-[#f7faff] px-4 text-xs font-semibold text-[var(--art-primary)] transition-colors hover:border-[var(--art-primary)] hover:bg-[#edf3ff]"><X size={15}/> Cancelar</button>
-        <button type="submit" disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? <RefreshCw size={15} className="animate-spin"/> : <Check size={15}/>} Salvar alterações</button>
+        <button type="submit" disabled={busy} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">{busy ? <LoaderCircle size={17} className="animate-spin" aria-label="Salvando..."/> : "Salvar alterações"}</button>
       </div>
     </form>}
     </section>
@@ -163,7 +163,7 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
             className="rounded-lg border border-[#d8e2f0] px-4 py-2 text-xs font-semibold text-[#576d86]">Cancelar</button>
           <button type="submit" disabled={passwordBusy}
             className="rounded-lg bg-[var(--art-primary)] px-4 py-2 text-xs font-semibold text-white disabled:opacity-60">
-            {passwordBusy?"Salvando...":"Salvar senha"}</button>
+            {passwordBusy?<LoaderCircle size={17} className="mx-auto animate-spin" aria-label="Salvando..."/>:"Salvar senha"}</button>
         </div>
       </form>}
     </section>
