@@ -143,7 +143,7 @@ export function RegistrationRequestsSection({entityId,customerId,organizationId,
         {currentQuery.isLoading ? <LoadingState text="Carregando solicitações..." /> :
           currentQuery.error ? <div className="space-y-2 py-5 text-center"><p className="text-sm text-destructive">Não foi possível carregar esta seção: {systemErrorMessage(currentQuery.error)}</p><AdminButton size="sm" variant="secondary" onClick={()=>void currentQuery.refetch()}>Tentar novamente</AdminButton></div> :
           selectedTab==="equipment"
-            ? <div className="[&>section]:!border-0 [&>section]:!shadow-none [&>section]:!p-0"><CustomerEquipmentsSection equipments={equipmentQuery.data||[]}/></div>
+            ? <CustomerEquipmentsSection embedded equipments={equipmentQuery.data||[]}/>
           : selectedTab==="quotes" ? (quotesQuery.data?.length
             ? <div className="space-y-2">{quotesQuery.data.map(q=><div key={q.id} className="flex min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
                 <div className="min-w-0"><div className="text-sm font-bold text-foreground">{q.protocol||"Orçamento"}</div><p className="truncate text-xs text-muted-foreground">{q.service?.title||"Serviço"} · {readableDate(q.created_at)}</p></div>
