@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { BtnPrimary, BtnSecondary, Section, AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   addOrderQuoteComment, changeOrderQuote, emptyOrderQuoteDraft, readOrderPricingAfterApproval,
@@ -361,8 +361,8 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
             ? <motion.div key="processing"
                 initial={{opacity:0,y:7}} animate={{opacity:1,y:0}} exit={{opacity:0,y:-7}}
                 className="flex min-h-28 flex-col items-center justify-center gap-3 text-center">
-                <div className="flex items-center gap-1 text-2xl font-black text-primary" role="status" aria-label="Processando solicitação">
-                  {[0,1,2].map(i=><span key={i} className="inline-block animate-bounce" style={{animationDelay:`${i*140}ms`}}>·</span>)}
+                <div className="flex items-center justify-center text-primary" role="status" aria-label="Processando solicitação">
+                  <LoadingSpinner size="md" />
                 </div>
                 <p className="text-sm font-medium text-muted-foreground">Processando orçamento...</p>
               </motion.div>
