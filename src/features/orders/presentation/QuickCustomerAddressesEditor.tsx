@@ -1,7 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AddressMapLink } from "@/shared/ui/address/AddressMapLink";
-import { emptyAddress, type Address } from "@/lib/address";
+import { emptyAddress, validateCustomerAddress, type Address } from "@/lib/address";
 import { BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 
@@ -19,10 +19,14 @@ export function QuickCustomerAddressesEditor({
   value,
   onChange,
   disabled = false,
+  required = false,
+  errorsVisible = false,
 }: {
   value: Address[];
   onChange: (value: Address[]) => void;
   disabled?: boolean;
+  required?: boolean;
+  errorsVisible?: boolean;
 }) {
   const update = (index: number, next: Address) => {
     const addresses = [...value];
@@ -51,6 +55,7 @@ export function QuickCustomerAddressesEditor({
     emptyMessage={value.length === 0 ? "Não há endereço cadastrado." : undefined}
     actions={!disabled ? <BtnSecondary onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary> : undefined}
   >
+    {errorsVisible && required && value.length === 0 && <p role="alert" className="p-3 text-center text-xs font-semibold text-red-600">Adicione pelo menos um endereço completo.</p>}
     {value.length === 0 ? null : <div className="divide-y divide-[#0d1b2e]/8">
       {value.map((address, index) => <div key={address.id || `address-${index}`} className="py-5 first:pt-0 last:pb-0">
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -65,7 +70,7 @@ export function QuickCustomerAddressesEditor({
           {!disabled && <button type="button" onClick={() => remove(index)} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50" aria-label={`Remover endereço ${index + 1}`} title="Remover endereço"><Trash2 size={15} /></button>}
         </div>
 
-        <AddressFields value={address} onChange={next => update(index, { ...address, ...next })} inputClassName={INPUT} />
+        <AddressFields value={address} onChange={next => update(index, { ...address, ...next })} inputClassName={INPUT} required={required} errors={errorsVisible ? validateCustomerAddress(address) : undefined} />
         <div className="mt-4">
           <FInput label="Link de localização" disabled={disabled} type="url" placeholder="Google Maps, Waze, Apple Maps..." value={address.shared_map_url || ""} onChange={(event: any) => update(index, { ...address, shared_map_url: event.target.value })} />
         </div>
