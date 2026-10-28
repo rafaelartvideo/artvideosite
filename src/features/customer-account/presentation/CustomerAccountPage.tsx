@@ -3,7 +3,7 @@ import { useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  Heart, IdCard, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, ShieldCheck, UserRound,
+  Heart, IdCard, FileSignature, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -19,6 +19,7 @@ import { customerAccessRequest } from "@/lib/customer-access";
 import { validateRegistration, validateRegistrationField, type RegistrationField, type RegistrationErrors } from "../domain/customer-registration-validation";
 import { CustomerCrmHistory } from "./CustomerCrmHistory";
 import { CustomerSignatures } from "./CustomerSignatures";
+import { useCustomerSignatures } from "../application/useCustomerSignatures";
 import {
   activateCustomerAccount, getCustomerPortal,
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
@@ -127,6 +128,8 @@ export function CustomerAccountPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const userId = session?.user?.id;
+  // Compartilha o cache da listagem: o total na visão geral sempre corresponde às assinaturas do cliente verificado.
+  const signaturesQuery = useCustomerSignatures(userId, Boolean(portal?.crm_access));
   const registrationValues = { name, cpf, phone, email, password, confirmPassword };
   const registrationError = (field: RegistrationField) => registrationErrors[field];
   function clearRegistrationError(field: RegistrationField) {
@@ -537,7 +540,10 @@ export function CustomerAccountPage() {
             <div className="grid gap-3 sm:grid-cols-2">
               {([{ label: "Pedidos", count: orders.length, icon: Package, target: "orders" },
                 { label: "Orçamentos", count: quotes.length, icon: FileText, target: "quotes" },
-                ...(portal.crm_access ? [{label:"Ordens de serviço",count:portal.service_orders?.length||0,icon:ClipboardList,target:"service_orders"}] as const : [])] as const).map(({ label, count, icon: Icon, target }) =>
+                ...(portal.crm_access ? [
+                  {label:"Ordens de serviço",count:portal.service_orders?.length||0,icon:ClipboardList,target:"service_orders"},
+                  {label:"Assinaturas",count:signaturesQuery.isPending?"—":signaturesQuery.isError?"—":signaturesQuery.data?.length??0,icon:FileSignature,target:"signatures"},
+                ] as const : [])] as const).map(({ label, count, icon: Icon, target }) =>
                 <button type="button" key={target} onClick={() => selectAccountTab(target)} className={"flex items-center gap-3 text-left transition-colors hover:border-[#aabde2] " + cardClass}>
                   <span className="rounded-lg bg-[#eef4ff] p-3 text-[var(--art-primary)]"><Icon size={22}/></span>
                   <span><strong className="block text-xl text-[#153250]">{count}</strong><span className="text-xs text-[#72849b]">{label}</span></span>
