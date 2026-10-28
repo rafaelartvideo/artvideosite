@@ -757,7 +757,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Serviço realizado</p>
         {task?.execution_report
           ? <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-foreground">{task.execution_report}</p>
-          : <p className="text-xs text-muted-foreground">Ainda não informado.</p>}
+          : <AdminSectionEmpty compact>Ainda não informado.</AdminSectionEmpty>}
       </div>
       <div className="min-w-0">
         <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Localizações</p>

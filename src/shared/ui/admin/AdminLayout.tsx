@@ -533,6 +533,7 @@ export function Section({
   description,
   actions,
   children,
+  emptyMessage,
   flush = false,
   className = "",
   contentClassName = "",
@@ -540,7 +541,9 @@ export function Section({
   title: React.ReactNode;
   description?: React.ReactNode;
   actions?: React.ReactNode;
-  children: React.ReactNode;
+  children?: React.ReactNode;
+  /** Centraliza estados vazios com o mesmo padrão em todas as seções do CRM. */
+  emptyMessage?: React.ReactNode;
   flush?: boolean;
   className?: string;
   contentClassName?: string;
@@ -557,7 +560,7 @@ export function Section({
         </div>
       )}
     </AdminCardHeader>
-    <AdminCardContent className={cn(flush ? "p-0 sm:p-0" : "", contentClassName)}>{children}</AdminCardContent>
+    <AdminCardContent className={cn(flush ? "p-0 sm:p-0" : "", contentClassName)}>{emptyMessage ? <AdminSectionEmpty>{emptyMessage}</AdminSectionEmpty> : children}</AdminCardContent>
   </AdminCard>;
 }
 

@@ -47,11 +47,10 @@ export function RegistrationAddressesEditor({
 
   return <Section
     title="Endereços"
+    emptyMessage={value.length === 0 ? "Não há endereço cadastrado." : undefined}
     actions={!disabled ? <BtnSecondary onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary> : undefined}
   >
-    {value.length === 0 ? <div className="py-6 text-center">
-      <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>
-    </div> : <div className="divide-y divide-[#0d1b2e]/8">
+    {value.length === 0 ? null : <div className="divide-y divide-[#0d1b2e]/8">
       {value.map((address, index) => <div key={address.id || `new-${index}`} className="py-5 first:pt-0 last:pb-0">
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <div className="min-w-0 flex-1">
