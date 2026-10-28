@@ -3,7 +3,7 @@ import { ArrowLeft, CheckCircle2, CircleAlert, LoaderCircle, Facebook, Instagram
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminCard, AdminCardContent, AdminDialog, AdminStickyToolbar, PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { LoadingDots, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateWhatsAppChannel, type WhatsAppChannel } from "../infrastructure/whatsapp-channels.repository";
 import { WhatsAppOperationsSettings } from "./WhatsAppOperationsSettings";
 import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
@@ -501,7 +501,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
       {action==="register" ? <div className="flex min-h-48 flex-col items-center justify-center gap-3 px-3 py-8 text-center"
         role="status" aria-live="polite" aria-busy="true">
         <span className="text-sm font-semibold text-foreground">Criando sessão de WhatsApp...</span>
-        <LoadingDots/>
+        <span className="text-primary"><LoadingSpinner size="md" /></span>
         <p className="max-w-sm text-xs leading-relaxed text-muted-foreground">
           Preparando a conexão ${connectionName.trim()}. O cadastro será confirmado automaticamente.
         </p>

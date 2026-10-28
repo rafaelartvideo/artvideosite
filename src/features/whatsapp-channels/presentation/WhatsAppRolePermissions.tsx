@@ -3,7 +3,7 @@ import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, AdminSegmentedControl } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
-import { LoadingDots, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
 
 type Role = "manager" | "operator";
@@ -134,7 +134,7 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
       disabled={saving || loading}
     />
     {loading ? <div className="flex min-h-36 items-center justify-center" role="status" aria-label="Carregando permissões">
-      <LoadingDots/>
+      <span className="text-primary"><LoadingSpinner size="md" /></span>
     </div> : rows.length ? <div className="divide-y divide-border border-y border-border">
       {categories.map(category => <section key={category} aria-label={category} className="py-4 first:pt-3 last:pb-3">
         <h3 className="mb-3 text-sm font-bold text-foreground">{category}</h3>

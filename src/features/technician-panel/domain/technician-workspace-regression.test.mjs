@@ -468,12 +468,12 @@ test("toolbar mantém ações em uma linha no mobile e Realtime evita consultas 
   assert.doesNotMatch(panel, /window\.setInterval\(reconcile, 60000\)/);
 });
 
-test("loader compartilhado exibe texto sobre as bolinhas animadas", () => {
+test("loader compartilhado exibe texto e spinner circular nos modais", () => {
   const feedback = read("src/shared/ui/admin/AdminFeedback.tsx");
   const layout = read("src/shared/ui/admin/AdminLayout.tsx");
-  assert.match(feedback, /export function LoadingDots/);
-  assert.match(feedback, /animate-bounce/);
-  assert.ok(feedback.includes('<LoadingDots />'));
+  assert.match(feedback, /export function LoadingSpinner/);
+  assert.match(feedback, /<LoadingSpinner size="md" \/>/);
+  assert.doesNotMatch(feedback.slice(feedback.indexOf("export function LoadingState"),feedback.indexOf("export function EmptyState")),/LoadingDots/);
   assert.match(layout, /AdminStickyToolbarContext\.Provider/);
   assert.match(layout, /mobileBackOnly/);
 });
