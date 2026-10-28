@@ -375,6 +375,7 @@ export function AdminDialog({
           {closable && <AdminIconButton ariaLabel="Fechar" onClick={onClose} className="shrink-0" variant="ghost"><X size={15} /></AdminIconButton>}
         </div>
       </div>}
+      {!description && <DialogDescription className="sr-only">Conteúdo e ações da janela {minimizedTitle}.</DialogDescription>}
       <div ref={bodyRef} className={cn("min-h-0 min-w-0 flex-1 overflow-y-auto p-5", bodyClassName)}>{children}</div>
       {footer && <div className="shrink-0 border-t border-border bg-muted/60 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:py-4">{footer}</div>}
     </DialogContent>

@@ -1,18 +1,15 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Copy, MessageCircle, RefreshCw, ShieldCheck } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { customerAccessRequest } from "@/lib/customer-access";
 import { Section, AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 type State={
+  blocker?: { code:string; message:string }|null;
   invitation?:{status:string;created_at:string;expires_at:string;activated_at:string|null}|null;
   account?:{active:boolean;whatsapp_verified_at:string|null;phone_mask:string}|null;
 };
-async function access(action:string,customerId:string,more:Record<string,unknown>={}){
-  const {data,error}=await supabase.functions.invoke("artvideo-customer-access",{
-    body:{action,customer_id:customerId,...more},
-  });
-  if(error||!data?.success)throw new Error(data?.error||"Não foi possível concluir a solicitação.");
-  return data;
+async function access(action:string,customerId:string,more:Record<string,unknown>={}) {
+  return customerAccessRequest(action,{customer_id:customerId,...more});
 }
 export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
   customerId:string;canManage:boolean;whatsapp?:string|null;
@@ -41,7 +38,10 @@ export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
         setLink("");setMessage("Acesso ao histórico do CRM revogado.");
       }
       setState(await access("staff_status",customerId));
-    }catch(e){setMessage(e instanceof Error?e.message:"Operação não concluída.");}
+    }catch(e){
+      setMessage(e instanceof Error?e.message:"Operação não concluída.");
+      try{setState(await access("staff_status",customerId));}catch{/* keep the original actionable error */}
+    }
     finally{setBusy(false);}
   }
   return <Section title="Acesso ao site">
@@ -56,6 +56,7 @@ export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
         O acesso às OS e aos documentos só será liberado após convite autorizado e confirmação do WhatsApp.
       </p>
       {state?.account?.phone_mask&&<p className="text-xs">Número confirmado: <strong>{state.account.phone_mask}</strong></p>}
+      {state?.blocker&&<p role="alert" className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs leading-5 text-amber-900">{state.blocker.message}</p>}
       {state?.invitation?.status==="pending"&&<p className="text-xs text-muted-foreground">
         Convite pendente até {new Date(state.invitation.expires_at).toLocaleString("pt-BR")}.
       </p>}
@@ -66,7 +67,7 @@ export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
           <span>Confirmei a identidade do cliente e o número WhatsApp informado no cadastro.</span>
         </label>}
         <div className="flex flex-wrap gap-2">
-          {!state?.account?.active&&<AdminButton size="sm" disabled={busy||!confirmed||!whatsapp} onClick={()=>void run("staff_invite")}>
+          {!state?.account?.active&&<AdminButton size="sm" disabled={busy||!confirmed||!whatsapp||!!state?.blocker||!state} onClick={()=>void run("staff_invite")}>
             {busy?<RefreshCw size={15} className="animate-spin"/>:<MessageCircle size={15}/>} {state?.invitation?.status==="pending"?"Reenviar convite":"Convidar para Minha Conta"}
           </AdminButton>}
           {state?.account?.active&&<AdminButton variant="secondary" size="sm" disabled={busy} onClick={()=>void run("staff_revoke")}>

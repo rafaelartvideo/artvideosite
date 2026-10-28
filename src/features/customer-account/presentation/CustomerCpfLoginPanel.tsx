@@ -1,16 +1,14 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { MessageCircle, LockKeyhole, ArrowRight, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { customerAccessRequest } from "@/lib/customer-access";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
 
 const inputClass="mt-1.5 h-11 w-full rounded-lg border border-[#dbe3ee] bg-white px-3.5 text-[13px] text-[#1b3353] outline-none focus:border-[var(--art-primary)]";
 const buttonClass="flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-sm font-semibold text-white disabled:opacity-60";
 type Mode="code"|"password";
-async function call(action:string,payload:Record<string,unknown>){
-  const {data,error}=await supabase.functions.invoke("artvideo-customer-access",{body:{action,...payload}});
-  if(error)throw new Error(data?.error||"Não foi possível concluir a solicitação.");
-  if(!data?.success)throw new Error(data?.error||"Não foi possível concluir a solicitação.");
-  return data;
+async function call(action:string,payload:Record<string,unknown>) {
+  return customerAccessRequest(action,payload);
 }
 export function CustomerCpfLoginPanel(){
   const [cpf,setCpf]=useState("");
