@@ -169,13 +169,13 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
               </div>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-[#0d1b2e]">{formatBrazilianAddress(address)}</p>
               {addressLinkId===address.id&&<div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/20 p-3">
-                <label className="block text-xs font-bold text-foreground">Link de localização do endereço</label>
-                <input type="url" value={addressLinkText} onChange={e=>setAddressLinkText(e.target.value)}
-                  placeholder="Cole o link do Google Maps, Waze, Apple Maps..."
-                  className="admin-input w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"/>
-                <div className="flex justify-end gap-2">
-                  <BtnSecondary disabled={savingAddressLink} onClick={()=>setAddressLinkId(null)}>Cancelar</BtnSecondary>
-                  <BtnPrimary disabled={savingAddressLink} onClick={()=>void saveAddressLink()}>{savingAddressLink?"Salvando...":"Salvar vínculo"}</BtnPrimary>
+                <label htmlFor={`registration-map-url-${address.id}`} className="block text-xs font-bold text-foreground">Link de localização do endereço</label>
+                <div className="flex min-w-0 items-center gap-2">
+                  <input id={`registration-map-url-${address.id}`} type="url" value={addressLinkText} onChange={e=>setAddressLinkText(e.target.value)}
+                    placeholder="Cole o link do Google Maps, Waze, Apple Maps..."
+                    className="admin-input h-9 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm"/>
+                  <BtnSecondary className="shrink-0" disabled={savingAddressLink} onClick={()=>setAddressLinkId(null)}>Cancelar</BtnSecondary>
+                  <BtnPrimary className="shrink-0" loading={savingAddressLink} onClick={()=>void saveAddressLink()}>Salvar</BtnPrimary>
                 </div>
               </div>}
 
