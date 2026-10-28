@@ -11,6 +11,7 @@ export type CustomerOrderDetails = {
     problem:string;serial_number:string;accessories:string;
     equipment_type:string;brand:string;equipment_model:string;
   };
+  situations:{id:string;name:string;color:string|null;visited:boolean;current:boolean}[];
   items:{title:string;description:string;quantity:number;item_type:string}[];
   photos:{id:string;name:string;mime_type:string}[];
   documents:{id:string;title:string;signed_at:string;type:string}[];
