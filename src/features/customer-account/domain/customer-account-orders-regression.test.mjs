@@ -141,3 +141,44 @@ test("visão geral mostra card de assinaturas usando consulta verificada em cach
   assert.match(hook,/enabled: Boolean\(userId\) && enabled/);
   assert.match(hook,/queryKey: \["artvideo-customer-signatures", userId\]/);
 });
+
+test("nota fiscal anexada no CRM aparece em documentos da OS sem misturar anexos internos",()=>{
+  const sql=read("supabase/migrations/20261028230000_customer_os_invoice_documents.sql");
+  const ui=read("src/features/customer-account/presentation/CustomerOrderDetailsModal.tsx");
+  const types=read("src/features/customer-account/infrastructure/customer-account.repository.ts");
+  assert.match(sql,/private\.artvideo_verified_portal_customer_v1\(\)/);
+  assert.match(sql,/o\.id=p_order_id and o\.customer_id=v_customer and o\.organization_id=v_org/);
+  assert.match(sql,/public\.service_order_situation_media sm/);
+  assert.match(sql,/public\.attachment_types at/);
+  assert.match(sql,/lower\(btrim\(at\.name\)\)='nota fiscal'/);
+  assert.match(sql,/sm\.organization_id=v_org and sm\.service_order_id=p_order_id/);
+  assert.match(sql,/'type',d\.doc_type/);
+  assert.match(sql,/'invoice'::text as doc_type/);
+  assert.match(sql,/'signature'::text as doc_type/);
+  assert.match(sql,/not exists \(/);
+  assert.doesNotMatch(sql,/jsonb_build_object\([^)]*storage_path/);
+  assert.match(types,/type:"signature"\|"invoice"/);
+  assert.match(ui,/doc\.type==="invoice"/);
+  assert.match(ui,/Visualizar nota fiscal/);
+  assert.match(ui,/Baixar nota fiscal/);
+  assert.match(ui,/customer_invoice_file/);
+  assert.match(ui,/Nenhum documento disponível nesta OS/);
+});
+
+test("nota fiscal só abre após validação da OS e classificação no servidor, com URL curta",()=>{
+  const edge=read("supabase/functions/artvideo-customer-access/index.ts");
+  const branch=edge.slice(edge.indexOf('if(action==="customer_invoice_file")'),
+    edge.indexOf('if(action==="customer_signature_link")'));
+  assert.match(branch,/uuid\(orderId\)\|\|!uuid\(attachmentId\)/);
+  assert.match(branch,/portalAssetContext\(request,orderId\)/);
+  assert.match(branch,/doc\.id===attachmentId&&doc\.type==="invoice"/);
+  assert.match(branch,/service_order_situation_media/);
+  assert.match(branch,/eq\("organization_id",org\)/);
+  assert.match(branch,/eq\("service_order_id",orderId\)/);
+  assert.match(branch,/attachment_types/);
+  assert.match(branch,/nota fiscal/);
+  assert.match(branch,/file\.bucket_id!=="service-images"/);
+  assert.match(branch,/createSignedUrl\(file\.storage_path,120,options\)/);
+  assert.match(branch,/download:name/);
+  assert.doesNotMatch(branch,/getPublicUrl|storage_path:|bucket_id:|service_role/);
+});

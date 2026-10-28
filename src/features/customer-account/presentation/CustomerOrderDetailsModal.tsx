@@ -156,6 +156,18 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
     }catch(e){tab?.close();setError(e instanceof Error?e.message:"Documento indisponível.");}
     finally{setBusy(null);}
   }
+  async function openInvoice(id:string, download=false){
+    const tab=window.open("about:blank","_blank");if(tab)tab.opener=null;
+    const actionKey=(download?"download:":"invoice:")+id;
+    setBusy(actionKey);setError("");
+    try {
+      const result=await customerAccessRequest("customer_invoice_file",{
+        order_id:order.id,attachment_id:id,download,
+      });
+      if(tab)tab.location.replace(result.url);else window.location.assign(result.url);
+    }catch(e){tab?.close();setError(e instanceof Error?e.message:"Nota fiscal indisponível.");}
+    finally{setBusy(null);}
+  }
   const data=detail?.order;
   const equipmentFields = data ? [
     { title: "Equipamento", value: data.equipment_type },
@@ -231,14 +243,31 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
           <section className="rounded-xl border border-[#dce5f1] bg-white p-4">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-[#193756]"><FileText size={17}/> Documentos da OS</h3>
             {detail.documents.length?<div className="space-y-2">
-              {detail.documents.map(doc=><div key={doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8edf4] p-3">
-                <div><p className="text-xs font-semibold text-[#193756]">{doc.title||"Documento assinado"}</p><p className="mt-1 text-[11px] text-[#72849b]">Assinado em {date(doc.signed_at)}</p></div>
-                <button type="button" disabled={busy===doc.id} onClick={()=>void openSigned(doc.id)}
-                  className="inline-flex h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
-                  {busy===doc.id?<LoaderCircle size={16} className="animate-spin"/>:"Abrir documento"}
-                </button>
-              </div>)}</div>
-              :<p className="py-6 text-center text-xs text-[#72849b]">Nenhum documento assinado disponível.</p>}
+              {detail.documents.map(doc=>{
+                const invoice=doc.type==="invoice";
+                const invoiceBusy=busy==="invoice:"+doc.id||busy==="download:"+doc.id;
+                return <div key={doc.type+":"+doc.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#e8edf4] p-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words text-xs font-semibold text-[#193756]">{invoice?"Nota Fiscal":doc.title||"Documento assinado"}</p>
+                    {invoice&&doc.file_name&&<p className="mt-1 truncate text-[11px] text-[#506885]" title={doc.file_name}>{doc.file_name}</p>}
+                    <p className="mt-1 text-[11px] text-[#72849b]">{invoice?"Anexada em "+date(doc.created_at):"Assinado em "+date(doc.signed_at)}</p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" disabled={invoice?invoiceBusy:busy===doc.id}
+                      onClick={()=>void (invoice?openInvoice(doc.id):openSigned(doc.id))}
+                      className="inline-flex h-9 items-center justify-center rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
+                      {(invoice?invoiceBusy:busy===doc.id)?<LoaderCircle size={16} className="animate-spin"/>:invoice?"Visualizar nota fiscal":"Abrir documento"}
+                    </button>
+                    {invoice&&<button type="button" disabled={invoiceBusy} onClick={()=>void openInvoice(doc.id,true)}
+                      aria-label="Baixar nota fiscal"
+                      className="inline-flex h-9 items-center gap-1 rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
+                      {busy==="download:"+doc.id?<LoaderCircle size={16} className="animate-spin"/>:<Download size={16}/>}
+                      Baixar
+                    </button>}
+                  </div>
+                </div>;
+              })}</div>
+              :<p className="py-6 text-center text-xs text-[#72849b]">Nenhum documento disponível nesta OS.</p>}
           </section>
         </>}
       </div>
