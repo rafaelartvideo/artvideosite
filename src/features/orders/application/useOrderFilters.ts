@@ -134,28 +134,36 @@ export function useOrderFilters({
     enabled: enabled && Boolean(organizationId) && !invalidPeriod,
     placeholderData: keepPreviousData,
     retry: false,
-    queryFn: () => listServiceOrdersPageWithCustomerName({
-      organizationId: organizationId!,
-      page,
-      pageSize,
-      osNumberSearch: debouncedOsNumberSearch,
-      externalOsSearch: debouncedExternalOsSearch,
-      customerNameSearch: debouncedCustomerNameSearch,
-      documentSearch: debouncedDocumentSearch,
-      serialNumberSearch: debouncedSerialNumberSearch,
-      responsibleId: debouncedResponsibleId,
-      statusId: filterStatus,
-      situationId: filterSituation,
-      orderType: filterOrderType,
-      serviceTypeId: selectedServiceTypeId,
-      states: selectedStates,
-      stateNames,
-      cities: selectedCities,
-      dateFrom,
-      dateTo,
-      sort: orderSort,
-      matchOrderNumberOrExternal,
-    }),
+    queryFn: async () => {
+      const started = Date.now();
+      try {
+        return await listServiceOrdersPageWithCustomerName({
+          organizationId: organizationId!,
+          page,
+          pageSize,
+          osNumberSearch: debouncedOsNumberSearch,
+          externalOsSearch: debouncedExternalOsSearch,
+          customerNameSearch: debouncedCustomerNameSearch,
+          documentSearch: debouncedDocumentSearch,
+          serialNumberSearch: debouncedSerialNumberSearch,
+          responsibleId: debouncedResponsibleId,
+          statusId: filterStatus,
+          situationId: filterSituation,
+          orderType: filterOrderType,
+          serviceTypeId: selectedServiceTypeId,
+          states: selectedStates,
+          stateNames,
+          cities: selectedCities,
+          dateFrom,
+          dateTo,
+          sort: orderSort,
+          matchOrderNumberOrExternal,
+        });
+      } finally {
+        const elapsed = Date.now() - started;
+        if (elapsed >= 3000) console.warn("[PERF][OS] Lista lenta", { duration_ms: elapsed });
+      }
+    },
   });
 
   const orders = invalidPeriod ? [] : ordersQuery.data?.items ?? [];
