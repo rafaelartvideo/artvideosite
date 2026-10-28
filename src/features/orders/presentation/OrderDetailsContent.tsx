@@ -1,4 +1,5 @@
-import { FilePenLine, MapPin, MessageCircle, Phone } from "lucide-react";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
+import { FilePenLine, MapPin, Phone } from "lucide-react";
 import { getAddressMapUrl, type Address } from "@/lib/address";
 import { formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
 import { AdminSectionEmpty, Section } from "@/shared/ui/admin/AdminLayout";
@@ -113,7 +114,7 @@ export function OrderDetailsContent({
                   className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
                   title="Enviar mensagem pela SAC Digital"
                 >
-                  <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+                  <WhatsAppBrandIcon size={14} /><span className={actionLabelClass}>WhatsApp</span>
                 </button>
               ) : (
                 <CompanyWhatsAppAction
@@ -123,12 +124,12 @@ export function OrderDetailsContent({
                   className={`${contactActionClass} border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100`}
                   title="Abrir conversa no WhatsApp"
                 >
-                  <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+                  <WhatsAppBrandIcon size={14} /><span className={actionLabelClass}>WhatsApp</span>
                 </CompanyWhatsAppAction>
               )
             ) : (
               <button type="button" disabled aria-label="WhatsApp não disponível" title="WhatsApp não disponível" className={`${contactActionClass} cursor-not-allowed border-[#0d1b2e]/10 text-[#94a0b0] opacity-60`}>
-                <MessageCircle size={14} /><span className={actionLabelClass}>WhatsApp</span>
+                <WhatsAppBrandIcon size={14} /><span className={actionLabelClass}>WhatsApp</span>
               </button>
             )}
           </>}
