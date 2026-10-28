@@ -50,3 +50,42 @@ test("recuperação por WhatsApp ou e-mail deixa senhas ocultas por padrão", ()
   assert.match(login,/password_reset_email/);
   assert.match(account,/type=\{showConfirmPassword \? "text" : "password"\}/);
 });
+
+
+test("links discretos, botões sem setas e loading circular no login e cadastro", () => {
+  const account = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
+  const login = read("src/features/customer-account/presentation/CustomerCpfLoginPanel.tsx");
+  assert.match(login, /Esqueceu a senha\?/);
+  assert.match(login, /!text-\[11px\]/);
+  assert.match(account, /className="!text-xs font-medium leading-normal/);
+  assert.match(account, /<LoaderCircle size=\{19\} className="animate-spin"/);
+  assert.match(login, /<LoaderCircle size=\{18\} className="animate-spin"/);
+  assert.doesNotMatch(login, /<ArrowRight/);
+  assert.doesNotMatch(account, /Criar conta<\/span><ArrowRight/);
+});
+test("cadastro mostra asteriscos obrigatórios, e erros de validação abaixo de cada campo", () => {
+  const page = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
+  const validators = read("src/features/customer-account/domain/customer-registration-validation.ts");
+  for(const field of ["name","cpf","phone","password","confirmPassword"]){
+    assert.ok(page.includes('registrationError("'+field+'")'));
+  }
+  assert.match(page, /<span className="text-red-600">\*<\/span>/);
+  assert.match(page, /<form onSubmit=\{event => void submitAuth\(event\)\} noValidate/);
+  assert.match(page, /role="alert" className="mt-1 block text-\[11px\] text-red-600"/);
+  assert.match(validators, /case "cpf"/);
+  assert.match(validators, /case "phone"/);
+  assert.match(validators, /case "confirmPassword"/);
+});
+test("e-mail opcional é verificado por WhatsApp antes de criar conta com senha", () => {
+  const page = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
+  const edge = read("supabase/functions/artvideo-customer-access/index.ts");
+  const migration = read("supabase/migrations/20261028144905_artvideo_site_registration_otp.sql");
+  assert.match(page, /E-mail <span.*\(opcional\)/);
+  assert.match(page, /"registration_send"/);
+  assert.match(page, /"registration_verify"/);
+  assert.match(edge, /if\(action==="registration_send"\)/);
+  assert.match(edge, /if\(action==="registration_verify"\)/);
+  assert.match(edge, /await admin\.auth\.admin\.createUser/);
+  assert.match(edge, /safeEqual\(c\.code_digest/);
+  assert.match(migration, /purpose in \('activation','login','registration'\)/);
+});

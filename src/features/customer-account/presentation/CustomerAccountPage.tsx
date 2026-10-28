@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
-  ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  Heart, IdCard, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, RefreshCw, ShieldCheck, UserRound,
+  ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
+  Heart, IdCard, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -14,6 +14,8 @@ import { CustomerFavorites } from "./CustomerFavorites";
 import { CustomerProfile } from "./CustomerProfile";
 import { CustomerAccountLoading } from "./CustomerAccountLoading";
 import { CustomerCpfLoginPanel } from "./CustomerCpfLoginPanel";
+import { customerAccessRequest } from "@/lib/customer-access";
+import { validateRegistration, validateRegistrationField, type RegistrationField, type RegistrationErrors } from "../domain/customer-registration-validation";
 import { CustomerCrmHistory } from "./CustomerCrmHistory";
 import {
   activateCustomerAccount, getCustomerPortal,
@@ -114,10 +116,29 @@ export function CustomerAccountPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [registrationErrors, setRegistrationErrors] = useState<RegistrationErrors>({});
+  const [registrationChallenge, setRegistrationChallenge] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
+  const [registrationCooldown, setRegistrationCooldown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const userId = session?.user?.id;
+  const registrationValues = { name, cpf, phone, email, password, confirmPassword };
+  const registrationError = (field: RegistrationField) => registrationErrors[field];
+  function clearRegistrationError(field: RegistrationField) {
+    setRegistrationErrors(current => ({ ...current, [field]: undefined }));
+  }
+  function checkRegistrationField(field: RegistrationField) {
+    setRegistrationErrors(current => ({
+      ...current, [field]: validateRegistrationField(field,registrationValues),
+    }));
+  }
+  useEffect(() => {
+    if (registrationCooldown <= 0) return;
+    const timer = window.setInterval(() => setRegistrationCooldown(value => Math.max(0,value-1)),1000);
+    return () => window.clearInterval(timer);
+  }, [registrationCooldown > 0]);
   // O cliente do site não precisa aguardar o carregamento das permissões do CRM.
   const waitingForSession = authLoading && !userId;
 
@@ -168,32 +189,57 @@ export function CustomerAccountPage() {
     event.preventDefault();
     if (busy) return;
     setError("");
-    if (mode === "register") {
-      if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
-      if (name.trim().length < 3) return setError("Informe seu nome completo.");
-      if (!/^\d{10,11}$/.test(phone.replace(/\D/g, ""))) return setError("Informe um WhatsApp com DDD válido.");
-      if (password.length < 8) return setError("A senha deve ter no mínimo 8 caracteres.");
-      if (password !== confirmPassword) return setError("As senhas não coincidem.");
-    }
+    const errors=validateRegistration(registrationValues);
+    setRegistrationErrors(errors);
+    if(Object.values(errors).some(Boolean))return;
     setBusy(true);
     try {
-      if (mode === "register") {
-        const { error: signupError } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
+      if (registrationChallenge) {
+        if(!/^\d{6}$/.test(registrationCode)) {
+          setError("Digite os seis dígitos do código enviado pelo WhatsApp.");
+          return;
+        }
+        const result=await customerAccessRequest("registration_verify",{
+          challenge_id:registrationChallenge, code:registrationCode,cpf,name,phone,password,
+        });
+        const {error:verificationError}=await supabase.auth.verifyOtp({
+          token_hash:result.token_hash,type:"magiclink",
+        });
+        if(verificationError)throw verificationError;
+        setPassword("");setConfirmPassword("");setRegistrationCode("");setRegistrationChallenge("");
+      } else if(!email.trim()) {
+        const result=await customerAccessRequest("registration_send",{phone});
+        setRegistrationChallenge(result.challenge_id);
+        setRegistrationCode("");
+        setRegistrationCooldown(60);
+      } else {
+        const {error:signupError}=await supabase.auth.signUp({
+          email:email.trim().toLowerCase(),
           password,
-          options: {
-            emailRedirectTo: window.location.origin + "/minha-conta",
-            data: { registration_origin: "artvideo_customer", full_name: name.trim(), phone: phone.replace(/\D/g, ""), cpf: cpf.replace(/\D/g, "") },
+          options:{
+            emailRedirectTo:window.location.origin+"/minha-conta",
+            data:{registration_origin:"artvideo_customer",full_name:name.trim(),phone:phone.replace(/\D/g,""),cpf:cpf.replace(/\D/g,"")},
           },
         });
-        if (signupError) throw signupError;
-        setPassword("");
-        setConfirmPassword("");
+        if(signupError)throw signupError;
+        setPassword("");setConfirmPassword("");
         setMode("email_sent");
       }
-    } catch (failure) {
-      
+    } catch(failure) {
       setError(failure instanceof Error ? failure.message : "Não foi possível concluir sua solicitação.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendRegistrationCode() {
+    if(busy || registrationCooldown>0 || !registrationChallenge)return;
+    setBusy(true);setError("");
+    try {
+      await customerAccessRequest("resend",{challenge_id:registrationChallenge});
+      setRegistrationCode("");setRegistrationCooldown(60);
+    } catch(failure) {
+      setError(failure instanceof Error ? failure.message : "Não foi possível reenviar o código.");
     } finally {
       setBusy(false);
     }
@@ -280,7 +326,7 @@ export function CustomerAccountPage() {
           <h1 className="text-[24px] font-bold tracking-tight text-[#122947] sm:text-[27px]">Minha conta</h1>
           <button type="button" title="Sair da conta" aria-label="Sair da conta"
             className={secondaryClass + " h-10 min-w-10 !px-2.5 sm:!px-4"} onClick={() => void signOut()} disabled={busy}>
-            {busy ? <RefreshCw size={16} className="animate-spin"/> : <LogOut size={17}/>}
+            {busy ? <LoaderCircle size={16} className="animate-spin"/> : <LogOut size={17}/>}
             <span className="hidden sm:inline">Sair da conta</span>
           </button>
         </div>
@@ -298,7 +344,7 @@ export function CustomerAccountPage() {
             <span className="relative mt-1.5 block"><input className={inputClass + " !mt-0 pr-11"} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required/><button type="button" onClick={() => setShowConfirmPassword(x => !x)} aria-label={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6]">{showConfirmPassword ? <EyeOff size={18}/> : <Eye size={18}/>}</button></span>
           </label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Salvar nova senha <ArrowRight size={16}/></>}</button>
+          <button className={"w-full " + primaryClass} type="submit" disabled={busy}>{busy ? <LoaderCircle size={19} className="animate-spin" aria-label="Salvando..."/> : "Salvar nova senha"}</button>
         </form>
       </div> : (waitingForSession || state === "loading") ? <CustomerAccountLoading/> :
       state === "anonymous" ? <AccountEntryShell>
@@ -307,7 +353,7 @@ export function CustomerAccountPage() {
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-[#eef8f2] text-[#23815b]"><CheckCircle2 size={24} strokeWidth={1.8}/></div>
               <h1 className="mt-4 text-[21px] font-semibold tracking-[-.035em] text-[#172d4b]">Verifique seu e-mail</h1>
               <p className="mx-auto mt-2 max-w-[320px] text-[13px] leading-6 text-[#6a7e96]">Se o endereço estiver disponível, enviaremos as orientações para você. Confira também o spam.</p>
-              <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}><ArrowLeft size={15}/> Voltar ao login</button>
+              <button type="button" onClick={() => { setMode("login"); setError(""); }} className={"mt-6 w-full " + authButtonClass}>Voltar ao login</button>
             </div> : <>
               <div className="mb-6 text-center">
                 <h1 className="text-[19px] font-semibold tracking-[-.03em] text-[#142d4e] sm:text-[20px]">
@@ -317,64 +363,92 @@ export function CustomerAccountPage() {
                   {mode === "register" ? "Preencha seus dados para começar." : "Acompanhe seus pedidos, serviços e orçamentos."}
                 </p>
               </div>
-              {mode === "login" ? <CustomerCpfLoginPanel onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> : <form onSubmit={event => void submitAuth(event)} className="space-y-4">
+              {mode === "login" ? <CustomerCpfLoginPanel onRecoveryVerified={() => { setPasswordRecovery(true); setError(""); }} /> :
+              registrationChallenge ? <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
+                <p className="text-center text-[13px] leading-5 text-[#60758e]">Enviamos um código ao seu WhatsApp. Digite os seis números para criar sua conta.</p>
+                <label htmlFor="registration-otp" className={authLabelClass}>Código de segurança <span className="text-red-600">*</span></label>
+                <div className="relative cursor-text">
+                  <div className="grid grid-cols-6 gap-2" aria-hidden="true">
+                    {Array.from({length:6},(_,index)=><div key={index} className={"flex h-11 items-center justify-center rounded-lg border bg-white text-lg font-semibold tabular-nums "+(index===registrationCode.length?"border-[var(--art-primary)]":"border-[#dbe3ee]")}>{registrationCode[index]||""}</div>)}
+                  </div>
+                  <input id="registration-otp" autoComplete="one-time-code" inputMode="numeric" maxLength={6}
+                    value={registrationCode} onChange={event=>{setRegistrationCode(event.target.value.replace(/\D/g,"").slice(0,6));setError("");}}
+                    className="absolute inset-0 h-full w-full opacity-0" aria-label="Código recebido no WhatsApp"/>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-xs text-[#60758e]">
+                  <span>Expira em 30 minutos.</span>
+                  <button type="button" disabled={busy||registrationCooldown>0} onClick={()=>void resendRegistrationCode()}
+                    className="!text-[11px] font-medium text-[var(--art-primary)] disabled:text-[#91a0b3]">
+                    {registrationCooldown>0?"Reenviar em "+registrationCooldown+"s":"Reenviar código"}
+                  </button>
+                </div>
+                {error&&<p role="alert" className="text-xs text-red-600">{error}</p>}
+                <button type="submit" disabled={busy||registrationCode.length!==6} className={"w-full "+authButtonClass}>
+                  {busy?<LoaderCircle size={19} className="animate-spin" aria-label="Validando..."/>:"Confirmar e criar conta"}
+                </button>
+                <button type="button" disabled={busy} onClick={()=>{setRegistrationChallenge("");setRegistrationCode("");setError("");}} className="block w-full text-center !text-xs font-medium text-[var(--art-primary)] hover:underline">Alterar dados</button>
+              </form> : <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
                 {mode === "register" && <>
-                  <label className={authLabelClass}>Nome completo
+                  <label className={authLabelClass}>Nome completo <span className="text-red-600">*</span>
                     <span className="relative mt-1.5 block">
                       <UserRound size={17} className={authIconClass}/>
-                      <input className={authInputClass} value={name} onChange={event => setName(event.target.value)} autoComplete="name" maxLength={120} required placeholder="Seu nome completo"/>
+                      <input className={authInputClass + (registrationError("name")?" !border-red-500":"")} value={name} onChange={event => {setName(event.target.value);clearRegistrationError("name");}} onBlur={() => checkRegistrationField("name")} autoComplete="name" maxLength={120} placeholder="Seu nome completo" aria-invalid={!!registrationError("name")}/>
                     </span>
+                    {registrationError("name")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("name")}</span>}
                   </label>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <label className={authLabelClass}>CPF
+                    <label className={authLabelClass}>CPF <span className="text-red-600">*</span>
                       <span className="relative mt-1.5 block">
                         <IdCard size={17} className={authIconClass}/>
-                        <input className={authInputClass} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={cpf.length === 11 && !isValidCpf(cpf)} required/>
-                        {cpf.length === 11 && <span className={"mt-1 block text-[10px] font-medium " + (isValidCpf(cpf) ? "text-emerald-700" : "text-red-600")}>{isValidCpf(cpf) ? "CPF válido" : "Confira o CPF informado"}</span>}
+                        <input className={authInputClass+(registrationError("cpf")?" !border-red-500":"")} value={formatCpf(cpf)} onChange={event => {setCpf(event.target.value.replace(/\D/g,"").slice(0,11));clearRegistrationError("cpf");}} onBlur={()=>checkRegistrationField("cpf")} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={!!registrationError("cpf")}/>
                       </span>
+                      {registrationError("cpf")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("cpf")}</span>}
                     </label>
-                    <label className={authLabelClass}>WhatsApp
+                    <label className={authLabelClass}>WhatsApp <span className="text-red-600">*</span>
                       <span className="relative mt-1.5 block">
                         <Phone size={17} className={authIconClass}/>
-                        <input className={authInputClass} type="tel" inputMode="tel" value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} autoComplete="tel" placeholder="(00) 00000-0000" required/>
+                        <input className={authInputClass+(registrationError("phone")?" !border-red-500":"")} type="tel" inputMode="tel" value={formatSitePhone(phone)} onChange={event => {setPhone(event.target.value.replace(/\D/g,"").slice(0,11));clearRegistrationError("phone");}} onBlur={()=>checkRegistrationField("phone")} autoComplete="tel" placeholder="(00) 00000-0000" aria-invalid={!!registrationError("phone")}/>
                       </span>
+                      {registrationError("phone")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("phone")}</span>}
                     </label>
                   </div>
                 </>}
-                <label className={authLabelClass}>E-mail
+                <label className={authLabelClass}>E-mail <span className="text-[11px] font-normal text-[#8495ab]">(opcional)</span>
                   <span className="relative mt-1.5 block">
                     <Mail size={17} className={authIconClass}/>
-                    <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
+                    <input className={authInputClass+(registrationError("email")?" !border-red-500":"")} type="email" value={email} onChange={event => {setEmail(event.target.value);clearRegistrationError("email");}} onBlur={()=>checkRegistrationField("email")} autoComplete="email" placeholder="voce@exemplo.com" aria-invalid={!!registrationError("email")}/>
                   </span>
+                  {registrationError("email")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("email")}</span>}
                 </label>
                 <label className={authLabelClass}>
                   <span className="flex items-center justify-between gap-2">
-                    <span>Senha</span>
+                    <span>Senha <span className="text-red-600">*</span></span>
                     
                   </span>
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
-                    <input className={authInputClass + " pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
+                    <input className={authInputClass + " pr-11" + (registrationError("password")?" !border-red-500":"")} type={showPassword ? "text" : "password"} value={password} onChange={event => {setPassword(event.target.value);clearRegistrationError("password");clearRegistrationError("confirmPassword");}} onBlur={()=>checkRegistrationField("password")} autoComplete="new-password" aria-invalid={!!registrationError("password")} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
                     <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
+                  {registrationError("password")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("password")}</span>}
                 </label>
-                {mode === "register" && <label className={authLabelClass}>Confirmar senha
+                {mode === "register" && <label className={authLabelClass}>Confirmar senha <span className="text-red-600">*</span>
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
-                    <input className={authInputClass + " pr-11"} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} autoComplete="new-password" minLength={8} required placeholder="Repita sua senha"/>
+                    <input className={authInputClass + " pr-11" + (registrationError("confirmPassword")?" !border-red-500":"")} type={showConfirmPassword ? "text" : "password"} value={confirmPassword} onChange={event => {setConfirmPassword(event.target.value);clearRegistrationError("confirmPassword");}} onBlur={()=>checkRegistrationField("confirmPassword")} autoComplete="new-password" placeholder="Repita sua senha" aria-invalid={!!registrationError("confirmPassword")}/>
                     <button type="button" onClick={() => setShowConfirmPassword(value => !value)} aria-label={showConfirmPassword ? "Ocultar confirmação" : "Mostrar confirmação"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showConfirmPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
+                  {registrationError("confirmPassword")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("confirmPassword")}</span>}
                 </label>}
                 {error && <p role="alert" className="rounded-lg bg-[#fff1f1] px-3 py-2.5 text-[12px] text-[#ab3232]">{error}</p>}
                 <button type="submit" disabled={busy} className={"mt-1 w-full " + authButtonClass}>
-                  {busy ? <RefreshCw size={19} className="animate-spin" aria-label="Processando..."/> :
-                    <><span>{"Criar conta"}</span><ArrowRight size={16}/></>}
+                  {busy ? <LoaderCircle size={19} className="animate-spin" aria-label="Processando..."/> : "Criar conta"}
                 </button>
               </form>}
-              {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
+              {mode === "register" && !registrationChallenge && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Se informar um e-mail, enviaremos uma confirmação por ele. Sem e-mail, a confirmação será pelo WhatsApp.</p>}
               <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
                 {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
-                <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
+                <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="!text-xs font-medium leading-normal text-[var(--art-primary)] hover:underline">
                   {mode === "register" ? "Entrar" : "Criar conta"}
                 </button>
               </div>
@@ -389,7 +463,7 @@ export function CustomerAccountPage() {
           <label className="block text-xs font-semibold text-[#294361]">CPF<input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/></label>
           <label className="block text-xs font-semibold text-[#294361]">WhatsApp<input className={inputClass + " mt-1.5"} value={formatSitePhone(phone)} onChange={event => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))} type="tel" required/></label>
           {error && <p role="alert" className="text-xs text-red-700">{error}</p>}
-          <button type="submit" disabled={busy} className={"w-full " + primaryClass}>{busy ? <RefreshCw size={19} className="animate-spin" aria-label="Salvando..."/> : <>Concluir cadastro <ArrowRight size={16}/></>}</button>
+          <button type="submit" disabled={busy} className={"w-full " + primaryClass}>{busy ? <LoaderCircle size={19} className="animate-spin" aria-label="Salvando..."/> : "Concluir cadastro"}</button>
         </form>
       </div> :
       state === "verify_email" ? <div className={"mx-auto max-w-xl text-center " + cardClass}>
@@ -401,12 +475,12 @@ export function CustomerAccountPage() {
         <ShieldCheck className="mx-auto text-[var(--art-primary)]" size={34}/>
         <h2 className="mt-3 text-lg font-bold">Precisamos confirmar seu cadastro</h2>
         <p className="mt-2 text-sm leading-6 text-[#627b96]">Precisamos conferir algumas informações. Nossa equipe poderá ajudar você a concluir seu cadastro.</p>
-        <Link to="/contato" className={"mt-5 " + primaryClass}>Entrar em contato <ArrowRight size={16}/></Link>
+        <Link to="/contato" className={"mt-5 " + primaryClass}>Entrar em contato</Link>
       </div> :
       state === "error" || !portal?.customer ? <div className={"mx-auto max-w-lg text-center " + cardClass}>
         <h2 className="text-lg font-bold">Não foi possível abrir sua conta</h2>
         <p className="mt-2 text-sm text-[#667a92]">{error || "Tente novamente."}</p>
-        <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={"mt-4 " + primaryClass}><RefreshCw size={16}/> Tentar novamente</button>
+        <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={"mt-4 " + primaryClass}>Tentar novamente</button>
       </div> :
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside aria-label="Navegação da minha conta" className="flex w-full flex-col self-start overflow-hidden rounded-none border border-[#e2e8f1] bg-white">
