@@ -473,6 +473,11 @@ Deno.serve(async request=>{
       if(!c)return response(request,fail("Código expirado. Solicite outro.",410),410);
       if(Date.parse(c.next_send_at)>Date.now())return response(request,fail("Aguarde 60 segundos entre envios.",429),429);
       if(c.resend_count>=5)return response(request,fail("Limite de reenvios atingido.",429),429);
+      if(c.purpose==="profile"){
+        const {data:viewer,error:authError}=await scoped(request).auth.getUser();
+        if(authError||viewer.user?.id!==c.account_user_id)
+          return response(request,fail("Entre na conta vinculada ao código.",403),403);
+      }
       if(c.purpose==="activation"){
         const {data:inv}=await admin.from("artvideo_customer_access_invites").select("status,expires_at")
           .eq("id",c.invite_id).eq("organization_id",org).maybeSingle();
