@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { formatSitePhone, loadSiteProfile, updateSiteProfile, type SiteProfile } from "../infrastructure/customer-account-settings.repository";
 import { CustomerFeedbackToast, type CustomerFeedback } from "./CustomerFeedbackToast";
 import { CustomerWhatsAppIcon } from "./CustomerWhatsAppIcon";
+import { CustomerSectionLoading } from "./CustomerSectionLoading";
 
 const inputClass = "mt-1.5 h-11 w-full rounded-lg border border-[#dce5f1] bg-white px-3.5 text-[13px] text-[#19334f] outline-none focus:border-[var(--art-primary)] focus:ring-2 focus:ring-blue-500/10";
 
@@ -95,7 +96,7 @@ export function CustomerProfile({ userId, email, emailVerified, crmAccess = fals
     </div>
     <section className="rounded-xl border border-[#e2e8f1] bg-white p-5 sm:p-6">
       <CustomerFeedbackToast feedback={feedback} onDismiss={dismissFeedback}/>
-    {loading && <div className="mt-2 text-sm text-[#72849b]"><RefreshCw size={16} className="mr-2 inline animate-spin"/>Carregando...</div>}
+    {loading && <CustomerSectionLoading label="Carregando meus dados..."/>}
     {!loading && !editing && <div className="mt-5 grid gap-5 sm:grid-cols-2">
       <div className="min-w-0 border-b border-[#eff2f6] pb-3 sm:border-0 sm:pb-0">
         <span className="flex items-center gap-2 text-[11px] font-medium text-[#8a9bb0]"><UserRound size={14}/>Nome completo</span>
