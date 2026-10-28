@@ -13,6 +13,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
   const [method, setMethod] = useState<Method>("password");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [recoveryEmailSent, setRecoveryEmailSent] = useState(false);
   const [code, setCode] = useState("");
   const [challenge, setChallenge] = useState("");
   const [resendSeconds, setResendSeconds] = useState(0);
@@ -32,6 +33,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
     setCode("");
     setError("");
     setResendSeconds(0);
+    setRecoveryEmailSent(false);
   };
 
   async function sendCode(resend = false) {
@@ -50,6 +52,19 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
       window.requestAnimationFrame(() => codeRef.current?.focus());
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível enviar o código de segurança.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function recoverByEmail() {
+    if (!isValidCpf(cpf)) { setError("Informe um CPF válido."); return; }
+    setBusy(true); setError("");
+    try {
+      await customerAccessRequest("password_reset_email", { cpf: cpf.replace(/\\D/g, "") });
+      setRecoveryEmailSent(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível solicitar a recuperação.");
     } finally {
       setBusy(false);
     }
@@ -92,6 +107,7 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
       className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--art-primary)] hover:underline">
       <ArrowLeft size={14} /> Voltar para senha
     </button>}
+    {recoveryEmailSent && <p role="status" className="rounded-lg border border-[#dbe5f2] bg-[#f3f7ff] p-3 text-xs leading-5 text-[#344d6a]">Se a conta possuir um e-mail cadastrado, enviaremos um link para criar outra senha. Confira também o spam.</p>}
     <label className="block text-xs font-semibold text-[#344d6a]">
       CPF
       <input className={inputClass} value={formatCpf(cpf)}
@@ -157,6 +173,8 @@ export function CustomerCpfLoginPanel({ onRecoveryVerified }: { onRecoveryVerifi
       {busy ? <RefreshCw size={18} className="animate-spin" aria-label="Processando..." /> :
         <>{method === "password" ? "Entrar" : challenge ? "Confirmar código" : "Enviar código"} <ArrowRight size={16} /></>}
     </button>
+    {method === "recovery" && !challenge && !recoveryEmailSent && <button type="button" disabled={busy} onClick={() => void recoverByEmail()}
+      className="block w-full text-center text-xs font-semibold text-[var(--art-primary)] hover:underline disabled:opacity-60">Recuperar pelo e-mail cadastrado</button>}
     {!codeMode ? <button type="button" className="block w-full text-center text-xs font-semibold text-[var(--art-primary)] hover:underline"
       onClick={() => changeMethod("code")}>Entrar com código de segurança</button> : null}
   </form>;
