@@ -3,7 +3,8 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
-import { CalendarDays, Check, History, Pencil, Play, Users, WifiOff } from "lucide-react";
+import { CalendarDays, Check, History, MapPin, Pencil, Play, Users, WifiOff } from "lucide-react";
+import { getAddressMapUrl } from "@/lib/address";
 import { supabase } from "@/lib/supabase";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { useAuth } from "@/lib/auth";
@@ -548,6 +549,11 @@ export function TechnicianPanel() {
   };
 
   const address = orderDetails?.customer_address || selected?.service_address;
+  const addressMapUrl = address ? getAddressMapUrl({
+    street: address.street || "", number: address.number || "", complement: address.complement || "",
+    neighborhood: address.neighborhood || "", city: address.city || "", state: address.state || "",
+    zip_code: address.zip_code || "",
+  }) : null;
   const info = (label: string, value: string | number | null | undefined) =>
     value ? <div className="min-w-0">
       <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{label}</p>
@@ -708,7 +714,7 @@ export function TechnicianPanel() {
             {info("Contato", selected.customer_contact ? formatPhone(selected.customer_contact) : null)}
           </div>
         </Section>
-        {address && <Section title="Endereço">
+        {address && <Section title="Endereço" actions={addressMapUrl ? <a href={addressMapUrl} target="_blank" rel="noopener noreferrer" aria-label="Abrir endereço da OS no mapa" title="Abrir mapa" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/25 bg-card px-3 text-xs font-bold text-primary hover:bg-primary/5"><MapPin size={15} /> Abrir mapa</a> : undefined}>
           <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {info("CEP", address.zip_code)}
             {info("Rua", address.street)}
