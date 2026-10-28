@@ -714,7 +714,7 @@ export function TechnicianPanel() {
             {info("Contato", selected.customer_contact ? formatPhone(selected.customer_contact) : null)}
           </div>
         </Section>
-        {address && <Section title="Endereço" actions={addressMapUrl ? <a href={addressMapUrl} target="_blank" rel="noopener noreferrer" aria-label="Abrir endereço da OS no mapa" title="Abrir mapa" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/25 bg-card px-3 text-xs font-bold text-primary hover:bg-primary/5"><MapPin size={15} /> Abrir mapa</a> : undefined}>
+        {address && <Section title="Endereço" actions={addressMapUrl ? <a href={addressMapUrl} target="_blank" rel="noopener noreferrer" aria-label="Abrir endereço da OS no mapa" title="Abrir mapa" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-card text-xs font-bold text-primary hover:bg-primary/5 sm:w-auto sm:gap-1.5 sm:px-3"><MapPin size={15} aria-hidden="true" /><span className="hidden sm:inline">Abrir mapa</span></a> : undefined}>
           <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {info("CEP", address.zip_code)}
             {info("Rua", address.street)}
