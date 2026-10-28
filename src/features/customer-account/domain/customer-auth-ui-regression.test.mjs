@@ -79,7 +79,7 @@ test("cadastro mostra asteriscos obrigatórios, e erros de validação abaixo de
 test("e-mail opcional é verificado por WhatsApp antes de criar conta com senha", () => {
   const page = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
   const edge = read("supabase/functions/artvideo-customer-access/index.ts");
-  const migration = read("supabase/migrations/20261028162000_artvideo_site_registration_otp.sql");
+  const migration = read("supabase/migrations/20261028144905_artvideo_site_registration_otp.sql");
   assert.match(page, /E-mail <span.*\(opcional\)/);
   assert.match(page, /"registration_send"/);
   assert.match(page, /"registration_verify"/);
