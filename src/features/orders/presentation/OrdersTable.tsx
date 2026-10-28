@@ -215,7 +215,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     <AdminCard className="[&_th]:md:py-2 [&_td]:md:py-2.5">
       {loading ? (
         <div className="min-h-[300px] flex items-center justify-center">
-          <LoadingState text="Carregando ordens..." />
+          <LoadingState text="Carregando ordens" />
         </div>
       ) : filtered.length === 0 ? (
         <EmptyState icon={ClipboardList} title="Nenhuma OS encontrada" message={hasActiveFilters ? "Tente ajustar os filtros." : "Crie a primeira OS com o botão Nova OS."} />
