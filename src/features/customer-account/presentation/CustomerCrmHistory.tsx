@@ -24,7 +24,7 @@ export function CustomerCrmHistory({portal}:{portal:CustomerPortal}) {
       <table className="w-full min-w-[600px] border-collapse text-left text-[13px]">
         <thead className="bg-[#f3f6fa] text-[11px] font-bold uppercase tracking-wider text-[#61748e]">
           <tr><th className="px-4 py-3">Ordem de serviço</th><th className="px-4 py-3">Equipamento / serviço</th>
-            <th className="px-4 py-3">Situação</th><th className="px-4 py-3">Abertura</th></tr>
+            <th className="px-4 py-3">Status</th><th className="px-4 py-3">Abertura</th></tr>
         </thead>
         <tbody className="divide-y divide-[#ecf0f6]">
           {orders.map(item=>{
