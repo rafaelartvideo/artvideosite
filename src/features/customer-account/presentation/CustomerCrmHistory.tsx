@@ -13,14 +13,17 @@ export function CustomerCrmHistory({portal,tab}:{
   const orders=portal.service_orders||[];
   const documents=portal.documents||[];
   async function openDocument(id:string){
+    const tab=window.open("about:blank","_blank");
+    if(tab)tab.opener=null;
     setBusy(id);setError("");
     try{
       const {data,error:e}=await supabase.functions.invoke("artvideo-customer-access",{
         body:{action:"signed_document",document_id:id},
       });
       if(e||!data?.success||!data?.url)throw new Error(data?.error||"Documento não disponível.");
-      window.open(data.url,"_blank","noopener,noreferrer");
-    }catch(e){setError(e instanceof Error?e.message:"Não foi possível abrir o documento.");}
+      if(tab)tab.location.replace(data.url);
+      else window.location.assign(data.url);
+    }catch(e){tab?.close();setError(e instanceof Error?e.message:"Não foi possível abrir o documento.");}
     finally{setBusy(null);}
   }
   if(!portal.crm_access)return <div className={card+" text-center text-sm text-[#687f9c]"}>
