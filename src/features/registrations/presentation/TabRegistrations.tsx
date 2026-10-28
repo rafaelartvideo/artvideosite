@@ -70,7 +70,7 @@ type Props = {
   routeResourceId?: string | null;
   routeSubpage?: string | null;
   onRouteChange?: (resourceId?: string | null, subpage?: string | null) => void;
-  onOpenCustomerHistory?: (customerId: string) => void;
+  onOpenOrder?: (id: string, customerId?: string) => void;
 };
 
 type MobileRegistrationFilter = "name" | "document" | "role" | "status";
@@ -134,7 +134,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
   return debounced;
 }
 
-export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenCustomerHistory }: Props) {
+export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange, onOpenOrder }: Props) {
   const { activeOrganizationId, activeOrganization, hasPermission, hasModule } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const canView = platformUsersOnly
@@ -718,7 +718,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         }}
         onOpenContacts={() => onRouteChange?.(routeRegistration.id, "contacts")}
         onOpenRecords={() => onRouteChange?.(routeRegistration.id, "records")}
-        onOpenCustomerHistory={onOpenCustomerHistory}
+        onOpenOrder={onOpenOrder}
+        onAddressLinked={() => void queryClient.invalidateQueries({queryKey:detailKey})}
         onOpenPermissions={() => onRouteChange?.(routeRegistration.id, "permissions")}
       />
     </>;
