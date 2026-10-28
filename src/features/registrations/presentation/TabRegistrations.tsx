@@ -11,7 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { normalizeSharedMapUrl } from "@/lib/address";
+import { hasCustomerAddressData, normalizeSharedMapUrl, validateCustomerAddress } from "@/lib/address";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -257,6 +257,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   const [saving, setSaving] = useState(false);
   const [registrationFieldErrors, setRegistrationFieldErrors] = useState<RegistrationFieldErrors>({});
+  const [addressValidationAttempted, setAddressValidationAttempted] = useState(false);
   const [selected, setSelected] = useState<Registration | null>(null);
   const [form, setForm] = useState<RegistrationFormState>(emptyRegistrationForm());
   const [addresses, setAddresses] = useState<RegistrationAddressForm[]>([emptyRegistrationAddress(true)]);
@@ -322,6 +323,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         ? { ...emptyRegistrationForm(), person_type: "PF", roles: ["employee"] }
         : emptyRegistrationForm());
       setAddresses([emptyRegistrationAddress(true)]);
+      setAddressValidationAttempted(false);
       setSupplierItems([]);
       setAccessForm(emptyEmployeeAccessForm());
       setAccessExisting(false);
@@ -337,6 +339,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setSelected(routeRegistration);
     setForm(registrationFormFromRecord(routeRegistration));
     setAddresses(registrationAddressesFromRecord(routeRegistration));
+    setAddressValidationAttempted(false);
     setSupplierItems([]);
     setAccessForm(emptyEmployeeAccessForm());
     setAccessExisting(Boolean(profileId));
@@ -437,9 +440,17 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   const save = async () => {
     if (!activeOrganizationId || saving) return;
-    const nextFieldErrors = validateRegistrationFormFields(form);
+    const nextFieldErrors = validateRegistrationFormFields(form, { requireCustomerPhone: creating });
+    const addressRequired = creating && form.roles.includes("customer");
+    const addressCandidates = addressRequired ? addresses : creating ? addresses.filter(hasCustomerAddressData) : [];
+    const missingAddress = addressRequired && addresses.length === 0;
+    const invalidAddress = addressCandidates.some(address => Object.keys(validateCustomerAddress(address)).length > 0 || (addressRequired && !address.type.trim()));
+    setAddressValidationAttempted(true);
     setRegistrationFieldErrors(nextFieldErrors);
-    if (Object.keys(nextFieldErrors).length) return;
+    if (Object.keys(nextFieldErrors).length || missingAddress || invalidAddress) {
+      if (missingAddress || invalidAddress) setToast({ msg: missingAddress ? "Adicione um endereço completo ao cliente." : "Preencha os campos obrigatórios do endereço.", type: "error" });
+      return;
+    }
     const accessValidation = validateAccess();
     if (accessValidation) {
       setToast({ msg: accessValidation, type: "error" });
@@ -667,6 +678,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         setForm={setForm}
         addresses={addresses}
         setAddresses={setAddresses}
+        addressValidationAttempted={addressValidationAttempted}
         supplierItems={supplierItems}
         setSupplierItems={setSupplierItems}
         organizationId={activeOrganizationId}

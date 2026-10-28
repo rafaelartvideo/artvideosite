@@ -1,7 +1,7 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { findCustomerWhatsappConflict, duplicateWhatsappMessage, isDuplicateCustomerWhatsappError } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { useRef, useState } from "react";
-import { emptyAddress, normalizeSharedMapUrl, type Address } from "@/lib/address";
+import { emptyAddress, normalizeSharedMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
 import { isValidCpf } from "@/shared/domain/formatters";
 import {
   applyCnpjData,
@@ -29,6 +29,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<CustomerForm>({ ...emptyCustomerForm });
   const [address, setAddress] = useState<Address>({ ...emptyAddress });
+  const [addressValidationAttempted, setAddressValidationAttempted] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
   const [saving, setSaving] = useState(false);
   const [cnpjLoading, setCnpjLoading] = useState(false);
@@ -40,11 +41,13 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
   const openPage = () => {
     setCpfError("");
     setFieldErrors({});
+    setAddressValidationAttempted(false);
     setOpen(true);
   };
   const closePage = () => {
     setCpfError("");
     setFieldErrors({});
+    setAddressValidationAttempted(false);
     setOpen(false);
   };
 
@@ -133,10 +136,12 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       cpfInputRef.current?.focus();
       return false;
     }
-    const validationErrors = validateCustomerFormFields(form);
+    const validationErrors = validateCustomerFormFields(form, { requirePhone: true });
+    const addressErrors = validateCustomerAddress(address);
+    setAddressValidationAttempted(true);
     setFieldErrors(validationErrors);
     if (validationErrors.document) setCpfError(validationErrors.document);
-    if (Object.keys(validationErrors).length) return false;
+    if (Object.keys(validationErrors).length || Object.keys(addressErrors).length) return false;
 
     if (form.customerType === "PF") {
       try {
@@ -162,7 +167,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
       return false;
     }
 
-    if (Object.values(address).some(Boolean)) {
+    {
       try {
         await createCustomerAddress(organizationId, {
           customer_id: customer.id,
@@ -191,6 +196,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     setOpen(false);
     setForm({ ...emptyCustomerForm });
     setAddress({ ...emptyAddress });
+    setAddressValidationAttempted(false);
     setFieldErrors({});
     setCpfError("");
     setSaving(false);
@@ -204,6 +210,7 @@ export function useCreateCustomer({ organizationId, canCreate, onRefresh, onToas
     setForm,
     address,
     setAddress,
+    addressValidationAttempted,
     fieldErrors,
     setFieldErrors,
     saving,

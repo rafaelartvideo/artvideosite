@@ -1,6 +1,7 @@
 import { Plus, Trash2 } from "lucide-react";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AddressMapLink } from "@/shared/ui/address/AddressMapLink";
+import { validateCustomerAddress } from "@/lib/address";
 import { BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import {
@@ -12,10 +13,14 @@ export function RegistrationAddressesEditor({
   value,
   onChange,
   disabled = false,
+  required = false,
+  errorsVisible = false,
 }: {
   value: RegistrationAddressForm[];
   onChange: (value: RegistrationAddressForm[]) => void;
   disabled?: boolean;
+  required?: boolean;
+  errorsVisible?: boolean;
 }) {
   const update = (index: number, next: RegistrationAddressForm) => {
     const addresses = [...value];
@@ -50,6 +55,7 @@ export function RegistrationAddressesEditor({
     emptyMessage={value.length === 0 ? "Não há endereço cadastrado." : undefined}
     actions={!disabled ? <BtnSecondary onClick={add}><Plus size={14} /> Adicionar endereço</BtnSecondary> : undefined}
   >
+    {required && errorsVisible && value.length === 0 && <p role="alert" className="p-3 text-center text-xs font-semibold text-red-600">Adicione pelo menos um endereço completo.</p>}
     {value.length === 0 ? null : <div className="divide-y divide-[#0d1b2e]/8">
       {value.map((address, index) => <div key={address.id || `new-${index}`} className="py-5 first:pt-0 last:pb-0">
         <div className="mb-4 flex flex-wrap items-center gap-2">
@@ -66,11 +72,13 @@ export function RegistrationAddressesEditor({
 
         <AddressFields
           value={address}
+          required={required}
+          errors={errorsVisible ? validateCustomerAddress(address) : undefined}
           onChange={next => update(index, { ...address, ...next })}
           inputClassName={`${INPUT} ${disabled ? "pointer-events-none opacity-70" : ""}`}
         />
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <FInput label="Tipo / Apelido" disabled={disabled} value={address.type || ""} onChange={(event: any) => update(index, { ...address, type: event.target.value })} />
+          <FInput label="Tipo / Apelido" required={required} disabled={disabled} value={address.type || ""} onChange={(event: any) => update(index, { ...address, type: event.target.value })} />
           <FInput label="Link de localização" disabled={disabled} type="url" placeholder="Google Maps, Waze, Apple Maps..." value={address.shared_map_url || ""} onChange={(event: any) => update(index, { ...address, shared_map_url: event.target.value })} />
         </div>
       </div>)}

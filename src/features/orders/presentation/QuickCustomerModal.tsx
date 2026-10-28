@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "@/lib/auth";
-import { normalizeSharedMapUrl, type Address } from "@/lib/address";
+import { normalizeSharedMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
 import {
   applyCnpjData,
   customerPayload,
@@ -76,6 +76,7 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
     whatsapp: formatPhone(initialValues?.whatsapp || ""),
   }));
   const [addresses, setAddresses] = useState<Address[]>(() => [newQuickCustomerAddress(true)]);
+  const [addressValidationAttempted, setAddressValidationAttempted] = useState(false);
   const [createdCustomer, setCreatedCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<CustomerFieldErrors>({});
@@ -108,9 +109,11 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
       return;
     }
 
-    const validationErrors = validateCustomerFormFields(form);
+    const validationErrors = validateCustomerFormFields(form, { requirePhone: true });
+    setAddressValidationAttempted(true);
+    const hasValidAddresses = addresses.length > 0 && addresses.every(address => Object.keys(validateCustomerAddress(address)).length === 0);
     setFieldErrors(validationErrors);
-    if (Object.keys(validationErrors).length > 0) return;
+    if (Object.keys(validationErrors).length > 0 || !hasValidAddresses) return;
 
     if (form.customerType === "PF" && canLookupCpf) {
       try {
@@ -338,11 +341,11 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
               </>}
 
               <FEmailInput label="E-mail" error={fieldErrors.email} value={form.email} onChange={(e: any) => { clearFieldError("email"); setForm({ ...form, email: e.target.value }); }} />
-              <FPhoneInput label="Telefone" error={fieldErrors.phone} value={form.phone} onChange={(e: any) => { clearFieldError("phone"); clearFieldError("whatsapp"); setForm({ ...form, phone: e.target.value }); }} />
+              <FPhoneInput label="Telefone" required copyFromWhatsapp={form.whatsapp} onCopyWhatsapp={phone => { clearFieldError("phone"); setForm(current => ({...current, phone})); }} error={fieldErrors.phone} value={form.phone} onChange={(e: any) => { clearFieldError("phone"); clearFieldError("whatsapp"); setForm({ ...form, phone: e.target.value }); }} />
               <FPhoneInput label="WhatsApp" required mobile copyFromPhone={form.phone} onCopyPhone={phone => { clearFieldError("whatsapp"); setForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={form.whatsapp} onChange={(e: any) => { clearFieldError("whatsapp"); setForm({ ...form, whatsapp: e.target.value }); }} />
             </div>
 
-            <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} />
+            <QuickCustomerAddressesEditor value={addresses} onChange={setAddresses} disabled={saving} required errorsVisible={addressValidationAttempted} />
     </div>
   </AdminDialog>;
 }

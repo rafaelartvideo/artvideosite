@@ -87,23 +87,42 @@ export function FInput({ label, required, hint, error, disabled = false, ...prop
   </div>;
 }
 
-export function FPhoneInput({ value, onChange, mobile = false, copyFromPhone, onCopyPhone, ...props }: { value: unknown; onChange: (event: { target: { value: string } }) => void; mobile?: boolean; copyFromPhone?: string; onCopyPhone?: (phone: string) => void; [key: string]: any }) {
-  const rawPhone = String(copyFromPhone ?? "").replace(/\D/g, "");
-  const phone = rawPhone.startsWith("55") && (rawPhone.length === 12 || rawPhone.length === 13) ? rawPhone.slice(2) : rawPhone;
-  // WhatsApp Business pode estar cadastrado em telefone fixo. Nunca transformar
-  // os 10 dígitos de um fixo em 11 dígitos de celular ao copiar.
-  const canCopy = isValidBrazilianPhone(phone);
-  const currentWhatsApp = String(value ?? "").replace(/\D/g, "");
-  const alreadyCopied = Boolean(canCopy && (currentWhatsApp === phone || currentWhatsApp === "55" + phone));
-  const action = mobile && onCopyPhone ? <button
+export function FPhoneInput({
+  value, onChange, mobile = false, copyFromPhone, onCopyPhone, copyFromWhatsapp, onCopyWhatsapp, ...props
+}: {
+  value: unknown;
+  onChange: (event: { target: { value: string } }) => void;
+  mobile?: boolean;
+  copyFromPhone?: string;
+  onCopyPhone?: (phone: string) => void;
+  copyFromWhatsapp?: string;
+  onCopyWhatsapp?: (whatsapp: string) => void;
+  [key: string]: any;
+}) {
+  // A mesma ação funciona nos dois sentidos. No WhatsApp copiamos o telefone;
+  // no Telefone copiamos o WhatsApp, mantendo DDD, máscara e fixos válidos.
+  const source = mobile ? copyFromPhone : copyFromWhatsapp;
+  const copy = mobile ? onCopyPhone : onCopyWhatsapp;
+  const raw = String(source ?? "").replace(/\D/g, "");
+  const normalized = raw.startsWith("55") && (raw.length === 12 || raw.length === 13) ? raw.slice(2) : raw;
+  const canCopy = isValidBrazilianPhone(normalized);
+  const current = String(value ?? "").replace(/\D/g, "");
+  const alreadyCopied = canCopy && (current === normalized || current === "55" + normalized);
+  const action = copy ? <button
     type="button"
-    onClick={() => onCopyPhone(formatPhone(phone))}
+    onClick={() => copy(formatPhone(normalized))}
     disabled={props.disabled || !canCopy || alreadyCopied}
-    title={alreadyCopied ? "Mesmo número do telefone" : "Usar telefone como WhatsApp"}
-    aria-label={alreadyCopied ? "WhatsApp igual ao telefone" : "Preencher WhatsApp com o telefone"}
+    title={alreadyCopied ? "Números iguais" : mobile ? "Usar telefone como WhatsApp" : "Usar WhatsApp como telefone"}
+    aria-label={alreadyCopied ? "Números iguais" : mobile ? "Preencher WhatsApp com o telefone" : "Preencher telefone com o WhatsApp"}
     className="inline-flex h-9 w-9 items-center justify-center rounded-md text-primary hover:bg-primary-soft disabled:cursor-default disabled:text-muted-foreground/60 disabled:hover:bg-transparent"
   >{alreadyCopied ? <Check size={16}/> : <Copy size={16}/>}</button> : undefined;
-  return <FInput {...props} rightAction={action} type="tel" inputMode="tel" autoComplete="tel" maxLength={16} placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")} value={formatPhone(value as any)} onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({ target: { value: formatPhoneInput(event.target.value, value as any, event.target.selectionStart) } })} />;
+  return <FInput {...props} rightAction={action} type="tel" inputMode="tel" autoComplete="tel" maxLength={16}
+    placeholder={props.placeholder || (mobile ? "(79) 9 9999-9999" : "(79) 3333-3333")}
+    value={formatPhone(value as any)}
+    onChange={(event: React.ChangeEvent<HTMLInputElement>) => onChange({
+      target: { value: formatPhoneInput(event.target.value, value as any, event.target.selectionStart) },
+    })}
+  />;
 }
 
 /** Radio buttons usados somente na edicao; a consulta de CPF preenche o genero silenciosamente. */

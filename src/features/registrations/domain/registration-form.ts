@@ -188,11 +188,12 @@ export type RegistrationFieldErrors = Partial<Record<
   string
 >>;
 
-export function validateRegistrationFormFields(form: RegistrationFormState): RegistrationFieldErrors {
+export function validateRegistrationFormFields(form: RegistrationFormState, { requireCustomerPhone = false }: { requireCustomerPhone?: boolean } = {}): RegistrationFieldErrors {
   const errors: RegistrationFieldErrors = {};
 
   if (!form.roles.length) errors.roles = "Selecione ao menos um vínculo.";
-  if (!form.phone.trim() && !form.whatsapp.trim()) errors.whatsapp = "Informe um telefone ou WhatsApp.";
+  if (requireCustomerPhone && form.roles.includes("customer") && !form.phone.trim()) errors.phone = "Telefone é obrigatório para cadastrar um cliente.";
+  else if (!form.phone.trim() && !form.whatsapp.trim()) errors.whatsapp = "Informe um telefone ou WhatsApp.";
   if (form.phone && !isValidBrazilianPhone(form.phone)) errors.phone = "Telefone inválido. Informe DDD e número válidos.";
   if (form.whatsapp && !isValidBrazilianPhone(form.whatsapp)) errors.whatsapp = "WhatsApp inválido. Informe um telefone fixo ou celular com DDD válido.";
   if (form.email && !isValidEmail(form.email)) errors.email = "E-mail inválido. Verifique o endereço informado.";

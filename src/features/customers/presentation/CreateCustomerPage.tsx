@@ -1,6 +1,6 @@
 import { useState, type Dispatch, type RefObject, type SetStateAction } from "react";
 import { Link2, Search } from "lucide-react";
-import type { Address } from "@/lib/address";
+import { validateCustomerAddress, type Address } from "@/lib/address";
 import type { CustomerFieldErrors, CustomerForm } from "../domain/customer-form";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -13,6 +13,7 @@ type Props = {
   setForm: Dispatch<SetStateAction<CustomerForm>>;
   address: Address;
   setAddress: Dispatch<SetStateAction<Address>>;
+  addressValidationAttempted: boolean;
   fieldErrors: CustomerFieldErrors;
   setFieldErrors: Dispatch<SetStateAction<CustomerFieldErrors>>;
   saving: boolean;
@@ -35,7 +36,7 @@ export function CreateCustomerPage(props: Props) {
   const [sharedAddressOpen, setSharedAddressOpen] = useState(false);
   const {
     open: createOpen, form: createForm, setForm: setCreateForm,
-    address: createAddress, setAddress: setCreateAddress, fieldErrors, setFieldErrors, saving, canCreate,
+    address: createAddress, setAddress: setCreateAddress, addressValidationAttempted, fieldErrors, setFieldErrors, saving, canCreate,
     cpfLoading, cpfError, setCpfError, cpfInputRef, onLookupCpf: lookupCreateCpf,
     cnpjLoading, cnpjMessage, setCnpjMessage,
     onLookupCnpj: lookupCreateCnpj, onCreate, onClose, onWhatsappBlur,
@@ -68,7 +69,7 @@ export function CreateCustomerPage(props: Props) {
                   <FBrazilianDateInput label="Fundação" error={fieldErrors.foundation_date} value={createForm.foundation_date} onChange={(e: any) => setCreateForm({ ...createForm, foundation_date: e.target.value })} />
                 </>}
                 <FEmailInput label="E-mail" error={fieldErrors.email} value={createForm.email} onChange={(e: any) => { setFieldErrors(current => ({ ...current, email: undefined })); setCreateForm({ ...createForm, email: e.target.value }); }} />
-                <FPhoneInput label="Telefone" required error={fieldErrors.phone} value={createForm.phone} onChange={(e: any) => { setFieldErrors(current => ({ ...current, phone: undefined, whatsapp: undefined })); setCreateForm({ ...createForm, phone: e.target.value }); }} />
+                <FPhoneInput label="Telefone" required copyFromWhatsapp={createForm.whatsapp} onCopyWhatsapp={phone => { setFieldErrors(current => ({ ...current, phone: undefined })); setCreateForm(current => ({ ...current, phone })); }} error={fieldErrors.phone} value={createForm.phone} onChange={(e: any) => { setFieldErrors(current => ({ ...current, phone: undefined, whatsapp: undefined })); setCreateForm({ ...createForm, phone: e.target.value }); }} />
                 <FPhoneInput label="WhatsApp" mobile copyFromPhone={createForm.phone} onCopyPhone={phone => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm(current => ({ ...current, whatsapp: phone })); }} error={fieldErrors.whatsapp} value={createForm.whatsapp} onChange={(e: any) => { setFieldErrors(current => ({ ...current, whatsapp: undefined })); setCreateForm({ ...createForm, whatsapp: e.target.value }); }} onBlur={() => void onWhatsappBlur(createForm.whatsapp)} />
               </div>
             </Section>
@@ -97,7 +98,7 @@ export function CreateCustomerPage(props: Props) {
                     hint="O link ficará vinculado ao endereço principal do cliente."
                   />
                 )}
-                <AddressFields value={createAddress} onChange={setCreateAddress} inputClassName={INPUT} />
+                <AddressFields value={createAddress} onChange={setCreateAddress} inputClassName={INPUT} required errors={addressValidationAttempted ? validateCustomerAddress(createAddress) : undefined} />
               </div>
             </Section>
           </div>
