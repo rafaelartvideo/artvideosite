@@ -50,7 +50,7 @@ create table public.management_folders (
  created_at timestamptz not null default now(),
  updated_at timestamptz not null default now(),
  unique (id,space_id),
- foreign key (parent_id,space_id) references public.management_folders(id,space_id) on delete cascade,
+ foreign key (parent_id,space_id) references public.management_folders(id,space_id) on delete restrict,
  check (parent_id is null or parent_id <> id)
 );
 create unique index management_folders_sibling_unique on public.management_folders(space_id,coalesce(parent_id,'00000000-0000-0000-0000-000000000000'::uuid),lower(btrim(name)));
@@ -71,7 +71,7 @@ create table public.management_records (
  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
  created_at timestamptz not null default now(),
  updated_at timestamptz not null default now(),
- foreign key (folder_id,space_id) references public.management_folders(id,space_id) on delete cascade,
+ foreign key (folder_id,space_id) references public.management_folders(id,space_id) on delete restrict,
  check ((kind='file' and storage_path is not null) or (kind<>'file' and storage_path is null)),
  check (storage_path is null or storage_path like space_id::text || '/%')
 );
