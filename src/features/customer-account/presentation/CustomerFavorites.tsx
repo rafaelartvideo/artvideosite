@@ -3,6 +3,7 @@ import { Heart, Package } from "lucide-react";
 import { useProducts } from "@/features/public-catalog/application/usePublicCatalog";
 import { ProductCard } from "@/features/public-catalog/presentation/PublicCatalogCards";
 import { useSiteFavorites } from "./SiteProductFavoriteButton";
+import { CustomerSectionLoading } from "./CustomerSectionLoading";
 
 export function CustomerFavorites() {
   const navigate = useNavigate();
@@ -10,7 +11,7 @@ export function CustomerFavorites() {
   const { favoriteIds, loading: loadingFavorites } = useSiteFavorites();
   const favorites = products.filter(product => favoriteIds.includes(product.id));
   return <section className="space-y-5">
-    {(loading || loadingFavorites) ? <div role="status" className="flex min-h-40 items-center justify-center text-sm text-[#73849a]">Carregando favoritos...</div> :
+    {(loading || loadingFavorites) ? <CustomerSectionLoading label="Carregando meus favoritos..."/> :
       favorites.length ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {favorites.map(product => <ProductCard key={product.id} product={product} onSelectProduct={slug=>navigate("/loja/"+encodeURIComponent(slug))}/>)}
       </div> : <div className="rounded-xl border border-[#e1e9f2] bg-white px-5 py-12 text-center">
