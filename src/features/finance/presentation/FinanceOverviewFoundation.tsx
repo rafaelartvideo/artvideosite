@@ -61,7 +61,7 @@ export function FinanceOverviewFoundation({ onSelectEntry }: {
     label: new Date(`${row.date.slice(0, 10)}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
   })), [reports.cashFlowQuery.data?.rows]);
 
-  const initialLoading = useAdminInitialLoading(reports.dashboardQuery.isPending, "finance-overview");
+  const initialLoading = useAdminInitialLoading(Boolean(reports.organizationId && reports.canDashboard && reports.dashboardQuery.isPending), reports.organizationId);
   if (initialLoading) return <PageLoadingState text="Carregando resumo financeiro" />;
   return <div className="space-y-5">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">

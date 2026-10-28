@@ -107,7 +107,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [editingField, setEditingField] = useState<TechnicalField | null>(null);
   const [fieldForm, setFieldForm] = useState({ label: "", is_active: true });
   const loading = catalogQuery.isPending;
-  const initialLoading = useAdminInitialLoading(canView && loading, "equipment");
+  const initialLoading = useAdminInitialLoading(Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewFields || canManageFields) && loading), activeOrganizationId || "");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [hierarchyErrors, setHierarchyErrors] = useState<Record<string, string>>({});

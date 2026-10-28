@@ -32,6 +32,8 @@ test("all audited initial-data pages use a gate that does not block later refetc
   const feedback = read("src/shared/ui/admin/AdminFeedback.tsx");
   assert.match(feedback, /export function useAdminInitialLoading/);
   assert.match(feedback, /if \(!pending\) setReadyScope\(scopeKey\)/);
+  assert.match(read("src/features/finance/presentation/FinanceOverviewFoundation.tsx"), /reports\.canDashboard && reports\.dashboardQuery\.isPending/);
+  assert.match(read("src/features/equipment/presentation/EquipmentAdminPanel.tsx"), /canViewFields \|\| canManageFields\) && loading/);
   for (const path of initialLoadModules) {
     const code = read(path);
     assert.match(code, /useAdminInitialLoading\(/, path);
