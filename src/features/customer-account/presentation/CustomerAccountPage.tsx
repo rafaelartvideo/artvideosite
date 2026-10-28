@@ -17,13 +17,14 @@ import { CustomerCpfLoginPanel, type CustomerLoginMethod } from "./CustomerCpfLo
 import { customerAccessRequest } from "@/lib/customer-access";
 import { validateRegistration, validateRegistrationField, type RegistrationField, type RegistrationErrors } from "../domain/customer-registration-validation";
 import { CustomerCrmHistory } from "./CustomerCrmHistory";
+import { CustomerSignatures } from "./CustomerSignatures";
 import {
   activateCustomerAccount, getCustomerPortal,
   type CustomerPortal, type CustomerPortalItem, type CustomerActivation,
 } from "../infrastructure/customer-account.repository";
 
 type AuthMode = "login" | "register" | "email_sent";
-type Tab = "overview" | "orders" | "quotes" | "service_orders" | "documents" | "addresses" | "favorites" | "profile";
+type Tab = "overview" | "orders" | "quotes" | "service_orders" | "signatures" | "addresses" | "favorites" | "profile";
 type AccountState = CustomerActivation["status"] | "anonymous" | "loading" | "ready" | "error";
 const inputClass = "h-12 w-full rounded-xl border border-[#dbe5f2] bg-[#fbfcff] px-4 text-[14px] text-[#132b4a] outline-none transition-[border-color,box-shadow] placeholder:text-[#9aabc0] focus:border-[var(--art-primary)] focus:bg-white focus:ring-[3px] focus:ring-blue-500/10";
 const primaryClass = "inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[var(--art-primary)] px-5 text-sm font-semibold text-white shadow-[0_5px_14px_rgba(23,77,162,.14)] transition-[background-color,box-shadow] hover:bg-blue-800 hover:shadow-[0_7px_18px_rgba(23,77,162,.2)] disabled:cursor-not-allowed disabled:opacity-60";
@@ -312,7 +313,7 @@ export function CustomerAccountPage() {
 
   const headings: Record<Tab, string> = {
     overview: "Visão geral", orders: "Meus pedidos",
-    quotes: "Meus orçamentos", service_orders:"Minhas OS", documents:"Documentos", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
+    quotes: "Meus orçamentos", service_orders:"Minhas Ordens de Serviços", signatures:"Assinaturas", addresses: "Meus endereços", favorites: "Meus favoritos", profile: "Meus dados",
   };
   const orders = portal?.orders || [];
   const quotes = portal?.quotes || [];
@@ -504,7 +505,7 @@ export function CustomerAccountPage() {
           {([
             ["overview", "Visão geral", UserRound],
             ["orders", "Meus pedidos", Package],
-            ...(portal.crm_access ? [["service_orders", "Minhas OS", ClipboardList], ["documents", "Documentos", FileText]] as const : []),
+            ...(portal.crm_access ? [["service_orders", "Minhas Ordens de Serviços", ClipboardList], ["signatures", "Assinaturas", FileText]] as const : []),
             ["quotes", "Meus orçamentos", FileText],
             ["addresses", "Meus endereços", MapPin],
             ["favorites", "Meus favoritos", Heart],
@@ -518,7 +519,7 @@ export function CustomerAccountPage() {
         <div ref={accountContentRef} className="min-w-0 scroll-mt-[105px]">
           {tab !== "addresses" && tab !== "profile" && <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div><h2 className="text-[20px] font-bold tracking-tight text-[#183250]">{tab === "overview" ? greeting + ", " + displayName + "!" : headings[tab]}</h2>
-              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : tab === "favorites" ? "Os produtos que você salvou para encontrar mais facilmente." : tab === "orders" ? "Acompanhe suas compras feitas no site." : "Acompanhe os orçamentos solicitados no site."}</p></div>
+              <p className="mt-1 text-[13px] text-[#72849b]">{tab === "overview" ? "Que bom ter você aqui. Veja as novidades da sua conta." : tab === "favorites" ? "Os produtos que você salvou para encontrar mais facilmente." : tab === "orders" ? "Acompanhe suas compras feitas no site." : tab === "service_orders" ? "Consulte detalhes, andamento, fotos e documentos das suas OS." : tab === "signatures" ? "Assine documentos pendentes e consulte assinaturas concluídas." : "Acompanhe os orçamentos solicitados no site."}</p></div>
           </div>}
           {portal.match_status === "pending_review" && <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <ShieldCheck size={19} className="mt-0.5 shrink-0"/>
@@ -567,7 +568,8 @@ export function CustomerAccountPage() {
             </div>
           </>}
           {tab === "orders" && <RecordList kind="orders" items={orders}/>}
-          {(tab === "service_orders" || tab === "documents") && <CustomerCrmHistory tab={tab} portal={portal}/>}
+          {tab === "service_orders" && <CustomerCrmHistory portal={portal}/>}
+          {tab === "signatures" && userId && <CustomerSignatures userId={userId}/>}
           {tab === "addresses" && userId && <CustomerAddresses userId={userId}/>}
           {tab === "favorites" && <CustomerFavorites/>}
 
