@@ -39,6 +39,9 @@ export function AdminSidebar({
   const canAccessTab = (tab: AdminTab) => {
     if ((tab === "site" || tab === "quotes" || parentAdminTab(tab) === "site") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
+    // Ver no modal do Painel do Técnico não libera a rota completa da Agenda.
+    if (tab === "agenda") return hasPermission("agenda.view") && hasPermission("agenda.menu.view")
+      && isAdminModuleEnabled(tab, hasModule);
     if ((tab === "siteDelivery" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "crm") return isPlatformOperatorOrganization;
     if (tab === "siteRequests") return isArtVideoOrganization && hasPermission("site.view") && (
@@ -71,12 +74,12 @@ export function AdminSidebar({
   const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
     hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule),
   );
-  const canAccessTools = (hasPermission("tools.view") || hasPermission("whatsapp.inbox.view"))
+  const canAccessTools = (hasPermission("tools.view") || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view")))
     && (
       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       || canAccessTab("fieldTracking")
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
-      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))

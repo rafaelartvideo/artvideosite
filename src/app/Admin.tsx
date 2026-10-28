@@ -156,6 +156,9 @@ export function AdminDashboard({
     if (tab === "nfse") return false;
     if ((tab === "siteDelivery" || tab === "sitePayments" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
+    // A visualização no modal permanece independente da navegação direta.
+    if (tab === "agenda") return hasPermission("agenda.view") && hasPermission("agenda.menu.view")
+      && isAdminModuleEnabled(tab, hasModule);
     if (tab === "siteRequests") return isArtVideoOrganization && hasPermission("site.view") && (
       (hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule)) ||
       (hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
@@ -167,7 +170,7 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
-    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || hasPermission("whatsapp.inbox.view") || (hasPermission("settings.update") && hasPermission("site.view"))) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
+    if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || (hasPermission("settings.update") && hasPermission("site.view"))) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "siteSettings") return hasPermission("site.view")
@@ -179,12 +182,12 @@ export function AdminDashboard({
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "site") return siteItems.some(item => canAccessTab(item.id as AdminTab));
     if (tab === "operation") return !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
-    if (tab === "tools") return (hasPermission("tools.view") || hasPermission("whatsapp.inbox.view")) && (
+    if (tab === "tools") return (hasPermission("tools.view") || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))) && (
       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
-      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
@@ -299,7 +302,8 @@ export function AdminDashboard({
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
   const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
-  const canAccessWhatsAppTool = (isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view");
+  const canAccessWhatsAppTool = (isPlatformOperatorOrganization || hasModule("whatsapp"))
+    && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view");
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");

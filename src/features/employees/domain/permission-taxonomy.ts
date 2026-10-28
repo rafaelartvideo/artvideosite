@@ -100,6 +100,7 @@ export function permissionSectionName(permission: PermissionRecord) {
   if (key.startsWith("platform.catalog.")) return "Catálogo Inteligente";
   if (key.startsWith("customer_requests.")) return key.endsWith(".view") ? "Acesso" : "Ações";
   if (key.startsWith("settings.channels.")) return "Canais de Atendimento";
+  if (key === "agenda.menu.view" || key === "whatsapp.inbox.menu.view") return "Navegação";
   if (module === "tools") {
     if (key === "tools.uniq.use") return "UNIQ";
     if (key === "tools.sac_digital.use") return "SAC Digital";
@@ -320,6 +321,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "work_items.edit": ["work_items.view"],
   "work_items.manage": ["work_items.view"],
   "work_items.execute_team": ["work_items.view", "work_items.manage"],
+  "agenda.menu.view": ["agenda.view"],
   "agenda.create": ["agenda.view"], "agenda.reschedule": ["agenda.view"], "agenda.view_others": ["agenda.view"],
   "situations.table.view": ["situations.view"], "situations.create": ["situations.view"], "situations.edit": ["situations.view"], "situations.delete": ["situations.view"],
   "site_settings.update": ["site_settings.view"],
@@ -334,6 +336,8 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
 };
 
 export function permissionDependencies(key: string) {
+  // WhatsApp não possui chave whatsapp.view: exige a leitura da caixa de entrada.
+  if (key === "whatsapp.inbox.menu.view") return ["whatsapp.inbox.view"];
   if (key === "platform.catalog.view") return ["tools.view"];
   if (key === "platform.catalog.manage") return ["platform.catalog.view", "tools.view"];
   if (key === "organizations.audit.view") return [];
