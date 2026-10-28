@@ -1,62 +1,55 @@
 import { useState } from "react";
-import { ClipboardList, Download, FileText, RefreshCw } from "lucide-react";
-import { supabase } from "@/lib/supabase";
-import type { CustomerPortal } from "../infrastructure/customer-account.repository";
+import { ClipboardList } from "lucide-react";
+import type { CustomerPortal, CustomerServiceOrder } from "../infrastructure/customer-account.repository";
+import { CustomerOrderDetailsModal } from "./CustomerOrderDetailsModal";
 
-const card="rounded-xl border border-[#e2e8f1] bg-white p-4";
 const date=(value?:string|null)=>value?new Date(value).toLocaleDateString("pt-BR"):"—";
-export function CustomerCrmHistory({portal,tab}:{
-  portal:CustomerPortal;tab:"service_orders"|"documents";
-}){
-  const [busy,setBusy]=useState<string|null>(null);
-  const [error,setError]=useState("");
+export function customerOrderStatusTone(item:CustomerServiceOrder){
+  const status=item.status.trim().toLocaleLowerCase("pt-BR");
+  if(status.includes("cancelad"))return {edge:"bg-red-500",badge:"bg-red-50 text-red-700 border-red-200"};
+  if(item.completed_at || status.includes("fechad") || status.includes("concluíd"))
+    return {edge:"bg-blue-600",badge:"bg-blue-50 text-blue-700 border-blue-200"};
+  if(status.includes("abert") || status.includes("andamento"))
+    return {edge:"bg-emerald-500",badge:"bg-emerald-50 text-emerald-700 border-emerald-200"};
+  return {edge:"bg-slate-400",badge:"bg-slate-50 text-slate-700 border-slate-200"};
+}
+export function CustomerCrmHistory({portal}:{portal:CustomerPortal}) {
+  const [selected,setSelected]=useState<CustomerServiceOrder|null>(null);
   const orders=portal.service_orders||[];
-  const documents=portal.documents||[];
-  async function openDocument(id:string){
-    const tab=window.open("about:blank","_blank");
-    if(tab)tab.opener=null;
-    setBusy(id);setError("");
-    try{
-      const {data,error:e}=await supabase.functions.invoke("artvideo-customer-access",{
-        body:{action:"signed_document",document_id:id},
-      });
-      if(e||!data?.success||!data?.url)throw new Error(data?.error||"Documento não disponível.");
-      if(tab)tab.location.replace(data.url);
-      else window.location.assign(data.url);
-    }catch(e){tab?.close();setError(e instanceof Error?e.message:"Não foi possível abrir o documento.");}
-    finally{setBusy(null);}
-  }
-  if(!portal.crm_access)return <div className={card+" text-center text-sm text-[#687f9c]"}>
+  if(!portal.crm_access)return <div className="rounded-xl border border-[#e2e8f1] bg-white px-5 py-10 text-center text-sm text-[#687f9c]">
     O acesso ao histórico do CRM precisa ser ativado pela recepção da Artvideo.
   </div>;
   return <div className="space-y-3">
-    {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-    {tab==="service_orders"?(orders.length?orders.map(item=>
-      <article key={item.id} className={card}>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <strong className="text-sm text-[#173450]">OS {item.os_number}</strong>
-          <span className="rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">{item.status}</span>
-        </div>
-        <p className="mt-2 text-sm text-[#38536f]">{item.description}</p>
-        {item.model&&<p className="mt-1 text-xs text-[#7086a0]">Equipamento: {item.model}</p>}
-        <p className="mt-2 text-xs text-[#8093aa]">Aberta em {date(item.created_at)}{item.scheduled_at?" · Agendada para "+date(item.scheduled_at):""}</p>
-      </article>
-    ):<div className={card+" flex flex-col items-center gap-2 py-10 text-center text-sm text-[#687f9c]"}>
-      <ClipboardList size={24}/>Nenhuma ordem de serviço vinculada à sua conta.
-    </div>):(documents.length?documents.map(doc=>
-      <article key={doc.id} className={card+" flex flex-wrap items-center justify-between gap-3"}>
-        <div className="flex min-w-0 items-center gap-3">
-          <FileText className="shrink-0 text-[var(--art-primary)]" size={21}/>
-          <div className="min-w-0"><strong className="block truncate text-sm text-[#173450]">{doc.title||"Documento assinado"}</strong>
-          <p className="text-xs text-[#7086a0]">OS {doc.os_number} · {date(doc.signed_at)}</p></div>
-        </div>
-        <button type="button" onClick={()=>void openDocument(doc.id)} disabled={busy===doc.id}
-          className="inline-flex items-center gap-2 rounded-lg border border-blue-200 px-3 py-2 text-xs font-semibold text-[var(--art-primary)] disabled:opacity-60">
-          {busy===doc.id?<RefreshCw size={15} className="animate-spin"/>:<Download size={15}/>} Abrir
-        </button>
-      </article>
-    ):<div className={card+" flex flex-col items-center gap-2 py-10 text-center text-sm text-[#687f9c]"}>
-      <FileText size={24}/>Nenhum documento assinado disponível.
-    </div>)}
+    {orders.length ? <div className="overflow-x-auto rounded-xl border border-[#e2e8f1] bg-white">
+      <table className="w-full min-w-[600px] border-collapse text-left text-[13px]">
+        <thead className="bg-[#f3f6fa] text-[11px] font-bold uppercase tracking-wider text-[#61748e]">
+          <tr><th className="px-4 py-3">Ordem de serviço</th><th className="px-4 py-3">Equipamento / serviço</th>
+            <th className="px-4 py-3">Situação</th><th className="px-4 py-3">Abertura</th></tr>
+        </thead>
+        <tbody className="divide-y divide-[#ecf0f6]">
+          {orders.map(item=>{
+            const tone=customerOrderStatusTone(item);
+            return <tr key={item.id} className="cursor-pointer transition-colors hover:bg-[#f3f7ff]"
+              tabIndex={0} role="button" aria-label={"Abrir detalhes da OS "+item.os_number}
+              onClick={()=>setSelected(item)}
+              onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setSelected(item);}}}>
+              <td className="relative py-3 pl-6 pr-4 font-bold text-[#193756]">
+                <span className={"absolute bottom-1 left-0 top-1 w-1.5 rounded-r "+tone.edge} aria-hidden="true"/>
+                OS {item.os_number}
+              </td>
+              <td className="max-w-[260px] px-4 py-3">
+                <span className="block truncate font-medium text-[#263f5c]">{item.model||item.description||"Ordem de serviço"}</span>
+              </td>
+              <td className="px-4 py-3"><span className={"inline-flex rounded-md border px-2.5 py-1 text-[11px] font-semibold "+tone.badge}>{item.status}</span></td>
+              <td className="whitespace-nowrap px-4 py-3 text-[#657b95]">{date(item.created_at)}</td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+    </div> : <div className="flex min-h-44 flex-col items-center justify-center gap-3 rounded-xl border border-[#e2e8f1] bg-white px-5 py-10 text-center">
+      <ClipboardList size={25} className="text-[#91a5c0]"/>
+      <p className="text-sm text-[#687f9c]">Nenhuma ordem de serviço vinculada à sua conta.</p>
+    </div>}
+    {selected&&<CustomerOrderDetailsModal order={selected} onClose={()=>setSelected(null)}/>}
   </div>;
 }
