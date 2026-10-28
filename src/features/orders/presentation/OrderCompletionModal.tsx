@@ -1,3 +1,4 @@
+import { AdminSectionEmpty } from "@/shared/ui/admin/AdminLayout";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { useEffect, useMemo, useState } from "react";
@@ -318,7 +319,7 @@ export function OrderCompletionModal({
                     <InfoItem label="Cidade" value={address.city || "—"} />
                     <InfoItem label="Estado" value={address.state || "—"} />
                   </div>
-                ) : <p className="text-sm text-muted-foreground">Nenhum endereço cadastrado para este cliente.</p>}
+                ) : <AdminSectionEmpty compact>Nenhum endereço cadastrado para este cliente.</AdminSectionEmpty>}
               </div>
             )}
           </div>
