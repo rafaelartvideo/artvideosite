@@ -26,7 +26,7 @@ import { useAuth } from "@/lib/auth";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { AdminButton, AdminCard, AdminCardContent } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, PageLoadingState, notifyAdmin, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import {
   acknowledgeHomeAnnouncement,
   loadHomeAnnouncements,
@@ -263,7 +263,6 @@ export function AdminHomePage({
     queryFn: () => loadWorkItems(activeOrganizationId!),
     staleTime: 60_000,
   });
-  const initialLoading = useAdminInitialLoading(Boolean(activeOrganizationId && (announcementsQuery.isPending || (user?.id && activityQuery.isPending) || (canViewWorkItems && workItemsQuery.isPending))), activeOrganizationId || "");
   const [summaryNow, setSummaryNow] = useState(() => Date.now());
   useEffect(() => {
     if (!activeOrganizationId || !canViewWorkItems) return;
@@ -321,7 +320,6 @@ export function AdminHomePage({
   const unreadCount = activityQuery.data?.unreadCount || 0;
   const userName = profile?.full_name || user?.email?.split("@")[0] || "usuário";
 
-  if (initialLoading) return <PageLoadingState text="Carregando início" />;
   return <div className="min-w-0 space-y-5 pb-3">
     <section className="overflow-hidden rounded-2xl border border-border bg-card">
       <div className="space-y-4 p-5 sm:p-6">

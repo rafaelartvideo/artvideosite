@@ -25,7 +25,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCurrency, formatDateOnly } from "@/shared/domain/formatters";
-import { LoadingState, PageLoadingState, StatusBadge, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminCard, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -718,8 +718,6 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
     return <DashboardArea metrics={overviewMetrics} left={<DashboardPanel title="Movimentação do período" subtitle="OS e orçamentos recebidos" icon={TrendingUp}><DashboardLineChart data={activityTrend} /></DashboardPanel>} right={<DashboardPanel title="Atenção agora" subtitle="Prioridades operacionais" icon={AlertTriangle}><CompactList>{alerts.slice(0, 8).map(alert => <button key={alert.title} type="button" onClick={() => open(alert.tab)} className="flex w-full cursor-default items-center gap-3 px-1 py-2.5 text-left hover:bg-[#f8fafc]"><span className={cn("flex h-8 w-8 shrink-0 items-center justify-center rounded-lg", alert.tone)}><AlertTriangle size={14} /></span><span className="min-w-0"><strong className="block truncate text-xs text-[#0d1b2e]">{alert.title}</strong><span className="block truncate text-[10px] font-semibold text-[#7a879a]">{alert.subtitle}</span></span></button>)}{!alerts.length && <DashboardEmpty text="Nenhuma prioridade crítica agora." />}</CompactList></DashboardPanel>} />;
   };
 
-  const initialLoading = useAdminInitialLoading(Boolean(activeOrganizationId && (activeModule === "orders" ? ordersSummaryQuery.isPending : dashboardQuery.isPending)), `${activeOrganizationId || ""}:${activeModule}`);
-  if (initialLoading) return <PageLoadingState text="Carregando indicadores" />;
   return (
     <div className="min-w-0 space-y-4 pb-2">
       <PageHeader title="Dashboard" subtitle="Indicadores objetivos por área, respeitando as permissões do seu perfil." actions={

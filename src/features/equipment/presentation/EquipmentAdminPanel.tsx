@@ -17,7 +17,7 @@ import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
-import { EmptyState, LoadingState, PageLoadingState, StatusBadge, Toast, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminInlineSearch, matchesAdminSearch } from "@/shared/ui/admin/AdminInlineSearch";
@@ -107,7 +107,6 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const [editingField, setEditingField] = useState<TechnicalField | null>(null);
   const [fieldForm, setFieldForm] = useState({ label: "", is_active: true });
   const loading = catalogQuery.isPending;
-  const initialLoading = useAdminInitialLoading(Boolean(activeOrganizationId && canView && (canViewTable || canViewDetails || canCreate || canEdit || canViewFields || canManageFields) && loading), activeOrganizationId || "");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const [hierarchyErrors, setHierarchyErrors] = useState<Record<string, string>>({});
@@ -513,7 +512,6 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
 
   if (!canView) return null;
   const editorRouteActive = Boolean(routeResourceId && routeResourceId !== "fields" && routeResourceId !== "brands" && routeResourceId !== "new-field" && routeSubpage !== "field");
-  if (initialLoading) return <PageLoadingState text="Carregando equipamentos" />;
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />

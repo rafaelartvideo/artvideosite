@@ -9,7 +9,7 @@ import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { EmptyState, InlineLoading, LoadingState, PageLoadingState, notifyAdmin, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, InlineLoading, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { getCustomer } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import {
@@ -82,7 +82,6 @@ export function TabCustomerRequests() {
   });
   const overallTotal = overallCountQuery.data?.total ?? total;
   const [loading, setLoading] = useState(true);
-  const initialLoading = useAdminInitialLoading(Boolean(activeOrganizationId && (loading || overallCountQuery.isPending)), activeOrganizationId || "");
   const [updating, setUpdating] = useState(false);
   const [open, setOpen] = useState(false);
   const [quickCustomerOpen, setQuickCustomerOpen] = useState(false);
@@ -214,7 +213,6 @@ export function TabCustomerRequests() {
     setQuickCustomerOpen(true);
   };
 
-  if (initialLoading) return <PageLoadingState text="Carregando pedidos avulsos" />;
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Pedidos Avulsos"
       subtitle={`${String(overallTotal)} pedidos realizados`}

@@ -8,7 +8,6 @@ import type { useOrderListMutations } from "../application/useOrderListMutations
 import type { useOrdersWorkspace } from "../application/useOrdersWorkspace";
 import type { useOrderServiceAddress } from "../application/useOrderServiceAddress";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { PageLoadingState, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 
@@ -62,9 +61,7 @@ export function OrdersListWorkspace(props: Props) {
     ? Boolean(osNumberSearch || documentSearch)
     : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
 
-  const initialLoading = useAdminInitialLoading(loading, String(workspace.organizationId || ""));
   if (!visible) return null;
-  if (initialLoading && !filters.error && !workspace.error) return <PageLoadingState text="Carregando ordens de serviço" />;
 
   return <>
     <OrdersHeader total={generalTotalItems} displayMode={resolvedDisplayMode} canCreate={canCreate} onDisplayModeChange={setViewMode} onCreate={openNew} showViewToggle={!sharedView} />

@@ -38,7 +38,7 @@ import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { cn, formatCurrency, formatNumber } from "@/shared/domain/formatters";
-import { EmptyState, LoadingState, PageLoadingState, StatusBadge, Toast, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import {
   AdminSelect,
   FCurrencyInput,
@@ -329,7 +329,6 @@ export function TabProducts({
   const categories = catalogQuery.data?.categories ?? [];
   const brands = catalogQuery.data?.brands ?? [];
   const loading = catalogQuery.isPending;
-  const initialLoading = useAdminInitialLoading(Boolean(activeOrganizationId && (canViewTable || canViewDetails || canCreate || canEdit) && loading), activeOrganizationId || "");
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
@@ -764,7 +763,6 @@ export function TabProducts({
   const purchasePrice = displayUnitCost(inventory?.purchase_price, form.commercial_unit, currentFactor);
   const averageCost = displayUnitCost(inventory?.average_cost, form.commercial_unit, currentFactor);
 
-  if (initialLoading) return <PageLoadingState text="Carregando estoque e produtos" />;
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
 

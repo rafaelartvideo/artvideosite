@@ -16,7 +16,7 @@ import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { EmptyState, LoadingState, PageLoadingState, StatusBadge, Toast, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCnpj, formatCpf, formatPhone, isValidEmail } from "@/shared/domain/formatters";
@@ -214,7 +214,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const registrationsTotal = registrationsCountQuery.data?.total ?? totalItems;
   const loading = Boolean(activeOrganizationId && canView && !routeResourceId)
     && (registrationsQuery.isPending || registrationsQuery.isPlaceholderData);
-  const initialListLoading = useAdminInitialLoading(Boolean(activeOrganizationId && canView && !routeResourceId && registrationsQuery.isPending), activeOrganizationId || "");
 
   const routeRegistrationId = routeResourceId && routeResourceId !== "new" && routeSubpage !== "customer"
     ? routeResourceId
@@ -738,8 +737,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     </>;
   }
 
-  if (routeResourceId && recordLoading) return <PageLoadingState text="Carregando cadastro" />;
-  if (!routeResourceId && initialListLoading) return <PageLoadingState text="Carregando cadastros" />;
+  if (routeResourceId && recordLoading) return <LoadingState text="Carregando cadastro..." />;
 
   const visibleMobileFilterOptions = platformUsersOnly
     ? mobileFilterOptions.filter(option => option.value !== "role")

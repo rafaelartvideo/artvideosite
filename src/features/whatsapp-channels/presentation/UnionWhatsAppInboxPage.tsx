@@ -9,7 +9,7 @@ import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, PageLoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -1438,7 +1438,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
 
 
   if (!canView) return <div className="p-5 text-sm text-muted-foreground">Você não possui permissão para visualizar atendimentos WhatsApp nesta empresa.</div>;
-  if (bootLoading) return <PageLoadingState text="Carregando atendimentos WhatsApp" />;
 
   return <div className={embedded ? "flex h-full min-h-0 flex-col" : "space-y-5"}>
     {!embedded && <header className="flex min-w-0 items-center justify-between gap-3 border-b border-border pb-5">
@@ -1503,7 +1502,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
       </div>
     </header>}
-    {channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
+    {bootLoading ? <div className="flex min-h-[300px] flex-1 items-center justify-center"><LoadingState text="Carregando atendimentos..."/></div> :
+     channelReady === false ? <div className="flex min-h-[440px] flex-col items-center justify-center gap-4 rounded-xl border border-dashed border-border bg-card p-6 text-center">
       <MessageCircle size={36} className="text-muted-foreground"/>
       <div className="space-y-2">
         <p className="text-base font-bold">Nenhum canal WhatsApp conectado</p>

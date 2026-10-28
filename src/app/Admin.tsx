@@ -11,7 +11,7 @@ import { AdminSidebar } from "@/features/admin-shell/presentation/AdminSidebar";
 import { PlatformCrmHub } from "@/features/admin-shell/presentation/PlatformCrmHub";
 import { isAdminModuleEnabled, operationItems, permissionForTab, siteItems } from "@/features/admin-shell/navigation-config";
 import { adminPath, parentAdminTab, resolveAdminRoute } from "@/features/admin-shell/admin-routes";
-import { LoadingState, PageLoadingState } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { AdminStickyToolbar, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { AdminDialogOwnerProvider, useAdminDialogManager } from "@/shared/ui/admin/AdminDialogManager";
 import { TermsAcceptanceGate } from "@/features/terms/presentation/TermsAcceptanceGate";
@@ -69,23 +69,6 @@ export { AdminLogin } from "@/features/auth/presentation/AdminLogin";
 type AdminLocationState = {
   menuTab?: AdminTab;
   origin?: { tab: AdminTab; resourceId: string | null; subpage: string | null };
-};
-
-/** Um loading com o nome da rota enquanto o bundle lazy é importado. */
-const ADMIN_ROUTE_LOADING_NAMES: Partial<Record<AdminTab, string>> = {
-  home: "início", dashboard: "dashboard", crm: "CRM", announcements: "avisos",
-  management: "central de gestão", partnerCompanies: "empresas parceiras", audit: "auditoria",
-  orders: "ordens de serviço", technicianPanel: "painel do técnico", agenda: "agenda",
-  workItems: "tarefas e compromissos", fieldTracking: "mapa de campo", customers: "cadastros",
-  customerRequests: "pedidos avulsos", inventory: "estoque", pdv: "PDV", finance: "financeiro",
-  site: "site", services: "serviços", categories: "categorias", brands: "marcas",
-  siteSettings: "configurações do site", siteDelivery: "entregas", sitePayments: "pagamentos",
-  siteRequests: "solicitações", siteStoreOrders: "pedidos da loja", operation: "operação",
-  equipment: "equipamentos", checklists: "checklists", generalServices: "serviços gerais",
-  serviceTypes: "tipos de serviço", situations: "situações da OS", orderStatuses: "status da OS",
-  roles: "funções e permissões", documents: "documentos", settings: "empresa",
-  integrations: "integrações", terms: "termos e garantias", tools: "ferramentas",
-  planUsage: "uso do plano", contact: "contato", quotes: "orçamentos",
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
@@ -465,7 +448,7 @@ export function AdminDashboard({
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
       <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
-        <Suspense fallback={<PageLoadingState text={activeTab === "tools" && route.resourceId === "sac-digital" ? "Carregando SAC Digital" : `Carregando ${ADMIN_ROUTE_LOADING_NAMES[activeTab] || "módulo"}`} />}>
+        <Suspense fallback={<LoadingState text={activeTab === "tools" && route.resourceId === "sac-digital" ? "Carregando SAC Digital..." : "Carregando módulo..."} />}>
         <RetainedAdminWorkspace ownerKey={activeWorkspaceKey}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
             <Route index element={<AdminHomePage

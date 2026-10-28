@@ -4,7 +4,7 @@ import { useAuth } from "@/lib/auth";
 import { buildAgendaDays, dayKey, type AppointmentWithRelations } from "../application/agenda-calendar";
 import { useAgendaCalendar } from "../application/useAgendaCalendar";
 import { useNewAppointment } from "../application/useNewAppointment";
-import { PageLoadingState, Toast, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
+import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AgendaToolbar } from "./AgendaToolbar";
 import { AgendaCalendarView } from "./AgendaCalendarView";
 import { AgendaEventCard } from "./AgendaEventCard";
@@ -34,7 +34,6 @@ export function TabAgenda({ onOpenOrder, onOpenTechnicianOrder, embedded = false
   const organizationId = activeOrganizationId || "";
   const agenda = useAgendaCalendar({ organizationId, userId: user?.id ?? null, canView: Boolean(organizationId) && canViewAgenda && (canViewList || canViewCalendar), canViewOthers: canViewOtherAgendas, onToast: (msg, type) => setToast({ msg, type }) });
   const newAppointment = useNewAppointment({ organizationId, userId: user?.id ?? null, cursor: agenda.cursor, situations: agenda.appointmentSituations, situationsLoading: agenda.loading, technicians: agenda.technicians, onCreated: agenda.addAppointment, onToast: (msg, type) => setToast({ msg, type }) });
-  const initialLoading = useAdminInitialLoading(Boolean(organizationId && agenda.loading), organizationId);
 
   useEffect(() => {
     if (!canViewCalendar && canViewList && agenda.view !== "agenda") agenda.setView("agenda");
@@ -88,7 +87,6 @@ export function TabAgenda({ onOpenOrder, onOpenTechnicianOrder, embedded = false
         canManage={canViewAgenda} personal onSaved={() => setScheduleRevision(value => value + 1)} />
     : null} onViewChange={view => { if ((view === "agenda" && canViewList) || (view !== "agenda" && canViewCalendar)) agenda.setView(view); }} onSearchChange={agenda.setSearch} onTechnicianFilterChange={agenda.setTechnicianFilter} onStatusFilterChange={agenda.setStatusFilter} onSituationFilterChange={agenda.setSituationFilter} onServiceFilterChange={agenda.setServiceFilter} onPrevious={() => agenda.moveCursor(-1)} onNext={() => agenda.moveCursor(1)} onToday={() => agenda.setCursor(new Date())} onNew={() => canCreate && newAppointment.openDialog()} />;
 
-  if (initialLoading && !embedded) return <PageLoadingState text="Carregando agenda" />;
   return <>
     <div className="space-y-4">
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

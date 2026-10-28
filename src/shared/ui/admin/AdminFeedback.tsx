@@ -172,24 +172,6 @@ export function LoadingOverlay({ show = true, text = "Carregando..." }: { show?:
   </div>;
 }
 
-/** Loading de rota: spinner azul único para código e dados essenciais. */
-export function PageLoadingState({ text = "Carregando página" }: { text?: React.ReactNode }) {
-  return <div className="flex min-h-[50dvh] w-full flex-col items-center justify-center gap-4 px-4 py-12 text-center"
-    role="status" aria-live="polite" aria-busy="true" data-admin-page-loading="true">
-    <span className="text-primary"><LoadingSpinner size="lg" /></span>
-    <p className="text-sm font-semibold text-muted-foreground">{text}</p>
-  </div>;
-}
-
-/** Não bloqueia a página novamente durante refetch, filtros ou atualizações realtime. */
-export function useAdminInitialLoading(pending: boolean, scopeKey: string) {
-  const [readyScope, setReadyScope] = useState<string | null>(null);
-  useEffect(() => {
-    if (!pending) setReadyScope(scopeKey);
-  }, [pending, scopeKey]);
-  return pending && readyScope !== scopeKey;
-}
-
 export function LoadingState({ text = "Carregando..." }: { text?: React.ReactNode }) {
   return <div
     className="flex min-h-[180px] w-full flex-col items-center justify-center gap-3 px-4 py-10 text-center"
