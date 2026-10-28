@@ -1347,7 +1347,8 @@ Deno.serve(async request => {
       const messageId=String(body.message_id||"");
       if(!uuid(messageId)) return json({success:false,error:"Arquivo não encontrado."},404);
       if(!(canManage || thread.assigned_to===actorId ||
-          (thread.status==="waiting" && !thread.assigned_to))) {
+          (thread.status==="in_att" && isParticipant) ||
+          (thread.status==="waiting" && !thread.assigned_to && inQueue))) {
         return json({success:false,error:"Sem acesso ao arquivo deste atendimento."},403);
       }
       const {data:mediaMessage,error:mediaError}=await admin.from("union_whatsapp_messages")
@@ -1624,7 +1625,7 @@ Deno.serve(async request => {
       .replace(/[*_~`\r\n]/g,"");
     const senderName=firstName ? firstName[0].toLocaleUpperCase("pt-BR")+firstName.slice(1) : null;
     // WhatsApp recognizes *bold*; the customer sees the operator's first name above the message.
-    const outboundText=text && senderName ? `*${senderName}*\n${text}` : text;
+    const outboundText=text && senderName ? `*${senderName}*\n\n${text}` : text;
     if(outboundText.length>4000)
       return json({success:false,error:"Mensagem muito longa. Reduza o texto e envie novamente."},400);
     const hash=isMedia ? await sha256(text+":"+mediaPath+":"+fileSize+":"+mime) : await sha256(text);
