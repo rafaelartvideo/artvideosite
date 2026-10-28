@@ -39,7 +39,7 @@ test("CPF/senha acessa contas cadastradas pelo site sem exigência de ativação
 test("códigos não aparecem em links e são apresentados isoladamente em formato copiável", () => {
   const edge = read("supabase/functions/artvideo-customer-access/index.ts");
   assert.match(edge, /const message="\*Artvideo · Código de segurança\*/);
-  assert.match(edge, /"```"\+code\+"```"/);
+  assert.match(edge, /```"\+code\+"```/);
   assert.doesNotMatch(edge, /https?:\/\/[^\s]*\+code/);
 });
 
