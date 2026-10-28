@@ -61,7 +61,8 @@ export function isPlatformSharedPermissionKey(key: string) {
 }
 
 export function isArtvideoOnlyPermissionKey(key: string) {
-  return key.startsWith("products.")
+  return key.startsWith("quotes.")
+    || key.startsWith("products.")
     || key.startsWith("categories.")
     || key.startsWith("brands.")
     || key.startsWith("services.")
