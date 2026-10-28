@@ -134,11 +134,16 @@ export function OrderCustomerSection({
             <>
               {sharedAddressOpen && (
                 <div className="rounded-xl border border-[#0057e7]/15 bg-[#f8fbff] p-4">
-                  <FInput label="Link compartilhado do endereço" type="url" placeholder="Cole o link enviado pelo cliente" value={customerAddressDraft.shared_map_url || ""} disabled={saving} onChange={(e: any) => setCustomerAddressDraft({ ...customerAddressDraft, shared_map_url: e.target.value })} hint="Ao salvar, este link substituirá o vínculo anterior." />
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <BtnPrimary onClick={saveAddressLink} loading={saving} loadingText="Salvando...">Salvar vínculo</BtnPrimary>
-                    <BtnSecondary onClick={() => setSharedAddressOpen(false)} disabled={saving}>Cancelar</BtnSecondary>
+                  <label htmlFor="order-customer-location-link" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Link compartilhado do endereço</label>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <input id="order-customer-location-link" type="url" placeholder="Cole o link enviado pelo cliente"
+                      value={customerAddressDraft.shared_map_url || ""} disabled={saving}
+                      onChange={(e: any) => setCustomerAddressDraft({ ...customerAddressDraft, shared_map_url: e.target.value })}
+                      className={INPUT + " h-9 min-w-0 flex-1"} />
+                    <BtnSecondary className="shrink-0" onClick={() => setSharedAddressOpen(false)} disabled={saving}>Cancelar</BtnSecondary>
+                    <BtnPrimary className="shrink-0" onClick={saveAddressLink} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>
                   </div>
+                  <p className="mt-1.5 text-[10px] text-muted-foreground">Ao salvar, este link substituirá o vínculo anterior.</p>
                 </div>
               )}
               <div className="grid sm:grid-cols-3 gap-3">
