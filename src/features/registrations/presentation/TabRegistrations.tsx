@@ -561,7 +561,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       onRouteChange?.(savedId, null);
     } catch (error) {
       const message = systemErrorMessage(error);
-      if (message.toLocaleLowerCase("pt-BR").includes("cadastro já existente")) {
+      if (/whatsapp já cadastrado/i.test(message)) {
+        setRegistrationFieldErrors(current => ({ ...current, whatsapp: message }));
+        setToast({ msg: message, type: "error" });
+      } else if (message.toLocaleLowerCase("pt-BR").includes("cadastro já existente")) {
         setRegistrationFieldErrors(current => ({ ...current, document: message }));
         if (form.person_type === "PF") lookups.setCpfError(message);
         else lookups.setCnpjError(message);
