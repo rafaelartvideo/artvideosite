@@ -104,3 +104,40 @@ test("portal verificado entrega situação da OS sem confundir com status e sem 
   assert.match(types,/situation_color\?: string/);
   assert.match(types,/equipment\?: string/);
 });
+
+test("assinaturas seguem tabela desktop e cards mobile com barras coloridas, sem badges de situação",()=>{
+  const page=read("src/features/customer-account/presentation/CustomerSignatures.tsx");
+  assert.match(page,/md:hidden/);
+  assert.match(page,/md:block/);
+  assert.match(page,/<table/);
+  assert.match(page,/role="alert"/);
+  assert.match(page,/edgeTone\[state\]/);
+  assert.match(page,/bg-emerald-500/);
+  assert.match(page,/bg-amber-400/);
+  assert.match(page,/bg-orange-500/);
+  assert.match(page,/bg-red-500/);
+  assert.match(page,/bg-slate-400/);
+  assert.match(page,/48 \* 60 \* 60 \* 1000/);
+  assert.match(page,/Expirando/);
+  assert.match(page,/Concluída/);
+  assert.match(page,/Cancelada/);
+  assert.match(page,/Expirada/);
+  assert.match(page,/Pendente/);
+  assert.match(page,/>Situação<\/th>/);
+  assert.doesNotMatch(page,/statusStyle|rounded-md border px-2 py-1/);
+  assert.match(page,/onClick=\{\(\)=>void openItem\(item\)\}/);
+  assert.match(page,/query\.refetch\(\)/);
+});
+
+test("visão geral mostra card de assinaturas usando consulta verificada em cache",()=>{
+  const page=read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
+  const signatures=read("src/features/customer-account/presentation/CustomerSignatures.tsx");
+  const hook=read("src/features/customer-account/application/useCustomerSignatures.ts");
+  assert.match(page,/useCustomerSignatures\(userId, Boolean\(portal\?\.crm_access\)\)/);
+  assert.match(page, /label:"Assinaturas",count:signaturesQuery\.isPending/);
+  assert.match(page,/target:"signatures"/);
+  assert.match(signatures,/useCustomerSignatures\(userId\)/);
+  assert.match(hook,/artvideo_customer_signatures_v1/);
+  assert.match(hook,/enabled: Boolean\(userId\) && enabled/);
+  assert.match(hook,/queryKey: \["artvideo-customer-signatures", userId\]/);
+});
