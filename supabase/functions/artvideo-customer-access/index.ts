@@ -164,9 +164,9 @@ async function linkedAccount(org:string,cpf:string){
   if(error||data?.length!==1)return null;
   const a=data[0];
   if(!a.entity_id||!a.whatsapp_verified_at||!a.crm_access_activated_at||!a.whatsapp_verified_number)return null;
-  const {data:customer}=await admin.from("customers").select("id,document")
+  const {data:customer}=await admin.from("customers").select("id,document,whatsapp")
     .eq("id",a.entity_id).eq("organization_id",org).maybeSingle();
-  if(!customer||cpfDigits(customer.document)!==cpf)return null;
+  if(!customer||cpfDigits(customer.document)!==cpf || normalizePhone(customer.whatsapp)!==a.whatsapp_verified_number)return null;
   return a;
 }
 async function sessionFor(userId:string){
@@ -348,10 +348,14 @@ Deno.serve(async request=>{
       if(!consumed)return response(request,fail("Código já utilizado.",410),410);
       if(c.purpose==="login"){
         const {data:account}=await admin.from("artvideo_customer_accounts")
-          .select("user_id,crm_access_activated_at,whatsapp_verified_number")
+          .select("user_id,entity_id,crm_access_activated_at,whatsapp_verified_number")
           .eq("user_id",c.account_user_id).eq("organization_id",org).maybeSingle();
         if(!account?.crm_access_activated_at||account.whatsapp_verified_number!==c.phone_e164)
           return response(request,fail("Acesso indisponível.",403),403);
+        const {data:currentCustomer}=await admin.from("customers").select("whatsapp")
+          .eq("organization_id",org).eq("id",account.entity_id).maybeSingle();
+        if(normalizePhone(currentCustomer?.whatsapp)!==c.phone_e164)
+          return response(request,fail("Atualize a verificação do WhatsApp no cadastro.",403),403);
         const session=await sessionFor(c.account_user_id);
         return response(request,{success:true,...session,needs_password:false});
       }
@@ -452,6 +456,12 @@ Deno.serve(async request=>{
         .eq("user_id",user.user.id).eq("organization_id",org).maybeSingle();
       if(!account?.crm_access_activated_at||!account?.whatsapp_verified_at||!account.entity_id)
         return response(request,fail("Acesso negado.",403),403);
+      const {data:owner}=await admin.from("customers").select("whatsapp")
+        .eq("organization_id",org).eq("id",account.entity_id).maybeSingle();
+      const {data:verifiedAccount}=await admin.from("artvideo_customer_accounts")
+        .select("whatsapp_verified_number").eq("organization_id",org).eq("user_id",user.user.id).maybeSingle();
+      if(normalizePhone(owner?.whatsapp)!==verifiedAccount?.whatsapp_verified_number)
+        return response(request,fail("Confirme novamente seu WhatsApp.",403),403);
       const {data:document}=await admin.from("document_signature_requests")
         .select("id,service_order_id,final_pdf_storage_path,signed_at,cancelled_at")
         .eq("id",documentId).eq("organization_id",org).maybeSingle();
