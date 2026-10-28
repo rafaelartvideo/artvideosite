@@ -1,4 +1,14 @@
-import { MapPin } from "lucide-react";
+import { Link2, MapPin, Phone } from "lucide-react";
+import { useState } from "react";
+import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
+import { CustomerAccessInviteSection } from "@/features/customers/presentation/CustomerAccessInviteSection";
+import { RegistrationRequestsSection } from "./RegistrationRequestsSection";
+import { registrationAddressPayload, registrationAddressesFromRecord } from "../domain/registration-form";
+import { syncRegistrationAddresses } from "../infrastructure/registrations.repository";
+import { normalizeSharedMapUrl } from "@/lib/address";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getAddressMapUrl } from "@/lib/address";
 import { useAuth } from "@/lib/auth";
 import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -51,11 +61,12 @@ type RegistrationDetailsProps = {
   onEdit: () => void;
   onOpenContacts: () => void;
   onOpenRecords: () => void;
-  onOpenCustomerHistory?: (customerId: string) => void;
+  onOpenOrder?: (id: string, customerId?: string) => void;
+  onAddressLinked?: () => void;
   onOpenPermissions: () => void;
 };
 
-export function RegistrationDetails({ selected, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenCustomerHistory, onOpenPermissions }: RegistrationDetailsProps) {
+export function RegistrationDetails({ selected, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenOrder, onAddressLinked, onOpenPermissions }: RegistrationDetailsProps) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const roles = activeRegistrationRoles(selected);
@@ -68,6 +79,34 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
   const canCreateRecords = hasPermission("registrations.records.create");
   const canViewRecords = hasPermission("registrations.records.view") || canCreateRecords;
   const canOpenPermissions = roles.includes("employee") && Boolean(permissionUserId) && canViewPermissionOverrides;
+  const [addressLinkId,setAddressLinkId]=useState<string|null>(null);
+  const [addressLinkText,setAddressLinkText]=useState("");
+  const [savingAddressLink,setSavingAddressLink]=useState(false);
+  const canManageAddress=hasPermission("customers.addresses.edit");
+  const whatsapp=selected.whatsapp || selected.phone;
+  const digits=String(selected.phone || selected.whatsapp || "").replace(/\D/g,"");
+  const dialPhone=(digits.length===10||digits.length===11)?"55"+digits:digits;
+  const whatsappAction=whatsapp ? <div className="flex items-center gap-2">
+    <CompanyWhatsAppAction phone={whatsapp} name={selected.name} organizationId={activeOrganizationId}
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#25D366]/35 bg-card px-3 text-xs font-bold text-[#17834a] hover:bg-[#25D366]/10"
+      title="Abrir atendimento pelo WhatsApp"><WhatsAppBrandIcon size={16}/> WhatsApp</CompanyWhatsAppAction>
+    {dialPhone&&<a href={`tel:+${dialPhone}`} aria-label="Ligar para o cliente"
+      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-xs font-bold text-primary hover:bg-muted"><Phone size={15}/> Ligar</a>}
+  </div> : undefined;
+  const saveAddressLink=async()=>{
+    if(!activeOrganizationId||!addressLinkId||savingAddressLink)return;
+    setSavingAddressLink(true);
+    try{
+      const next=registrationAddressesFromRecord(selected).map(address=>address.id===addressLinkId
+        ? {...address,shared_map_url:normalizeSharedMapUrl(addressLinkText)} : address);
+      const result=await syncRegistrationAddresses(activeOrganizationId,selected.id,next.map(registrationAddressPayload));
+      if(result.error)throw result.error;
+      setAddressLinkId(null);setAddressLinkText("");
+      notifyAdmin("Localização vinculada ao endereço.","success");
+      onAddressLinked?.();
+    }catch(e){notifyAdmin(systemErrorMessage(e,"Não foi possível vincular a localização."),"error");}
+    finally{setSavingAddressLink(false);}
+  };
 
   return <AdminPage open onClose={onClose} breadcrumb={platformUsersOnly ? "Usuários" : "Cadastros"} title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-7xl">
     <div className="space-y-5 p-4 sm:p-5">
@@ -89,14 +128,13 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           canViewPermissions={canOpenPermissions}
           agendaAction={roles.includes("employee") && canEdit ? <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage /> : undefined}
           onOpenContacts={onOpenContacts}
-          onOpenCustomerHistory={roles.includes("customer") && selected.legacy_customer_id && onOpenCustomerHistory ? () => onOpenCustomerHistory(selected.legacy_customer_id!) : undefined}
           onOpenRecords={onOpenRecords}
           onOpenPermissions={onOpenPermissions}
         />
       </div>
 
       <div className="grid items-start gap-5">
-        <Section title="Dados Pessoais"><div className="grid gap-4 sm:grid-cols-2">
+        <Section title="Dados Pessoais" actions={whatsappAction}><div className="grid gap-4 sm:grid-cols-2">
           {selected.person_type === "PF" && detailValue("Nome completo", selected.name || "—")}
           {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
           {detailValue("Telefone", formatPhone(selected.phone) || "—")}
@@ -108,7 +146,10 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             {detailValue("Inscrição estadual", selected.state_registration || "—")}
             {detailValue("Inscrição municipal", selected.municipal_registration || "—")}
             {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
-          </> : detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
+          </> : <>
+            {detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
+            {selected.gender && detailValue("Gênero", selected.gender==="M"?"Masculino":selected.gender==="F"?"Feminino":"Outro / Indefinido")}
+          </>}
         </div></Section>
 
         <Section title="Endereços">
@@ -118,13 +159,37 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-sm font-black text-[#0d1b2e]">{address.type || `Endereço ${index + 1}`}</span>
                 {address.is_primary && <span className="text-[10px] font-black uppercase tracking-wide text-[#0057e7]">Principal</span>}
-                {mapUrl && <a href={mapUrl} target="_blank" rel="noreferrer" className="ml-auto inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/20 px-3 py-2 text-xs font-bold text-[#0057e7] hover:bg-[#0057e7]/5"><MapPin size={13} /> Abrir mapa</a>}
+                <div className="ml-auto flex flex-wrap items-center gap-2">
+                  {mapUrl && <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/25 bg-card px-3 text-xs font-bold text-primary hover:bg-primary/5"><MapPin size={14}/> Abrir mapa</a>}
+                  {canManageAddress&&<button type="button" className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-primary/25 bg-card px-3 text-xs font-bold text-primary hover:bg-primary/5"
+                    onClick={()=>{setAddressLinkId(address.id);setAddressLinkText(address.location_url||"");}}>
+                    <Link2 size={14}/>{address.location_url?"Alterar vínculo":"Vincular endereço"}
+                  </button>}
+                </div>
               </div>
               <p className="mt-2 text-sm font-semibold leading-relaxed text-[#0d1b2e]">{formatBrazilianAddress(address)}</p>
+              {addressLinkId===address.id&&<div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/20 p-3">
+                <label className="block text-xs font-bold text-foreground">Link de localização do endereço</label>
+                <input type="url" value={addressLinkText} onChange={e=>setAddressLinkText(e.target.value)}
+                  placeholder="Cole o link do Google Maps, Waze, Apple Maps..."
+                  className="admin-input w-full rounded-lg border border-border bg-card px-3 py-2 text-sm"/>
+                <div className="flex justify-end gap-2">
+                  <BtnSecondary disabled={savingAddressLink} onClick={()=>setAddressLinkId(null)}>Cancelar</BtnSecondary>
+                  <BtnPrimary disabled={savingAddressLink} onClick={()=>void saveAddressLink()}>{savingAddressLink?"Salvando...":"Salvar vínculo"}</BtnPrimary>
+                </div>
+              </div>}
 
             </div>;
           })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
         </Section>
+
+        {roles.includes("customer") && <>
+          {selected.person_type==="PF"&&selected.legacy_customer_id&&<CustomerAccessInviteSection
+            customerId={selected.legacy_customer_id} whatsapp={selected.whatsapp} canManage={canEdit}/>}
+          <RegistrationRequestsSection key={selected.id} entityId={selected.id}
+            customerId={selected.legacy_customer_id} organizationId={selected.organization_id}
+            onOpenOrder={onOpenOrder}/>
+        </>}
 
         {roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
           <div aria-busy={accessLoading}>

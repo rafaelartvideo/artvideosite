@@ -423,7 +423,9 @@ test("OS técnica aguarda dados e mídias antes da abertura e mostra endereço s
   assert.match(panel, /Promise\.allSettled/);
   assert.doesNotMatch(panel, /photoLoadedServiceId !== selectedId/);
   assert.match(panel, /!orderDetails \|\| orderDetails\.id !== routeOrderId/);
-  assert.match(panel, /<Section title="Endereço">/);
+  assert.match(panel, /<Section title="Endereço" actions=\{addressMapUrl/);
+  assert.match(panel, /getAddressMapUrl\(/);
+  assert.match(panel, /Abrir endereço da OS no mapa/);
   for (const field of ["CEP", "Rua", "Número", "Complemento", "Bairro", "Cidade", "Estado"]) {
     assert.ok(panel.includes('info("' + field + '"'), "Campo ausente: " + field);
   }

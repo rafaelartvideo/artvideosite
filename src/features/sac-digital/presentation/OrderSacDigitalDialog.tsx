@@ -1,7 +1,8 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { mediaMaximum } from '../domain/resource-ui.mjs';
 import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/documents/domain/print-template";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, MessageCircle } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { FSelect, FTextarea } from '@/shared/ui/admin/AdminFormControls';
@@ -220,7 +221,7 @@ export function OrderSacDigitalDialog({
             loadingText="Enviando..."
             disabled={(!text.trim() && !attachment && !documentTemplateId) || sending}
           >
-            <MessageCircle size={15} />
+            <WhatsAppBrandIcon size={15} />
             Enviar
           </AdminButton>
         </div>

@@ -1,7 +1,8 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Edit2, Mail, MessageCircle, Phone, Plus, UserRound } from "lucide-react";
+import { Edit2, Mail, Phone, Plus, UserRound } from "lucide-react";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cn, formatPhone, isValidBrazilianMobile, isValidBrazilianPhone, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -79,7 +80,7 @@ function ContactChannels({
       className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
       title="Iniciar conversa no WhatsApp"
     >
-      <MessageCircle size={13} /><span>{formatPhone(whatsapp || phone) || whatsapp || phone}</span>
+      <WhatsAppBrandIcon size={13} /><span>{formatPhone(whatsapp || phone) || whatsapp || phone}</span>
     </CompanyWhatsAppAction>}
     {email && <a href={`mailto:${email}`} className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 py-2 text-xs font-bold text-[#0d1b2e] hover:bg-muted"><Mail size={13} /><span className="max-w-[16rem] truncate">{email}</span></a>}
   </div>;

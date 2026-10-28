@@ -1,5 +1,6 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useEffect, useState, type FormEvent } from "react";
-import { MessageCircle, LockKeyhole, ArrowRight, RefreshCw } from "lucide-react";
+import { LockKeyhole, ArrowRight, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { formatCpf, isValidCpf } from "@/shared/domain/formatters";
@@ -88,7 +89,7 @@ export function CustomerCpfLoginPanel(){
       <p className="text-xs leading-5 text-[#657c98]">Enviaremos um código de segurança para o WhatsApp confirmado na ativação da sua conta.</p>}
     {error&&<p role="alert" className="rounded-lg bg-red-50 p-2.5 text-xs text-red-700">{error}</p>}
     <button className={buttonClass} disabled={busy||(mode==="code"&&!!challenge&&code.length!==6)}>
-      {busy?<RefreshCw size={17} className="animate-spin"/>:mode==="code"?<MessageCircle size={17}/>:<LockKeyhole size={17}/>}
+      {busy?<RefreshCw size={17} className="animate-spin"/>:mode==="code"?<WhatsAppBrandIcon size={17}/>:<LockKeyhole size={17}/>}
       {mode==="code"?(challenge?"Confirmar código":"Enviar código"):"Entrar com senha"}
       {!busy&&<ArrowRight size={16}/>}
     </button>

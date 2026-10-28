@@ -1,5 +1,6 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useEffect, useRef, useState } from "react";
-import { CheckCircle2, MessageCircle } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
 import { AdminDialog, AdminButton, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { systemErrorMessage } from "@/shared/domain/error-message";
@@ -114,7 +115,7 @@ export function QuoteSacDigitalDialog({quote,organizationId,onClose}:{
   footer={acceptedProtocol?<div className="flex w-full justify-end gap-2"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary><AdminButton onClick={openConversation}>Abrir conversa</AdminButton></div>
    :<div className="flex w-full flex-wrap justify-end gap-2"><BtnSecondary onClick={onClose} disabled={sending}>Cancelar</BtnSecondary>
     {uncertainProtocol && <AdminButton variant="secondary" onClick={openConversation}>Conferir conversa</AdminButton>}
-    <AdminButton onClick={()=>void send()} loading={sending} disabled={sending||loading||Boolean(uncertainProtocol)||!message.trim()}><MessageCircle size={15}/> Enviar pelo SAC</AdminButton></div>}>
+    <AdminButton onClick={()=>void send()} loading={sending} disabled={sending||loading||Boolean(uncertainProtocol)||!message.trim()}><WhatsAppBrandIcon size={15}/> Enviar pelo SAC</AdminButton></div>}>
   {acceptedProtocol?<div role="status" className="flex flex-col items-center gap-3 py-9 text-center"><CheckCircle2 size={48} className="text-emerald-600"/><p className="font-semibold">Envio {deliveryState==="queued"?"na fila":deliveryState==="delivered"?"entregue":deliveryState==="read"?"lido":"aceito"} pela SAC Digital.</p><p className="max-w-sm text-sm text-muted-foreground">A confirmação de envio não significa que o WhatsApp já entregou a mensagem. Verifique o status na conversa.</p><p className="text-xs text-muted-foreground">Protocolo de atendimento: {acceptedProtocol}</p></div>
    :<div className="space-y-4">
     <div className="rounded-lg bg-muted/30 p-3"><p className="text-sm font-semibold">{customer.trade_name||customer.full_name||"Cliente"}</p>
