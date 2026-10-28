@@ -1,6 +1,7 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
-import { ArrowRight, ClipboardList, MapPin, MessageCircle, Wrench } from "lucide-react";
+import { ArrowRight, ClipboardList, MapPin, Wrench } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminDialog, AdminPage, AdminStickyToolbar, AdminSectionEmpty, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -135,7 +136,7 @@ export function SiteQuoteDetailsPage({quoteId,onBack}:{quoteId:string;onBack:()=
         <div className="grid min-w-0 gap-4 lg:grid-cols-2">
           <Section title="Cliente" actions={mayMessage?<AdminButton variant="success" size="sm"
             onClick={()=>setSacOpen(true)} title="Abrir conversa no WhatsApp">
-            <MessageCircle size={16}/> WhatsApp
+            <WhatsAppBrandIcon size={16}/> WhatsApp
           </AdminButton>:undefined}>
             <div className="grid gap-3 sm:grid-cols-2">
               <DetailField label="Nome" value={quote.customer?.full_name||quote.customer?.trade_name}/>
