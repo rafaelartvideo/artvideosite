@@ -1,6 +1,7 @@
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { PublicPageHeader } from "@/features/public-shell/presentation/PublicPageHeader";
 import { useState } from "react";
-import { CheckCircle, Clock, ExternalLink, Instagram, Mail, MapPin, MessageCircle, Navigation, Phone } from "lucide-react";
+import { CheckCircle, Clock, ExternalLink, Instagram, Mail, MapPin, Navigation, Phone } from "lucide-react";
 import { formatPhone, formatPhoneInput } from "@/shared/domain/formatters";
 import { getBusinessHours, getSettingText } from "@/features/public-shell/application/site-settings";
 import { PublicButton as Btn, PublicHeading as H2, SectionLabel } from "@/features/public-shell/presentation/PublicUi";
@@ -27,7 +28,7 @@ export function ContactPage() {
   const mapsUrl = "https://www.google.com/maps/search/?api=1&query=" + mapQuery + "&query_place_id=ChIJu4y_S5WzGgcR2nYuRXkfPpo";
   const directionsUrl = "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(address) + "&destination_place_id=ChIJu4y_S5WzGgcR2nYuRXkfPpo";
   const contactDetails: { icon: React.ElementType; label: string; value: string }[] = [
-    { icon: MessageCircle, label: "WhatsApp", value: formatPhone(rawWhatsApp) },
+    { icon: WhatsAppBrandIcon, label: "WhatsApp", value: formatPhone(rawWhatsApp) },
     { icon: Phone, label: "Telefone", value: formatPhone(getSettingText(settings.phone) || getSettingText(settings.telefone)) },
     { icon: Mail, label: "E-mail", value: getSettingText(settings.email) },
     { icon: Instagram, label: "Instagram", value: getSettingText(settings.instagram) },
@@ -49,7 +50,7 @@ export function ContactPage() {
             <div className="bg-[#25d366] rounded-2xl p-6 text-white">
               <p className="font-black text-lg mb-1" style={{ fontFamily: "'Barlow Condensed', sans-serif" }}>Prefere falar diretamente com nossa equipe?</p>
               <p className="text-white/85 text-sm mb-4">Atendimento rápido pelo WhatsApp.</p>
-              {whatsappNumber && <a href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Olá! Gostaria de saber mais sobre os serviços da Artvideo.")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white text-[#25d366] font-bold rounded-lg px-5 py-3 text-sm hover:bg-[#f0fff4] transition-colors"><MessageCircle size={16} /> Falar pelo WhatsApp</a>}
+              {whatsappNumber && <a href={`https://wa.me/${whatsappNumber}?text=${encodeURIComponent("Olá! Gostaria de saber mais sobre os serviços da Artvideo.")}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-white text-[#25d366] font-bold rounded-lg px-5 py-3 text-sm hover:bg-[#f0fff4] transition-colors"><WhatsAppBrandIcon size={16} /> Falar pelo WhatsApp</a>}
             </div>
 
             {/* Info cards */}
