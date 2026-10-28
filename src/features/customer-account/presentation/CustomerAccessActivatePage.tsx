@@ -2,14 +2,13 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router";
 import { CheckCircle2, MessageCircle, RefreshCw, ShieldCheck } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { customerAccessRequest } from "@/lib/customer-access";
 
 type Phase="loading"|"ready"|"code"|"password"|"failed";
 const field="h-11 w-full rounded-lg border border-[#dbe3ee] px-3.5 text-sm outline-none focus:border-[var(--art-primary)]";
 const button="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--art-primary)] px-4 text-sm font-semibold text-white disabled:opacity-60";
-async function action(name:string,payload:Record<string,unknown>){
-  const {data,error}=await supabase.functions.invoke("artvideo-customer-access",{body:{action:name,...payload}});
-  if(error||!data?.success)throw new Error(data?.error||"Não foi possível concluir a solicitação.");
-  return data;
+async function action(name:string,payload:Record<string,unknown>) {
+  return customerAccessRequest(name,payload);
 }
 export function CustomerAccessActivatePage(){
   const navigate=useNavigate();
