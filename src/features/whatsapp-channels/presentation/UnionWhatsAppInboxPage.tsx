@@ -949,6 +949,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const conversationOpeningError = Boolean(selectedId && (messagesErrorId===selectedId || participantsErrorId===selectedId));
   const canReply = Boolean(selected && !conversationOpening && !protocolFilter && canSend && selected.status === "in_att" &&
     (isMine || canManage || isActiveCollaborator));
+  // Focus once when a new conversation has finished preparing the composer.
+  // Realtime updates must not steal the cursor while the operator types.
+  const lastFocusedConversationRef=useRef<string|null>(null);
+  useEffect(()=>{
+    if(!selectedId){
+      lastFocusedConversationRef.current=null;
+      return;
+    }
+    if(!canReply || lastFocusedConversationRef.current===selectedId || !inputRef.current)return;
+    lastFocusedConversationRef.current=selectedId;
+    inputRef.current.focus({preventScroll:true});
+  },[selectedId,canReply]);
   // Open conversations must clear unread markers only when the messages and
   // collaboration permissions are ready, including for invited participants.
   // Avoid duplicate network calls while realtime refreshes are in progress.
@@ -1589,6 +1601,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                       {queueSettings.show_queue_position && `#${queuePositions.get(item.id)||"–"} · `}
                       {queueSettings.show_wait_time && `Na fila ${waitingLabel(waitingMinutes(item.queue_entered_at||item.created_at,clockNow))}`}
                     </span>}
+                  {item.viewer_participating && <span
+                    className="mt-1.5 inline-flex w-fit items-center rounded-md bg-sky-500/15 px-2 py-0.5 text-[10px] font-bold text-sky-700 dark:text-sky-300">Participando</span>}
                   {forwardedBadge(item)}
                 </span>
               </button>;
