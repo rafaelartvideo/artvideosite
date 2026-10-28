@@ -1,18 +1,14 @@
 import { useEffect, useState } from "react";
 import { CheckCircle2, Copy, MessageCircle, RefreshCw, ShieldCheck } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { customerAccessRequest } from "@/lib/customer-access";
 import { Section, AdminButton } from "@/shared/ui/admin/AdminLayout";
 
 type State={
   invitation?:{status:string;created_at:string;expires_at:string;activated_at:string|null}|null;
   account?:{active:boolean;whatsapp_verified_at:string|null;phone_mask:string}|null;
 };
-async function access(action:string,customerId:string,more:Record<string,unknown>={}){
-  const {data,error}=await supabase.functions.invoke("artvideo-customer-access",{
-    body:{action,customer_id:customerId,...more},
-  });
-  if(error||!data?.success)throw new Error(data?.error||"Não foi possível concluir a solicitação.");
-  return data;
+async function access(action:string,customerId:string,more:Record<string,unknown>={}) {
+  return customerAccessRequest(action,{customer_id:customerId,...more});
 }
 export function CustomerAccessInviteSection({customerId,canManage,whatsapp}:{
   customerId:string;canManage:boolean;whatsapp?:string|null;
