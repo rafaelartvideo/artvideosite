@@ -16,6 +16,9 @@ export type CustomerPortal = {
   match_status?: "needs_cpf" | "matched" | "created" | "pending_review" | "approved" | "rejected";
   orders?: CustomerPortalItem[];
   quotes?: CustomerPortalItem[];
+  crm_access?: boolean;
+  service_orders?: {id:string;os_number:string;description:string;status:string;model?:string;created_at:string;scheduled_at?:string|null;completed_at?:string|null}[];
+  documents?: {id:string;os_number:string;title:string;signed_at:string}[];
 };
 export type CustomerActivation = {
   status: "linked" | "verify_email" | "needs_name" | "invalid_phone" | "needs_review" | "needs_cpf" | "invalid_cpf";
@@ -33,7 +36,7 @@ export async function activateCustomerAccount(fullName?: string, phone?: string,
 
 export async function getCustomerPortal(): Promise<CustomerPortal> {
   const [portal, link] = await Promise.all([
-    supabase.rpc("artvideo_customer_portal_v1"),
+    supabase.rpc("artvideo_customer_portal_extended_v1"),
     supabase.rpc("artvideo_customer_link_status_v1"),
   ]);
   if (portal.error) throw portal.error;
