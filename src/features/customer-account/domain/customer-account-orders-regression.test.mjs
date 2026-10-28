@@ -29,6 +29,13 @@ test("ordens de serviço aparecem em tabela com status na borda e modal",()=>{
   assert.match(page,/bg-blue-600/);
   assert.match(page,/bg-emerald-500/);
   assert.match(detail,/OrderProgress/);
+  assert.match(detail,/detail\\.situations/);
+  assert.match(detail,/Situações da OS/);
+  assert.match(detail,/createPortal/);
+  assert.match(detail,/h-\\[100dvh\\]/);
+  assert.match(detail,/equipmentFields\\.map/);
+  assert.match(detail,/filter\\(field=>isFilled\\(field\\.value\\)\\)/);
+  assert.doesNotMatch(detail,/\\["Aberta", "Em atendimento"/);
   assert.match(detail,/Dados do equipamento/);
   assert.match(detail,/Produtos e serviços associados/);
   assert.match(detail,/Fotos do equipamento e da etiqueta/);
@@ -56,4 +63,15 @@ test("assinaturas pendentes, concluídas e expiradas preservam regras de validad
   assert.match(page,/Solicitar novo convite/);
   assert.match(page,/signed_document/);
   assert.match(page,/customer_signature_link/);
+});
+
+test("a consulta autenticada entrega situações vinculadas ao tipo e passagens reais, separadas do status",()=>{
+  const sql=read("supabase/migrations/20261028170000_customer_order_situations_timeline.sql");
+  assert.match(sql,/service_type_situations/);
+  assert.match(sql,/service_order_situation_visits/);
+  assert.match(sql,/current_only/);
+  assert.match(sql,/'situations',v_situations/);
+  assert.match(sql,/o\\.customer_id=v_customer/);
+  assert.match(sql,/sts\\.organization_id=v_org/);
+  assert.match(sql,/v\\.organization_id=v_org/);
 });
