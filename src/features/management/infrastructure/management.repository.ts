@@ -92,7 +92,7 @@ export async function restoreManagementRecord(recordId: string) {
     .update({ deleted_at: null, deleted_by: null }).eq("id",recordId);
   if (error) throw error;
 }
-export async function uploadManagementFiles(spaceId: string, folderId: string, files: File[]) {
+export async function uploadManagementFiles(spaceId: string, folderId: string, files: File[], campaignRecordId?: string) {
   for(const file of files) {
     if(file.size>25*1024*1024) throw new Error("O limite é de 25 MB por arquivo.");
     const extension = file.name.split(".").pop()?.replace(/[^a-zA-Z0-9]/g,"").slice(0,10) || "bin";
@@ -102,6 +102,7 @@ export async function uploadManagementFiles(spaceId: string, folderId: string, f
     const {data,error} = await supabase.from("management_records").insert({
       space_id:spaceId,folder_id:folderId,title:file.name,kind:"file",
       description:"",storage_path:path,mime_type:file.type || null,size_bytes:file.size,
+      metadata:campaignRecordId?{campaign_id:campaignRecordId}:{},
     }).select("id").single();
     if(error) {
       await supabase.storage.from(BUCKET).remove([path]);
