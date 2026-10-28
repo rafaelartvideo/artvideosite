@@ -146,7 +146,10 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             {detailValue("Inscrição estadual", selected.state_registration || "—")}
             {detailValue("Inscrição municipal", selected.municipal_registration || "—")}
             {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
-          </> : detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
+          </> : <>
+            {detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
+            {selected.gender && detailValue("Gênero", selected.gender==="M"?"Masculino":selected.gender==="F"?"Feminino":"Outro / Indefinido")}
+          </>}
         </div></Section>
 
         <Section title="Endereços">
