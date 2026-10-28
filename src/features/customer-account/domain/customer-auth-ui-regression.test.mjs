@@ -135,3 +135,34 @@ test("recuperação mostra título e descrição próprios, com seta voltar na m
   assert.match(login, /onMethodChange: \(method: CustomerLoginMethod\) => void/);
   assert.match(login, /\[method\]/);
 });
+
+
+test("site público usa escopo de cliente, sem inicializar o acesso do CRM", () => {
+  const app = read("src/app/App.tsx");
+  const auth = read("src/lib/auth.tsx");
+
+  assert.match(app, /APP_TARGET === "site"/);
+  assert.match(app, /<AuthProvider key=\{scope\} scope=\{scope\}>/);
+  assert.match(auth, /export type AuthScope = "crm" \| "customer"/);
+  assert.match(auth, /if \(scope === "customer"\) \{\s*setSession\(data\.session \?\? null\);[\s\S]*?setLoading\(false\);\s*return;/);
+  assert.match(auth, /if \(scope === "customer"\) \{\s*setSession\(newSession\);[\s\S]*?setLoading\(false\);\s*return;/);
+});
+
+test("inatividade de 20 minutos e saída para admin são exclusivas do CRM", () => {
+  const auth = read("src/lib/auth.tsx");
+  const policy = read("src/lib/session-security.ts");
+
+  assert.match(policy, /INACTIVITY_TIMEOUT_MS = 20 \* 60 \* 1000/);
+  assert.match(auth, /if \(scope !== "crm" \|\| !session\?\.user \|\| loading\) return;/);
+  assert.match(auth, /if \(scope !== "crm" \|\| !session\?\.user\?\.id \|\| !organizationId\) return;/);
+  assert.match(auth, /if \(scope === "customer"\) \{\s*\/\/ Logout público[\s\S]*?supabase\.auth\.signOut\(\{ scope: "local" \}\);\s*return;/);
+  assert.match(auth, /window\.location\.replace\("\/admin"\)/);
+});
+
+test("site não utiliza o cookie de sessão exclusivo dos funcionários", () => {
+  const client = read("src/lib/supabase.ts");
+
+  assert.match(client, /storage: __APP_TARGET__ === "site" \? undefined : persistentAuthStorage/);
+  assert.match(client, /autoRefreshToken: true/);
+  assert.match(client, /persistSession: true/);
+});
