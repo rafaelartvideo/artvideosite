@@ -19,6 +19,16 @@ cross join public.permissions document_permission
 where document_permission.key='technician_panel.data.customer_document'
 on conflict (role_id,permission_id) do nothing;
 
+-- Preserva também os acessos individuais existentes ao campo de cliente.
+insert into public.user_permission_overrides (organization_id,user_id,permission_id)
+select existing.organization_id,existing.user_id,document_permission.id
+from public.user_permission_overrides existing
+join public.permissions customer_permission on customer_permission.id=existing.permission_id
+  and customer_permission.key='technician_panel.data.customer'
+cross join public.permissions document_permission
+where document_permission.key='technician_panel.data.customer_document'
+on conflict (organization_id,user_id,permission_id) do nothing;
+
 -- A RPC existente verifica atribuição + organização e segue sem preços/custos.
 -- O dado documental agora exige também a permissão separada.
 CREATE OR REPLACE FUNCTION public.get_my_technician_order_details_v1(p_order_id uuid)
