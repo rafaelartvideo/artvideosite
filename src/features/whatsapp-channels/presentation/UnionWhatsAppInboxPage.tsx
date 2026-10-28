@@ -744,24 +744,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     const box = scrollRef.current;
     if (box) box.scrollTo({ top: box.scrollHeight, behavior });
   }, []);
-  useLayoutEffect(() => {
-    if (!selectedId || messagesLoading || !messageHistoryLoadedRef.current) return;
-    if (!chatScrollReadyRef.current || followLatestRef.current) {
-      scrollToLatest("auto");
-      chatScrollReadyRef.current = true;
-    }
-  }, [selectedId, messages.length, pending.length, messagesLoading, scrollToLatest]);
-  useEffect(() => {
-    const box=scrollRef.current;
-    const content=messagesContentRef.current;
-    if(!box || !content || !selectedId || typeof ResizeObserver==="undefined") return;
-    const observer=new ResizeObserver(() => {
-      if(chatScrollReadyRef.current && followLatestRef.current && !messagesLoading) scrollToLatest("auto");
-    });
-    observer.observe(content);
-    observer.observe(box);
-    return ()=>observer.disconnect();
-  }, [selectedId,messagesLoading,scrollToLatest]);
   const handleMessagesScroll = () => {
     const box = scrollRef.current;
     if (!box || !chatScrollReadyRef.current || !messageHistoryLoadedRef.current) return;
@@ -984,6 +966,27 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     (isMine || canManage || isActiveCollaborator));
   const operatorFirstName=String(profile?.full_name||"").trim().split(/\s+/)[0]
     .replace(/[*_~`\r\n]/g,"");
+  // The chat timeline is only mounted after both messages and participant access
+  // finish loading. Scroll *after* that render, not while the loading UI is visible.
+  useLayoutEffect(() => {
+    if (!selectedId || conversationOpening || messagesLoading || !messageHistoryLoadedRef.current) return;
+    if (!chatScrollReadyRef.current || followLatestRef.current) {
+      scrollToLatest("auto");
+      chatScrollReadyRef.current = true;
+    }
+  }, [selectedId, conversationOpening, messages.length, pending.length, messagesLoading, scrollToLatest]);
+  useEffect(() => {
+    if(conversationOpening)return;
+    const box=scrollRef.current;
+    const content=messagesContentRef.current;
+    if(!box || !content || !selectedId || typeof ResizeObserver==="undefined") return;
+    const observer=new ResizeObserver(() => {
+      if(chatScrollReadyRef.current && followLatestRef.current && !messagesLoading) scrollToLatest("auto");
+    });
+    observer.observe(content);
+    observer.observe(box);
+    return ()=>observer.disconnect();
+  }, [selectedId,conversationOpening,messagesLoading,scrollToLatest]);
   const openParticipants = async () => {
     if(!selected||!activeOrganizationId)return;
     setParticipantsOpen(true);setParticipantUserId("");setParticipantsBusy(true);
@@ -1341,7 +1344,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     submitGateRef.current = true;
     queueMicrotask(() => { submitGateRef.current = false; });
     const text = draft.trim();
-    const optimisticText=text && operatorFirstName ? `*${operatorFirstName}*\n${text}` : text;
+    const optimisticText=text && operatorFirstName ? `*${operatorFirstName}*\n\n${text}` : text;
     const file = attachment;
     const preview = mediaPreview;
     const fileType = file ? file.type==="image/webp" ? "sticker" : file.type.startsWith("image/") ? "image" :
@@ -1607,7 +1610,14 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                   setMessagesErrorId(null);setParticipantsErrorId(null);
                   if(selectedId){void refreshMessages(selectedId);setParticipantsRevision(value=>value+1);}
                 }}>Tentar novamente</AdminButton>}
-            </> : <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">Selecione uma conversa</p>}
+            </> : <>
+              <p className="text-base font-semibold tracking-tight text-foreground sm:text-lg">Selecione uma conversa</p>
+              <div aria-hidden="true" className="mt-4 flex gap-2">
+                {[0,1,2].map(index => <span key={index}
+                  className="h-2.5 w-2.5 animate-bounce rounded-full bg-primary motion-reduce:animate-none"
+                  style={{ animationDelay: `${index * 160}ms` }}/>)}
+              </div>
+            </>}
           </div> : <>
             <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 md:min-h-16 md:flex-nowrap md:gap-3 md:px-4 md:py-0">
               <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);}} aria-label="Voltar para conversas"
