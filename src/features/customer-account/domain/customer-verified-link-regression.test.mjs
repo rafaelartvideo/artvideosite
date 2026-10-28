@@ -36,7 +36,9 @@ test("historico exige WhatsApp atual verificado, CPF, primeiro nome e vinculo un
   assert.match(migration, /artvideo_verified_portal_customer_v1/);
   assert.match(migration, /a\.whatsapp_verified_at is not null/);
   assert.match(migration, /artvideo_first_name_key_v1\(a\.full_name\)/);
-  assert.match(migration, /duplicate\.cpf=a\.cpf/);
+  const latestGuard = read("supabase/migrations/20261028200000_artvideo_customer_avoid_duplicate_dos.sql");
+  assert.match(latestGuard, /duplicate\.entity_id=a\.entity_id/);
+  assert.doesNotMatch(latestGuard, /duplicate\.cpf=a\.cpf/);
   assert.doesNotMatch(migration, /crm_access_activated_at is not null/);
   assert.match(edge, /portalAssetContext\(request,order\.id\)/);
 });
