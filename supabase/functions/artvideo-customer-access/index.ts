@@ -396,6 +396,25 @@ Deno.serve(async request=>{
       await admin.from("artvideo_customer_access_invites")
         .update({status:"activated",activated_by:userId,activated_at:new Date().toISOString()})
         .eq("id",invite?.id).eq("status","pending");
+      // Copia o endereco principal do CRM apenas se a conta ainda nao tem enderecos.
+      // Nunca substitui enderecos que o cliente ja personalizou na loja.
+      const {data:existingAddresses}=await admin.from("artvideo_customer_addresses")
+        .select("id").eq("user_id",userId).eq("organization_id",org).limit(1);
+      if(!existingAddresses?.length){
+        const {data:crmAddress}=await admin.from("customer_addresses")
+          .select("zip_code,street,number,complement,neighborhood,city,state")
+          .eq("customer_id",customerId).eq("organization_id",org)
+          .order("is_default",{ascending:false}).limit(1);
+        const a=crmAddress?.[0];
+        const zip=cpfDigits(a?.zip_code);
+        if(a&&zip.length===8&&a.street&&a.number&&a.neighborhood&&a.city&&/^[A-Za-z]{2}$/.test(String(a.state||""))){
+          await admin.from("artvideo_customer_addresses").insert({
+            organization_id:org,user_id:userId,label:"Principal",
+            postal_code:zip,street:a.street,number:a.number,complement:a.complement||null,
+            district:a.neighborhood,city:a.city,state:String(a.state).toUpperCase(),is_default:true,
+          });
+        }
+      }
       const {data:customerAddress}=await admin.from("customer_addresses")
         .select("street,number,neighborhood,city,state,zip_code,complement")
         .eq("customer_id",customerId).eq("organization_id",org)
