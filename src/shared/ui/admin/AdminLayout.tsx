@@ -405,7 +405,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   const stableOnClose = React.useCallback(() => onCloseRef.current(), []);
   const requestClose = React.useCallback(() => {
     if (closingRef.current) return;
-    if (!smoothMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (!smoothMotion || (typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
       closingRef.current = true;
       stableOnClose();
       return;
@@ -431,7 +431,13 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
       return;
     }
     setPage?.({ breadcrumb, title, subtitle, titleVariant, onBack: requestClose });
-    const handleKeyDown = (event: KeyboardEvent) => event.key === "Escape" && requestClose();
+    // Não fechar a página por trás quando Escape é usado para fechar um modal
+    // (incluindo os diálogos minimizáveis) ou quando outro componente já tratou a tecla.
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented || event.repeat) return;
+      if (document.querySelector('[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]')) return;
+      requestClose();
+    };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
