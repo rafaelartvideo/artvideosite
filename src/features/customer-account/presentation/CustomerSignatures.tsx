@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FileSignature, LoaderCircle } from "lucide-react";
+import { Download, FileSignature, LoaderCircle } from "lucide-react";
 import { Link } from "react-router";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { useCustomerSignatures } from "../application/useCustomerSignatures";
@@ -52,12 +52,12 @@ export function CustomerSignatures({userId}:{userId:string}) {
     return state === "signed";
   });
 
-  async function openItem(item: CustomerSignatureRequest) {
+  async function openItem(item: CustomerSignatureRequest, download=false) {
     const win=window.open("about:blank","_blank"); if(win)win.opener=null;
-    setBusy(item.id);setError("");
+    setBusy(download?"download:"+item.id:item.id);setError("");
     try {
       const result=item.customer_status==="signed"
-        ? await customerAccessRequest("signed_document",{document_id:item.id})
+        ? await customerAccessRequest("signed_document",{document_id:item.id,download})
         : await customerAccessRequest("customer_signature_link",{signature_id:item.id});
       if(win)win.location.replace(result.url);else window.location.assign(result.url);
     } catch (cause) {
@@ -71,11 +71,18 @@ export function CustomerSignatures({userId}:{userId:string}) {
     const state=stateFor(item);
     const canSign=state==="pending"||state==="expiring";
     const canView=state==="signed"&&item.downloadable;
-    if (canSign||canView) return <button type="button" disabled={busy===item.id}
-      onClick={()=>void openItem(item)}
-      className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-[var(--art-primary)] px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-60">
-      {busy===item.id?<LoaderCircle size={16} className="animate-spin" aria-label="Abrindo..."/>:canSign?"Assinar":"Ver assinatura"}
-    </button>;
+    if (canSign||canView) return <div className="flex flex-wrap justify-end gap-2">
+      <button type="button" disabled={busy!==null}
+        onClick={()=>void openItem(item)}
+        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-[var(--art-primary)] px-3 text-xs font-semibold text-white transition-colors hover:bg-blue-800 disabled:opacity-60">
+        {busy===item.id?<LoaderCircle size={16} className="animate-spin" aria-label="Abrindo..."/>:canSign?"Assinar":"Ver assinatura"}
+      </button>
+      {canView&&<button type="button" title="Baixar documento assinado" aria-label="Baixar documento assinado"
+        disabled={busy!==null} onClick={()=>void openItem(item,true)}
+        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 px-3 text-xs font-semibold text-[var(--art-primary)] hover:bg-blue-50 disabled:opacity-60">
+        {busy==="download:"+item.id?<LoaderCircle size={16} className="animate-spin"/>:<Download size={16}/>} Baixar
+      </button>}
+    </div>;
     if(state==="expired")return <Link to="/contato"
       className="inline-flex min-h-9 items-center text-xs font-semibold text-[var(--art-primary)] hover:underline">Solicitar novo convite</Link>;
     return <span className="text-xs text-[#91a2b5]">—</span>;
