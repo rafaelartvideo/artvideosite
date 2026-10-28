@@ -14,6 +14,7 @@ import { CustomerFavorites } from "./CustomerFavorites";
 import { CustomerProfile } from "./CustomerProfile";
 import { CustomerAccountLoading } from "./CustomerAccountLoading";
 import { CustomerCpfLoginPanel, type CustomerLoginMethod } from "./CustomerCpfLoginPanel";
+import { CustomerWhatsAppVerification } from "./CustomerWhatsAppVerification";
 import { customerAccessRequest } from "@/lib/customer-access";
 import { validateRegistration, validateRegistrationField, type RegistrationField, type RegistrationErrors } from "../domain/customer-registration-validation";
 import { CustomerCrmHistory } from "./CustomerCrmHistory";
@@ -501,6 +502,10 @@ export function CustomerAccountPage() {
         <button type="button" onClick={() => setRefreshIndex(index => index + 1)} className={"mt-4 " + primaryClass}>Tentar novamente</button>
       </div> :
       <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+        {!portal.crm_access && ["matched", "created", "approved"].includes(portal.match_status || "") &&
+          <div className="lg:col-span-2">
+            <CustomerWhatsAppVerification onVerified={() => setRefreshIndex(index => index + 1)} />
+          </div>}
         <aside aria-label="Navegação da minha conta" className="flex w-full flex-col self-start overflow-hidden rounded-none border border-[#e2e8f1] bg-white">
           {([
             ["overview", "Visão geral", UserRound],
