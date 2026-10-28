@@ -18,13 +18,17 @@ test("formata e valida fixos e celulares brasileiros sem adicionar dígitos", as
   assert.equal(isValidBrazilianMobile("7933334444"), false);
 });
 
-test("campos compartilhados permitem copiar telefone fixo para WhatsApp sem remascarar", () => {
+test("campos compartilhados permitem copiar números brasileiros nos dois sentidos sem remascarar", () => {
   const controls = read("src/shared/ui/admin/AdminFormControls.tsx");
-  assert.match(controls, /const canCopy = isValidBrazilianPhone\(phone\)/);
-  assert.match(controls, /onCopyPhone\(formatPhone\(phone\)\)/);
+  assert.match(controls, /const canCopy = isValidBrazilianPhone\(normalized\)/);
+  assert.match(controls, /copy\(formatPhone\(normalized\)\)/);
+  assert.match(controls, /copyFromPhone/);
+  assert.match(controls, /copyFromWhatsapp/);
+  assert.match(controls, /onCopyPhone/);
+  assert.match(controls, /onCopyWhatsapp/);
   assert.match(controls, /alreadyCopied/);
-  assert.match(controls, /first:rounded-l|rounded-l-\[7px\]/);
-  assert.match(controls, /rounded-r-\[7px\]/);
+  assert.match(controls, /rightAction=\{action\}/);
+  assert.match(controls, /rightAction && "pr-12"/);
 });
 
 test("validações de cadastro e modal aceitam telefone fixo válido como WhatsApp", () => {
