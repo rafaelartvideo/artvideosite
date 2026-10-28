@@ -193,7 +193,7 @@ Deno.serve(async request=>{
       if(!actor)return response(request,fail("Sem permissão para administrar convites.",403),403);
       const customerId=String(body.customer_id||"");
       if(!uuid(customerId))return response(request,fail("Cliente inválido."),400);
-      const {data:customer}=await admin.from("customers").select("id,organization_id,full_name,document,whatsapp")
+      const {data:customer}=await admin.from("customers").select("id,organization_id,full_name,document,whatsapp,customer_type")
         .eq("id",customerId).eq("organization_id",org).maybeSingle();
       if(!customer)return response(request,fail("Cliente não encontrado.",404),404);
       if(action==="staff_status"){
