@@ -48,3 +48,32 @@ test("gestão apresenta domínios, campanhas, tarefas e lixeira integrados",()=>
   assert.match(tools,/restoreManagementFolder/);
   assert.match(tools,/daysTo/);
 });
+
+test("menus da Central usam portal com colisão para não serem cortados no rodapé",()=>{
+  const page=read("src/features/management/presentation/ManagementPage.tsx");
+  const primitive=read("src/shared/ui/primitives/dropdown-menu.tsx");
+  assert.match(page,/DropdownMenuTrigger asChild/);
+  assert.match(page,/DropdownMenuContent align="end" sideOffset=\{5\} collisionPadding=\{10\}/);
+  assert.match(primitive,/<DropdownMenuPrimitive\.Portal>/);
+  assert.doesNotMatch(page,/absolute right-0 top-full z-30/);
+  assert.match(page,/Opções do registro/);
+});
+
+test("contagem contextual aparece ao lado do breadcrumb, sem segundo cabeçalho",()=>{
+  const page=read("src/features/management/presentation/ManagementPage.tsx");
+  assert.match(page,/data-testid="management-breadcrumb-count"/);
+  assert.match(page,/\{folderCount\} pastas · \{recordCount\} registros/);
+  assert.match(page,/folderCount=folders\.filter\(f=>f\.parent_id===visibleFolderId && !f\.deleted_at\)\.length/);
+  assert.match(page,/recordCount=records\.filter\(r=>r\.folder_id===visibleFolderId && !r\.deleted_at\)\.length/);
+  assert.doesNotMatch(page,/selectedFolder\?\.name\|\|selectedSpace\.name/);
+});
+
+test("fundos e listas da Central são quadrados sem afetar os componentes globais",()=>{
+  const page=read("src/features/management/presentation/ManagementPage.tsx");
+  const workspace=read("src/features/management/presentation/ManagementWorkspaceTools.tsx");
+  assert.match(page,/<AdminCard square>/);
+  assert.match(page,/min-h-36 flex-col justify-between border border-border/);
+  assert.match(page,/relative flex min-w-0 items-center gap-3 border border-border bg-card/);
+  assert.match(workspace,/className="border border-border bg-card p-4"/);
+  assert.match(workspace,/className=\{\`border px-3 py-2 text-xs font-semibold/);
+});
