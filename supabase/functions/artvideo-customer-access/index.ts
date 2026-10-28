@@ -217,6 +217,10 @@ Deno.serve(async request=>{
         return response(request,{success:true});
       }
       if(customer.customer_type&&customer.customer_type!=="PF")return response(request,fail("Ativação disponível para pessoa física.",400),400);
+      const {data:customerEntity}=await admin.from("entities").select("id,is_active")
+        .eq("id",customerId).eq("organization_id",org).maybeSingle();
+      if(!customerEntity?.is_active)return response(request,fail("Regularize o vínculo do cadastro antes de enviar o convite.",409),409);
+
       if(cpfDigits(customer.document).length!==11||!customer.whatsapp)
         return response(request,fail("Cadastre CPF e WhatsApp antes do convite.",400),400);
       if(body.identity_confirmed!==true)return response(request,fail("Confirme a identidade do cliente antes de enviar o convite.",400),400);
@@ -225,6 +229,8 @@ Deno.serve(async request=>{
       await limit("invite:"+customerId,actor,10,86400);
       const channel=await activeChannel(org),jid=await verifiedJid(channel,phone);
       const token=randomString(),url="https://eletronicaartvideo.com.br/minha-conta/ativar?convite="+token;
+      await admin.from("artvideo_customer_access_invites").update({status:"revoked",revoked_at:new Date().toISOString()})
+        .eq("organization_id",org).eq("customer_id",customerId).eq("status","pending");
       const {error}=await admin.from("artvideo_customer_access_invites").insert({
         organization_id:org,customer_id:customerId,created_by:actor,
         phone_e164:phone,token_digest:await sha256(token),expires_at:new Date(Date.now()+86400000).toISOString(),
