@@ -65,7 +65,9 @@ const AuthContext = createContext<AuthContextValue>({
   signOut: async () => {},
 });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
+export type AuthScope = "crm" | "customer";
+
+export function AuthProvider({ children, scope = "crm" }: { children: ReactNode; scope?: AuthScope }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [employee, setEmployee] = useState<any | null>(null);
@@ -88,6 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     supabase.auth.getSession().then(async ({ data }) => {
       if (cancelled) return;
+      // Contas do site não possuem permissões de funcionários nem SLA de inatividade do CRM.
+      if (scope === "customer") {
+        setSession(data.session ?? null);
+        setLoadingProgress(100);
+        setLoading(false);
+        return;
+      }
       setLoadingProgress(20);
       if (data.session?.user) {
         const userId = data.session.user.id;
@@ -111,6 +120,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (event === "INITIAL_SESSION") return;
+
+      // A sessão do cliente é gerenciada pelo Supabase Auth, sem iniciar o fluxo Union.
+      if (scope === "customer") {
+        setSession(newSession);
+        setLoadingProgress(100);
+        setLoading(false);
+        return;
+      }
 
       if (event === "TOKEN_REFRESHED") {
         setSession(newSession);
@@ -152,6 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     const handlePermissionChange = () => {
+      if (scope !== "crm") return;
       const userId = signedInUserRef.current;
       if (!userId) return;
       accessLoadingKeyRef.current = null;
@@ -169,13 +187,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       listener.subscription.unsubscribe();
       removePermissionListener();
     };
-  }, []);
+  }, [scope]);
 
   // Atualiza permissões alteradas em outra sessão sem reexecutar o bootstrap
   // completo, abrir canais Realtime adicionais ou desmontar o módulo ativo.
   useEffect(() => {
     const organizationId = activeOrganization?.organization_id;
-    if (!session?.user?.id || !organizationId) return;
+    if (scope !== "crm" || !session?.user?.id || !organizationId) return;
     // Conferir assim que a aba voltar a receber foco, sem polling contínuo.
     // A checagem anterior aguardava 120s e mantinha menus já revogados visíveis.
     let lastCheck = 0;
@@ -214,11 +232,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("focus", checkPermissionsOnReturn);
       document.removeEventListener("visibilitychange", checkPermissionsOnReturn);
     };
-  }, [session?.user?.id, activeOrganization?.organization_id]);
+  }, [scope, session?.user?.id, activeOrganization?.organization_id]);
 
   useEffect(() => {
     // Evita expirar técnicos antes da leitura do acesso da empresa ativa.
-    if (!session?.user || loading) return;
+    if (scope !== "crm" || !session?.user || loading) return;
 
     const inactivityExempt = Boolean(
       activeOrganization?.organization_id
@@ -315,7 +333,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       document.removeEventListener("visibilitychange", checkAfterVisibilityChange);
       window.removeEventListener("storage", handleStorage);
     };
-  }, [session?.user.id, loading, activeOrganization?.organization_id, employee?.is_active, employee?.disable_inactivity_logout]);
+  }, [scope, session?.user.id, loading, activeOrganization?.organization_id, employee?.is_active, employee?.disable_inactivity_logout]);
 
   function cancelScheduledAccessLoad() {
     if (deferredAccessTimerRef.current === null) return;
@@ -512,6 +530,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function signOut() {
+    if (scope === "customer") {
+      // Logout público não registra saída de funcionário nem redireciona ao CRM.
+      await supabase.auth.signOut({ scope: "local" });
+      return;
+    }
     const userId = signedInUserRef.current;
 
     cancelScheduledAccessLoad();
