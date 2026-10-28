@@ -28,7 +28,7 @@ export function LegacyTabCustomers({
   organizationIdOverride,
   accessMode = "default",
 }: LegacyTabCustomersProps) {
-  const { hasPermission, activeOrganizationId } = useAuth();
+  const { hasPermission, activeOrganizationId, activeOrganization } = useAuth();
   const sharedReadOnly = accessMode === "read";
   const organizationId = organizationIdOverride || activeOrganizationId;
 
@@ -38,7 +38,7 @@ export function LegacyTabCustomers({
   const canEdit = !sharedReadOnly && hasPermission("customers.edit");
   const canViewAddress = hasPermission("customers.addresses.view");
   const canEditAddress = !sharedReadOnly && hasPermission("customers.addresses.edit");
-  const canViewQuotes = !sharedReadOnly && hasPermission("quotes.view");
+  const canViewQuotes = activeOrganization?.is_artvideo_tenant === true && !sharedReadOnly && hasPermission("quotes.view");
   const canViewOrders = !sharedReadOnly && hasPermission("orders.view");
   const canOpenOrders = !sharedReadOnly && hasPermission("orders.details.view");
 
