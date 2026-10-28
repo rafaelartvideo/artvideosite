@@ -37,12 +37,13 @@ export function AdminSidebar({
   const { url: menuLogoUrl } = useMediaUrl(brandingQuery.data?.company_menu_logo_media_id ?? null);
 
   const canAccessTab = (tab: AdminTab) => {
+    if ((tab === "site" || tab === "quotes" || parentAdminTab(tab) === "site") && !isArtVideoOrganization) return false;
     if (tab === "home") return true;
     if ((tab === "siteDelivery" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "crm") return isPlatformOperatorOrganization;
-    if (tab === "siteRequests") return !isPlatformOperatorOrganization && (
+    if (tab === "siteRequests") return isArtVideoOrganization && hasPermission("site.view") && (
       (hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule)) ||
-      (isArtVideoOrganization && hasPermission("site.view") && hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
+      (hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
     );
     if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
