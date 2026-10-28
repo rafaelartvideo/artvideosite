@@ -47,6 +47,7 @@ export function AdminSidebar({
     if (parentAdminTab(tab) === "site" && !hasPermission("site.view")) return false;
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "announcements") return isPlatformOperatorOrganization && hasPermission("platform.announcements.view");
+    if (tab === "management") return isPlatformOperatorOrganization && (hasPermission("platform.management.view") || hasPermission("platform.management.manage"));
     if (tab === "settings" && isPlatformOperatorOrganization) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
     if (tab === "finance" && isPlatformOperatorOrganization) return hasPermission("platform.billing.view");
     if (isPlatformOperatorOrganization && ["quotes", "inventory", "pdv"].includes(tab)) return false;
@@ -104,7 +105,7 @@ export function AdminSidebar({
   );
   const administrationItems = visibleMainItems.filter(item =>
     isPlatformOperatorOrganization
-      ? ["partnerCompanies", "finance", "audit"].includes(item.id)
+      ? ["partnerCompanies", "finance", "audit", "management"].includes(item.id)
       : ["partnerCompanies", "audit"].includes(item.id),
   );
   const communicationItems = visibleMainItems.filter(item =>
