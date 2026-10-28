@@ -11,7 +11,7 @@ import {
   formatPhone,
   todayDateOnly,
 } from "@/shared/domain/formatters";
-import { CustomerTypeToggle, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { CustomerTypeToggle, FGenderRadio, FInput, FPhoneInput, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { type CustomerFieldErrors, type CustomerForm } from "@/features/customers/domain/customer-form";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 import { InfoRow } from "./OrderDetailsContent";
@@ -120,7 +120,8 @@ export function OrderCustomerSection({
                   <FInput label="Inscrição estadual" disabled={saving} value={customerDraft.state_registration} hint="Deixe em branco se não for contribuinte · ISENTO se isento" onChange={(e: any) => setCustomerDraft({ ...customerDraft, state_registration: e.target.value })} />
                   <FInput label="Fundação" disabled={saving} error={customerFieldErrors.foundation_date} value={customerDraft.foundation_date} placeholder="dd/mm/aaaa" maxLength={10} onChange={(e: any) => { clearCustomerFieldError("foundation_date"); setCustomerDraft({ ...customerDraft, foundation_date: formatFoundationDate(e.target.value) }); }} />
                 </>}
-                <FPhoneInput label="WhatsApp" mobile disabled={saving} error={customerFieldErrors.whatsapp} value={customerDraft.whatsapp} onChange={(e: any) => { clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, whatsapp: e.target.value }); }} />
+                {customerDraft.customerType === "PF" && <FGenderRadio value={customerDraft.gender} onChange={gender => setCustomerDraft(current => ({ ...current, gender }))} disabled={saving}/>}
+                <FPhoneInput label="WhatsApp" mobile copyFromPhone={customerDraft.phone} onCopyPhone={phone => { clearCustomerFieldError("whatsapp"); setCustomerDraft(current => ({...current, whatsapp: phone})); }} disabled={saving} error={customerFieldErrors.whatsapp} value={customerDraft.whatsapp} onChange={(e: any) => { clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, whatsapp: e.target.value }); }} />
                 <FPhoneInput label="Telefone" disabled={saving} error={customerFieldErrors.phone} value={customerDraft.phone} onChange={(e: any) => { clearCustomerFieldError("phone"); clearCustomerFieldError("whatsapp"); setCustomerDraft({ ...customerDraft, phone: e.target.value }); }} />
                 <div className="sm:col-span-2"><FInput label="E-mail" type="email" disabled={saving} error={customerFieldErrors.email} value={customerDraft.email} onChange={(e: any) => { clearCustomerFieldError("email"); setCustomerDraft({ ...customerDraft, email: e.target.value }); }} /></div>
               </div>
