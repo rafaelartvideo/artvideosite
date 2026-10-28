@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Download, FileText, Image as ImageIcon, LoaderCircle, ShieldCheck, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Check, Download, FileText, Image as ImageIcon, LoaderCircle, ShieldCheck, X } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import type { CustomerOrderDetails, CustomerServiceOrder } from "../infrastructure/customer-account.repository";
 import { customerAccessRequest } from "@/lib/customer-access";
@@ -9,27 +10,53 @@ const date = (value?: string | null) => value ? new Date(value).toLocaleDateStri
 type Props = { order: CustomerServiceOrder; onClose: () => void };
 type Action = string | null;
 
+const isFilled = (value: unknown) => value !== null && value !== undefined
+  && String(value).trim() !== "" && String(value).trim() !== "—";
+
 function Field({ title, children }: { title: string; children: React.ReactNode }) {
-  return <div className="min-w-0"><dt className="text-[11px] font-semibold uppercase tracking-wide text-[#7d90a5]">{title}</dt>
-    <dd className="mt-1 break-words text-[13px] font-medium text-[#223e5c]">{children || "—"}</dd></div>;
-}
-function OrderProgress({ order }: { order: CustomerOrderDetails["order"] }) {
-  const cancelled = Boolean(order.cancelled_at) || order.status_slug === "cancelada";
-  const closed = Boolean(order.completed_at) || order.status_slug === "fechada";
-  const stage = closed || cancelled ? 3 : order.started_at ? 2 : 1;
-  const steps = ["Aberta", "Em atendimento", cancelled ? "Cancelada" : "Finalizada"];
-  return <div className="grid grid-cols-3 gap-2" aria-label={"Situação atual: " + order.status}>
-    {steps.map((step, index) => {
-      const reached = index < stage;
-      return <div key={step} className="min-w-0">
-        <div className={"h-2 rounded-full " + (reached
-          ? cancelled && index===2 ? "bg-red-500" : "bg-[var(--art-primary)]"
-          : "bg-[#e7ecf3]")}/>
-        <p className={"mt-2 text-center text-[11px] font-semibold " +
-          (reached ? cancelled && index===2 ? "text-red-700" : "text-[#2447a0]" : "text-[#8c9bac]")}>{step}</p>
-      </div>;
-    })}
+  return <div className="min-w-0">
+    <dt className="text-[10px] font-semibold uppercase tracking-wide text-[#7d90a5] sm:text-[11px]">{title}</dt>
+    <dd className="mt-1 break-words text-[13px] font-medium text-[#223e5c]">{children}</dd>
   </div>;
+}
+function OrderProgress({ order, situations }: {
+  order: CustomerOrderDetails["order"];
+  situations: CustomerOrderDetails["situations"];
+}) {
+  if (!situations.length) {
+    return <p className="rounded-lg border border-dashed border-[#dce5f1] px-3 py-6 text-center text-xs text-[#72849b]">
+      Nenhuma situação vinculada a esta ordem de serviço.
+    </p>;
+  }
+  const ended = Boolean(order.completed_at || order.cancelled_at);
+  return <ol className="space-y-0" aria-label="Situações vinculadas à ordem de serviço">
+    {situations.map((situation,index) => {
+      const active = situation.current && !ended;
+      const visited = Boolean(situation.visited);
+      const completed = visited && !active;
+      const color = /^#[0-9a-f]{6}$/i.test(situation.color || "") ? situation.color! : "#1032DC";
+      return <li key={situation.id} className="relative flex min-w-0 gap-3 pb-3 last:pb-0">
+        {index < situations.length-1 && <span aria-hidden="true" className="absolute bottom-0 left-[15px] top-8 w-px bg-[#dce5f1]"/>}
+        <span aria-hidden="true" className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-[11px] font-bold ${active
+          ? "border-[#1032DC] bg-[#1032DC] text-white"
+          : completed ? "border-[#c9d9fb] bg-[#eef4ff] text-[#1032DC]"
+            : "border-[#dce5f1] bg-white text-[#8a9ab0]"}`}>
+          {completed ? <Check size={15} strokeWidth={2.5}/> : index+1}
+        </span>
+        <div className={`min-w-0 flex-1 rounded-lg border border-l-[3px] px-3 py-2.5 ${active
+          ? "border-[#c9d9fb] bg-[#f4f7ff]"
+          : "border-[#e5ebf3] bg-white"}`}
+          style={{borderLeftColor:active || completed ? color : "#e5ebf3"}}>
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <p className={`min-w-0 break-words text-[13px] font-semibold ${active ? "text-[#1032DC]" : "text-[#233d59]"}`}>{situation.name}</p>
+            <span className={`text-[10px] font-semibold ${active ? "text-[#1032DC]" : completed ? "text-[#527399]" : "text-[#8a9ab0]"}`}>
+              {active ? "Atual" : completed ? "Registrada" : "Não iniciada"}
+            </span>
+          </div>
+        </div>
+      </li>;
+    })}
+  </ol>;
 }
 
 function WarrantyCertificate({ item, detail, busy, onBusy, onError }: {
@@ -125,42 +152,54 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
     finally{setBusy(null);}
   }
   const data=detail?.order;
-  return <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#09172b]/60 p-2 sm:p-5"
+  const equipmentFields = data ? [
+    { title: "Equipamento", value: data.equipment_type },
+    { title: "Marca", value: data.brand },
+    { title: "Modelo", value: data.equipment_model || data.model },
+    { title: "Nº de série", value: data.serial_number },
+    { title: "Acessórios", value: data.accessories },
+    { title: "Relato", value: data.problem },
+  ].filter(field=>isFilled(field.value)) : [];
+  return createPortal(<div className="fixed inset-0 z-[1000] flex items-stretch justify-center bg-[#09172b]/60 sm:items-center sm:p-5"
     onMouseDown={e=>{if(e.target===e.currentTarget)onClose();}}>
     <section role="dialog" aria-modal="true" aria-label={"Detalhes da OS "+order.os_number}
-      className="flex max-h-[95vh] w-full max-w-[850px] flex-col overflow-hidden rounded-xl bg-[#f6f8fc] shadow-2xl">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#dce5f1] bg-white px-5 py-4">
+      className="flex h-[100dvh] min-h-0 w-full min-w-0 flex-col overflow-hidden bg-[#f6f8fc] shadow-2xl sm:h-auto sm:max-h-[90dvh] sm:max-w-[850px] sm:rounded-xl">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-[#dce5f1] bg-white px-4 py-3 pt-[max(12px,env(safe-area-inset-top))] sm:px-5 sm:py-4">
         <div><h2 className="text-lg font-bold text-[#193756]">OS {order.os_number}</h2>
           <p className="text-xs text-[#72849b]">Detalhes da sua ordem de serviço</p></div>
         <button type="button" onClick={onClose} aria-label="Fechar detalhes"
           className="rounded-lg border border-[#dce5f1] p-2 text-[#546b84] hover:bg-[#f3f6fa]"><X size={19}/></button>
       </header>
-      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4 sm:p-5">
-        {loading?<CustomerSectionLoading label="Carregando detalhes da OS..."/> :
+      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain p-3 pb-[max(20px,env(safe-area-inset-bottom))] sm:space-y-4 sm:p-5">
+        {loading?<CustomerSectionLoading label="Carregando detalhes da OS"/> :
           !data?<p className="py-10 text-center text-sm text-red-700">{error||"Não foi possível carregar esta OS."}</p> : <>
           {error&&<p role="alert" className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{error}</p>}
-          <section className="space-y-4 rounded-xl border border-[#dce5f1] bg-white p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-[#193756]">Acompanhamento</h3>
-              <span className="rounded-md bg-[#eef4ff] px-2.5 py-1 text-xs font-bold text-[#2447a0]">{data.status}</span>
+          <section className="space-y-3 rounded-xl border border-[#dce5f1] bg-white p-3.5 sm:p-4">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h3 className="text-sm font-bold text-[#193756]">Situações da OS</h3>
+                <p className="mt-1 text-[11px] text-[#72849b]">Acompanhamento das etapas vinculadas a esta OS</p>
+              </div>
+              <span className={`rounded-md border px-2 py-1 text-[11px] font-semibold ${data.cancelled_at
+                ? "border-red-200 bg-red-50 text-red-700"
+                : data.completed_at ? "border-blue-200 bg-blue-50 text-blue-700"
+                  : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                {data.status}
+              </span>
             </div>
-            <OrderProgress order={data}/>
-            <dl className="grid grid-cols-2 gap-3 border-t border-[#e6ebf3] pt-3 sm:grid-cols-3">
-              <Field title="Aberta em">{date(data.created_at)}</Field>
-              <Field title="Agendada para">{date(data.scheduled_at)}</Field>
-              <Field title="Encerramento">{date(data.completed_at||data.cancelled_at)}</Field>
+            <OrderProgress order={data} situations={detail.situations || []}/>
+            <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-[#e6ebf3] pt-3 sm:grid-cols-3">
+              {isFilled(data.created_at) && <Field title="Aberta em">{date(data.created_at)}</Field>}
+              {isFilled(data.scheduled_at) && <Field title="Agendada para">{date(data.scheduled_at)}</Field>}
+              {isFilled(data.completed_at || data.cancelled_at) &&
+                <Field title="Encerramento">{date(data.completed_at || data.cancelled_at)}</Field>}
             </dl>
           </section>
-          <section className="rounded-xl border border-[#dce5f1] bg-white p-4">
-            <h3 className="mb-4 text-sm font-bold text-[#193756]">Dados do equipamento</h3>
-            <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <Field title="Equipamento">{data.equipment_type}</Field>
-              <Field title="Marca">{data.brand}</Field>
-              <Field title="Modelo">{data.equipment_model||data.model}</Field>
-              <Field title="Nº de série">{data.serial_number}</Field>
-              <Field title="Acessórios">{data.accessories}</Field>
-              <Field title="Relato">{data.problem}</Field>
-            </dl>
+          <section className="rounded-xl border border-[#dce5f1] bg-white p-3.5 sm:p-4">
+            <h3 className="mb-3 text-sm font-bold text-[#193756]">Dados do equipamento</h3>
+            {equipmentFields.length ? <dl className="grid grid-cols-2 gap-x-3 gap-y-4 sm:grid-cols-3">
+              {equipmentFields.map(field=><Field key={field.title} title={field.title}>{field.value}</Field>)}
+            </dl> : <p className="py-6 text-center text-xs text-[#72849b]">Nenhum dado do equipamento informado.</p>}
           </section>
           <section className="rounded-xl border border-[#dce5f1] bg-white p-4">
             <h3 className="mb-3 text-sm font-bold text-[#193756]">Produtos e serviços associados</h3>
@@ -199,5 +238,5 @@ export function CustomerOrderDetailsModal({ order, onClose }: Props) {
         </>}
       </div>
     </section>
-  </div>;
+  </div>, document.body);
 }
