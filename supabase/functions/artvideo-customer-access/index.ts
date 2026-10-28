@@ -376,8 +376,13 @@ Deno.serve(async request=>{
       await admin.from("artvideo_customer_access_invites")
         .update({status:"activated",activated_by:userId,activated_at:new Date().toISOString()})
         .eq("id",invite?.id).eq("status","pending");
+      const {data:customerAddress}=await admin.from("customer_addresses")
+        .select("street,number,neighborhood,city,state,zip_code,complement")
+        .eq("customer_id",customerId).eq("organization_id",org)
+        .order("is_default",{ascending:false}).limit(1);
       const session=await sessionFor(userId);
-      return response(request,{success:true,...session,needs_password:created});
+      return response(request,{success:true,...session,needs_password:created,
+        profile:created?{full_name:customer.full_name,cpf,phone:maskedPhone(c.phone_e164),address:customerAddress?.[0]||null}:null});
     }
     if(action==="login_password"){
       const cpf=cpfDigits(body.cpf),password=String(body.password||"");
