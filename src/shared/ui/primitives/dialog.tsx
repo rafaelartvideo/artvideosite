@@ -199,7 +199,12 @@ function DialogContent({
         data-slot="dialog-content"
         data-admin-dialog-content={isAdminDialog ? "true" : undefined}
         className={cn(
-          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-4 fixed top-[50%] left-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 motion-reduce:animate-none",
+          "bg-background fixed top-[50%] left-[50%] z-50 grid translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 motion-reduce:animate-none",
+          // Dialogs do CRM não deslocam nem redimensionam o conteúdo durante a abertura.
+          // Manter só o fade evita zoom/tremor com formulários, teclado mobile e animação do Radix.
+          isAdminDialog
+            ? "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0"
+            : "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=open]:slide-in-from-bottom-4",
           dialogSizingClass(isAdminDialog),
           isAdminDialog && "z-[150]",
           className,

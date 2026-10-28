@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   dialogSizingClass,
   preventAdminDialogOutsideInteraction,
@@ -46,4 +47,15 @@ test("outside interaction is prevented instead of dismissing an admin dialog", (
   let prevented = false;
   preventAdminDialogOutsideInteraction({ preventDefault: () => { prevented = true; } });
   assert.equal(prevented, true);
+});
+
+test("CRM dialogs use fade only, avoiding the competing zoom/slide/size animations", () => {
+  const dialog = readFileSync("src/shared/ui/primitives/dialog.tsx", "utf8");
+  const layout = readFileSync("src/shared/ui/admin/AdminLayout.tsx", "utf8");
+  const editor = readFileSync("src/features/orders/presentation/OrderEditorPage.tsx", "utf8");
+
+  assert.match(dialog, /isAdminDialog\s*\? "data-\[state=open\]:animate-in data-\[state=closed\]:animate-out data-\[state=closed\]:fade-out-0 data-\[state=open\]:fade-in-0"/);
+  assert.match(dialog, /: "data-\[state=open\]:animate-in[^"\n]*zoom-in-95/);
+  assert.doesNotMatch(layout, /transition-\[max-width,height\]/);
+  assert.match(editor, /fullPage=\{Boolean\(editingOS\)\} smoothMotion=\{false\}/);
 });
