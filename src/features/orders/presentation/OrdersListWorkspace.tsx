@@ -56,7 +56,9 @@ export function OrdersListWorkspace(props: Props) {
   const { ibgeStates, ibgeStatesLoading } = serviceAddress;
   const sharedView = compactSharedView || isOrganizationOverride;
   const resolvedDisplayMode: "list" | "kanban" = sharedView ? "list" : displayMode;
-  const loading = workspace.loading || listLoading;
+  // A tabela depende apenas da consulta paginada. Os dados auxiliares (catálogos,
+  // situações, funcionários) carregam em paralelo e não bloqueiam as OS já prontas.
+  const loading = listLoading;
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
     : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
