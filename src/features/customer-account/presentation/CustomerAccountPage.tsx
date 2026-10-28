@@ -3,7 +3,7 @@ import { useReducedMotion } from "motion/react";
 import { Link } from "react-router";
 import {
   ArrowLeft, ArrowRight, CheckCircle2, ClipboardList, Eye, EyeOff, FileText,
-  Heart, IdCard, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, RefreshCw, ShieldCheck, UserRound,
+  Heart, IdCard, LoaderCircle, LockKeyhole, LogOut, Mail, MapPin, Package, Phone, ShieldCheck, UserRound,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -14,6 +14,8 @@ import { CustomerFavorites } from "./CustomerFavorites";
 import { CustomerProfile } from "./CustomerProfile";
 import { CustomerAccountLoading } from "./CustomerAccountLoading";
 import { CustomerCpfLoginPanel } from "./CustomerCpfLoginPanel";
+import { customerAccessRequest } from "@/lib/customer-access";
+import { validateRegistration, validateRegistrationField, type RegistrationField, type RegistrationErrors } from "../domain/customer-registration-validation";
 import { CustomerCrmHistory } from "./CustomerCrmHistory";
 import {
   activateCustomerAccount, getCustomerPortal,
@@ -114,10 +116,29 @@ export function CustomerAccountPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [registrationErrors, setRegistrationErrors] = useState<RegistrationErrors>({});
+  const [registrationChallenge, setRegistrationChallenge] = useState("");
+  const [registrationCode, setRegistrationCode] = useState("");
+  const [registrationCooldown, setRegistrationCooldown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [refreshIndex, setRefreshIndex] = useState(0);
   const userId = session?.user?.id;
+  const registrationValues = { name, cpf, phone, email, password, confirmPassword };
+  const registrationError = (field: RegistrationField) => registrationErrors[field];
+  function clearRegistrationError(field: RegistrationField) {
+    setRegistrationErrors(current => ({ ...current, [field]: undefined }));
+  }
+  function checkRegistrationField(field: RegistrationField) {
+    setRegistrationErrors(current => ({
+      ...current, [field]: validateRegistrationField(field,registrationValues),
+    }));
+  }
+  useEffect(() => {
+    if (registrationCooldown <= 0) return;
+    const timer = window.setInterval(() => setRegistrationCooldown(value => Math.max(0,value-1)),1000);
+    return () => window.clearInterval(timer);
+  }, [registrationCooldown > 0]);
   // O cliente do site não precisa aguardar o carregamento das permissões do CRM.
   const waitingForSession = authLoading && !userId;
 
@@ -168,32 +189,57 @@ export function CustomerAccountPage() {
     event.preventDefault();
     if (busy) return;
     setError("");
-    if (mode === "register") {
-      if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
-      if (name.trim().length < 3) return setError("Informe seu nome completo.");
-      if (!/^\d{10,11}$/.test(phone.replace(/\D/g, ""))) return setError("Informe um WhatsApp com DDD válido.");
-      if (password.length < 8) return setError("A senha deve ter no mínimo 8 caracteres.");
-      if (password !== confirmPassword) return setError("As senhas não coincidem.");
-    }
+    const errors=validateRegistration(registrationValues);
+    setRegistrationErrors(errors);
+    if(Object.values(errors).some(Boolean))return;
     setBusy(true);
     try {
-      if (mode === "register") {
-        const { error: signupError } = await supabase.auth.signUp({
-          email: email.trim().toLowerCase(),
+      if (registrationChallenge) {
+        if(!/^\d{6}$/.test(registrationCode)) {
+          setError("Digite os seis dígitos do código enviado pelo WhatsApp.");
+          return;
+        }
+        const result=await customerAccessRequest("registration_verify",{
+          challenge_id:registrationChallenge, code:registrationCode,cpf,name,phone,password,
+        });
+        const {error:verificationError}=await supabase.auth.verifyOtp({
+          token_hash:result.token_hash,type:"magiclink",
+        });
+        if(verificationError)throw verificationError;
+        setPassword("");setConfirmPassword("");setRegistrationCode("");setRegistrationChallenge("");
+      } else if(!email.trim()) {
+        const result=await customerAccessRequest("registration_send",{phone});
+        setRegistrationChallenge(result.challenge_id);
+        setRegistrationCode("");
+        setRegistrationCooldown(60);
+      } else {
+        const {error:signupError}=await supabase.auth.signUp({
+          email:email.trim().toLowerCase(),
           password,
-          options: {
-            emailRedirectTo: window.location.origin + "/minha-conta",
-            data: { registration_origin: "artvideo_customer", full_name: name.trim(), phone: phone.replace(/\D/g, ""), cpf: cpf.replace(/\D/g, "") },
+          options:{
+            emailRedirectTo:window.location.origin+"/minha-conta",
+            data:{registration_origin:"artvideo_customer",full_name:name.trim(),phone:phone.replace(/\D/g,""),cpf:cpf.replace(/\D/g,"")},
           },
         });
-        if (signupError) throw signupError;
-        setPassword("");
-        setConfirmPassword("");
+        if(signupError)throw signupError;
+        setPassword("");setConfirmPassword("");
         setMode("email_sent");
       }
-    } catch (failure) {
-      
+    } catch(failure) {
       setError(failure instanceof Error ? failure.message : "Não foi possível concluir sua solicitação.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendRegistrationCode() {
+    if(busy || registrationCooldown>0 || !registrationChallenge)return;
+    setBusy(true);setError("");
+    try {
+      await customerAccessRequest("resend",{challenge_id:registrationChallenge});
+      setRegistrationCode("");setRegistrationCooldown(60);
+    } catch(failure) {
+      setError(failure instanceof Error ? failure.message : "Não foi possível reenviar o código.");
     } finally {
       setBusy(false);
     }
