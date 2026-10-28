@@ -405,7 +405,8 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
   const stableOnClose = React.useCallback(() => onCloseRef.current(), []);
   const requestClose = React.useCallback(() => {
     if (closingRef.current) return;
-    if (!smoothMotion) {
+    if (!smoothMotion || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      closingRef.current = true;
       stableOnClose();
       return;
     }
@@ -414,7 +415,7 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
     closeTimerRef.current = window.setTimeout(() => {
       closeTimerRef.current = null;
       stableOnClose();
-    }, 200);
+    }, 150);
   }, [smoothMotion, stableOnClose]);
 
   // Sincronize cabeçalho/rota antes do próximo paint: evita um frame com o
@@ -475,30 +476,15 @@ export function AdminPage({ open, onClose, title, subtitle, titleVariant = "defa
     className={cn(
       "admin-page-mobile-safe absolute inset-0 z-[35] bg-background text-foreground motion-reduce:animate-none",
       isClosing
-        ? "pointer-events-none animate-out fade-out slide-out-to-right-4 duration-200 ease-in"
+        ? "pointer-events-none animate-out fade-out duration-150 ease-out"
         : smoothMotion
-          ? "animate-in fade-in slide-in-from-right-4 duration-300 ease-out"
+          ? "animate-in fade-in duration-150 ease-out"
           : "motion-reduce:animate-none",
     )}
     role="main"
     aria-label={title}
     style={{ "--admin-browser-bottom-inset": `${browserBottomInset}px` } as React.CSSProperties}
   >
-    <style>{`@media (max-width: 767px) {
-      .admin-page-mobile-safe .sticky.bottom-0 {
-        position: fixed !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: var(--admin-browser-bottom-inset, 0px) !important;
-        z-index: 70 !important;
-        padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;
-        box-shadow: 0 -10px 30px rgba(13, 27, 46, 0.10);
-        backdrop-filter: blur(10px);
-      }
-      .admin-page-mobile-safe:has(.sticky.bottom-0) > div {
-        padding-bottom: calc(6rem + env(safe-area-inset-bottom, 0px)) !important;
-      }
-    }`}</style>
     {!fullPage && <button type="button" onClick={requestClose} aria-label="Fechar" className="absolute right-4 top-4 z-10 cursor-default rounded-lg border border-border bg-card p-2 text-muted-foreground hover:bg-muted hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2"><X size={16} /></button>}
     <div className={cn("mx-auto w-full min-w-0 p-4 sm:p-6 lg:p-8", resolvedMaxW)}>{children}</div>
   </div></AdminPageCloseContext.Provider>;
