@@ -9,7 +9,7 @@ import { WhatsAppRolePermissions } from "./WhatsAppRolePermissions";
 import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingDots, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { WhatsAppContactAvatar, WhatsAppFormattedText, formatWhatsAppPhone, waitingMinutes, waitingLabel, waitingClasses } from "./WhatsAppInboxVisuals";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -1633,13 +1633,19 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             {selectedId ? <>
               {conversationOpeningError
                 ? <p className="text-sm text-muted-foreground">Não foi possível preparar a conversa.</p>
-                : <LoadingState text="Preparando conversa..."/>}
+                : <div className="flex flex-col items-center gap-3 text-center" aria-live="polite" aria-busy="true">
+                    <p className="text-sm font-semibold text-muted-foreground">Preparando conversa...</p>
+                    <LoadingDots />
+                  </div>}
               {conversationOpeningError && <AdminButton size="sm" variant="secondary"
                 onClick={()=>{
                   setMessagesErrorId(null);setParticipantsErrorId(null);
                   if(selectedId){void refreshMessages(selectedId);setParticipantsRevision(value=>value+1);}
                 }}>Tentar novamente</AdminButton>}
-            </> : <LoadingState text="Selecione uma conversa"/>}
+            </> : <div className="flex flex-col items-center gap-3 text-center" aria-live="polite">
+              <p className="text-sm font-semibold text-muted-foreground">Selecione uma conversa</p>
+              <LoadingDots />
+            </div>}
           </div> : <>
             <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 md:min-h-16 md:flex-nowrap md:gap-3 md:px-4 md:py-0">
               <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);}} aria-label="Voltar para conversas"
