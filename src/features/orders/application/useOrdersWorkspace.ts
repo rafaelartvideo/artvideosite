@@ -83,7 +83,16 @@ export function useOrdersWorkspace({
     staleTime: REFERENCE_DATA_CACHE_TIME,
     gcTime: REFERENCE_DATA_CACHE_TIME,
     retry: false,
-    queryFn: () => fetchOrdersWorkspace(organizationId!),
+    queryFn: async () => {
+      const started = Date.now();
+      try {
+        return await fetchOrdersWorkspace(organizationId!);
+      } finally {
+        const elapsed = Date.now() - started;
+        // Observabilidade sem IDs ou dados de clientes: diferencia rede/RPC de renderização.
+        if (elapsed >= 3000) console.warn("[PERF][OS] Referências lentas", { duration_ms: elapsed });
+      }
+    },
   });
   const workspace = workspaceQuery.data ?? EMPTY_WORKSPACE;
 
