@@ -347,7 +347,7 @@ export function CustomerAccountPage() {
                     <input className={authInputClass} type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com"/>
                   </span>
                 </label>
-                {<label className={authLabelClass}>
+                <label className={authLabelClass}>
                   <span className="flex items-center justify-between gap-2">
                     <span>Senha</span>
                     
@@ -357,7 +357,7 @@ export function CustomerAccountPage() {
                     <input className={authInputClass + " pr-11"} type={showPassword ? "text" : "password"} value={password} onChange={event => setPassword(event.target.value)} autoComplete={mode === "register" ? "new-password" : "current-password"} required minLength={mode === "register" ? 8 : 1} placeholder={mode === "register" ? "Pelo menos 8 caracteres" : "Sua senha"}/>
                     <button type="button" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"} className="absolute inset-y-0 right-2 flex items-center px-2 text-[#778da6] hover:text-[var(--art-primary)]">{showPassword ? <EyeOff size={17}/> : <Eye size={17}/>}</button>
                   </span>
-                </label>}
+                </label>
                 {mode === "register" && <label className={authLabelClass}>Confirmar senha
                   <span className="relative mt-1.5 block">
                     <LockKeyhole size={17} className={authIconClass}/>
@@ -372,12 +372,12 @@ export function CustomerAccountPage() {
                 </button>
               </form>}
               {mode === "register" && <p className="mt-3 text-center text-[11.5px] leading-5 text-[#8999aa]">Enviaremos um e-mail para confirmar sua conta.</p>}
-              {<div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
+              <div className="mt-5 border-t border-[#edf0f4] pt-4 text-center text-[12px] text-[#73849a]">
                 {mode === "register" ? "Já tem uma conta?" : "Ainda não tem uma conta?"}{" "}
                 <button type="button" onClick={() => { setMode(mode === "register" ? "login" : "register"); setError(""); }} className="font-semibold text-[var(--art-primary)] hover:underline">
                   {mode === "register" ? "Entrar" : "Criar conta"}
                 </button>
-              </div>}
+              </div>
             </>}
           </div>
       </AccountEntryShell> :
