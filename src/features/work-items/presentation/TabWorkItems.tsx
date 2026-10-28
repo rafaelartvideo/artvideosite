@@ -13,7 +13,7 @@ import { AdminCard, AdminButton, BtnPrimary, PageHeader } from "@/shared/ui/admi
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
-import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { EmptyState, LoadingState, PageLoadingState, notifyAdmin, useAdminInitialLoading } from "@/shared/ui/admin/AdminFeedback";
 import {
   loadWorkEmployees, loadWorkItems, updateWorkStatus,
   type WorkEmployee, type WorkItem, type WorkKind, type WorkPriority, type WorkStatus,
@@ -236,6 +236,7 @@ export function TabWorkItems() {
     queryFn: () => loadWorkEmployees(organizationId),
     staleTime: 5 * 60_000,
   });
+  const initialLoading = useAdminInitialLoading(Boolean(organizationId && (itemQuery.isPending || employeeQuery.isPending)), organizationId);
   useEffect(() => {
     if (itemQuery.error) notifyAdmin(itemQuery.error instanceof Error ? itemQuery.error.message : "Erro ao carregar atividades.", "error");
   }, [itemQuery.error]);
@@ -329,6 +330,7 @@ export function TabWorkItems() {
     }).slice(0, 6);
   const completionRatio = overview.total ? Math.round(overview.completed / overview.total * 100) : 0;
 
+  if (initialLoading) return <PageLoadingState text="Carregando tarefas e compromissos" />;
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Compromissos e Tarefas" subtitle="Organize o trabalho, acompanhe promessas e cumpra prazos."
       actions={canCreate ? <BtnPrimary onClick={() => newTask()}>Novo</BtnPrimary> : undefined} />

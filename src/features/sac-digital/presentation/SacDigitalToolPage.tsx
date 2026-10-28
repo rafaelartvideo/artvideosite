@@ -30,7 +30,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, PageLoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { listCustomerEquipments, listCustomers } from "@/features/customers/infrastructure/customers.repository";
 import { QuickCustomerModal } from "@/features/orders/presentation/QuickCustomerModal";
 import { SacDigitalNewConversationDialog } from "./SacDigitalNewConversationDialog";
@@ -1959,7 +1959,7 @@ export function SacDigitalToolPage({
     return () => window.cancelAnimationFrame(frame);
   }, [selectedProtocolId, canComposeSelected, moduleSection]);
 
-  if (!activeOrganizationId || loading) return <LoadingState text="Carregando SAC Digital..." />;
+  if (!activeOrganizationId || loading) return <PageLoadingState text="Carregando SAC Digital" />;
 
   return <div className="min-w-0 space-y-3">
     <SacDigitalNewConversationDialog
