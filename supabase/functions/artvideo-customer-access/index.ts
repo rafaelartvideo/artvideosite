@@ -315,6 +315,26 @@ Deno.serve(async request=>{
         if(!valid||valid.phone_e164!==c.phone_e164)return response(request,fail("Convite expirado.",410),410);
         invite=valid;
       }
+      // CPF/nome do cadastro publico nao comprovam posse da conta antiga.
+      // Se um terceiro tiver registrado o CPF da vitima, a OTP sozinha nao
+      // pode liberar os dados do CRM para a senha que o terceiro conhece.
+      if(c.purpose==="activation" && invite){
+        const {data:identity}=await admin.from("customers").select("document")
+          .eq("id",invite.customer_id).eq("organization_id",org).maybeSingle();
+        const cpfFromCrm=cpfDigits(identity?.document);
+        if(cpfFromCrm.length!==11)throw Error("cpf_invalid");
+        const {data:existingAccounts}=await admin.from("artvideo_customer_accounts")
+          .select("user_id,whatsapp_verified_at,whatsapp_verified_number,entity_id")
+          .eq("organization_id",org).eq("cpf",cpfFromCrm).limit(3);
+        if((existingAccounts||[]).length>1)throw Error("account_ambiguous");
+        const prior=existingAccounts?.[0];
+        if(prior && (!prior.whatsapp_verified_at || prior.whatsapp_verified_number!==c.phone_e164)){
+          const {data:viewer}=await scoped(request).auth.getUser();
+          if(viewer.user?.id!==prior.user_id){
+            return response(request,fail("Já existe uma conta para este CPF. Entre nela com e-mail e senha e abra este convite novamente.",403),403);
+          }
+        }
+      }
       const {data:consumed}=await admin.from("artvideo_customer_access_challenges")
         .update({status:"consumed",consumed_at:new Date().toISOString()})
         .eq("id",c.id).eq("status","pending").eq("code_digest",c.code_digest)
