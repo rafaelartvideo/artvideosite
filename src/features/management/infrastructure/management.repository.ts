@@ -99,13 +99,22 @@ export async function uploadManagementFiles(spaceId: string, folderId: string, f
     const path = `${spaceId}/${folderId}/${crypto.randomUUID()}.${extension}`;
     const uploaded = await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type || "application/octet-stream"});
     if(uploaded.error) throw uploaded.error;
-    const {error} = await supabase.from("management_records").insert({
+    const {data,error} = await supabase.from("management_records").insert({
       space_id:spaceId,folder_id:folderId,title:file.name,kind:"file",
       description:"",storage_path:path,mime_type:file.type || null,size_bytes:file.size,
-    });
+    }).select("id").single();
     if(error) {
       await supabase.storage.from(BUCKET).remove([path]);
       throw error;
+    }
+    // Todo arquivo nasce com versão 1; versões futuras nunca sobrescrevem o original.
+    const {error:versionError} = await supabase.rpc("management_register_file_version",{
+      p_record:data.id,p_path:path,p_mime:file.type || "application/octet-stream",p_size:file.size,
+    });
+    if(versionError) {
+      await supabase.from("management_records").delete().eq("id",data.id);
+      await supabase.storage.from(BUCKET).remove([path]);
+      throw versionError;
     }
   }
 }
