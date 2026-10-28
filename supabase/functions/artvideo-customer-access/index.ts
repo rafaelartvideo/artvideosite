@@ -175,11 +175,9 @@ async function linkedAccount(org:string,cpf:string){
   if(error||data?.length!==1)return null;
   const a=data[0];
   if(!a.whatsapp_verified_at||!a.whatsapp_verified_number)return null;
-  if(a.entity_id){
-    const {data:customer}=await admin.from("customers").select("id,document,whatsapp")
-      .eq("id",a.entity_id).eq("organization_id",org).maybeSingle();
-    if(!customer||cpfDigits(customer.document)!==cpf || normalizePhone(customer.whatsapp)!==a.whatsapp_verified_number)return null;
-  }
+  // Code-based sign-in follows the verified number on the site account.
+  // The CRM may hold an older number; history permissions are checked by SQL.
+  if(normalizePhone(a.phone)!==a.whatsapp_verified_number)return null;
   return a;
 }
 // CPF + senha deve funcionar para TODAS as contas do site, inclusive as criadas por e-mail.
@@ -548,12 +546,10 @@ Deno.serve(async request=>{
           .eq("user_id",c.account_user_id).eq("organization_id",org).maybeSingle();
         if(!account?.whatsapp_verified_at||account.whatsapp_verified_number!==c.phone_e164)
           return response(request,fail("Acesso indisponível.",403),403);
-        if(account.entity_id){
-          const {data:currentCustomer}=await admin.from("customers").select("whatsapp")
-            .eq("organization_id",org).eq("id",account.entity_id).maybeSingle();
-          if(normalizePhone(currentCustomer?.whatsapp)!==c.phone_e164)
-            return response(request,fail("Atualize a verificação do WhatsApp no cadastro.",403),403);
-        }
+        const {data:current}=await admin.from("artvideo_customer_accounts")
+          .select("phone").eq("organization_id",org).eq("user_id",c.account_user_id).maybeSingle();
+        if(normalizePhone(current?.phone)!==c.phone_e164)
+          return response(request,fail("Atualize a verificação do WhatsApp na sua conta.",403),403);
         const session=await sessionFor(c.account_user_id);
         return response(request,{success:true,...session,needs_password:false});
       }
@@ -684,16 +680,11 @@ Deno.serve(async request=>{
       const documentId=String(body.document_id||"");
       if(!uuid(documentId))return response(request,fail("Documento inválido."),400);
       const {data:account}=await admin.from("artvideo_customer_accounts")
-        .select("entity_id,crm_access_activated_at,whatsapp_verified_at")
+        .select("entity_id")
         .eq("user_id",user.user.id).eq("organization_id",org).maybeSingle();
-      if(!account?.crm_access_activated_at||!account?.whatsapp_verified_at||!account.entity_id)
-        return response(request,fail("Acesso negado.",403),403);
-      const {data:owner}=await admin.from("customers").select("whatsapp")
-        .eq("organization_id",org).eq("id",account.entity_id).maybeSingle();
-      const {data:verifiedAccount}=await admin.from("artvideo_customer_accounts")
-        .select("whatsapp_verified_number").eq("organization_id",org).eq("user_id",user.user.id).maybeSingle();
-      if(normalizePhone(owner?.whatsapp)!==verifiedAccount?.whatsapp_verified_number)
-        return response(request,fail("Confirme novamente seu WhatsApp.",403),403);
+      if(!account?.entity_id)return response(request,fail("Acesso negado.",403),403);
+      // portalAssetContext verifies CPF, first name, current WhatsApp OTP,
+      // single customer linkage and ownership of the requested OS in SQL.
       const {data:document}=await admin.from("document_signature_requests")
         .select("id,service_order_id,final_pdf_storage_path,signed_at,cancelled_at")
         .eq("id",documentId).eq("organization_id",org).maybeSingle();
