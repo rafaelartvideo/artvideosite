@@ -25,6 +25,7 @@ create table public.management_spaces (
  name text not null check (char_length(btrim(name)) between 1 and 100),
  description text not null default '',
  icon_text text not null default '' check (char_length(icon_text) <= 6),
+ logo_path text,
  accent_color text not null default '#1032DC' check (accent_color ~ '^#[0-9A-Fa-f]{6}$'),
  is_archived boolean not null default false,
  created_by uuid references public.profiles(id) on delete set null default auth.uid(),
