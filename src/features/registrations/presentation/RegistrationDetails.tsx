@@ -152,7 +152,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           </>}
         </div></Section>
 
-        <Section title="Endereços">
+        <Section title="Endereços" emptyMessage={!activeAddresses.length ? "Não há endereço cadastrado." : undefined}>
           {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
             const mapUrl = getAddressMapUrl({ zip_code: address.zip_code || "", street: address.street || "", number: address.number || "", complement: address.complement || "", neighborhood: address.neighborhood || "", city: address.city || "", state: address.state || "", shared_map_url: address.location_url || "" });
             return <div key={address.id} className="py-4 first:pt-0 last:pb-0">
@@ -180,7 +180,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
               </div>}
 
             </div>;
-          })}</div> : <p className="text-sm text-[#5a6a82]">Não há endereço cadastrado.</p>}
+          })}</div> : null}
         </Section>
 
         {roles.includes("customer") && <>
