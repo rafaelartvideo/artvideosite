@@ -27,7 +27,9 @@ revoke all on public.management_file_versions from anon;
 grant select,insert on public.management_file_versions to authenticated;
 create policy management_versions_read on public.management_file_versions for select to authenticated
  using ((select private.has_platform_permission('platform.management.view')) or (select private.has_platform_permission('platform.management.manage')));
--- Versões só são acrescentadas pela RPC register_management_file_version.
+create policy management_versions_write on public.management_file_versions for insert to authenticated
+ with check ((select private.has_platform_permission('platform.management.manage')));
+-- Versões só são acrescentadas pela RPC register_management_file_version no aplicativo.
 insert into public.management_file_versions(record_id,version_no,storage_path,mime_type,size_bytes,created_by,created_at)
 select id,1,storage_path,mime_type,coalesce(size_bytes,0),created_by,created_at
 from public.management_records where kind='file' and storage_path is not null
