@@ -652,10 +652,12 @@ Deno.serve(async request=>{
       if(!(Array.isArray(details.photos)?details.photos:[]).some((x:{id:string})=>x.id===mediaId))
         return response(request,fail("Imagem indisponível.",403),403);
       const {data:media,error:lookupError}=await admin.from("media")
-        .select("bucket_id,storage_path,mime_type").eq("id",mediaId).eq("organization_id",org).maybeSingle();
-      if(lookupError||!media?.storage_path||!media.mime_type?.startsWith("image/"))
+        .select("bucket_id,storage_path,mime_type,file_name").eq("id",mediaId).eq("organization_id",org).maybeSingle();
+      if(lookupError||!media?.storage_path||media.bucket_id!=="service-images"||!media.mime_type?.startsWith("image/"))
         return response(request,fail("Imagem indisponível.",404),404);
-      const {data:url,error:urlError}=await admin.storage.from(media.bucket_id).createSignedUrl(media.storage_path,120);
+      const imageName=String(media.file_name||"foto-equipamento.jpg").replace(/[\\/\r\n]/g,"_").slice(0,120);
+      const imageOptions=body.download===true?{download:imageName}:undefined;
+      const {data:url,error:urlError}=await admin.storage.from(media.bucket_id).createSignedUrl(media.storage_path,120,imageOptions);
       if(urlError||!url?.signedUrl)return response(request,fail("Imagem indisponível.",404),404);
       return response(request,{success:true,url:url.signedUrl,expires_in_seconds:120});
     }
@@ -719,27 +721,23 @@ Deno.serve(async request=>{
       if(error||!user.user)return response(request,fail("Entre na sua conta.",401),401);
       const documentId=String(body.document_id||"");
       if(!uuid(documentId))return response(request,fail("Documento inválido."),400);
-      const {data:account}=await admin.from("artvideo_customer_accounts")
-        .select("entity_id")
-        .eq("user_id",user.user.id).eq("organization_id",org).maybeSingle();
-      if(!account?.entity_id)return response(request,fail("Acesso negado.",403),403);
-      // portalAssetContext verifies CPF, first name, current WhatsApp OTP,
-      // single customer linkage and ownership of the requested OS in SQL.
       const {data:document}=await admin.from("document_signature_requests")
-        .select("id,service_order_id,final_pdf_storage_path,signed_at,cancelled_at")
+        .select("id,service_order_id,final_pdf_storage_path,signed_at,cancelled_at,require_external_signature")
         .eq("id",documentId).eq("organization_id",org).maybeSingle();
-      if(!document?.signed_at||!document.final_pdf_storage_path||document.cancelled_at)
+      if(!document?.signed_at||!document.final_pdf_storage_path||document.cancelled_at||!document.require_external_signature)
         return response(request,fail("Documento não disponível.",404),404);
-      const {data:order}=await admin.from("service_orders").select("id")
-        .eq("id",document.service_order_id).eq("organization_id",org)
-        .eq("customer_id",account.entity_id).maybeSingle();
-      if(!order)return response(request,fail("Documento não disponível.",404),404);
-      const details=await portalAssetContext(request,order.id);
-      if(!Array.isArray(details.documents) || !details.documents.some((entry:{id:string})=>entry.id===documentId))
+      // A RPC de detalhes já valida CPF/identidade, vínculo verificado com o
+      // cliente da OS e empresa. NÃO exigir artvideo_customer_accounts.entity_id:
+      // contas verificadas por CPF podem não ter essa referência preenchida.
+      const details=await portalAssetContext(request,document.service_order_id);
+      if(!Array.isArray(details.documents) || !details.documents.some(
+        (entry:{id:string;type:string})=>entry.id===documentId&&entry.type==="signature"))
         return response(request,fail("Documento não disponível.",403),403);
       const path=String(document.final_pdf_storage_path).replace(/^signed-documents\//,"");
-      const {data:sign,error:signError}=await admin.storage.from("signed-documents").createSignedUrl(path,120);
-      if(signError||!sign?.signedUrl)throw Error("document_unavailable");
+      const downloadName="documento-assinado-"+String(details.order.os_number||"OS").replace(/[^a-z0-9_-]/gi,"_").slice(0,40)+".pdf";
+      const options=body.download===true?{download:downloadName}:undefined;
+      const {data:sign,error:signError}=await admin.storage.from("signed-documents").createSignedUrl(path,120,options);
+      if(signError||!sign?.signedUrl)return response(request,fail("Documento indisponível no armazenamento.",404),404);
       return response(request,{success:true,url:sign.signedUrl,expires_in_seconds:120});
     }
     return response(request,fail("Operação inválida.",400),400);
