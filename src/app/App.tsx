@@ -228,8 +228,13 @@ function AuthenticatedSacAutoPresence() {
 }
 
 export default function App() {
+  const { pathname } = useLocation();
+  const scope = APP_TARGET === "site" || (APP_TARGET === "combined" && !pathname.startsWith("/admin"))
+    ? "customer"
+    : "crm";
+
   return (
-    <AuthProvider>
+    <AuthProvider key={scope} scope={scope}>
       <ScrollToTop />
       <AuthenticatedAdminRealtimeSync />
       {APP_TARGET !== "site" && <AuthenticatedSacAutoPresence />}
