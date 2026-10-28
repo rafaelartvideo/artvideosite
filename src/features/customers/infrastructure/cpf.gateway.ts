@@ -4,6 +4,7 @@ import { cpfAlreadyRegisteredMessage, normalizeCpfLookupPayload } from "../domai
 export type CpfLookupResult = {
   name: string;
   birthDate: string | null;
+  gender: "M" | "F" | "I" | null;
   source: "local" | "external";
   registrationId: string | null;
 };
