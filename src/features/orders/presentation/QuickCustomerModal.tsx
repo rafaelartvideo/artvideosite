@@ -10,6 +10,7 @@ import {
   validateCustomerFormFields,
 } from "@/features/customers/domain/customer-form";
 import { AdminButton, AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminFieldLabel } from "@/shared/ui/admin/AdminFormControls";
 import {
   CustomerTypeToggle,
   FBrazilianDateInput,
@@ -320,8 +321,9 @@ export function QuickCustomerModal({ onClose, onSaved, initialValues, descriptio
 
               {form.customerType === "PF" ? <>
                 <div className="min-w-0">
-                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-                    <FCpfInput label="CPF" required error={fieldErrors.document} value={form.document} onChange={(e: any) => { clearFieldError("document"); setForm({ ...form, document: e.target.value }); }} />
+                  <AdminFieldLabel label="CPF" required />
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2">
+                    <FCpfInput error={fieldErrors.document} value={form.document} onChange={(e: any) => { clearFieldError("document"); setForm({ ...form, document: e.target.value }); }} />
                     {canLookupCpf && <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfName()} disabled={saving || !isValidCpf(form.document)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5" aria-label="Consultar CPF" title="Consultar CPF">Consultar</AdminButton>}
                   </div>
                 </div>
