@@ -505,7 +505,13 @@ export function OrderDetailsPage(props: Props) {
     finally { setEmailingTemplateId(null); }
   };
 
-  const closePage = () => { setSolutionRecordsOpen(false); closeDetail(); if (onClose) onClose(); };
+  const closePage = () => {
+    setSolutionRecordsOpen(false);
+    // A rota controla o encerramento; não limpe a OS antes da navegação,
+    // pois isso monta um carregamento intermediário durante o fechamento.
+    if (onClose) onClose();
+    else closeDetail();
+  };
 
   if (routedSubpageDenied && detail) {
     return <AdminPage open onClose={onCloseSubpage} breadcrumb={`Ordens de Serviço > ${detail.os_number || "OS"}`} title="Acesso restrito" subtitle="Você não possui permissão para acessar esta seção da OS." maxW="max-w-2xl"><div className="p-5"><BtnSecondary onClick={onCloseSubpage}>Voltar para a OS</BtnSecondary></div></AdminPage>;
