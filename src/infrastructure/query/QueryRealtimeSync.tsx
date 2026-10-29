@@ -486,8 +486,8 @@ export function QueryRealtimeSync() {
       );
     }
 
-    // AppQueryProvider já limpa uma vez o cache na troca de empresa.
-    // Repetir o clear aqui gerava desmontagem/GETs duplicados.
+    // O AppQueryProvider alterna clientes de cache isolados por empresa.
+    // Não limpar nem refazer consultas do cliente anterior neste sincronizador.
     channel.subscribe();
 
     return () => {
