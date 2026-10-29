@@ -267,9 +267,7 @@ export function AdminHeader({
 
   const parentBreadcrumb = page ? normalizeBreadcrumb(page.breadcrumb, page.title) : "";
   const brandingQuery = useCompanySettingsQuery(activeOrganizationId);
-  const companyLogoMediaId = brandingQuery.data?.company_menu_logo_media_id
-    || brandingQuery.data?.company_logo_media_id
-    || null;
+  const companyLogoMediaId = brandingQuery.data?.company_menu_logo_media_id || null;
   const { url: companyLogoUrl } = useMediaUrl(companyLogoMediaId);
   const userFirstName = firstName(userName);
   const userInitial = userFirstName.slice(0, 1).toUpperCase();
