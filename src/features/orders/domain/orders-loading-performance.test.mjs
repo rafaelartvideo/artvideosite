@@ -85,3 +85,24 @@ test("referências da OS não fazem retry encadeado de até 42 segundos em timeo
   const workspace = read("src/features/orders/application/useOrdersWorkspace.ts");
   assert.match(workspace, /retry: false/);
 });
+
+test("Produtos e Serviços não reinicia RPCs de técnicos a cada atualização do badge", () => {
+  const source = read("src/features/orders/presentation/OrderProductsServicesSection.tsx");
+  const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  assert.match(details, /onOverviewChange=\{overview =>/);
+  assert.match(source, /const overviewCallbackRef = useRef\(onOverviewChange\)/);
+  assert.match(source, /const publishOverview = useCallback\(/);
+  assert.match(source, /overviewCallbackRef\.current\?\.\(/);
+  assert.match(source, /\}, \[order\?\.id, editable, refreshTaskPhotos, publishOverview\]\)/);
+  assert.doesNotMatch(source, /\[order\?\.id, editable, refreshTaskPhotos, onOverviewChange\]/);
+  assert.match(source, /\}, \[loadItems, order\?\.id\]\)/);
+});
+
+test("Realtime conectado não dispara polling contínuo nem tempestade de assinaturas Storage", () => {
+  const source = read("src/features/orders/presentation/OrderProductsServicesSection.tsx");
+  assert.match(source, /if \(!subscribed && Date\.now\(\) - lastRefreshAt > 120_000\)/);
+  assert.match(source, /\}, 120_000\)/);
+  assert.doesNotMatch(source, /\}, 15000\)/);
+  assert.match(source, /photoRetryAfterRef\.current\[path\] = Date\.now\(\) \+ 120_000/);
+  assert.match(source, /Promise\.allSettled\(missing\.map/);
+});
