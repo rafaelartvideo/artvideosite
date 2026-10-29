@@ -212,8 +212,10 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     staleTime: 30_000,
   });
   const registrationsTotal = registrationsCountQuery.data?.total ?? totalItems;
+  // Não substituir uma página já exibida por spinner durante o refresh.
+  // O placeholder paginado permanece na tela até a próxima página chegar.
   const loading = Boolean(activeOrganizationId && canView && !routeResourceId)
-    && (registrationsQuery.isPending || registrationsQuery.isPlaceholderData);
+    && registrationsQuery.isPending && !registrationsQuery.data;
 
   const routeRegistrationId = routeResourceId && routeResourceId !== "new" && routeSubpage !== "customer"
     ? routeResourceId
