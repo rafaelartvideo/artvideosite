@@ -133,6 +133,7 @@ export function AdminDashboard({
   const contentRef = useRef<HTMLDivElement>(null);
   // Guarda a posição da lista de OS enquanto uma OS ocupa a mesma rota.
   const ordersListScrollRef = useRef<number | null>(null);
+  const customersListScrollRef = useRef<number | null>(null);
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const activeOrganizationName = activeOrganization?.organization_name || null;
@@ -219,6 +220,9 @@ export function AdminDashboard({
     if (activeTab === "orders" && tab === "orders" && !route.resourceId && resourceId) {
       ordersListScrollRef.current = contentRef.current?.scrollTop ?? 0;
     }
+    if (activeTab === "customers" && tab === "customers" && !route.resourceId && resourceId) {
+      customersListScrollRef.current = contentRef.current?.scrollTop ?? 0;
+    }
     const nextCrmMode = options?.crmMode ?? crmMode;
     const basePath = adminPath(tab, resourceId, subpage);
     const targetPath = nextCrmMode && tab !== "crm" ? `${basePath}?mode=crm` : basePath;
@@ -246,9 +250,13 @@ export function AdminDashboard({
     if (activeTab === "orders" && !route.resourceId && ordersListScrollRef.current !== null) {
       root.scrollTop = ordersListScrollRef.current;
       ordersListScrollRef.current = null;
-    } else if (activeTab !== "orders") {
-      ordersListScrollRef.current = null;
+    } else if (activeTab === "customers" && !route.resourceId && customersListScrollRef.current !== null) {
+      // O fechamento do cadastro não deve reposicionar a lista no topo.
+      root.scrollTop = customersListScrollRef.current;
+      customersListScrollRef.current = null;
     }
+    if (activeTab !== "orders") ordersListScrollRef.current = null;
+    if (activeTab !== "customers") customersListScrollRef.current = null;
   }, [activeOrganizationId, activeTab, route.resourceId]);
 
   useEffect(() => { if (canAccessTab(activeTab) || !fallbackTab || fallbackTab === activeTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, fallbackTab, hasPermission, hasModule]);
