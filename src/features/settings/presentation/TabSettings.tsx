@@ -2,11 +2,11 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { useCompanySettingsQuery, useSaveCompanySettingsMutation } from "./useCompanySettingsQuery";
-import { AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminSegmentedControl, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FPhoneInput } from "@/shared/ui/admin/AdminFormControls";
 import { LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { ImageUpload } from "@/shared/ui/admin/AdminMedia";
-import { formatCnpj, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidEmail } from "@/shared/domain/formatters";
+import { formatCnpj, formatCpf, formatPhone, isValidBrazilianPhone, isValidCnpj, isValidCpf, isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { formatZipCode } from "@/lib/address";
 import { CompanySegmentsSettings } from "@/features/segments/presentation/CompanySegments";
 
@@ -50,6 +50,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
   const query = useCompanySettingsQuery(activeOrganizationId);
   const saveSettings = useSaveCompanySettingsMutation();
   const [form, setForm] = useState<CompanyForm>(EMPTY_COMPANY);
+  const [documentType, setDocumentType] = useState<"CPF" | "CNPJ">("CNPJ");
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof CompanyForm, string>>>({});
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const busy = saveSettings.isPending;
@@ -61,9 +62,11 @@ export function TabSettings({ onBack, identityOnly = false }: {
   useEffect(() => {
     if (!query.data) return;
     const loaded = Object.fromEntries(COMPANY_KEYS.map((key) => [key, settingText(query.data?.[key])])) as CompanyForm;
+    const detectedDocumentType = normalizeDigits(loaded.company_cnpj).length === 11 ? "CPF" : "CNPJ";
+    setDocumentType(detectedDocumentType);
     setForm({
       ...loaded,
-      company_cnpj: formatCnpj(loaded.company_cnpj),
+      company_cnpj: detectedDocumentType === "CPF" ? formatCpf(loaded.company_cnpj) : formatCnpj(loaded.company_cnpj),
       company_phone: formatPhone(loaded.company_phone),
       company_zip_code: formatZipCode(loaded.company_zip_code),
       company_state: loaded.company_state.toUpperCase().slice(0, 2),
@@ -84,11 +87,20 @@ export function TabSettings({ onBack, identityOnly = false }: {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const changeDocumentType = (nextType: "CPF" | "CNPJ") => {
+    if (!canEditOfficialData || busy || nextType === documentType) return;
+    setDocumentType(nextType);
+    setFieldErrors(current => ({ ...current, company_cnpj: undefined }));
+    setForm(current => ({ ...current, company_cnpj: "" }));
+  };
+
   const save = async () => {
     if (!canUpdate || busy || !activeOrganizationId) return;
     const nextErrors: Partial<Record<keyof CompanyForm, string>> = {};
     if (!identityOnly && !form.company_name.trim()) nextErrors.company_name = "Informe o nome da empresa.";
-    if (!identityOnly && form.company_cnpj && !isValidCnpj(form.company_cnpj)) nextErrors.company_cnpj = "CNPJ inválido. Verifique os números informados.";
+    if (!identityOnly && form.company_cnpj && (documentType === "CPF" ? !isValidCpf(form.company_cnpj) : !isValidCnpj(form.company_cnpj))) {
+      nextErrors.company_cnpj = `${documentType} inválido. Verifique os números informados.`;
+    }
     if (!identityOnly && form.company_phone && !isValidBrazilianPhone(form.company_phone)) nextErrors.company_phone = "Telefone inválido. Informe DDD e número válidos.";
     if (!identityOnly && form.company_email && !isValidEmail(form.company_email)) nextErrors.company_email = "E-mail inválido. Verifique o endereço informado.";
     if (!identityOnly && form.company_zip_code && form.company_zip_code.replace(/\D/g, "").length !== 8) nextErrors.company_zip_code = "CEP inválido. Informe os 8 dígitos.";
@@ -132,7 +144,16 @@ export function TabSettings({ onBack, identityOnly = false }: {
         {!identityOnly && <>
         {isPartnerOrganization && <div className="rounded-xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-sm leading-6 text-[#35506f]">Estas informações são administradas pelo administrador da empresa.</div>}
         <Section title="Identificação"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="min-w-0 w-full"><FInput label="CNPJ" inputMode="numeric" maxLength={18} error={fieldErrors.company_cnpj} value={form.company_cnpj} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_cnpj", formatCnpj(event.target.value))} placeholder="00.000.000/0000-00" /></div>
+          <div className="min-w-0 w-full space-y-2">
+            <label className="block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de documento</label>
+            <AdminSegmentedControl value={documentType} disabled={!canEditOfficialData || busy}
+              options={[{ value: "CPF", label: "CPF" }, { value: "CNPJ", label: "CNPJ" }]}
+              onChange={changeDocumentType} className="grid-cols-2" />
+            <FInput label={documentType} inputMode="numeric" maxLength={documentType === "CPF" ? 14 : 18}
+              error={fieldErrors.company_cnpj} value={form.company_cnpj} disabled={!canEditOfficialData || busy}
+              onChange={(event: any) => update("company_cnpj", documentType === "CPF" ? formatCpf(event.target.value) : formatCnpj(event.target.value))}
+              placeholder={documentType === "CPF" ? "000.000.000-00" : "00.000.000/0000-00"} />
+          </div>
           <div className="min-w-0 w-full"><FInput label="Nome da empresa / Nome fantasia" error={fieldErrors.company_name} value={form.company_name} required disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_name", event.target.value)} /></div>
           <div className="min-w-0 w-full"><FInput label="Razão social" value={form.company_legal_name} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_legal_name", event.target.value)} /></div>
           {isPartnerOrganization && <div className="min-w-0 w-full"><FInput label="Inscrição estadual" value={form.company_state_registration} disabled /></div>}
@@ -150,9 +171,9 @@ export function TabSettings({ onBack, identityOnly = false }: {
           <div className="min-w-0 w-full md:col-span-2"><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div>
         </div></Section>
         </>}
-        <Section title="Identidade visual"><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
-          <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
-          <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} canUpload={canEditBranding && !busy} label="Logo do menu" />
+        <Section title="Identidade visual"><p className="mb-3 text-xs text-muted-foreground">As logos são opcionais. Para deixar os documentos ou o menu sem logo, remova a imagem e clique em Salvar.</p><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
+          <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} onRemove={() => update("company_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
+          <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_menu_logo_media_id} onUpload={(mediaId) => update("company_menu_logo_media_id", mediaId)} onRemove={() => update("company_menu_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo do menu" />
         </div></Section>
       </div>
       {!identityOnly && activeOrganization?.is_owner && !activeOrganization.is_platform_operator && activeOrganizationId && <CompanySegmentsSettings organizationId={activeOrganizationId} />}
