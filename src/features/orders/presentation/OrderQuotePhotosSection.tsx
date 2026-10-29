@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Camera, ImagePlus, Trash2, X } from "lucide-react";
 import { AdminDialog, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -10,6 +10,16 @@ import {
 } from "../infrastructure/order-quote-photos.repository";
 
 const MAX_PHOTOS = 20;
+
+function PendingPhotoPreview({ file }: { file: File }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return url ? <img src={url} alt={file.name} className="h-32 w-full object-contain"/> : <div className="h-32 bg-muted"/>;
+}
 
 export function OrderQuotePhotosSection({
   organizationId, orderId, canUpload, canRemove,
@@ -29,8 +39,6 @@ export function OrderQuotePhotosSection({
   const [viewing, setViewing] = useState<OrderQuotePhoto | null>(null);
   const [removeTarget, setRemoveTarget] = useState<OrderQuotePhoto | null>(null);
 
-  const previews = useMemo(() => selected.map(file => ({ file, url: URL.createObjectURL(file) })), [selected]);
-  useEffect(() => () => previews.forEach(item => URL.revokeObjectURL(item.url)), [previews]);
   useEffect(() => {
     setSelected([]);
     setViewing(null);
@@ -116,10 +124,10 @@ export function OrderQuotePhotosSection({
         {selected.length > 0 && <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
           <p className="text-xs font-semibold">Prévia antes de enviar ({selected.length})</p>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {previews.map((preview, index) => <div key={preview.url} className="relative min-w-0 overflow-hidden rounded-lg border border-border bg-card">
-              <img src={preview.url} alt={preview.file.name} className="h-32 w-full object-contain"/>
-              <p className="truncate px-2 py-1.5 text-[11px] text-muted-foreground" title={preview.file.name}>{preview.file.name}</p>
-              <button type="button" disabled={uploading} aria-label={`Retirar ${preview.file.name} da seleção`}
+            {selected.map((file, index) => <div key={file.name + "-" + file.lastModified + "-" + index} className="relative min-w-0 overflow-hidden rounded-lg border border-border bg-card">
+              <PendingPhotoPreview file={file}/>
+              <p className="truncate px-2 py-1.5 text-[11px] text-muted-foreground" title={file.name}>{file.name}</p>
+              <button type="button" disabled={uploading} aria-label={`Retirar ${file.name} da seleção`}
                 onClick={() => setSelected(files => files.filter((_, i) => i !== index))}
                 className="absolute right-1 top-1 rounded-md bg-background/90 p-1.5 text-foreground shadow-sm hover:text-destructive disabled:opacity-50">
                 <X size={13}/>
