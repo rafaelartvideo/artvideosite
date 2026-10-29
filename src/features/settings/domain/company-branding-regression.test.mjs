@@ -34,6 +34,8 @@ test("impressão usa CPF ou CNPJ, sem forçar logo ou subtítulo padrão", () =>
   assert.match(printer, /template\.show_logo \? companyLogo : ""/);
   assert.match(company, /subtitle: settings\.company_legal_name \|\| ""/);
   assert.doesNotMatch(company, /subtitle: settings\.company_legal_name \|\| "Assistência Técnica"/);
+  const warranty = source("src/features/orders/application/order-warranty.ts");
+  assert.doesNotMatch(warranty, /<span class="brand-symbol">A<\/span>/);
 });
 
 test("remover logo do menu não reaproveita automaticamente logo dos documentos", () => {
