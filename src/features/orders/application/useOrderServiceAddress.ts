@@ -50,7 +50,8 @@ export function useOrderServiceAddress({
   const [serviceCustomerAddressOverride, setServiceCustomerAddressOverride] = useState(false);
   const [serviceAddressMessage, setServiceAddressMessage] = useState("");
   const [ibgeStates, setIbgeStates] = useState<IbgeState[]>(() => cachedIbgeStates);
-  const [ibgeStatesLoading, setIbgeStatesLoading] = useState(false);
+  // Estados locais já disponíveis: o filtro nunca entra em loading.
+  const ibgeStatesLoading = false;
   const [ibgeCities, setIbgeCities] = useState<IbgeCity[]>([]);
   const [ibgeCitiesLoading, setIbgeCitiesLoading] = useState(false);
   const citiesCacheRef = useRef<Record<string, IbgeCity[]>>({});
