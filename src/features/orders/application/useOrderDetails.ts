@@ -40,7 +40,14 @@ export function useOrderDetails({
     enabled: selectedOrderBelongsToOrganization,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const workspace = await getServiceOrderWorkspace(organizationId!, selectedOrder.id);
+      const started = Date.now();
+      let workspace: Awaited<ReturnType<typeof getServiceOrderWorkspace>>;
+      try {
+        workspace = await getServiceOrderWorkspace(organizationId!, selectedOrder.id);
+      } finally {
+        const elapsed = Date.now() - started;
+        if (elapsed >= 3000) console.warn("[PERF][OS] Detalhes da OS lentos", { duration_ms: elapsed });
+      }
       const mediaLinks = workspace.media || [];
       const orderImages = mediaLinks
         .filter((item: any) => Number(item.sort_order ?? 0) < 1000)
