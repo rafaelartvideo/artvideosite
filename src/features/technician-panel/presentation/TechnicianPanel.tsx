@@ -326,6 +326,7 @@ export function TechnicianPanel() {
       const list = await queryClient.fetchQuery({
         queryKey: key,
         staleTime: 90_000,
+        retry: false,
         queryFn: () => loadMyTechnicianTasks(activeOrganizationId),
       });
       setItems(list);
@@ -468,6 +469,7 @@ export function TechnicianPanel() {
         const result = await queryClient.fetchQuery({
           queryKey: key,
           staleTime: 120_000,
+          retry: false,
           queryFn: async () => {
             const data = await getMyTechnicianOrderDetails(routeOrderId);
             const signed = await Promise.allSettled((data.equipment_photos || []).map(async media => ({
