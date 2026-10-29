@@ -68,9 +68,14 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   const orderId=String(order?.id||"");
   const quoteKey = ["orders", "quote", org, orderId] as const;
   const commentsKey = ["orders", "quote-comments", org, orderId] as const;
-  const [proposal,setProposal]=useState<OrderQuoteProposal|null>(null);
-  const [draft,setDraft]=useState<OrderQuoteDraft>(emptyOrderQuoteDraft);
-  const [comments,setComments]=useState<any[]>([]);
+  const [proposal,setProposal]=useState<OrderQuoteProposal|null>(() =>
+    queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey) || null);
+  const [draft,setDraft]=useState<OrderQuoteDraft>(() => {
+    const cached = queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey);
+    return cached ? snapshot(cached) : emptyOrderQuoteDraft();
+  });
+  const [comments,setComments]=useState<any[]>(() =>
+    queryClient.getQueryData<any[]>(commentsKey) || []);
   const [comment,setComment]=useState("");
   const [reason,setReason]=useState("");
   const [loading,setLoading]=useState(() =>
