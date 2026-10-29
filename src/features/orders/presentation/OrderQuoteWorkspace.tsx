@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "motion/react";
 import { createPortal } from "react-dom";
 import { AlertCircle, CheckCircle2, History, RotateCcw, Send, XCircle } from "lucide-react";
@@ -62,14 +63,18 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
 }) {
   const {user}=useAuth();
+  const queryClient = useQueryClient();
   const org=String(order?.organization_id||"");
   const orderId=String(order?.id||"");
+  const quoteKey = ["orders", "quote", org, orderId] as const;
+  const commentsKey = ["orders", "quote-comments", org, orderId] as const;
   const [proposal,setProposal]=useState<OrderQuoteProposal|null>(null);
   const [draft,setDraft]=useState<OrderQuoteDraft>(emptyOrderQuoteDraft);
   const [comments,setComments]=useState<any[]>([]);
   const [comment,setComment]=useState("");
   const [reason,setReason]=useState("");
-  const [loading,setLoading]=useState(true);
+  const [loading,setLoading]=useState(() =>
+    !queryClient.getQueryState(["orders", "quote", org, orderId])?.dataUpdatedAt);
   const [busy,setBusy]=useState(false);
   const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
   const [confirmationAction,setConfirmationAction]=useState<QuoteAction|null>(null);
@@ -91,16 +96,37 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
   useEffect(()=>{
     if(!org||!orderId)return;
     let active=true;
-    setLoading(true);setShowExecution(false);
-    void Promise.all([readOrderQuote(org,orderId),listOrderQuoteComments(org,orderId)])
-      .then(([next,notes])=>{
-        if(!active)return;
-        setProposal(next);setDraft(next?snapshot(next):emptyOrderQuoteDraft());setComments(notes);
-      })
-      .catch(err=>{if(active)notifyAdmin(systemErrorMessage(err),"error");})
+    setShowExecution(false);
+    const cached = queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey);
+    const hasCached = Boolean(queryClient.getQueryState(quoteKey)?.dataUpdatedAt);
+    const cachedComments = queryClient.getQueryData<any[]>(commentsKey);
+    if (hasCached) {
+      setProposal(cached || null);
+      setDraft(cached ? snapshot(cached) : emptyOrderQuoteDraft());
+    }
+    if (cachedComments) setComments(cachedComments);
+    setLoading(!hasCached);
+    // A situação do orçamento e a aba compartilham exatamente a mesma
+    // requisição: não há segundo GET ao navegar para Produtos e Serviços.
+    void queryClient.fetchQuery({
+      queryKey: quoteKey,
+      staleTime: 120_000,
+      queryFn: () => readOrderQuote(org, orderId),
+    }).then(next=>{
+      if(!active)return;
+      setProposal(next);
+      setDraft(next?snapshot(next):emptyOrderQuoteDraft());
+    }).catch(err=>{if(active)notifyAdmin(systemErrorMessage(err),"error");})
       .finally(()=>{if(active)setLoading(false);});
+    // Comentários carregam em paralelo e não bloqueiam a proposta.
+    void queryClient.fetchQuery({
+      queryKey: commentsKey,
+      staleTime: 60_000,
+      queryFn: () => listOrderQuoteComments(org, orderId),
+    }).then(notes=>{if(active)setComments(notes);})
+      .catch(err=>{if(active)notifyAdmin(systemErrorMessage(err),"error");});
     return()=>{active=false;};
-  },[org,orderId]);
+  },[org,orderId,queryClient]);
 
   const renegotiations = (proposal?.versions||[])
     .filter(version=>Number(version.version)<Number(proposal?.version||1))
@@ -140,6 +166,7 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
       }else result=await changeOrderQuote(org,orderId,action,
         action==="reject"?{reason}:
         action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version}: {});
+      queryClient.setQueryData(quoteKey, result);
       setProposal(result);
       setDraft(snapshot(result));
       onStatusChange?.(result.status);
@@ -166,7 +193,9 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     try{
       await addOrderQuoteComment(org,orderId,user.id,comment);
       setComment("");
-      const notes=await listOrderQuoteComments(org,orderId);setComments(notes);
+      const notes=await listOrderQuoteComments(org,orderId);
+      queryClient.setQueryData(commentsKey, notes);
+      setComments(notes);
       notifyAdmin("Comentário registrado.","success");
     }catch(err){notifyAdmin(systemErrorMessage(err),"error");}
     finally{setBusy(false);}
