@@ -105,10 +105,14 @@ function appDomainMetadata(target: AppTarget) {
 
       await writeFile(
         path.join(outDir, "robots.txt"),
-        "User-agent: *\nDisallow: /\n",
+        "User-agent: *\nDisallow: /\nAllow: /$\n\nSitemap: https://unionworld.com.br/sitemap.xml\n",
         "utf8",
       );
-      await rm(path.join(outDir, "sitemap.xml"), { force: true });
+      await writeFile(
+        path.join(outDir, "sitemap.xml"),
+        '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://unionworld.com.br/</loc></url></urlset>\n',
+        "utf8",
+      );
       await rm(path.join(outDir, "site.webmanifest"), { force: true });
     },
   };
