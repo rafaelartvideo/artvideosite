@@ -179,8 +179,12 @@ export function OrderDetailsPage(props: Props) {
   const canSendSac = hasPermission("sac_digital.messages.send");
   const canViewSac = hasPermission("sac_digital.view") && hasPermission("sac_digital.messages.view");
   const { statuses, situations } = workspace;
-  const quoteWorkflowEnabled = Boolean(!monitorView && detail?.service_type_id && workspace.serviceTypes.some((type: any) =>
-    type.id === detail.service_type_id && type.quote_workflow_enabled === true));
+  // A rota já conhece o tipo da OS: não aguarde a carga ampla das
+  // referências para reconhecer o orçamento e iniciar a consulta da proposta.
+  const quoteWorkflowEnabled = Boolean(!monitorView && detail?.service_type_id &&
+    ((detail.service_type as any)?.quote_workflow_enabled === true ||
+      workspace.serviceTypes.some((type: any) =>
+        type.id === detail.service_type_id && type.quote_workflow_enabled === true)));
   // A OS comum mantém suas ações. No fluxo de orçamento, só há execução
   // (solicitar peças / solucionar) quando a proposta vinculada for aprovada.
   const [quoteState, setQuoteState] = useState<{ orderId: string; status: OrderQuoteStatus } | null>(null);
