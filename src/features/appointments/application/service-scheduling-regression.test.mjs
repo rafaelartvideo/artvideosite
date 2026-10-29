@@ -81,3 +81,13 @@ test("reagendamento mostra somente horários da equipe fixa, sem calendário sem
   assert.match(calendar, /Equipe disponível/);
   assert.match(calendar, /min-w-\[1540px\]/); // Vista semanal da Agenda permanece disponível.
 });
+
+test("Agenda compartilha referências por empresa e usuário e evita repetição após timeout", () => {
+  const source = read("src/features/appointments/infrastructure/appointments.repository.ts");
+  const hook = read("src/features/appointments/application/useAgendaCalendar.ts");
+  assert.match(source, /const agendaReferencesCache = new Map/);
+  assert.match(source, /cachedAgendaReferences\(org, userId\)/);
+  assert.match(source, /expiresAt: Date\.now\(\) \+ 90_000/);
+  assert.match(source, /agendaReferencesCache\.delete\(key\)/);
+  assert.match(hook, /retry: false/);
+});
