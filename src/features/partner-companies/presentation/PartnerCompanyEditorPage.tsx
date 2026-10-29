@@ -590,6 +590,7 @@ export function PartnerCompanyEditorPage({
               organizationId={company.id}
               currentMediaId={form.companyLogoMediaId}
               onUpload={(mediaId) => setField("companyLogoMediaId", mediaId)}
+              onRemove={() => setField("companyLogoMediaId", "")}
               canUpload={canSave && !saving}
               label="Logo dos documentos"
             />
@@ -598,6 +599,7 @@ export function PartnerCompanyEditorPage({
               organizationId={company.id}
               currentMediaId={form.menuLogoMediaId}
               onUpload={(mediaId) => setField("menuLogoMediaId", mediaId)}
+              onRemove={() => setField("menuLogoMediaId", "")}
               canUpload={canSave && !saving}
               label="Logo do menu"
             />
