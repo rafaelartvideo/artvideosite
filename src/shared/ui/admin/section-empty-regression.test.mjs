@@ -44,7 +44,8 @@ test("páginas roteadas do CRM usam transição única sem deslize ou CSS injeta
  assert.match(css,/\.admin-page-mobile-safe \.sticky\.bottom-0/);
  assert.match(css,/\.admin-page-mobile-safe:has\(\.sticky\.bottom-0\) > div/);
  assert.match(admin,/useLayoutEffect\(\(\) => \{\s*const root = contentRef\.current/);
- assert.match(admin,/root\.scrollTop = 0/);
+ assert.doesNotMatch(admin,/root\.scrollTop = 0/);
+ assert.match(admin,/root\.scrollTop = ordersListScrollRef\.current/);
  assert.match(editor,/<AdminPage open onClose=\{closePage\}/);
 });
 
