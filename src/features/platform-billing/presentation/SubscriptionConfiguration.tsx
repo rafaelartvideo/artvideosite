@@ -11,7 +11,6 @@ import {
   AdminDialog,
 } from "@/shared/ui/admin/AdminLayout";
 import { FCurrencyInput, FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSectionNav } from "@/shared/ui/admin/AdminSectionNav";
 import { LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { loadOrganizationPlanUsage } from "@/features/subscriptions/infrastructure/subscription-usage.repository";
 import type { PlatformBillingPlan, PlatformSubscription, UnionPlatformFinanceData } from "../infrastructure/platform-billing.repository";
@@ -566,12 +565,20 @@ export function SubscriptionConfiguration({ financeData, canManage, onChanged }:
       </AdminCardContent>
     </AdminCard>
 
-    <AdminSectionNav value={section} onSelect={setSection} ariaLabel="Seções da configuração de assinaturas"
-      items={[
-        { id: "plans", label: "Planos e limites" },
-        { id: "addons", label: "Add-ons" },
-        { id: "companies", label: "Empresas" },
-      ]} />
+    <div className="border-b border-border">
+      <div className="flex gap-5 overflow-x-auto">
+        {[
+          { id: "plans" as const, label: "Planos e limites" },
+          { id: "addons" as const, label: "Add-ons" },
+          { id: "companies" as const, label: "Empresas" },
+        ].map(item => <button
+          key={item.id}
+          type="button"
+          onClick={() => setSection(item.id)}
+          className={"shrink-0 border-b-2 px-1 pb-3 pt-1 text-xs font-bold transition-colors " + (section === item.id ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}
+        >{item.label}</button>)}
+      </div>
+    </div>
 
     {section === "plans" && <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {financeData.plans.map(plan => {

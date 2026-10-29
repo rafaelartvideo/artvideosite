@@ -53,17 +53,10 @@ html[data-admin-theme] {
 }
 
 .admin-crm {
-	--background: #f6f8fc;
-	--foreground: #19253a;
-	--card: #ffffff;
-	--card-foreground: #19253a;
-	--border: rgba(30, 45, 75, 0.11);
-	--muted: #f0f3f9;
-	--muted-foreground: #64748b;
-	--admin-panel-shadow: 0 2px 8px rgba(27, 44, 76, 0.025);
-	--admin-panel-heading: #fbfcff;
-	--admin-table-hover: #f7f9fd;
-	--input-background: #ffffff;
+	--admin-panel-shadow: 0 1px 2px rgba(13, 27, 46, 0.035), 0 4px 16px rgba(13, 27, 46, 0.025);
+	--admin-panel-heading: #f8fafd;
+	--admin-table-hover: #f4f6fd;
+	--input-background: #f8fafd;
 }
 
 html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="popover-content"], [data-slot="tooltip-content"]) {
@@ -96,18 +89,15 @@ html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-me
 }
 
 .admin-primary-gradient {
-	background-color: var(--primary);
-	background-image: none;
+	background-image: linear-gradient(105deg, var(--primary) 0%, var(--primary-hover) 100%);
 }
 
 .admin-primary-gradient:hover {
-	background-color: var(--primary-hover);
-	background-image: none;
+	background-image: linear-gradient(105deg, var(--primary-hover) 0%, var(--primary-active) 100%);
 }
 
 .admin-primary-gradient:active {
-	background-color: var(--primary-active);
-	background-image: none;
+	background-image: linear-gradient(105deg, var(--primary-active) 0%, var(--primary-active) 100%);
 }
 
 .admin-primary-loader {

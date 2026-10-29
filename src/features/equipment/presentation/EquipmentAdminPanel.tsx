@@ -17,7 +17,6 @@ import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
-import { AdminSectionNav } from "@/shared/ui/admin/AdminSectionNav";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -515,10 +514,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   const editorRouteActive = Boolean(routeResourceId && routeResourceId !== "fields" && routeResourceId !== "brands" && routeResourceId !== "new-field" && routeSubpage !== "field");
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
-    {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos"
-      actions={activeArea === "registered" ? canCreate && <BtnPrimary onClick={openNewPage}><Plus size={16} /> Novo equipamento</BtnPrimary>
-        : activeArea === "fields" ? canManageFields && <BtnPrimary onClick={openNewFieldPage}><Plus size={16} /> Novo campo extra</BtnPrimary>
-        : canCreate && <BtnPrimary onClick={openNewBrand}><Plus size={16} /> Nova marca</BtnPrimary>} />
+    {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />
     <AdminSubsectionButtons value={activeArea} ariaLabel="Subseções de equipamentos técnicos"
       items={[
         ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
@@ -529,28 +525,40 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         if (value === "registered") openRegisteredPage();
         else if (value === "fields") openFieldsPage();
         else openBrandsPage();
-      }}
-      trailing={<AdminInlineSearch value={activeSearch} onChange={updateAreaSearch}
-        placeholder={activeArea === "registered" ? "Buscar equipamentos..." : activeArea === "fields" ? "Buscar campos extras..." : "Buscar marcas..."}
-        ariaLabel={activeArea === "registered" ? "Buscar equipamentos, marcas e modelos" : activeArea === "fields" ? "Buscar campos extras" : "Buscar marcas e equipamentos vinculados"} />} />
+      }} />
+    <div className="flex justify-end">
+      <div className="w-full sm:w-72">
+        <AdminInlineSearch value={activeSearch} onChange={updateAreaSearch}
+          placeholder={activeArea === "registered" ? "Buscar equipamentos..." : activeArea === "fields" ? "Buscar campos extras..." : "Buscar marcas..."}
+          ariaLabel={activeArea === "registered" ? "Buscar equipamentos, marcas e modelos" : activeArea === "fields" ? "Buscar campos extras" : "Buscar marcas e equipamentos vinculados"} />
+      </div>
+    </div>
     {activeArea === "registered" && canViewTable ? <AdminCard>{loading ? <LoadingState /> : types.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento cadastrado" message="Cadastre o primeiro equipamento com suas marcas e modelos." /> : sortedTypes.length === 0 ? <EmptyState icon={Wrench} title="Nenhum equipamento encontrado" message="Experimente outro termo de busca." /> : <><div className="overflow-x-auto"><table className="min-w-[680px]"><thead><tr>{showEquipment && <th className="text-left">Equipamento</th>}{showBrands && <th className="text-left">Marcas</th>}{showModels && <th className="text-left">Modelos</th>}{showStatus && <th className="text-left">Status</th>}{showActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedTypes.map(type => { const typeBrands = brands.filter(brand => brand.equipment_type_id === type.id); const brandIds = new Set(typeBrands.map(brand => brand.id)); const modelCount = models.filter(model => brandIds.has(model.equipment_brand_id)).length; return <tr key={type.id}>{showEquipment && <td className="font-bold text-[#0d1b2e]"><span>{type.name}</span></td>}{showBrands && <td className="text-xs text-[#5a6a82]">{typeBrands.length}</td>}{showModels && <td className="text-xs text-[#5a6a82]">{modelCount}</td>}{showStatus && <td><StatusBadge status={type.is_active ? "Ativo" : "Inativo"} /></td>}{showActions && <td><div className="flex justify-end gap-1">{canViewDetails && canEdit && <AdminIconButton ariaLabel="Editar equipamento" title="Editar equipamento" onClick={() => openEditPage(type)}><Edit2 size={14} /></AdminIconButton>}{canToggleActive && <AdminActiveStateButton active={type.is_active} entityLabel="equipamento" onClick={() => void toggleEquipmentActive(type)} iconSize={14} />}</div></td>}</tr>; })}</tbody></table></div><PaginationBar page={safeTypePage} pageSize={typePageSize} totalItems={sortedTypes.length} onPageChange={setTypePage} onPageSizeChange={size => { setTypePageSize(size); setTypePage(1); }} /></>}</AdminCard> : activeArea === "fields" && canViewFields ? <AdminCard>{loading ? <LoadingState /> : technicalFields.length === 0 ? <EmptyState icon={Wrench} title="Nenhum campo extra cadastrado" message="Cadastre o primeiro campo extra." /> : sortedTechnicalFields.length === 0 ? <EmptyState icon={Wrench} title="Nenhum campo extra encontrado" message="Experimente outro termo de busca." /> : <><div className="overflow-x-auto"><table className="min-w-[680px]"><thead><tr>{showFieldName && <th className="text-left">Campo</th>}{showFieldStatus && <th className="text-left">Status</th>}{showFieldActions && <th className="text-right">Ações</th>}</tr></thead><tbody>{pagedFields.map(field => <tr key={field.id}>{showFieldName && <td className="font-bold text-[#0d1b2e]"><span>{field.label}</span></td>}{showFieldStatus && <td><StatusBadge status={field.is_active ? "Ativo" : "Inativo"} /></td>}{showFieldActions && <td><div className="flex justify-end gap-1">{canManageFields && <><AdminIconButton ariaLabel="Editar campo" title="Editar campo" onClick={() => openEditFieldPage(field)}><Edit2 size={14} /></AdminIconButton><AdminActiveStateButton active={field.is_active} entityLabel="campo" onClick={() => void toggleField(field)} iconSize={14} /></>}</div></td>}</tr>)}</tbody></table></div><PaginationBar page={safeFieldPage} pageSize={fieldPageSize} totalItems={sortedTechnicalFields.length} onPageChange={setFieldPage} onPageSizeChange={size => { setFieldPageSize(size); setFieldPage(1); }} /></>}</AdminCard> : activeArea === "brands" && canViewTable ? <EquipmentBrandsDirectory choices={brandChoices} brands={brands} types={types} search={areaSearch.brands}
         onEditBrand={canEdit ? openEditBrand : undefined}
         onToggleBrand={canEdit && canToggleActive ? (name, nextActive) => { void toggleBrandActive(name, nextActive); } : undefined}
         busyBrand={busyBrand} /> : null}
     <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
+      {activeArea === "registered" ? canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>
+        : activeArea === "fields" && canManageFields ? <BtnPrimary onClick={openNewFieldPage}>Novo</BtnPrimary>
+        : activeArea === "brands" && canCreate ? <BtnPrimary onClick={openNewBrand}>Novo</BtnPrimary> : null}
     </AdminStickyToolbar></>}
     {editorRouteActive && !formOpen && !fieldFormOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
     <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos"
       title="Cadastro de equipamentos" subtitle="Configure os dados e os vínculos do equipamento">
       <div className="space-y-5 p-4 sm:p-5">
-        <AdminSectionNav mode="tabs" value={editorSection} onSelect={setEditorSection}
-          ariaLabel="Seções do cadastro de equipamento"
-          items={[
-            { id: "general", label: "Geral" },
-            { id: "checklist", label: "Checklist" },
-            { id: "brands", label: "Marcas e modelos" },
-          ]} />
+        <div role="tablist" aria-label="Seções do cadastro de equipamento" className="flex flex-wrap gap-1 border-b border-border">
+          {([
+            ["general", "Geral"],
+            ["checklist", "Checklist"],
+            ["brands", "Marcas e modelos"],
+          ] as const).map(([key, label]) => <button key={key} type="button" role="tab"
+            aria-selected={editorSection === key} onClick={() => setEditorSection(key)}
+            className={"border-b-2 px-4 py-2.5 text-xs font-bold transition-colors " + (editorSection === key
+              ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
+            {label}
+          </button>)}
+        </div>
         {drafts.map((type, ti) => <div key={`${type.id || "new"}-${ti}`} className="space-y-5">
           {editorSection === "general" && <>
           <Section title="Equipamento">

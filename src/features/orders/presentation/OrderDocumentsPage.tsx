@@ -23,7 +23,6 @@ import { AdminSectionEmpty,
   BtnSecondary,
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
-import { AdminSectionNav } from "@/shared/ui/admin/AdminSectionNav";
 import { LoadingSpinner, LoadingState } from "@/shared/ui/admin/AdminFeedback";
 import { PdfPreviewDialog } from "@/shared/ui/admin/PdfPreviewDialog";
 import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
@@ -356,17 +355,15 @@ export function OrderDocumentsPage({
   return (
     <>
       <AdminPage open onClose={onClose} smoothMotion={false} breadcrumb={`Ordens de Serviço > ${order.os_number || "OS"} > Documentos`} title="Documentos" subtitle="Arquivos, imagens e assinaturas da ordem de serviço" maxW="max-w-4xl">
-        <AdminSectionNav value={activeTab} onSelect={setActiveTab} ariaLabel="Seções de documentos"
-          className="mx-5 pt-2"
-          items={[
-            { id: "attachments", label: "Anexos" },
-            ...(canViewSignatures ? [{ id: "signatures" as const, label: "Assinaturas" }] : []),
-            { id: "checklist", label: "Checklist" },
-            { id: "situations", label: "Situações" },
-            { id: "solution", label: "Solução" },
-          ]}
-          trailing={!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage"))
-            ? <OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" /> : undefined} />
+        <div className="border-b border-border px-5 pt-2">
+          <nav className="flex items-center gap-6 overflow-x-auto" aria-label="Seções de documentos">
+            <button type="button" onClick={() => setActiveTab("attachments")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "attachments" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Anexos</button>
+            {canViewSignatures && <button type="button" onClick={() => setActiveTab("signatures")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "signatures" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Assinaturas</button>}
+            <button type="button" onClick={() => setActiveTab("checklist")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "checklist" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Checklist</button>
+            <button type="button" onClick={() => setActiveTab("situations")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "situations" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Situações</button>
+            <button type="button" onClick={() => setActiveTab("solution")} className={cn("shrink-0 border-b-2 px-1 py-3 text-xs font-black transition-colors", activeTab === "solution" ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82] hover:text-[#0d1b2e]")}>Solução</button>
+          </nav>
+        </div>
 
         <div className="min-w-0 max-w-full space-y-4 overflow-hidden p-5">
           {message && <div className={cn("flex min-w-0 items-start justify-between gap-3 rounded-lg border px-3 py-2 text-xs", message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700")}><span className="flex min-w-0 items-center gap-2"><span className="shrink-0">{message.type === "success" ? <CheckCircle size={14} /> : <FileText size={14} />}</span><span className="min-w-0 break-words">{message.text}</span></span><button type="button" onClick={() => setMessage(null)} className="shrink-0"><X size={13} /></button></div>}
@@ -432,6 +429,7 @@ export function OrderDocumentsPage({
         <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
         <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
+            {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <div className="order-last ml-auto"><OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" /></div>}
             <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
             {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)}>Novo</BtnPrimary>}
             {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)}>Enviar</BtnPrimary>}

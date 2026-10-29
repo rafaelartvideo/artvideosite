@@ -517,8 +517,11 @@ test("painel principal não possui toolbar inferior mas a OS mantém a sua", () 
   assert.match(panel.slice(end), /<AdminStickyToolbar/);
 });
 
-test("buscador técnico reutiliza filtros compartilhados e mantém controles da listagem", () => {
+test("buscador técnico reutiliza cabeçalho azul e UI compartilhada de inputs", () => {
   const table = read("src/features/technician-panel/presentation/TechnicianOrdersTable.tsx");
+  const shared = read("src/shared/ui/admin/AdminSearchPanel.tsx");
+  assert.match(shared, /admin-primary-bar/);
+  assert.match(shared, /<Search size=\{14\}/);
   assert.match(table, /<AdminSearchPanel title="Minhas ordens de serviço"/);
   assert.match(table, /className=\{INPUT \+ " h-\[42px\] pl-9 text-sm"\}/);
   assert.match(table, /aria-label="Filtrar andamento"/);

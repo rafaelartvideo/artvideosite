@@ -49,18 +49,18 @@ export function AdminListSection({
   const hasSearch = typeof onSearchChange === "function" && typeof searchValue === "string";
   const countLabel = count === 1 ? countSingular : countPlural;
 
-  return <section className={cn("overflow-hidden rounded-xl border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]", className)}>
-    <div className="border-b border-border bg-card px-4 py-4 sm:px-5">
+  return <section className={cn("overflow-hidden rounded-none border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]", className)}>
+    <div className="bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground">{title}</p>
-          {description && <p className="mt-1 text-xs text-muted-foreground">{description}</p>}
+          <p className="text-sm font-black text-foreground">{title}</p>
+          {description && <p className="mt-0.5 text-[11px] text-muted-foreground">{description}</p>}
         </div>
-        {typeof count === "number" && <span className="shrink-0 rounded-md bg-muted px-2 py-1 text-xs font-medium tabular-nums text-muted-foreground" aria-live="polite">{loading ? "…" : `${count} ${countLabel}`}</span>}
+        {typeof count === "number" && <span className="shrink-0 text-[10px] font-bold text-muted-foreground" aria-live="polite">{loading ? "…" : `${count} ${countLabel}`}</span>}
       </div>
 
       {hasSearch && <div className="relative mt-3">
-        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary dark:text-primary-light" />
+        <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
           autoFocus={searchAutoFocus}
           disabled={searchDisabled}
@@ -78,7 +78,7 @@ export function AdminListSection({
         ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</div>
         : empty
           ? <AdminSectionEmpty className="min-h-40 gap-2"><Search size={20} className="text-muted-foreground/70" /><p className="text-xs font-bold">{emptyText}</p></AdminSectionEmpty>
-          : <div className="min-h-40 divide-y divide-border px-4 sm:px-5">{children}</div>}
+          : <div className="min-h-40 divide-y divide-border px-4">{children}</div>}
 
     {footer}
   </section>;

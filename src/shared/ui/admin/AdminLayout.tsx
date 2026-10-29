@@ -102,7 +102,7 @@ export function AdminButton({
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
-      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center overflow-hidden whitespace-nowrap rounded-lg bg-clip-padding font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-default disabled:opacity-50",
+      "inline-flex min-w-0 max-w-full cursor-default items-center justify-center overflow-hidden whitespace-nowrap rounded-lg bg-clip-padding font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-default disabled:opacity-50",
       variants[variant],
       sizes[size],
       mobileBackOnly && "max-sm:!h-10 max-sm:!w-[72px] max-sm:!min-w-[72px] max-sm:!shrink-0 max-sm:!px-0",
@@ -219,9 +219,9 @@ export function AdminIconButton({
 export function AdminCard({ className = "", children, square = false }: { className?: string; children: React.ReactNode; square?: boolean }) {
   return <div className={cn(
     "min-w-0 max-w-full overflow-hidden break-words border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]",
-    square ? "rounded-none" : "rounded-xl",
+    square ? "rounded-none" : "rounded-xl has-[table]:rounded-none has-[.admin-card-header]:rounded-none",
     "[&_table]:w-full [&_table]:text-sm [&_table]:tabular-nums",
-    "[&_thead]:border-b [&_thead]:border-border [&_thead]:bg-[var(--admin-panel-heading)] [&_thead]:text-xs [&_thead]:font-semibold [&_thead]:text-muted-foreground",
+    "[&_thead]:border-b [&_thead]:border-border [&_thead]:bg-[var(--admin-panel-heading)] [&_thead]:text-[10px] [&_thead]:font-bold [&_thead]:uppercase [&_thead]:tracking-[0.06em] [&_thead]:text-muted-foreground",
     "[&_th]:px-4 [&_th]:py-3",
     "[&_tbody]:divide-y [&_tbody]:divide-border",
     "[&_tbody>tr]:cursor-default [&_tbody>tr]:transition-colors [&_tbody>tr:hover]:bg-[var(--admin-table-hover)]",
@@ -231,7 +231,7 @@ export function AdminCard({ className = "", children, square = false }: { classN
 }
 
 export function AdminCardHeader({ className = "", children }: { className?: string; children: React.ReactNode }) {
-  return <div className={cn("admin-card-header flex min-h-14 min-w-0 items-center justify-between gap-3 border-b border-border bg-card px-4 py-4 sm:px-5", className)}>{children}</div>;
+  return <div className={cn("admin-card-header bg-[var(--admin-panel-heading)] flex min-h-14 min-w-0 items-center justify-between gap-3 border-b border-border px-4 py-3.5 sm:px-5", className)}>{children}</div>;
 }
 
 export function AdminCardToolbar({ className = "", children }: { className?: string; children: React.ReactNode }) {
@@ -247,7 +247,7 @@ export function AdminStickyToolbar({ className = "", children, ...props }: React
     {...props}
     data-admin-sticky-toolbar="true"
     className={cn(
-      "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-border bg-card px-4 py-4 text-card-foreground sm:px-5",
+      "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-primary bg-card px-4 py-4 text-card-foreground sm:px-5",
       className,
     )}
   ><AdminStickyToolbarContext.Provider value={true}>{children}</AdminStickyToolbarContext.Provider></div>;
@@ -540,10 +540,10 @@ export function Section({
   className?: string;
   contentClassName?: string;
 }) {
-  return <AdminCard className={className}>
+  return <AdminCard square className={className}>
     <AdminCardHeader>
       <div className="min-w-0 flex-1">
-        <h3 className="break-words text-sm font-semibold leading-tight text-foreground">{title}</h3>
+        <h3 className="break-words text-xs font-black uppercase leading-tight tracking-[0.12em] text-foreground">{title}</h3>
         {description && <p className="mt-1 break-words text-xs leading-relaxed text-muted-foreground">{description}</p>}
       </div>
       {actions && (
@@ -561,7 +561,7 @@ export function PageHeader({ title, subtitle, eyebrow, actions }: { title: React
   return (
     <header className="flex min-w-0 flex-col gap-4 border-b border-border pb-5 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0 flex-1">
-        {eyebrow && <p className="mb-1 break-words text-xs font-semibold text-primary dark:text-primary-light">{eyebrow}</p>}
+        {eyebrow && <p className="mb-1 break-words text-[10px] font-black uppercase tracking-[0.16em] text-primary">{eyebrow}</p>}
         <h1 className="break-words text-2xl font-bold leading-tight tracking-[-0.025em] text-foreground">{title}</h1>
         {subtitle && <p className="mt-1 max-w-3xl break-words text-sm leading-relaxed text-muted-foreground">{subtitle}</p>}
       </div>
