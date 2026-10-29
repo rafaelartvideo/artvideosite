@@ -49,6 +49,7 @@ function formatBrazilianAddress(address: NonNullable<Registration["addresses"]>[
 
 type RegistrationDetailsProps = {
   selected: Registration;
+  preview?: boolean;
   supplierItems: SupplierInventoryItem[];
   accessForm: EmployeeAccessFormState;
   accessExisting: boolean;
@@ -66,7 +67,7 @@ type RegistrationDetailsProps = {
   onOpenPermissions: () => void;
 };
 
-export function RegistrationDetails({ selected, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenOrder, onAddressLinked, onOpenPermissions }: RegistrationDetailsProps) {
+export function RegistrationDetails({ selected, preview = false, supplierItems, accessForm, accessExisting, accessLoading, permissionUserId, canViewAccess, canViewPermissionOverrides, canEdit, onClose, onEdit, onOpenContacts, onOpenRecords, onOpenOrder, onAddressLinked, onOpenPermissions }: RegistrationDetailsProps) {
   const { activeOrganizationId, activeOrganization, hasPermission } = useAuth();
   const platformUsersOnly = activeOrganization?.is_platform_operator === true;
   const roles = activeRegistrationRoles(selected);
@@ -108,7 +109,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
     finally{setSavingAddressLink(false);}
   };
 
-  return <AdminPage open onClose={onClose} breadcrumb={platformUsersOnly ? "Usuários" : "Cadastros"} title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-7xl">
+  return <AdminPage open onClose={onClose} smoothMotion={false} breadcrumb={platformUsersOnly ? "Usuários" : "Cadastros"} title={selected.name} subtitle={selected.person_type === "PJ" ? "Pessoa Jurídica" : "Pessoa Física"} maxW="max-w-7xl">
     <div className="space-y-5 p-4 sm:p-5">
       <div className="flex min-w-0 flex-wrap items-center justify-center gap-3 py-1">
         {!platformUsersOnly && <>
@@ -126,7 +127,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           canViewContacts={Boolean(activeOrganizationId && canViewContacts)}
           canViewRecords={Boolean(activeOrganizationId && canViewRecords)}
           canViewPermissions={canOpenPermissions}
-          agendaAction={roles.includes("employee") && canEdit ? <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage /> : undefined}
+          agendaAction={!preview && roles.includes("employee") && canEdit ? <EmployeeAgendaSection organizationId={activeOrganizationId} employeeId={selected.legacy_employee_id} canManage /> : undefined}
           onOpenContacts={onOpenContacts}
           onOpenRecords={onOpenRecords}
           onOpenPermissions={onOpenPermissions}
@@ -139,20 +140,20 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           {detailValue(selected.person_type === "PJ" ? "CNPJ" : "CPF", selected.document ? (selected.person_type === "PJ" ? formatCnpj(selected.document) : formatCpf(selected.document)) : "—")}
           {detailValue("Telefone", formatPhone(selected.phone) || "—")}
           {detailValue("WhatsApp", formatPhone(selected.whatsapp) || "—")}
-          {detailValue("E-mail de contato", selected.email || "—")}
+          {!preview && detailValue("E-mail de contato", selected.email || "—")}
           {selected.person_type === "PJ" ? <>
             {detailValue("Nome fantasia", selected.trade_name || selected.name || "—")}
             {detailValue("Razão social", selected.legal_name || "—")}
-            {detailValue("Inscrição estadual", selected.state_registration || "—")}
-            {detailValue("Inscrição municipal", selected.municipal_registration || "—")}
-            {detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
+            {!preview && detailValue("Inscrição estadual", selected.state_registration || "—")}
+            {!preview && detailValue("Inscrição municipal", selected.municipal_registration || "—")}
+            {!preview && detailValue("Fundação", formatDateOnly(selected.foundation_date, "—"))}
           </> : <>
-            {detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
-            {selected.gender && detailValue("Gênero", selected.gender==="M"?"Masculino":selected.gender==="F"?"Feminino":"Outro / Indefinido")}
+            {!preview && detailValue("Nascimento", formatDateOnly(selected.birth_date, "—"))}
+            {!preview && selected.gender && detailValue("Gênero", selected.gender==="M"?"Masculino":selected.gender==="F"?"Feminino":"Outro / Indefinido")}
           </>}
         </div></Section>
 
-        <Section title="Endereços" emptyMessage={!activeAddresses.length ? "Não há endereço cadastrado." : undefined}>
+        {!preview && <Section title="Endereços" emptyMessage={!activeAddresses.length ? "Não há endereço cadastrado." : undefined}>
           {activeAddresses.length ? <div className="divide-y divide-[#0d1b2e]/8">{activeAddresses.map((address, index) => {
             const mapUrl = getAddressMapUrl({ zip_code: address.zip_code || "", street: address.street || "", number: address.number || "", complement: address.complement || "", neighborhood: address.neighborhood || "", city: address.city || "", state: address.state || "", shared_map_url: address.location_url || "" });
             return <div key={address.id} className="py-4 first:pt-0 last:pb-0">
@@ -181,9 +182,9 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
 
             </div>;
           })}</div> : null}
-        </Section>
+        </Section>}
 
-        {roles.includes("customer") && <>
+        {!preview && roles.includes("customer") && <>
           {activeOrganization?.is_artvideo_tenant === true && selected.person_type==="PF"&&selected.legacy_customer_id&&<CustomerAccessInviteSection
             customerId={selected.legacy_customer_id} whatsapp={selected.whatsapp} canManage={canEdit}/>}
           <RegistrationRequestsSection key={selected.id} entityId={selected.id}
@@ -191,7 +192,7 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
             onOpenOrder={onOpenOrder}/>
         </>}
 
-        {roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
+        {!preview && roles.includes("employee") && canViewAccess && <Section title="Acesso ao sistema">
           <div aria-busy={accessLoading}>
             {accessLoading ? <LoadingState text="Carregando acesso ao sistema..." /> : <div className="grid gap-4 sm:grid-cols-2">
               {detailValue("Status", accessExisting ? (accessActive ? "Ativo" : "Inativo") : "Sem login")}
@@ -204,13 +205,13 @@ export function RegistrationDetails({ selected, supplierItems, accessForm, acces
           </div>
         </Section>}
 
-        {roles.includes("supplier") && <SupplierItemsTable items={supplierItems} />}
+        {!preview && roles.includes("supplier") && <SupplierItemsTable items={supplierItems} />}
       </div>
     </div>
 
     <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary onClick={onClose}>Fechar</BtnSecondary>
-      {canEdit && <BtnPrimary onClick={onEdit}>Editar</BtnPrimary>}
+      {canEdit && !preview && <BtnPrimary onClick={onEdit}>Editar</BtnPrimary>}
     </AdminStickyToolbar>
   </AdminPage>;
 }
