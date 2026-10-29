@@ -17,7 +17,7 @@ import { Switch } from "@/shared/ui/primitives/switch";
 import { RadioGroup, RadioGroupItem } from "@/shared/ui/primitives/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/primitives/select";
 
-export const INPUT = "admin-input w-full min-w-0 rounded-lg border border-border bg-muted/55 px-3 py-2.5 text-sm text-foreground outline-none transition-all placeholder:text-muted-foreground/65 hover:border-border focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/25";
+export const INPUT = "admin-input w-full min-w-0 rounded-lg border border-border bg-input-background px-3 py-2.5 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/80 hover:border-primary/30 focus:border-primary focus:bg-card focus:ring-2 focus:ring-primary/20 disabled:cursor-default disabled:opacity-60";
 const EMPTY_SELECT_VALUE = "__admin_select_empty__";
 
 // Shared required-field indicator for light and dark themes. Accepts both

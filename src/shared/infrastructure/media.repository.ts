@@ -42,7 +42,7 @@ async function uploadMediaAtPath(bucket: MediaBucket, path: string, file: File, 
 }
 
 export async function uploadMediaFile(bucket: MediaBucket, file: File, organizationId?: string | null) {
-  const preset = bucket === "product-images" || bucket === "brand-images" || bucket === "public-assets"
+  const preset = bucket === "product-images" || bucket === "brand-images" || bucket === "public-assets" || bucket === "avatars"
     ? "catalog-image"
     : bucket === "service-images"
       ? "service-photo"

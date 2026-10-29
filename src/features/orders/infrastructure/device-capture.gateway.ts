@@ -154,7 +154,7 @@ export async function uploadDeviceCapturePhoto(
   kind: DeviceCapturePhotoKind,
   file: File,
 ) {
-  const preparedFile = await prepareImageForUpload(file, kind === "label" ? "service-label" : "service-photo");
+  const preparedFile = await prepareImageForUpload(file, kind === "label" ? "service-label" : "service-photo", 10 * 1024 * 1024);
   const body = new FormData();
   body.append("action", "upload_photo");
   body.append("session_id", sessionId);
@@ -223,7 +223,7 @@ export async function uploadDeviceChecklistPhoto(
   itemKey: string,
   file: File,
 ): Promise<DeviceEntryChecklistPhoto> {
-  const preparedFile = await prepareImageForUpload(file, "service-photo");
+  const preparedFile = await prepareImageForUpload(file, "service-photo", 10 * 1024 * 1024);
   const body = new FormData();
   body.append("action", "upload_photo");
   body.append("session_id", sessionId);

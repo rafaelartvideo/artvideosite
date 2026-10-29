@@ -1,15 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
+import { build } from "esbuild";
+import { fileURLToPath } from "node:url";
 
 const html = await readFile(new URL("./order-print-document.ts", import.meta.url), "utf8");
 const frozen = await readFile(new URL("./order-print-pdf-freeze.ts", import.meta.url), "utf8");
 const signed = await readFile(new URL("../../../../supabase/functions/document-signature-public/final-document-pdf.ts", import.meta.url), "utf8");
+const { outputFiles } = await build({
+  absWorkingDir: fileURLToPath(new URL("../../../../", import.meta.url)),
+  entryPoints: ["src/features/documents/domain/order-print-document.ts"],
+  bundle: true, format: "esm", platform: "browser", write: false,
+});
+const { orderPrintSafeMargins } = await import(`data:text/javascript;base64,${Buffer.from(
+  outputFiles[0].text + "\n//# sourceURL=order-print-margins-runtime.mjs",
+).toString("base64")}`);
 
-test("all OS PDF versions reserve a physical footer margin", () => {
-  assert.match(html, /export function orderPrintSafeMargins\(/);
-  assert.match(html, /Math\.max\(14, Number\(template\.margin_bottom\)/);
+test("print export respects configured zero and fractional margins while rejecting invalid margins", () => {
+  assert.deepEqual(orderPrintSafeMargins({ margin_top: 0, margin_right: 2.5, margin_bottom: 6, margin_left: 8 }), [0, 2.5, 6, 8]);
+  assert.deepEqual(orderPrintSafeMargins({ margin_top: -3, margin_right: NaN, margin_bottom: Infinity, margin_left: undefined }), [0, 12, 12, 12]);
   assert.match(frozen, /orderPrintSafeMargins\(template\)/);
+});
+
+test("server signed PDF reserves the verification footer area", () => {
   assert.match(signed, /Math\.max\(ptFromMm\(template\.margin_bottom, 14\), 14 \* 72 \/ 25\.4\)/);
 });
 

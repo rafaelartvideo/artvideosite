@@ -2820,13 +2820,8 @@ export function SacDigitalToolPage({
                           onChange={event => {
                             const file = event.target.files?.[0] || null;
                             if (!file) return;
-                            if (file.size > mediaMaximum(file.type)) {
-                              setMessage({ text: `O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`, error: true });
-                              event.target.value = "";
-                              return;
-                            }
-                            if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
-                              setMessage({ text: "Imagens devem ter no máximo 1 MB na SAC Digital.", error: true });
+                            if (file.size > (file.type.startsWith("image/") ? 25 * 1024 * 1024 : mediaMaximum(file.type))) {
+                              setMessage({ text: file.type.startsWith("image/") ? "Selecione fotos de até 25 MB para otimização automática." : `O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`, error: true });
                               event.target.value = "";
                               return;
                             }
@@ -2838,7 +2833,7 @@ export function SacDigitalToolPage({
                           disabled={!status?.enabled}
                           onClick={() => mediaInputRef.current?.click()}
                           aria-label="Anexar imagem, áudio, vídeo ou arquivo"
-                          title="Anexar arquivo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB)"
+                          title="Anexar arquivo (fotos com otimização automática; áudio 3 MB; vídeo/arquivos 5 MB)"
                           className="flex h-12 w-12 shrink-0 items-center justify-center rounded-l-[11px] border-r border-border text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-45"
                         >
                           <Paperclip size={22} aria-hidden="true" />

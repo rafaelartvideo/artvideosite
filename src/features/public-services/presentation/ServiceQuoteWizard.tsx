@@ -34,8 +34,8 @@ export function ServiceQuoteWizard({detail,initialCep='',initialVariant='',backT
  const changePhoto=(kind:keyof SiteQuotePhotos,event:ChangeEvent<HTMLInputElement>)=>{
   const file=event.target.files?.[0];
   if(!file)return;
-  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>6*1024*1024||!file.size){
-   setError('Envie fotos JPG, PNG ou WebP de até 6 MB.');event.target.value='';return;
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>25*1024*1024||!file.size){
+   setError('Envie fotos JPG, PNG ou WebP de até 25 MB. As fotos serão otimizadas antes do envio.');event.target.value='';return;
   }
   setError('');setPhotos(old=>({...old,[kind]:file}));
  };

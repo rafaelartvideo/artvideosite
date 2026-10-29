@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { extensionForUploadFile, prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type TechnicianTaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
@@ -287,12 +288,12 @@ export async function uploadTechnicianPhoto(organizationId: string, itemId: stri
   if (userError || !userData.user) throw userError || new Error("Sessão não encontrada.");
   const validTypes = ["image/jpeg", "image/png", "image/webp"];
   if (!validTypes.includes(file.type)) throw new Error("Utilize fotos JPG, PNG ou WEBP.");
-  if (file.size > 5 * 1024 * 1024) throw new Error("Cada foto deve ter no máximo 5 MB.");
   if (file.size === 0) throw new Error("Arquivo vazio.");
-  const extension = file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : "webp";
+  const preparedFile = await prepareImageForUpload(file, "service-photo", 5 * 1024 * 1024);
+  const extension = extensionForUploadFile(preparedFile);
   const path = [organizationId, itemId, userData.user.id, `${crypto.randomUUID()}.${extension}`].join("/");
   const storage = supabase.storage.from("technician-task-photos");
-  const upload = await storage.upload(path, file, { contentType: file.type, upsert: false, cacheControl: "3600" });
+  const upload = await storage.upload(path, preparedFile, { contentType: preparedFile.type, upsert: false, cacheControl: "3600" });
   if (upload.error) throw upload.error;
   const { error } = await supabase.rpc("register_my_technician_task_photo_v1", {
     p_item_id: itemId,

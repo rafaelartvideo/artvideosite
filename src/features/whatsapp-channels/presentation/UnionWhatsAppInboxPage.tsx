@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useLocation } from "react-router";
 import { ChevronDown, ChevronLeft, ChevronRight, FileText, Image as ImageIcon, LoaderCircle, MessageCircle, Paperclip, Settings2, Search, Send, Smile, Mic, Square, Play, Pause, RotateCcw, RefreshCw, CheckCircle2, UserCheck, Volume2, X, Check, CheckCheck, ArrowRightLeft, Plus, Building2, History, Users, ContactRound, Instagram, Facebook , ShieldCheck, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { createMediaPreviewUrls } from "../application/media-preview-urls.mjs";
 import { SacEmojiPicker } from "@/features/sac-digital/presentation/SacEmojiPicker";
 import { UnionWhatsAppContactsDialog } from "./UnionWhatsAppContactsDialog";
 import { WhatsAppOperationsSettings, type WhatsAppOperationsSection } from "./WhatsAppOperationsSettings";
@@ -269,6 +270,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [imageOptimizing, setImageOptimizing] = useState(false);
   const optimizeSeq = useRef(0);
+  const previewUrls = useRef(createMediaPreviewUrls()).current;
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const micStreamRef = useRef<MediaStream | null>(null);
@@ -327,13 +329,15 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
   useEffect(()=>{
     const retained=new Set(pending.map(item=>item.previewUrl).filter((url):url is string=>Boolean(url)));
     for(const url of pendingAudioUrlsRef.current){
-      if(!retained.has(url)){URL.revokeObjectURL(url);pendingAudioUrlsRef.current.delete(url);}
+      if(!retained.has(url)){previewUrls.release(url);pendingAudioUrlsRef.current.delete(url);}
     }
   },[pending]);
   useEffect(()=>()=>{
-    for(const url of pendingAudioUrlsRef.current)URL.revokeObjectURL(url);
+    for(const url of pendingAudioUrlsRef.current)previewUrls.release(url);
     pendingAudioUrlsRef.current.clear();
-  },[]);
+    optimizeSeq.current++;
+    previewUrls.clear();
+  },[previewUrls]);
   const sendingIds = useRef(new Set<string>());
   const submitGateRef = useRef(false);
   // Preserve the same request ID if a network timeout leaves delivery uncertain.
@@ -489,6 +493,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
     setSelectedFallback(null);
     setFilter("waiting");
     setDraft("");
+    optimizeSeq.current++;
+    setImageOptimizing(false);
+    previewUrls.clear();
     setAttachment(null);
     setMediaPreview(null);
     setPending([]);
@@ -1351,8 +1358,8 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         if(mediaInputRef.current) mediaInputRef.current.value="";
         return;
       }
-      if(mediaPreview && !pendingAudioUrlsRef.current.has(mediaPreview)) URL.revokeObjectURL(mediaPreview);
-      setMediaPreview(image || sticker || audio ? URL.createObjectURL(prepared) : null);
+      if(mediaPreview && !pendingAudioUrlsRef.current.has(mediaPreview)) previewUrls.release(mediaPreview);
+      setMediaPreview(image || sticker || audio ? previewUrls.create(prepared) : null);
       setAttachment(prepared);
       inputRef.current?.focus({preventScroll:true});
     } catch(reason) {
@@ -1417,7 +1424,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           ? {...item,status:"sent",providerMessageId:result.provider_message_id||undefined,error:undefined}
           : item));
         void Promise.allSettled([refreshMessages(threadId, true), refresh(true)]);
-        if (preview && fileType!=="audio") URL.revokeObjectURL(preview);
       } catch (reason) {
         if (organizationRef.current !== organizationId) return;
         const detail = systemErrorMessage(reason, "Não foi possível confirmar o envio.");
@@ -1431,6 +1437,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
           ? { ...item, status: /confirm|pendente|verifique/i.test(detail) ? "unknown" : "failed", error: detail }
           : item));
       } finally {
+        if (preview && fileType!=="audio") previewUrls.release(preview);
         sendingIds.current.delete(requestId);
       }
     })();
@@ -1814,7 +1821,7 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                     <WhatsAppVoicePlayer src={mediaPreview} compact/> :
                     <><Paperclip size={15} className="shrink-0"/>
                       <span className="min-w-0 flex-1 truncate">{attachment.name} · {(attachment.size/1048576).toFixed(2)} MB</span></>}
-                  <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) URL.revokeObjectURL(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
+                  <button type="button" onClick={() => {setAttachment(null); if (mediaPreview) previewUrls.release(mediaPreview); setMediaPreview(null); if(mediaInputRef.current) mediaInputRef.current.value="";}}
                     aria-label="Remover anexo" className="rounded p-1 hover:bg-muted"><X size={17}/></button>
                 </div>}
                 <form className="relative flex min-w-0 items-stretch rounded-xl border border-border bg-muted/55 transition-colors focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20"

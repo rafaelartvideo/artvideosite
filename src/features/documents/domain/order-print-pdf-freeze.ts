@@ -1,4 +1,3 @@
-import html2pdf from "html2pdf.js";
 import { buildOrderPrintDocumentHtml, getOrderPrintFooterMetadata, orderPrintSafeMargins, type PrintOrderContext } from "./order-print-document";
 import {
   copyComputedStyle,
@@ -129,9 +128,10 @@ export async function freezeOrderPrintPdf(
   const innerWidthMm = Math.max(1, pageWidthMm - marginLeft - marginRight);
   const raster = freezeRasterOptions();
 
-  const existingPdfArtifacts = new Set(
-    Array.from(document.querySelectorAll(".html2pdf__overlay, .html2pdf__container")),
-  );
+  // The renderer is large and touches browser globals. Load it only when an
+  // export actually starts, rather than whenever the OS/Documents module opens.
+  const { default: html2pdf } = await import("html2pdf.js");
+  let worker: any;
 
   const frame = document.createElement("iframe");
   frame.setAttribute("aria-hidden", "true");
@@ -176,7 +176,7 @@ export async function freezeOrderPrintPdf(
     unlockCaptureRoot(doc.body);
     void doc.body.offsetHeight;
 
-    const worker: any = (html2pdf as any)()
+    worker = (html2pdf as any)()
       .set({
         margin: html2pdfMarginOrder(margins),
         filename: `${template.name || "documento"}.pdf`,
@@ -267,8 +267,9 @@ export async function freezeOrderPrintPdf(
     // html2pdf normalmente remove o overlay ao concluir. Se html2canvas lançar
     // exceção (como no erro de OKLCH), versões da biblioteca podem deixar o
     // overlay invisível cobrindo a aplicação e bloqueando todos os cliques.
-    document.querySelectorAll(".html2pdf__overlay, .html2pdf__container").forEach(node => {
-      if (!existingPdfArtifacts.has(node)) node.remove();
-    });
+    // Use the worker's own nodes: a simultaneous export may have created its
+    // overlay after this one started and must not be removed by this cleanup.
+    worker?.prop?.overlay?.remove();
+    worker?.prop?.container?.remove();
   }
 }

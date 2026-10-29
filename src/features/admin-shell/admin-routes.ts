@@ -70,10 +70,15 @@ export function adminPath(tab: AdminTab, resourceId?: string | null, subpage?: s
   return segments.length ? `${basePath}/${segments.join("/")}` : basePath;
 }
 
+function decodeRouteSegment(segment: string) {
+  try { return decodeURIComponent(segment); }
+  catch { return segment; } // A pasted or stale malformed link must not crash the shell.
+}
+
 export function resolveAdminRoute(pathname: string): AdminRouteParts {
   if (pathname === LEGACY_SETTINGS_PATH || matchPath({ path: `${LEGACY_SETTINGS_PATH}/*`, end: false }, pathname)) {
     const remainder = pathname.slice(LEGACY_SETTINGS_PATH.length).replace(/^\/+/, "");
-    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    const segments = remainder ? remainder.split("/").map(decodeRouteSegment) : [];
     return { tab: "settings", resourceId: segments[0] || null, subpage: segments[1] || null };
   }
 
@@ -83,20 +88,20 @@ export function resolveAdminRoute(pathname: string): AdminRouteParts {
 
   if (pathname === LEGACY_PRODUCTS_PATH || matchPath({ path: `${LEGACY_PRODUCTS_PATH}/*`, end: false }, pathname)) {
     const remainder = pathname.slice(LEGACY_PRODUCTS_PATH.length).replace(/^\/+/, "");
-    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    const segments = remainder ? remainder.split("/").map(decodeRouteSegment) : [];
     return { tab: "inventory", resourceId: segments[0] || null, subpage: segments[1] || null };
   }
 
   if (pathname === LEGACY_ROOT_PRODUCTS_PATH || matchPath({ path: `${LEGACY_ROOT_PRODUCTS_PATH}/*`, end: false }, pathname)) {
     const remainder = pathname.slice(LEGACY_ROOT_PRODUCTS_PATH.length).replace(/^\/+/, "");
-    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    const segments = remainder ? remainder.split("/").map(decodeRouteSegment) : [];
     return { tab: "inventory", resourceId: segments[0] || null, subpage: segments[1] || null };
   }
 
   for (const [tab, basePath] of ROUTES_BY_SPECIFICITY) {
     if (pathname !== basePath && !matchPath({ path: `${basePath}/*`, end: false }, pathname)) continue;
     const remainder = pathname.slice(basePath.length).replace(/^\/+/, "");
-    const segments = remainder ? remainder.split("/").map(segment => decodeURIComponent(segment)) : [];
+    const segments = remainder ? remainder.split("/").map(decodeRouteSegment) : [];
     return { tab, resourceId: segments[0] || null, subpage: segments[1] || null };
   }
   return { tab: "home", resourceId: null, subpage: null };

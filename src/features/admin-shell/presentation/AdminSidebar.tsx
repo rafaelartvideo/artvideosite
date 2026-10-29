@@ -143,7 +143,7 @@ export function AdminSidebar({
   const sectionHeader = (label: string) => (
     collapsed
       ? <div className="mx-3 my-2 border-t border-white/7" />
-      : <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">{label}</div>
+      : <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</div>
   );
 
   return (
@@ -199,7 +199,7 @@ export function AdminSidebar({
           {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
             <div className="space-y-1">
               {!collapsed && (
-                <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/30">
+                <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
                   Principal
                 </div>
               )}

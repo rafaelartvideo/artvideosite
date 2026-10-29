@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { extensionForUploadFile, prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type ManagementSpace = {
   id: string; slug: string; name: string; description: string; icon_text: string;
@@ -128,10 +129,10 @@ export async function openManagementFile(path: string) {
 
 export async function uploadManagementLogo(spaceId: string, file: File, previousPath?: string | null) {
   if(!["image/png","image/jpeg","image/webp"].includes(file.type)) throw new Error("Use PNG, JPG ou WebP para a logomarca.");
-  if(file.size>3*1024*1024) throw new Error("A logomarca deve ter no máximo 3 MB.");
-  const ext=file.type==="image/png"?"png":file.type==="image/webp"?"webp":"jpg";
+  const preparedFile = await prepareImageForUpload(file, "catalog-image", 3 * 1024 * 1024);
+  const ext = extensionForUploadFile(preparedFile);
   const path=`${spaceId}/logos/${crypto.randomUUID()}.${ext}`;
-  const uploaded=await supabase.storage.from(BUCKET).upload(path,file,{contentType:file.type});
+  const uploaded=await supabase.storage.from(BUCKET).upload(path,preparedFile,{contentType:preparedFile.type});
   if(uploaded.error) throw uploaded.error;
   const {error}=await supabase.from("management_spaces").update({logo_path:path}).eq("id",spaceId);
   if(error){await supabase.storage.from(BUCKET).remove([path]);throw error;}

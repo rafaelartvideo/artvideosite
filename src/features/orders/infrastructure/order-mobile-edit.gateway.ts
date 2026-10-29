@@ -115,7 +115,7 @@ export async function saveMobileOrderEditor({
 }
 
 export async function uploadMobileOrderEditPhoto(sessionId: string, token: string, kind: "label" | "equipment", file: File) {
-  const preparedFile = await prepareImageForUpload(file, kind === "label" ? "service-label" : "service-photo");
+  const preparedFile = await prepareImageForUpload(file, kind === "label" ? "service-label" : "service-photo", 10 * 1024 * 1024);
   const body = new FormData();
   body.append("action", "upload_photo");
   body.append("session_id", sessionId);

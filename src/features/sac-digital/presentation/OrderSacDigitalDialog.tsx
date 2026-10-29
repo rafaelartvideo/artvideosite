@@ -304,7 +304,7 @@ export function OrderSacDigitalDialog({
               <div>
                 <p className="text-xs font-bold text-foreground">Arquivo do dispositivo</p>
                 <p className="text-[10px] text-muted-foreground">
-                  Envie um arquivo do seu dispositivo pelo protocolo ativo (imagens 1 MB; áudio 3 MB; vídeo/arquivos 5 MB).
+                  Envie um arquivo do seu dispositivo pelo protocolo ativo (fotos com otimização automática; áudio 3 MB; vídeo/arquivos 5 MB).
                 </p>
               </div>
               <BtnSecondary onClick={() => fileInputRef.current?.click()} disabled={sending}>
@@ -320,9 +320,9 @@ export function OrderSacDigitalDialog({
               onChange={event => {
                 const file = event.target.files?.[0] || null;
                 if (!file) return;
-                if (file.size > mediaMaximum(file.type)) {
+                if (file.size > (file.type.startsWith("image/") ? 25 * 1024 * 1024 : mediaMaximum(file.type))) {
                   setError(file.type.startsWith("image/")
-                    ? "Imagens devem ter no máximo 1 MB." : `O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`);
+                    ? "Selecione fotos de até 25 MB para otimização automática." : `O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`);
                   event.target.value = "";
                   return;
                 }

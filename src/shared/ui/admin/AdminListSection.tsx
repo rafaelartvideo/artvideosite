@@ -49,8 +49,8 @@ export function AdminListSection({
   const hasSearch = typeof onSearchChange === "function" && typeof searchValue === "string";
   const countLabel = count === 1 ? countSingular : countPlural;
 
-  return <section className={cn("overflow-hidden rounded-none border border-border bg-card text-card-foreground", className)}>
-    <div className="border-b border-border px-4 py-4">
+  return <section className={cn("overflow-hidden rounded-none border border-border bg-card text-card-foreground shadow-[var(--admin-panel-shadow)]", className)}>
+    <div className="bg-[var(--admin-panel-heading)] border-b border-border px-4 py-4">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <p className="text-sm font-black text-foreground">{title}</p>

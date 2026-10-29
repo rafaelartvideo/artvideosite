@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { prepareImageForUpload } from '@/shared/application/upload-file-optimizer';
 import type { Address } from '@/lib/address';
 import type { PublicQuoteForm } from '@/features/public-quotes/domain/public-quote';
 
@@ -12,7 +13,13 @@ export async function submitServiceBooking(
  form:PublicQuoteForm,address:Address,selection:SiteQuoteSelection,protocol:string,
  photos:SiteQuotePhotos={},mediaSecret?:string,
 ) {
- const attachments=Object.entries(photos).filter((entry):entry is [string,File]=>entry[1] instanceof File);
+ // Prepare sequentially to avoid decoding three full camera images in parallel.
+ const attachments: [string, File][] = [];
+ for (const [kind, file] of Object.entries(photos)) {
+   if (!(file instanceof File)) continue;
+   const prepared = await prepareImageForUpload(file, kind === 'label' ? 'service-label' : 'service-photo', 6 * 1024 * 1024);
+   attachments.push([kind, prepared]);
+ }
  const secret=attachments.length?(mediaSecret||crypto.randomUUID()):'';
  const media_token_hash=secret?Array.from(new Uint8Array(
    await crypto.subtle.digest('SHA-256',new TextEncoder().encode(secret)),

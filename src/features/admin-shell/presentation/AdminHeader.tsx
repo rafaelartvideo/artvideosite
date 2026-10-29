@@ -107,7 +107,7 @@ function HeaderAction({
       "relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
       active
         ? "border-primary/15 bg-primary/8 text-primary"
-        : "border-transparent text-[#7b899d] hover:text-primary",
+        : "border-transparent text-muted-foreground hover:text-primary",
     )}
   >
     {children}
@@ -180,12 +180,12 @@ function HeaderDropdown({
   width?: string;
 }) {
   return <div className={cn(
-    "absolute top-[calc(100%+7px)] z-[80] overflow-hidden rounded-lg border border-[#0d1b2e]/10 bg-white",
+    "absolute top-[calc(100%+7px)] z-[80] overflow-hidden rounded-lg border border-border bg-card",
     width,
     align === "right" ? "right-0" : "left-0",
   )}>
-    <div className="border-b border-[#0d1b2e]/8 px-3.5 py-2.5">
-      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-[#0d1b2e]">{title}</p>
+    <div className="border-b border-border px-3.5 py-2.5">
+      <p className="text-[11px] font-black uppercase tracking-[0.1em] text-foreground">{title}</p>
     </div>
     {children}
   </div>;
@@ -207,20 +207,20 @@ function PasswordInput({
   autoComplete: string;
 }) {
   return <label className="block">
-    <span className="mb-1.5 block text-xs font-bold text-[#34445a]">{label}</span>
+    <span className="mb-1.5 block text-xs font-bold text-foreground">{label}</span>
     <div className="relative">
       <input
         type={visible ? "text" : "password"}
         value={value}
         onChange={event => onChange(event.target.value)}
         autoComplete={autoComplete}
-        className="h-11 w-full rounded-lg border border-[#0d1b2e]/15 bg-white px-3 pr-11 text-sm text-[#0d1b2e] outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
+        className="h-11 w-full rounded-lg border border-border bg-card px-3 pr-11 text-sm text-foreground outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10"
       />
       <button
         type="button"
         onClick={onToggle}
         aria-label={visible ? `Ocultar ${label.toLowerCase()}` : `Mostrar ${label.toLowerCase()}`}
-        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-[#7b899d] hover:text-primary"
+        className="absolute right-1.5 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center text-muted-foreground hover:text-primary"
       >
         {visible ? <EyeOff size={16} /> : <Eye size={16} />}
       </button>
@@ -387,9 +387,9 @@ export function AdminHeader({
         setOpenMenu(null);
         navigate("/admin/plan-usage");
       }}
-      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-[#24354b] transition-colors hover:bg-[#f5f7fa]"
+      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted"
     >
-      <CreditCard size={16} className="text-[#718096]" />
+      <CreditCard size={16} className="text-muted-foreground" />
       Plano e uso
     </button>}
     <button
@@ -400,27 +400,27 @@ export function AdminHeader({
         setPasswordSuccess("");
         setPasswordOpen(true);
       }}
-      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-[#24354b] transition-colors hover:bg-[#f5f7fa]"
+      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted"
     >
-      <KeyRound size={16} className="text-[#718096]" />
+      <KeyRound size={16} className="text-muted-foreground" />
       Alterar senha
     </button>
   </div>;
 
   const profileMenu = <div>
-    <div className="border-b border-[#0d1b2e]/8 px-3.5 py-3">
-      <p className="truncate text-sm font-bold text-[#0d1b2e]">{userName}</p>
-      <p className="mt-0.5 truncate text-[11px] text-[#7b899d]">{roleName}</p>
+    <div className="border-b border-border px-3.5 py-3">
+      <p className="truncate text-sm font-bold text-foreground">{userName}</p>
+      <p className="mt-0.5 truncate text-[11px] text-muted-foreground">{roleName}</p>
     </div>
-    {switchableOrganizations.length > 0 && <div className="border-b border-[#0d1b2e]/8 px-3.5 py-3">
-      <label htmlFor="header-active-organization" className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.1em] text-[#8a98aa]">Empresa ativa</label>
+    {switchableOrganizations.length > 0 && <div className="border-b border-border px-3.5 py-3">
+      <label htmlFor="header-active-organization" className="mb-1.5 block text-[10px] font-black uppercase tracking-[0.1em] text-muted-foreground">Empresa ativa</label>
       <div className="relative">
         <select
           id="header-active-organization"
           value={activeOrganizationId || ""}
           disabled={switchingOrganization}
           onChange={event => void changeOrganization(event.target.value)}
-          className="h-9 w-full appearance-none rounded-md border border-[#0d1b2e]/12 bg-white pl-2.5 pr-8 text-xs font-bold text-[#0d1b2e] outline-none focus:border-primary"
+          className="h-9 w-full appearance-none rounded-md border border-border bg-card pl-2.5 pr-8 text-xs font-bold text-foreground outline-none focus:border-primary"
         >
           {switchableOrganizations.map(organization => (
             <option key={organization.organization_id} value={organization.organization_id}>
@@ -428,14 +428,14 @@ export function AdminHeader({
             </option>
           ))}
         </select>
-        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[#8a98aa]" />
+        <ChevronDown size={14} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
       </div>
     </div>}
     <div className="p-2">
       <button type="button" onClick={() => void toggleAccountTerms()}
         aria-expanded={termsMenuOpen}
-        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-[#24354b] transition-colors hover:bg-[#f5f7fa]">
-        <ScrollText size={15} className="text-[#718096]" /> Termos
+        className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-left text-sm font-semibold text-foreground transition-colors hover:bg-muted">
+        <ScrollText size={15} className="text-muted-foreground" /> Termos
         <ChevronDown size={14} className={cn("ml-auto transition-transform", termsMenuOpen && "rotate-180")} />
       </button>
       {termsMenuOpen && <div className="mb-2 ml-4 space-y-1 border-l border-border pl-3">
@@ -444,7 +444,7 @@ export function AdminHeader({
         {!termsLoading && !termsError && !accountTerms.length && <p className="px-2 py-2 text-xs text-muted-foreground">Nenhum termo aceito encontrado.</p>}
         {!termsLoading && accountTerms.map(term => <button key={term.id} type="button"
           onClick={() => { setViewingTerm(term); setOpenMenu(null); setTermsMenuOpen(false); }}
-          className="w-full rounded-md px-2.5 py-2 text-left text-xs font-semibold text-[#24354b] hover:bg-[#f5f7fa]">
+          className="w-full rounded-md px-2.5 py-2 text-left text-xs font-semibold text-foreground hover:bg-muted">
           {term.term_type === "usage" ? "Termos de uso" : "Termos de responsabilidade"}
         </button>)}
       </div>}
@@ -478,7 +478,7 @@ export function AdminHeader({
         onDismiss={notifications.dismissLiveNotification}
       />
 
-      <header className="relative z-[60] shrink-0 border-b border-[#0d1b2e]/10 bg-white">
+      <header className="relative z-[60] shrink-0 border-b border-border bg-card">
         <div className="hidden h-16 min-w-0 items-center justify-between gap-4 px-4 md:flex lg:px-6">
           <div className="flex min-w-0 items-center gap-0.5">
             <div className="relative">
@@ -487,8 +487,8 @@ export function AdminHeader({
               </HeaderAction>
               {openMenu === "help" && <HeaderDropdown title="Ajuda">
                 <div className="px-3.5 py-3">
-                  <p className="text-sm font-semibold text-[#0d1b2e]">Central de ajuda</p>
-                  <p className="mt-1 text-xs leading-5 text-[#718096]">Tutoriais e suporte da Union World ficarão disponíveis aqui.</p>
+                  <p className="text-sm font-semibold text-foreground">Central de ajuda</p>
+                  <p className="mt-1 text-xs leading-5 text-muted-foreground">Tutoriais e suporte da Union World ficarão disponíveis aqui.</p>
                 </div>
               </HeaderDropdown>}
             </div>
@@ -498,7 +498,7 @@ export function AdminHeader({
                 <Bell size={17} strokeWidth={2} />
                 <NotificationBadge count={notifications.unreadCount} />
               </HeaderAction>
-              {openMenu === "notifications" && <div className="absolute left-0 top-[calc(100%+7px)] z-[80] w-[390px] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-xl">
+              {openMenu === "notifications" && <div className="absolute left-0 top-[calc(100%+7px)] z-[80] w-[390px] overflow-hidden rounded-xl border border-border bg-card shadow-xl">
                 {notificationPanel}
               </div>}
             </div>
@@ -535,13 +535,13 @@ export function AdminHeader({
               className="flex min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
               <div className="hidden min-w-0 text-right lg:block">
-                <p className="truncate text-[13px] leading-4 text-[#5f6f84]">{greeting()}, <strong className="font-bold text-[#0d1b2e]">{userFirstName}</strong></p>
-                <p className="mt-0.5 max-w-[190px] truncate text-[10px] font-semibold text-[#8a98aa]">{activeOrganizationName || roleName}</p>
+                <p className="truncate text-[13px] leading-4 text-muted-foreground">{greeting()}, <strong className="font-bold text-foreground">{userFirstName}</strong></p>
+                <p className="mt-0.5 max-w-[190px] truncate text-[10px] font-semibold text-muted-foreground">{activeOrganizationName || roleName}</p>
               </div>
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-[#eef5ff] text-xs font-black text-primary">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-primary/15 bg-primary-soft text-xs font-black text-primary">
                 {userInitial}
               </div>
-              <ChevronDown size={13} className={cn("text-[#8a98aa] transition-transform", openMenu === "profile" && "rotate-180")} />
+              <ChevronDown size={13} className={cn("text-muted-foreground transition-transform", openMenu === "profile" && "rotate-180")} />
             </button>
             {openMenu === "profile" && <HeaderDropdown title="Minha conta" align="right" width="w-[270px]">{profileMenu}</HeaderDropdown>}
           </div>
@@ -562,7 +562,7 @@ export function AdminHeader({
             {companyLogoUrl ? (
               <AutoFitLogo src={companyLogoUrl} alt={activeOrganizationName || "Logo da empresa"} className="h-8 w-full max-w-[clamp(72px,24vw,118px)] object-contain" />
             ) : (
-              <span className="max-w-full truncate px-1 text-xs font-black text-[#0d1b2e]">{activeOrganizationName || "Empresa"}</span>
+              <span className="max-w-full truncate px-1 text-xs font-black text-foreground">{activeOrganizationName || "Empresa"}</span>
             )}
           </div>
 
@@ -579,20 +579,20 @@ export function AdminHeader({
             <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}><Settings size={16} /></HeaderAction>
             <span className="mx-1 h-5 w-px shrink-0 bg-border" aria-hidden="true" />
             <ThemeToggle theme={theme} onChange={setTheme} compact />
-            <button type="button" onClick={() => toggleMenu("profile")} aria-label="Minha conta" className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-[#eef5ff] text-[11px] font-black text-primary">{userInitial}</button>
+            <button type="button" onClick={() => toggleMenu("profile")} aria-label="Minha conta" className="flex h-8 w-8 items-center justify-center rounded-full border border-primary/15 bg-primary-soft text-[11px] font-black text-primary">{userInitial}</button>
           </div>
 
-          {openMenu === "notifications" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-xl border border-[#0d1b2e]/10 bg-white shadow-xl">
+          {openMenu === "notifications" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(390px,calc(100vw-24px))] overflow-hidden rounded-xl border border-border bg-card shadow-xl">
             {notificationPanel}
           </div>}
-          {openMenu === "settings" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(260px,calc(100vw-24px))] rounded-lg border border-[#0d1b2e]/10 bg-white">{settingsMenu}</div>}
-          {openMenu === "profile" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(280px,calc(100vw-24px))] rounded-lg border border-[#0d1b2e]/10 bg-white">{profileMenu}</div>}
+          {openMenu === "settings" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(260px,calc(100vw-24px))] rounded-lg border border-border bg-card">{settingsMenu}</div>}
+          {openMenu === "profile" && <div className="absolute right-3 top-[calc(100%+6px)] z-[80] w-[min(280px,calc(100vw-24px))] rounded-lg border border-border bg-card">{profileMenu}</div>}
         </div>
       </header>
 
       {page && (
         <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-border bg-card px-6 py-3 md:block">
-          <div className="flex min-h-6 min-w-0 items-center gap-2 text-[#5a6a82]">
+          <div className="flex min-h-6 min-w-0 items-center gap-2 text-muted-foreground">
             {parentBreadcrumb && <>
               <button
                 type="button"
@@ -650,7 +650,7 @@ export function AdminHeader({
           <PasswordInput label="Senha atual" value={currentPassword} onChange={setCurrentPassword} visible={showCurrentPassword} onToggle={() => setShowCurrentPassword(value => !value)} autoComplete="current-password" />
           <PasswordInput label="Nova senha" value={newPassword} onChange={setNewPassword} visible={showNewPassword} onToggle={() => setShowNewPassword(value => !value)} autoComplete="new-password" />
           <PasswordInput label="Confirmar nova senha" value={confirmPassword} onChange={setConfirmPassword} visible={showConfirmPassword} onToggle={() => setShowConfirmPassword(value => !value)} autoComplete="new-password" />
-          <p className="text-[11px] leading-5 text-[#7b899d]">A nova senha deve ter pelo menos 8 caracteres.</p>
+          <p className="text-[11px] leading-5 text-muted-foreground">A nova senha deve ter pelo menos 8 caracteres.</p>
         </div>
       </AdminDialog>
     </>

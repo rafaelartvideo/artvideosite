@@ -32,12 +32,13 @@ export function SidebarItem({ item, active, onClick, collapsed = false }: Sideba
       onFocus={() => prefetchAdminModule(item.id)}
       title={collapsed ? item.label : undefined}
       aria-label={collapsed ? item.label : undefined}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full min-w-0 cursor-default items-center rounded-lg text-sm font-semibold transition-colors",
+        "flex w-full min-w-0 cursor-default items-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70",
         collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2 text-left",
         active
-          ? "bg-primary text-white shadow-lg shadow-[#0057e7]/25"
-          : "text-white/60 hover:bg-white/8 hover:text-white",
+          ? "bg-primary text-white shadow-sm"
+          : "text-white/70 hover:bg-white/8 hover:text-white",
       )}
     >
       <Icon size={collapsed ? 18 : 16} className="shrink-0" />
@@ -88,10 +89,10 @@ export function AdminHubPage({
                     )}>
                       <Icon size={centeredIcons ? 22 : 18} />
                     </div>
-                    {!centeredIcons && <ArrowLeft size={15} className="shrink-0 rotate-180 text-[#5a6a82] transition-colors group-hover:text-primary" />}
+                    {!centeredIcons && <ArrowLeft size={15} className="shrink-0 rotate-180 text-muted-foreground transition-colors group-hover:text-primary" />}
                   </div>
-                  <h3 className="mt-4 min-w-0 whitespace-normal break-words text-base font-black leading-tight text-[#0d1b2e]">{item.label}</h3>
-                  <p className={cn("mt-1.5 min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-normal leading-5 text-[#5a6a82]", centeredIcons && "mx-auto")}>{item.description}</p>
+                  <h3 className="mt-4 min-w-0 whitespace-normal break-words text-base font-black leading-tight text-foreground">{item.label}</h3>
+                  <p className={cn("mt-1.5 min-w-0 max-w-full whitespace-normal break-words [overflow-wrap:anywhere] text-sm font-normal leading-5 text-muted-foreground", centeredIcons && "mx-auto")}>{item.description}</p>
                   <span className="mt-4 inline-block text-xs font-bold text-primary">{actionLabel}</span>
                 </div>
               </AdminButton>

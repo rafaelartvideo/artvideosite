@@ -2,6 +2,7 @@ import { actionEnabled, waitingOperatorProtocolIds } from '../../../../supabase/
 import { singleFlight, freshSingleFlight } from '../domain/refresh-coordinator.mjs';
 import { mediaMaximum, apiDiagnostic, IntentLedger, privateMediaIds, hydrateMedia, resultItems } from '../domain/resource-ui.mjs';
 import { supabase, supabaseUrl } from "@/lib/supabase";
+import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 import { pendingStartHasProtocol } from "../domain/pending-resolution.mjs";
 
 export type SacDigitalConnectionStatus = "not_configured" | "configured" | "receiving" | "error";
@@ -475,7 +476,7 @@ export function sendSacDigitalTextMessage(
 }
 
 
-export function sendSacDigitalMediaMessage(
+export async function sendSacDigitalMediaMessage(
   organizationId: string,
   protocol: string,
   file: File,
@@ -485,10 +486,11 @@ export function sendSacDigitalMediaMessage(
   clientRequestId?: string,
 ) {
   if (!file.size) throw Object.assign(new Error("O arquivo está vazio."), { outcome: "rejected", type: "invalid_media" });
-  if (file.size > mediaMaximum(file.type)) throw Object.assign(new Error(`O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`), { outcome: "rejected", type: "invalid_media" });
-  if (file.type.startsWith("image/") && file.size > 1024 * 1024) {
-    throw Object.assign(new Error("A SAC Digital aceita imagens de até 1 MB."), { outcome: "rejected", type: "invalid_media" });
+  if (file.type.startsWith("image/")) {
+    try { file = await prepareImageForUpload(file, "sac-image", 1024 * 1024); }
+    catch (error) { throw Object.assign(error instanceof Error ? error : new Error("Não foi possível preparar a imagem."), { outcome: "rejected", type: "invalid_media" }); }
   }
+  if (file.size > mediaMaximum(file.type)) throw Object.assign(new Error(`O arquivo deve ter no máximo ${mediaMaximum(file.type) / (1024 * 1024)} MB.`), { outcome: "rejected", type: "invalid_media" });
   const form = new FormData();
   form.set("action", "send_media");
   form.set("organization_id", organizationId);

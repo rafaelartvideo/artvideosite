@@ -39,8 +39,28 @@ body {
 	--admin-danger-bg-hover: #991b1b;
 }
 
+/* Root tokens also reach Radix portals rendered outside the CRM shell. */
 html[data-admin-theme] {
 	--admin-shell-header-height: 4rem;
+	--primary: #1032dc;
+	--primary-hover: #0d29b8;
+	--primary-active: #0a218f;
+	--primary-soft: #eef1ff;
+	--primary-soft-strong: #e1e6ff;
+	--primary-light: #5d73ef;
+	--primary-foreground: #ffffff;
+	--ring: #1032dc;
+}
+
+.admin-crm {
+	--admin-panel-shadow: 0 1px 2px rgba(13, 27, 46, 0.035), 0 4px 16px rgba(13, 27, 46, 0.025);
+	--admin-panel-heading: #f8fafd;
+	--admin-table-hover: #f4f6fd;
+	--input-background: #f8fafd;
+}
+
+html[data-admin-theme] :is([data-slot="select-content"], [data-slot="dropdown-menu-content"], [data-slot="dropdown-menu-sub-content"], [data-slot="popover-content"], [data-slot="tooltip-content"]) {
+	font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
 }
 
 /*
@@ -144,6 +164,14 @@ html[data-admin-theme] {
  * document root so selects/dropdowns keep the same theme outside .admin-crm.
  */
 html[data-admin-theme="dark"] {
+	color-scheme: dark;
+	--background: #0a101c;
+	--foreground: #e8edf5;
+	--secondary: #172136;
+	--secondary-foreground: #e8edf5;
+	--input: rgba(226, 232, 240, 0.18);
+	--input-background: #131d2f;
+	--switch-background: #526178;
 	--popover: #111827;
 	--popover-foreground: #e8edf5;
 	--card: #111827;
@@ -156,7 +184,7 @@ html[data-admin-theme="dark"] {
 	--primary-active: #3153ef;
 	--primary-soft: #17224d;
 	--primary-soft-strong: #1c2b62;
-	--primary-light: #7185f5;
+	--primary-light: #9aaaff;
 	--primary-foreground: #ffffff;
 	--ring: #5870f0;
 	--accent: #172136;
@@ -170,6 +198,9 @@ html[data-admin-theme="dark"] {
  */
 .admin-crm.dark,
 .dark .admin-crm {
+	--admin-panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+	--admin-panel-heading: #141e30;
+	--admin-table-hover: #162237;
 	--background: #0a101c;
 	--foreground: #e8edf5;
 	--card: #111827;
@@ -189,7 +220,7 @@ html[data-admin-theme="dark"] {
 	--primary-active: #3153ef;
 	--primary-soft: #17224d;
 	--primary-soft-strong: #1c2b62;
-	--primary-light: #7185f5;
+	--primary-light: #9aaaff;
 	--primary-foreground: #ffffff;
 	--ring: #5870f0;
 	--accent: #7185f5;
@@ -925,11 +956,15 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 :is(.art-service,.art-booking,.art-service-card,.artvideo-dialog) :is(h1,h2,h3,h4) { font-family:'Inter',ui-sans-serif,system-ui,sans-serif!important; }
 :is(.art-service,.art-booking) :is(h1,h2) { font-weight:600; letter-spacing:-.035em; }
 :is(.art-service,.art-booking) :is(input,select,textarea) { accent-color:var(--art-primary); }
-.art-input { width:100%; min-height:52px; border:1px solid #cbd2da; border-radius:6px; background:#fff; padding:12px 14px; color:#172b45; font-size:15px; outline:none; transition:border-color .18s,box-shadow .18s; }
-.art-input:focus { border-color:var(--art-primary,#0866f5); box-shadow:0 0 0 3px #0866f515; }
+.art-input { width:100%; min-height:52px; border:1px solid #cbd2da; border-radius:10px; background:#fff; padding:12px 14px; color:#172b45; font-size:15px; outline:none; transition:border-color .18s,box-shadow .18s; }
+.art-input:focus { border-color:var(--art-primary,#1032dc); box-shadow:0 0 0 3px rgba(16,50,220,.12); }
+.art-input::placeholder { color:#68788e; opacity:1; }
+.art-input[aria-invalid="true"] { border-color:#b91c1c; }
+.art-input[aria-invalid="true"]:focus { box-shadow:0 0 0 3px rgba(185,28,28,.12); }
 .art-input:disabled { background:#f5f6f7; color:#7b8794; }
 .art-choice { display:flex; align-items:center; gap:12px; min-height:64px; cursor:pointer; border:1px solid #d8dde3; border-radius:8px; padding:16px; background:#fff; font-size:15px; transition:border-color .18s,background .18s; }
 .art-choice:hover { border-color:#7ca7df; }
+.art-choice:focus-within { outline:2px solid var(--art-primary,#1032dc); outline-offset:3px; }
 .art-choice.is-selected { border-color:var(--art-primary,#0866f5); background:#f3f8ff; }
 .art-choice input { accent-color:var(--art-primary,#0866f5); width:18px; height:18px; flex-shrink:0; }
 .art-review { position:relative; padding:20px 0; border-bottom:1px solid #e2e6ec; }

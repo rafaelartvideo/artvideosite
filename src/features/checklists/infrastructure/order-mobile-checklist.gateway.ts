@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
+import { prepareFileForUpload, prepareImageForUpload } from "@/shared/application/upload-file-optimizer";
 
 export type MobileOrderChecklistSession = {
   id: string;
@@ -167,7 +167,7 @@ export async function uploadMobileOrderChecklistPhoto(
   itemId: string,
   file: File,
 ) {
-  const preparedFile = await prepareImageForUpload(file, "service-photo");
+  const preparedFile = await prepareImageForUpload(file, "service-photo", 10 * 1024 * 1024);
   const body = new FormData();
   body.append("action", "upload_photo");
   body.append("session_id", sessionId);
@@ -184,9 +184,9 @@ export async function uploadMobileOrderDocument(
   targetId: string,
   file: File,
 ) {
-  const prepared = file.type.startsWith("image/")
-    ? await prepareImageForUpload(file, "document-image")
-    : file;
+  const prepared = kind === "situation"
+    ? await prepareImageForUpload(file, "service-photo", 10 * 1024 * 1024)
+    : await prepareFileForUpload(file, "document-image");
   const body = new FormData();
   body.append("action", "upload_document");
   body.append("session_id", sessionId);
