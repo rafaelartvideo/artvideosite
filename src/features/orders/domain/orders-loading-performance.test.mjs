@@ -114,7 +114,7 @@ test("fotos do orçamento são independentes da aprovação e aparecem na impres
   const photos = read("src/features/orders/presentation/OrderQuotePhotosSection.tsx");
   const repository = read("src/features/orders/infrastructure/order-quote-photos.repository.ts");
   const printer = read("src/features/documents/domain/order-print-document.ts");
-  const migration = read("supabase/migrations/20261029133000_order_quote_photos.sql");
+  const migration = read("supabase/migrations/20261029163040_order_quote_photos.sql");
   assert.match(workspace, /<OrderQuotePhotosSection/);
   assert.match(workspace, /canUpload=\{canManagePhotos && !order\.completed_at && !order\.cancelled_at\}/);
   assert.match(details, /quotePhotos,/);
