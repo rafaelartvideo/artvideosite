@@ -228,10 +228,16 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       return result.data as unknown as Registration;
     },
     enabled: Boolean(activeOrganizationId && routeRegistrationId && canView),
+    // A tabela já traz os dados essenciais do cadastro. Exiba-os imediatamente
+    // enquanto o detalhe completo é consultado, sem uma página de loading.
+    placeholderData: () => registrationsQuery.data?.items.find(item =>
+      item.id === routeRegistrationId && item.organization_id === activeOrganizationId,
+    ),
   });
   const routeRegistration = detailQuery.data ?? null;
-  const recordLoading = Boolean(routeRegistrationId && detailQuery.isPending && !routeRegistration);
-  const detailExtrasEnabled = Boolean(routeRegistration && (!routeSubpage || routeSubpage === "edit"));
+  const detailPreview = detailQuery.isPlaceholderData;
+  const recordLoading = Boolean(routeRegistrationId && (detailQuery.isPending || detailPreview));
+  const detailExtrasEnabled = Boolean(routeRegistration && !detailPreview && (!routeSubpage || routeSubpage === "edit"));
   const routeRoles = routeRegistration ? activeRegistrationRoles(routeRegistration) : [];
   const routeEmployeeId = routeRegistration?.legacy_employee_id || null;
 
@@ -334,7 +340,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       return;
     }
 
-    if (!routeRegistration || editorBaseHydratedRef.current === routeRegistration.id) return;
+    if (!routeRegistration || detailPreview || editorBaseHydratedRef.current === routeRegistration.id) return;
     const profileId = routeRegistration.employee_details?.[0]?.profile_id || routeRegistration.legacy_employee?.profile_id || null;
     setSelected(routeRegistration);
     setForm(registrationFormFromRecord(routeRegistration));
@@ -347,7 +353,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     editorBaseHydratedRef.current = routeRegistration.id;
     editorSupplierHydratedRef.current = null;
     editorAccessHydratedRef.current = null;
-  }, [editorOpen, creating, routeRegistration, platformUsersOnly]);
+  }, [editorOpen, creating, routeRegistration, detailPreview, platformUsersOnly]);
 
   useEffect(() => {
     if (!editorOpen || creating || !routeRegistration || !routeRoles.includes("supplier")) return;
@@ -669,7 +675,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   }
 
   if (editorOpen) {
-    if (!creating && (recordLoading || !routeRegistration || !selected)) return <AdminPage open onClose={closeEditor} breadcrumb="Cadastros" title="Carregando cadastro"><LoadingState /></AdminPage>;
+    if (!creating && (recordLoading || !routeRegistration || !selected)) return <AdminPage open onClose={closeEditor} smoothMotion={false} breadcrumb="Cadastros" title="Editar cadastro"><LoadingState /></AdminPage>;
     return <>
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <RegistrationEditor
@@ -715,6 +721,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
       <RegistrationDetails
         selected={routeRegistration}
+        preview={detailPreview}
         supplierItems={supplierItemsQuery.data || []}
         accessForm={detailAccessForm}
         accessExisting={detailAccessExisting}
@@ -737,7 +744,9 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     </>;
   }
 
-  if (routeResourceId && recordLoading) return <LoadingState text="Carregando cadastro..." />;
+  // O preview da linha evita este loading ao abrir pela tabela. Em URLs diretas,
+  // sem qualquer dado em cache, aguardamos a consulta para não exibir ficha falsa.
+  if (routeResourceId && !routeRegistration && recordLoading) return <LoadingState text="Carregando cadastro..." />;
 
   const visibleMobileFilterOptions = platformUsersOnly
     ? mobileFilterOptions.filter(option => option.value !== "role")
