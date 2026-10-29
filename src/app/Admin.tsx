@@ -238,23 +238,17 @@ export function AdminDashboard({
 
   useLayoutEffect(() => { if (!route.resourceId) setPage(null); setSidebarOpen(false); }, [location.pathname, route.resourceId]);
 
-  // O scroll principal só reinicia ao mudar de módulo ou de registro.
-  // Entre /orders/:id/documents e /orders/:id a área subjacente fica estável,
-  // evitando salto/flash quando o modal de documentos é fechado.
-  // Fazer o ajuste de scroll antes da pintura evita o frame intermediário
-  // em que uma página de OS/cadastro fecha e o módulo ainda aparece rolado.
+  // Nenhuma rota do CRM força o scroll para o topo. Ao voltar dos detalhes de
+  // uma OS, apenas restaura a posição da lista de onde ela foi aberta.
   useLayoutEffect(() => {
     const root = contentRef.current;
     if (!root) return;
     if (activeTab === "orders" && !route.resourceId && ordersListScrollRef.current !== null) {
-      // Ao fechar os detalhes, restaura a posição anterior sem salto ao topo.
       root.scrollTop = ordersListScrollRef.current;
       ordersListScrollRef.current = null;
-    } else {
-      root.scrollTop = 0;
-      if (activeTab !== "orders") ordersListScrollRef.current = null;
+    } else if (activeTab !== "orders") {
+      ordersListScrollRef.current = null;
     }
-    root.scrollLeft = 0;
   }, [activeOrganizationId, activeTab, route.resourceId]);
 
   useEffect(() => { if (canAccessTab(activeTab) || !fallbackTab || fallbackTab === activeTab) return; navigateAdmin(fallbackTab, null, null, { replace: true }); }, [activeTab, fallbackTab, hasPermission, hasModule]);
