@@ -131,6 +131,8 @@ export function AdminDashboard({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [page, setPage] = useState<AdminPageState>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  // Guarda a posição da lista de OS enquanto uma OS ocupa a mesma rota.
+  const ordersListScrollRef = useRef<number | null>(null);
   const roleName = loading ? "CARREGANDO..." : ((role as any)?.name ? String((role as any).name).toUpperCase() : "SEM PERFIL");
   const activeOrganization = organizations.find(organization => organization.organization_id === activeOrganizationId) ?? null;
   const activeOrganizationName = activeOrganization?.organization_name || null;
@@ -213,6 +215,10 @@ export function AdminDashboard({
     subpage?: string | null,
     options?: { replace?: boolean; menuTab?: AdminTab; origin?: AdminLocationState["origin"]; crmMode?: boolean },
   ) => {
+    // Captura antes de desmontar a listagem; o detalhe usa a mesma área de scroll.
+    if (activeTab === "orders" && tab === "orders" && !route.resourceId && resourceId) {
+      ordersListScrollRef.current = contentRef.current?.scrollTop ?? 0;
+    }
     const nextCrmMode = options?.crmMode ?? crmMode;
     const basePath = adminPath(tab, resourceId, subpage);
     const targetPath = nextCrmMode && tab !== "crm" ? `${basePath}?mode=crm` : basePath;
@@ -222,14 +228,15 @@ export function AdminDashboard({
         ? { menuTab: options?.menuTab, origin: options?.origin }
         : undefined,
     });
-    if (!resourceId) setPage(null);
+    // O cabeçalho só é limpo no commit da nova rota, junto com a página.
+    // Limpar aqui produzia um frame com a OS ainda visível e o layout deslocado.
     setSidebarOpen(false);
   };
   const routeChange = (tab: AdminTab) => (resourceId: string | null, subpage?: string | null) => navigateAdmin(tab, resourceId, subpage);
   const navigateOrderRoute = (orderId?: string | null, subpage?: string | null) => navigateAdmin("orders", orderId, subpage, { menuTab: locationState?.menuTab, origin: locationState?.origin });
   const closeOrderRoute = () => locationState?.origin ? navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage) : navigateAdmin("orders");
 
-  useEffect(() => { if (!route.resourceId) setPage(null); setSidebarOpen(false); }, [location.pathname, route.resourceId]);
+  useLayoutEffect(() => { if (!route.resourceId) setPage(null); setSidebarOpen(false); }, [location.pathname, route.resourceId]);
 
   // O scroll principal só reinicia ao mudar de módulo ou de registro.
   // Entre /orders/:id/documents e /orders/:id a área subjacente fica estável,
@@ -239,7 +246,14 @@ export function AdminDashboard({
   useLayoutEffect(() => {
     const root = contentRef.current;
     if (!root) return;
-    root.scrollTop = 0;
+    if (activeTab === "orders" && !route.resourceId && ordersListScrollRef.current !== null) {
+      // Ao fechar os detalhes, restaura a posição anterior sem salto ao topo.
+      root.scrollTop = ordersListScrollRef.current;
+      ordersListScrollRef.current = null;
+    } else {
+      root.scrollTop = 0;
+      if (activeTab !== "orders") ordersListScrollRef.current = null;
+    }
     root.scrollLeft = 0;
   }, [activeOrganizationId, activeTab, route.resourceId]);
 
