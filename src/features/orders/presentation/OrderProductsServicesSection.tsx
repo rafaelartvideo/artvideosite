@@ -132,6 +132,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [taskPhotos, setTaskPhotos] = useState<OrderTaskPhoto[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const photoUrlsRef = useRef<Record<string, { url: string; expires: number }>>({});
+  const photoRetryAfterRef = useRef<Record<string, number>>({});
+  // Callback do pai não deve fazer o efeito de carga reiniciar quando o
+  // resumo/badge mudar. A instabilidade anterior provocava milhares de RPCs.
+  const overviewCallbackRef = useRef(onOverviewChange);
+  useEffect(() => { overviewCallbackRef.current = onOverviewChange; }, [onOverviewChange]);
   const [galleryItem, setGalleryItem] = useState<OrderCommercialItem | null>(null);
   const [savingTaskId, setSavingTaskId] = useState<string | null>(null);
   const [pricing, setPricing] = useState<OrderCommercialPricing>(() => pricingFromOrder(order));
@@ -196,13 +201,21 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       setTaskPhotos(incoming);
       const previewPaths = incoming.filter((photo, index, all) =>
         all.filter(other => other.item_id === photo.item_id).findIndex(other => other.id === photo.id) < 2);
-      const missing = previewPaths.filter(photo => !photoUrlsRef.current[photo.path] ||
-        photoUrlsRef.current[photo.path].expires < Date.now());
+      const missing = previewPaths.filter(photo =>
+        (!photoUrlsRef.current[photo.path] || photoUrlsRef.current[photo.path].expires < Date.now())
+        && (photoRetryAfterRef.current[photo.path] || 0) <= Date.now());
       if (missing.length) {
-        const signed = await Promise.all(missing.map(async photo => ({
-          path: photo.path, url: await createOrderTaskPhotoUrl(photo.path),
-        })));
-        for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
+        const signed = await Promise.allSettled(missing.map(photo => createOrderTaskPhotoUrl(photo.path)));
+        signed.forEach((result, index) => {
+          const path = missing[index].path;
+          if (result.status === "fulfilled") {
+            photoUrlsRef.current[path] = { url: result.value, expires: Date.now() + 8 * 60000 };
+            delete photoRetryAfterRef.current[path];
+          } else {
+            // Falha 544/timeout do Storage: não repetir assinatura a cada render.
+            photoRetryAfterRef.current[path] = Date.now() + 120_000;
+          }
+        });
       }
       setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
     } catch {
@@ -225,16 +238,16 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     }
   };
 
-  const publishOverview = (nextItems: OrderCommercialItem[], nextTasks: OrderServiceTask[]) => {
+  const publishOverview = useCallback((nextItems: OrderCommercialItem[], nextTasks: OrderServiceTask[]) => {
     const services = nextItems.filter(item => item.item_type !== "product");
     const byItem = new Map(nextTasks.map(task => [task.item_id, task.status]));
-    onOverviewChange?.({
+    overviewCallbackRef.current?.({
       total: nextItems.length,
       pending: services.filter(item => !byItem.has(item.id) || byItem.get(item.id) === "pending" || byItem.get(item.id) === "cancelled").length,
       inProgress: services.filter(item => byItem.get(item.id) === "in_progress").length,
       completed: services.filter(item => byItem.get(item.id) === "completed").length,
     });
-  };
+  }, []);
 
   const loadItems = useCallback(async (quiet = false) => {
     if (!order?.id) return;
@@ -268,7 +281,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         setLoadingItems(false);
       }
     }
-  }, [order?.id, editable, refreshTaskPhotos, onOverviewChange]);
+  }, [order?.id, editable, refreshTaskPhotos, publishOverview]);
 
   // Escuta somente a OS aberta. Quando o técnico inicia/finaliza em outra sessão,
   // o Postgres Changes entrega o evento sem atualizar o editor comercial da OS.
@@ -307,20 +320,21 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       }, () => { void refreshTechnicalStatus(); })
       .subscribe(status => {
         subscribed = status === "SUBSCRIBED";
-        if (subscribed) void refreshTechnicalStatus();
+        // O carregamento inicial já está em andamento; não dispare outro GET
+        // apenas porque o canal acabou de conectar.
       });
 
-    const refreshOnReturn = () => { void refreshTechnicalStatus(); };
+    const refreshOnReturn = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastRefreshAt > 60_000) void refreshTechnicalStatus();
+    };
     document.addEventListener("visibilitychange", refreshOnReturn);
     window.addEventListener("online", refreshOnReturn);
 
     // Recuperação se o Realtime cair ou um evento for perdido. Nunca cria
     // polling de tabelas comerciais e pausa quando a aba não está visível.
     const poll = window.setInterval(() => {
-      if (!subscribed || Date.now() - lastRefreshAt > 45000) {
-        void refreshTechnicalStatus();
-      }
-    }, 15000);
+      if (!subscribed && Date.now() - lastRefreshAt > 120_000) void refreshTechnicalStatus();
+    }, 120_000);
 
     return () => {
       active = false;
@@ -329,7 +343,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       window.removeEventListener("online", refreshOnReturn);
       void supabase.removeChannel(channel);
     };
-  }, [order?.id, refreshTaskPhotos]);
+  }, [order?.id, refreshTaskPhotos, publishOverview]);
 
   useEffect(() => {
     setPricing(pricingFromOrder(order));
@@ -351,6 +365,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     setTaskPhotos([]);
     setPhotoUrls({});
     photoUrlsRef.current = {};
+    photoRetryAfterRef.current = {};
     setGalleryItem(null);
     setProductSearch("");
     setSelectedProduct(null);
