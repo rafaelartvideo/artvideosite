@@ -8,7 +8,7 @@ import { listOrderServiceTasks } from "../infrastructure/order-service-tasks.rep
 import { readOrderQuote } from "../infrastructure/order-quote.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { CheckCircle2, ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
@@ -121,6 +121,21 @@ export function OrderDetailsPage(props: Props) {
   const { detail, detailUsedItems, detailSolutionImages, closeDetail } = details;
   const [detailSection, setDetailSection] = useState<"products-services" | "details">(initialSection);
   const [itemsOverview, setItemsOverview] = useState<{ total: number; pending: number; inProgress: number; completed: number } | null>(null);
+  // Identidade estável: ao atualizar o badge, a aba Produtos e Serviços não
+  // deve interpretar o callback como uma nova solicitação de carregamento.
+  const handleItemsOverviewChange = useCallback((overview: { total: number; pending: number; inProgress: number; completed: number }) => {
+    if (!detail?.id) return;
+    const same = (previous: typeof overview | null | undefined) => Boolean(previous
+      && previous.total === overview.total
+      && previous.pending === overview.pending
+      && previous.inProgress === overview.inProgress
+      && previous.completed === overview.completed);
+    queryClient.setQueryData<typeof overview>(
+      ["orders", "items-overview", detail.organization_id || "none", detail.id],
+      current => same(current) ? current : overview,
+    );
+    setItemsOverview(current => same(current) ? current : overview);
+  }, [detail?.id, detail?.organization_id, queryClient]);
   // Apenas uma assinatura por OS: na aba de itens, a própria seção atualiza
   // o resumo. Na aba de detalhes, mantemos o badge sincronizado.
   useEffect(() => {
@@ -646,10 +661,7 @@ export function OrderDetailsPage(props: Props) {
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
           formatCurrency={formatCurrency}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
-          onOverviewChange={overview => {
-            queryClient.setQueryData(["orders", "items-overview", detail.organization_id || "none", detail.id], overview);
-            setItemsOverview(overview);
-          }}
+          onOverviewChange={handleItemsOverviewChange}
         /> : <>
           {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
           <OrderDetailsContent
