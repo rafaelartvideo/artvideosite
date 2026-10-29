@@ -157,7 +157,7 @@ export async function savePrintTemplate(value: PrintTemplateEditorValue) {
         section_key: section.key,
         title: section.label,
         sort_order: sectionIndex,
-        columns: section.defaultColumns,
+        columns: value.layout.section_columns?.[section.key] ?? section.defaultColumns,
         is_enabled: true,
         settings: {},
       })
