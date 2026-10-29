@@ -7,12 +7,14 @@ export function AdminInlineSearch({
   placeholder = "Buscar...",
   ariaLabel,
   iconTone = "primary",
+  size = "default",
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   ariaLabel: string;
   iconTone?: "primary" | "neutral";
+  size?: "default" | "compact";
 }) {
   return (
     <div className="relative w-full min-w-0 sm:w-[280px] sm:max-w-[38vw]">
@@ -23,7 +25,7 @@ export function AdminInlineSearch({
         value={value}
         onChange={event => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-[42px] w-full rounded-lg border border-[#0057e7]/30 bg-white py-2 pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15"
+        className={`${size === "compact" ? "h-9" : "h-[42px]"} w-full rounded-lg border border-[#0057e7]/30 bg-white py-2 pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15`}
       />
       {value && (
         <button

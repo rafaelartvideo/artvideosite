@@ -515,8 +515,9 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />
-    <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border lg:min-h-16">
-      <nav aria-label="Subseções de equipamentos técnicos" className="flex min-w-0 flex-wrap items-center gap-5">
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border">
+      <div className="flex w-full min-w-0 items-center sm:w-auto sm:max-w-full sm:flex-none">
+        <nav aria-label="Subseções de equipamentos técnicos" className="flex min-w-0 flex-wrap items-center gap-5">
         {([
           ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
           ...(canViewFields ? [{ id: "fields" as const, label: "Campos Extras", Icon: Settings2 }] : []),
@@ -529,15 +530,17 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               else if (id === "fields") openFieldsPage();
               else openBrandsPage();
             }}
-            className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeArea === id
+            className={`inline-flex min-h-12 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeArea === id
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"}`}>
             <Icon size={17} className="shrink-0" />{label}
           </button>
         ))}
-      </nav>
-      <div className="w-full min-w-0 shrink-0 pb-2 sm:ml-auto sm:w-[280px] lg:self-center lg:pb-0">
+        </nav>
+      </div>
+      <div className="flex w-full min-w-0 shrink-0 items-center justify-end pb-2 sm:ml-auto sm:w-[280px] sm:pb-0">
         <AdminInlineSearch value={activeSearch} onChange={updateAreaSearch}
+          size="compact"
           iconTone="neutral"
           placeholder={activeArea === "registered" ? "Buscar equipamentos..." : activeArea === "fields" ? "Buscar campos extras..." : "Buscar marcas..."}
           ariaLabel={activeArea === "registered" ? "Buscar equipamentos, marcas e modelos" : activeArea === "fields" ? "Buscar campos extras" : "Buscar marcas e equipamentos vinculados"} />
