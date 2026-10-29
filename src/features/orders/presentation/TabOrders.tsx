@@ -718,6 +718,7 @@ export function TabOrders({
     && !formOpen
     && !solveOpen
     && !editingRouteActive
+    && closingRouteRef.current !== initialOrderId
   );
 
   return (
