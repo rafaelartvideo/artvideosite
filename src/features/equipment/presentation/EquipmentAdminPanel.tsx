@@ -515,7 +515,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />
-    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border">
+    <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border lg:min-h-16">
       <nav aria-label="Subseções de equipamentos técnicos" className="flex min-w-0 flex-wrap items-center gap-5">
         {([
           ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
@@ -536,7 +536,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </button>
         ))}
       </nav>
-      <div className="w-full min-w-0 shrink-0 sm:ml-auto sm:w-[280px]">
+      <div className="w-full min-w-0 shrink-0 pb-2 sm:ml-auto sm:w-[280px] lg:self-center lg:pb-0">
         <AdminInlineSearch value={activeSearch} onChange={updateAreaSearch}
           iconTone="neutral"
           placeholder={activeArea === "registered" ? "Buscar equipamentos..." : activeArea === "fields" ? "Buscar campos extras..." : "Buscar marcas..."}
