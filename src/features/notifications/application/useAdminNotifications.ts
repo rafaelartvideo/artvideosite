@@ -46,9 +46,12 @@ export function useAdminNotifications(
     queryKey,
     enabled,
     queryFn: () => loadAdminNotifications(normalizedOrganizationId!, 50),
-    staleTime: 10_000,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: "always",
+    // O canal Realtime entrega novidades imediatamente. A verificação
+    // periódica é só contingência para eventos perdidos/reconexão.
+    // Não consulte novamente a cada troca de módulo ou foco da janela.
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: false,
     retry: false,
   });
 
@@ -81,7 +84,7 @@ export function useAdminNotifications(
   // The realtime INSERT can be missed if the page was closed, switched tabs,
   // the websocket reconnected, or the database cron fired during a reload.
   // Recover pending reminders from the actual server inbox on initial load,
-  // focus and 30-second polling; dismissed/read notifications are not replayed.
+  // focus and 60-second polling; dismissed/read notifications are not replayed.
   useEffect(() => {
     if (!enabled) return;
     const since = Date.now() - 24 * 60 * 60_000;
