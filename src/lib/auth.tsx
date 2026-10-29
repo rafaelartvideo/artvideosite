@@ -367,7 +367,9 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     setPendingTerms([]);
     setAccessError(null);
 
-    if (notifyOrganizationChange && previousOrganizationId) {
+    if (notifyOrganizationChange) {
+      // Mesmo sem empresa selecionada, um logout deve descartar os caches
+      // de todas as organizações da sessão anterior.
       dispatchCompatibleEvent(
         ORGANIZATION_CHANGED_EVENT,
         LEGACY_ORGANIZATION_CHANGED_EVENT,
@@ -377,6 +379,7 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
   }
 
   function clearResolvedAccess() {
+    const previousOrganizationId = activeOrganizationIdRef.current;
     activeOrganizationIdRef.current = null;
     setEmployee(null);
     setRole(null);
@@ -384,6 +387,14 @@ export function AuthProvider({ children, scope = "crm" }: { children: ReactNode;
     setOrganizations([]);
     setActiveOrganizationState(null);
     setPendingTerms([]);
+    if (previousOrganizationId) {
+      // Falha de acesso também encerra o escopo dos dados da empresa anterior.
+      dispatchCompatibleEvent(
+        ORGANIZATION_CHANGED_EVENT,
+        LEGACY_ORGANIZATION_CHANGED_EVENT,
+        { previousOrganizationId, organizationId: null },
+      );
+    }
   }
 
   async function loadAccess(userId: string, preferredOrganizationId?: string | null) {
