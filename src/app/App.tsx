@@ -158,7 +158,11 @@ function AdminAccessMessage({
 
 function ScrollToTop() {
   const { pathname, hash } = useLocation();
-  useEffect(() => { window.scrollTo({ top: 0, behavior: "auto" }); }, [pathname]);
+  // O CRM mantém o próprio container de rolagem. Não force scroll ao navegar
+  // entre rotas administrativas (incluindo abrir/fechar OS e Cadastros).
+  useEffect(() => {
+    if (!pathname.startsWith("/admin")) window.scrollTo({ top: 0, behavior: "auto" });
+  }, [pathname]);
   useEffect(() => {
     // O convite circula no fragmento (#), nunca em query, para nao chegar
     // aos logs do servidor, navegacao, analytics ou cabecalho Referer.
