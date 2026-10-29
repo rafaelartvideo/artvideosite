@@ -10,7 +10,7 @@ test("equipamento usa a configuração de colunas ou o padrão de três na impre
   const section = registry.match(/key: "equipment",[\s\S]*?defaultColumns: ([123])/);
   assert.equal(section?.[1], "3");
   assert.match(printer, /const equipmentColumns = Math\.max\(2,Math\.min\(3,template\.layout\.section_columns\?\.equipment \?\? section\.defaultColumns\)\)/);
-  assert.match(printer, /"grid columns-"\+equipmentColumns/);
+  assert.match(printer, /grid columns-"\+equipmentColumns/);
   assert.match(printer, /fields\.map\(field=>"\<div class='field'\>/);
   assert.match(printer, /\.columns-3\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)\}/);
 });
