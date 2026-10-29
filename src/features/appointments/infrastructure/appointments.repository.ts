@@ -17,6 +17,48 @@ function requireOrganizationId(organizationId: string) {
   return value;
 }
 
+// Referências são iguais dentro da mesma sessão/empresa. Alternar mês ou
+// voltar ao módulo não deve disparar seis GETs idênticos em paralelo.
+async function fetchAgendaReferences(org: string) {
+  const [employeesResult, servicesResult, generalServicesResult, statusesResult,
+    situationsResult, appointmentSituationsResult] = await Promise.all([
+    supabase.from("employees").select("id,full_name,is_active").eq("organization_id", org).eq("is_active", true).order("full_name"),
+    supabase.from("services").select("id,title").eq("organization_id", org).eq("is_active", true).order("title"),
+    supabase.from("general_services").select("id,name").eq("organization_id", org).eq("is_active", true).order("name"),
+    supabase.from("order_statuses").select("id,name").eq("organization_id", org).order("sort_order"),
+    supabase.from("os_situations").select("id,name,hours").eq("organization_id", org).eq("is_active", true).order("sort_order"),
+    supabase.from("appointment_situations")
+      .select("id,name,color,is_active,sort_order,created_at,updated_at")
+      .eq("organization_id", org).eq("is_active", true).order("sort_order").order("name"),
+  ]);
+  const error = employeesResult.error || servicesResult.error || generalServicesResult.error ||
+    statusesResult.error || situationsResult.error || appointmentSituationsResult.error;
+  if (error) throw error;
+  return {
+    employees: employeesResult.data ?? [],
+    services: servicesResult.data ?? [],
+    generalServices: generalServicesResult.data ?? [],
+    statuses: statusesResult.data ?? [],
+    situations: situationsResult.data ?? [],
+    appointmentSituations: appointmentSituationsResult.data ?? [],
+  };
+}
+
+const agendaReferencesCache = new Map<string, {
+  expiresAt: number; promise: ReturnType<typeof fetchAgendaReferences>;
+}>();
+function cachedAgendaReferences(org: string, userId: string | null) {
+  const key = org + ":" + (userId || "anonymous");
+  const current = agendaReferencesCache.get(key);
+  if (current && current.expiresAt > Date.now()) return current.promise;
+  const promise = fetchAgendaReferences(org).catch(error => {
+    if (agendaReferencesCache.get(key)?.promise === promise) agendaReferencesCache.delete(key);
+    throw error;
+  });
+  agendaReferencesCache.set(key, { expiresAt: Date.now() + 90_000, promise });
+  return promise;
+}
+
 export async function loadAgendaData({
   organizationId,
   userId,
@@ -74,17 +116,7 @@ export async function loadAgendaData({
     ordersQuery = ordersQuery.or(filters.join(","));
   }
 
-  const [
-    ordersResult,
-    appointmentsResult,
-    employeesResult,
-    servicesResult,
-    generalServicesResult,
-    statusesResult,
-    situationsResult,
-    appointmentSituationsResult,
-    taskSchedulesResult,
-  ] = await Promise.all([
+  const [ordersResult, appointmentsResult, taskSchedulesResult, references] = await Promise.all([
     ordersQuery,
     supabase
       .from("appointments")
@@ -93,43 +125,22 @@ export async function loadAgendaData({
       .gte("appointment_date", dateFrom)
       .lt("appointment_date", dateToExclusive)
       .order("appointment_date"),
-    supabase.from("employees").select("id,full_name,is_active").eq("organization_id", org).eq("is_active", true).order("full_name"),
-    supabase.from("services").select("id,title").eq("organization_id", org).eq("is_active", true).order("title"),
-    supabase.from("general_services").select("id,name").eq("organization_id", org).eq("is_active", true).order("name"),
-    supabase.from("order_statuses").select("id,name").eq("organization_id", org).order("sort_order"),
-    supabase.from("os_situations").select("id,name,hours").eq("organization_id", org).eq("is_active", true).order("sort_order"),
-    supabase
-      .from("appointment_situations")
-      .select("id,name,color,is_active,sort_order,created_at,updated_at")
-      .eq("organization_id", org)
-      .eq("is_active", true)
-      .order("sort_order")
-      .order("name"),
     taskScheduleQuery,
+    cachedAgendaReferences(org, userId),
   ]);
-
-  const error =
-    ordersResult.error ||
-    appointmentsResult.error ||
-    employeesResult.error ||
-    servicesResult.error ||
-    generalServicesResult.error ||
-    statusesResult.error ||
-    situationsResult.error ||
-    appointmentSituationsResult.error;
-
+  const error = ordersResult.error || appointmentsResult.error;
   if (error) throw error;
 
   return {
     myEmployeeId,
     orders: ordersResult.data ?? [],
     appointments: appointmentsResult.data ?? [],
-    employees: employeesResult.data ?? [],
-    services: servicesResult.data ?? [],
-    generalServices: generalServicesResult.data ?? [],
-    statuses: statusesResult.data ?? [],
-    situations: situationsResult.data ?? [],
-    appointmentSituations: appointmentSituationsResult.data ?? [],
+    employees: references.employees,
+    services: references.services,
+    generalServices: references.generalServices,
+    statuses: references.statuses,
+    situations: references.situations,
+    appointmentSituations: references.appointmentSituations,
     taskSchedules: canViewOtherAgendas ? taskSchedulesResult :
       taskSchedulesResult.filter(task => myEmployeeId && (
         task.assigned_employee_id === myEmployeeId ||
