@@ -748,7 +748,9 @@ export function TabOrders({
       )}
 
       <OrdersListWorkspace
-        visible={!detailOnly && !initialOrderId && !editingRouteActive && !detail && !formOpen && !solveOpen}
+        // A rota, não a limpeza assíncrona de detail, determina quando a lista volta.
+        // Assim, lista e detalhe trocam juntos, sem um frame vazio/intermediário.
+        visible={!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && (!detail || Boolean(onOrderRouteChange))}
         displayMode={displayMode}
         workspace={workspace}
         filters={filters}
@@ -767,7 +769,8 @@ export function TabOrders({
       />
 
       <OrderDetailsPage
-        visible={Boolean(detail && !solveOpen && !editingRouteActive)}
+        // Não mantenha a OS anterior renderizada enquanto a rota já aponta para a lista.
+        visible={Boolean(detail && !solveOpen && !editingRouteActive && (!onOrderRouteChange || initialOrderId))}
         initialSection={detailInitialSection}
         userId={user?.id}
         profileName={profile?.full_name}
