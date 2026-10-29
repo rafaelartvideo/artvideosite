@@ -81,3 +81,11 @@ test("CRM não aplica scroll para o topo automaticamente ao navegar", () => {
   assert.match(admin, /root\.scrollTop = ordersListScrollRef\.current/);
   assert.match(pages, /smoothMotion = false/);
 });
+
+test("lista de Cadastros mantém cache e volta à posição anterior", () => {
+  const tab = read("src/features/registrations/presentation/TabRegistrations.tsx");
+  const admin = read("src/app/Admin.tsx");
+  assert.match(tab, /registrationsQuery\.isPending && !registrationsQuery\.data/);
+  assert.match(admin, /customersListScrollRef\.current = contentRef\.current\?\.scrollTop/);
+  assert.match(admin, /root\.scrollTop = customersListScrollRef\.current/);
+});
