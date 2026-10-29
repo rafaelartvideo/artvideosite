@@ -17,7 +17,7 @@ create policy service_order_quote_photos_read on public.service_order_quote_phot
   for select to authenticated using (
     exists (
       select 1 from public.service_orders os
-      where os.id=service_order_id and os.organization_id=organization_id
+      where os.id=service_order_id and os.organization_id=service_order_quote_photos.organization_id
     )
     and private.can_view_service_order(service_order_id)
     and private.has_effective_organization_permission(organization_id,'orders.view')
@@ -32,8 +32,8 @@ create policy service_order_quote_photos_add on public.service_order_quote_photo
       from public.service_orders os
       join public.service_types st on st.id=os.service_type_id
       where os.id=service_order_id
-        and os.organization_id=organization_id
-        and st.organization_id=organization_id
+        and os.organization_id=service_order_quote_photos.organization_id
+        and st.organization_id=service_order_quote_photos.organization_id
         and st.quote_workflow_enabled
         and os.completed_at is null
         and os.cancelled_at is null
@@ -41,7 +41,7 @@ create policy service_order_quote_photos_add on public.service_order_quote_photo
     and exists (
       select 1 from public.media m
       where m.id=media_id
-        and m.organization_id=organization_id
+        and m.organization_id=service_order_quote_photos.organization_id
         and m.uploaded_by=(select auth.uid())
         and m.bucket_id='service-images'
         and m.mime_type like 'image/%'
