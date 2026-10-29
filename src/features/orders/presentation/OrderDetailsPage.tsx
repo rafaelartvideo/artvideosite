@@ -217,7 +217,10 @@ export function OrderDetailsPage(props: Props) {
   const slaVisits = useOrderSituationVisits(detail?.id, detail?.situation_id, detail?.situation_started_at);
   const { setViewImage, orderImages } = images;
   const solutionMediaIds = new Set(detailSolutionImages.map(image => image.mediaId).filter(Boolean));
-  const visibleDocumentCount = documents.documents.filter(document => !solutionMediaIds.has(document.media_id)).length + detailSolutionImages.length;
+  // A contagem leve chega sem aguardar os JOINs completos de anexos.
+  // Quando os dados completos estão disponíveis, evita contar fotos duas vezes.
+  const loadedDocumentCount = documents.documents.filter(document => !solutionMediaIds.has(document.media_id)).length + detailSolutionImages.length;
+  const visibleDocumentCount = Math.max(loadedDocumentCount, documents.documentsCount ?? 0);
   const { detailPartRequests, getTestCommittedQuantity, getTestPendingQuantity, openPartApproval, openPartRejection, openDeliveryRequest, openTestResult, openPartRequestModal } = partRequests;
   const {
     openSolveOrder,
