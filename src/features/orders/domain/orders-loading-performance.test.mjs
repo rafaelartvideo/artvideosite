@@ -107,3 +107,26 @@ test("Realtime conectado não dispara polling contínuo nem tempestade de assina
   assert.match(source, /photoRetryAfterRef\.current\[path\] = Date\.now\(\) \+ 120_000/);
   assert.match(source, /Promise\.allSettled\(missing\.map/);
 });
+
+test("fotos do orçamento são independentes da aprovação e aparecem na impressão e no PDF", () => {
+  const workspace = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const photos = read("src/features/orders/presentation/OrderQuotePhotosSection.tsx");
+  const repository = read("src/features/orders/infrastructure/order-quote-photos.repository.ts");
+  const printer = read("src/features/documents/domain/order-print-document.ts");
+  const migration = read("supabase/migrations/20261029133000_order_quote_photos.sql");
+  assert.match(workspace, /<OrderQuotePhotosSection/);
+  assert.match(workspace, /canUpload=\{canManagePhotos && !order\.completed_at && !order\.cancelled_at\}/);
+  assert.match(details, /quotePhotos,/);
+  assert.match(details, /listOrderQuotePhotos\(detail\.organization_id, detail\.id\)/);
+  assert.match(photos, /validateOrderQuotePhoto/);
+  assert.match(photos, /invalidateQueries\(\{ queryKey \}\)/);
+  assert.match(repository, /uploadServiceOrderMediaFile\(orderId, "attachments\/quote"/);
+  assert.match(repository, /createSignedUrls/);
+  assert.match(printer, /const quotePhotoHtml/);
+  assert.match(printer, /sectionHtmlWithPhotos/);
+  assert.match(printer, /object-fit:contain/);
+  assert.match(migration, /enable row level security/);
+  assert.match(migration, /service_order_quote_photos_add/);
+  assert.match(migration, /remove_service_order_quote_photo_v1/);
+});
