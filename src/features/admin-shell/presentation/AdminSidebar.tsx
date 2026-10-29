@@ -197,7 +197,7 @@ export function AdminSidebar({
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <nav className="px-3 py-3">
           {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {!collapsed && (
                 <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
                   Principal
@@ -208,35 +208,35 @@ export function AdminSidebar({
           )}
 
           {serviceItems.length > 0 && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {sectionHeader("Atendimento")}
               {sortUnionSection(serviceItems).map(renderMainItem)}
             </div>
           )}
 
           {communicationItems.length > 0 && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {sectionHeader("Comunicação")}
               {sortUnionSection(communicationItems).map(renderMainItem)}
             </div>
           )}
 
           {commercialItems.length > 0 && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {sectionHeader("Comercial")}
               {sortUnionSection(commercialItems).map(renderMainItem)}
             </div>
           )}
 
           {(administrationItems.length > 0 || canAccessSite || canAccessOperation || canAccessTools) && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {sectionHeader("Administração")}
               {administrationSectionItems.map(renderMainItem)}
             </div>
           )}
 
           {canAccessPlatformSettings && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {sectionHeader("Configuração")}
               <SidebarItem
                 item={{ id: "settings", label: "Dados da empresa", icon: Settings }}
@@ -248,7 +248,7 @@ export function AdminSidebar({
           )}
 
           {utilityItems.some(item => canAccessTab(item.id as AdminTab)) && (
-            <div className="space-y-1">
+            <div className="space-y-1.5">
               {sectionHeader("Utilidades")}
               {utilityItems.filter(item => canAccessTab(item.id as AdminTab)).map(item => (
                 <SidebarItem

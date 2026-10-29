@@ -34,11 +34,11 @@ export function SidebarItem({ item, active, onClick, collapsed = false }: Sideba
       aria-label={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full min-w-0 cursor-default items-center rounded-lg text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-white/70",
-        collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2 text-left",
+        "flex w-full min-w-0 cursor-default items-center border-l-[3px] rounded-none text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-light/70",
+        collapsed ? "justify-center px-0 py-2.5" : "gap-2 px-3 py-2 text-left",
         active
-          ? "bg-primary text-white shadow-sm"
-          : "text-white/70 hover:bg-white/8 hover:text-white",
+          ? "border-primary bg-[#eef3ff] text-primary"
+          : "border-transparent text-white/70 hover:bg-white/8 hover:text-white",
       )}
     >
       <Icon size={collapsed ? 18 : 16} className="shrink-0" />
