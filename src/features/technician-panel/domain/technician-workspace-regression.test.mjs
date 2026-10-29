@@ -552,3 +552,13 @@ test("calendário filtra intervalo inclusivo de agendamentos com validação", (
   assert.match(table, /onClick=\{applyDates\}>Filtrar/);
   assert.match(table, /setPage\(1\)/);
 });
+
+test("consulta técnica usa cache por organização e usuário, sem limpar a lista ao retornar", () => {
+  assert.match(panel, /queryClient\.getQueryData<TechnicianTask\[\]>/);
+  assert.match(panel, /queryClient\.fetchQuery/);
+  assert.match(panel, /staleTime: 90_000/);
+  assert.match(panel, /staleTime: 120_000/);
+  assert.match(panel, /\["technician", "order-detail", activeOrganizationId, user\.id, routeOrderId\]/);
+  assert.match(panel, /refresh\(true, false\)/);
+  assert.match(panel, /queryClient\.invalidateQueries/);
+});
