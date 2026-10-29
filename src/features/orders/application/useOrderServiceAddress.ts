@@ -31,6 +31,9 @@ const FALLBACK_STATES: IbgeState[] = [
   { sigla: "TO", nome: "Tocantins" },
 ];
 
+let cachedIbgeStates: IbgeState[] = FALLBACK_STATES;
+let ibgeStatesRequest: Promise<IbgeState[]> | null = null;
+
 const normalizeDigits = (value: unknown) => String(value ?? "").replace(/\D/g, "");
 const normalizeLookup = (value: unknown) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 
@@ -46,7 +49,7 @@ export function useOrderServiceAddress({
   const [serviceUseCustomerAddress, setServiceUseCustomerAddress] = useState(false);
   const [serviceCustomerAddressOverride, setServiceCustomerAddressOverride] = useState(false);
   const [serviceAddressMessage, setServiceAddressMessage] = useState("");
-  const [ibgeStates, setIbgeStates] = useState<IbgeState[]>([]);
+  const [ibgeStates, setIbgeStates] = useState<IbgeState[]>(() => cachedIbgeStates);
   const [ibgeStatesLoading, setIbgeStatesLoading] = useState(false);
   const [ibgeCities, setIbgeCities] = useState<IbgeCity[]>([]);
   const [ibgeCitiesLoading, setIbgeCitiesLoading] = useState(false);
@@ -178,12 +181,18 @@ export function useOrderServiceAddress({
 
   useEffect(() => {
     let active = true;
-    setIbgeStatesLoading(true);
-    fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
-      .then(response => response.ok ? response.json() as Promise<IbgeState[]> : Promise.reject(new Error("Falha ao carregar estados.")))
-      .then(states => { if (active) setIbgeStates(states); })
-      .catch(() => { if (active) setIbgeStates(FALLBACK_STATES); })
-      .finally(() => { if (active) setIbgeStatesLoading(false); });
+    // Os 27 estados já estão disponíveis localmente: nunca bloquear o filtro
+    // com loading, nem disparar a mesma chamada do IBGE a cada visita.
+    if (!ibgeStatesRequest) {
+      ibgeStatesRequest = fetch("https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome")
+        .then(response => response.ok ? response.json() as Promise<IbgeState[]> : FALLBACK_STATES)
+        .then(states => {
+          cachedIbgeStates = states.length === 27 ? states : FALLBACK_STATES;
+          return cachedIbgeStates;
+        })
+        .catch(() => FALLBACK_STATES);
+    }
+    void ibgeStatesRequest.then(states => { if (active) setIbgeStates(states); });
     return () => { active = false; };
   }, []);
 
