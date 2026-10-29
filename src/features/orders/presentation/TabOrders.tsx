@@ -577,7 +577,10 @@ export function TabOrders({
       onOrderRouteChange(null, null);
     }
 
-    closeDetail();
+    // Em rotas de detalhes, preserve a OS até a navegação concluir.
+    // O efeito que observa initialOrderId faz a limpeza ao sair da rota;
+    // limpar agora exibia "Carregando OS" por um frame no fechamento.
+    if (!initialOrderId || (!onOrderRouteClose && !onOrderRouteChange)) closeDetail();
     closeOrderForm();
     orderHistory.resetPageState();
   };
