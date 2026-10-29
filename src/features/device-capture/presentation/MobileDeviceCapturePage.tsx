@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { BrowserMultiFormatReader } from "@zxing/browser";
-import { Camera, CheckCircle2, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
+import { Camera, CheckCircle2, Download, Hash, ImagePlus, Loader2, ScanLine, Send, Smartphone, Unplug, Wifi, WifiOff } from "lucide-react";
 import { useLocation, useParams } from "react-router";
+import { pairMobileOrderEditCode } from "@/features/orders/infrastructure/order-mobile-edit.gateway";
+import { pairMobileOrderChecklistCode } from "@/features/checklists/infrastructure/order-mobile-checklist.gateway";
 import { MobileEntryChecklist } from "./MobileEntryChecklist";
 import { subscribeMobileSessionRealtime } from "@/features/device-capture/infrastructure/mobile-session-realtime";
 import {
@@ -36,27 +38,53 @@ type NativeBarcodeDetectorConstructor = {
   getSupportedFormats?: () => Promise<string[]>;
 };
 
-function parsePairingPayload(value: string): Pairing | null {
+type MobileScanTarget =
+  | { kind: "capture"; sessionId: string; token: string }
+  | { kind: "edit" | "checklist"; sessionId: string; token: string; mode?: "documents" };
+
+type CaptureInstallPrompt = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: string }>;
+};
+
+// QR links can open any of the three temporary Union World mobile sessions.
+// Only known routes on the current/official host are accepted; never open a URL from the QR directly.
+function parsePairingPayload(value: string): MobileScanTarget | null {
   const raw = value.trim();
   if (!raw) return null;
-
   if (raw.startsWith("UNIONWORLD_CAPTURE|") || raw.startsWith("ARTVIDEO_CAPTURE|")) {
     const [, sessionId, token] = raw.split("|");
-    return sessionId && token ? { sessionId, token } : null;
+    return sessionId && token ? { kind: "capture", sessionId, token } : null;
   }
 
   try {
     const url = new URL(raw, window.location.origin);
-    if (url.origin !== window.location.origin) return null;
-    const routeMatch = url.pathname.match(/^\/captura\/([^/]+)$/);
-    const sessionId = url.searchParams.get("session") || routeMatch?.[1] || "";
-    const token = url.searchParams.get("token") || "";
-    return sessionId && token
-      ? { sessionId: decodeURIComponent(sessionId), token }
+    if (url.origin !== window.location.origin && url.origin !== "https://unionworld.com.br" && url.origin !== "https://www.unionworld.com.br") return null;
+
+    const captureMatch = url.pathname.match(/^\/captura(?:\/([^/]+))?\/?$/);
+    const kind = captureMatch ? "capture"
+      : url.pathname === "/editar-os-mobile" || url.pathname === "/editar-os-mobile/" ? "edit"
+      : url.pathname === "/checklist-mobile" || url.pathname === "/checklist-mobile/" ? "checklist"
       : null;
+    if (!kind) return null;
+
+    const sessionId = url.searchParams.get("session") || captureMatch?.[1] || "";
+    const token = url.searchParams.get("token") || "";
+    if (!sessionId || !token) return null;
+
+    return kind === "checklist"
+      ? { kind, sessionId, token, mode: url.searchParams.get("mode") === "documents" ? "documents" : undefined }
+      : { kind, sessionId, token };
   } catch {
     return null;
   }
+}
+
+function navigateToMobileSession(target: Extract<MobileScanTarget, { kind: "edit" | "checklist" }>) {
+  const route = target.kind === "edit" ? "/editar-os-mobile" : "/checklist-mobile";
+  const params = new URLSearchParams({ session: target.sessionId, token: target.token });
+  if (target.mode === "documents") params.set("mode", "documents");
+  window.location.assign(`${route}?${params.toString()}`);
 }
 
 function pairingCodeDigits(value: string) {
@@ -129,6 +157,9 @@ export function MobileDeviceCapturePage() {
   const [uploadingKind, setUploadingKind] = useState<DeviceCapturePhotoKind | null>(null);
   const [pairScannerOpen, setPairScannerOpen] = useState(false);
   const [notice, setNotice] = useState<Notice>(null);
+  const [canInstall, setCanInstall] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const installPromptRef = useRef<CaptureInstallPrompt | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const scannerControlsRef = useRef<ScannerControls | null>(null);
   const serialCaptureInputRef = useRef<HTMLInputElement>(null);
@@ -160,11 +191,53 @@ export function MobileDeviceCapturePage() {
   };
 
   useEffect(() => {
-    document.title = "Union World Captura";
+    document.title = "Union Captura";
+    // Use a separate PWA identity only on the capture route; the CRM's main manifest stays intact.
+    const manifestLink = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    const originalManifest = manifestLink?.getAttribute("href") || "";
+    const appleTitle = document.querySelector<HTMLMetaElement>('meta[name="apple-mobile-web-app-title"]');
+    const originalAppleTitle = appleTitle?.getAttribute("content") || "";
+    manifestLink?.setAttribute("href", "/captura.webmanifest");
+    appleTitle?.setAttribute("content", "Union Captura");
+
+    const installed = window.matchMedia("(display-mode: standalone)").matches
+      || Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone);
+    setIsInstalled(installed);
+    const beforeInstall = (event: Event) => {
+      if (installed) return;
+      event.preventDefault();
+      installPromptRef.current = event as CaptureInstallPrompt;
+      setCanInstall(true);
+    };
+    const onInstalled = () => {
+      installPromptRef.current = null;
+      setCanInstall(false);
+      setIsInstalled(true);
+    };
+    window.addEventListener("beforeinstallprompt", beforeInstall);
+    window.addEventListener("appinstalled", onInstalled);
     return () => {
       scannerControlsRef.current?.stop();
+      window.removeEventListener("beforeinstallprompt", beforeInstall);
+      window.removeEventListener("appinstalled", onInstalled);
+      if (manifestLink) manifestLink.setAttribute("href", originalManifest);
+      if (appleTitle) appleTitle.setAttribute("content", originalAppleTitle);
     };
   }, []);
+
+  const installCaptureApp = async () => {
+    const prompt = installPromptRef.current;
+    if (!prompt) return;
+    installPromptRef.current = null;
+    setCanInstall(false);
+    try {
+      await prompt.prompt();
+      const choice = await prompt.userChoice;
+      if (choice.outcome === "accepted") setIsInstalled(true);
+    } catch {
+      // The browser menu remains available if the install prompt was dismissed.
+    }
+  };
 
   useEffect(() => {
     if (!pairing) return;
@@ -226,14 +299,31 @@ export function MobileDeviceCapturePage() {
     setPairingCodeBusy(true);
     setNotice(null);
     try {
-      const result = await connectDeviceCaptureByCode(code);
-      setPairing({ sessionId: result.sessionId, token: result.token });
-      setConnectionState("checking");
-      setExpiresAt(result.expiresAt);
-      setPhotoCount(0);
-      setSerial("");
-    } catch (error) {
-      setNotice({ text: error instanceof Error ? error.message : "Não foi possível conectar com esse código.", type: "error" });
+      // Codes are scoped to distinct Edge Functions. Try each authorized pairing flow
+      // and redirect only after the backend confirms which session owns the code.
+      try {
+        const result = await connectDeviceCaptureByCode(code);
+        setPairing({ sessionId: result.sessionId, token: result.token });
+        setConnectionState("checking");
+        setExpiresAt(result.expiresAt);
+        setPhotoCount(0);
+        setSerial("");
+        return;
+      } catch { /* Not a new-order capture code. */ }
+
+      try {
+        const session = await pairMobileOrderEditCode(code);
+        navigateToMobileSession({ kind: "edit", sessionId: session.id, token: session.token });
+        return;
+      } catch { /* Not an order-edit code. */ }
+
+      try {
+        const session = await pairMobileOrderChecklistCode(code);
+        navigateToMobileSession({ kind: "checklist", sessionId: session.id, token: session.token });
+        return;
+      } catch { /* Not a checklist/documents code. */ }
+
+      setNotice({ text: "Código não reconhecido ou expirado. Confira os 8 dígitos e gere uma nova conexão, se necessário.", type: "error" });
     } finally {
       setPairingCodeBusy(false);
     }
@@ -277,10 +367,14 @@ export function MobileDeviceCapturePage() {
 
           const nextPairing = parsePairingPayload(value);
           if (!nextPairing) {
-            setNotice({ text: "Esse QR não é uma conexão válida da Union World.", type: "error" });
+            setNotice({ text: "Esse QR não é uma conexão de Usar celular válida da Union World.", type: "error" });
             return;
           }
-          setPairing(nextPairing);
+          if (nextPairing.kind === "edit" || nextPairing.kind === "checklist") {
+            navigateToMobileSession(nextPairing);
+            return;
+          }
+          setPairing({ sessionId: nextPairing.sessionId, token: nextPairing.token });
           setConnectionState("checking");
           setPhotoCount(0);
           setSerial("");
@@ -366,7 +460,7 @@ export function MobileDeviceCapturePage() {
             <div className="p-5 text-center">
               <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e8eef8] text-[#0057e7]"><ScanLine size={28} /></span>
               <h2 className="mt-4 text-xl font-black text-[#0d1b2e]">Conectar a uma OS</h2>
-              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5a6a82]">No computador, abra a Nova OS e gere a conexão em <strong>Usar celular</strong>. Depois use o QR ou o código exibido.</p>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#5a6a82]">No CRM, clique em <strong>Usar celular</strong> na Nova OS, edição, documentos ou checklist e escaneie o QR ou informe o código.</p>
             </div>
 
             <div className="border-t border-[#0d1b2e]/8 p-4">
@@ -381,7 +475,7 @@ export function MobileDeviceCapturePage() {
               )}
 
               {!pairScannerOpen ? (
-                <button type="button" onClick={() => void startPairScanner()} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0]"><ScanLine size={20} /> Escanear QR da OS</button>
+                <button type="button" onClick={() => void startPairScanner()} className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white active:bg-[#0046c0]"><ScanLine size={20} /> Escanear QR Code</button>
               ) : (
                 <button type="button" onClick={stopPairScanner} className="min-h-12 w-full rounded-xl border border-[#0d1b2e]/15 bg-white px-4 text-sm font-black text-[#0d1b2e]">Cancelar leitura</button>
               )}
@@ -420,8 +514,15 @@ export function MobileDeviceCapturePage() {
           </section>
 
           <div className="rounded-2xl border border-[#0057e7]/15 bg-[#eef5ff] px-4 py-3 text-xs leading-5 text-[#5a6a82]">
-            <p className="font-black text-[#0057e7]">Endereço fixo</p>
-            <p className="mt-1">Salve esta página na tela inicial do celular. Você poderá reutilizá-la para todas as próximas OS e apenas escanear um novo QR ou digitar o novo código.</p>
+            <p className="font-black text-[#0057e7]">Union Captura · acesso rápido</p>
+            <p className="mt-1">Instale o atalho para abrir diretamente esta tela. Ele serve para todos os QR Codes de Usar celular, sem abrir o painel do CRM.</p>
+            {!isInstalled && (canInstall ? (
+              <button type="button" onClick={() => void installCaptureApp()} className="mt-3 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#0057e7] px-4 text-sm font-black text-white">
+                <Download size={17} /> Instalar Union Captura
+              </button>
+            ) : (
+              <p className="mt-2 text-xs"><strong>Android:</strong> menu do navegador → Instalar app ou Adicionar à tela inicial. <strong>iPhone:</strong> Compartilhar → Adicionar à Tela de Início.</p>
+            ))}
           </div>
         </main>
       </div>
