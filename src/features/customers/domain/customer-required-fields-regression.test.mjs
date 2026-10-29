@@ -59,3 +59,25 @@ test("botões dentro dos inputs copiam telefone e WhatsApp nos dois sentidos", (
   assert.ok(quick.includes("copyFromWhatsapp={form.whatsapp}"));
   assert.ok(quick.includes("copyFromPhone={form.phone}"));
 });
+
+
+test("abrir Cadastros reaproveita a linha da tabela sem tela de carregamento nem animação", () => {
+  const tab = read("src/features/registrations/presentation/TabRegistrations.tsx");
+  const details = read("src/features/registrations/presentation/RegistrationDetails.tsx");
+  assert.match(tab, /placeholderData: \(\) => registrationsQuery\.data\?\.items\.find/);
+  assert.match(tab, /item\.id === routeRegistrationId && item\.organization_id === activeOrganizationId/);
+  assert.match(tab, /preview=\{detailPreview\}/);
+  assert.match(details, /smoothMotion=\{false\}/);
+  assert.match(details, /\{!preview && <Section title="Endereços"/);
+  assert.match(details, /canEdit && !preview && <BtnPrimary onClick=\{onEdit\}>Editar/);
+});
+
+test("CRM não aplica scroll para o topo automaticamente ao navegar", () => {
+  const app = read("src/app/App.tsx");
+  const admin = read("src/app/Admin.tsx");
+  const pages = read("src/shared/ui/admin/AdminLayout.tsx");
+  assert.match(app, /if \(!pathname\.startsWith\("\/admin"\)\)/);
+  assert.doesNotMatch(admin, /root\.scrollTop = 0/);
+  assert.match(admin, /root\.scrollTop = ordersListScrollRef\.current/);
+  assert.match(pages, /smoothMotion = false/);
+});
