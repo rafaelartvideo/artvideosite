@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import { listOrderCommercialItems } from "../infrastructure/order-commercial-items.repository";
 import { listOrderServiceTasks } from "../infrastructure/order-service-tasks.repository";
 import { readOrderQuote } from "../infrastructure/order-quote.repository";
+import { listOrderQuotePhotos } from "../infrastructure/order-quote-photos.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -371,6 +372,13 @@ export function OrderDetailsPage(props: Props) {
     if (template.document_type==="ORCAMENTO" && (!quoteWorkflowEnabled || !quote || quote.status==="draft" || quote.status==="renegotiation"))
       throw new Error("Envie a proposta para aprovação antes de imprimir o orçamento.");
 
+    const quotePhotos = template.document_type === "ORCAMENTO"
+      ? await queryClient.fetchQuery({
+          queryKey: ["orders", "quote-photos", detail.organization_id, detail.id],
+          queryFn: () => listOrderQuotePhotos(detail.organization_id, detail.id),
+          staleTime: 120_000,
+        }) : [];
+
     // Print only CPF under signature lines. Keep customer and technician personal data scoped to their OS.
     let employeeCpf: string | null = null;
     if (configuredTemplate.selectedFields.has("signatures.employee")) {
@@ -401,6 +409,7 @@ export function OrderDetailsPage(props: Props) {
       context: {
         order: detail,
         quote,
+        quotePhotos,
         checklist,
         checklistPhotoUrls,
         usedItems: detailUsedItems,
@@ -653,6 +662,8 @@ export function OrderDetailsPage(props: Props) {
         {detailSection === "products-services" && quoteWorkflowEnabled ? <OrderQuoteWorkspace
           order={detail}
           canEdit={!monitorView && (hasPermission("orders.edit") || hasPermission("orders.update"))}
+          canManagePhotos={!monitorView && hasPermission("orders.section.images")}
+          canRemovePhotos={!monitorView && hasPermission("orders.documents.remove")}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
           footerHostId={"os-quote-toolbar-" + detail.id}
           onStatusChange={status => setQuoteState({ orderId: detail.id, status })}
