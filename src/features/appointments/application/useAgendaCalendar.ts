@@ -75,6 +75,8 @@ export function useAgendaCalendar({ organizationId, userId, canView, canViewOthe
       ...dataWindow,
     }),
     enabled: canView,
+    // Uma falha de timeout do banco não deve disparar outra consulta pesada.
+    retry: false,
   });
   useEffect(() => {
     if (!organizationId || !canView) return;
