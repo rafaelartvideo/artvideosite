@@ -425,7 +425,9 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
   const company = context.company || {};
   const companyName = company.name || "Empresa";
   const companySubtitle = company.subtitle || "";
-  const companyDocument = company.document ? formatDocument(company.document) : null;
+  const companyDocument = company.document
+    ? (normalizeDigits(company.document).length === 11 ? "CPF: " : normalizeDigits(company.document).length === 14 ? "CNPJ: " : "") + formatDocument(company.document)
+    : null;
   const companyStateRegistration = company.stateRegistration ? "IE " + text(company.stateRegistration) : null;
   const companyMunicipalRegistration = company.municipalRegistration ? "IM " + text(company.municipalRegistration) : null;
   const companyPhone = company.phone ? formatPhone(company.phone) : null;
