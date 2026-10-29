@@ -2,6 +2,7 @@ import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { CalendarDays, History, MapPin, Pencil, Users, WifiOff } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
@@ -47,7 +48,12 @@ const technicianSummaryTitles: Record<TechnicianSummaryFilter, string> = {
 
 type Notice = { kind: "success" | "error"; text: string };
 type PhotoPreview = { id: string; url: string };
-type ServicePhotoCache = { count: number; photos: PhotoPreview[] };
+type ServicePhotoCache = { count: number; photos: PhotoPreview[]; expiresAt: number };
+type TechnicianDetailsCache = {
+  data: TechnicianOrderDetails;
+  urls: Record<string, string>;
+  urlsExpireAt: number;
+};
 
 const STATUS_LABEL: Record<TechnicianTaskStatus, string> = {
   pending: "Pendente",
@@ -82,6 +88,9 @@ function formatDate(value?: string | null) {
 export function TechnicianPanel() {
   const { activeOrganizationId, hasPermission, user } = useAuth();
   const queryClient = useQueryClient();
+  const signTaskPhoto = useCallback((path: string) => getStoragePreviewUrl(
+    queryClient, "technician-task-photos", path, () => getTechnicianPhotoSignedUrl(path),
+  ), [queryClient]);
   const technicianTasksKey = ["technician", "tasks", activeOrganizationId || "none", user?.id || "none"] as const;
   const navigate = useNavigate();
   const { search } = useLocation();
@@ -405,7 +414,28 @@ export function TechnicianPanel() {
   }, [selectedId, selected?.execution_report]);
 
   useEffect(() => {
-    if (!selectedId || !(canSeePhotos || canSendPhotos) || photoCache[selectedId]) return;
+    if (!selectedId || !(canSeePhotos || canSendPhotos)) return;
+    const cached = photoCache[selectedId];
+    if (cached && cached.expiresAt > Date.now()) {
+      // Renew using the original signing deadline, including reused URLs.
+      const renew = () => {
+        if (document.visibilityState === "hidden" || !navigator.onLine || cached.expiresAt > Date.now()) return;
+        setPhotoCache(current => {
+          if (current[selectedId] !== cached) return current;
+          const next = { ...current };
+          delete next[selectedId];
+          return next;
+        });
+      };
+      const timeout = window.setTimeout(renew, cached.expiresAt - Date.now());
+      document.addEventListener("visibilitychange", renew);
+      window.addEventListener("online", renew);
+      return () => {
+        window.clearTimeout(timeout);
+        document.removeEventListener("visibilitychange", renew);
+        window.removeEventListener("online", renew);
+      };
+    }
     let cancelled = false;
     void (async () => {
       try {
@@ -415,34 +445,36 @@ export function TechnicianPanel() {
               const attachments = await listMyTechnicianPhotos(selectedId);
               return Promise.all(attachments.map(async attachment => ({
                 id: attachment.id,
-                url: await getTechnicianPhotoSignedUrl(attachment.path),
+                ...await signTaskPhoto(attachment.path),
               })));
             })()
           : [];
         if (!cancelled) setPhotoCache(current => ({
-          ...current, [selectedId]: { count, photos: previews },
+          ...current, [selectedId]: {
+            count, photos: previews,
+            expiresAt: Math.min(Date.now() + 480_000, ...previews.map(photo => photo.expiresAt)),
+          },
         }));
       } catch (error) {
         if (!cancelled) {
-          setPhotoCache(current => ({ ...current, [selectedId]: { count: 0, photos: [] } }));
+          setPhotoCache(current => ({ ...current, [selectedId]: {
+            count: 0, photos: [], expiresAt: Date.now() + 120_000,
+          } }));
           setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar as fotos.") });
         }
       }
     })();
     return () => { cancelled = true; };
-  }, [selectedId, canSeePhotos, canSendPhotos, photoCache]);
+  }, [selectedId, canSeePhotos, canSendPhotos, photoCache, signTaskPhoto]);
 
   // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
   // de serviços não substitui a verificação da atribuição no servidor.
   const handledDetailsRevision = useRef(detailsRevision);
   useLayoutEffect(() => {
     const key = ["technician", "order-detail", activeOrganizationId || "none", user?.id || "none", routeOrderId || "none"] as const;
-    const cached = queryClient.getQueryData<{
-      data: TechnicianOrderDetails;
-      urls: Record<string, string>;
-    }>(key);
+    const cached = queryClient.getQueryData<TechnicianDetailsCache>(key);
     setOrderDetails(cached?.data || null);
-    setEquipmentPhotoUrls(cached?.urls || {});
+    setEquipmentPhotoUrls(cached && cached.urlsExpireAt > Date.now() ? cached.urls : {});
     setPhotoCache({});
     setOrderLoadError(null);
     setDiagnosisDialogOpen(false);
@@ -455,14 +487,21 @@ export function TechnicianPanel() {
       return () => { cancelled = true; };
     }
     const key = ["technician", "order-detail", activeOrganizationId, user.id, routeOrderId] as const;
-    const cached = queryClient.getQueryData<{
-      data: TechnicianOrderDetails;
-      urls: Record<string, string>;
-    }>(key);
+    let renewalTimeout: ReturnType<typeof window.setTimeout> | undefined;
+    const renewEquipmentPreviews = () => {
+      const current = queryClient.getQueryData<TechnicianDetailsCache>(key);
+      if (document.visibilityState === "visible" && navigator.onLine && current
+        && Object.keys(current.urls).length > 0 && current.urlsExpireAt <= Date.now()) {
+        setDetailsRevision(revision => revision + 1);
+      }
+    };
+    document.addEventListener("visibilitychange", renewEquipmentPreviews);
+    window.addEventListener("online", renewEquipmentPreviews);
+    const cached = queryClient.getQueryData<TechnicianDetailsCache>(key);
     setOrderDetailsLoading(!cached);
     void (async () => {
       try {
-        if (handledDetailsRevision.current !== detailsRevision) {
+        if (handledDetailsRevision.current !== detailsRevision || (cached && cached.urlsExpireAt <= Date.now())) {
           handledDetailsRevision.current = detailsRevision;
           await queryClient.invalidateQueries({ queryKey: key, exact: true, refetchType: "none" });
         }
@@ -473,18 +512,25 @@ export function TechnicianPanel() {
           queryFn: async () => {
             const data = await getMyTechnicianOrderDetails(routeOrderId);
             const signed = await Promise.allSettled((data.equipment_photos || []).map(async media => ({
-              path: media.path, url: await getMyTechnicianEquipmentPhotoUrl(media.path),
+              path: media.path, ...await getStoragePreviewUrl(
+                queryClient, "service-images", media.path, () => getMyTechnicianEquipmentPhotoUrl(media.path),
+              ),
             })));
-            const urls = Object.fromEntries(signed
-              .filter((item): item is PromiseFulfilledResult<{ path: string; url: string }> => item.status === "fulfilled")
-              .map(item => [item.value.path, item.value.url]));
-            return { data, urls };
+            const previews = signed
+              .filter((item): item is PromiseFulfilledResult<{ path: string; url: string; expiresAt: number }> => item.status === "fulfilled")
+              .map(item => item.value);
+            const urls = Object.fromEntries(previews.map(preview => [preview.path, preview.url]));
+            const urlsExpireAt = Math.min(Date.now() + 480_000, ...previews.map(preview => preview.expiresAt));
+            return { data, urls, urlsExpireAt };
           },
         });
         if (!cancelled) {
           setEquipmentPhotoUrls(result.urls);
           setOrderDetails(result.data);
           setOrderLoadError(null);
+          if (Object.keys(result.urls).length > 0) {
+            renewalTimeout = window.setTimeout(renewEquipmentPreviews, Math.max(1_000, result.urlsExpireAt - Date.now()));
+          }
         }
       } catch (error) {
         if (!cancelled) {
@@ -496,7 +542,12 @@ export function TechnicianPanel() {
         if (!cancelled) setOrderDetailsLoading(false);
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      if (renewalTimeout !== undefined) window.clearTimeout(renewalTimeout);
+      document.removeEventListener("visibilitychange", renewEquipmentPreviews);
+      window.removeEventListener("online", renewEquipmentPreviews);
+    };
   }, [activeOrganizationId, user?.id, routeOrderId, detailsRevision, queryClient]);
 
   useEffect(() => {
@@ -575,12 +626,15 @@ export function TechnicianPanel() {
             const attachments = await listMyTechnicianPhotos(serviceId);
             return Promise.all(attachments.map(async attachment => ({
               id: attachment.id,
-              url: await getTechnicianPhotoSignedUrl(attachment.path),
+              ...await signTaskPhoto(attachment.path),
             })));
           })()
-        : (photoCache[serviceId]?.photos || []);
+        : [];
       const nextCount = await countMyTechnicianPhotos(serviceId);
-      setPhotoCache(current => ({ ...current, [serviceId]: { count: nextCount, photos: previews } }));
+      setPhotoCache(current => ({ ...current, [serviceId]: {
+        count: nextCount, photos: previews,
+        expiresAt: Math.min(Date.now() + 480_000, ...previews.map(photo => photo.expiresAt)),
+      } }));
       setNotice({ kind: "success", text: "Fotos anexadas ao serviço." });
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível anexar todas as fotos.") });

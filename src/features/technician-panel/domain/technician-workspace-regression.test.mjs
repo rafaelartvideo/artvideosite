@@ -439,9 +439,12 @@ test("OS técnica aguarda dados e mídias antes da abertura e mostra endereço s
   }
 });
 
-test("trocar de serviço não aciona loading global nem refaz consultas de fotos já visitadas", () => {
+test("trocar de serviço não aciona loading global e reutiliza fotos enquanto o link é válido", () => {
   assert.match(panel, /const servicePhotos = selectedId \? photoCache\[selectedId\]/);
-  assert.match(panel, /if \(!selectedId \|\| !\(canSeePhotos \|\| canSendPhotos\) \|\| photoCache\[selectedId\]\) return/);
+  assert.match(panel, /if \(!selectedId \|\| !\(canSeePhotos \|\| canSendPhotos\)\) return/);
+  assert.match(panel, /const cached = photoCache\[selectedId\]/);
+  assert.match(panel, /cached && cached\.expiresAt > Date\.now\(\)/);
+  assert.match(panel, /window\.clearTimeout\(timeout\)/);
   assert.match(panel, /const photoLoading = Boolean\(/);
   assert.doesNotMatch(panel, /setPhotoLoadedServiceId/);
   assert.match(panel, /onClick=\{\(\) => openService\(service\)\}/);

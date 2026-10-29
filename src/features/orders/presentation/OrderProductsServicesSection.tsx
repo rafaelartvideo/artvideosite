@@ -1,6 +1,8 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { NumberStepper, CatalogResults } from "./OrderCommercialControls";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
 import { CalendarDays, Camera, CheckCircle2, Circle, MapPin, Plus, Search, Trash2, Wrench, XCircle } from "lucide-react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -121,6 +123,10 @@ function TechnicianMultiPicker({
 }
 
 export function OrderProductsServicesSection({ order, canEdit, formatCurrency, onPricingChange, onOverviewChange }: Props) {
+  const queryClient = useQueryClient();
+  const signTaskPhoto = useCallback((path: string) => getStoragePreviewUrl(
+    queryClient, "technician-task-photos", path, () => createOrderTaskPhotoUrl(path),
+  ), [queryClient]);
   const editable = canEdit && !order?.completed_at && !order?.cancelled_at;
   const [items, setItems] = useState<OrderCommercialItem[]>([]);
   const itemsRef = useRef<OrderCommercialItem[]>([]);
@@ -205,11 +211,11 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
         (!photoUrlsRef.current[photo.path] || photoUrlsRef.current[photo.path].expires < Date.now())
         && (photoRetryAfterRef.current[photo.path] || 0) <= Date.now());
       if (missing.length) {
-        const signed = await Promise.allSettled(missing.map(photo => createOrderTaskPhotoUrl(photo.path)));
+        const signed = await Promise.allSettled(missing.map(photo => signTaskPhoto(photo.path)));
         signed.forEach((result, index) => {
           const path = missing[index].path;
           if (result.status === "fulfilled") {
-            photoUrlsRef.current[path] = { url: result.value, expires: Date.now() + 8 * 60000 };
+            photoUrlsRef.current[path] = { url: result.value.url, expires: result.value.expiresAt };
             delete photoRetryAfterRef.current[path];
           } else {
             // Falha 544/timeout do Storage: não repetir assinatura a cada render.
@@ -221,7 +227,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     } catch {
       // A OS continua funcional se a migração de leitura de fotos ainda não foi aplicada.
     }
-  }, [order?.id]);
+  }, [order?.id, signTaskPhoto]);
 
   const openTaskGallery = async (item: OrderCommercialItem) => {
     setGalleryItem(item);
@@ -229,9 +235,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
       (!photoUrlsRef.current[photo.path] || photoUrlsRef.current[photo.path].expires < Date.now()));
     try {
       const signed = await Promise.all(missing.map(async photo => ({
-        path: photo.path, url: await createOrderTaskPhotoUrl(photo.path),
+        path: photo.path, preview: await signTaskPhoto(photo.path),
       })));
-      for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.url, expires: Date.now() + 8 * 60000 };
+      for (const entry of signed) photoUrlsRef.current[entry.path] = { url: entry.preview.url, expires: entry.preview.expiresAt };
       setPhotoUrls(Object.fromEntries(Object.entries(photoUrlsRef.current).map(([path, entry]) => [path, entry.url])));
     } catch (error) {
       showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível abrir as fotos da execução.") });
