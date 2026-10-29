@@ -8,6 +8,6 @@
 - [x] Trace raw photo flows and integrate existing compressor, final endpoint limits, transparency, mobile decoder fallback and allocation cleanup. Test boundary behavior and duplicate preparation.
 - [x] Lazy-load PDF renderer and clean only artifacts owned by the export. Test concurrency/failure and malformed route decoding.
 - [x] Refine shared neutral surfaces, fields, tables, navigation and portal theme tokens; retain Union blue and reduced movement.
-- [ ] Run regression, finance, SAC and document checks; build both production outputs.
-- [ ] Review combined changes, publish with a safe fast-forward and inspect deployed light/dark UI and public pages.
-- [ ] Document measured improvements and remaining limitations without claiming exhaustive device or permission coverage.
+- [x] Run regression, finance, SAC and document checks; build both production outputs.
+- [x] Review combined changes, publish with a safe fast-forward and inspect deployed light/dark UI and public pages.
+- [x] Document measured improvements and remaining limitations without claiming exhaustive device or permission coverage.

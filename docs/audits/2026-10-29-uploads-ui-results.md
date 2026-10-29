@@ -44,3 +44,11 @@ Observed backend window 15:50–16:05 Brasília (18:50–19:05 UTC): 1,027 edge 
 
 ## Rollback
 Revert the frontend commit and redeploy. There are no schema/data changes to reverse.
+
+## Publication and browser validation
+
+Published implementation commit: `52e7f120c1f57c24b07693fe6f3a981a827d948b`. It has exactly the same Git tree (`2f82c2129b8d782fba74ac08a48f93cfb335f386`) as the approved local commit `e970ce8`; the GitHub connector created new commit metadata. Explicit publication approval was received after the initial push was blocked.
+
+Workflow Deploy HostGator `40938304725` completed successfully, including 471 CI tests (28 finance + 254 regressions/performance + 189 SAC), both builds, and FTPS publication of CRM and site. Browser DOM confirmed CRM `/assets/index-CqgLzfA4.js` and site `/assets/index-BRSGamdF.js`, matching CI build output.
+
+Fresh browser checks confirmed restored authenticated session; 299 OS loaded; light/dark list appearance; dark status popover (computed background rgb(17,24,39), foreground rgb(232,237,245)); new OS form opened/closed without saving; Agenda loaded real events; public services catalog loaded four services; public quote selection and first wizard step loaded. Original light theme was restored. No message, purchase or quote was submitted. These are sampled desktop checks, not exhaustive route/device/upload coverage.
