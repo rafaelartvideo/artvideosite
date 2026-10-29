@@ -168,7 +168,7 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorOpen && <>
-      <PageHeader title="Checklists" subtitle={`${profiles.length} checklist${profiles.length === 1 ? "" : "s"} cadastrado${profiles.length === 1 ? "" : "s"}`} />
+      <PageHeader title="Checklists" subtitle={`${profiles.length} checklist${profiles.length === 1 ? "" : "s"} cadastrado${profiles.length === 1 ? "" : "s"}`} actions={canManage && <BtnPrimary onClick={() => onRouteChange?.("new", null)}><Plus size={16} /> Novo checklist</BtnPrimary>} />
       <AdminCard>
         {!profiles.length ? <div className="p-8"><EmptyState icon={ClipboardCheck} title="Nenhum checklist cadastrado" message="Crie o primeiro checklist para organizar Entrada, Diagnóstico e Saída/QC dos equipamentos." /></div> : <>
           <div className="overflow-x-auto">
@@ -195,7 +195,6 @@ export function ChecklistAdminPanel({ onBack, routeResourceId, routeSubpage, onR
       </AdminCard>
       <AdminStickyToolbar>
         <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
-        {canManage && <BtnPrimary onClick={() => onRouteChange?.("new", null)}>Novo</BtnPrimary>}
       </AdminStickyToolbar>
     </>}
 

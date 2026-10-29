@@ -1,4 +1,7 @@
 import { Search, X } from "lucide-react";
+import { twMerge } from "tailwind-merge";
+import { cn } from "@/shared/domain/formatters";
+import { INPUT } from "./AdminFormControls";
 
 /** Busca compacta para acompanhar cabeçalhos e abas de listagens administrativas. */
 export function AdminInlineSearch({
@@ -6,22 +9,24 @@ export function AdminInlineSearch({
   onChange,
   placeholder = "Buscar...",
   ariaLabel,
+  className,
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   ariaLabel: string;
+  className?: string;
 }) {
   return (
-    <div className="relative w-full min-w-0 sm:w-[280px] sm:max-w-[38vw]">
-      <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#0057e7]" />
+    <div className={twMerge("relative w-full min-w-0 sm:w-[280px] sm:max-w-[38vw]", className)}>
+      <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary dark:text-primary-light" />
       <input
         type="search"
         aria-label={ariaLabel}
         value={value}
         onChange={event => onChange(event.target.value)}
         placeholder={placeholder}
-        className="h-[42px] w-full rounded-lg border border-[#0057e7]/30 bg-white py-2 pl-9 pr-9 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-[#0057e7] focus:ring-2 focus:ring-[#0057e7]/15"
+        className={cn(INPUT, "h-[42px] pl-9 pr-9")}
       />
       {value && (
         <button
@@ -29,7 +34,7 @@ export function AdminInlineSearch({
           onClick={() => onChange("")}
           title="Limpar busca"
           aria-label="Limpar busca"
-          className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-[#eef5ff] hover:text-[#0057e7]"
+          className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-primary/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 dark:hover:text-primary-light"
         >
           <X size={15} />
         </button>

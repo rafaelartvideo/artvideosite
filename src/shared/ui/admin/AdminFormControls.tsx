@@ -38,7 +38,7 @@ export function AdminFieldLabel({ label, required = false, htmlFor, className }:
   className?: string;
 }) {
   return <label htmlFor={htmlFor}
-    className={cn("mb-1.5 block min-w-0 break-words text-[11px] font-bold uppercase tracking-wider text-muted-foreground", className)}>
+    className={cn("mb-1.5 block min-w-0 break-words text-xs font-medium text-muted-foreground", className)}>
     <RequiredFieldLabel label={label} required={required} />
   </label>;
 }
@@ -262,16 +262,16 @@ export function FHoursInput({ value, onChange, ...props }: { value: unknown; onC
 
 export function CustomerTypeToggle({ value, onChange, disabled = false }: { value: CustomerType; onChange: (value: CustomerType) => void; disabled?: boolean }) {
   return <div className="min-w-0 sm:col-span-2">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo de cliente</label>
+    <AdminFieldLabel label="Tipo de cliente" />
     <div className="grid grid-cols-2 overflow-hidden rounded-lg border border-border bg-card">
-      {([{ value: "PF", label: "PESSOA FÍSICA" }, { value: "PJ", label: "PESSOA JURÍDICA" }] as const).map((option, index) => (
+      {([{ value: "PF", label: "Pessoa física" }, { value: "PJ", label: "Pessoa jurídica" }] as const).map((option, index) => (
         <button key={option.value} type="button" disabled={disabled} onClick={() => onChange(option.value)}
           aria-pressed={value === option.value}
           className={cn(
-            "relative min-w-0 border-0 px-3 py-2.5 text-xs font-black tracking-wide transition-colors focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-primary",
+            "relative min-w-0 border-0 px-3 py-2.5 text-xs font-semibold transition-colors focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-primary",
             index === 0 ? "rounded-l-[7px] border-r border-r-border" : "rounded-r-[7px]",
             value === option.value
-              ? "bg-primary-soft text-primary ring-1 ring-inset ring-primary"
+              ? "bg-primary-soft text-primary ring-1 ring-inset ring-primary dark:text-primary-light"
               : "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
             disabled && "opacity-70",
           )}>{option.label}</button>

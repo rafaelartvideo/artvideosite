@@ -107,7 +107,7 @@ function HeaderAction({
       "relative inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30",
       active
         ? "border-primary/15 bg-primary/8 text-primary"
-        : "border-transparent text-muted-foreground hover:text-primary",
+        : "border-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
     )}
   >
     {children}
@@ -180,7 +180,7 @@ function HeaderDropdown({
   width?: string;
 }) {
   return <div className={cn(
-    "absolute top-[calc(100%+7px)] z-[80] overflow-hidden rounded-lg border border-border bg-card",
+    "absolute top-[calc(100%+7px)] z-[80] overflow-hidden rounded-lg border border-border bg-card shadow-lg",
     width,
     align === "right" ? "right-0" : "left-0",
   )}>
@@ -479,13 +479,17 @@ export function AdminHeader({
       />
 
       <header className="relative z-[60] shrink-0 border-b border-border bg-card">
-        <div className="hidden h-16 min-w-0 items-center justify-between gap-4 px-4 md:flex lg:px-6">
-          <div className="flex min-w-0 items-center gap-0.5">
+        <div className="hidden h-16 min-w-0 items-center justify-between gap-4 px-6 md:flex lg:px-8">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[13px] font-semibold text-foreground">{activeOrganizationName || "Área de gestão"}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Seu espaço de trabalho</p>
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
             <div className="relative">
               <HeaderAction label="Ajuda" active={openMenu === "help"} onClick={() => toggleMenu("help")}>
                 <CircleHelp size={17} strokeWidth={2} />
               </HeaderAction>
-              {openMenu === "help" && <HeaderDropdown title="Ajuda">
+              {openMenu === "help" && <HeaderDropdown title="Ajuda" align="right">
                 <div className="px-3.5 py-3">
                   <p className="text-sm font-semibold text-foreground">Central de ajuda</p>
                   <p className="mt-1 text-xs leading-5 text-muted-foreground">Tutoriais e suporte da Union World ficarão disponíveis aqui.</p>
@@ -498,7 +502,7 @@ export function AdminHeader({
                 <Bell size={17} strokeWidth={2} />
                 <NotificationBadge count={notifications.unreadCount} />
               </HeaderAction>
-              {openMenu === "notifications" && <div className="absolute left-0 top-[calc(100%+7px)] z-[80] w-[390px] overflow-hidden rounded-xl border border-border bg-card shadow-xl">
+              {openMenu === "notifications" && <div className="absolute right-0 top-[calc(100%+7px)] z-[80] w-[390px] overflow-hidden rounded-xl border border-border bg-card shadow-xl">
                 {notificationPanel}
               </div>}
             </div>
@@ -515,7 +519,7 @@ export function AdminHeader({
               <HeaderAction label="Configurações" active={openMenu === "settings"} onClick={() => toggleMenu("settings")}>
                 <Settings size={17} strokeWidth={2} />
               </HeaderAction>
-              {openMenu === "settings" && <HeaderDropdown title="Configurações" width="w-[245px]">
+              {openMenu === "settings" && <HeaderDropdown title="Configurações" align="right" width="w-[245px]">
                 {settingsMenu}
               </HeaderDropdown>}
             </div>
@@ -525,14 +529,12 @@ export function AdminHeader({
             <ThemeToggle theme={theme} onChange={setTheme} />
           </div>
 
-          <div className="flex flex-1" />
-
-          <div className="relative flex shrink-0 items-center">
+          <div className="relative flex shrink-0 items-center border-l border-border pl-4">
             <button
               type="button"
               onClick={() => toggleMenu("profile")}
               aria-expanded={openMenu === "profile"}
-              className="flex min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+              className="flex min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
             >
               <div className="hidden min-w-0 text-right lg:block">
                 <p className="truncate text-[13px] leading-4 text-muted-foreground">{greeting()}, <strong className="font-bold text-foreground">{userFirstName}</strong></p>
@@ -591,8 +593,8 @@ export function AdminHeader({
       </header>
 
       {page && (
-        <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-border bg-card px-6 py-3 md:block">
-          <div className="flex min-h-6 min-w-0 items-center gap-2 text-muted-foreground">
+        <header className="relative z-30 hidden min-w-0 shrink-0 border-b border-border bg-background px-6 py-5 md:block lg:px-8">
+          <div className="mb-1.5 flex min-h-4 min-w-0 items-center gap-2 text-muted-foreground">
             {parentBreadcrumb && <>
               <button
                 type="button"
@@ -603,15 +605,10 @@ export function AdminHeader({
                 <ArrowLeft size={15} className="shrink-0" strokeWidth={2.1} />
                 <span className="truncate">{parentBreadcrumb}</span>
               </button>
-              <span aria-hidden="true" className="shrink-0 text-[11px] leading-5">&gt;</span>
             </>}
-            <span
-              className="min-w-0 truncate text-[13px] font-semibold leading-5 text-foreground underline decoration-current underline-offset-4"
-              title={page.title}
-            >
-              {page.title}
-            </span>
+            {!parentBreadcrumb && <span className="text-[11px] font-medium leading-5">Área de gestão</span>}
           </div>
+          <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight text-foreground" title={page.title}>{page.title}</h1>
         </header>
       )}
 

@@ -2,7 +2,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import React, { useEffect, useState } from "react";
 import { Edit2, FileText, Tag, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { cn } from "@/shared/domain/formatters";
+import { AdminSectionNav } from "@/shared/ui/admin/AdminSectionNav";
 import { AdminSelect, FInput } from "@/shared/ui/admin/AdminFormControls";
 import { DEFAULT_LABEL_LAYOUT, isValidOrderLabelLayout, readOrderLabelLayout, saveOrderLabelLayout, type OrderLabelLayout } from "@/features/orders/domain/order-label-print";
 import { AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader } from "@/shared/ui/admin/AdminLayout";
@@ -198,17 +198,13 @@ export function TabDocuments({ onBack, routeResourceId, routeSubpage, onRouteCha
         subtitle="Configure anexos, etiquetas e modelos de impressão das ordens de serviço."
       />
 
-      <div className="flex gap-1 border-b border-[#0d1b2e]/10">
-        {([
-          ["attachments", "Anexos"],
-          ["labels", "Etiquetas"],
-          ["printers", "Impressoras"],
-          ["printing", "Impressão"],
-        ] as const).map(([value, title]) => <button key={value} type="button"
-          onClick={() => selectSection(value)}
-          className={cn("border-b-2 px-4 py-2.5 text-xs font-bold", section === value
-            ? "border-[#0057e7] text-[#0057e7]" : "border-transparent text-[#5a6a82]")}>{title}</button>)}
-      </div>
+      <AdminSectionNav value={section} onSelect={selectSection} ariaLabel="Seções de documentos"
+        items={[
+          { id: "attachments", label: "Anexos" },
+          { id: "labels", label: "Etiquetas" },
+          { id: "printers", label: "Impressoras" },
+          { id: "printing", label: "Impressão" },
+        ]} />
 
       {canViewTable && (section === "printing" ? <>
         <DocumentsAreaHeader

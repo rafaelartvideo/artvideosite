@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ShieldCheck } from "lucide-react";
+import { Plus, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import {
   createRole,
@@ -334,6 +334,7 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     <PageHeader
       title="Funções e Permissões"
       subtitle="Configure os perfis-base e os acessos herdados pelos funcionários."
+      actions={canCreate && <BtnPrimary onClick={openNew}><Plus size={16} /> Nova função</BtnPrimary>}
     />
 
     {canViewTable && <AdminCard>
@@ -355,7 +356,6 @@ export function TabRoles({ onBack, routeResourceId, onRouteChange }: RolesRouteP
     </AdminCard>}
     <AdminStickyToolbar>
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
-      {canCreate && <BtnPrimary onClick={openNew}>Novo</BtnPrimary>}
     </AdminStickyToolbar>
   </div>;
 }

@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { isAdminModuleEnabled } from "@/features/admin-shell/navigation-config";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminSectionNav } from "@/shared/ui/admin/AdminSectionNav";
 import { TabQuotes } from "@/features/quotes/presentation/TabQuotes";
 import { SiteQuoteDetailsPage } from "@/features/quotes/presentation/SiteQuoteDetailsPage";
 import { listQuotesPage } from "@/features/quotes/infrastructure/quotes.repository";
@@ -88,18 +89,9 @@ export function SiteRequestsPage({
     <PageHeader title="Solicitações"
       subtitle="Acompanhe os orçamentos solicitados e os pedidos realizados pelo site da Artvideo."
       actions={<AdminButton variant="secondary" onClick={() => onNavigate("site")}>Voltar</AdminButton>} />
-    <nav aria-label="Subseções de solicitações" className="flex min-w-0 flex-wrap items-center gap-5 border-b border-border">
-      {sections.map(({ id, label, total, Icon }) => (
-        <button type="button" key={id}
-          aria-current={activeSection === id ? "page" : undefined}
-          onClick={() => onSelectSection(id)}
-          className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeSection === id
-            ? "border-primary text-primary"
-            : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-          <Icon size={17} className="shrink-0" />{label} ({total})
-        </button>
-      ))}
-    </nav>
+    <AdminSectionNav value={activeSection} ariaLabel="Subseções de solicitações"
+      items={sections.map(({ id, label, total, Icon }) => ({ id, label: `${label} (${total})`, Icon }))}
+      onSelect={onSelectSection} />
     {activeSection === "orcamentos"
       ? <TabQuotes embedded routeResourceId={null}
           onRouteChange={onQuoteRouteChange} onNavigate={onNavigate} />

@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, Globe, LayoutGrid, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
+import { ArrowLeft, Globe, LayoutGrid, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "../navigation-config";
@@ -142,42 +142,37 @@ export function AdminSidebar({
 
   const sectionHeader = (label: string) => (
     collapsed
-      ? <div className="mx-3 my-2 border-t border-white/7" />
-      : <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</div>
+      ? <div className="mx-3 my-3 border-t border-border" />
+      : <div className="px-3 pb-2 pt-5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">{label}</div>
   );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className={cn(
-        "relative flex h-16 shrink-0 items-center border-b border-white/8 transition-all",
-        collapsed ? "justify-center px-2" : "justify-center px-9",
+        "relative flex h-16 shrink-0 items-center border-b border-border",
+        collapsed ? "justify-center px-2" : "px-6 pr-12",
       )}>
-        <div className={cn("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-2.5")}>
-          {!collapsed && menuLogoUrl ? (
-            <div className={cn("flex shrink-0 items-center justify-center", collapsed ? "h-8 w-8" : "h-10 w-[160px]")}>
-              <AutoFitLogo
-                src={menuLogoUrl}
-                alt={activeOrganization?.organization_name || "Logo da empresa"}
-                className="h-full w-full object-contain transition-all"
-              />
-            </div>
-          ) : !collapsed ? (
-            <>
-              <div className={cn(
-                "flex shrink-0 items-center justify-center rounded-lg bg-white/5 text-primary-light",
-                collapsed ? "h-8 w-8" : "h-8 w-8",
-              )}>
-                <Building2 size={16} />
+        {!collapsed && (
+          <div className="min-w-0">
+            {menuLogoUrl ? (
+              <div className="flex h-8 w-[154px] items-center">
+                <AutoFitLogo
+                  src={menuLogoUrl}
+                  alt={activeOrganization?.organization_name || "Logo da empresa"}
+                  className="h-full w-full object-contain object-left"
+                />
               </div>
-              {!collapsed && (
-                <span className="max-w-[140px] truncate text-sm font-black text-white">
-                  {activeOrganization?.organization_name || "Empresa"}
-                </span>
-              )}
-            </>
-          ) : null}
-        </div>
-
+            ) : (
+              <p className={cn(
+                "truncate font-bold leading-5 text-foreground",
+                isPlatformOperatorOrganization ? "text-[15px] tracking-[0.06em]" : "text-sm",
+              )}>
+                {isPlatformOperatorOrganization ? "UNION WORLD" : activeOrganization?.organization_name || "Empresa"}
+              </p>
+            )}
+            <p className="mt-1 text-[11px] font-medium tracking-wide text-muted-foreground">Área de gestão</p>
+          </div>
+        )}
         {canCollapse && (
           <button
             type="button"
@@ -185,8 +180,8 @@ export function AdminSidebar({
             title={collapsed ? "Expandir menu" : "Recuar menu"}
             aria-label={collapsed ? "Expandir menu lateral" : "Recuar menu lateral"}
             className={cn(
-              "flex items-center justify-center rounded-lg text-white/45 transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-light",
-              collapsed ? "absolute bottom-1 h-6 w-8" : "absolute right-2 h-8 w-8",
+              "flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+              collapsed ? "absolute" : "absolute right-3",
             )}
           >
             {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
@@ -195,11 +190,11 @@ export function AdminSidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <nav className="px-3 py-3">
+        <nav aria-label="Menu principal" className="px-3 pb-5 pt-5">
           {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
             <div className="space-y-1">
               {!collapsed && (
-                <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
+                <div className="px-3 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/80">
                   Principal
                 </div>
               )}
@@ -265,14 +260,14 @@ export function AdminSidebar({
       </div>
 
       {isArtVideoOrganization && (
-        <div className={cn("shrink-0 border-t border-white/5", collapsed ? "px-3 py-3" : "px-3 pb-3 pt-2")}>
+        <div className={cn("shrink-0 border-t border-border", collapsed ? "px-3 py-3" : "px-3 pb-3 pt-2")}>
           <button
             type="button"
             onClick={onBackToSite}
             title={collapsed ? "Ver site público" : undefined}
             aria-label={collapsed ? "Ver site público" : undefined}
             className={cn(
-              "flex w-full items-center rounded-lg text-white/40 transition-all hover:bg-white/5 hover:text-white/70",
+              "flex h-11 w-full items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
               collapsed ? "justify-center px-0 py-2.5" : "gap-3 px-3 py-2.5 text-sm",
             )}
           >
