@@ -15,6 +15,7 @@ import {
   type OrderQuoteDraft,type OrderQuoteProposal,
 } from "../infrastructure/order-quote.repository";
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
+import { OrderQuotePhotosSection } from "./OrderQuotePhotosSection";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
@@ -58,8 +59,8 @@ function versionPricing(version: Record<string,any>) {
     : Number(version.discount_value||0);
   return { subtotal, discount, total: Math.max(0,subtotal-discount) };
 }
-export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,onStatusChange}:{
-  order:any;canEdit:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
+export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,footerHostId,onStatusChange}:{
+  order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
   onStatusChange?:(status:OrderQuoteProposal["status"])=>void;
 }) {
   const {user}=useAuth();
@@ -243,6 +244,9 @@ export function OrderQuoteWorkspace({order,canEdit,onPricingChange,footerHostId,
     </Section>
     {editable && <UnionQuoteAiUsage organizationId={org}/>}
     <OrderQuoteCommercialEditor orderId={orderId} draft={draft} onChange={setDraft} disabled={!editable}/>
+    <OrderQuotePhotosSection organizationId={org} orderId={orderId}
+      canUpload={canManagePhotos && !order.completed_at && !order.cancelled_at}
+      canRemove={canRemovePhotos && !order.completed_at && !order.cancelled_at}/>
     {!!renegotiations.length&&<Section title={<span className="inline-flex items-center gap-2"><History size={15}/> Histórico de renegociações</span>} flush>
       <div className="hidden overflow-x-auto md:block">
         <table className="w-full border-collapse text-left text-xs">
