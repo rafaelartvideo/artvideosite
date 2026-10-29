@@ -89,7 +89,8 @@ test("referências da OS não fazem retry encadeado de até 42 segundos em timeo
 test("Produtos e Serviços não reinicia RPCs de técnicos a cada atualização do badge", () => {
   const source = read("src/features/orders/presentation/OrderProductsServicesSection.tsx");
   const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
-  assert.match(details, /onOverviewChange=\{overview =>/);
+  assert.match(details, /onOverviewChange=\{handleItemsOverviewChange\}/);
+  assert.match(details, /const handleItemsOverviewChange = useCallback\(/);
   assert.match(source, /const overviewCallbackRef = useRef\(onOverviewChange\)/);
   assert.match(source, /const publishOverview = useCallback\(/);
   assert.match(source, /overviewCallbackRef\.current\?\.\(/);
