@@ -70,7 +70,7 @@ export async function printWarrantyCertificate(cert:WarrantyCertificate,popup?:W
   const logoCaption=artvideoBrand ? "Artvideo" : brandCompany;
   const logo=company.logoUrl
     ? '<div class="brand-lockup"><img class="brand-logo" src="'+esc(company.logoUrl)+'" alt="Logo '+esc(brandCompany)+'"><div class="brand-wordmark">'+(artvideoBrand?'<small>Eletrônica</small>':'')+'<strong>'+esc(logoCaption)+'</strong><span>'+esc(template.brand_subtitle)+'</span></div></div>'
-    : '<div class="brand-fallback"><span class="brand-symbol">A</span><span><small>'+(artvideoBrand?"ELETRÔNICA":"ASSISTÊNCIA TÉCNICA")+'</small><strong>'+esc(logoCaption)+'</strong></span></div>';
+    : '<div class="brand-fallback"><span><strong>'+esc(brandCompany)+'</strong></span></div>';
   const metric=(icon:string,label:string,value:string)=>'<div class="metric">'+mark(icon)+'<div><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong></div></div>';
   const line=(label:string,value:unknown)=>'<div class="data-line"><span>'+esc(label)+'</span><b>'+esc(value||"—")+'</b></div>';
   const section=(label:string,icon:string,inside:string)=>'<section class="block"><div class="ribbon"><span class="ribbon-icon">'+mark(icon)+'</span><strong>'+esc(label)+'</strong></div><div class="block-body">'+inside+'</div></section>';
