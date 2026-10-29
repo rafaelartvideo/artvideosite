@@ -77,3 +77,11 @@ test("paginação de OS preserva linhas do cache em vez de voltar ao loading", (
   assert.match(addresses, /useState<IbgeState\[\]>\(\(\) => cachedIbgeStates\)/);
   assert.match(addresses, /if \(!ibgeStatesRequest\)/);
 });
+
+test("referências da OS não fazem retry encadeado de até 42 segundos em timeout 500", () => {
+  const ref = read("src/features/orders/infrastructure/orders-workspace.repository.ts");
+  assert.match(ref, /AbortSignal\.timeout\(12_000\)/);
+  assert.doesNotMatch(ref, /attempt < 2|30_000|requestReferences\(/);
+  const workspace = read("src/features/orders/application/useOrdersWorkspace.ts");
+  assert.match(workspace, /retry: false/);
+});
