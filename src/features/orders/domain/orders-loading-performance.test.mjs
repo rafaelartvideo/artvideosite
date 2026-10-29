@@ -54,3 +54,26 @@ test("fechar uma OS troca lista e detalhe na mesma rota sem flash ou reset do sc
   assert.match(detail, /if \(onClose\) onClose\(\);\s*else closeDetail\(\);/);
   assert.match(detail, /onClose=\{closePage\} smoothMotion=\{false\}/);
 });
+
+test("badges de documentos e de itens não aguardam repetição de consultas completas", () => {
+  const docs = read("src/features/orders/application/useOrderSituationDocuments.ts");
+  const order = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const quote = read("src/features/orders/presentation/OrderQuoteWorkspace.tsx");
+  const repository = read("src/features/orders/infrastructure/order-quote.repository.ts");
+  assert.match(docs, /countOrderSituationDocuments/);
+  assert.match(docs, /documentsCount: countQuery\.data \?\? null/);
+  assert.match(order, /Math\.max\(loadedDocumentCount, documents\.documentsCount \?\? 0\)/);
+  assert.match(order, /items-overview/);
+  assert.match(order, /queryClient\.fetchQuery/);
+  assert.match(quote, /queryClient\.fetchQuery/);
+  assert.match(quote, /queryClient\.setQueryData\(quoteKey, result\)/);
+  assert.match(repository, /\[PERF\]\[OS\] Consulta do orçamento lenta/);
+});
+
+test("paginação de OS preserva linhas do cache em vez de voltar ao loading", () => {
+  const filters = read("src/features/orders/application/useOrderFilters.ts");
+  const addresses = read("src/features/orders/application/useOrderServiceAddress.ts");
+  assert.match(filters, /ordersQuery\.isPending && !ordersQuery\.data/);
+  assert.match(addresses, /useState<IbgeState\[\]>\(\(\) => cachedIbgeStates\)/);
+  assert.match(addresses, /if \(!ibgeStatesRequest\)/);
+});
