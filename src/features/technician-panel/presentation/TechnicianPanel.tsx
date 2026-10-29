@@ -1,7 +1,7 @@
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { CalendarDays, History, MapPin, Pencil, Users, WifiOff } from "lucide-react";
 import { getAddressMapUrl } from "@/lib/address";
@@ -81,6 +81,8 @@ function formatDate(value?: string | null) {
 
 export function TechnicianPanel() {
   const { activeOrganizationId, hasPermission, user } = useAuth();
+  const queryClient = useQueryClient();
+  const technicianTasksKey = ["technician", "tasks", activeOrganizationId || "none", user?.id || "none"] as const;
   const navigate = useNavigate();
   const { search } = useLocation();
   const orderMatch = useMatch("/admin/technician-panel/os/:orderId");
@@ -90,7 +92,8 @@ export function TechnicianPanel() {
   const routeServiceId = new URLSearchParams(search).get("service");
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  const [items, setItems] = useState<TechnicianTask[]>([]);
+  const [items, setItems] = useState<TechnicianTask[]>(() =>
+    queryClient.getQueryData<TechnicianTask[]>(technicianTasksKey) || []);
   const [myEmployeeId, setMyEmployeeId] = useState<string | null>(null);
   const [agendaModalOpen, setAgendaModalOpen] = useState(false);
   const [summaryFilter, setSummaryFilter] = useState<TechnicianSummaryFilter | null>(null);
@@ -228,7 +231,8 @@ export function TechnicianPanel() {
   const [diagnosisDialogOpen, setDiagnosisDialogOpen] = useState(false);
   const [diagnosisDraft, setDiagnosisDraft] = useState("");
   const [report, setReport] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() =>
+    !queryClient.getQueryData<TechnicianTask[]>(technicianTasksKey));
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
   // Galerias consultadas uma vez por serviço; a seleção não desmonta a OS.
@@ -303,28 +307,41 @@ export function TechnicianPanel() {
     navigate("/admin/technician-panel/os/" + encodeURIComponent(item.service_order_id) + "?service=" + encodeURIComponent(item.item_id));
   };
 
-  const refresh = useCallback(async (showLoading = false) => {
-    if (!activeOrganizationId) {
+  const refresh = useCallback(async (showLoading = false, forceRefresh = true) => {
+    if (!activeOrganizationId || !user?.id) {
       setItems([]);
       setLoading(false);
       return;
     }
-    if (showLoading) setLoading(true);
+    const key = ["technician", "tasks", activeOrganizationId, user.id] as const;
+    const cached = queryClient.getQueryData<TechnicianTask[]>(key);
+    if (cached) setItems(cached);
+    if (showLoading) setLoading(!cached);
     try {
-      const list = await loadMyTechnicianTasks(activeOrganizationId);
+      // O primeiro acesso aproveita o cache. Mutações e eventos realtime
+      // invalidam explicitamente para não exibir serviços desatualizados.
+      if (forceRefresh) {
+        await queryClient.invalidateQueries({ queryKey: key, exact: true, refetchType: "none" });
+      }
+      const list = await queryClient.fetchQuery({
+        queryKey: key,
+        staleTime: 90_000,
+        queryFn: () => loadMyTechnicianTasks(activeOrganizationId),
+      });
       setItems(list);
     } catch (error) {
       setNotice({ kind: "error", text: systemErrorMessage(error, "Não foi possível carregar seus serviços.") });
     } finally {
       setLoading(false);
     }
-  }, [activeOrganizationId]);
+  }, [activeOrganizationId, user?.id, queryClient]);
 
   useEffect(() => {
-    setItems([]);
+    const cached = queryClient.getQueryData<TechnicianTask[]>(technicianTasksKey);
+    setItems(cached || []);
     setNotice(null);
-    void refresh(true);
-  }, [refresh]);
+    void refresh(true, false);
+  }, [refresh, queryClient, activeOrganizationId, user?.id]);
 
   // Eventos em tempo real são a fonte primária. Não consultar a situação
   // a cada minuto enquanto o canal estiver conectado.
@@ -416,33 +433,55 @@ export function TechnicianPanel() {
 
   // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
   // de serviços não substitui a verificação da atribuição no servidor.
+  const handledDetailsRevision = useRef(detailsRevision);
   useEffect(() => {
-    setOrderDetails(null);
-    setEquipmentPhotoUrls({});
+    const key = ["technician", "order-detail", activeOrganizationId || "none", user?.id || "none", routeOrderId || "none"] as const;
+    const cached = queryClient.getQueryData<{
+      data: TechnicianOrderDetails;
+      urls: Record<string, string>;
+    }>(key);
+    setOrderDetails(cached?.data || null);
+    setEquipmentPhotoUrls(cached?.urls || {});
     setPhotoCache({});
     setOrderLoadError(null);
     setDiagnosisDialogOpen(false);
-  }, [activeOrganizationId, routeOrderId]);
+  }, [activeOrganizationId, user?.id, routeOrderId, queryClient]);
 
   useEffect(() => {
     let cancelled = false;
-    if (!activeOrganizationId || !routeOrderId) {
+    if (!activeOrganizationId || !user?.id || !routeOrderId) {
       setOrderDetailsLoading(false);
       return () => { cancelled = true; };
     }
-    setOrderDetailsLoading(true);
+    const key = ["technician", "order-detail", activeOrganizationId, user.id, routeOrderId] as const;
+    const cached = queryClient.getQueryData<{
+      data: TechnicianOrderDetails;
+      urls: Record<string, string>;
+    }>(key);
+    setOrderDetailsLoading(!cached);
     void (async () => {
       try {
-        const data = await getMyTechnicianOrderDetails(routeOrderId);
-        // Resolve as mídias autorizadas antes de mostrar a OS; nada aparece incompleto.
-        const signed = await Promise.allSettled((data.equipment_photos || []).map(async media => ({
-          path: media.path, url: await getMyTechnicianEquipmentPhotoUrl(media.path),
-        })));
+        if (handledDetailsRevision.current !== detailsRevision) {
+          handledDetailsRevision.current = detailsRevision;
+          await queryClient.invalidateQueries({ queryKey: key, exact: true, refetchType: "none" });
+        }
+        const result = await queryClient.fetchQuery({
+          queryKey: key,
+          staleTime: 120_000,
+          queryFn: async () => {
+            const data = await getMyTechnicianOrderDetails(routeOrderId);
+            const signed = await Promise.allSettled((data.equipment_photos || []).map(async media => ({
+              path: media.path, url: await getMyTechnicianEquipmentPhotoUrl(media.path),
+            })));
+            const urls = Object.fromEntries(signed
+              .filter((item): item is PromiseFulfilledResult<{ path: string; url: string }> => item.status === "fulfilled")
+              .map(item => [item.value.path, item.value.url]));
+            return { data, urls };
+          },
+        });
         if (!cancelled) {
-          setEquipmentPhotoUrls(Object.fromEntries(signed
-            .filter((item): item is PromiseFulfilledResult<{ path: string; url: string }> => item.status === "fulfilled")
-            .map(item => [item.value.path, item.value.url])));
-          setOrderDetails(data);
+          setEquipmentPhotoUrls(result.urls);
+          setOrderDetails(result.data);
           setOrderLoadError(null);
         }
       } catch (error) {
@@ -456,7 +495,7 @@ export function TechnicianPanel() {
       }
     })();
     return () => { cancelled = true; };
-  }, [activeOrganizationId, routeOrderId, detailsRevision]);
+  }, [activeOrganizationId, user?.id, routeOrderId, detailsRevision, queryClient]);
 
   useEffect(() => {
     setHistoryDialogOpen(false);
@@ -665,7 +704,7 @@ export function TechnicianPanel() {
           <p className="text-sm text-destructive">{orderLoadError}</p>
           <BtnSecondary onClick={() => navigate("/admin/technician-panel")}>Voltar</BtnSecondary>
         </div>
-      : loading || (selected && (!orderDetails || orderDetails.id !== routeOrderId))
+      : (loading && items.length === 0) || (selected && (!orderDetails || orderDetails.id !== routeOrderId))
       ? <div aria-label="Carregando dados da OS" className="flex min-h-[50dvh] items-center justify-center">
           <LoadingState />
         </div>
