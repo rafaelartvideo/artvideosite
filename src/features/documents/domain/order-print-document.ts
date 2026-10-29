@@ -19,6 +19,7 @@ export type PrintOrderContext = {
   quote?: { version?: number; status?: string; diagnosis?: string; proposed_solution?: string; valid_until?: string | null; items?: any[]; discount_type?: string; discount_value?: number } | null;
   checklist?: OrderChecklist | null;
   checklistPhotoUrls?: Record<string, string>;
+  quotePhotos?: Array<{ id: string; fileName: string; url: string }>;
   usedItems?: any[];
   partRequests?: any[];
   history?: any[];
@@ -403,6 +404,22 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     return "<section><h2>" + escapeHtml(section.label) + "</h2><div class='grid columns-" + columnCount + "'>" + fields + "</div></section>";
   }).join("");
 
+  // As fotos pertencem à proposta e aparecem automaticamente nos modelos ORCAMENTO,
+  // inclusive modelos antigos que não possuem campo de fotos no configurador.
+  const quotePhotos = template.document_type === "ORCAMENTO" ? context.quotePhotos || [] : [];
+  const quotePhotoHtml = quotePhotos.length
+    ? "<section class='quote-photos-section'><h2>Fotos do orçamento</h2><div class='quote-photos'>" +
+      quotePhotos.map((photo, index) =>
+        "<figure class='quote-photo'><img src='" + escapeHtml(photo.url) +
+        "' alt='Foto " + (index + 1) + " do orçamento' loading='eager'>" +
+        "<figcaption>Foto " + (index + 1) + "</figcaption></figure>",
+      ).join("") + "</div></section>"
+    : "";
+  const sectionHtmlWithPhotos = !quotePhotoHtml ? sectionHtml
+    : sectionHtml.includes("<section class='signature-section'>")
+      ? sectionHtml.replace("<section class='signature-section'>", quotePhotoHtml + "<section class='signature-section'>")
+      : sectionHtml + quotePhotoHtml;
+
   const orientation = template.orientation === "landscape" ? "landscape" : "portrait";
   const layout = template.layout;
   const company = context.company || {};
@@ -437,7 +454,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     ? "'" + escapeCssContent(footerMeta.printedBy) + "'"
     : "none";
   const printScript = autoPrint
-    ? "<script>window.addEventListener('load',function(){setTimeout(function(){window.focus();window.print()},250)});window.addEventListener('afterprint',function(){window.close()})</script>"
+    ? "<script>window.addEventListener('load',function(){Promise.all(Array.from(document.images).map(function(img){if(img.complete)return Promise.resolve();return new Promise(function(resolve){img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});setTimeout(resolve,8000)})})).then(function(){setTimeout(function(){window.focus();window.print()},150)})});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
   const documentTitle = autoPrint ? "" : template.name;
   const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(documentTitle) + "</title><style>" +
@@ -448,13 +465,14 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
     ".grid{display:grid;gap:" + layout.field_spacing + "px;align-items:stretch;min-width:0;border-left:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";}.columns-1{grid-template-columns:minmax(0,1fr)}.columns-2{grid-template-columns:repeat(2,minmax(0,1fr))}.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.field{min-width:0;padding:6px 8px 9px;break-inside:avoid;border:0;" + (layout.show_field_borders ? "box-shadow:inset -1px -1px #cbd5e1;" : "") + "}.field span{display:block;margin-bottom:1px;color:#526174;font-size:" + layout.label_font_size + "pt;line-height:1.3;font-weight:700;text-transform:uppercase}.field strong{display:block;white-space:pre-wrap;overflow-wrap:anywhere;font-size:" + layout.body_font_size + "pt;font-weight:500;line-height:inherit}.field-wide{grid-column:1/-1}.field-total{background:#eef3f9}.field-total strong{font-size:1.15em;font-weight:800;color:#0057e7}" +
     ".signature-section{border:0;padding:0;margin:12px 0 4px;break-inside:avoid-page;page-break-inside:avoid}.signatures{display:flex;justify-content:space-between;align-items:stretch;gap:24px}.signature{flex:1;min-width:0;text-align:center;font-size:9pt;line-height:1.3;display:flex;flex-direction:column}.signature-line{border-top:1px solid #64748b;margin:22px 0 5px}.signature-label{font-size:8pt;color:#526174}.signature-document{margin-top:4px;font-weight:600;font-size:8.5pt}" +
     ".quote-row{display:grid;min-width:0;break-inside:avoid-page;page-break-inside:avoid;grid-template-columns:repeat(2,minmax(0,1fr))}.quote-row.columns-3{grid-template-columns:repeat(3,minmax(0,1fr))}.quote-row-problem .field,.quote-row-validity .field{grid-column:1/-1}.quote-row .field{border-bottom:1px solid #dbe2ea;min-height:41px}.quote-row .field:not(:last-child){border-right:1px solid #dbe2ea}.quote-row-final .field:last-child{background:#f0f4f8}.quote-row-final .field:last-child strong{font-size:1.17em;font-weight:800}.items-table,.checklist-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:inherit}.items-table th,.items-table td,.checklist-table th,.checklist-table td{padding:6px 8px 9px;line-height:1.4;border-bottom:" + (layout.show_field_borders ? "1px solid #cbd5e1" : "0") + ";vertical-align:top;white-space:pre-wrap;overflow-wrap:anywhere}.items-table th,.checklist-table th{text-align:left;font-size:" + layout.label_font_size + "pt;color:#526174;font-weight:700;line-height:1.3}.items-table .numeric{text-align:right;font-variant-numeric:tabular-nums}.quote-item-title{font-weight:600}.quote-item-description{margin-top:3px;font-size:.86em;line-height:1.4;font-weight:400;color:#526174;white-space:pre-line;overflow-wrap:anywhere}.items-table th:not(.numeric){width:47%}.items-table tr,.checklist-table tr{break-inside:avoid-page;page-break-inside:avoid}.items-table tfoot{display:table-row-group;break-inside:avoid-page}.items-table .subtotal-row{background:#f1f5fa;font-weight:800;border-top:1px solid #94a3b8}.items-table .subtotal-row th{text-align:right;color:#24364b;font-size:inherit}.items-table .subtotal-row td{font-weight:800;font-size:1.05em}.items-table thead,.checklist-table thead{display:table-header-group}.footer{position:static;display:flex;flex-wrap:wrap;justify-content:center;gap:4px 12px;margin-top:8px;border-top:1px solid #cbd5e1;padding-top:5px;color:#526174;font-size:8pt;line-height:1.4;break-inside:avoid}.footer-item{white-space:pre-wrap}" +
+    ".quote-photos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:8px}.quote-photo{margin:0;min-width:0;break-inside:avoid;page-break-inside:avoid}.quote-photo img{display:block;width:100%;height:45mm;object-fit:contain;background:#f8fafc;border:1px solid #e2e8f0}.quote-photo figcaption{margin-top:3px;font-size:7pt;color:#526174;text-align:center}" +
     ".checklist-photos{display:flex;gap:8px;white-space:normal}.checklist-photos figure{margin:0;width:calc((100% - 16px)/3);min-width:0;break-inside:avoid}.checklist-photos img{display:block;width:100%;height:38mm;object-fit:contain;background:#f8fafc}.checklist-photos figcaption{margin-top:3px;font-size:7pt;line-height:1.25;color:#526174}.checklist-photo-row{break-inside:avoid}" +
     "@media print{html{background:#fff}body{width:auto;max-width:none;margin:0;padding:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}.header{break-inside:avoid-page}section>h2{break-after:avoid-page}table thead{display:table-header-group}table tfoot{display:table-row-group}tr{break-inside:avoid-page}p{orphans:3;widows:3}}" +
     "</style></head><body><header class='header'><div class='company'>" +
     (template.show_logo ? companyLogo : "") +
     (template.show_company_info ? "<div class='company-copy'><div class='brand'>" + escapeHtml(companyName) + "</div><div class='company-subtitle'>" + escapeHtml(companySubtitle) + "</div>" + (companyDetails.length ? "<div class='company-details'>" + companyDetails.map(escapeHtml).join("<br>") + "</div>" : "") + "</div>" : "") +
     "</div><div class='document'><h1>" + escapeHtml(template.name) + "</h1>" + (template.header_text?.trim() ? "<p>" + escapeHtml(template.header_text.trim()) + "</p>" : "") + "</div><div class='order-number'><span>Número da OS</span><strong>" + escapeHtml(context.order?.os_number) + "</strong>" + (context.order?.external_os_number ? "<small>OS externa " + escapeHtml(context.order.external_os_number) + "</small>" : "") + "</div></header>" +
-    sectionHtml +
+    sectionHtmlWithPhotos +
     (customFooterText ? "<footer class='footer'><span class='footer-item'>" + escapeHtml(customFooterText) + "</span></footer>" : "") +
     printScript + "</body></html>";
 
