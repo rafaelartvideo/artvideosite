@@ -1,6 +1,6 @@
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useMatch, useNavigate } from "react-router";
 import { CalendarDays, History, MapPin, Pencil, Users, WifiOff } from "lucide-react";
@@ -434,7 +434,7 @@ export function TechnicianPanel() {
   // Leitura da OS inteira somente pela RPC de campos autorizados. A listagem
   // de serviços não substitui a verificação da atribuição no servidor.
   const handledDetailsRevision = useRef(detailsRevision);
-  useEffect(() => {
+  useLayoutEffect(() => {
     const key = ["technician", "order-detail", activeOrganizationId || "none", user?.id || "none", routeOrderId || "none"] as const;
     const cached = queryClient.getQueryData<{
       data: TechnicianOrderDetails;
