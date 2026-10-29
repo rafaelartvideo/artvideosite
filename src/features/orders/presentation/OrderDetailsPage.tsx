@@ -9,6 +9,7 @@ import { readOrderQuote } from "../infrastructure/order-quote.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router";
 import { CheckCircle2, ChevronDown, Download, FileText, Mail, PackagePlus, Phone, Printer, Tag } from "lucide-react";
 import { AdminButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -110,6 +111,7 @@ export function OrderDetailsPage(props: Props) {
     formatCurrency, getSituations: getSituationsForType, getSla: getSlaForOrder,
     onEdit: openEdit, onClose, monitorView = false, monitorContact = null,
   } = props;
+  const queryClient = useQueryClient();
   const [printingTemplateId, setPrintingTemplateId] = useState<string | null>(null);
   const [downloadingTemplateId, setDownloadingTemplateId] = useState<string | null>(null);
   const [printingWarranty, setPrintingWarranty] = useState(false);
@@ -178,8 +180,11 @@ export function OrderDetailsPage(props: Props) {
     setQuoteState(null);
     if (!quoteWorkflowEnabled || !detail?.id || !detail?.organization_id || !visible) return;
     const orderId = detail.id;
-    void readOrderQuote(detail.organization_id, orderId)
-      .then(quote => {
+    void queryClient.fetchQuery({
+      queryKey: ["orders", "quote", detail.organization_id, orderId],
+      staleTime: 2 * 60_000,
+      queryFn: () => readOrderQuote(detail.organization_id, orderId),
+    }).then(quote => {
         if (active) setQuoteState(current => current?.orderId === orderId ? current : {
           orderId,
           status: quote?.status || null,
@@ -189,7 +194,7 @@ export function OrderDetailsPage(props: Props) {
         if (active) notifyAdmin("Não foi possível verificar a situação do orçamento: " + systemErrorMessage(error), "error");
       });
     return () => { active = false; };
-  }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible]);
+  }, [quoteWorkflowEnabled, detail?.id, detail?.organization_id, visible, queryClient]);
   const quoteExecutionAllowed = !quoteWorkflowEnabled ||
     (quoteState?.orderId === detail?.id && quoteState.status === "approved");
 
