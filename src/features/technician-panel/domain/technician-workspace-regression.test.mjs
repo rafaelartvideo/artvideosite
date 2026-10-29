@@ -562,3 +562,8 @@ test("consulta técnica usa cache por organização e usuário, sem limpar a lis
   assert.match(panel, /refresh\(true, false\)/);
   assert.match(panel, /queryClient\.invalidateQueries/);
 });
+
+test("falhas 500 do banco não provocam segunda leitura pesada automática no painel", () => {
+  assert.match(panel, /staleTime: 90_000,\s*retry: false/);
+  assert.match(panel, /staleTime: 120_000,\s*retry: false/);
+});
