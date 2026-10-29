@@ -39,11 +39,17 @@ export function emptyOrderQuoteDraft(): OrderQuoteDraft {
   };
 }
 export async function readOrderQuote(organizationId: string, serviceOrderId: string): Promise<OrderQuoteProposal | null> {
-  const { data, error } = await supabase.from("service_order_quote_proposals")
-    .select("id,status,version,diagnosis,proposed_solution,commercial_conditions,valid_until,items,discount_type,discount_value,versions,rejection_reason,approved_at,updated_at")
-    .eq("organization_id",organizationId).eq("service_order_id",serviceOrderId).maybeSingle();
-  if (error) throw error;
-  return data ? data as OrderQuoteProposal : null;
+  const started = Date.now();
+  try {
+    const { data, error } = await supabase.from("service_order_quote_proposals")
+      .select("id,status,version,diagnosis,proposed_solution,commercial_conditions,valid_until,items,discount_type,discount_value,versions,rejection_reason,approved_at,updated_at")
+      .eq("organization_id",organizationId).eq("service_order_id",serviceOrderId).maybeSingle();
+    if (error) throw error;
+    return data ? data as OrderQuoteProposal : null;
+  } finally {
+    const elapsed = Date.now() - started;
+    if (elapsed >= 3000) console.warn("[PERF][OS] Consulta do orçamento lenta", { duration_ms: elapsed });
+  }
 }
 export async function changeOrderQuote(
   organizationId: string, serviceOrderId: string,
