@@ -17,29 +17,16 @@ export type OrdersReferenceData = {
   serviceTypeSituations: any[];
 };
 
-function requestReferences(organizationId: string, timeoutMs: number) {
-  return supabase.rpc("load_orders_reference_data_v1", { p_organization_id: organizationId })
-    .abortSignal(AbortSignal.timeout(timeoutMs));
-}
-
 export async function loadOrdersReferenceData(
   organizationId: string,
 ): Promise<OrdersReferenceData> {
-  // Um atraso transitório na API não deve derrubar a tabela de OS.
-  // A chamada original abortava em apenas 20 s, gerando TimeoutError na interface.
-  let response: Awaited<ReturnType<typeof requestReferences>> | null = null;
-  for (let attempt = 0; attempt < 2; attempt++) {
-    try {
-      response = await requestReferences(organizationId, attempt === 0 ? 30_000 : 12_000);
-      if (!response.error) break;
-      const transient = /timeout|timed out|abort|network|fetch failed/i.test(response.error.message || "");
-      if (!transient || attempt > 0) throw response.error;
-    } catch (error) {
-      if (attempt > 0 || !/timeout|timed out|abort|network|fetch failed/i.test(String(error))) throw error;
-    }
-  }
-  if (!response) throw new Error("Não foi possível carregar os dados da OS.");
-  const { data, error } = response;
+  // O PostgreSQL cancela chamadas autenticadas após 8 segundos.
+  // Um segundo GET automático de 12–30 s apenas dobrava a carga e fazia a
+  // interface aguardar até 42 segundos. O React Query já mantém o cache válido.
+  const { data, error } = await supabase.rpc(
+    "load_orders_reference_data_v1",
+    { p_organization_id: organizationId },
+  ).abortSignal(AbortSignal.timeout(12_000));
   if (error) throw error;
 
   const reference = (data || {}) as Record<string, unknown>;
