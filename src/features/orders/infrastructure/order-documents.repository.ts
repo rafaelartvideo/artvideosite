@@ -35,6 +35,16 @@ export async function listAttachmentTypes(activeOnly = true, organizationIdOverr
   return query as Promise<{ data: AttachmentType[] | null; error: any }>;
 }
 
+export async function countOrderSituationDocuments(serviceOrderId: string, organizationId: string) {
+  // HEAD com contagem, sem trazer joins, nomes de arquivos ou dados pessoais.
+  const { count, error } = await supabase.from("service_order_situation_media")
+    .select("id", { count: "exact", head: true })
+    .eq("organization_id", organizationId)
+    .eq("service_order_id", serviceOrderId);
+  if (error) throw error;
+  return count ?? 0;
+}
+
 export async function listOrderSituationDocuments(serviceOrderId: string, organizationIdOverride?: string | null) {
   const organizationId = organizationIdOverride || await getServiceOrderOrganizationId(serviceOrderId);
   return supabase
