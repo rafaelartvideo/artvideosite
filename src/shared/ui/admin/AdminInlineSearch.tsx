@@ -6,15 +6,17 @@ export function AdminInlineSearch({
   onChange,
   placeholder = "Buscar...",
   ariaLabel,
+  iconTone = "primary",
 }: {
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   ariaLabel: string;
+  iconTone?: "primary" | "neutral";
 }) {
   return (
     <div className="relative w-full min-w-0 sm:w-[280px] sm:max-w-[38vw]">
-      <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#0057e7]" />
+      <Search size={16} aria-hidden="true" className={`pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 ${iconTone === "neutral" ? "text-muted-foreground" : "text-[#0057e7]"}`} />
       <input
         type="search"
         aria-label={ariaLabel}

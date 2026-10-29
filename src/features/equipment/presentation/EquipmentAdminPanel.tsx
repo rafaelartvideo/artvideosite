@@ -16,7 +16,7 @@ import { brandKey, buildEquipmentBrandChoices, EquipmentBrandCreate, EquipmentBr
 import { EquipmentChecklistSection } from "./EquipmentChecklistSection";
 import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
-import { AdminSubsectionButtons } from "@/shared/ui/admin/AdminSubsectionButtons";
+
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -515,20 +515,30 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
   return <div className="min-w-0 space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />
-    <AdminSubsectionButtons value={activeArea} ariaLabel="Subseções de equipamentos técnicos"
-      items={[
-        ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
-        ...(canViewFields ? [{ id: "fields" as const, label: "Campos Extras", Icon: Settings2 }] : []),
-        ...(canViewTable ? [{ id: "brands" as const, label: "Marcas", Icon: Tags }] : []),
-      ]}
-      onChange={value => {
-        if (value === "registered") openRegisteredPage();
-        else if (value === "fields") openFieldsPage();
-        else openBrandsPage();
-      }} />
-    <div className="flex justify-end">
-      <div className="w-full sm:w-72">
+    <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-border">
+      <nav aria-label="Subseções de equipamentos técnicos" className="flex min-w-0 flex-wrap items-center gap-5">
+        {([
+          ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
+          ...(canViewFields ? [{ id: "fields" as const, label: "Campos Extras", Icon: Settings2 }] : []),
+          ...(canViewTable ? [{ id: "brands" as const, label: "Marcas", Icon: Tags }] : []),
+        ]).map(({ id, label, Icon }) => (
+          <button key={id} type="button"
+            aria-current={activeArea === id ? "page" : undefined}
+            onClick={() => {
+              if (id === "registered") openRegisteredPage();
+              else if (id === "fields") openFieldsPage();
+              else openBrandsPage();
+            }}
+            className={`inline-flex min-h-11 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeArea === id
+              ? "border-primary text-primary"
+              : "border-transparent text-muted-foreground hover:text-foreground"}`}>
+            <Icon size={17} className="shrink-0" />{label}
+          </button>
+        ))}
+      </nav>
+      <div className="w-full min-w-0 shrink-0 pb-0.5 sm:ml-auto sm:w-[280px]">
         <AdminInlineSearch value={activeSearch} onChange={updateAreaSearch}
+          iconTone="neutral"
           placeholder={activeArea === "registered" ? "Buscar equipamentos..." : activeArea === "fields" ? "Buscar campos extras..." : "Buscar marcas..."}
           ariaLabel={activeArea === "registered" ? "Buscar equipamentos, marcas e modelos" : activeArea === "fields" ? "Buscar campos extras" : "Buscar marcas e equipamentos vinculados"} />
       </div>
