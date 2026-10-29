@@ -38,3 +38,19 @@ test("filtros e paginação continuam consultando dados completos sem descartar 
   assert.match(filters, /matchOrderNumberOrExternal/);
   assert.match(filters, /placeholderData: keepPreviousData/);
 });
+
+test("fechar uma OS troca lista e detalhe na mesma rota sem flash ou reset do scroll", () => {
+  const admin = read("src/app/Admin.tsx");
+  const tab = read("src/features/orders/presentation/TabOrders.tsx");
+  const detail = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+
+  assert.match(admin, /ordersListScrollRef\.current = contentRef\.current\?\.scrollTop/);
+  assert.match(admin, /root\.scrollTop = ordersListScrollRef\.current/);
+  assert.match(admin, /useLayoutEffect\(\(\) => \{ if \(!route\.resourceId\) setPage\(null\)/);
+  assert.doesNotMatch(admin, /if \(!resourceId\) setPage\(null\)/);
+
+  assert.match(tab, /visible=\{!detailOnly && !initialOrderId && !editingRouteActive && !formOpen && !solveOpen && \(!detail \|\| Boolean\(onOrderRouteChange\)\)\}/);
+  assert.match(tab, /visible=\{Boolean\(detail && !solveOpen && !editingRouteActive && \(!onOrderRouteChange \|\| initialOrderId\)\)\}/);
+  assert.match(detail, /if \(onClose\) onClose\(\);\s*else closeDetail\(\);/);
+  assert.match(detail, /onClose=\{closePage\} smoothMotion=\{false\}/);
+});
