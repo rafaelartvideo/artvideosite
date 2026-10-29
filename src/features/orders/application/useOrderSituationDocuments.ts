@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { REFERENCE_DATA_CACHE_TIME } from "@/infrastructure/query/query-client";
 import {
   attachOrderSituationDocument,
+  countOrderSituationDocuments,
   getServiceOrderOrganizationId,
   listAttachmentTypes,
   listOrderSituationDocuments,
@@ -40,15 +41,31 @@ export function useOrderSituationDocuments({
   });
   const effectiveOrganizationId = organizationId || organizationQuery.data || null;
   const queryKey = ["orders", effectiveOrganizationId || "none", orderId || "", "situation-documents"];
+  const countKey = ["orders", effectiveOrganizationId || "none", orderId || "", "situation-documents-count"];
+  const canViewDocuments = Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images"));
+  const countQuery = useQuery({
+    queryKey: countKey,
+    enabled: canViewDocuments,
+    staleTime: 5 * 60_000,
+    queryFn: () => countOrderSituationDocuments(orderId!, effectiveOrganizationId!),
+  });
 
   const documentsQuery = useQuery({
     queryKey,
-    enabled: Boolean(orderId && effectiveOrganizationId && hasPermission("orders.section.images")),
+    enabled: canViewDocuments,
     staleTime: 5 * 60_000,
     queryFn: async () => {
-      const { data, error } = await listOrderSituationDocuments(orderId!, effectiveOrganizationId);
-      if (error) throw error;
-      return data || [];
+      const started = Date.now();
+      try {
+        const { data, error } = await listOrderSituationDocuments(orderId!, effectiveOrganizationId);
+        if (error) throw error;
+        const documents = data || [];
+        queryClient.setQueryData(countKey, documents.length);
+        return documents;
+      } finally {
+        const elapsed = Date.now() - started;
+        if (elapsed >= 3000) console.warn("[PERF][OS] Documentos lentos", { duration_ms: elapsed });
+      }
     },
   });
 
@@ -94,7 +111,12 @@ export function useOrderSituationDocuments({
       }
       return { count: files.length, situation: situation?.name || "Anexos" };
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({ queryKey: countKey }),
+      ]);
+    },
   });
 
   const removeMutation = useMutation({
@@ -104,7 +126,12 @@ export function useOrderSituationDocuments({
       }
       await removeOrderSituationDocument(document.id);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({ queryKey: countKey }),
+      ]);
+    },
   });
 
   const flowSituations = useMemo(() => {
@@ -126,6 +153,7 @@ export function useOrderSituationDocuments({
   return {
     organizationId: effectiveOrganizationId,
     documents: documentsQuery.data || [],
+    documentsCount: countQuery.data ?? null,
     attachmentTypes: attachmentTypesQuery.data || [],
     flowSituations,
     loading: organizationQuery.isLoading || documentsQuery.isLoading || attachmentTypesQuery.isLoading,
