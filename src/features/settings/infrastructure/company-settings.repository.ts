@@ -236,7 +236,7 @@ export async function getCompanyPrintContext(organizationId: string) {
 
   return {
     name: settings.company_name || "Empresa",
-    subtitle: settings.company_legal_name || "Assistência Técnica",
+    subtitle: settings.company_legal_name || "",
     logoUrl,
     document: settings.company_cnpj,
     stateRegistration: settings.company_state_registration,
