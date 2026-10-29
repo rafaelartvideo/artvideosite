@@ -126,31 +126,40 @@ export function OrderDetailsPage(props: Props) {
   useEffect(() => {
     if (!visible || !detail?.id || detailSection !== "details") return;
     let cancelled = false;
+    const key = ["orders", "items-overview", detail.organization_id || "none", detail.id] as const;
     const refresh = async () => {
       try {
-        const [commercial, tasks] = await Promise.all([
-          listOrderCommercialItems(detail.id), listOrderServiceTasks(detail.id),
-        ]);
-        if (cancelled) return;
-        const statuses = new Map(tasks.map(task => [task.item_id, task.status]));
-        const services = commercial.filter(item => item.item_type !== "product");
-        setItemsOverview({
-          total: commercial.length,
-          pending: services.filter(item => !statuses.has(item.id) || statuses.get(item.id) === "pending" || statuses.get(item.id) === "cancelled").length,
-          inProgress: services.filter(item => statuses.get(item.id) === "in_progress").length,
-          completed: services.filter(item => statuses.get(item.id) === "completed").length,
+        const overview = await queryClient.fetchQuery({
+          queryKey: key,
+          staleTime: 90_000,
+          queryFn: async () => {
+            const [commercial, tasks] = await Promise.all([
+              listOrderCommercialItems(detail.id), listOrderServiceTasks(detail.id),
+            ]);
+            const statuses = new Map(tasks.map(task => [task.item_id, task.status]));
+            const services = commercial.filter(item => item.item_type !== "product");
+            return {
+              total: commercial.length,
+              pending: services.filter(item => !statuses.has(item.id) || statuses.get(item.id) === "pending" || statuses.get(item.id) === "cancelled").length,
+              inProgress: services.filter(item => statuses.get(item.id) === "in_progress").length,
+              completed: services.filter(item => statuses.get(item.id) === "completed").length,
+            };
+          },
         });
+        if (!cancelled) setItemsOverview(overview);
       } catch { if (!cancelled) setItemsOverview(null); }
     };
+    const cached = queryClient.getQueryData<typeof itemsOverview>(key);
+    if (cached) setItemsOverview(cached);
     void refresh();
     const channel = supabase.channel("os-items-badge:" + detail.id)
       .on("postgres_changes", { event: "*", schema: "public", table: "service_order_item_tasks", filter: "service_order_id=eq." + detail.id },
-        () => { void refresh(); })
+        () => {
+          void queryClient.invalidateQueries({ queryKey: key, exact: true, refetchType: "none" }).then(refresh);
+        })
       .subscribe();
     return () => { cancelled = true; void supabase.removeChannel(channel); };
-  }, [visible, detail?.id, detailSection]);
-
-  useEffect(() => { setItemsOverview(null); }, [detail?.id]);
+  }, [visible, detail?.id, detailSection, queryClient]);
 
   const itemBadge = itemsOverview
     ? itemsOverview.pending > 0
@@ -633,7 +642,10 @@ export function OrderDetailsPage(props: Props) {
           canEdit={hasPermission("orders.edit") || hasPermission("orders.update")}
           formatCurrency={formatCurrency}
           onPricingChange={pricing => details.setDetail((current: any) => current ? { ...current, ...pricing } : current)}
-          onOverviewChange={setItemsOverview}
+          onOverviewChange={overview => {
+            queryClient.setQueryData(["orders", "items-overview", detail.organization_id || "none", detail.id], overview);
+            setItemsOverview(overview);
+          }}
         /> : <>
           {hasPermission("orders.section.sla_cards") && <ServiceOrderSlaCards order={detail} slaHours={getSlaForOrder(detail.service_type_id, detail.situation_id, detail.situation)?.hours ?? null} visits={slaVisits.visits} onOpenRecords={() => onOpenSubpage("sla-records")} />}
           <OrderDetailsContent
