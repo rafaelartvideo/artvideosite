@@ -296,7 +296,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
         if(value && value!=="—")fields.push({label:field.label,value});
       }
       if(!fields.length)fields.push({label:"Equipamento",value:"Não informado"});
-      const equipmentColumns = Math.max(2,Math.min(3,template.layout.section_columns?.equipment ?? 2));
+      const equipmentColumns = Math.max(2,Math.min(3,template.layout.section_columns?.equipment ?? section.defaultColumns));
       return "<section class='equipment-section'><h2>"+escapeHtml(section.label)+
         "</h2><div class='grid columns-"+equipmentColumns+"'>" +
         fields.map(field=>"<div class='field'><span>"+escapeHtml(field.label)+"</span><strong>"+
