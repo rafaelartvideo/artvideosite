@@ -19,7 +19,6 @@ import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, Financia
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
 import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
-import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { formatFinancialDocument } from "./financeDisplay";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
@@ -96,7 +95,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [recurringEditorOpen, setRecurringEditorOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const [counterpartySearch, setCounterpartySearch] = useState("");
   useEffect(() => {
@@ -273,7 +271,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                     placeholder={mobileCriterion === "name" ? "Digite o nome" : mobileCriterion === "document" ? "Digite o CPF ou CNPJ" : mobileCriterion === "origin" ? "Descrição, OS, compra ou recorrência" : "Digite o número da OS"} />
                 </div>}
       </AdminMobileSearchSwitch>
-      <div className="hidden min-w-0 grid-cols-1 items-end gap-3 md:grid md:grid-cols-3">
+      <div className={`hidden min-w-0 grid-cols-1 items-end gap-3 md:grid ${isReceivable ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
         <div className="hidden md:block"><FInput label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric" value={document}
@@ -304,14 +302,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             </button>}
           </div>
           {creatorOpen && <div id="finance-creator-options" role="listbox"
-            className="absolute left-0 right-0 top-full z-[90] mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl animate-in fade-in-0 slide-in-from-top-1 duration-150">
+            className="absolute left-0 right-0 top-full z-[90] mt-1 max-h-[176px] overflow-y-auto rounded-lg border border-border bg-popover p-1 text-popover-foreground shadow-xl animate-in fade-in-0 slide-in-from-top-1 duration-150">
             <button type="button" role="option" aria-selected={!creatorId}
-              className="block w-full rounded-md px-3 py-2 text-left text-xs font-semibold hover:bg-muted"
+              className="flex h-[42px] w-full items-center rounded-md px-3 text-left text-xs font-semibold hover:bg-muted"
               onClick={() => { setCreatorSearch(""); setCreatorId(""); setCreatorOpen(false); }}>
               Todos os responsáveis
             </button>
             {filteredCreators.map(person => <button type="button" role="option" aria-selected={creatorId === person.id} key={person.id}
-              className="block w-full rounded-md px-3 py-2.5 text-left text-xs font-semibold hover:bg-muted"
+              className="flex h-[42px] w-full items-center rounded-md px-3 text-left text-xs font-semibold hover:bg-muted"
               onClick={() => { setCreatorId(person.id); setCreatorSearch(person.name); setCreatorOpen(false); }}>
               {person.name}
             </button>)}
@@ -340,7 +338,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
                 <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</strong></span>
-                <span>Saldo: <strong className="text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
+                <span>Saldo: <strong className={isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>
@@ -379,7 +377,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</td>
                 <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
-                 {!isReceivable && <td className="text-right font-semibold tabular-nums text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
+                 {!isReceivable && <td className="text-right font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
                 <td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
@@ -482,8 +480,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       saving={finance.saveMutation.isPending}
       onClose={closeEditor}
       onSave={save}
-      onRecurringSelected={() => { setEditorOpen(false); setEditing(null); setRecurringEditorOpen(true); }}
     />
-    {recurringEditorOpen && <FinanceRecurringSection dialogOnly initialEntryType={entryType} onDialogClose={() => setRecurringEditorOpen(false)} />}
   </div>;
 }
