@@ -273,7 +273,7 @@ export function DeviceCaptureBridge({
         size="sm"
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={connected ? "bg-emerald-600 hover:bg-emerald-700" : "border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
+        className={connected ? "hidden md:inline-flex bg-emerald-600 hover:bg-emerald-700" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
         title="Usar a câmera do celular nesta OS"
       >
         <Smartphone size={14} />
