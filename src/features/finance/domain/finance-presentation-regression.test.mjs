@@ -58,10 +58,17 @@ test("financial sections use header creation and no sticky toolbars", () => {
   }
 });
 
-test("recurrence route is removed but recurring rules remain manageable in payables", () => {
+test("recurrence uses ordinary payable rows with cancellation from account actions", () => {
   const tabs = source("FinanceSectionTabs.tsx");
   const entries = source("FinanceEntriesSection.tsx");
+  const hook = readFileSync(new URL("../application/useFinanceRecurring.ts", import.meta.url), "utf8");
+  const repo = readFileSync(new URL("../infrastructure/finance-recurring.repository.ts", import.meta.url), "utf8");
   assert.doesNotMatch(tabs, /Recorrências/);
-  assert.match(entries, /Gerenciar recorrências/);
-  assert.match(entries, /<FinanceRecurringSection/);
+  assert.doesNotMatch(entries, /Gerenciar recorrências|FinanceRecurringSection/);
+  assert.match(entries, /entries\.map\(entry =>/);
+  assert.match(entries, /Assinatura cancelada/);
+  assert.match(entries, /Cancelar recorrência/);
+  assert.match(entries, /Confirmar cancelamento/);
+  assert.match(hook, /cancelMutation/);
+  assert.match(repo, /cancel_financial_recurring_rule/);
 });
