@@ -374,7 +374,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
                 <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</strong></span>
-                <span>Saldo: <strong className={isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
+                <span>Saldo: <strong className={["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}
@@ -414,7 +414,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</td>
                 <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
-                 {!isReceivable && <td className="text-right font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
+                 {!isReceivable && <td className={`text-right font-semibold tabular-nums ${["cancelled", "reversed"].includes(entry.approval_status) ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"}`}>{["cancelled", "reversed"].includes(entry.approval_status) ? "—" : formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
                 <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}</div></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
