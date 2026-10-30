@@ -1,18 +1,21 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeftRight,
   Edit2,
-  Eraser,
+  Camera,
   Image as ImageIcon,
+  LoaderCircle,
   List,
   Package,
   Plus,
   ShoppingBag,
   Search,
   Star,
+  Trash2,
   Truck,
+  Upload,
   Warehouse,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
@@ -53,6 +56,7 @@ import {
 } from "@/shared/ui/admin/AdminFormControls";
 import { generateUniqueSlug } from "@/shared/infrastructure/unique-slug.repository";
 import { ImageUpload, ProductAdminThumb } from "@/shared/ui/admin/AdminMedia";
+import { uploadMediaFile } from "@/shared/infrastructure/media.repository";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/primitives/tabs";
@@ -350,12 +354,45 @@ export function TabProducts({
   const [saving, setSaving] = useState(false);
   const [linkedSuppliers, setLinkedSuppliers] = useState<InventorySupplier[]>([]);
   const [galleryMedia, setGalleryMedia] = useState<ImportedProductImage[]>([]);
+  const [galleryUploading, setGalleryUploading] = useState(false);
+  const [galleryActiveSlot, setGalleryActiveSlot] = useState<number | null>(null);
+  const galleryFileInputRef = useRef<HTMLInputElement>(null);
+  const galleryCameraInputRef = useRef<HTMLInputElement>(null);
   const { url: coverPreviewUrl } = useMediaUrl(form.cover_media_id);
   const storePhotos = [
     ...(form.cover_media_id && !galleryMedia.some(image => image.media_id === form.cover_media_id)
       ? [{media_id: form.cover_media_id, public_url: coverPreviewUrl || "", alt_text: null}] : []),
     ...galleryMedia,
   ];
+  const galleryPhotoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
+  const canEditGallery = !saving && !galleryUploading && (editItem ? canEdit : canCreate);
+  const canAddGalleryPhoto = canEditGallery && galleryPhotoCount < 4;
+
+  const handleGalleryUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    input.value = "";
+    if (!file || !activeOrganizationId || !canAddGalleryPhoto) return;
+    setGalleryUploading(true);
+    setGalleryActiveSlot(null);
+    try {
+      const mediaId = await uploadMediaFile("product-images", file, activeOrganizationId);
+      const image = await resolveProductMediaImage(activeOrganizationId, mediaId);
+      setGalleryMedia(current =>
+        current.some(entry => entry.media_id === mediaId) ? current : [...current, image]
+      );
+      setForm(current => ({
+        ...current,
+        cover_media_id: current.cover_media_id || mediaId,
+      }));
+      setToast({ msg: "Foto adicionada. Salve o item para confirmar a galeria.", type: "success" });
+    } catch (error) {
+      setToast({ msg: "Não foi possível adicionar a foto: " + systemErrorMessage(error), type: "error" });
+    } finally {
+      setGalleryUploading(false);
+    }
+  };
+
   const [masterDataDialog, setMasterDataDialog] = useState<"category" | "brand" | null>(null);
   const [masterDataName, setMasterDataName] = useState("");
   const [masterDataSaving, setMasterDataSaving] = useState(false);
@@ -496,7 +533,7 @@ export function TabProducts({
   };
 
   const closeEditor = () => {
-    if (saving) return;
+    if (saving || galleryUploading) return;
     setDrawerOpen(false);
     onRouteChange?.(null, null);
   };
@@ -574,7 +611,7 @@ export function TabProducts({
   };
 
   const handleSave = async () => {
-    if (!activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
+    if (galleryUploading || !activeOrganizationId || !(editItem ? canEdit : canCreate)) return;
     if (!validate()) return;
     const photoCount = new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size;
     if (photoCount > 4) {
@@ -1123,7 +1160,8 @@ export function TabProducts({
                       currentMediaId={form.cover_media_id}
                       onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
                       onRemove={() => setForm(current => ({ ...current, cover_media_id: "" }))}
-                      canUpload={!saving && (editItem ? canEdit : canCreate)}
+                      canUpload={!saving && !galleryUploading && (editItem ? canEdit : canCreate)}
+                      removeIconOnly
                       label="Foto de capa"
                     />
                   </div>
@@ -1385,113 +1423,142 @@ export function TabProducts({
               ><Plus size={14} /> Adicionar</AdminButton>}
             >
               {form.site_characteristics.length === 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setForm(current => ({
-                    ...current,
-                    site_characteristics: [{ label: "", value: "" }],
-                  }))}
-                  disabled={saving}
-                  className="flex min-h-24 w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10 px-4 text-center text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-60"
-                >
-                  <span><Plus size={18} className="mx-auto mb-2 text-primary" />Adicionar a primeira característica</span>
-                </button>
-              ) : <div className="space-y-3">
-                {form.site_characteristics.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-border bg-muted/10 p-3 sm:grid-cols-[minmax(0,.75fr)_minmax(0,1.25fr)_40px] sm:items-end">
-                  <FInput
-                    label={index === 0 ? "Característica" : undefined}
-                    value={item.label}
-                    disabled={saving}
-                    maxLength={80}
-                    placeholder="Ex.: Voltagem"
-                    onChange={(event: any) => setForm(current => ({
-                      ...current,
-                      site_characteristics: current.site_characteristics.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, label: event.target.value } : entry),
-                    }))}
-                  />
-                  <FInput
-                    label={index === 0 ? "Valor" : undefined}
-                    value={item.value}
-                    disabled={saving}
-                    maxLength={240}
-                    placeholder="Ex.: 220 V"
-                    onChange={(event: any) => setForm(current => ({
-                      ...current,
-                      site_characteristics: current.site_characteristics.map((entry, entryIndex) =>
-                        entryIndex === index ? { ...entry, value: event.target.value } : entry),
-                    }))}
-                  />
-                  <AdminIconButton
-                    ariaLabel="Remover característica"
-                    title="Remover característica"
-                    variant="danger"
-                    disabled={saving}
-                    onClick={() => setForm(current => ({
-                      ...current,
-                      site_characteristics: current.site_characteristics.filter((_, entryIndex) => entryIndex !== index),
-                    }))}
-                  ><Eraser size={15} /></AdminIconButton>
-                </div>)}
-                <p className="text-[10px] text-muted-foreground">{form.site_characteristics.length}/20 campos adicionados.</p>
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  Nenhuma característica adicional. Use o botão Adicionar para incluir uma.
+                </p>
+              ) : <div>
+                <div className="grid grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)_42px] gap-2 pb-1 sm:gap-3">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Característica</span>
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Valor</span>
+                </div>
+                {form.site_characteristics.map((item, index) => (
+                  <div
+                    key={index}
+                    className={cn(
+                      "grid grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)_42px] items-center gap-2 py-3 sm:gap-3",
+                      index < form.site_characteristics.length - 1 && "border-b border-border",
+                    )}
+                  >
+                    <FInput
+                      aria-label={`Nome da característica ${index + 1}`}
+                      value={item.label}
+                      disabled={saving}
+                      maxLength={80}
+                      placeholder="Ex.: Voltagem"
+                      onChange={(event: any) => setForm(current => ({
+                        ...current,
+                        site_characteristics: current.site_characteristics.map((entry, entryIndex) =>
+                          entryIndex === index ? { ...entry, label: event.target.value } : entry),
+                      }))}
+                    />
+                    <FInput
+                      aria-label={`Valor da característica ${index + 1}`}
+                      value={item.value}
+                      disabled={saving}
+                      maxLength={240}
+                      placeholder="Ex.: 220 V"
+                      onChange={(event: any) => setForm(current => ({
+                        ...current,
+                        site_characteristics: current.site_characteristics.map((entry, entryIndex) =>
+                          entryIndex === index ? { ...entry, value: event.target.value } : entry),
+                      }))}
+                    />
+                    <AdminIconButton
+                      ariaLabel="Remover característica"
+                      title="Remover característica"
+                      variant="danger"
+                      className="!h-[42px] !w-[42px]"
+                      disabled={saving}
+                      onClick={() => setForm(current => ({
+                        ...current,
+                        site_characteristics: current.site_characteristics.filter((_, entryIndex) => entryIndex !== index),
+                      }))}
+                    ><Trash2 size={17} /></AdminIconButton>
+                  </div>
+                ))}
+                <p className="mt-2 text-[10px] text-muted-foreground">
+                  {form.site_characteristics.length}/20 características adicionadas
+                </p>
               </div>}
             </Section>
 
-            <Section title="Fotos da loja" description="Organize a galeria visual do produto. A estrela define a imagem principal mostrada no catálogo.">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="min-h-[220px] rounded-xl border-2 border-dashed border-primary/30 bg-primary/[0.025] p-3">
-                  <ImageUpload
-                    bucket="product-images"
-                    organizationId={activeOrganizationId || undefined}
-                    currentMediaId={null}
-                    onUpload={mediaId => {
-                      setForm(current => ({ ...current, cover_media_id: current.cover_media_id || mediaId }));
-                      if (!activeOrganizationId) return;
-                      void resolveProductMediaImage(activeOrganizationId, mediaId)
-                        .then(image => {
-                          setGalleryMedia(current => {
-                            if (current.some(entry => entry.media_id === image.media_id)) return current;
-                            const total = new Set([form.cover_media_id, ...current.map(entry => entry.media_id)].filter(Boolean)).size;
-                            return total >= 4 ? current : [...current, image];
-                          });
-                        })
-                        .catch(error => setToast({ msg: "Imagem enviada, mas não foi possível carregar a prévia: " + systemErrorMessage(error), type: "error" }));
-                    }}
-                    canUpload={!saving && (editItem ? canEdit : canCreate) && new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size < 4}
-                    label="Adicionar foto"
-                  />
-                </div>
+            <Section
+              title="Fotos da loja"
+              description="Até 4 fotos. Escolha a principal pela estrela e use os espaços vazios para incluir outras."
+              actions={<>
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Adicionar imagem à galeria"
+                  title="Adicionar imagem"
+                  disabled={!canAddGalleryPhoto}
+                  onClick={() => galleryFileInputRef.current?.click()}
+                ><Upload size={16} /> <span>Adicionar imagem</span></AdminButton>
+                <AdminButton
+                  type="button"
+                  size="sm"
+                  variant="secondary"
+                  aria-label="Tirar foto com a câmera"
+                  title="Câmera"
+                  disabled={!canAddGalleryPhoto}
+                  onClick={() => galleryCameraInputRef.current?.click()}
+                ><Camera size={16} /> <span>Câmera</span></AdminButton>
+              </>}
+            >
+              <input
+                ref={galleryFileInputRef}
+                type="file"
+                accept="image/*,.jpg,.jpeg,.png,.webp"
+                onChange={handleGalleryUpload}
+                className="hidden"
+                aria-label="Selecionar foto da galeria"
+                tabIndex={-1}
+              />
+              <input
+                ref={galleryCameraInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={handleGalleryUpload}
+                className="hidden"
+                aria-label="Tirar foto para a galeria"
+                tabIndex={-1}
+              />
 
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {storePhotos.map(image => <div key={image.media_id} className={cn(
-                  "relative min-h-[220px] rounded-xl border-2 border-dashed bg-card p-2.5",
-                  form.cover_media_id === image.media_id ? "border-primary bg-primary/[0.025]" : "border-border",
+                  "relative min-w-0 overflow-hidden rounded-xl border-2 border-dashed bg-card p-2.5",
+                  form.cover_media_id === image.media_id ? "border-primary/55 bg-primary/[0.025]" : "border-border",
                 )}>
-                  <div className="aspect-square overflow-hidden rounded-lg bg-muted/30">
+                  <div className="flex aspect-square items-center justify-center overflow-hidden rounded-lg bg-muted/30">
                     {image.public_url
-                      ? <img src={image.public_url} alt="" className="h-full w-full object-contain" />
+                      ? <img src={image.public_url} alt="Foto do produto" className="h-full w-full object-contain" />
                       : <div className="flex h-full items-center justify-center"><ImageIcon size={24} className="text-muted-foreground" /></div>}
                   </div>
                   <div className="mt-2 flex gap-1.5">
                     <button
                       type="button"
+                      disabled={!canEditGallery}
                       onClick={() => {
                         if (form.cover_media_id && form.cover_media_id !== image.media_id &&
                             !galleryMedia.some(entry => entry.media_id === form.cover_media_id)) {
-                          const previous = { media_id: form.cover_media_id, public_url: coverPreviewUrl || "", alt_text: null };
+                          const previous = { media_id: form.cover_media_id, public_url: coverPreviewUrl || "" };
                           setGalleryMedia(current => current.some(entry => entry.media_id === previous.media_id) ? current : [previous, ...current]);
                         }
                         setForm(current => ({ ...current, cover_media_id: image.media_id }));
                       }}
                       className={cn(
-                        "flex min-h-8 flex-1 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-bold transition-colors",
+                        "flex min-h-9 min-w-0 flex-1 items-center justify-center gap-1 rounded-md px-1.5 text-[10px] font-bold transition-colors disabled:opacity-50",
                         form.cover_media_id === image.media_id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
                       )}
-                    ><Star size={13} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
+                    ><Star size={13} className="shrink-0" fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
                     <AdminIconButton
-                      ariaLabel="Remover foto"
+                      ariaLabel="Remover foto da galeria"
                       title="Remover foto"
                       variant="danger"
-                      disabled={saving}
+                      className="!h-9 !w-9 shrink-0"
+                      disabled={!canEditGallery}
                       onClick={() => {
                         setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
                         if (form.cover_media_id === image.media_id) {
@@ -1499,19 +1566,59 @@ export function TabProducts({
                           setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
                         }
                       }}
-                    ><Eraser size={14} /></AdminIconButton>
+                    ><Trash2 size={16} /></AdminIconButton>
                   </div>
                 </div>)}
 
-                {Array.from({ length: Math.max(0, 4 - storePhotos.length) }).map((_, index) => <div
-                  key={"empty-gallery-" + index}
-                  className="hidden min-h-[220px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/5 p-4 text-center text-[11px] text-muted-foreground lg:flex"
-                >
-                  <span><ImageIcon size={23} className="mx-auto mb-2 opacity-50" />Espaço para foto</span>
-                </div>)}
+                {Array.from({ length: Math.max(0, 4 - storePhotos.length) }).map((_, index) =>
+                  <div
+                    key={`empty-gallery-${index}`}
+                    className={cn(
+                      "flex min-h-[180px] min-w-0 flex-col items-center justify-center rounded-xl border-2 border-dashed px-2 py-4 text-center transition-colors sm:min-h-[210px]",
+                      galleryActiveSlot === index ? "border-primary/50 bg-primary/[0.03]" : "border-border bg-transparent",
+                    )}
+                  >
+                    {galleryUploading ? (
+                      <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                        <LoaderCircle size={24} className="animate-spin text-primary" />
+                        <span className="text-xs">Enviando foto</span>
+                      </div>
+                    ) : galleryActiveSlot === index ? (
+                      <div className="flex w-full flex-col items-center gap-2 px-1">
+                        <span className="text-xs font-semibold text-foreground">Adicionar foto</span>
+                        <button
+                          type="button"
+                          disabled={!canAddGalleryPhoto}
+                          onClick={() => galleryFileInputRef.current?.click()}
+                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+                        ><Upload size={15} /> Imagem</button>
+                        <button
+                          type="button"
+                          disabled={!canAddGalleryPhoto}
+                          onClick={() => galleryCameraInputRef.current?.click()}
+                          className="flex min-h-9 w-full items-center justify-center gap-1.5 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground hover:bg-muted disabled:opacity-50"
+                        ><Camera size={15} /> Câmera</button>
+                        <button type="button" onClick={() => setGalleryActiveSlot(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
+                          Cancelar
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        disabled={!canAddGalleryPhoto}
+                        onClick={() => setGalleryActiveSlot(index)}
+                        className="flex h-full w-full flex-1 flex-col items-center justify-center gap-2 rounded-lg px-2 text-muted-foreground transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-50"
+                        aria-label={`Adicionar foto ao espaço ${index + storePhotos.length + 1}`}
+                      >
+                        <ImageIcon size={25} />
+                        <span className="text-xs font-semibold">Adicionar foto</span>
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <p className="mt-3 text-[10px] leading-4 text-muted-foreground">
-                Máximo de 4 fotos por produto. JPG, PNG e WebP são comprimidos automaticamente quando possível.
+                JPG, PNG e WebP são comprimidos automaticamente para melhorar o carregamento do site.
               </p>
             </Section>
 
@@ -1559,8 +1666,8 @@ export function TabProducts({
       </Tabs>
 
       <AdminStickyToolbar className="z-10 justify-end">
-        <BtnSecondary onClick={closeEditor} disabled={saving}>Cancelar</BtnSecondary>
-        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
+        <BtnSecondary onClick={closeEditor} disabled={saving || galleryUploading}>Cancelar</BtnSecondary>
+        {(editItem ? canEdit : canCreate) && <BtnPrimary onClick={handleSave} disabled={galleryUploading} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
       </AdminStickyToolbar>
     </AdminPage>
 
