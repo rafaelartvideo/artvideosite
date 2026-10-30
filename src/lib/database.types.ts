@@ -248,6 +248,7 @@ export interface Product {
   is_active: boolean;
   show_in_catalog: boolean;
   is_featured: boolean;
+  site_characteristics: Array<{ label: string; value: string }>;
   ncm: string | null;
   cest: string | null;
   merchandise_origin: number;
