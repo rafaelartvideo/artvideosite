@@ -6,6 +6,7 @@ import {
   listFinancialRecurringRules,
   saveFinancialRecurringRule,
   setFinancialRecurringRuleActive,
+  cancelFinancialRecurringRule,
 } from "../infrastructure/finance-recurring.repository";
 
 export function useFinanceRecurring(loadRules = true) {
@@ -40,11 +41,17 @@ export function useFinanceRecurring(loadRules = true) {
     onSuccess: invalidate,
   });
 
+  const cancelMutation = useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason?: string | null }) =>
+      cancelFinancialRecurringRule(organizationId, id, reason),
+    onSuccess: invalidate,
+  });
+
   const generateMutation = useMutation({
     mutationFn: ({ id, untilDate }: { id: string; untilDate?: string | null }) =>
       generateFinancialRecurringOccurrences(organizationId, id, untilDate),
     onSuccess: invalidate,
   });
 
-  return { rulesQuery, saveMutation, activeMutation, generateMutation };
+  return { rulesQuery, saveMutation, activeMutation, cancelMutation, generateMutation };
 }
