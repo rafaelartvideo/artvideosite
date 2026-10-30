@@ -123,6 +123,7 @@ export function CustomerAccountPage() {
   const [registrationErrors, setRegistrationErrors] = useState<RegistrationErrors>({});
   const [registrationChallenge, setRegistrationChallenge] = useState("");
   const [siteCpfTicket, setSiteCpfTicket] = useState("");
+  const siteCpfProofCacheRef = useRef<{ key: string; ticket: string; until: number } | null>(null);
   const [registrationCode, setRegistrationCode] = useState("");
   const [registrationCooldown, setRegistrationCooldown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
@@ -194,11 +195,17 @@ export function CustomerAccountPage() {
 
 
   async function validateSiteCpfName(fullName: string, document: string): Promise<string> {
+    const normalizedName=fullName.trim().replace(/\s+/g," ");
+    const digits=document.replace(/\D/g,"");
+    const cacheKey=digits+":"+normalizedName.toLocaleLowerCase("pt-BR");
+    const cached=siteCpfProofCacheRef.current;
+    if(cached && cached.key===cacheKey && cached.until>Date.now())return cached.ticket;
     const result=await customerAccessRequest<{required:boolean;ticket?:string}>("registration_identity",{
-      name:fullName.trim(),cpf:document.replace(/\D/g,""),
+      name:normalizedName,cpf:digits,
     });
     if(!result.required)return "";
     if(!result.ticket)throw new Error("Não foi possível confirmar o CPF. Tente novamente.");
+    siteCpfProofCacheRef.current={key:cacheKey,ticket:result.ticket,until:Date.now()+10*60_000};
     return result.ticket;
   }
 
@@ -223,6 +230,7 @@ export function CustomerAccountPage() {
           token_hash:result.token_hash,type:"magiclink",
         });
         if(verificationError)throw verificationError;
+        siteCpfProofCacheRef.current=null;
         setPassword("");setConfirmPassword("");setRegistrationCode("");setRegistrationChallenge("");
       } else if(!email.trim()) {
         const ticket=await validateSiteCpfName(name,cpf);
@@ -243,6 +251,7 @@ export function CustomerAccountPage() {
           },
         });
         if(signupError)throw signupError;
+        siteCpfProofCacheRef.current=null;
         setPassword("");setConfirmPassword("");
         setMode("email_sent");
       }
