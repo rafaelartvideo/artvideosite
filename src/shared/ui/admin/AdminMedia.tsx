@@ -5,8 +5,8 @@ import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/share
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
-export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId, photoActions = false, onRemove }: {
-  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; onRemove?: () => void; label?: string; canUpload?: boolean; organizationId?: string | null; photoActions?: boolean;
+export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId, photoActions = false, onRemove, removeIconOnly = false }: {
+  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; onRemove?: () => void; label?: string; canUpload?: boolean; organizationId?: string | null; photoActions?: boolean; removeIconOnly?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -58,8 +58,13 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
       <AdminButton variant="secondary" size="sm" onClick={() => cameraInputRef.current?.click()} loading={uploading} loadingText="Enviando..." aria-label="Abrir câmera" title="Abrir câmera" className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-primary/30 px-2 py-0 text-primary hover:bg-primary/5 md:px-3"><Camera size={18} className="shrink-0" /><span className="hidden text-xs md:inline">Câmera</span></AdminButton>
     </div> : <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading} loadingText="Enviando..." className="border-primary/30 text-primary hover:bg-primary/5"><Upload size={13} /> {displayUrl ? "Trocar imagem" : "Selecionar imagem"}</AdminButton>)}
     {canUpload && onRemove && Boolean(currentMediaId) && <AdminButton variant="secondary" size="sm" onClick={handleRemove}
-      disabled={uploading} aria-label={`Remover ${label.toLowerCase()}`} className="mt-2 w-full border-destructive/30 text-destructive hover:bg-destructive/5">
-      <Trash2 size={14} /> Remover imagem
+      disabled={uploading}
+      aria-label={`Remover ${label.toLowerCase()}`}
+      title={`Remover ${label.toLowerCase()}`}
+      className={removeIconOnly
+        ? "mt-2 !h-9 !w-9 !min-w-9 !p-0 border-destructive/30 text-destructive hover:bg-destructive/5"
+        : "mt-2 w-full border-destructive/30 text-destructive hover:bg-destructive/5"}>
+      <Trash2 size={16} />{!removeIconOnly && " Remover imagem"}
     </AdminButton>}
     {canUpload && onRemove && !currentMediaId && <p className="mt-2 text-[11px] text-muted-foreground">Sem imagem. Você pode deixar este campo vazio.</p>}
   </div>;
