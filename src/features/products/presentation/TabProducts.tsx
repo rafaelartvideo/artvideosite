@@ -275,7 +275,7 @@ function EditorTabTrigger({
 }) {
   return <TabsTrigger
     value={value}
-    className="!h-12 !min-h-12 !flex-none shrink-0 !rounded-none !border-0 !border-b-2 !border-transparent !bg-transparent !px-1 text-sm !font-semibold !text-muted-foreground !shadow-none !after:hidden transition-colors hover:!text-foreground data-[state=active]:!border-primary data-[state=active]:!text-primary data-[state=active]:!bg-transparent dark:data-[state=active]:!bg-transparent"
+    className="!h-12 !min-h-12 !flex-none shrink-0 !rounded-none !border-0 !border-b-2 !border-transparent !bg-transparent !px-1 text-sm !font-semibold !text-muted-foreground !shadow-none after:hidden transition-colors hover:!text-foreground data-[state=active]:!border-primary data-[state=active]:!text-primary data-[state=active]:!bg-transparent dark:data-[state=active]:!bg-transparent"
   >
     <Icon size={14} />
     {children}
