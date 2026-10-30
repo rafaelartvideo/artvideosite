@@ -12,6 +12,7 @@ test("normalizes finance foundation routes", () => {
   assert.deepEqual(financeRoute("accounts", null), { section: "accounts", registry: null });
   assert.deepEqual(financeRoute("registries", "categories"), { section: "registries", registry: "categories" });
   assert.deepEqual(financeRoute("unknown", "anything"), { section: "overview", registry: null });
+  assert.deepEqual(financeRoute("recurring", null), { section: "overview", registry: null });
 });
 
 test("preserves finance title id inside payable and receivable sections", () => {
