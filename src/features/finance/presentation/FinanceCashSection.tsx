@@ -1,168 +1,92 @@
+import { useState } from "react";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useState } from "react";
-import { Banknote, LockKeyhole, Minus, Plus } from "lucide-react";
-import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FTextarea } from "@/shared/ui/admin/AdminFormControls";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog } from "@/shared/ui/admin/AdminLayout";
-import { InlineLoading, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { useFinanceCash } from "../application/useFinanceCash";
 import type { FinancialAccount, FinancialCashSession } from "../domain/finance.types";
 
-type CashAction = "open" | "supply" | "withdraw" | "close";
+export type FinanceCashAction = "open" | "supply" | "withdraw" | "close";
 
-function formatDateTime(value: string | null | undefined) {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("pt-BR");
-}
-
-function actionTitle(action: CashAction) {
+function actionTitle(action: FinanceCashAction) {
   if (action === "open") return "Abrir caixa";
   if (action === "supply") return "Suprimento";
   if (action === "withdraw") return "Sangria";
   return "Fechar caixa";
 }
 
-export function FinanceCashSection({ accounts }: { accounts: FinancialAccount[] }) {
-  const { hasPermission } = useAuth();
-  const cash = useFinanceCash();
-  const eligibleAccounts = accounts.filter(item => item.is_active && item.allows_cash_session);
-  const sessions = cash.sessionsQuery.data || [];
-  const openByAccount = useMemo(() => new Map(
-    sessions.filter(item => item.status === "open").map(item => [item.financial_account_id, item]),
-  ), [sessions]);
-
-  const canOpen = hasPermission("finance.cash.open");
-  const canClose = hasPermission("finance.cash.close");
-  const canSupply = hasPermission("finance.cash.supply");
-  const canWithdraw = hasPermission("finance.cash.withdraw");
-
-  const [dialog, setDialog] = useState<{ action: CashAction; account: FinancialAccount; session: FinancialCashSession | null } | null>(null);
+/** Exclusivamente o diálogo da operação, acionado na própria linha de Contas e Caixas. */
+export function FinanceCashActionDialog({
+  account, session, action, onClose,
+}: {
+  account: FinancialAccount;
+  session: FinancialCashSession | null;
+  action: FinanceCashAction;
+  onClose: () => void;
+}) {
+  const cash = useFinanceCash(false);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{ amount?: string; note?: string }>({});
-
-  if (eligibleAccounts.length === 0) return null;
-
   const pending = cash.openMutation.isPending || cash.adjustmentMutation.isPending || cash.closeMutation.isPending;
-  const mutationError = cash.openMutation.error || cash.adjustmentMutation.error || cash.closeMutation.error;
-
-  useEffect(() => {
-    const error = cash.sessionsQuery.error || mutationError;
-    if (error) notifyAdmin(systemErrorMessage(error), "error");
-  }, [cash.sessionsQuery.error, mutationError]);
-
-  const openDialog = (action: CashAction, account: FinancialAccount, session: FinancialCashSession | null) => {
-    setDialog({ action, account, session });
-    setAmount("");
-    setNote("");
-    setFieldErrors({});
-  };
-
-  const closeDialog = () => {
-    if (pending) return;
-    setDialog(null);
-    setAmount("");
-    setNote("");
-    setFieldErrors({});
-  };
 
   const submit = async () => {
-    if (!dialog) return;
     const numericAmount = Number(amount || 0);
-    if (!Number.isFinite(numericAmount) || numericAmount < 0 || ((dialog.action === "supply" || dialog.action === "withdraw") && numericAmount <= 0)) {
-      setFieldErrors(current => ({ ...current, amount: dialog.action === "supply" || dialog.action === "withdraw" ? "Informe um valor maior que zero." : "Informe o valor contado no caixa." }));
+    if (!Number.isFinite(numericAmount) || numericAmount < 0 || (["supply", "withdraw"].includes(action) && numericAmount <= 0)) {
+      setFieldErrors(current => ({ ...current, amount: ["supply", "withdraw"].includes(action) ? "Informe um valor maior que zero." : "Informe o valor contado no caixa." }));
       return;
     }
-    if ((dialog.action === "supply" || dialog.action === "withdraw") && !note.trim()) {
+    if (["supply", "withdraw"].includes(action) && !note.trim()) {
       setFieldErrors(current => ({ ...current, note: "Informe o motivo da movimentação." }));
+      return;
+    }
+    if (action !== "open" && !session) {
+      notifyAdmin("A sessão do caixa não está aberta. Atualize os dados e tente novamente.", "error");
       return;
     }
     try {
       setFieldErrors({});
-      if (dialog.action === "open") {
-        await cash.openMutation.mutateAsync({ accountId: dialog.account.id, countedAmount: numericAmount, note: note.trim() || null });
-      } else if (dialog.action === "close") {
-        if (!dialog.session) return;
-        await cash.closeMutation.mutateAsync({ sessionId: dialog.session.id, countedAmount: numericAmount, reason: note.trim() || null });
+      if (action === "open") {
+        await cash.openMutation.mutateAsync({ accountId: account.id, countedAmount: numericAmount, note: note.trim() || null });
+      } else if (action === "close") {
+        await cash.closeMutation.mutateAsync({ sessionId: session!.id, countedAmount: numericAmount, reason: note.trim() || null });
       } else {
-        if (!dialog.session) return;
-        await cash.adjustmentMutation.mutateAsync({
-          sessionId: dialog.session.id,
-          action: dialog.action,
-          amount: numericAmount,
-          note: note.trim(),
-        });
+        await cash.adjustmentMutation.mutateAsync({ sessionId: session!.id, action, amount: numericAmount, note: note.trim() });
       }
-      setDialog(null);
-      setAmount("");
-      setNote("");
-      setFieldErrors({});
+      notifyAdmin(actionTitle(action) + " registrado com sucesso.", "success");
+      onClose();
     } catch (error) {
       notifyAdmin(systemErrorMessage(error, "Não foi possível concluir a operação do caixa."), "error");
     }
   };
 
-  return <AdminCard>
-    <AdminCardHeader>
-      <div>
-        <h3 className="text-sm font-black text-[#0d1b2e]">Caixa físico</h3>
-        <p className="mt-1 text-xs text-[#5a6a82]">Abertura, suprimentos, sangrias e fechamento das contas que usam sessão de caixa.</p>
-      </div>
-    </AdminCardHeader>
-    <AdminCardContent className="space-y-3">
-      {cash.sessionsQuery.isLoading ? <InlineLoading text="Carregando caixas..." /> : eligibleAccounts.map(account => {
-        const session = openByAccount.get(account.id) || null;
-        return <div key={account.id} className="rounded-xl border border-[#0d1b2e]/8 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="font-black text-[#0d1b2e]">{account.name}</p>
-                <span className={`rounded-full px-2 py-1 text-[10px] font-black uppercase ${session ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                  {session ? "Aberto" : "Fechado"}
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-[#5a6a82]">Saldo atual: <strong>{formatCurrency(Number(account.balance || 0))}</strong></p>
-              {session && <p className="mt-1 text-xs text-[#5a6a82]">Aberto em {formatDateTime(session.opened_at)} · contado na abertura: {formatCurrency(session.opening_counted_amount)}</p>}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {!session && canOpen && <AdminButton size="sm" onClick={() => openDialog("open", account, null)}><Banknote size={14} /> Abrir caixa</AdminButton>}
-              {session && canSupply && <AdminButton size="sm" variant="secondary" onClick={() => openDialog("supply", account, session)}><Plus size={14} /> Suprimento</AdminButton>}
-              {session && canWithdraw && <AdminButton size="sm" variant="secondary" onClick={() => openDialog("withdraw", account, session)}><Minus size={14} /> Sangria</AdminButton>}
-              {session && canClose && <AdminButton size="sm" onClick={() => openDialog("close", account, session)}><LockKeyhole size={14} /> Fechar</AdminButton>}
-            </div>
-          </div>
-        </div>;
-      })}
-    </AdminCardContent>
-
-    {dialog && <AdminDialog
-      open
-      onClose={closeDialog}
-      title={actionTitle(dialog.action)}
-      description={dialog.account.name}
-      className="max-w-lg"
-      footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-        <AdminButton variant="secondary" onClick={closeDialog} disabled={pending}>Cancelar</AdminButton>
-        <AdminButton onClick={() => void submit()} loading={pending} loadingText="Salvando...">Confirmar</AdminButton>
-      </div>}
-    >
-      <div className="space-y-4">
-        <FCurrencyInput
-          label={dialog.action === "open" || dialog.action === "close" ? "Valor contado no caixa" : "Valor"}
-          error={fieldErrors.amount}
-          value={amount}
-          onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }}
-        />
-        <FTextarea
-          label={dialog.action === "supply" || dialog.action === "withdraw" ? "Motivo *" : "Observação / justificativa"}
-          error={fieldErrors.note}
-          value={note}
-          onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}
-          rows={3}
-          placeholder={dialog.action === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
-        />
-      </div>
-    </AdminDialog>}
-  </AdminCard>;
+  return <AdminDialog
+    open
+    title={actionTitle(action)}
+    description={account.name + " · Saldo " + formatCurrency(Number(account.balance || 0))}
+    onClose={() => { if (!pending) onClose(); }}
+    className="max-w-lg"
+    footer={<div className="flex flex-wrap justify-end gap-2">
+      <AdminButton variant="secondary" onClick={onClose} disabled={pending}>Cancelar</AdminButton>
+      <AdminButton onClick={() => void submit()} loading={pending}>Confirmar</AdminButton>
+    </div>}
+  >
+    <div className="space-y-4">
+      <FCurrencyInput
+        label={action === "open" || action === "close" ? "Valor contado no caixa" : "Valor"}
+        error={fieldErrors.amount}
+        value={amount}
+        onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }}
+      />
+      <FTextarea
+        label={action === "supply" || action === "withdraw" ? "Motivo *" : "Observação / justificativa"}
+        error={fieldErrors.note}
+        value={note}
+        onChange={(event: any) => { setFieldErrors(current => ({ ...current, note: undefined })); setNote(event.target.value); }}
+        rows={3}
+        placeholder={action === "close" ? "Obrigatória apenas se houver diferença no fechamento" : undefined}
+      />
+    </div>
+  </AdminDialog>;
 }
