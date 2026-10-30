@@ -10,6 +10,7 @@ import {
   Package,
   Plus,
   ShoppingBag,
+  Search,
   Star,
   Truck,
   Warehouse,
@@ -791,26 +792,32 @@ export function TabProducts({
           ]}
           onChange={setMobileSearchField}
         >
-          {mobileSearchField === "name" ? <FInput
-            value={nameSearch}
-            onChange={(event: any) => { setNameSearch(event.target.value); setPage(1); }}
-            placeholder="Nome do item"
-          /> : mobileSearchField === "gtin" ? <FInput
-            value={gtinSearch}
-            onChange={(event: any) => { setGtinSearch(event.target.value); setPage(1); }}
-            placeholder="EAN, UPC ou GTIN"
-          /> : mobileSearchField === "category" ? <FSelect
+          {mobileSearchField === "name" ? <div className="relative min-w-0">
+            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" />
+            <FInput className="h-[42px] pl-9"
+              value={nameSearch}
+              onChange={(event: any) => { setNameSearch(event.target.value); setPage(1); }}
+              placeholder="Nome do item" />
+          </div> : mobileSearchField === "gtin" ? <div className="relative min-w-0">
+            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" />
+            <FInput className="h-[42px] pl-9"
+              value={gtinSearch}
+              onChange={(event: any) => { setGtinSearch(event.target.value); setPage(1); }}
+              placeholder="EAN, UPC ou GTIN" />
+          </div> : mobileSearchField === "category" ? <FSelect
             value={categoryFilter}
             onChange={(event: any) => { setCategoryFilter(event.target.value); setPage(1); }}
             options={[
               { value: "", label: "Todas as categorias" },
               ...categories.map((item: any) => ({ value: item.id, label: item.name })),
             ]}
-          /> : <FInput
-            value={locationSearch}
-            onChange={(event: any) => { setLocationSearch(event.target.value); setPage(1); }}
-            placeholder="Estante, nível ou compartimento"
-          />}
+          /> : <div className="relative min-w-0">
+            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" />
+            <FInput className="h-[42px] pl-9"
+              value={locationSearch}
+              onChange={(event: any) => { setLocationSearch(event.target.value); setPage(1); }}
+              placeholder="Estante, nível ou compartimento" />
+          </div>}
         </AdminMobileSearchSwitch>
         <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
           <FInput
