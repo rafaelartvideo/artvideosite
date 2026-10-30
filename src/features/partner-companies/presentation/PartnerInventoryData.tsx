@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Eraser, History, MapPin, Package } from "lucide-react";
+import { Eraser, History, MapPin, Package, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listInventoryItems, listInventoryMovementsPage } from "@/features/inventory/infrastructure/inventory.repository";
@@ -159,9 +159,12 @@ export function PartnerInventoryData({ organizationId }: { organizationId: strin
         options={[{ value: "name", label: "Nome" }, { value: "sku", label: "SKU" }, { value: "address", label: "Endereço" }]}
         onChange={setMobileSearchField}
       >
-        {mobileSearchField === "name" ? <FInput value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
-          : mobileSearchField === "sku" ? <FInput value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
-            : <FInput value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />}
+        <div className="relative min-w-0">
+          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-muted-foreground" />
+          {mobileSearchField === "name" ? <FInput className="h-[42px] pl-9" value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
+            : mobileSearchField === "sku" ? <FInput className="h-[42px] pl-9" value={skuSearch} onChange={(e: any) => setSkuSearch(e.target.value)} placeholder="Digite o SKU" />
+              : <FInput className="h-[42px] pl-9" value={addressSearch} onChange={(e: any) => setAddressSearch(e.target.value)} placeholder="Estante, prateleira ou compartimento" />}
+        </div>
       </AdminMobileSearchSwitch>
       <div className="hidden gap-3 md:grid md:grid-cols-3 md:gap-2">
         <FInput label="Nome" className="md:h-9 md:py-1.5" value={nameSearch} onChange={(e: any) => setNameSearch(e.target.value)} placeholder="Digite o nome da peça" />
