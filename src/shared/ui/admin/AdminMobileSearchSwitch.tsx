@@ -19,16 +19,18 @@ export function AdminMobileSearchSwitch<T extends string>({
   onChange,
   children,
   actions,
+  mobileOnly = true,
 }: {
   value: T;
   options: AdminMobileSearchOption<T>[];
   onChange: (value: T) => void;
   children: ReactNode;
   actions?: ReactNode;
+  mobileOnly?: boolean;
 }) {
   const selected = options.find(option => option.value === value) || options[0];
 
-  return <div className="space-y-3 md:hidden">
+  return <div className={mobileOnly ? "space-y-3 md:hidden" : "space-y-3"}>
     <div className="flex items-center gap-2">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
