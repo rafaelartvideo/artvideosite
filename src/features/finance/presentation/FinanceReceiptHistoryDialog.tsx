@@ -8,6 +8,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { AdminButton, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { printGeneralFinancialReceipt, type GeneralReceiptA4 } from "@/features/pdv/domain/pdv-a4-receipt";
@@ -54,6 +55,7 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedSearch(search);
   const [direction, setDirection] = useState<DirectionFilter>("all");
+  const [mobileCriterion, setMobileCriterion] = useState<"query" | "direction">("query");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selected, setSelected] = useState<Receipt | null>(null);
@@ -174,7 +176,20 @@ export function FinanceReceiptHistoryDialog({ open, onClose }: { open: boolean; 
       <AdminSearchPanel title="Buscar recibo" headerActions={
         (search || direction !== "all") && <AdminSearchClearButton onClick={() => { setSearch(""); setDirection("all"); setPage(1); }} />
       }>
-        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px]">
+        <AdminMobileSearchSwitch value={mobileCriterion}
+          options={[{value:"query",label:"Número / Cliente / CPF-CNPJ / OS / Motivo"},{value:"direction",label:"Tipo"}]}
+          onChange={value=>{setMobileCriterion(value);setSearch("");setDirection("all");setPage(1);}}>
+          {mobileCriterion==="direction"
+            ? <AdminSelect value={direction} onValueChange={value=>{setDirection(value as DirectionFilter);setPage(1);}}
+                options={directionOptions} className="h-[42px] w-full min-w-0" ariaLabel="Filtrar recibos por tipo" />
+            : <div className="relative min-w-0">
+                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input type="search" className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"}
+                  placeholder="Buscar recibo emitido" value={search} onChange={event=>{setSearch(event.target.value);setPage(1);}}
+                  aria-label="Buscar recibo por número, cliente, documento, OS ou motivo" />
+              </div>}
+        </AdminMobileSearchSwitch>
+        <div className="hidden gap-3 md:grid md:grid-cols-[minmax(0,1fr)_180px]">
           <div className="min-w-0">
             <label htmlFor="financial-receipt-history-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">Número, cliente, CPF/CNPJ, OS ou motivo</label>
             <div className="relative">
