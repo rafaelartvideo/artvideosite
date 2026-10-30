@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminButton, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -206,6 +207,7 @@ export function TabWorkItems() {
   const [kind, setKind] = useState<WorkKind | "all">("all");
   const [filterStatus, setFilterStatus] = useState<WorkStatus | "all">("all");
   const [queryText, setQueryText] = useState("");
+  const [mobileCriterion, setMobileCriterion] = useState<"query" | "scope" | "kind" | "status">("query");
   const [sort, setSort] = useState<"due" | "newest" | "priority">("due");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -392,7 +394,33 @@ export function TabWorkItems() {
         { value: "due", label: "Prazo" }, { value: "priority", label: "Prioridade" }, { value: "newest", label: "Mais recentes" },
       ]} />
     </>}>
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 xl:grid-cols-5">
+      <AdminMobileSearchSwitch value={mobileCriterion}
+        options={[{value:"query",label:"Título / Cliente / Descrição"},{value:"scope",label:"Exibição"},{value:"kind",label:"Tipo"},{value:"status",label:"Situação"}]}
+        onChange={value=>{setMobileCriterion(value);setQueryText("");setScope("all");setKind("all");setFilterStatus("all");setPage(1);}}>
+        {mobileCriterion==="scope"
+          ? <select className={cn(INPUT,"h-[42px] w-full min-w-0 text-sm")} value={scope} aria-label="Filtrar atividades"
+              onChange={event=>{setScope(event.target.value as Scope);setPage(1);}}>
+              <option value="all">Todas</option><option value="mine">Minhas tarefas</option>
+              <option value="today">Para hoje</option><option value="overdue">Atrasadas</option>
+            </select>
+          : mobileCriterion==="kind"
+            ? <select className={cn(INPUT,"h-[42px] w-full min-w-0 text-sm")} value={kind} aria-label="Filtrar tipo de atividade"
+                onChange={event=>{setKind(event.target.value as WorkKind|"all");setPage(1);}}>
+                <option value="all">Todos os tipos</option><option value="task">Tarefas</option><option value="commitment">Compromissos</option>
+              </select>
+            : mobileCriterion==="status"
+              ? <select className={cn(INPUT,"h-[42px] w-full min-w-0 text-sm")} value={filterStatus} aria-label="Filtrar situação"
+                  onChange={event=>{setFilterStatus(event.target.value as WorkStatus|"all");setPage(1);}}>
+                  <option value="all">Todos os status</option>{STATUSES.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}
+                </select>
+              : <div className="relative min-w-0">
+                  <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input type="search" className={cn(INPUT,"h-[42px] w-full min-w-0 pl-9 text-sm")}
+                    placeholder="Buscar título, cliente, descrição..." value={queryText}
+                    aria-label="Buscar atividades" onChange={event=>{setQueryText(event.target.value);setPage(1);}} />
+                </div>}
+      </AdminMobileSearchSwitch>
+      <div className="hidden grid-cols-2 gap-2.5 md:grid md:grid-cols-4 xl:grid-cols-5">
         <div className="relative col-span-2 md:col-span-2">
           <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input className={cn(INPUT, "h-10 pl-9 text-sm")} placeholder="Buscar por título, cliente, descrição..." value={queryText}
