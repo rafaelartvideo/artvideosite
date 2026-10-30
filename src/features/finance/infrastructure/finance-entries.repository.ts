@@ -92,7 +92,9 @@ async function enrichEntries(organizationId: string, rows: FinancialEntry[]): Pr
       approval_count: 0,
       payment_method_summary: methods.length ? methods.join(", ") : null,
       settled_amount: settledAmount,
-      remaining_amount: entryInstallments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount || 0) - Number(item.settled_amount || 0)), 0),
+      remaining_amount: ["cancelled", "reversed"].includes(entry.approval_status)
+        ? 0
+        : entryInstallments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount || 0) - Number(item.settled_amount || 0)), 0),
       next_due_date: pending[0]?.due_date || null,
       operational_status: entry.approval_status === "cancelled" || entry.approval_status === "reversed"
         ? "cancelled"
