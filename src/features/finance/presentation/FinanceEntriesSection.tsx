@@ -359,7 +359,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <FInput label="Vencimento até" type="date" value={dateTo} onChange={(event: any) => setDateTo(event.target.value)} />
       </div>
     </AdminSearchPanel>
-    <p className="text-sm font-semibold text-muted-foreground">{totalItems} {totalItems === 1 ? "conta cadastrada" : "contas cadastradas"}</p>
       {finance.entriesQuery.isLoading ? <div className="p-10"><LoadingState /></div> : finance.entriesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{finance.entriesQuery.error instanceof Error ? finance.entriesQuery.error.message : "Não foi possível carregar os lançamentos."}</div> : entries.length === 0 ? <div className="p-10"><EmptyState icon={Icon} title={`Nenhum lançamento ${isReceivable ? "a receber" : "a pagar"}`} /></div> : <>
         <div className="overflow-hidden rounded-xl border border-border bg-card md:hidden">
           <div className="divide-y divide-border">
