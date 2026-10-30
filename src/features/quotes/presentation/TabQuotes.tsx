@@ -47,7 +47,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const [customer,setCustomer]=useState("");
   const [document,setDocument]=useState("");
   const [protocol,setProtocol]=useState("");
-  const [mobileCriterion,setMobileCriterion]=useState<"customer"|"document"|"protocol">("customer");
+  const [mobileCriterion,setMobileCriterion]=useState<"customer"|"document"|"protocol"|"status">("customer");
   const [status,setStatus]=useState("");
   const [sort,setSort]=useState<QuoteSort>("");
   const [page,setPage]=useState(1);
@@ -99,10 +99,11 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
     </>}>
       <AdminMobileSearchSwitch
         value={mobileCriterion}
-        options={[{value:"customer",label:"Cliente"},{value:"document",label:"CPF / CNPJ"},{value:"protocol",label:"Protocolo"}]}
-        onChange={value=>{setMobileCriterion(value);setCustomer("");setDocument("");setProtocol("");setPage(1);}}
+        options={[{value:"customer",label:"Cliente"},{value:"document",label:"CPF / CNPJ"},{value:"protocol",label:"Protocolo"},{value:"status",label:"Situação"}]}
+        onChange={value=>{setMobileCriterion(value);setCustomer("");setDocument("");setProtocol("");setStatus("");setPage(1);}}
       >
-        <div className="relative min-w-0">
+        {mobileCriterion==="status" ? <AdminSelect className="h-[42px] w-full min-w-0" value={status} onValueChange={value=>{setStatus(value);setPage(1);}}
+          options={[{value:"",label:"Todas as situações"},...(statusesQuery.data||[]).map(item=>({value:item.id,label:item.name}))]} ariaLabel="Filtrar orçamentos por situação"/> : <div className="relative min-w-0">
           <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
           <input className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"} type="search"
             value={mobileCriterion==="customer"?customer:mobileCriterion==="document"?document:protocol}
@@ -110,9 +111,9 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
             inputMode={mobileCriterion==="document"?"numeric":"text"}
             aria-label={"Buscar orçamento por "+(mobileCriterion==="customer"?"cliente":mobileCriterion==="document"?"CPF ou CNPJ":"protocolo")}
             placeholder={mobileCriterion==="customer"?"Nome do cliente":mobileCriterion==="document"?"CPF ou CNPJ":"Número do orçamento"}/>
-        </div>
+        </div>}
       </AdminMobileSearchSwitch>
-      <div className="grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <div className="hidden min-w-0 grid-cols-1 items-end gap-3 md:grid md:grid-cols-2 lg:grid-cols-4">
         <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Cliente" value={customer} onChange={setCustomer} placeholder="Nome do cliente"/></div>
         <div className="hidden min-w-0 md:block"><AdminSearchTextField label="CPF/CNPJ" value={document} onChange={setDocument} placeholder="CPF ou CNPJ"/></div>
         <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Protocolo" value={protocol} onChange={setProtocol} placeholder="Número do orçamento"/></div>
