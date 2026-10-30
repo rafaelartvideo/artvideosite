@@ -52,7 +52,7 @@ export type CustomerPortal = {
   documents?: {id:string;os_number:string;title:string;signed_at:string}[];
 };
 export type CustomerActivation = {
-  status: "linked" | "verify_email" | "needs_name" | "invalid_phone" | "needs_review" | "needs_cpf" | "invalid_cpf";
+  status: "linked" | "verify_email" | "needs_name" | "invalid_phone" | "needs_review" | "needs_cpf" | "invalid_cpf" | "cpf_verification_required";
 };
 
 export async function activateCustomerAccount(fullName?: string, phone?: string, cpf?: string): Promise<CustomerActivation> {
