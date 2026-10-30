@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput } from "lucide-react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput, Server } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { UnionWhatsAppEnginePage } from "./UnionWhatsAppEnginePage";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { ManagementTrashDialog } from "./ManagementTrashDialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -36,7 +37,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   spaceId?:string|null;folderId?:string|null;
   onRouteChange:(spaceId:string|null,folderId?:string|null)=>void;
 }) {
-  const {hasPermission}=useAuth();
+  const {hasPermission,activeOrganization}=useAuth();
   const canManage=hasPermission("platform.management.manage");
   const [spaces,setSpaces]=useState<ManagementSpace[]>([]);
   const [folders,setFolders]=useState<ManagementFolder[]>([]);
@@ -71,6 +72,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [versionsLoading,setVersionsLoading]=useState(false);
   const [uploading,setUploading]=useState(false);
   const [trashOpen,setTrashOpen]=useState(false);
+  const [engineOpen,setEngineOpen]=useState(false);
   const [movingItem,setMovingItem]=useState<MoveItem|null>(null);
   const [moveDestination,setMoveDestination]=useState("");
   const [moving,setMoving]=useState(false);
@@ -344,9 +346,13 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     finally{setVersionsLoading(false);}
   };
 
+  if(engineOpen)return <UnionWhatsAppEnginePage onBack={()=>setEngineOpen(false)}/>;
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Central de Gestão" subtitle="Organize seus projetos, contas, sites, arquivos e campanhas em um só lugar."
-      actions={<AdminButton size="sm" variant="tertiary" onClick={()=>setTrashOpen(true)}><Trash2 size={16}/>Lixeira</AdminButton>}/>
+      actions={<div className="flex flex-wrap items-center gap-2">
+        {canManage&&activeOrganization?.is_platform_operator===true&&<AdminButton size="sm" variant="secondary" onClick={()=>setEngineOpen(true)}><Server size={16}/>Motor WhatsApp</AdminButton>}
+        <AdminButton size="sm" variant="tertiary" onClick={()=>setTrashOpen(true)}><Trash2 size={16}/>Lixeira</AdminButton>
+      </div>}/>
     {selectedSpace&&<ManagementWorkspaceTools records={records}/>}
     <AdminCard square>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-5">
