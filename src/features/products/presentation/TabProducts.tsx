@@ -134,6 +134,7 @@ type ProductForm = {
   is_featured: boolean;
   category_id: string;
   brand_id: string;
+  site_characteristics: Array<{ label: string; value: string }>;
 };
 
 type ProductFieldErrors = Partial<Record<
@@ -238,6 +239,7 @@ function emptyForm(): ProductForm {
     is_featured: false,
     category_id: "",
     brand_id: "",
+    site_characteristics: [],
   };
 }
 
@@ -463,6 +465,15 @@ export function TabProducts({
       is_featured: product.is_featured ?? false,
       category_id: product.category_id || "",
       brand_id: product.brand_id || "",
+      site_characteristics: Array.isArray(product.site_characteristics)
+        ? product.site_characteristics
+            .map((item: any) => ({
+              label: String(item?.label || ""),
+              value: String(item?.value || ""),
+            }))
+            .filter((item: any) => item.label || item.value)
+            .slice(0, 20)
+        : [],
     });
     setEditItem(product);
     setLinkedSuppliers([]);
@@ -635,6 +646,12 @@ export function TabProducts({
         is_featured: isArtvideoTenant ? form.is_featured : false,
         category_id: form.category_id || null,
         brand_id: form.brand_id || null,
+        site_characteristics: isArtvideoTenant
+          ? form.site_characteristics
+              .map(item => ({ label: item.label.trim(), value: item.value.trim() }))
+              .filter(item => item.label && item.value)
+              .slice(0, 20)
+          : [],
         gallery_media_ids: Array.from(new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean))).slice(0, 4),
         updated_by: user?.id || null,
       };
@@ -763,6 +780,13 @@ export function TabProducts({
   const currentQuantity = displayStockValue(inventory?.quantity, form.commercial_unit, currentFactor);
   const purchasePrice = displayUnitCost(inventory?.purchase_price, form.commercial_unit, currentFactor);
   const averageCost = displayUnitCost(inventory?.average_cost, form.commercial_unit, currentFactor);
+  const previewBrand = brands.find((item: any) => item.id === form.brand_id)?.name || "Eletrônica Artvideo";
+  const previewCategory = categories.find((item: any) => item.id === form.category_id)?.name || "Produto";
+  const previewPrice = nullableNumber(form.price);
+  const previewCompareAtPrice = nullableNumber(form.compare_at_price);
+  const visibleStoreCharacteristics = form.site_characteristics
+    .map(item => ({ label: item.label.trim(), value: item.value.trim() }))
+    .filter(item => item.label && item.value);
 
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
@@ -956,21 +980,21 @@ export function TabProducts({
       fullPage
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 sm:px-5">
+        <div className="flex flex-col gap-2 bg-muted/20 px-4 pt-2 sm:flex-row sm:items-center sm:justify-between sm:px-5">
           <TabsList className="flex h-auto max-w-full flex-1 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 shadow-none">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
             {isArtvideoTenant && <EditorTabTrigger value="store" icon={ShoppingBag}>Loja</EditorTabTrigger>}
           </TabsList>
-          <button type="button" role="switch" aria-checked={form.is_active} aria-label="Ativar ou inativar item"
-            disabled={saving || !(editItem ? canEdit : canCreate)}
-            onClick={() => setForm(current => ({ ...current, is_active: !current.is_active }))}
-            className={cn("my-2 inline-flex min-h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-xs font-semibold transition-colors disabled:opacity-50",
-              form.is_active ? "border-green-200 bg-green-50 text-green-700" : "border-[#d9e1eb] bg-[#f3f5f8] text-[#65758b]")}>
-            <span className={cn("h-2 w-2 rounded-full", form.is_active ? "bg-green-500" : "bg-[#98a3b5]")}/>
-            {form.is_active ? "Ativo" : "Inativo"}
-          </button>
+          <div className="shrink-0 pb-2 sm:pb-0">
+            <FToggle
+              label={form.is_active ? "Item ativo" : "Item inativo"}
+              checked={form.is_active}
+              disabled={saving || !(editItem ? canEdit : canCreate)}
+              onChange={value => setForm(current => ({ ...current, is_active: value }))}
+            />
+          </div>
         </div>
 
         <div className="p-4 sm:p-5">
@@ -1083,15 +1107,26 @@ export function TabProducts({
                     placeholder="Descrição completa, aplicações, compatibilidades e informações úteis"
                   />
                 </div>
-                <div className="sm:col-span-2">
+                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_260px] sm:items-start">
                   <FTextarea
                     label="Observações internas"
                     value={form.internal_notes}
                     disabled={saving}
                     onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
-                    rows={3}
+                    rows={6}
                     placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
                   />
+                  <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
+                    <ImageUpload
+                      bucket="product-images"
+                      organizationId={activeOrganizationId || undefined}
+                      currentMediaId={form.cover_media_id}
+                      onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
+                      onRemove={() => setForm(current => ({ ...current, cover_media_id: "" }))}
+                      canUpload={!saving && (editItem ? canEdit : canCreate)}
+                      label="Foto de capa"
+                    />
+                  </div>
                 </div>
               </div>
             </Section>
@@ -1144,13 +1179,6 @@ export function TabProducts({
             </Section>
 
             </div></details>
-            <Section title="Foto da capa">
-              <ImageUpload bucket="product-images" organizationId={activeOrganizationId || undefined}
-                currentMediaId={form.cover_media_id}
-                onUpload={mediaId => setForm(current => ({ ...current, cover_media_id: mediaId }))}
-                canUpload={!saving && (editItem ? canEdit : canCreate)}
-                label="Imagem principal do item"/>
-            </Section>
           </TabsContent>
 
           <TabsContent value="commercial" className="mt-0 space-y-5">
@@ -1302,7 +1330,7 @@ export function TabProducts({
           </TabsContent>}
 
           {isArtvideoTenant && <TabsContent value="store" className="mt-0 space-y-5">
-            <Section title="Informações comerciais do site">
+            <Section title="Publicação na loja" description="Controle a exibição do produto e os dados comerciais vistos pelo cliente.">
               <div className="space-y-4">
                 <FToggle
                   label="Exibir este produto na loja"
@@ -1313,85 +1341,217 @@ export function TabProducts({
                 />
                 {form.show_in_catalog && <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
-                    <FTextarea label="Descrição curta para a loja" value={form.short_description} rows={2} disabled={saving} placeholder="Resumo que o cliente verá no site" onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))} />
+                    <FTextarea
+                      label="Descrição curta para a loja"
+                      value={form.short_description}
+                      rows={3}
+                      disabled={saving}
+                      placeholder="Resumo que o cliente verá próximo ao preço e às ações de compra"
+                      onChange={(event: any) => setForm(current => ({ ...current, short_description: event.target.value }))}
+                    />
                   </div>
-                  <FCurrencyInput label="Preço anterior (opcional)" value={form.compare_at_price} disabled={saving} error={fieldErrors.compare_at_price} hint="Usado apenas para comparação; deve ser igual ou maior que o preço atual." onChange={(event: any) => setForm(current => ({ ...current, compare_at_price: event.target.value }))} />
+                  <FCurrencyInput
+                    label="Preço anterior (opcional)"
+                    value={form.compare_at_price}
+                    disabled={saving}
+                    error={fieldErrors.compare_at_price}
+                    hint="Usado apenas para comparação; deve ser igual ou maior que o preço atual."
+                    onChange={(event: any) => setForm(current => ({ ...current, compare_at_price: event.target.value }))}
+                  />
                   <div className="flex items-end pb-1">
-                    <FToggle label="Destacar na página inicial" description="Exibe o produto entre os destaques da home." checked={form.is_featured} disabled={saving} onChange={value => setForm(current => ({ ...current, is_featured: value }))} />
+                    <FToggle
+                      label="Destacar na página inicial"
+                      description="Exibe o produto entre os destaques da home."
+                      checked={form.is_featured}
+                      disabled={saving}
+                      onChange={value => setForm(current => ({ ...current, is_featured: value }))}
+                    />
                   </div>
                 </div>}
               </div>
             </Section>
-            <Section title="Fotos da loja">
-              <p className="mb-4 text-xs leading-5 text-[#7a8aa0]">
-                Máximo de 4 fotos por produto, incluindo a principal. JPG e PNG são convertidos e comprimidos automaticamente quando possível.
-              </p>
-              <div className="grid max-w-xl gap-5">
-                <ImageUpload
-                  bucket="product-images"
-                  organizationId={activeOrganizationId || undefined}
-                  currentMediaId={null}
-                  onUpload={mediaId => {
-                    setForm(current => ({ ...current, cover_media_id: current.cover_media_id || mediaId }));
-                    if (!activeOrganizationId) return;
-                    void resolveProductMediaImage(activeOrganizationId, mediaId)
-                      .then(image => {
-                        setGalleryMedia(current => {
-                          if (current.some(entry => entry.media_id === image.media_id)) return current;
-                          const total = new Set([form.cover_media_id, ...current.map(entry => entry.media_id)].filter(Boolean)).size;
-                          return total >= 4 ? current : [...current, image];
-                        });
-                      })
-                      .catch(error => setToast({ msg: `Imagem enviada, mas não foi possível carregar a prévia: ${systemErrorMessage(error)}`, type: "error" }));
-                  }}
-                  canUpload={!saving && (editItem ? canEdit : canCreate) && new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size < 4}
-                  label="Adicionar foto do produto"
-                />
-              </div>
 
-              {storePhotos.length > 0 && <div className="mt-5 border-t border-[#0d1b2e]/8 pt-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-black text-[#0d1b2e]">Galeria de fotos</p>
-                    <p className="mt-0.5 text-[10px] text-[#7a8aa0]">Selecione a estrela para escolher a foto principal que aparecerá na loja.</p>
-                  </div>
-                  <span className="text-[10px] font-bold text-[#5a6a82]">{storePhotos.length} foto{storePhotos.length === 1 ? "" : "s"}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                  {storePhotos.map(image => <div key={image.media_id} className={cn("relative rounded-xl border bg-white p-1.5", form.cover_media_id === image.media_id ? "border-primary ring-1 ring-primary/20" : "border-[#0d1b2e]/10")}>
-                    <div className="aspect-square overflow-hidden rounded-lg bg-[#f8fafc]">
-                      {image.public_url
-                        ? <img src={image.public_url} alt="" className="h-full w-full object-contain" />
-                        : <div className="flex h-full items-center justify-center"><ImageIcon size={20} className="text-[#9aa6b5]" /></div>}
-                    </div>
-                    <div className="mt-1.5 flex gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (form.cover_media_id && form.cover_media_id !== image.media_id &&
-                              !galleryMedia.some(entry => entry.media_id === form.cover_media_id)) {
-                            const previous = {media_id: form.cover_media_id, public_url: coverPreviewUrl || "", alt_text: null};
-                            setGalleryMedia(current => current.some(entry => entry.media_id === previous.media_id) ? current : [previous, ...current]);
-                          }
-                          setForm(current => ({ ...current, cover_media_id: image.media_id }));
-                        }}
-                        className={cn("flex flex-1 items-center justify-center gap-1 rounded-md px-1.5 py-1 text-[9px] font-bold", form.cover_media_id === image.media_id ? "bg-primary text-white" : "bg-[#f1f4f8] text-[#5a6a82]")}
-                      ><Star size={14} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"}/> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
-                          if (form.cover_media_id === image.media_id) {
-                            const next = storePhotos.find(entry => entry.media_id !== image.media_id);
-                            setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
-                          }
-                        }}
-                        className="rounded-md bg-red-50 px-2 py-1 text-[9px] font-bold text-red-700"
-                      >Remover</button>
-                    </div>
-                  </div>)}
-                </div>
+            <Section
+              title="Características do produto"
+              description="Adicione informações específicas que não cabem nos campos técnicos padrão, como voltagem, cor, material ou compatibilidade."
+              actions={<AdminButton
+                type="button"
+                variant="secondary"
+                disabled={saving || form.site_characteristics.length >= 20}
+                onClick={() => setForm(current => ({
+                  ...current,
+                  site_characteristics: [...current.site_characteristics, { label: "", value: "" }],
+                }))}
+              ><Plus size={14} /> Adicionar</AdminButton>}
+            >
+              {form.site_characteristics.length === 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setForm(current => ({
+                    ...current,
+                    site_characteristics: [{ label: "", value: "" }],
+                  }))}
+                  disabled={saving}
+                  className="flex min-h-24 w-full items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/10 px-4 text-center text-xs font-semibold text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 disabled:opacity-60"
+                >
+                  <span><Plus size={18} className="mx-auto mb-2 text-primary" />Adicionar a primeira característica</span>
+                </button>
+              ) : <div className="space-y-3">
+                {form.site_characteristics.map((item, index) => <div key={index} className="grid gap-2 rounded-xl border border-border bg-muted/10 p-3 sm:grid-cols-[minmax(0,.75fr)_minmax(0,1.25fr)_40px] sm:items-end">
+                  <FInput
+                    label={index === 0 ? "Característica" : undefined}
+                    value={item.label}
+                    disabled={saving}
+                    maxLength={80}
+                    placeholder="Ex.: Voltagem"
+                    onChange={(event: any) => setForm(current => ({
+                      ...current,
+                      site_characteristics: current.site_characteristics.map((entry, entryIndex) =>
+                        entryIndex === index ? { ...entry, label: event.target.value } : entry),
+                    }))}
+                  />
+                  <FInput
+                    label={index === 0 ? "Valor" : undefined}
+                    value={item.value}
+                    disabled={saving}
+                    maxLength={240}
+                    placeholder="Ex.: 220 V"
+                    onChange={(event: any) => setForm(current => ({
+                      ...current,
+                      site_characteristics: current.site_characteristics.map((entry, entryIndex) =>
+                        entryIndex === index ? { ...entry, value: event.target.value } : entry),
+                    }))}
+                  />
+                  <AdminIconButton
+                    ariaLabel="Remover característica"
+                    title="Remover característica"
+                    variant="danger"
+                    disabled={saving}
+                    onClick={() => setForm(current => ({
+                      ...current,
+                      site_characteristics: current.site_characteristics.filter((_, entryIndex) => entryIndex !== index),
+                    }))}
+                  ><Eraser size={15} /></AdminIconButton>
+                </div>)}
+                <p className="text-[10px] text-muted-foreground">{form.site_characteristics.length}/20 campos adicionados.</p>
               </div>}
+            </Section>
+
+            <Section title="Fotos da loja" description="Organize a galeria visual do produto. A estrela define a imagem principal mostrada no catálogo.">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="min-h-[220px] rounded-xl border-2 border-dashed border-primary/30 bg-primary/[0.025] p-3">
+                  <ImageUpload
+                    bucket="product-images"
+                    organizationId={activeOrganizationId || undefined}
+                    currentMediaId={null}
+                    onUpload={mediaId => {
+                      setForm(current => ({ ...current, cover_media_id: current.cover_media_id || mediaId }));
+                      if (!activeOrganizationId) return;
+                      void resolveProductMediaImage(activeOrganizationId, mediaId)
+                        .then(image => {
+                          setGalleryMedia(current => {
+                            if (current.some(entry => entry.media_id === image.media_id)) return current;
+                            const total = new Set([form.cover_media_id, ...current.map(entry => entry.media_id)].filter(Boolean)).size;
+                            return total >= 4 ? current : [...current, image];
+                          });
+                        })
+                        .catch(error => setToast({ msg: "Imagem enviada, mas não foi possível carregar a prévia: " + systemErrorMessage(error), type: "error" }));
+                    }}
+                    canUpload={!saving && (editItem ? canEdit : canCreate) && new Set([form.cover_media_id, ...galleryMedia.map(image => image.media_id)].filter(Boolean)).size < 4}
+                    label="Adicionar foto"
+                  />
+                </div>
+
+                {storePhotos.map(image => <div key={image.media_id} className={cn(
+                  "relative min-h-[220px] rounded-xl border-2 border-dashed bg-card p-2.5",
+                  form.cover_media_id === image.media_id ? "border-primary bg-primary/[0.025]" : "border-border",
+                )}>
+                  <div className="aspect-square overflow-hidden rounded-lg bg-muted/30">
+                    {image.public_url
+                      ? <img src={image.public_url} alt="" className="h-full w-full object-contain" />
+                      : <div className="flex h-full items-center justify-center"><ImageIcon size={24} className="text-muted-foreground" /></div>}
+                  </div>
+                  <div className="mt-2 flex gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (form.cover_media_id && form.cover_media_id !== image.media_id &&
+                            !galleryMedia.some(entry => entry.media_id === form.cover_media_id)) {
+                          const previous = { media_id: form.cover_media_id, public_url: coverPreviewUrl || "", alt_text: null };
+                          setGalleryMedia(current => current.some(entry => entry.media_id === previous.media_id) ? current : [previous, ...current]);
+                        }
+                        setForm(current => ({ ...current, cover_media_id: image.media_id }));
+                      }}
+                      className={cn(
+                        "flex min-h-8 flex-1 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-bold transition-colors",
+                        form.cover_media_id === image.media_id ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground",
+                      )}
+                    ><Star size={13} fill={form.cover_media_id === image.media_id ? "currentColor" : "none"} /> {form.cover_media_id === image.media_id ? "Principal" : "Definir principal"}</button>
+                    <AdminIconButton
+                      ariaLabel="Remover foto"
+                      title="Remover foto"
+                      variant="danger"
+                      disabled={saving}
+                      onClick={() => {
+                        setGalleryMedia(current => current.filter(entry => entry.media_id !== image.media_id));
+                        if (form.cover_media_id === image.media_id) {
+                          const next = storePhotos.find(entry => entry.media_id !== image.media_id);
+                          setForm(current => ({ ...current, cover_media_id: next?.media_id || "" }));
+                        }
+                      }}
+                    ><Eraser size={14} /></AdminIconButton>
+                  </div>
+                </div>)}
+
+                {Array.from({ length: Math.max(0, 4 - storePhotos.length) }).map((_, index) => <div
+                  key={"empty-gallery-" + index}
+                  className="hidden min-h-[220px] items-center justify-center rounded-xl border-2 border-dashed border-border bg-muted/5 p-4 text-center text-[11px] text-muted-foreground lg:flex"
+                >
+                  <span><ImageIcon size={23} className="mx-auto mb-2 opacity-50" />Espaço para foto</span>
+                </div>)}
+              </div>
+              <p className="mt-3 text-[10px] leading-4 text-muted-foreground">
+                Máximo de 4 fotos por produto. JPG, PNG e WebP são comprimidos automaticamente quando possível.
+              </p>
+            </Section>
+
+            <Section title="Prévia no site" description="Prévia aproximada da página pública usando os dados preenchidos acima.">
+              <div className="rounded-2xl border border-border bg-[#f8fbff] p-3 sm:p-5">
+                <div className="mx-auto max-w-4xl overflow-hidden rounded-xl border border-[#e2e9f2] bg-white shadow-sm">
+                  <div className="grid md:grid-cols-[minmax(0,.85fr)_minmax(0,1.15fr)]">
+                    <div className="min-h-[280px] border-b border-[#e8edf3] bg-[#f8fbff] p-5 md:border-b-0 md:border-r">
+                      <div className="flex h-full min-h-[240px] items-center justify-center overflow-hidden rounded-lg border border-[#e5ebf3] bg-white p-5">
+                        {coverPreviewUrl
+                          ? <img src={coverPreviewUrl} alt="" className="max-h-[230px] max-w-full object-contain" />
+                          : <div className="text-center text-[#8da2ba]"><ImageIcon size={48} className="mx-auto mb-2" /><p className="text-xs font-semibold">Sem imagem principal</p></div>}
+                      </div>
+                    </div>
+                    <div className="p-5 sm:p-6">
+                      <p className="text-[11px] font-bold text-primary">{previewBrand}</p>
+                      <p className="mt-1 text-[10px] font-semibold uppercase tracking-wider text-[#8a98aa]">{previewCategory}</p>
+                      <h3 className="mt-2 break-words text-xl font-extrabold leading-tight text-[#0b1d37]">{form.name.trim() || "Nome do produto"}</h3>
+                      {form.sku.trim() && <p className="mt-2 text-[10px] text-[#7c8b9f]">Código: {form.sku.trim()}</p>}
+                      <div className="mt-5 border-t border-[#e7edf4] pt-4">
+                        {previewCompareAtPrice !== null && previewPrice !== null && previewCompareAtPrice > previewPrice &&
+                          <p className="text-xs text-[#8b98aa] line-through">{formatCurrency(previewCompareAtPrice)}</p>}
+                        <p className="text-2xl font-extrabold text-primary">{previewPrice !== null ? formatCurrency(previewPrice) : "Preço indisponível"}</p>
+                      </div>
+                      <p className="mt-4 whitespace-pre-line text-[12px] leading-6 text-[#5c6d82]">
+                        {form.short_description.trim() || "A descrição curta aparecerá aqui para apresentar rapidamente o produto ao cliente."}
+                      </p>
+                    </div>
+                  </div>
+                  {visibleStoreCharacteristics.length > 0 && <div className="border-t border-[#e8edf3] p-5 sm:p-6">
+                    <p className="mb-3 text-sm font-bold text-[#18344f]">Características do produto</p>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {visibleStoreCharacteristics.slice(0, 8).map((item, index) => <div key={index} className="flex min-w-0 justify-between gap-3 rounded-lg bg-[#f8fafc] px-3 py-2.5 text-[11px]">
+                        <span className="text-[#64748b]">{item.label}</span>
+                        <strong className="break-words text-right text-[#203b58]">{item.value}</strong>
+                      </div>)}
+                    </div>
+                  </div>}
+                </div>
+              </div>
             </Section>
           </TabsContent>}
 
