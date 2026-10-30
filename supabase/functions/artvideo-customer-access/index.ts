@@ -6,6 +6,8 @@ const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const bridgeUrl = Deno.env.get("UNION_WUZAPI_BRIDGE_URL") || "";
 const bridgeSecret = Deno.env.get("UNION_WUZAPI_BRIDGE_SECRET") || "";
+// Conta e cota da API CPF exclusivas do cadastro do site. Nao reutilizar APICPF_API_KEY do CRM.
+const siteCpfApiKey = Deno.env.get("APICPF_SITE_API_KEY") || "";
 const encoder = new TextEncoder();
 const origins = new Set([
   "https://eletronicaartvideo.com.br",
@@ -92,6 +94,55 @@ async function limit(purpose:string,identity:string,max=8,seconds=3600){
   });
   if(error||data!==true)throw Error("limit_exceeded");
 }
+
+async function siteCpfEnforced() {
+  const {data,error}=await admin.rpc("artvideo_site_cpf_enforcement_v1");
+  if(error)throw Error("cpf_validation_unavailable");
+  return data===true;
+}
+async function siteCpfTicketValid(ticket:unknown,cpf:string,name:string){
+  if(!uuid(ticket)||!validCpf(cpf)||name.trim().split(/\s+/).length<2)return false;
+  const {data,error}=await admin.rpc("artvideo_site_cpf_check_v1",{
+    p_token:String(ticket),p_cpf:cpf,p_name:name,
+  });
+  if(error)throw Error("cpf_validation_unavailable");
+  return data===true;
+}
+async function siteCpfTicketConsume(ticket:unknown,cpf:string,name:string,userId:string){
+  if(!uuid(ticket))return false;
+  const {data,error}=await admin.rpc("artvideo_site_cpf_consume_v1",{
+    p_token:String(ticket),p_cpf:cpf,p_name:name,p_user_id:userId,
+  });
+  if(error)throw Error("cpf_validation_unavailable");
+  return data===true;
+}
+async function verifySiteCpfWithProvider(cpf:string){
+  if(!siteCpfApiKey)throw Error("cpf_validation_unavailable");
+  // Limites da conta separada: teto abaixo de 6/min e 100/dia.
+  // Cada chamada consome a cota somente depois de validar os campos localmente.
+  await limit("site-cpf-per-cpf",cpf,5,86400);
+  await limit("site-cpf-global-minute","site",5,60);
+  await limit("site-cpf-global-day","site",90,86400);
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),9000);
+  try {
+    const res=await fetch("https://apicpf.com/api/consulta?cpf="+encodeURIComponent(cpf),{
+      method:"GET",headers:{"X-API-KEY":siteCpfApiKey,Accept:"application/json"},
+      signal:controller.signal,
+    });
+    if(res.status===404)throw Error("cpf_not_found");
+    if(res.status===429)throw Error("cpf_quota_exceeded");
+    if(!res.ok)throw Error("cpf_validation_unavailable");
+    const payload=await res.json().catch(()=>null) as {data?:{nome?:unknown}}|null;
+    const name=typeof payload?.data?.nome==="string"?payload.data.nome.trim():"";
+    if(!name)throw Error("cpf_validation_unavailable");
+    return name;
+  } catch(e) {
+    if(e instanceof Error && ["cpf_not_found","cpf_quota_exceeded"].includes(e.message))throw e;
+    throw Error("cpf_validation_unavailable");
+  } finally {clearTimeout(timeout);}
+}
+
 async function bridge(channel:{id:string;organization_id:string},action:"number_check"|"send_text",phone:string,jid="",message=""){
   const url=new URL(bridgeUrl);
   if(url.protocol!=="https:"||url.username||url.password||bridgeSecret.length<32)throw Error("bridge_unavailable");
@@ -350,9 +401,31 @@ Deno.serve(async request=>{
       }
       return response(request,{success:true});
     }
+
+    if(action==="registration_identity"){
+      const cpf=cpfDigits(body.cpf),name=String(body.name||"").trim().replace(/\s+/g," ");
+      const enforced=await siteCpfEnforced();
+      if(!enforced)return response(request,{success:true,required:false});
+      if(!validCpf(cpf)||name.length<5||name.length>120||name.split(" ").length<2)
+        return response(request,fail("Informe um CPF válido e o nome completo.",400),400);
+      const providerName=await verifySiteCpfWithProvider(cpf);
+      const {data,error}=await admin.rpc("artvideo_site_cpf_issue_v1",{
+        p_cpf:cpf,p_name:name,p_provider_name:providerName,
+      });
+      if(error)throw Error("cpf_validation_unavailable");
+      if(data?.verified!==true||!uuid(data?.ticket))
+        return response(request,fail("O nome completo informado não corresponde ao CPF consultado. Confira os dados.",422),422);
+      // Nao devolver o nome obtido do provedor nem registrar CPF ou resposta em logs.
+      return response(request,{success:true,required:true,ticket:data.ticket});
+    }
     if(action==="registration_send"){
       const phone=normalizePhone(body.phone);
       if(!phone)return response(request,fail("Informe um WhatsApp com DDD válido.",400),400);
+      if(await siteCpfEnforced()){
+        const cpf=cpfDigits(body.cpf),name=String(body.name||"").trim();
+        if(!await siteCpfTicketValid(body.site_cpf_ticket,cpf,name))
+          return response(request,fail("Valide o nome completo e o CPF antes de prosseguir.",422),422);
+      }
       await limit("registration-send",phone,5,3600);
       const channel=await activeChannel(org);
       const jid=await verifiedJid(channel,phone);
@@ -437,6 +510,9 @@ Deno.serve(async request=>{
         }).eq("id",c.id).eq("status","pending").eq("attempts",c.attempts);
         return response(request,fail("Código incorreto.",401),401);
       }
+      const cpfRequired=await siteCpfEnforced();
+      if(cpfRequired&&!await siteCpfTicketValid(body.site_cpf_ticket,cpf,name))
+        return response(request,fail("A validação de CPF expirou. Volte e confira os dados.",422),422);
       const {data:prior,error:lookupError}=await admin.from("artvideo_customer_accounts")
         .select("user_id").eq("organization_id",org).eq("cpf",cpf).limit(1);
       if(lookupError)throw Error("account_lookup_failed");
@@ -461,6 +537,11 @@ Deno.serve(async request=>{
       if(saveError){
         await admin.auth.admin.deleteUser(userId);
         throw Error("account_create");
+      }
+      if(cpfRequired&&!await siteCpfTicketConsume(body.site_cpf_ticket,cpf,name,userId)){
+        await admin.from("artvideo_customer_accounts").delete().eq("user_id",userId).eq("organization_id",org);
+        await admin.auth.admin.deleteUser(userId);
+        throw Error("cpf_ticket_invalid");
       }
       const session=await sessionFor(userId);
       return response(request,{success:true,...session});
@@ -743,7 +824,11 @@ Deno.serve(async request=>{
     return response(request,fail("Operação inválida.",400),400);
   }catch(e){
     const reason= e instanceof Error?e.message:"unknown";
-    if(reason==="limit_exceeded")return response(request,fail("Muitas tentativas. Tente novamente mais tarde.",429),429);
+    if(reason==="limit_exceeded")return response(request,fail("Limite de consultas ou tentativas atingido. Tente novamente mais tarde.",429),429);
+    if(reason==="cpf_not_found")return response(request,fail("CPF não encontrado na base de consulta.",422),422);
+    if(reason==="cpf_quota_exceeded")return response(request,fail("Limite de consultas de CPF atingido. Tente novamente mais tarde.",429),429);
+    if(reason==="cpf_validation_unavailable")return response(request,fail("A validação de CPF está temporariamente indisponível. Tente novamente mais tarde.",503),503);
+    if(reason==="cpf_ticket_invalid")return response(request,fail("A validação de CPF expirou. Repita o cadastro.",422),422);
     if(["channel_unavailable","bridge_failed","bridge_unavailable","send_failed","send_unconfirmed","number_unavailable"].includes(reason))
       return response(request,fail("Não foi possível enviar pelo WhatsApp. Tente novamente.",503),503);
     console.error("artvideo-customer-access",/^[a-z_]{3,50}$/.test(reason)?reason:"failed");
