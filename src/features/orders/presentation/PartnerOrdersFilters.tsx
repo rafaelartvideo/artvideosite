@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { Search } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 
 type OrderSort = "" | "asc" | "desc";
 
@@ -17,13 +19,35 @@ export function PartnerOrdersFilters({
   onOrderSortChange: (value: OrderSort) => void;
   onClear: () => void;
 }) {
+  const [mobileCriterion, setMobileCriterion] = useState<"number" | "document">("number");
   const hasFilters = Boolean(numberSearch || documentSearch || orderSort);
   return <AdminSearchPanel title="Buscar OS" headerActions={<>
     {hasFilters && <AdminSearchClearButton onClick={onClear} />}
     <AdminSearchSortMenu value={orderSort} onChange={onOrderSortChange}
       options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
   </>}>
-    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+    <AdminMobileSearchSwitch
+      value={mobileCriterion}
+      options={[{ value: "number", label: "Número da OS / Externa" }, { value: "document", label: "CPF / CNPJ" }]}
+      onChange={value => {
+        setMobileCriterion(value);
+        onNumberSearchChange("");
+        onDocumentSearchChange("");
+      }}
+    >
+      <div className="relative min-w-0">
+        <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <input
+          className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")}
+          value={mobileCriterion === "number" ? numberSearch : documentSearch}
+          onChange={event => mobileCriterion === "number" ? onNumberSearchChange(event.target.value) : onDocumentSearchChange(event.target.value)}
+          inputMode={mobileCriterion === "document" ? "numeric" : "text"}
+          aria-label={mobileCriterion === "number" ? "Buscar número da OS ou externa" : "Buscar CPF ou CNPJ"}
+          placeholder={mobileCriterion === "number" ? "Digite o número da OS ou externa" : "Digite o CPF ou CNPJ"}
+        />
+      </div>
+    </AdminMobileSearchSwitch>
+    <div className="hidden grid-cols-1 gap-2 md:grid md:grid-cols-2">
       <SearchField label="Número da OS / OS externa" value={numberSearch}
         onChange={onNumberSearchChange} placeholder="Digite o número da OS ou OS externa" />
       <SearchField label="CPF / CNPJ" value={documentSearch} onChange={onDocumentSearchChange}
