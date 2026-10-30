@@ -50,7 +50,9 @@ function EntryDetailContent({
   const [tab, setTab] = useState<EntryTab>(initialSettlementOpen ? "settlements" : "overview");
   const isReceivable = detail.entry_type === "receivable";
   const settledAmount = detail.installments.reduce((sum, item) => sum + Number(item.settled_amount || 0), 0);
-  const remaining = detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
+  const remaining = ["cancelled", "reversed"].includes(detail.approval_status)
+    ? 0
+    : detail.installments.reduce((sum, item) => sum + Math.max(0, Number(item.original_amount) - Number(item.settled_amount)), 0);
   const methods = [...new Set(detail.settlements.filter(item => item.settlement_status !== "reversed").map(item => item.payment_method_name_snapshot).filter(Boolean))];
   const plannedMethods = (Array.isArray(detail.source_details?.payment_plan) ? detail.source_details.payment_plan : []) as Array<{payment_method_id:string;amount:number}>;
   const plannedText = plannedMethods.map(item=>{const method=paymentMethods.find(m=>m.id===item.payment_method_id);return `${method?.name||"Forma cadastrada"}: ${formatCurrency(item.amount)}`;}).join(", ");
@@ -131,7 +133,7 @@ function EntryDetailContent({
         <AdminCardHeader><h3 className="text-sm font-bold text-foreground">Parcelas</h3></AdminCardHeader>
         <div className="overflow-x-auto">
           <table className="min-w-[620px] w-full"><thead><tr><th className="text-left">Parcela</th><th className="text-left">Vencimento</th><th className="text-right">Valor</th><th className="text-right">Recebido</th><th className="text-right">Em aberto</th></tr></thead>
-            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums">{formatCurrency(item.settled_amount)}</td><td className="text-right font-bold tabular-nums text-primary">{formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td></tr>)}</tbody>
+            <tbody>{detail.installments.map(item => <tr key={item.id}><td className="font-semibold">{item.installment_number}/{item.total_installments}</td><td>{formatDate(item.due_date)}</td><td className="text-right tabular-nums">{formatCurrency(item.original_amount)}</td><td className="text-right tabular-nums">{formatCurrency(item.settled_amount)}</td><td className="text-right font-bold tabular-nums text-primary">{["cancelled", "reversed"].includes(detail.approval_status) ? "—" : formatCurrency(Math.max(0, Number(item.original_amount) - Number(item.settled_amount)))}</td></tr>)}</tbody>
           </table>
         </div>
       </AdminCard>
