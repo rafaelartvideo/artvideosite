@@ -1,0 +1,44 @@
+name: WuzAPI release monitor (Union only)
+
+on:
+  schedule:
+    - cron: "25 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  inspect-upstream:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check official WuzAPI stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          latest="$(gh api repos/asternic/wuzapi/releases/latest --jq .tag_name)"
+          if [[ ! "$latest" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Tag de versão não reconhecida; nenhuma ação tomada."
+            exit 1
+          fi
+          title="WuzAPI upstream release: $latest"
+          existing="$(gh issue list --repo "$GH_REPO" --state all --limit 200 --json title --jq ".[] | select(.title == \"$title\") | .title")"
+          if [[ -n "$existing" ]]; then
+            echo "Release já registrada no GitHub da Union: $latest"
+            exit 0
+          fi
+          gh issue create --repo "$GH_REPO" --title "$title" --body "$(cat <<EOF
+          Nova versão estável publicada pelo projeto oficial: **$latest**.
+
+          Link: https://github.com/asternic/wuzapi/releases/tag/$latest
+
+          **Somente aviso.** Não atualizar contêineres, bridge, sessões ou Whatsmeow automaticamente. Confirmar a versão realmente instalada na VPS da Union, revisar changelog/migrações, validar backup, testes de reconexão e rollback.
+
+          Uma atualização da instância compartilhada pode impactar TODAS as empresas parceiras que a utilizam. O controle de produção é exclusivo da administração Union World.
+          EOF
+          )"
