@@ -75,7 +75,7 @@ test("recurrence uses ordinary payable rows with cancellation from account actio
 
 test("receivable responsible dropdown binds outside-click to browser document, never CPF search text", () => {
   const entries = source("FinanceEntriesSection.tsx");
-  assert.match(entries, /const \[documentSearch, setDocumentSearch\] = useState\("..."\)/);
+  assert.match(entries, /const \[documentSearch, setDocumentSearch\] = useState\(""\)/);
   assert.doesNotMatch(entries, /const \[document, setDocument\]/);
   assert.match(entries, /window\.document\.addEventListener\("pointerdown", closeOnOutside\)/);
   assert.match(entries, /window\.document\.removeEventListener\("pointerdown", closeOnOutside\)/);
