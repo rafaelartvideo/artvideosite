@@ -146,7 +146,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   const [nameSearch, setNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
-  const [mobileSearchField, setMobileSearchField] = useState<"name" | "document">("name");
+  const [mobileSearchField, setMobileSearchField] = useState<"name" | "document" | "role" | "status" | "creator" | "date">("name");
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [creatorFilter, setCreatorFilter] = useState("all");
@@ -776,38 +776,60 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       </div>
       <div className="p-3 sm:p-4">
 
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <div className="col-span-2 min-w-0 md:hidden">
-            <AdminMobileSearchSwitch
-              value={mobileSearchField}
-              options={[{ value: "name", label: "Nome / Razão social" }, { value: "document", label: "CPF / CNPJ" }]}
-              onChange={value => {
-                if (value === mobileSearchField) return;
-                setMobileSearchField(value);
-                setNameSearch("");
-                setDocumentSearch("");
-                setPage(1);
-              }}
-            >
-              <div className="relative min-w-0">
-                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <input
-                  id="registrations-mobile-search"
-                  type="search"
-                  aria-label={mobileSearchField === "name" ? "Buscar cadastro por nome ou razão social" : "Buscar cadastro por CPF ou CNPJ"}
-                  value={mobileSearchField === "name" ? nameSearch : documentSearch}
-                  onChange={event => {
-                    if (mobileSearchField === "name") setNameSearch(event.target.value);
-                    else setDocumentSearch(event.target.value);
-                    setPage(1);
-                  }}
-                  inputMode={mobileSearchField === "document" ? "numeric" : "text"}
-                  placeholder={mobileSearchField === "name" ? "Nome / Razão social" : "Digite o CPF ou CNPJ"}
-                  className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")}
-                />
-              </div>
-            </AdminMobileSearchSwitch>
-          </div>
+        <AdminMobileSearchSwitch
+          value={mobileSearchField}
+          options={[
+            { value: "name", label: "Nome / Razão social" },
+            { value: "document", label: "CPF / CNPJ" },
+            ...(!platformUsersOnly ? [{ value: "role" as const, label: "Vínculo" }] : []),
+            { value: "status", label: "Status" },
+            { value: "creator", label: "Cadastrado por" },
+            { value: "date", label: "Data" },
+          ]}
+          onChange={value => {
+            if (value === mobileSearchField) return;
+            setMobileSearchField(value);
+            setNameSearch("");
+            setDocumentSearch("");
+            setRoleFilter("all");
+            setStatusFilter("all");
+            setCreatorFilter("all");
+            setCreatedDate("");
+            setPage(1);
+          }}
+        >
+          {mobileSearchField === "role" && !platformUsersOnly
+            ? <AdminSelect value={roleFilter} onValueChange={value => { setRoleFilter(value as "all" | RegistrationRole); setPage(1); }}
+                ariaLabel="Filtrar por vínculo" className="h-[42px] w-full min-w-0 text-sm"
+                options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+            : mobileSearchField === "status"
+              ? <AdminSelect value={statusFilter} onValueChange={value => { setStatusFilter(value as "all" | "active" | "inactive"); setPage(1); }}
+                  ariaLabel="Filtrar por status" className="h-[42px] w-full min-w-0 text-sm"
+                  options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+              : mobileSearchField === "creator"
+                ? <AdminSelect value={creatorFilter} onValueChange={value => { setCreatorFilter(value); setPage(1); }}
+                    ariaLabel="Filtrar por responsável do cadastro" className="h-[42px] w-full min-w-0 text-sm"
+                    options={creatorOptions} />
+                : mobileSearchField === "date"
+                  ? <input aria-label="Filtrar por data de cadastro" type="date" value={createdDate}
+                      onChange={event => { setCreatedDate(event.target.value); setPage(1); }}
+                      className={cn(INPUT, "h-[42px] w-full min-w-0 px-3 text-sm")} />
+                  : <div className="relative min-w-0">
+                      <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <input id="registrations-mobile-search" type="search"
+                        aria-label={mobileSearchField === "name" ? "Buscar cadastro por nome ou razão social" : "Buscar cadastro por CPF ou CNPJ"}
+                        value={mobileSearchField === "name" ? nameSearch : documentSearch}
+                        onChange={event => {
+                          if (mobileSearchField === "name") setNameSearch(event.target.value);
+                          else setDocumentSearch(event.target.value);
+                          setPage(1);
+                        }}
+                        inputMode={mobileSearchField === "document" ? "numeric" : "text"}
+                        placeholder={mobileSearchField === "name" ? "Nome / Razão social" : "Digite o CPF ou CNPJ"}
+                        className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} />
+                    </div>}
+        </AdminMobileSearchSwitch>
+        <div className="hidden grid-cols-3 gap-3 md:grid">
           <div className="hidden min-w-0 md:block">
             <label htmlFor="registrations-name" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
             <div className="relative">
