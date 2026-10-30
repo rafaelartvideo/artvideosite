@@ -201,6 +201,7 @@ export function FinanceEntryEditorDialog({
             entry_type: "payable",
             description: description.trim(),
             original_amount: numericAmount,
+            counterpart_entity_id: counterpartId || null,
             counterpart_name: (counterpartId ? counterpartName : counterpartySearch).trim() || null,
             counterpart_document: counterpartDocument.replace(/\D/g, "") || null,
             frequency,
@@ -276,7 +277,7 @@ export function FinanceEntryEditorDialog({
           { value: "yearly", label: "Anual" }, { value: "custom", label: "Personalizada" },
         ]} onChange={(event: any) => setFrequency(event.target.value as FinancialRecurringFrequency)} />
         <FInput label={frequency === "custom" ? "A cada quantos dias" : "Intervalo entre ocorrências"} type="number" min="1"
-          value={interval} onChange={(event: any) => setIntervalValue(Math.max(1, Math.floor(Number(event.target.value) || 1)))} />
+          value={interval} onChange={(event: any) => setIntervalValue(Math.min(frequency === "custom" ? 3650 : 120, Math.max(1, Math.floor(Number(event.target.value) || 1))))} />
         <FInput label="Término (opcional)" type="date" value={recurringEndDate} onChange={(event: any) => setRecurringEndDate(event.target.value)} />
         <p className="self-center text-xs text-muted-foreground">Sem data de término, a recorrência continua ativa até ser desativada.</p>
       </div>}
