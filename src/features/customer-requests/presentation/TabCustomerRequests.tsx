@@ -54,7 +54,7 @@ export function TabCustomerRequests() {
   const [kind, setKind] = useState<RequestKind | "all">("all");
   const [sort, setSort] = useState<RequestSort>("newest");
   const [search, setSearch] = useState("");
-  const [searchBy, setSearchBy] = useState<"order" | "customer">("order");
+  const [searchBy, setSearchBy] = useState<"order" | "customer" | "kind" | "status">("order");
   const [customerFilter, setCustomerFilter] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [debouncedCustomerFilter, setDebouncedCustomerFilter] = useState("");
@@ -233,7 +233,41 @@ export function TabCustomerRequests() {
       <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
         options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
     </>}>
-      <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <AdminMobileSearchSwitch
+        value={searchBy}
+        onChange={value => {
+          setSearchBy(value);
+          setSearch("");
+          setCustomerFilter("");
+          setKind("all");
+          setStatus("all");
+          setPage(1);
+        }}
+        options={[
+          { value: "order", label: "Pedido / Produto / Serviço" },
+          { value: "customer", label: "Cliente / CPF / CNPJ" },
+          { value: "kind", label: "Tipo" },
+          { value: "status", label: "Situação" },
+        ]}
+      >
+        {searchBy === "kind"
+          ? <AdminSelect value={kind} onValueChange={value => { setKind(value as RequestKind | "all"); setPage(1); }}
+              ariaLabel="Filtrar pedidos por tipo" className="h-[42px] w-full min-w-0 text-sm"
+              options={[{ value: "all", label: "Todos os tipos" }, { value: "product", label: "Produto" }, { value: "service", label: "Serviço" }]} />
+          : searchBy === "status"
+            ? <AdminSelect value={status} onValueChange={value => { setStatus(value as RequestStatus | "all"); setPage(1); }}
+                ariaLabel="Filtrar pedidos por situação" className="h-[42px] w-full min-w-0 text-sm"
+                options={[{ value: "all", label: "Todas as situações" }, ...statusOptions]} />
+            : <div className="relative min-w-0">
+                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input type="search" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")}
+                  aria-label={searchBy === "order" ? "Buscar pedido, produto ou serviço" : "Buscar cliente ou documento"}
+                  value={searchBy === "order" ? search : customerFilter}
+                  onChange={event => { if (searchBy === "order") setSearch(event.target.value); else setCustomerFilter(event.target.value); setPage(1); }}
+                  placeholder={searchBy === "order" ? "Descreva o produto ou serviço" : "Nome ou documento do cliente"} />
+              </div>}
+      </AdminMobileSearchSwitch>
+      <div className="hidden min-w-0 grid-cols-1 items-end gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
         <div className="min-w-0 sm:col-span-2 xl:col-span-1">
           <AdminMobileSearchSwitch
             mobileOnly={false}
