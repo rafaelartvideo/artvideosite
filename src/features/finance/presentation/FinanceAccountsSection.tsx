@@ -58,6 +58,9 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
   const [form, setForm] = useState(emptyForm);
   const [openingAccount, setOpeningAccount] = useState<FinancialAccount | null>(null);
   const [nameError, setNameError] = useState("");
+  useEffect(() => {
+    if (createSignal > 0 && canManage) { setForm(emptyForm()); setNameError(""); setFormOpen(true); }
+  }, [createSignal, canManage]);
 
   const balances = money.balancesQuery.data || {};
   const accounts = (finance.accountsQuery.data || []).map(account => ({ ...account, balance: Number(balances[account.id] || 0) }));
@@ -73,7 +76,7 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
     setNameError("");
     setFormOpen(true);
   };
-  useEffect(() => { if (createSignal > 0) openNew(); }, [createSignal]);
+
 
   const openEdit = (account: FinancialAccount) => {
     setForm({
