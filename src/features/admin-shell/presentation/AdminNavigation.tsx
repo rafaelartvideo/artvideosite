@@ -34,8 +34,8 @@ export function SidebarItem({ item, active, onClick, collapsed = false }: Sideba
       aria-label={collapsed ? item.label : undefined}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "flex w-full min-w-0 cursor-default items-center border-l-[3px] rounded-none text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-light/70",
-        collapsed ? "justify-center px-0 py-2.5" : "gap-2 px-3 py-2 text-left",
+        "flex w-full min-w-0 cursor-default items-center border-l-[4px] rounded-none text-[13px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-light/70",
+        collapsed ? "justify-center px-0 py-2.5" : "gap-2 px-6 py-2 text-left",
         active
           ? "border-[#7893ff] bg-[#1c3153] text-[#eef3ff] dark:border-[#91a5ff] dark:bg-[#223553] dark:text-[#f4f7ff]"
           : "border-transparent text-white/70 hover:bg-white/8 hover:text-white",
