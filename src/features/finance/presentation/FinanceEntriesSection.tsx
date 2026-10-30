@@ -76,7 +76,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [operationalFilter, setOperationalFilter] = useState("pending");
   const [sort, setSort] = useState<"newest" | "oldest">("newest");
   const [name, setName] = useState("");
-  const [document, setDocument] = useState("");
+  const [documentSearch, setDocumentSearch] = useState("");
   const [os, setOs] = useState("");
   const [originSearch, setOriginSearch] = useState("");
   const [mobileCriterion, setMobileCriterion] = useState<"os" | "name" | "document" | "origin" | "status" | "creator" | "dueFrom" | "dueTo">("name");
@@ -107,7 +107,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     setEditorOpen(true);
   }, [newEntrySignal]);
   const debouncedName = useDebouncedValue(name);
-  const debouncedDocument = useDebouncedValue(document);
+  const debouncedDocument = useDebouncedValue(documentSearch);
   const debouncedOs = useDebouncedValue(os);
   const debouncedOrigin = useDebouncedValue(originSearch);
   const debouncedCounterpartySearch = useDebouncedValue(counterpartySearch);
@@ -123,8 +123,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     const closeOnOutside = (event: PointerEvent) => {
       if (creatorContainerRef.current && !creatorContainerRef.current.contains(event.target as Node)) setCreatorOpen(false);
     };
-    document.addEventListener("pointerdown", closeOnOutside);
-    return () => document.removeEventListener("pointerdown", closeOnOutside);
+    window.document.addEventListener("pointerdown", closeOnOutside);
+    return () => window.document.removeEventListener("pointerdown", closeOnOutside);
   }, [creatorOpen]);
   const filteredCreators = useMemo(() => {
     const search = creatorSearch.trim().toLocaleLowerCase("pt-BR");
@@ -157,7 +157,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   useEffect(() => {
     setPage(1);
-  }, [name, document, os, originSearch, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
+  }, [name, documentSearch, os, originSearch, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
   const canManageRecurring = !isReceivable && hasPermission("finance.recurring.manage");
@@ -231,10 +231,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]}
   />;
 
-  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || originSearch || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
+  const hasFilters = Boolean(operationalFilter !== "pending" || name || documentSearch || os || originSearch || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
   const resetFilters = () => {
     setOperationalFilter("pending");
-    setName(""); setDocument(""); setOs(""); setOriginSearch(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
+    setName(""); setDocumentSearch(""); setOs(""); setOriginSearch(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
     setSort("newest"); setPage(1);
   };
 
@@ -263,7 +263,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         ]}
         onChange={value => {
           setMobileCriterion(value);
-          setName(""); setDocument(""); setOs(""); setOriginSearch("");
+          setName(""); setDocumentSearch(""); setOs(""); setOriginSearch("");
           setOperationalFilter("pending"); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false);
           setDateFrom(""); setDateTo(""); setPage(1);
         }}
@@ -293,11 +293,11 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               : <div className="relative min-w-0">
                   <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input type="search" className={INPUT + " h-[42px] w-full min-w-0 pl-9 text-sm"}
-                    value={mobileCriterion === "name" ? name : mobileCriterion === "document" ? document : mobileCriterion === "origin" ? originSearch : os}
+                    value={mobileCriterion === "name" ? name : mobileCriterion === "document" ? documentSearch : mobileCriterion === "origin" ? originSearch : os}
                     onChange={event => {
                       const value = event.target.value;
                       if (mobileCriterion === "name") setName(value);
-                      else if (mobileCriterion === "document") setDocument(value);
+                      else if (mobileCriterion === "document") setDocumentSearch(value);
                       else if (mobileCriterion === "origin") setOriginSearch(value);
                       else setOs(value);
                       setPage(1);
@@ -310,8 +310,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       <div className={`hidden min-w-0 grid-cols-1 items-end gap-3 md:grid ${isReceivable ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
-        <div className="hidden md:block"><FInput label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric" value={document}
-          onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" /></div>
+        <div className="hidden md:block"><FInput label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric" value={documentSearch}
+          onChange={(event: any) => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" /></div>
         <div className="hidden md:block"><FInput label="Origem" value={originSearch} onChange={(event: any) => setOriginSearch(event.target.value)} placeholder="Descrição ou origem do lançamento" /></div>
         <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
