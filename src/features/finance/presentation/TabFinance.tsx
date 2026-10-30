@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
+import { queryKeys } from "@/infrastructure/query/query-keys";
 import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { History, Plus, ReceiptText } from "lucide-react";
 import { financeRoute } from "../domain/finance-foundation.mjs";
@@ -23,7 +26,47 @@ export function TabFinance({
   routeSubpage?: string | null;
   onRouteChange?: (resourceId: string | null, subpage?: string | null) => void;
 }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, activeOrganizationId } = useAuth();
+  // Contagens leves (HEAD/COUNT), por empresa e permissão: não carrega lançamentos inteiros.
+  const organizationId = activeOrganizationId || "";
+  const receivableCount = useQuery({
+    queryKey: [...queryKeys.finance.entries(organizationId || "none", "receivable"), "tab-count"],
+    enabled: Boolean(activeOrganizationId && hasPermission("finance.receivables.view")),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("financial_entries").select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId).eq("entry_type", "receivable");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const payableCount = useQuery({
+    queryKey: [...queryKeys.finance.entries(organizationId || "none", "payable"), "tab-count"],
+    enabled: Boolean(activeOrganizationId && hasPermission("finance.payables.view")),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("financial_entries").select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId).eq("entry_type", "payable");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const accountsCount = useQuery({
+    queryKey: [...queryKeys.finance.accounts(organizationId || "none"), "tab-count"],
+    enabled: Boolean(activeOrganizationId && hasPermission("finance.accounts.view")),
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("financial_accounts").select("id", { count: "exact", head: true })
+        .eq("organization_id", organizationId);
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+  const tabCounts: Partial<Record<FinanceSection, number>> = {
+    ...(receivableCount.data !== undefined ? { receivables: receivableCount.data } : {}),
+    ...(payableCount.data !== undefined ? { payables: payableCount.data } : {}),
+    ...(accountsCount.data !== undefined ? { accounts: accountsCount.data } : {}),
+  };
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptHistoryOpen, setReceiptHistoryOpen] = useState(false);
   const [newEntrySignal, setNewEntrySignal] = useState(0);
@@ -85,7 +128,7 @@ export function TabFinance({
           <Plus size={17} /> Novo
         </button>}
       </div> : undefined} />
-    <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
+    <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} counts={tabCounts} />
     {canIssueReceipt && <FinanceReceiptDialog open={receiptOpen} onClose={() => setReceiptOpen(false)} />}
     {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
