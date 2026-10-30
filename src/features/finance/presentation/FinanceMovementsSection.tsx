@@ -6,7 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -41,7 +41,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
   return debounced;
 }
 
-export function FinanceMovementsSection() {
+export function FinanceMovementsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
   const { hasPermission } = useAuth();
   const foundation = useFinanceFoundation();
   const canTransfer = hasPermission("finance.transfers.create");
@@ -50,6 +50,7 @@ export function FinanceMovementsSection() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
   const [transferOpen, setTransferOpen] = useState(false);
+  useEffect(() => { if (createSignal > 0) setTransferOpen(true); }, [createSignal]);
   const [selectedMovement, setSelectedMovement] = useState<FinancialMovement | null>(null);
   const [reverseTransferId, setReverseTransferId] = useState<string | null>(null);
   const [reverseReason, setReverseReason] = useState("");
@@ -129,10 +130,6 @@ export function FinanceMovementsSection() {
       </>}
 
     {canTransfer && transfers.length > 0 && <section className="space-y-2 border-t border-border pt-5"><h3 className="text-sm font-bold text-foreground">Transferências</h3>{transfers.slice(0, 20).map(transfer => <div key={transfer.id} className="flex flex-col gap-3 rounded-xl border border-[#0d1b2e]/8 p-3 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-sm font-bold text-[#0d1b2e]">{accountById.get(transfer.from_account_id)?.name || "Conta"} → {accountById.get(transfer.to_account_id)?.name || "Conta"}</p><p className="mt-1 text-xs text-[#5a6a82]">{formatDateTime(transfer.occurred_at)} · {formatCurrency(transfer.amount)}{transfer.note ? ` · ${transfer.note}` : ""}</p>{transfer.reversal_reason && <p className="mt-1 text-xs font-semibold text-red-700">Estornada: {transfer.reversal_reason}</p>}</div>{transfer.transfer_status === "posted" && <AdminButton size="sm" variant="danger" onClick={() => { setReverseTransferId(transfer.id); setReverseReason(""); setReverseReasonError(""); }}><RotateCcw size={14} /> Estornar</AdminButton>}</div>)}</section>}
-
-    {canTransfer && accounts.filter(item => item.is_active).length >= 2 && <AdminStickyToolbar className="justify-end">
-      <AdminButton onClick={() => setTransferOpen(true)}>Nova transferência</AdminButton>
-    </AdminStickyToolbar>}
 
     <AdminDialog open={Boolean(selectedMovement)} onClose={() => setSelectedMovement(null)} title="Detalhes da movimentação" className="max-w-lg"
       footer={<div className="flex justify-end"><AdminButton variant="secondary" onClick={() => setSelectedMovement(null)}>Fechar</AdminButton></div>}>
