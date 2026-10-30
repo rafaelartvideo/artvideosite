@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, Layers, Trash2, Plus, Upload } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, Layers, Trash2, Plus, Upload, FolderInput } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { ManagementTrashDialog } from "./ManagementTrashDialog";
@@ -10,7 +10,7 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   createManagementFolder, createManagementSpace, listManagementFolders, listManagementRecords, listManagementSpaces, managementLogoUrl, uploadManagementLogo,
-  openManagementFile, removeManagementFolder, removeManagementRecord, renameManagementFolder,
+  openManagementFile, removeManagementFolder, removeManagementRecord, renameManagementFolder, moveManagementFolder, moveManagementRecord,
   saveManagementRecord, updateManagementSpace, uploadManagementFiles,
   listManagementFileVersions, uploadManagementFileVersion, saveManagementCredential, revealManagementCredential,
   searchManagementRecords, type ManagementFileVersion,
@@ -19,6 +19,7 @@ import {
 
 type DialogKind = "space" | "folder" | "record" | null;
 type RecordEditKind = Exclude<ManagementKind, "file">;
+type MoveItem = {type:"folder"|"record";id:string;name:string;currentParent:string|null};
 const TYPES: {value:RecordEditKind;label:string}[] = [
   {value:"note",label:"Anotação"}, {value:"account",label:"Conta / acesso"},
   {value:"website",label:"Site / domínio"}, {value:"campaign",label:"Campanha"}, {value:"link",label:"Link"},
@@ -70,6 +71,11 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
   const [versionsLoading,setVersionsLoading]=useState(false);
   const [uploading,setUploading]=useState(false);
   const [trashOpen,setTrashOpen]=useState(false);
+  const [movingItem,setMovingItem]=useState<MoveItem|null>(null);
+  const [moveDestination,setMoveDestination]=useState("");
+  const [moving,setMoving]=useState(false);
+  const [dragTarget,setDragTarget]=useState<string|null>(null);
+  const draggedItemRef=useRef<MoveItem|null>(null);
   const [revision,setRevision]=useState(0);
   const uploadRef=useRef<HTMLInputElement|null>(null);
   const selectedSpace=spaces.find(s=>s.id===spaceId)||null;
@@ -138,6 +144,96 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     },280);
     return()=>{cancelled=true;window.clearTimeout(timer);};
   },[search,spaceId,revision]);
+
+  // Ordenação hierárquica para o seletor de destino; pastas excluídas nunca aparecem.
+  const folderDestinations=useMemo(()=>{
+    const result:{id:string;label:string}[]=[];
+    const seen=new Set<string>();
+    const visit=(parentId:string|null,level:number)=>{
+      folders.filter(f=>!f.deleted_at&&f.parent_id===parentId)
+        .sort((a,b)=>a.name.localeCompare(b.name,"pt-BR"))
+        .forEach(folder=>{
+          if(seen.has(folder.id))return;
+          seen.add(folder.id);
+          result.push({id:folder.id,label:"— ".repeat(Math.min(level,12))+folder.name});
+          visit(folder.id,level+1);
+        });
+    };
+    visit(null,0);
+    return result;
+  },[folders]);
+  const isValidDestination=(item:MoveItem,destinationId:string|null)=>{
+    if(!canManage||!spaceId||moving||item.currentParent===destinationId)return false;
+    if(!destinationId)return item.type==="folder";
+    let current=folders.find(f=>f.id===destinationId&&f.space_id===spaceId&&!f.deleted_at);
+    if(!current)return false;
+    const visited=new Set<string>();
+    while(current&&!visited.has(current.id)){
+      if(item.type==="folder"&&current.id===item.id)return false;
+      visited.add(current.id);
+      current=folders.find(f=>f.id===current?.parent_id);
+    }
+    return !current;
+  };
+  const openMove=(item:MoveItem)=>{
+    if(!canManage)return;
+    setMovingItem(item);
+    setMoveDestination(item.currentParent||"");
+  };
+  const closeMove=()=>{
+    if(moving)return;
+    setMovingItem(null);
+    setMoveDestination("");
+  };
+  const moveItemTo=async(item:MoveItem,destinationId:string|null)=>{
+    if(!spaceId||!isValidDestination(item,destinationId))return;
+    setMoving(true);
+    try{
+      if(item.type==="folder"){
+        await moveManagementFolder(item.id,spaceId,destinationId);
+        setFolders(current=>current.map(folder=>folder.id===item.id?{...folder,parent_id:destinationId}:folder));
+      }else{
+        await moveManagementRecord(item.id,spaceId,destinationId!);
+        setRecords(current=>current.map(record=>record.id===item.id?{...record,folder_id:destinationId!}:record));
+        setSearchResults(current=>current.map(record=>record.id===item.id?{...record,folder_id:destinationId!}:record));
+      }
+      setMovingItem(null);
+      setMoveDestination("");
+      setDragTarget(null);
+      notifyAdmin(item.type==="folder"?"Pasta movida.":"Registro movido.");
+    }catch(error){
+      notifyAdmin(systemErrorMessage(error,"Não foi possível mover o item."),"error");
+    }finally{
+      draggedItemRef.current=null;
+      setMoving(false);
+    }
+  };
+  const startDrag=(event:DragEvent<HTMLElement>,item:MoveItem)=>{
+    if(!canManage||moving){event.preventDefault();return;}
+    draggedItemRef.current=item;
+    event.dataTransfer.effectAllowed="move";
+    event.dataTransfer.setData("text/plain",item.id);
+  };
+  const dragOver=(event:DragEvent<HTMLElement>,destinationId:string|null)=>{
+    const item=draggedItemRef.current;
+    if(!item||!isValidDestination(item,destinationId))return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect="move";
+    setDragTarget(destinationId||"root");
+  };
+  const dropOn=(event:DragEvent<HTMLElement>,destinationId:string|null)=>{
+    const item=draggedItemRef.current;
+    if(!item||!isValidDestination(item,destinationId))return;
+    event.preventDefault();
+    event.stopPropagation();
+    draggedItemRef.current=null;
+    setDragTarget(null);
+    void moveItemTo(item,destinationId);
+  };
+  const endDrag=()=>{
+    draggedItemRef.current=null;
+    setDragTarget(null);
+  };
 
   const resetForm=()=>{
     setName("");setDescription("");setIconText("");setAccent("#1032DC");setLogoFile(null);
@@ -258,10 +354,10 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
           <button type="button" onClick={()=>{setSearch("");onRouteChange(null,null);}} className="font-semibold text-primary hover:underline">Meus espaços</button>
           {selectedSpace&&<>
             <ChevronRight size={15} className="text-muted-foreground"/>
-            <button type="button" onClick={()=>navigateFolder(null)} className={crumbs.length?"text-primary hover:underline":"font-semibold text-foreground"}>{selectedSpace.name}</button>
+            <button type="button" onClick={()=>navigateFolder(null)} onDragOver={event=>dragOver(event,null)} onDragLeave={()=>setDragTarget(null)} onDrop={event=>dropOn(event,null)} className={(crumbs.length?"text-primary hover:underline":"font-semibold text-foreground")+(dragTarget==="root"?" rounded bg-primary/15 ring-2 ring-primary/50":"")}>{selectedSpace.name}</button>
             {crumbs.map((folder,i)=><span key={folder.id} className="inline-flex items-center gap-1">
               <ChevronRight size={15} className="text-muted-foreground"/>
-              <button type="button" className={i===crumbs.length-1?"font-semibold text-foreground":"text-primary hover:underline"} onClick={()=>navigateFolder(folder.id)}>{folder.name}</button>
+              <button type="button" onDragOver={event=>dragOver(event,folder.id)} onDragLeave={()=>setDragTarget(null)} onDrop={event=>dropOn(event,folder.id)} className={(i===crumbs.length-1?"font-semibold text-foreground":"text-primary hover:underline")+(dragTarget===folder.id?" rounded bg-primary/15 ring-2 ring-primary/50":"")} onClick={()=>navigateFolder(folder.id)}>{folder.name}</button>
             </span>)}
             {!contentLoading&&<span data-testid="management-breadcrumb-count" className="ml-1 inline-flex items-center gap-2 whitespace-nowrap text-xs text-muted-foreground">
               <span aria-hidden="true" className="text-border">|</span>
@@ -328,7 +424,9 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
         </> : <>
           <div className="grid grid-cols-1 gap-1 sm:grid-cols-2 xl:grid-cols-3">
             {folderChildren.map(folder=>{
-              return <div key={folder.id} className="group relative flex min-w-0 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-primary/10 focus-within:bg-primary/10" data-testid="management-folder-row">
+              return <div key={folder.id} className="group relative flex min-w-0 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-primary/10 focus-within:bg-primary/10 data-[drop-target=true]:bg-primary/15 data-[drop-target=true]:ring-2 data-[drop-target=true]:ring-primary/50" data-testid="management-folder-row" data-drop-target={dragTarget===folder.id}
+                draggable={canManage&&!moving} onDragStart={event=>startDrag(event,{type:"folder",id:folder.id,name:folder.name,currentParent:folder.parent_id})}
+                onDragEnd={endDrag} onDragOver={event=>dragOver(event,folder.id)} onDragLeave={()=>setDragTarget(null)} onDrop={event=>dropOn(event,folder.id)}>
                 <button type="button" onClick={()=>navigateFolder(folder.id)}
                   className="absolute inset-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
                   aria-label={`Abrir pasta ${folder.name}`}/>
@@ -341,6 +439,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" sideOffset={5} collisionPadding={10} className="z-[200] min-w-40 rounded-none border-border bg-popover shadow-xl">
                     <DropdownMenuItem className="rounded-none" onSelect={()=>openFolder(folder)}><Pencil size={15}/>Renomear</DropdownMenuItem>
+                    <DropdownMenuItem className="rounded-none" onSelect={()=>openMove({type:"folder",id:folder.id,name:folder.name,currentParent:folder.parent_id})}><FolderInput size={15}/>Mover</DropdownMenuItem>
                     <DropdownMenuSeparator/>
                     <DropdownMenuItem className="rounded-none" variant="destructive" onSelect={()=>void deleteFolder(folder)}><Trash2 size={15}/>Mover para lixeira</DropdownMenuItem>
                   </DropdownMenuContent>
@@ -349,7 +448,8 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
             })}
             {visibleRecords.map(record=>{
               const Icon=record.kind==="website"?Globe:record.kind==="account"?KeyRound:record.kind==="campaign"?Megaphone:record.kind==="link"?Link2:record.kind==="file"?File:FileText;
-              return <div key={record.id} className="flex min-w-0 items-center gap-3 border border-border bg-card p-3">
+              return <div key={record.id} className="flex min-w-0 items-center gap-3 border border-border bg-card p-3" draggable={canManage&&!moving}
+                onDragStart={event=>startDrag(event,{type:"record",id:record.id,name:record.title,currentParent:record.folder_id})} onDragEnd={endDrag}>
                 <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={()=>record.kind==="file"?void openFile(record):openRecord(record)}>
                   <Icon size={24} className="shrink-0 text-muted-foreground"/>
                   <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-foreground">{record.title}</span>
@@ -368,6 +468,7 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
                       {record.kind==="file"?"Abrir arquivo":"Editar registro"}
                     </DropdownMenuItem>
                     {record.kind==="file"&&<DropdownMenuItem className="rounded-none" onSelect={()=>void openVersions(record)}><Layers size={15}/>Versões</DropdownMenuItem>}
+                    {canManage&&<DropdownMenuItem className="rounded-none" onSelect={()=>openMove({type:"record",id:record.id,name:record.title,currentParent:record.folder_id})}><FolderInput size={15}/>Mover</DropdownMenuItem>}
                     {record.kind==="account"&&canManage&&<DropdownMenuItem className="rounded-none" onSelect={()=>openVault(record)}><KeyRound size={15}/>Cofre de acesso</DropdownMenuItem>}
                     {canManage&&<DropdownMenuSeparator/>}
                     {canManage&&<DropdownMenuItem className="rounded-none" variant="destructive" onSelect={()=>void deleteRecord(record)}><Trash2 size={15}/>Mover para lixeira</DropdownMenuItem>}
@@ -386,6 +487,26 @@ export function ManagementPage({spaceId,folderId,onRouteChange}:{
     </AdminCard>
     <ManagementTrashDialog open={trashOpen} spaces={spaces} canManage={canManage}
       onClose={()=>setTrashOpen(false)} onChanged={refresh}/>
+    <AdminDialog open={movingItem!==null} title={movingItem?"Mover · "+movingItem.name:"Mover item"} onClose={closeMove}
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" onClick={closeMove} disabled={moving}>Cancelar</AdminButton>
+        <AdminButton onClick={()=>{if(movingItem)void moveItemTo(movingItem,moveDestination||null);}}
+          loading={moving} disabled={!movingItem||!isValidDestination(movingItem,moveDestination||null)}>Mover</AdminButton>
+      </div>}>
+      <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">Escolha a pasta de destino. O conteúdo e as versões dos arquivos serão preservados.</p>
+        <label className="block space-y-2 text-xs font-semibold text-foreground">Pasta de destino
+          <select className="h-10 w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
+            value={moveDestination} onChange={event=>setMoveDestination(event.target.value)} disabled={moving}>
+            <option value="" disabled={movingItem?.type==="record"}>Raiz do espaço</option>
+            {folderDestinations.map(folder=><option key={folder.id} value={folder.id}
+              disabled={!!movingItem&&!isValidDestination(movingItem,folder.id)&&movingItem.currentParent!==folder.id}>
+              {folder.label}
+            </option>)}
+          </select>
+        </label>
+      </div>
+    </AdminDialog>
     <AdminDialog open={dialog!==null} title={dialog==="space"?(editingSpace?"Editar espaço":"Novo espaço"):dialog==="folder"?(editingFolder?"Renomear pasta":"Nova pasta"):(editingRecord?"Editar registro":"Novo registro")}
       onClose={close} footer={<div className="flex justify-end gap-2"><AdminButton variant="secondary" onClick={close} disabled={saving}>{canManage?"Cancelar":"Fechar"}</AdminButton>{canManage&&<AdminButton onClick={()=>void save()} loading={saving} disabled={!name.trim()}>Salvar</AdminButton>}</div>}>
       <div className="space-y-4">
