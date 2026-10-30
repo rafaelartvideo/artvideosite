@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Camera, Package, Tag, Trash2, Upload } from "lucide-react";
+import { Camera, Image as ImageIcon, Package, Tag, Trash2, Upload } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { supabaseErrorMessage, uploadMediaFile, type MediaBucket } from "@/shared/infrastructure/media.repository";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
-export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId, photoActions = false, onRemove, removeIconOnly = false }: {
-  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; onRemove?: () => void; label?: string; canUpload?: boolean; organizationId?: string | null; photoActions?: boolean; removeIconOnly?: boolean;
+export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem", canUpload = true, organizationId, photoActions = false, onRemove, removeIconOnly = false, coverFill = false }: {
+  bucket: MediaBucket; currentMediaId?: string | null; onUpload: (mediaId: string) => void; onRemove?: () => void; label?: string; canUpload?: boolean; organizationId?: string | null; photoActions?: boolean; removeIconOnly?: boolean; coverFill?: boolean;
 }) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -47,13 +47,19 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     onRemove();
     notifyAdmin("Imagem desvinculada. Clique em Salvar para confirmar.", "success");
   };
-  return <div>
+  return <div className={coverFill ? "flex h-full min-h-0 w-full min-w-0 flex-col" : undefined}>
     <label className="block text-[11px] font-bold text-muted-foreground uppercase tracking-wider mb-2">{label}</label>
-    {displayUrl && <div className="mb-3 flex h-28 w-full max-w-44 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted p-2"><img src={displayUrl} alt="" className="max-h-full max-w-full object-contain" /></div>}
+    {coverFill
+      ? <div className="mb-2 flex min-h-20 w-full min-w-0 flex-1 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/40 p-1.5">
+          {displayUrl
+            ? <img src={displayUrl} alt="Foto de capa do produto" className="h-full min-h-0 w-full object-contain" />
+            : <ImageIcon size={23} aria-label="Sem foto de capa" className="text-muted-foreground/60" />}
+        </div>
+      : displayUrl && <div className="mb-3 flex h-28 w-full max-w-44 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted p-2"><img src={displayUrl} alt="" className="max-h-full max-w-full object-contain" /></div>}
     <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handleFile} className="hidden" />
     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
     {canUpload && (removeIconOnly
-      ? <div className="flex w-full max-w-44 items-center gap-2">
+      ? <div className="flex w-full min-w-0 items-center gap-2">
           <AdminButton
             variant="secondary"
             size="sm"
@@ -89,7 +95,7 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
           ><Trash2 size={16} /> Remover imagem</AdminButton>}
         </div>
     )}
-    {canUpload && onRemove && !currentMediaId && <p className="mt-2 text-[11px] text-muted-foreground">Sem imagem. Você pode deixar este campo vazio.</p>}
+    {!coverFill && canUpload && onRemove && !currentMediaId && <p className="mt-2 text-[11px] text-muted-foreground">Sem imagem. Você pode deixar este campo vazio.</p>}
   </div>;
 }
 
