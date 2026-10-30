@@ -216,7 +216,11 @@ export function FinanceEntryEditorDialog({
             notes: notes.trim() || null,
           },
         });
-        await recurring.generateMutation.mutateAsync({ id });
+        // Registre a primeira competência mesmo quando ela começa após os 90 dias padrão.
+        const horizon = new Date();
+        horizon.setDate(horizon.getDate() + 90);
+        const horizonDate = `${horizon.getFullYear()}-${String(horizon.getMonth() + 1).padStart(2, "0")}-${String(horizon.getDate()).padStart(2, "0")}`;
+        await recurring.generateMutation.mutateAsync({ id, untilDate: firstDueDate > horizonDate ? firstDueDate : undefined });
         notifyAdmin("Conta recorrente cadastrada com sucesso.", "success");
         onClose();
         return;
