@@ -1016,8 +1016,9 @@ export function TabProducts({
       maxW="max-w-6xl"
       fullPage
     >
-      <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
-        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 sm:px-5">
+      <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0 w-full min-w-0 max-w-full">
+        <div className="w-full min-w-0 px-4 pt-4 sm:px-5 sm:pt-5">
+          <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border">
           <TabsList className="flex !h-auto !w-auto max-w-full min-w-0 flex-1 justify-start gap-5 overflow-x-auto !rounded-none !border-0 !bg-transparent !p-0 !shadow-none">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
@@ -1032,10 +1033,11 @@ export function TabProducts({
               onChange={value => setForm(current => ({ ...current, is_active: value }))}
             />
           </div>
+          </div>
         </div>
 
-        <div className="p-4 sm:p-5">
-          <TabsContent value="general" className="mt-0 space-y-5">
+        <div className="w-full min-w-0 p-4 sm:p-5">
+          <TabsContent value="general" className="mt-0 w-full min-w-0 space-y-5">
             <Section title="Identificação do item">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="sm:col-span-2">
@@ -1144,16 +1146,18 @@ export function TabProducts({
                     placeholder="Descrição completa, aplicações, compatibilidades e informações úteis"
                   />
                 </div>
-                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_260px] sm:items-start">
-                  <FTextarea
-                    label="Observações internas"
-                    value={form.internal_notes}
-                    disabled={saving}
-                    onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
-                    rows={6}
-                    placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
-                  />
-                  <div className="rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
+                <div className="grid min-w-0 gap-4 sm:col-span-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,260px)] sm:items-stretch">
+                  <div className="min-w-0 [&>div]:flex [&>div]:h-full [&>div]:flex-col [&_textarea]:min-h-0 [&_textarea]:flex-1">
+                    <FTextarea
+                      label="Observações internas"
+                      value={form.internal_notes}
+                      disabled={saving}
+                      onChange={(event: any) => setForm(current => ({ ...current, internal_notes: event.target.value }))}
+                      rows={6}
+                      placeholder="Anotações internas sobre o item, compra, compatibilidade ou operação"
+                    />
+                  </div>
+                  <div className="min-w-0 rounded-xl border-2 border-dashed border-border bg-muted/20 p-3">
                     <ImageUpload
                       bucket="product-images"
                       organizationId={activeOrganizationId || undefined}
@@ -1162,6 +1166,7 @@ export function TabProducts({
                       onRemove={() => setForm(current => ({ ...current, cover_media_id: "" }))}
                       canUpload={!saving && !galleryUploading && (editItem ? canEdit : canCreate)}
                       removeIconOnly
+                      coverFill
                       label="Foto de capa"
                     />
                   </div>
@@ -1219,7 +1224,7 @@ export function TabProducts({
             </div></details>
           </TabsContent>
 
-          <TabsContent value="commercial" className="mt-0 space-y-5">
+          <TabsContent value="commercial" className="mt-0 w-full min-w-0 space-y-5">
             <Section title="Comercial">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <FCurrencyInput
@@ -1367,7 +1372,7 @@ export function TabProducts({
             />
           </TabsContent>}
 
-          {isArtvideoTenant && <TabsContent value="store" className="mt-0 space-y-5">
+          {isArtvideoTenant && <TabsContent value="store" className="mt-0 w-full min-w-0 space-y-5">
             <Section title="Publicação na loja" description="Controle a exibição do produto e os dados comerciais vistos pelo cliente.">
               <div className="space-y-4">
                 <FToggle
