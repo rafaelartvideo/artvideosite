@@ -72,3 +72,13 @@ test("recurrence uses ordinary payable rows with cancellation from account actio
   assert.match(hook, /cancelMutation/);
   assert.match(repo, /cancel_financial_recurring_rule/);
 });
+
+test("receivable responsible dropdown binds outside-click to browser document, never CPF search text", () => {
+  const entries = source("FinanceEntriesSection.tsx");
+  assert.match(entries, /const \[documentSearch, setDocumentSearch\] = useState\("..."\)/);
+  assert.doesNotMatch(entries, /const \[document, setDocument\]/);
+  assert.match(entries, /window\.document\.addEventListener\("pointerdown", closeOnOutside\)/);
+  assert.match(entries, /window\.document\.removeEventListener\("pointerdown", closeOnOutside\)/);
+  assert.match(entries, /useDebouncedValue\(documentSearch\)/);
+  assert.match(entries, /value=\{documentSearch\}/);
+});
