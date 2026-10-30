@@ -1,7 +1,7 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronDown, Plus, Search } from "lucide-react";
+import { ChevronDown, Plus, Search, Trash2 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { buildMonthlyInstallments } from "../domain/finance-entry.mjs";
 import type {
@@ -10,6 +10,7 @@ import type {
   FinancialEntryDetail,
   FinancialEntryDraft,
   FinancialEntryType,
+  FinancialRecurringFrequency,
   FinancialInstallmentDraft,
   FinancialPaymentMethod,
 } from "../domain/finance.types";
@@ -19,6 +20,8 @@ import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { formatFinancialDocument, maskFinancialDocumentInput } from "./financeDisplay";
 import { FinanceQuickSupplierDialog } from "./FinanceQuickSupplierDialog";
+import { FinanceModalDropdown } from "./FinanceModalDropdown";
+import { useFinanceRecurring } from "../application/useFinanceRecurring";
 
 function today() {
   const date = new Date();
@@ -38,7 +41,6 @@ export function FinanceEntryEditorDialog({
   saving,
   onClose,
   onSave,
-  onRecurringSelected,
 }: {
   open: boolean;
   entryType: FinancialEntryType;
@@ -52,9 +54,13 @@ export function FinanceEntryEditorDialog({
   saving: boolean;
   onClose: () => void;
   onSave: (draft: FinancialEntryDraft) => Promise<void>;
-  onRecurringSelected?: () => void;
 }) {
   const { hasPermission } = useAuth();
+  const recurring = useFinanceRecurring(false);
+  const [accountType, setAccountType] = useState<"single" | "recurring">("single");
+  const [frequency, setFrequency] = useState<FinancialRecurringFrequency>("monthly");
+  const [interval, setIntervalValue] = useState(1);
+  const [recurringEndDate, setRecurringEndDate] = useState("");
   const [description, setDescription] = useState("");
   const [counterpartDropdownOpen, setCounterpartDropdownOpen] = useState(false);
   const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
@@ -62,7 +68,8 @@ export function FinanceEntryEditorDialog({
   useEffect(() => {
     if (!counterpartDropdownOpen) return;
     const onOutside = (event: PointerEvent) => {
-      if (!counterpartyContainerRef.current?.contains(event.target as Node)) setCounterpartDropdownOpen(false);
+      const target = event.target as HTMLElement;
+      if (!counterpartyContainerRef.current?.contains(target) && !target.closest('[data-finance-combobox-popup="true"]')) setCounterpartDropdownOpen(false);
     };
     document.addEventListener("pointerdown", onOutside);
     return () => document.removeEventListener("pointerdown", onOutside);
@@ -82,6 +89,8 @@ export function FinanceEntryEditorDialog({
   const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; issueDate?: string; competenceDate?: string; installments?: string; allocations?: string; paymentPlan?: string }>({});
 
   const numericAmount = Number(amount || 0);
+  const isRecurring = entryType === "payable" && !initial && accountType === "recurring";
+  const busy = saving || recurring.saveMutation.isPending || recurring.generateMutation.isPending;
   const title = entryType === "receivable" ? "Conta a receber" : "Conta a pagar";
   const counterpartLabel = entryType === "receivable" ? "Cliente / pagador" : "Fornecedor / favorecido";
   const selectedCounterpart = useMemo(
@@ -91,6 +100,10 @@ export function FinanceEntryEditorDialog({
 
   useEffect(() => {
     if (!open) return;
+    setAccountType("single");
+    setFrequency("monthly");
+    setIntervalValue(1);
+    setRecurringEndDate("");
     if (initial) {
       setDescription(initial.description);
       setIssueDate(initial.issue_date);
@@ -175,11 +188,38 @@ export function FinanceEntryEditorDialog({
     if (!competenceDate) nextErrors.competenceDate = "Informe a competência.";
     if (!categoryId) nextErrors.allocations = "Selecione uma categoria.";
     if (paymentPlan.length && (paymentPlan.some(item => !item.payment_method_id || !Number.isFinite(Number(item.amount)) || Number(item.amount) <= 0) || Math.round(paymentPlan.reduce((sum,item)=>sum+Number(item.amount),0)*100) !== Math.round(numericAmount*100))) nextErrors.paymentPlan = "Selecione as formas e distribua exatamente o valor total.";
-    if (!firstDueDate || !installments.length) nextErrors.installments = "Informe o vencimento.";
-    else if (Math.round(numericAmount * 100) < installmentCount) nextErrors.installments = "Reduza a quantidade de parcelas para evitar parcelas de valor zero.";
+    if (!firstDueDate || (!isRecurring && !installments.length)) nextErrors.installments = "Informe o vencimento.";
+    if (isRecurring && recurringEndDate && recurringEndDate < firstDueDate) nextErrors.installments = "O término deve ser igual ou posterior ao primeiro vencimento.";
+    if (isRecurring && (!Number.isInteger(interval) || interval < 1)) nextErrors.installments = "Informe um intervalo válido.";
+    else if (!isRecurring && Math.round(numericAmount * 100) < installmentCount) nextErrors.installments = "Reduza a quantidade de parcelas para evitar parcelas de valor zero.";
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length) return;
     try {
+      if (isRecurring) {
+        const id = await recurring.saveMutation.mutateAsync({
+          payload: {
+            entry_type: "payable",
+            description: description.trim(),
+            original_amount: numericAmount,
+            counterpart_name: (counterpartId ? counterpartName : counterpartySearch).trim() || null,
+            counterpart_document: counterpartDocument.replace(/\D/g, "") || null,
+            frequency,
+            interval_value: frequency === "custom" ? 1 : interval,
+            custom_days: frequency === "custom" ? interval : null,
+            start_date: firstDueDate,
+            next_occurrence_date: firstDueDate,
+            end_date: recurringEndDate || null,
+            installment_count: 1,
+            first_due_offset_days: 0,
+            allocations: [{ category_id: categoryId, cost_center_id: null, mode: "percentage", value: 100, amount: numericAmount }],
+            notes: notes.trim() || null,
+          },
+        });
+        await recurring.generateMutation.mutateAsync({ id });
+        notifyAdmin("Conta recorrente cadastrada com sucesso.", "success");
+        onClose();
+        return;
+      }
       await onSave({
         id: initial?.id || null, entry_type: entryType, description: description.trim(),
         issue_date: issueDate, competence_date: competenceDate, original_amount: numericAmount,
@@ -214,35 +254,34 @@ export function FinanceEntryEditorDialog({
     title={initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}
     description="Preencha os dados principais da conta."
     minimizedDescription={[description.trim(), counterpartName || selectedCounterpart?.name, numericAmount > 0 ? formatCurrency(numericAmount) : null].filter(Boolean).join(" · ") || "Lançamento em preenchimento"}
-    minimizable={!saving}
+    minimizable={!busy}
     className="max-w-3xl"
     footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <AdminButton variant="secondary" onClick={onClose} disabled={saving}>Cancelar</AdminButton>
-      <AdminButton onClick={save} loading={saving} loadingText="Salvando...">Salvar</AdminButton>
+      <AdminButton variant="secondary" onClick={onClose} disabled={busy}>Cancelar</AdminButton>
+      <AdminButton onClick={save} loading={busy} loadingText="Salvando...">Salvar</AdminButton>
     </div>}
   >
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value="single" options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => { if (event.target.value === "recurring") onRecurringSelected?.(); }} /></div>}
+        {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value={accountType} options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => setAccountType(event.target.value)} /></div>}
         <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Aluguel, compra de material ou assinatura"} /></div>
         <FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} />
         <FSelect label="Categoria" required value={categoryId} options={categoryOptions} error={fieldErrors.allocations} onChange={(event: any) => { setCategoryId(event.target.value); setFieldErrors(current => ({ ...current, allocations: undefined })); }} />
-        <FInput label="Vencimento" required error={fieldErrors.installments} type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} />
-        <FInput label="Número de parcelas" type="number" min="1" max="60" value={installmentCount} onChange={(event: any) => setInstallmentCount(Math.min(60, Math.max(1, Number(event.target.value || 1))))} />
+        <FInput label={isRecurring ? "Primeiro vencimento" : "Vencimento"} required error={fieldErrors.installments} type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} />
+        {!isRecurring && <FInput label="Número de parcelas" type="number" min="1" max="60" value={installmentCount} onChange={(event: any) => setInstallmentCount(Math.min(60, Math.max(1, Number(event.target.value || 1))))} />}
       </div>
-      {installmentCount > 1 && <p className="text-xs text-muted-foreground">As {installmentCount} parcelas serão distribuídas em vencimentos mensais automaticamente.</p>}
-      {entryType === "receivable" && <div className="space-y-3 border-t border-border pt-4">
-        <div className="flex items-center justify-between gap-3">
-          <div><h3 className="text-sm font-semibold text-foreground">Formas de pagamento previstas</h3><p className="text-xs text-muted-foreground">Você pode dividir o valor entre PIX, cartão, dinheiro e outras formas. A baixa será registrada depois.</p></div>
-          <AdminButton size="sm" variant="secondary" onClick={() => setPaymentPlan(current => [...current,{payment_method_id:"",amount:""}])} disabled={paymentPlan.length >= 10}>Adicionar forma</AdminButton>
-        </div>
-        {paymentPlan.map((item,index) => <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_180px_auto]">
-          <FSelect label={`Forma ${index+1}`} options={[{value:"",label:"Selecione"},...paymentMethods.filter(method => method.is_active || method.id === item.payment_method_id).map(method=>({value:method.id,label:method.name}))]} value={item.payment_method_id} onChange={(event:any)=>setPaymentPlan(current=>current.map((p,i)=>i===index?{...p,payment_method_id:event.target.value}:p))} />
-          <FCurrencyInput label="Valor previsto" value={item.amount} onChange={(event:any)=>setPaymentPlan(current=>current.map((p,i)=>i===index?{...p,amount:event.target.value}:p))} />
-          <AdminButton variant="secondary" size="sm" onClick={()=>setPaymentPlan(current=>current.filter((_,i)=>i!==index))}>Remover</AdminButton>
-        </div>)}
-        {fieldErrors.paymentPlan && <p className="text-xs font-semibold text-red-600">{fieldErrors.paymentPlan}</p>}
+      {isRecurring && <div className="grid gap-4 border-t border-border pt-4 sm:grid-cols-2">
+        <FSelect label="Periodicidade" value={frequency} options={[
+          { value: "weekly", label: "Semanal" }, { value: "monthly", label: "Mensal" },
+          { value: "yearly", label: "Anual" }, { value: "custom", label: "Personalizada" },
+        ]} onChange={(event: any) => setFrequency(event.target.value as FinancialRecurringFrequency)} />
+        <FInput label={frequency === "custom" ? "A cada quantos dias" : "Intervalo entre ocorrências"} type="number" min="1"
+          value={interval} onChange={(event: any) => setIntervalValue(Math.max(1, Math.floor(Number(event.target.value) || 1)))} />
+        <FInput label="Término (opcional)" type="date" value={recurringEndDate} onChange={(event: any) => setRecurringEndDate(event.target.value)} />
+        <p className="self-center text-xs text-muted-foreground">Sem data de término, a recorrência continua ativa até ser desativada.</p>
       </div>}
+      {!isRecurring && installmentCount > 1 && <p className="text-xs text-muted-foreground">As {installmentCount} parcelas serão distribuídas em vencimentos mensais automaticamente.</p>}
+
       <div className="border-t border-border pt-4">
         <div className="flex items-end gap-2">
           <div ref={counterpartyContainerRef} className="relative min-w-0 flex-1">
@@ -259,28 +298,39 @@ export function FinanceEntryEditorDialog({
               <button type="button" aria-label="Mostrar cadastros" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
                 onClick={() => setCounterpartDropdownOpen(current => !current)}><ChevronDown size={16} /></button>
             </div>
-            {counterpartDropdownOpen && <div id="finance-counterparty-options" role="listbox"
-              className="absolute inset-x-0 top-full z-[90] mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
+            <FinanceModalDropdown open={counterpartDropdownOpen} anchorRef={counterpartyContainerRef} id="finance-counterparty-options">
               <button type="button" role="option" aria-selected={!counterpartId}
-                className="w-full rounded-md px-3 py-2 text-left text-xs hover:bg-muted"
+                className="flex h-[48px] w-full items-center rounded-md px-3 text-left text-xs hover:bg-muted"
                 onClick={() => { selectCounterpart(""); onCounterpartySearchChange(""); setCounterpartDropdownOpen(false); }}>
                 Sem vínculo
               </button>
               {visibleCounterparties.map(item => <button type="button" role="option" aria-selected={counterpartId === item.id} key={item.id}
-                className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                className="flex h-[48px] w-full flex-col justify-center overflow-hidden rounded-md px-3 text-left text-sm hover:bg-muted"
                 onClick={() => { selectCounterpart(item.id); onCounterpartySearchChange(item.name); setCounterpartDropdownOpen(false); }}>
-                <span className="font-semibold">{item.name}</span>
+                <span className="w-full truncate font-semibold">{item.name}</span>
                 {item.document && <span className="block text-xs text-muted-foreground">{formatFinancialDocument(item.document)}</span>}
               </button>)}
               {counterpartyLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Buscando cadastros...</p>}
               {!counterpartyLoading && visibleCounterparties.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum cadastro encontrado. Você pode informar um nome sem vínculo.</p>}
-            </div>}
+            </FinanceModalDropdown>
           </div>
           {entryType === "payable" && hasPermission("customers.create") && <AdminButton variant="secondary" onClick={() => { setCounterpartDropdownOpen(false); setQuickSupplierOpen(true); }}>
             <Plus size={16} /> Cadastrar
           </AdminButton>}
         </div>
       </div>
+      {entryType === "receivable" && <div className="space-y-3 border-t border-border pt-4">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-sm font-semibold text-foreground">Formas de Pagamentos</h3>
+          <AdminButton variant="tertiary" className="h-[42px] shrink-0" onClick={() => setPaymentPlan(current => [...current,{payment_method_id:"",amount:""}])} disabled={paymentPlan.length >= 10}><Plus size={16} /> Adicionar forma</AdminButton>
+        </div>
+        {paymentPlan.map((item,index) => <div key={index} className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_180px_42px]">
+          <FSelect label={`Forma ${index+1}`} options={[{value:"",label:"Selecione"},...paymentMethods.filter(method => method.is_active || method.id === item.payment_method_id).map(method=>({value:method.id,label:method.name}))]} value={item.payment_method_id} onChange={(event:any)=>setPaymentPlan(current=>current.map((p,i)=>i===index?{...p,payment_method_id:event.target.value}:p))} />
+          <FCurrencyInput label="Valor" value={item.amount} onChange={(event:any)=>setPaymentPlan(current=>current.map((p,i)=>i===index?{...p,amount:event.target.value}:p))} />
+          <button type="button" aria-label={`Remover forma de pagamento ${index + 1}`} title="Remover forma" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-lg border border-red-500/25 text-red-600 transition-colors hover:bg-red-500/10 dark:text-red-400" onClick={() => setPaymentPlan(current => current.filter((_, i) => i !== index))}><Trash2 size={17} /></button>
+        </div>)}
+        {fieldErrors.paymentPlan && <p className="text-xs font-semibold text-red-600">{fieldErrors.paymentPlan}</p>}
+      </div>}
       <details className="rounded-lg border border-border px-4 py-3">
         <summary className="cursor-pointer text-sm font-semibold text-foreground">Outras informações (opcional)</summary>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
