@@ -52,7 +52,7 @@ export function AdminMobileSearchSwitch<T extends string>({
               value === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]",
             )}
           >
-            <Search size={14} className={value === option.value ? "text-[#0057e7]" : "text-[#5a6a82]"} />
+            <Search size={14} className="text-muted-foreground" />
             <span>{option.label}</span>
             {value === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}
           </DropdownMenuItem>)}
