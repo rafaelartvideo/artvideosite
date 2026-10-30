@@ -538,8 +538,19 @@ export function TabProducts({
     onRouteChange?.(null, null);
   };
 
-  const openNewPage = () => canCreate && (onRouteChange ? onRouteChange("new", null) : openNew());
-  const openEditPage = (item: any) => canViewDetails && canEdit && (onRouteChange ? onRouteChange(item.id, "edit") : openEdit(item));
+  // Os registros já estão disponíveis na listagem/cache: abra o editor antes
+  // de sincronizar a URL. Esperar o efeito da rota pode deixar o loading preso
+  // até um refresh, sem necessidade de consultar o banco novamente.
+  const openNewPage = () => {
+    if (!canCreate) return;
+    openNew();
+    onRouteChange?.("new", null);
+  };
+  const openEditPage = (item: any) => {
+    if (!canViewDetails || !canEdit) return;
+    openEdit(item);
+    onRouteChange?.(item.id, "edit");
+  };
 
   useEffect(() => {
     if (!routeResourceId) {
@@ -550,7 +561,8 @@ export function TabProducts({
       if (canCreate && (!drawerOpen || editItem)) openNew();
       return;
     }
-    if (!canViewDetails || !canEdit || routeSubpage !== "edit" || editItem?.id === routeResourceId) return;
+    if (!canViewDetails || !canEdit || routeSubpage !== "edit") return;
+    if (drawerOpen && editItem?.id === routeResourceId) return;
     const item = products.find((entry: any) => entry.id === routeResourceId);
     if (item) openEdit(item);
   }, [routeResourceId, routeSubpage, products, drawerOpen, editItem?.id, canCreate, canViewDetails, canEdit]);
@@ -1005,7 +1017,23 @@ export function TabProducts({
       </AdminCard>}
     </>}
 
-    {routeResourceId && !drawerOpen && <AdminCard className="p-8"><LoadingState /></AdminCard>}
+    {routeResourceId && !drawerOpen && (
+      catalogQuery.isError || (routeResourceId !== "new" && !catalogQuery.isPending && !products.some((item: any) => item.id === routeResourceId))
+        ? <AdminCard className="p-8">
+            <EmptyState
+              icon={Package}
+              title={catalogQuery.isError ? "Não foi possível carregar o item" : "Item não encontrado"}
+              message={catalogQuery.isError
+                ? systemErrorMessage(catalogQuery.error, "Falha ao consultar os dados do estoque.")
+                : "O item não está disponível nesta empresa."}
+            />
+            <div className="mt-4 flex justify-center gap-2">
+              <AdminButton variant="secondary" onClick={() => onRouteChange?.(null, null)}>Voltar ao estoque</AdminButton>
+              {catalogQuery.isError && <AdminButton onClick={() => void catalogQuery.refetch()}>Tentar novamente</AdminButton>}
+            </div>
+          </AdminCard>
+        : <AdminCard className="p-8"><LoadingState /></AdminCard>
+    )}
 
     <AdminPage
       open={drawerOpen}
