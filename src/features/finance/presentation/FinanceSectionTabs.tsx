@@ -15,7 +15,6 @@ const LABELS: Record<FinanceSection, string> = {
   payables: "A pagar",
   movements: "Extrato",
   accounts: "Contas e caixa",
-  recurring: "Recorrências",
   reports: "Relatórios",
   registries: "Configurações",
 };
@@ -26,7 +25,6 @@ const ICONS: Record<FinanceSection, ElementType> = {
   payables: ArrowUpRight,
   movements: List,
   accounts: Landmark,
-  recurring: Settings2,
   reports: ChartNoAxesCombined,
   registries: Settings2,
 };
@@ -60,8 +58,8 @@ export function FinanceSectionTabs({
   allowedSections: FinanceSection[];
   onSelect: (section: FinanceSection) => void;
 }) {
-  const primary = allowedSections.filter(id => id !== "recurring" && id !== "registries");
-  const secondary = allowedSections.filter(id => id === "recurring" || id === "registries");
+  const primary = allowedSections.filter(id => id !== "registries");
+  const secondary = allowedSections.filter(id => id === "registries");
   const isOptionsActive = secondary.includes(section);
 
   return <nav className="mx-auto w-fit max-w-full overflow-x-auto rounded-xl border border-border bg-card px-2 shadow-sm" aria-label="Áreas do financeiro">
