@@ -66,3 +66,16 @@ export async function generateFinancialRecurringOccurrences(
   if (error) throw error;
   return data as { generated: number; next_occurrence_date: string; active: boolean };
 }
+
+/** Irreversibly stop a subscription, retaining paid history. */
+export async function cancelFinancialRecurringRule(
+  organizationId: string, ruleId: string, reason?: string | null,
+): Promise<{ cancelled: boolean; cancelled_future_entries: number }> {
+  const { data, error } = await supabase.rpc("cancel_financial_recurring_rule", {
+    p_organization_id: requiredOrganizationId(organizationId),
+    p_rule_id: ruleId,
+    p_reason: reason || null,
+  });
+  if (error) throw error;
+  return data as { cancelled: boolean; cancelled_future_entries: number };
+}
