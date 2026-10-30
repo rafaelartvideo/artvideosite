@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ClipboardList, FileText, Wrench } from "lucide-react";
+import { ClipboardList, FileText, Search, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { listQuotesPage,listRequestStatuses } from "../infrastructure/quotes.repository";
 import type { AdminTab } from "@/features/admin-shell/domain/admin.types";
 import { AdminCard,AdminRowActionsTrigger,PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel,AdminSearchClearButton,AdminSearchSortMenu,AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { formatCnpj,formatCpf,formatPhone,formatDateTime } from "@/shared/domain/formatters";
 import { EmptyState,LoadingState,StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminFieldLabel,AdminSelect } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel,AdminSelect,INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
@@ -46,6 +47,7 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
   const [customer,setCustomer]=useState("");
   const [document,setDocument]=useState("");
   const [protocol,setProtocol]=useState("");
+  const [mobileCriterion,setMobileCriterion]=useState<"customer"|"document"|"protocol">("customer");
   const [status,setStatus]=useState("");
   const [sort,setSort]=useState<QuoteSort>("");
   const [page,setPage]=useState(1);
@@ -95,10 +97,25 @@ export function TabQuotes({embedded=false,onRouteChange}:Props){
       <AdminSearchSortMenu value={sort} onChange={v=>setSort(v as QuoteSort)}
         options={[{value:"",label:"Mais recentes"},{value:"asc",label:"Protocolo crescente"},{value:"desc",label:"Protocolo decrescente"}]}/>
     </>}>
-      <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <AdminSearchTextField label="Cliente" value={customer} onChange={setCustomer} placeholder="Nome do cliente"/>
-        <AdminSearchTextField label="CPF/CNPJ" value={document} onChange={setDocument} placeholder="CPF ou CNPJ"/>
-        <AdminSearchTextField label="Protocolo" value={protocol} onChange={setProtocol} placeholder="Número do orçamento"/>
+      <AdminMobileSearchSwitch
+        value={mobileCriterion}
+        options={[{value:"customer",label:"Cliente"},{value:"document",label:"CPF / CNPJ"},{value:"protocol",label:"Protocolo"}]}
+        onChange={value=>{setMobileCriterion(value);setCustomer("");setDocument("");setProtocol("");setPage(1);}}
+      >
+        <div className="relative min-w-0">
+          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"} type="search"
+            value={mobileCriterion==="customer"?customer:mobileCriterion==="document"?document:protocol}
+            onChange={event=>{const v=event.target.value;if(mobileCriterion==="customer")setCustomer(v);else if(mobileCriterion==="document")setDocument(v);else setProtocol(v);setPage(1);}}
+            inputMode={mobileCriterion==="document"?"numeric":"text"}
+            aria-label={"Buscar orçamento por "+(mobileCriterion==="customer"?"cliente":mobileCriterion==="document"?"CPF ou CNPJ":"protocolo")}
+            placeholder={mobileCriterion==="customer"?"Nome do cliente":mobileCriterion==="document"?"CPF ou CNPJ":"Número do orçamento"}/>
+        </div>
+      </AdminMobileSearchSwitch>
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Cliente" value={customer} onChange={setCustomer} placeholder="Nome do cliente"/></div>
+        <div className="hidden min-w-0 md:block"><AdminSearchTextField label="CPF/CNPJ" value={document} onChange={setDocument} placeholder="CPF ou CNPJ"/></div>
+        <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Protocolo" value={protocol} onChange={setProtocol} placeholder="Número do orçamento"/></div>
         <div className="min-w-0"><AdminFieldLabel label="Situação"/>
           <AdminSelect className="w-full min-w-0" value={status} onValueChange={setStatus}
             options={[{value:"",label:"Todas"},...(statusesQuery.data||[]).map(s=>({value:s.id,label:s.name}))]}
