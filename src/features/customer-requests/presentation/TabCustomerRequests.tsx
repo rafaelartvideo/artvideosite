@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, Check, ClipboardList, Eraser, Search } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatters";
-import { AdminButton, AdminCard, AdminDialog, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminRowActionsTrigger, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
@@ -45,16 +45,6 @@ function primaryAddressLabel(customer: any) {
   return [street, address.complement, locality, address.zip_code ? "CEP " + address.zip_code : "", address.reference ? "Referência: " + address.reference : ""].filter(Boolean).join(" — ") || "Nenhum endereço cadastrado.";
 }
 
-function searchableLabel(title: string, value: string, onChange: (value: string) => void, placeholder: string) {
-  return <div className="min-w-0">
-    <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{title}</label>
-    <div className="relative">
-      <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-      <input className={cn(INPUT, "h-[42px] pl-9 text-xs md:h-9 md:py-1.5")} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} />
-    </div>
-  </div>;
-}
-
 export function TabCustomerRequests() {
   const { activeOrganizationId, hasPermission } = useAuth();
   const canCreate = hasPermission("customer_requests.create");
@@ -63,6 +53,7 @@ export function TabCustomerRequests() {
   const [kind, setKind] = useState<RequestKind | "all">("all");
   const [sort, setSort] = useState<RequestSort>("newest");
   const [search, setSearch] = useState("");
+  const [searchBy, setSearchBy] = useState<"order" | "customer">("order");
   const [customerFilter, setCustomerFilter] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [debouncedCustomerFilter, setDebouncedCustomerFilter] = useState("");
@@ -200,7 +191,7 @@ export function TabCustomerRequests() {
     } finally { setSaving(false); }
   };
 
-  const resetFilters = () => { setSearch(""); setCustomerFilter(""); setKind("all"); setStatus("all"); setSort("newest"); setPage(1); };
+  const resetFilters = () => { setSearch(""); setCustomerFilter(""); setSearchBy("order"); setKind("all"); setStatus("all"); setSort("newest"); setPage(1); };
   const hasFilters = Boolean(search || customerFilter || kind !== "all" || status !== "all" || sort !== "newest");
   const canOfferRegister = canCreate && customerSearch.trim().length >= 2
     && searchedCustomerTerm === customerSearch.trim() && !searchingCustomer && matches.length === 0;
@@ -213,6 +204,24 @@ export function TabCustomerRequests() {
     setQuickCustomerOpen(true);
   };
 
+  const requestActions = (item: CustomerRequest) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <AdminRowActionsTrigger label={`Ações do pedido de ${requestCustomerName(item.customer)}`} />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" sideOffset={4} className="w-52 max-w-[calc(100vw-24px)]" onClick={event => event.stopPropagation()}>
+        {statusOptions.map(option => (
+          <DropdownMenuItem key={option.value} disabled={updating || item.status === option.value}
+            onSelect={() => void handleChangeStatus(item, option.value)}
+            className="flex items-center justify-between gap-2">
+            <span>Marcar como {option.label.toLowerCase()}</span>
+            {item.status === option.value && <Check size={15} className="shrink-0 text-primary" />}
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Pedidos Avulsos"
       subtitle={`${String(overallTotal)} pedidos realizados`}
@@ -223,9 +232,23 @@ export function TabCustomerRequests() {
       <AdminSearchSortMenu value={sort} onChange={value => { setSort(value); setPage(1); }}
         options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
     </>}>
-      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {searchableLabel("Pedido", search, value => { setSearch(value); setPage(1); }, "Descreva o produto ou serviço")}
-        {searchableLabel("Cliente / CPF / CNPJ", customerFilter, value => { setCustomerFilter(value); setPage(1); }, "Nome ou documento do cliente")}
+      <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="min-w-0 sm:col-span-2 xl:col-span-1">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Buscar por</label>
+          <AdminSelect
+            value={searchBy}
+            onValueChange={value => { setSearchBy(value as "order" | "customer"); setSearch(""); setCustomerFilter(""); setPage(1); }}
+            options={[{ value: "order", label: "Pedido / Produto / Serviço" }, { value: "customer", label: "Cliente / CPF / CNPJ" }]}
+            className="h-[42px] min-h-0 w-full text-xs md:h-9" ariaLabel="Selecionar critério da busca" />
+          <div className="relative mt-2 min-w-0">
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+            <input className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-xs md:h-9")}
+              aria-label={searchBy === "order" ? "Buscar pedido, produto ou serviço" : "Buscar cliente ou documento"}
+              value={searchBy === "order" ? search : customerFilter}
+              onChange={event => { if (searchBy === "order") setSearch(event.target.value); else setCustomerFilter(event.target.value); setPage(1); }}
+              placeholder={searchBy === "order" ? "Descreva o produto ou serviço" : "Nome ou documento do cliente"} />
+          </div>
+        </div>
         <div className="min-w-0">
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo</label>
           <AdminSelect value={kind} onValueChange={value => { setKind(value as RequestKind | "all"); setPage(1); }}
@@ -254,7 +277,7 @@ export function TabCustomerRequests() {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-bold text-foreground">{requestCustomerName(item.customer)}</p>
                   <p className="mt-1 text-xs text-muted-foreground">{kindLabel(item.request_kind)} · {dateLabel(item.created_at)}</p>
-                </div><StatusTag value={item.status} />
+                </div><div className="flex shrink-0 items-center gap-2"><StatusTag value={item.status} />{canUpdate && <div onClick={event => event.stopPropagation()}>{requestActions(item)}</div>}</div>
               </div>
               <p className="line-clamp-2 break-words text-sm text-foreground">{item.description}</p>
               <p className="text-xs text-muted-foreground">Atendente: {item.creatorName}</p>
@@ -269,6 +292,7 @@ export function TabCustomerRequests() {
                 <th className="w-40 text-left">Registrado em</th>
                 <th className="w-44 text-left">Atendente</th>
                 <th className="w-32 text-left">Situação</th>
+                {canUpdate && <th className="w-16 text-right">Ações</th>}
               </tr></thead>
               <tbody>{items.map(item => <tr key={item.id} tabIndex={0} role="button"
                 aria-label={`Abrir pedido de ${requestCustomerName(item.customer)}`}
@@ -283,6 +307,7 @@ export function TabCustomerRequests() {
                 <td className="whitespace-nowrap text-xs text-muted-foreground">{dateLabel(item.created_at)}</td>
                 <td className="text-xs text-muted-foreground">{item.creatorName}</td>
                 <td><StatusTag value={item.status} /></td>
+                {canUpdate && <td><div className="flex justify-end" onClick={event => event.stopPropagation()}>{requestActions(item)}</div></td>}
               </tr>)}</tbody>
             </table>
           </div>
