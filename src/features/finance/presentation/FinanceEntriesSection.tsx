@@ -86,7 +86,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
   const [os, setOs] = useState("");
-  const [mobileCriterion, setMobileCriterion] = useState<"os" | "name" | "document">("name");
+  const [mobileCriterion, setMobileCriterion] = useState<"os" | "name" | "document" | "status" | "creator" | "dueFrom" | "dueTo">("name");
   const [creatorId, setCreatorId] = useState("");
   const [creatorSearch, setCreatorSearch] = useState("");
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -217,26 +217,61 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     >
       <AdminMobileSearchSwitch
         value={mobileCriterion}
-        options={[{value:"name",label:isReceivable?"Nome do cliente":"Nome do favorecido"},{value:"document",label:"CPF / CNPJ"},{value:"os",label:"Número da OS"}]}
-        onChange={value=>{setMobileCriterion(value);setName("");setDocument("");setOs("");setPage(1);}}
+        options={[
+          { value: "name", label: isReceivable ? "Nome do cliente" : "Nome do favorecido" },
+          { value: "document", label: "CPF / CNPJ" },
+          { value: "os", label: "Número da OS" },
+          { value: "status", label: "Situação" },
+          ...(isReceivable ? [{ value: "creator" as const, label: "Responsável" }] : []),
+          { value: "dueFrom", label: "Vencimento de" },
+          { value: "dueTo", label: "Vencimento até" },
+        ]}
+        onChange={value => {
+          setMobileCriterion(value);
+          setName(""); setDocument(""); setOs("");
+          setOperationalFilter("pending"); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false);
+          setDateFrom(""); setDateTo(""); setPage(1);
+        }}
       >
-        <div className="relative min-w-0">
-          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input type="search" className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"}
-            value={mobileCriterion==="name"?name:mobileCriterion==="document"?document:os}
-            onChange={event=>{
-              const value=event.target.value;
-              if(mobileCriterion==="name")setName(value);
-              else if(mobileCriterion==="document")setDocument(value);
-              else setOs(value);
-              setPage(1);
-            }}
-            inputMode={mobileCriterion==="document"?"numeric":"text"}
-            aria-label={mobileCriterion==="name"?"Buscar por nome":mobileCriterion==="document"?"Buscar por CPF ou CNPJ":"Buscar por número da OS"}
-            placeholder={mobileCriterion==="name"?"Digite o nome":mobileCriterion==="document"?"Digite o CPF ou CNPJ":"Digite o número da OS"} />
-        </div>
+        {mobileCriterion === "status"
+          ? <FSelect value={operationalFilter}
+              options={[{ value: "pending", label: "Pendentes / parciais" }, { value: "all", label: "Todas" }, { value: "settled", label: "Baixadas" }]}
+              onChange={(event: any) => { setOperationalFilter(event.target.value); setPage(1); }} />
+          : mobileCriterion === "creator" && isReceivable
+            ? <FSelect value={creatorId}
+                options={[{ value: "", label: "Todos os responsáveis" }, ...(creatorsQuery.data || []).map(person => ({ value: person.id, label: person.name }))]}
+                onChange={(event: any) => {
+                  const id = event.target.value;
+                  setCreatorId(id);
+                  setCreatorSearch((creatorsQuery.data || []).find(person => person.id === id)?.name || "");
+                  setPage(1);
+                }} />
+            : mobileCriterion === "dueFrom" || mobileCriterion === "dueTo"
+              ? <input type="date" className={INPUT + " h-[42px] w-full min-w-0 text-sm"}
+                  aria-label={mobileCriterion === "dueFrom" ? "Vencimento de" : "Vencimento até"}
+                  value={mobileCriterion === "dueFrom" ? dateFrom : dateTo}
+                  onChange={event => {
+                    if (mobileCriterion === "dueFrom") setDateFrom(event.target.value);
+                    else setDateTo(event.target.value);
+                    setPage(1);
+                  }} />
+              : <div className="relative min-w-0">
+                  <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input type="search" className={INPUT + " h-[42px] w-full min-w-0 pl-9 text-sm"}
+                    value={mobileCriterion === "name" ? name : mobileCriterion === "document" ? document : os}
+                    onChange={event => {
+                      const value = event.target.value;
+                      if (mobileCriterion === "name") setName(value);
+                      else if (mobileCriterion === "document") setDocument(value);
+                      else setOs(value);
+                      setPage(1);
+                    }}
+                    inputMode={mobileCriterion === "document" ? "numeric" : "text"}
+                    aria-label={mobileCriterion === "name" ? "Buscar por nome" : mobileCriterion === "document" ? "Buscar por CPF ou CNPJ" : "Buscar por número da OS"}
+                    placeholder={mobileCriterion === "name" ? "Digite o nome" : mobileCriterion === "document" ? "Digite o CPF ou CNPJ" : "Digite o número da OS"} />
+                </div>}
       </AdminMobileSearchSwitch>
-      <div className="grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="hidden min-w-0 grid-cols-1 items-end gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
         {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
         <div className="hidden md:block"><FInput label="CPF / CNPJ" inputMode="numeric" value={document}
