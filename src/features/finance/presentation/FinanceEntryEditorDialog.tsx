@@ -104,6 +104,7 @@ export function FinanceEntryEditorDialog({
         roles: [],
       } : null);
       setCounterpartName(initial.counterpart_name_snapshot || "");
+      onCounterpartySearchChange(initial.counterpart_name_snapshot || "");
       setCounterpartDocument(initial.counterpart_document_snapshot || "");
       setNotes(initial.notes || "");
       setInstallmentCount(initial.installments.length || 1);
@@ -120,6 +121,7 @@ export function FinanceEntryEditorDialog({
       setCounterpartId("");
       setSelectedCounterpartSnapshot(null);
       setCounterpartName("");
+      onCounterpartySearchChange("");
       setCounterpartDocument("");
       setNotes("");
       setInstallmentCount(1);
@@ -221,8 +223,8 @@ export function FinanceEntryEditorDialog({
   >
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        {entryType === "payable" && !initial && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value="single" options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => { if (event.target.value === "recurring") onRecurringSelected?.(); }} /></div>}
-        <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Compra de material"} /></div>
+        {entryType === "payable" && !initial && hasPermission("finance.recurring.manage") && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value="single" options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => { if (event.target.value === "recurring") onRecurringSelected?.(); }} /></div>}
+        <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Aluguel, compra de material ou assinatura"} /></div>
         <FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} />
         <FSelect label="Categoria" required value={categoryId} options={categoryOptions} error={fieldErrors.allocations} onChange={(event: any) => { setCategoryId(event.target.value); setFieldErrors(current => ({ ...current, allocations: undefined })); }} />
         <FInput label="Vencimento" required error={fieldErrors.installments} type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} />
