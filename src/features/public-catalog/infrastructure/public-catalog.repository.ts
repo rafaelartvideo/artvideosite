@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-const PUBLIC_PRODUCT_COLUMNS = "id,organization_id,category_id,brand_id,name,slug,short_description,description,price,compare_at_price,cover_media_id,is_active,is_featured,created_at,updated_at,show_in_catalog";
+const PUBLIC_PRODUCT_COLUMNS = "id,organization_id,category_id,brand_id,name,slug,short_description,description,price,compare_at_price,cover_media_id,is_active,is_featured,created_at,updated_at,show_in_catalog,site_characteristics";
 
 export const getServices = () =>
   supabase.from("services").select("*").eq("is_active", true).order("sort_order", { ascending: true });
