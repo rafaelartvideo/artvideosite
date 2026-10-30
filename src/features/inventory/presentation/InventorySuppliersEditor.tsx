@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import { Link2, Unlink } from "lucide-react";
+import { Link2, Trash2 } from "lucide-react";
 import { AdminListSection, AdminListSectionRow } from "@/shared/ui/admin/AdminListSection";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { formatCnpj, formatCpf } from "@/shared/domain/formatters";
@@ -161,8 +161,10 @@ export function InventorySuppliersEditor({
             type="button"
             disabled={!selected && inactive}
             onClick={() => toggle(supplier)}
-            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "border-red-200 text-red-600 hover:bg-red-50" : "border-primary/25 bg-white text-primary hover:bg-primary-soft/40"}`}
-          >{selected ? <><Unlink size={14} /> Remover</> : <><Link2 size={14} /> Vincular</>}</button>}
+            aria-label={selected ? `Desvincular fornecedor ${supplier.name}` : `Vincular fornecedor ${supplier.name}`}
+            title={selected ? "Desvincular fornecedor" : "Vincular fornecedor"}
+            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${selected ? "w-9 border-red-200 text-red-600 hover:bg-red-50" : "px-3 border-primary/25 bg-white text-primary hover:bg-primary-soft/40"}`}
+          >{selected ? <Trash2 size={16} /> : <><Link2 size={14} /> Vincular</>}</button>}
         </div>
       </AdminListSectionRow>;
     })}
