@@ -260,6 +260,9 @@ export interface FinancialRecurringRule {
   notes: string | null;
   is_active: boolean;
   last_generated_at: string | null;
+  cancelled_at?: string | null;
+  cancelled_by?: string | null;
+  cancellation_reason?: string | null;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;
