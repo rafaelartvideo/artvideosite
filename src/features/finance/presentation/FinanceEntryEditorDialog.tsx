@@ -1,6 +1,8 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Plus, Search } from "lucide-react";
+import { useAuth } from "@/lib/auth";
 import { buildMonthlyInstallments } from "../domain/finance-entry.mjs";
 import type {
   FinancialAllocationDraft,
@@ -12,10 +14,11 @@ import type {
   FinancialPaymentMethod,
 } from "../domain/finance.types";
 import type { FinancialCounterparty } from "../infrastructure/finance-entries.repository";
-import { FCurrencyInput, FInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, FCurrencyInput, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { formatFinancialDocument, maskFinancialDocumentInput } from "./financeDisplay";
+import { FinanceQuickSupplierDialog } from "./FinanceQuickSupplierDialog";
 
 function today() {
   const date = new Date();
@@ -35,6 +38,7 @@ export function FinanceEntryEditorDialog({
   saving,
   onClose,
   onSave,
+  onRecurringSelected,
 }: {
   open: boolean;
   entryType: FinancialEntryType;
@@ -48,8 +52,21 @@ export function FinanceEntryEditorDialog({
   saving: boolean;
   onClose: () => void;
   onSave: (draft: FinancialEntryDraft) => Promise<void>;
+  onRecurringSelected?: () => void;
 }) {
+  const { hasPermission } = useAuth();
   const [description, setDescription] = useState("");
+  const [counterpartDropdownOpen, setCounterpartDropdownOpen] = useState(false);
+  const [quickSupplierOpen, setQuickSupplierOpen] = useState(false);
+  const counterpartyContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!counterpartDropdownOpen) return;
+    const onOutside = (event: PointerEvent) => {
+      if (!counterpartyContainerRef.current?.contains(event.target as Node)) setCounterpartDropdownOpen(false);
+    };
+    document.addEventListener("pointerdown", onOutside);
+    return () => document.removeEventListener("pointerdown", onOutside);
+  }, [counterpartDropdownOpen]);
   const [issueDate, setIssueDate] = useState(today());
   const [competenceDate, setCompetenceDate] = useState(today());
   const [amount, setAmount] = useState("");
@@ -165,7 +182,7 @@ export function FinanceEntryEditorDialog({
         id: initial?.id || null, entry_type: entryType, description: description.trim(),
         issue_date: issueDate, competence_date: competenceDate, original_amount: numericAmount,
         counterpart_entity_id: counterpartId || null,
-        counterpart_name: counterpartName.trim() || null, counterpart_document: counterpartDocument.trim() || null,
+        counterpart_name: (counterpartId ? counterpartName : counterpartySearch).trim() || null, counterpart_document: counterpartDocument.trim() || null,
         notes: notes.trim() || null, installments, allocations,
         payment_plan: paymentPlan.map(item => ({payment_method_id:item.payment_method_id,amount:Number(item.amount)})),
       });
@@ -182,13 +199,6 @@ export function FinanceEntryEditorDialog({
   ) {
     visibleCounterparties.unshift(selectedCounterpartSnapshot);
   }
-  const counterpartOptions = [
-    { value: "", label: "Sem vínculo / informar manualmente" },
-    ...visibleCounterparties.map(item => ({
-      value: item.id,
-      label: item.document ? `${item.name} · ${formatFinancialDocument(item.document)}` : item.name,
-    })),
-  ];
 
   const categoryOptions = [
     { value: "", label: "Selecione uma categoria" },
@@ -196,7 +206,7 @@ export function FinanceEntryEditorDialog({
       .map(item => ({ value: item.id, label: item.name })),
   ];
 
-  return <AdminDialog
+  return <><AdminDialog
     open
     onClose={onClose}
     title={initial ? `Editar ${title.toLocaleLowerCase("pt-BR")}` : `Nova ${title.toLocaleLowerCase("pt-BR")}`}
@@ -211,7 +221,8 @@ export function FinanceEntryEditorDialog({
   >
     <div className="space-y-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="sm:col-span-2"><FInput label="Descrição" required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Compra de material"} /></div>
+        {entryType === "payable" && !initial && <div className="sm:col-span-2"><FSelect label="Tipo de conta a pagar" value="single" options={[{ value: "single", label: "Conta avulsa" }, { value: "recurring", label: "Recorrente (assinatura, mensalidade ou contrato)" }]} onChange={(event: any) => { if (event.target.value === "recurring") onRecurringSelected?.(); }} /></div>}
+        <div className="sm:col-span-2"><FInput label={entryType === "payable" ? "Origem" : "Descrição"} required error={fieldErrors.description} value={description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setDescription(event.target.value); }} placeholder={entryType === "receivable" ? "Ex.: Serviço de manutenção" : "Ex.: Compra de material"} /></div>
         <FCurrencyInput label="Valor" required error={fieldErrors.amount} value={amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setAmount(event.target.value); }} />
         <FSelect label="Categoria" required value={categoryId} options={categoryOptions} error={fieldErrors.allocations} onChange={(event: any) => { setCategoryId(event.target.value); setFieldErrors(current => ({ ...current, allocations: undefined })); }} />
         <FInput label="Vencimento" required error={fieldErrors.installments} type="date" value={firstDueDate} onChange={(event: any) => setFirstDueDate(event.target.value)} />
@@ -231,11 +242,41 @@ export function FinanceEntryEditorDialog({
         {fieldErrors.paymentPlan && <p className="text-xs font-semibold text-red-600">{fieldErrors.paymentPlan}</p>}
       </div>}
       <div className="border-t border-border pt-4">
-        <h3 className="mb-3 text-sm font-semibold text-foreground">{counterpartLabel} <span className="font-normal text-muted-foreground">(opcional)</span></h3>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FInput label="Buscar cliente ou fornecedor" value={counterpartySearch} onChange={(event: any) => onCounterpartySearchChange(event.target.value)} placeholder="Nome ou CPF/CNPJ" />
-          <FSelect label={counterpartyLoading ? "Buscando cadastros..." : "Cadastro"} value={counterpartId} options={counterpartOptions} onChange={(event: any) => selectCounterpart(event.target.value)} />
-          {!counterpartId && <div className="sm:col-span-2"><FInput label="Nome (sem cadastro)" value={counterpartName} onChange={(event: any) => setCounterpartName(event.target.value)} /></div>}
+        <div className="flex items-end gap-2">
+          <div ref={counterpartyContainerRef} className="relative min-w-0 flex-1">
+            <AdminFieldLabel label={counterpartLabel + " (opcional)"} />
+            <div className="relative">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input className={INPUT + " w-full pl-9 pr-9"} role="combobox" aria-autocomplete="list"
+                aria-expanded={counterpartDropdownOpen} aria-controls="finance-counterparty-options"
+                placeholder="Busque pelo nome ou CPF/CNPJ"
+                value={counterpartId ? selectedCounterpart?.name || counterpartName : counterpartySearch}
+                onFocus={() => setCounterpartDropdownOpen(true)}
+                onChange={event => { if (counterpartId) selectCounterpart(""); onCounterpartySearchChange(event.target.value); setCounterpartDropdownOpen(true); }}
+                onKeyDown={event => { if (event.key === "Escape") setCounterpartDropdownOpen(false); }} />
+              <button type="button" aria-label="Mostrar cadastros" className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                onClick={() => setCounterpartDropdownOpen(current => !current)}><ChevronDown size={16} /></button>
+            </div>
+            {counterpartDropdownOpen && <div id="finance-counterparty-options" role="listbox"
+              className="absolute inset-x-0 top-full z-[90] mt-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
+              <button type="button" role="option" aria-selected={!counterpartId}
+                className="w-full rounded-md px-3 py-2 text-left text-xs hover:bg-muted"
+                onClick={() => { selectCounterpart(""); onCounterpartySearchChange(""); setCounterpartDropdownOpen(false); }}>
+                Sem vínculo
+              </button>
+              {visibleCounterparties.map(item => <button type="button" role="option" aria-selected={counterpartId === item.id} key={item.id}
+                className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-muted"
+                onClick={() => { selectCounterpart(item.id); onCounterpartySearchChange(item.name); setCounterpartDropdownOpen(false); }}>
+                <span className="font-semibold">{item.name}</span>
+                {item.document && <span className="block text-xs text-muted-foreground">{formatFinancialDocument(item.document)}</span>}
+              </button>)}
+              {counterpartyLoading && <p className="px-3 py-2 text-xs text-muted-foreground">Buscando cadastros...</p>}
+              {!counterpartyLoading && visibleCounterparties.length === 0 && <p className="px-3 py-2 text-xs text-muted-foreground">Nenhum cadastro encontrado. Você pode informar um nome sem vínculo.</p>}
+            </div>}
+          </div>
+          {entryType === "payable" && hasPermission("customers.create") && <AdminButton variant="secondary" onClick={() => { setCounterpartDropdownOpen(false); setQuickSupplierOpen(true); }}>
+            <Plus size={16} /> Cadastrar
+          </AdminButton>}
         </div>
       </div>
       <details className="rounded-lg border border-border px-4 py-3">
@@ -248,5 +289,18 @@ export function FinanceEntryEditorDialog({
         </div>
       </details>
     </div>
-  </AdminDialog>;
+  </AdminDialog>
+  {quickSupplierOpen && <FinanceQuickSupplierDialog
+    onClose={() => setQuickSupplierOpen(false)}
+    onSaved={supplier => {
+      setSelectedCounterpartSnapshot(supplier);
+      setCounterpartId(supplier.id);
+      setCounterpartName(supplier.name);
+      setCounterpartDocument(supplier.document || "");
+      onCounterpartySearchChange(supplier.name);
+      setQuickSupplierOpen(false);
+      setCounterpartDropdownOpen(false);
+    }}
+  />}
+  </>;
 }
