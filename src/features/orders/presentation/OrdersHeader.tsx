@@ -50,7 +50,7 @@ export function OrdersHeader({
           {canCreate && (
             <AdminButton onClick={onCreate} aria-label="Nova OS" title="Nova OS" className="h-11 min-w-11 px-3 sm:px-4">
               <Plus size={17} />
-              <span className="hidden sm:inline">Nova OS</span>
+              <span>Nova OS</span>
             </AdminButton>
           )}
         </div>
