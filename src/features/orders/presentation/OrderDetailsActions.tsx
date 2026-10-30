@@ -73,21 +73,21 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   };
 
   return <>
-    <div aria-hidden="true" className="h-[9.5rem] md:hidden" />
+    <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
     <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-2.5 md:flex-row md:items-center md:justify-between md:gap-3">
-        <div className="flex min-w-0 items-center gap-2 md:flex-wrap">
+      <div className="mx-auto flex w-full max-w-6xl flex-row items-center gap-1.5 md:justify-between md:gap-3">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 md:flex-initial md:flex-wrap md:gap-2">
           <AdminIconButton onClick={onClose} ariaLabel="Fechar detalhes da OS" title="Fechar" className="h-10 w-10 shrink-0 md:hidden"><X size={17} /></AdminIconButton>
           <div className="hidden md:block"><BtnSecondary onClick={onClose}>Fechar</BtnSecondary></div>
           {canChangeSituation && <div className="min-w-0 flex-1 md:min-w-40 md:flex-none"><AdminSelect value={detail.situation_id || ""} onValueChange={value => { if (value) onSituationChange(value); }} options={[...(!detail.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-10 w-full min-w-0 py-1.5 text-xs font-bold" ariaLabel="Alterar situação da OS" /></div>}
         </div>
-        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId)) && <div className="flex min-w-0 flex-wrap justify-end gap-1.5 md:gap-2">
+        {(canRequestParts || canResolve || canComplete || canEditOrder || canCancel || (quoteMode && quoteFooterHostId)) && <div className="flex min-w-0 shrink-0 flex-nowrap items-center justify-end gap-1.5 md:flex-wrap md:gap-2">
           {quoteMode && quoteFooterHostId && <div id={quoteFooterHostId} className="flex min-w-0 flex-wrap items-center justify-end gap-1.5 md:gap-2" />}
-          {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
-          {canResolve && <BtnPrimary onClick={onResolve} className="h-11 w-auto min-w-0 px-4 md:h-10">Solucionar</BtnPrimary>}
-          {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-11 w-auto min-w-0 px-4 md:h-10">Concluir OS</BtnPrimary>}
+          {canRequestParts && <AdminButton variant="secondary" onClick={onRequestParts} aria-label="Pedir peças" title="Pedir peças" className="h-10 w-10 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><PackagePlus className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Pedir peças</span></AdminButton>}
+          {canResolve && <BtnPrimary onClick={onResolve} className="h-10 w-auto min-w-0 whitespace-nowrap px-2 text-xs md:px-4 md:text-sm">Solucionar</BtnPrimary>}
+          {canComplete && <BtnPrimary onClick={() => onComplete()} className="h-10 w-auto min-w-0 whitespace-nowrap px-2 text-xs md:px-4 md:text-sm">Concluir OS</BtnPrimary>}
           {canEditOrder && <BtnPrimary onClick={onEdit} className="h-11 w-11 min-w-0 !px-0 md:h-10 md:w-auto md:!px-4"><Pencil className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Editar OS</span></BtnPrimary>}
-          {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-11 w-11 min-w-0 border-red-200 !px-0 text-red-600 hover:bg-red-50 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
+          {canCancel && <AdminButton variant="secondary" onClick={() => setCancelOpen(true)} className="h-10 w-10 min-w-0 shrink-0 border-red-200 !px-0 text-red-600 hover:bg-red-50 md:h-10 md:w-auto md:!px-4" aria-label="Cancelar OS" title="Cancelar OS"><Ban className="h-5 w-5 shrink-0 md:h-4 md:w-4" /><span className="sr-only md:not-sr-only">Cancelar</span></AdminButton>}
         </div>}
       </div>
     </AdminStickyToolbar>
