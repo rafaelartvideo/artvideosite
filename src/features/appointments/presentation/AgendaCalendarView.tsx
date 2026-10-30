@@ -85,7 +85,7 @@ export function AgendaCalendarView(props: Props) {
         const dayEvents = adjacent ? [] : eventsFor(date);
         return <button type="button" key={dayKey(date)} onClick={() => setSelectedDay(dayKey(date))} disabled={adjacent} aria-label={`Ver agendamentos de ${date.toLocaleDateString("pt-BR")}`} aria-pressed={selectedDay === dayKey(date)} className={cn("relative min-w-0 border-r border-b border-border p-1 text-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary", props.compactModal ? "min-h-[44px]" : "min-h-[54px]", adjacent && "bg-muted/35", dayKey(date) === dayKey(props.cursor) && "bg-primary/10", selectedDay === dayKey(date) && "ring-2 ring-inset ring-amber-400")}>
           <span className={cn("mx-auto flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold", isToday(date) ? "bg-[#0057e7] text-white" : adjacent ? "text-[#b0bac8]" : "text-[#5a6a82]")}>{date.getDate()}</span>
-          {!adjacent && dayEvents.length > 0 && <div className="mt-1 flex justify-center"><span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-[9px] font-bold text-amber-800 dark:bg-amber-400/20 dark:text-amber-300">{dayEvents.length}</span></div>}
+          {!adjacent && dayEvents.length > 0 && <span className="mt-1 flex justify-center"><span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-100 px-1 text-[9px] font-bold text-amber-800 dark:bg-amber-400/20 dark:text-amber-300">{dayEvents.length}</span></span>}
         </button>;
       })}</div>
     </AdminCard>
