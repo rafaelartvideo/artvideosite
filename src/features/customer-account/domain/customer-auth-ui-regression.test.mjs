@@ -197,3 +197,27 @@ test("consulta de CPF não vaza nome do provedor e prova de cadastro tem consumo
   assert.match(sql, /v_existing_account/);
   assert.match(sql, /REVOKE ALL ON FUNCTION public\.artvideo_site_cpf_issue_v1/);
 });
+
+
+test("cache de CPF de 7 dias funciona por CPF, sem repetir consulta com nomes diferentes", () => {
+  const edge=read("supabase/functions/artvideo-customer-access/index.ts");
+  const sql=read("supabase/migrations/20261030151500_artvideo_site_cpf_cache_7_days.sql");
+  const start=edge.indexOf("async function verifySiteCpfWithCache");
+  const end=edge.indexOf("async function bridge",start);
+  assert.ok(start>0 && end>start);
+  const cache=edge.slice(start,end);
+  assert.match(cache,/site-cpf-cache:v1:cpf:/);
+  assert.match(cache,/site-cpf-cache:v1:name:/);
+  assert.match(cache,/artvideo_site_cpf_cache_read_v1/);
+  assert.match(cache,/if\(cached\?\.hit===true\)/);
+  assert.ok(cache.indexOf("if(cached?.hit===true)")<cache.indexOf("verifySiteCpfWithProvider(cpf)"));
+  assert.match(cache,/artvideo_site_cpf_cache_save_v1/);
+  assert.match(cache,/site-cpf-identity-hour/);
+  assert.match(cache,/site-cpf-identity-day/);
+  assert.doesNotMatch(cache,/return providerName/);
+  assert.match(sql,/private\.artvideo_site_cpf_cache/);
+  assert.match(sql,/now\(\)\+interval '7 days'/);
+  assert.match(sql,/artvideo-site-cpf-cache-prune/);
+  assert.match(sql,/REVOKE ALL ON private\.artvideo_site_cpf_cache FROM PUBLIC, anon, authenticated/);
+  assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.artvideo_site_cpf_cache_read_v1\(text\)/);
+});
