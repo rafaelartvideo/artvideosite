@@ -267,37 +267,46 @@ export function TabCustomerRequests() {
                   placeholder={searchBy === "order" ? "Descreva o produto ou serviço" : "Nome ou documento do cliente"} />
               </div>}
       </AdminMobileSearchSwitch>
-      <div className="hidden min-w-0 grid-cols-1 items-end gap-3 md:grid md:grid-cols-2 xl:grid-cols-3">
-        <div className="min-w-0 sm:col-span-2 xl:col-span-1">
-          <AdminMobileSearchSwitch
-            mobileOnly={false}
-            value={searchBy}
-            onChange={value => { setSearchBy(value); setSearch(""); setCustomerFilter(""); setPage(1); }}
-            options={[{ value: "order", label: "Pedido / Produto / Serviço" }, { value: "customer", label: "Cliente / CPF / CNPJ" }]}
-          >
-            <div className="relative min-w-0">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input
-                className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")}
-                aria-label={searchBy === "order" ? "Buscar pedido, produto ou serviço" : "Buscar cliente ou documento"}
-                value={searchBy === "order" ? search : customerFilter}
-                onChange={event => { if (searchBy === "order") setSearch(event.target.value); else setCustomerFilter(event.target.value); setPage(1); }}
-                placeholder={searchBy === "order" ? "Descreva o produto ou serviço" : "Nome ou documento do cliente"}
-              />
-            </div>
-          </AdminMobileSearchSwitch>
+      <div className="hidden min-w-0 grid-cols-2 items-end gap-3 md:grid xl:grid-cols-4">
+        <div className="min-w-0">
+          <label htmlFor="customer-requests-order-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Pedido</label>
+          <div className="relative min-w-0">
+            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="customer-requests-order-search"
+              type="search"
+              className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")}
+              value={search}
+              onChange={event => { setSearch(event.target.value); setPage(1); }}
+              placeholder="Produto ou serviço"
+            />
+          </div>
+        </div>
+        <div className="min-w-0">
+          <label htmlFor="customer-requests-customer-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Cliente / CPF / CNPJ</label>
+          <div className="relative min-w-0">
+            <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="customer-requests-customer-search"
+              type="search"
+              className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")}
+              value={customerFilter}
+              onChange={event => { setCustomerFilter(event.target.value); setPage(1); }}
+              placeholder="Nome ou documento"
+            />
+          </div>
         </div>
         <div className="min-w-0">
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo</label>
           <AdminSelect value={kind} onValueChange={value => { setKind(value as RequestKind | "all"); setPage(1); }}
             options={[{ value: "all", label: "Todos os tipos" }, { value: "product", label: "Produto" }, { value: "service", label: "Serviço" }]}
-            className="h-[42px] min-h-0 text-xs md:h-9" ariaLabel="Tipo do pedido" />
+            className="h-9 min-h-0 w-full min-w-0 text-xs" ariaLabel="Tipo do pedido" />
         </div>
         <div className="min-w-0">
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Situação</label>
           <AdminSelect value={status} onValueChange={value => { setStatus(value as RequestStatus | "all"); setPage(1); }}
-            options={[{ value: "all", label: "Todas as situações" }, ...statusOptions]} className="h-[42px] min-h-0 text-xs md:h-9"
-            ariaLabel="Situação do pedido" />
+            options={[{ value: "all", label: "Todas as situações" }, ...statusOptions]}
+            className="h-9 min-h-0 w-full min-w-0 text-xs" ariaLabel="Situação do pedido" />
         </div>
       </div>
     </AdminSearchPanel>
