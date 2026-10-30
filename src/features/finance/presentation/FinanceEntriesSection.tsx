@@ -8,7 +8,7 @@ import { AdminFieldLabel, FInput, FSelect, INPUT } from "@/shared/ui/admin/Admin
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -19,6 +19,7 @@ import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, Financia
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
 import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
+import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { formatFinancialDocument } from "./financeDisplay";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
@@ -60,15 +61,6 @@ function originText(entry: FinancialEntry) {
   return "Outra origem";
 }
 
-function distinctOriginText(entry: FinancialEntry) {
-  const origin = originText(entry);
-  const description = (entry.description || "").trim().toLocaleLowerCase("pt-BR");
-  const normalizedOrigin = origin.trim().toLocaleLowerCase("pt-BR");
-  // Títulos automáticos como "OS #48" já identificam a origem.
-  if (description === normalizedOrigin || description.startsWith(normalizedOrigin + " ") || description.startsWith(normalizedOrigin + ":")) return null;
-  return origin;
-}
-
 function useDebouncedValue<T>(value: T, delay = 350) {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -78,7 +70,7 @@ function useDebouncedValue<T>(value: T, delay = 350) {
   return debounced;
 }
 
-export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void }) {
+export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntry, newEntrySignal = 0 }: { entryType: FinancialEntryType; selectedEntryId?: string | null; onSelectEntry: (id: string | null) => void; newEntrySignal?: number }) {
   const { user, hasPermission, activeOrganizationId } = useAuth();
   const foundation = useFinanceFoundation();
   const [operationalFilter, setOperationalFilter] = useState("pending");
@@ -86,7 +78,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
   const [os, setOs] = useState("");
-  const [mobileCriterion, setMobileCriterion] = useState<"os" | "name" | "document" | "status" | "creator" | "dueFrom" | "dueTo">("name");
+  const [originSearch, setOriginSearch] = useState("");
+  const [mobileCriterion, setMobileCriterion] = useState<"os" | "name" | "document" | "origin" | "status" | "creator" | "dueFrom" | "dueTo">("name");
   const [creatorId, setCreatorId] = useState("");
   const [creatorSearch, setCreatorSearch] = useState("");
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -103,11 +96,19 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [recurringEditorOpen, setRecurringEditorOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const [counterpartySearch, setCounterpartySearch] = useState("");
+  useEffect(() => {
+    if (newEntrySignal <= 0) return;
+    setEditing(null);
+    setCounterpartySearch("");
+    setEditorOpen(true);
+  }, [newEntrySignal]);
   const debouncedName = useDebouncedValue(name);
   const debouncedDocument = useDebouncedValue(document);
   const debouncedOs = useDebouncedValue(os);
+  const debouncedOrigin = useDebouncedValue(originSearch);
   const debouncedCounterpartySearch = useDebouncedValue(counterpartySearch);
   const creatorsQuery = useQuery({
     queryKey: ["finance", activeOrganizationId || "none", "receivable-creators"],
@@ -137,7 +138,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     {
       page,
       pageSize,
-      search: "",
+      search: debouncedOrigin,
       sort,
       approvalStatus: "all",
       name: debouncedName,
@@ -155,10 +156,9 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
 
   useEffect(() => {
     setPage(1);
-  }, [name, document, os, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
+  }, [name, document, os, originSearch, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
-  const canCreate = hasPermission(isReceivable ? "finance.receivables.create" : "finance.payables.create");
   const canEdit = hasPermission(isReceivable ? "finance.receivables.edit" : "finance.payables.edit");
   const canApprove = false;
   const canSettle = hasPermission("finance.settlements.create");
@@ -197,10 +197,10 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     defaultPageSize={10} pageSizeOptions={[10, 20, 50, 100]}
   />;
 
-  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
+  const hasFilters = Boolean(operationalFilter !== "pending" || name || document || os || originSearch || creatorId || creatorSearch || dateFrom || dateTo || sort !== "newest");
   const resetFilters = () => {
     setOperationalFilter("pending");
-    setName(""); setDocument(""); setOs(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
+    setName(""); setDocument(""); setOs(""); setOriginSearch(""); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false); setDateFrom(""); setDateTo("");
     setSort("newest"); setPage(1);
   };
 
@@ -220,7 +220,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         options={[
           { value: "name", label: isReceivable ? "Nome do cliente" : "Nome do favorecido" },
           { value: "document", label: "CPF / CNPJ" },
-          { value: "os", label: "Número da OS" },
+          ...(isReceivable ? [{ value: "os" as const, label: "Número da OS" }] : []),
+          { value: "origin" as const, label: "Origem" },
           { value: "status", label: "Situação" },
           ...(isReceivable ? [{ value: "creator" as const, label: "Responsável" }] : []),
           { value: "dueFrom", label: "Vencimento de" },
@@ -228,7 +229,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         ]}
         onChange={value => {
           setMobileCriterion(value);
-          setName(""); setDocument(""); setOs("");
+          setName(""); setDocument(""); setOs(""); setOriginSearch("");
           setOperationalFilter("pending"); setCreatorId(""); setCreatorSearch(""); setCreatorOpen(false);
           setDateFrom(""); setDateTo(""); setPage(1);
         }}
@@ -258,30 +259,31 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               : <div className="relative min-w-0">
                   <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input type="search" className={INPUT + " h-[42px] w-full min-w-0 pl-9 text-sm"}
-                    value={mobileCriterion === "name" ? name : mobileCriterion === "document" ? document : os}
+                    value={mobileCriterion === "name" ? name : mobileCriterion === "document" ? document : mobileCriterion === "origin" ? originSearch : os}
                     onChange={event => {
                       const value = event.target.value;
                       if (mobileCriterion === "name") setName(value);
                       else if (mobileCriterion === "document") setDocument(value);
+                      else if (mobileCriterion === "origin") setOriginSearch(value);
                       else setOs(value);
                       setPage(1);
                     }}
                     inputMode={mobileCriterion === "document" ? "numeric" : "text"}
-                    aria-label={mobileCriterion === "name" ? "Buscar por nome" : mobileCriterion === "document" ? "Buscar por CPF ou CNPJ" : "Buscar por número da OS"}
-                    placeholder={mobileCriterion === "name" ? "Digite o nome" : mobileCriterion === "document" ? "Digite o CPF ou CNPJ" : "Digite o número da OS"} />
+                    aria-label={mobileCriterion === "name" ? "Buscar por nome" : mobileCriterion === "document" ? "Buscar por CPF ou CNPJ" : mobileCriterion === "origin" ? "Buscar por origem" : "Buscar por número da OS"}
+                    placeholder={mobileCriterion === "name" ? "Digite o nome" : mobileCriterion === "document" ? "Digite o CPF ou CNPJ" : mobileCriterion === "origin" ? "Descrição, OS, compra ou recorrência" : "Digite o número da OS"} />
                 </div>}
       </AdminMobileSearchSwitch>
-      <div className="hidden min-w-0 grid-cols-1 items-end gap-2 md:grid md:grid-cols-2 xl:grid-cols-4">
+      <div className="hidden min-w-0 grid-cols-1 items-end gap-3 md:grid md:grid-cols-3">
         {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
         <div className="hidden md:block"><FInput label="CPF / CNPJ" inputMode="numeric" value={document}
           onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" /></div>
-        <FSelect label="Situação" value={operationalFilter} options={[
+        <div className="hidden md:block"><FInput label="Origem" value={originSearch} onChange={(event: any) => setOriginSearch(event.target.value)} placeholder="Descrição ou origem do lançamento" /></div>
+        <FSelect label="Situação" value={operationalFilter options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
           { value: "settled", label: "Baixadas" },
         ]} onChange={(event: any) => setOperationalFilter(event.target.value)} />
-        {!isReceivable && <div className="hidden md:block"><FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         {isReceivable && <div ref={creatorContainerRef} className="relative z-20 min-w-0 space-y-1">
           <AdminFieldLabel label="Responsável" />
           <div className="relative">
@@ -330,18 +332,17 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             {entries.map(entry => <div key={entry.id}><button type="button" onClick={() => onSelectEntry(entry.id)}
               className="block w-full p-4 text-left transition-colors hover:bg-muted/50">
               <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{entry.description}</p>
+                <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : originText(entry)}</p>
                   <p className="mt-1 truncate text-xs text-muted-foreground">{entry.counterpart_name_snapshot || "Sem contraparte"} · {formatFinancialDocument(entry.counterpart_document_snapshot)}</p></div>
-                <p className="shrink-0 text-sm font-bold tabular-nums text-primary">{formatCurrency(entry.original_amount)}</p>
+                <p className="shrink-0 text-sm font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</p>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-muted-foreground">
                 <span>Vencimento: <strong className="text-foreground">{formatDate(entry.next_due_date)}</strong></span>
                 <span>Pagamento: <strong className="text-foreground">{displayPaymentMethods(entry)}</strong></span>
-                <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-foreground">{formatCurrency(entry.settled_amount || 0)}</strong></span>
+                <span>{isReceivable ? "Recebido" : "Pago"}: <strong className="text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</strong></span>
                 <span>Saldo: <strong className="text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {distinctOriginText(entry) && <Badge tone="blue">{distinctOriginText(entry)}</Badge>}
                 <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>
               </div>
             </button>
@@ -360,23 +361,25 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <FinanceTableSurface className="hidden md:block" pagination={pagination}>
           <table className="w-full min-w-[1160px]">
             <thead><tr>
-              <th className="text-left">Descrição</th>
+              <th className="text-left">Origem</th>
               <th className="text-left">Cliente / Fornecedor</th>
               <th className="text-left">Forma de pagamento</th>
               <th className="text-left">Vencimento</th>
               <th className="text-right">Valor</th>
               <th className="text-right">{isReceivable ? "Recebido" : "Pago"}</th>
+               {!isReceivable && <th className="text-right">Pendente</th>}
               <th className="text-left">Situação</th>
               <th className="text-right">Ações</th>
             </tr></thead>
             <tbody>{entries.map((entry: FinancialEntry) =>
               <FinanceTableRow key={entry.id} label={`Abrir ${entry.description}`} onOpen={() => onSelectEntry(entry.id)}>
-                <td><p className="font-bold text-foreground">{entry.description}</p>{distinctOriginText(entry) && <p className="text-[10px] font-semibold uppercase text-primary">{distinctOriginText(entry)}</p>}</td>
+                <td><p className="font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : originText(entry)}</p></td>
                 <td><p className="text-xs font-semibold text-foreground">{entry.counterpart_name_snapshot || "—"}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatFinancialDocument(entry.counterpart_document_snapshot)}</p></td>
                 <td className="text-xs text-muted-foreground">{entry.payment_method_summary || "A definir"}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
-                <td className="text-right font-bold tabular-nums text-primary">{formatCurrency(entry.original_amount)}</td>
-                <td className="text-right tabular-nums">{formatCurrency(entry.settled_amount || 0)}</td>
+                <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</td>
+                <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
+                 {!isReceivable && <td className="text-right font-semibold tabular-nums text-foreground">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
                 <td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
@@ -391,9 +394,6 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         </FinanceTableSurface>
       </>}
 
-    {canCreate && <AdminStickyToolbar className="justify-end">
-      <AdminButton onClick={() => { setCounterpartySearch(""); setEditing(null); setEditorOpen(true); }}>Novo</AdminButton>
-    </AdminStickyToolbar>}
 
     {selectedEntryId && <AdminDialog
       open
@@ -433,7 +433,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           }}
         />
         : finance.detailQuery.isLoading
-        ? <div className="py-10"><LoadingState text="Carregando extrato..." /></div>
+        ? <div className="flex min-h-52 w-full items-center justify-center text-center"><LoadingState text="Carregando extrato" /></div>
         : finance.detailQuery.error
           ? <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{finance.detailQuery.error instanceof Error ? finance.detailQuery.error.message : "Não foi possível carregar a conta."}</div>
           : finance.detailQuery.data
@@ -482,6 +482,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       saving={finance.saveMutation.isPending}
       onClose={closeEditor}
       onSave={save}
+      onRecurringSelected={() => { setEditorOpen(false); setEditing(null); setRecurringEditorOpen(true); }}
     />
+    {recurringEditorOpen && <FinanceRecurringSection dialogOnly initialEntryType={entryType} onDialogClose={() => setRecurringEditorOpen(false)} />}
   </div>;
 }
