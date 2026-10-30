@@ -8,6 +8,12 @@
 - Ponte HTTP interna recebe apenas `engine_info` autenticado com HMAC, sem números de telefone e sem retorno de tokens. Não existe operação `engine_update` ou acesso Docker no servidor Node.
 - A versão mais recente é consultada via endpoint público de releases do projeto asternic/wuzapi; não fazer upgrade automático do Whatsmeow por conta própria.
 
+## Monitoramento recorrente (sem executar upgrade)
+
+O workflow GitHub Actions `.github/workflows/wuzapi-release-monitor.yml` verifica diariamente, às **08h25 em Brasília**, a última release estável do repositório oficial. Quando identifica uma tag ainda não registrada, cria uma issue privada ao fluxo operacional do projeto da Union; o repositório pode ser público, portanto **não incluir dados de produção, números, senhas, URLs privadas ou logs nessa issue**.
+
+Este monitoramento é **somente aviso**. Não consulta a VPS, não sabe se existe atualização pendente para o contêiner instalado e não executa modificações. A execução diária depende de GitHub Actions estar habilitado e da permissão `issues:write` do `GITHUB_TOKEN`. A página da Union consulta a versão oficial sob demanda via Edge Function e só afirma existir atualização se a versão instalada tiver sido informada de forma confiável.
+
 ## Implantação pendente na VPS
 
 **A publicação do GitHub e da Edge Function não atualiza a VPS.** O processo `union-wuzapi-bridge` instalado deve receber a nova versão de `services/union-wuzapi-bridge/server.mjs` por uma implantação administrativa controlada, com validação `node --check`, backup do arquivo e reinício apenas da ponte. Não alterar o contêiner WuzAPI nessa etapa.
