@@ -219,7 +219,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         value={mobileCriterion}
         options={[
           { value: "name", label: isReceivable ? "Nome do cliente" : "Nome do favorecido" },
-          { value: "document", label: "CPF / CNPJ" },
+          { value: "document", label: isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor" },
           ...(isReceivable ? [{ value: "os" as const, label: "Número da OS" }] : []),
           { value: "origin" as const, label: "Origem" },
           { value: "status", label: "Situação" },
@@ -276,7 +276,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       <div className="hidden min-w-0 grid-cols-1 items-end gap-3 md:grid md:grid-cols-3">
         {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
-        <div className="hidden md:block"><FInput label="CPF / CNPJ" inputMode="numeric" value={document}
+        <div className="hidden md:block"><FInput label={isReceivable ? "CPF / CNPJ" : "CPF / CNPJ do fornecedor"} inputMode="numeric" value={document}
           onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" /></div>
         <div className="hidden md:block"><FInput label="Origem" value={originSearch} onChange={(event: any) => setOriginSearch(event.target.value)} placeholder="Descrição ou origem do lançamento" /></div>
         <FSelect label="Situação" value={operationalFilter} options={[
