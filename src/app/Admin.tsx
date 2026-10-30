@@ -472,7 +472,7 @@ export function AdminDashboard({
       onSignOut={() => signOut()}
       onToggleSidebar={() => setSidebarOpen(current => !current)}
     />}>
-      <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
+      <div ref={contentRef} className={`relative flex-1 min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable] p-4 sm:p-6${mobileLabelModule ? " admin-operation-mobile-labels" : ""}`}>
         <Suspense fallback={<LoadingState text={activeTab === "tools" && route.resourceId === "sac-digital" ? "Carregando SAC Digital..." : "Carregando módulo..."} />}>
         <RetainedAdminWorkspace ownerKey={activeWorkspaceKey}>
         {!canAccessTab(activeTab) ? (fallbackTab ? <LoadingState text="Abrindo módulo permitido..." /> : <NoEnabledModules />) : <Routes location={routeLocationSnapshot}>
