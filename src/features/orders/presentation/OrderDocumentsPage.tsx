@@ -270,11 +270,11 @@ function SituationQuickUploads({ situation, controller, onSuccess, onError }: { 
   };
 
   return (
-    <div className="flex min-w-0 flex-wrap items-center gap-2">
+    <div className="flex min-w-0 flex-nowrap items-center gap-1.5">
       <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={event => void upload(event.target.files)} />
       <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={event => void upload(event.target.files)} />
-      <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#edf3ff] disabled:opacity-50"><Upload size={14} /> Adicionar</button>
-      <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-[#0057e7]/25 bg-white px-3 py-2 text-[11px] font-black text-[#0057e7] hover:bg-[#f7faff] disabled:opacity-50"><Camera size={14} /> Tirar foto</button>
+      <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()} aria-label="Adicionar imagens" title="Adicionar imagens" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-card text-primary hover:bg-muted disabled:opacity-50"><Upload size={17} /></button>
+      <button type="button" disabled={uploading} onClick={() => cameraRef.current?.click()} aria-label="Tirar foto" title="Tirar foto" className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#0057e7]/25 bg-card text-primary hover:bg-muted disabled:opacity-50"><Camera size={17} /></button>
     </div>
   );
 }
@@ -429,10 +429,10 @@ export function OrderDocumentsPage({
         <div aria-hidden="true" className="h-[5.5rem] md:hidden" />
         <AdminStickyToolbar className="fixed inset-x-0 z-[70] block px-3 pt-3 md:sticky md:bottom-0 md:z-auto md:px-5 md:py-4" style={{ bottom: browserBottomInset ? `${browserBottomInset}px` : 0, paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
           <div className="mx-auto flex w-full max-w-6xl items-center gap-2">
-            {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <div className="order-last ml-auto"><OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" /></div>}
-            <BtnSecondary onClick={onClose}>Voltar</BtnSecondary>
-            {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)}>Novo</BtnPrimary>}
-            {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)}>Enviar</BtnPrimary>}
+            {!readOnly && (controller.canUploadAttachment || hasPermission("orders.checklists.manage")) && <div className="order-last ml-auto hidden md:block"><OrderChecklistMobileBridge orderId={order.id} osNumber={order.os_number} scope="documents" /></div>}
+            <BtnSecondary onClick={onClose} className="w-auto shrink-0">Voltar</BtnSecondary>
+            {activeTab === "attachments" && !readOnly && controller.canUploadAttachment && <BtnPrimary onClick={() => setNewAttachmentOpen(true)} className="ml-auto md:ml-0">Novo</BtnPrimary>}
+            {activeTab === "signatures" && canSendSignature && <BtnPrimary disabled={!hasOnlineSignatureTemplate} onClick={() => setSignatureSendRequestNonce(current => current + 1)} className="ml-auto md:ml-0">Enviar</BtnPrimary>}
           </div>
         </AdminStickyToolbar>
       </AdminPage>
