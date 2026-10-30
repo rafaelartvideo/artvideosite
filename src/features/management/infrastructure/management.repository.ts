@@ -48,6 +48,21 @@ export async function createManagementFolder(spaceId: string, parentId: string |
   const { error } = await supabase.from("management_folders").insert({ space_id:spaceId, parent_id:parentId, name });
   if (error) throw error;
 }
+// A movimentação conserva os IDs, vínculos, arquivos e respectivas versões.
+export async function moveManagementFolder(id:string,spaceId:string,parentId:string|null) {
+  const {data,error}=await supabase.from("management_folders")
+    .update({parent_id:parentId}).eq("id",id).eq("space_id",spaceId)
+    .is("deleted_at",null).select("id").single();
+  if(error)throw error;
+  if(!data)throw new Error("Pasta não encontrada.");
+}
+export async function moveManagementRecord(id:string,spaceId:string,folderId:string) {
+  const {data,error}=await supabase.from("management_records")
+    .update({folder_id:folderId}).eq("id",id).eq("space_id",spaceId)
+    .is("deleted_at",null).select("id").single();
+  if(error)throw error;
+  if(!data)throw new Error("Registro não encontrado.");
+}
 export async function renameManagementFolder(id: string, name: string) {
   const { error } = await supabase.from("management_folders").update({name}).eq("id",id);
   if (error) throw error;
