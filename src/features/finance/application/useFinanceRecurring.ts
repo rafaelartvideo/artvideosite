@@ -8,12 +8,12 @@ import {
   setFinancialRecurringRuleActive,
 } from "../infrastructure/finance-recurring.repository";
 
-export function useFinanceRecurring() {
+export function useFinanceRecurring(loadRules = true) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
-  const enabled = Boolean(activeOrganizationId);
+  const enabled = Boolean(activeOrganizationId && loadRules);
 
   const rulesQuery = useQuery({
     queryKey: queryKeys.finance.recurring(organizationKey),
