@@ -1,10 +1,10 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, MoreVertical, Search, X } from "lucide-react";
+import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, CircleX, MoreVertical, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
-import { AdminFieldLabel, FInput, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { AdminFieldLabel, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
 import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -19,7 +19,7 @@ import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, Financia
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
 import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
-import { FinanceRecurringSection } from "./FinanceRecurringSection";
+import { useFinanceRecurring } from "../application/useFinanceRecurring";
 import { formatFinancialDocument } from "./financeDisplay";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
@@ -96,7 +96,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
   const [editorOpen, setEditorOpen] = useState(false);
-  const [manageRecurringOpen, setManageRecurringOpen] = useState(false);
+  const [cancelRecurringEntry, setCancelRecurringEntry] = useState<{ ruleId: string; title: string } | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const [counterpartySearch, setCounterpartySearch] = useState("");
   useEffect(() => {
@@ -159,6 +160,39 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   }, [name, document, os, originSearch, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
+  const canManageRecurring = !isReceivable && hasPermission("finance.recurring.manage");
+  const recurring = useFinanceRecurring(!isReceivable && (hasPermission("finance.recurring.view") || canManageRecurring));
+  const recurringById = useMemo(() => new Map((recurring.rulesQuery.data || []).map(rule => [rule.id, rule])), [recurring.rulesQuery.data]);
+  const recurringRuleFor = (entry: FinancialEntry) => recurringById.get(sourceValue(entry, "recurring_rule_id"));
+  const isRecurringCancelled = (entry: FinancialEntry) => Boolean(sourceValue(entry, "recurring_cancelled_at")) || Boolean(recurringRuleFor(entry)?.cancelled_at);
+  const recurringBadge = (entry: FinancialEntry) => {
+    if (entry.origin_type !== "recurring") return null;
+    if (isRecurringCancelled(entry)) return <Badge tone="danger">Assinatura cancelada</Badge>;
+    if (recurringRuleFor(entry)?.is_active === false) return <Badge>Recorrência encerrada</Badge>;
+    return <Badge tone="blue">Recorrente</Badge>;
+  };
+  const canCancelRecurring = (entry: FinancialEntry) =>
+    canManageRecurring && entry.origin_type === "recurring"
+    && Boolean(sourceValue(entry, "recurring_rule_id"))
+    && !isRecurringCancelled(entry)
+    && recurringRuleFor(entry)?.is_active !== false;
+  const askCancelRecurring = (entry: FinancialEntry) => {
+    const ruleId = sourceValue(entry, "recurring_rule_id");
+    if (!ruleId) return;
+    setCancellationReason("");
+    setCancelRecurringEntry({ ruleId, title: entry.description });
+  };
+  const cancelRecurring = async () => {
+    if (!cancelRecurringEntry || recurring.cancelMutation.isPending) return;
+    try {
+      await recurring.cancelMutation.mutateAsync({ id: cancelRecurringEntry.ruleId, reason: cancellationReason.trim() || null });
+      notifyAdmin("Recorrência cancelada. Novos lançamentos interrompidos; pagamentos anteriores preservados.", "success");
+      setCancelRecurringEntry(null);
+      setCancellationReason("");
+    } catch (error) {
+      notifyAdmin(error instanceof Error ? error.message : "Não foi possível cancelar a recorrência.", "error");
+    }
+  };
   const canEdit = hasPermission(isReceivable ? "finance.receivables.edit" : "finance.payables.edit");
   const canApprove = false;
   const canSettle = hasPermission("finance.settlements.create");
@@ -343,7 +377,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <span>Saldo: <strong className={isReceivable ? "text-foreground" : "text-amber-600 dark:text-amber-400"}>{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</strong></span>
               </div>
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>
+                <Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}
               </div>
             </button>
             <div className="flex justify-end border-t border-border/60 px-4 pb-2 pt-2">
@@ -352,6 +386,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               </DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
                 {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
+                        {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
               </DropdownMenuContent></DropdownMenu>
             </div>
           </div>)}
@@ -373,19 +408,20 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
             </tr></thead>
             <tbody>{entries.map((entry: FinancialEntry) =>
               <FinanceTableRow key={entry.id} label={`Abrir ${entry.description}`} onOpen={() => onSelectEntry(entry.id)}>
-                <td><p className="font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : originText(entry)}</p></td>
+                <td><p className="font-bold text-foreground">{entry.origin_type === "manual" || entry.origin_type === "recurring" ? entry.description : originText(entry)}</p>{entry.origin_type === "recurring" && <p className="mt-1 text-[11px] text-muted-foreground">Assinatura / recorrência</p>}</td>
                 <td><p className="text-xs font-semibold text-foreground">{entry.counterpart_name_snapshot || "—"}</p><p className="mt-1 text-[11px] text-muted-foreground">{formatFinancialDocument(entry.counterpart_document_snapshot)}</p></td>
                 <td className="text-xs text-muted-foreground">{entry.payment_method_summary || "A definir"}</td>
                 <td className="text-xs font-semibold">{formatDate(entry.next_due_date)}</td>
                 <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(entry.original_amount)}</td>
                 <td className="text-right font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">{formatCurrency(entry.settled_amount || 0)}</td>
                  {!isReceivable && <td className="text-right font-semibold tabular-nums text-amber-600 dark:text-amber-400">{formatCurrency(entry.remaining_amount ?? entry.original_amount)}</td>}
-                <td><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge></td>
+                <td><div className="flex flex-wrap gap-1"><Badge tone={operationalTone(entry.operational_status)}>{operationLabels[entry.operational_status || "open"] || entry.operational_status}</Badge>{recurringBadge(entry)}</div></td>
                 <td><div className="flex justify-end"><DropdownMenu>
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
                        <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
                        {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
+                        {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
                      </DropdownMenuContent>
                    </DropdownMenu></div></td>
               </FinanceTableRow>)}
@@ -395,13 +431,18 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       </>}
 
 
-    {!isReceivable && hasPermission("finance.recurring.manage") && <section className="border-t border-border pt-4">
-      <button type="button" aria-expanded={manageRecurringOpen} onClick={() => setManageRecurringOpen(value => !value)}
-        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-muted">
-        <span aria-hidden="true">{manageRecurringOpen ? "▾" : "▸"}</span> Gerenciar recorrências
-      </button>
-      {manageRecurringOpen && <div className="mt-4"><FinanceRecurringSection /></div>}
-    </section>}
+    {cancelRecurringEntry && <AdminDialog open
+      onClose={() => { if (!recurring.cancelMutation.isPending) { setCancelRecurringEntry(null); setCancellationReason(""); } }}
+      title="Cancelar recorrência" description={cancelRecurringEntry.title} className="max-w-lg"
+      footer={<div className="flex flex-wrap justify-end gap-2">
+        <AdminButton variant="secondary" disabled={recurring.cancelMutation.isPending} onClick={() => { setCancelRecurringEntry(null); setCancellationReason(""); }}>Voltar</AdminButton>
+        <AdminButton variant="danger" loading={recurring.cancelMutation.isPending} onClick={() => void cancelRecurring()}><CircleX size={16} /> Confirmar cancelamento</AdminButton>
+      </div>}>
+      <div className="space-y-4">
+        <p className="text-sm text-foreground">Novas contas desta assinatura deixarão de ser geradas. Contas futuras ainda não pagas serão canceladas. Contas anteriores e pagamentos registrados permanecerão no histórico.</p>
+        <FTextarea label="Motivo do cancelamento (opcional)" rows={3} value={cancellationReason} onChange={(event: any) => setCancellationReason(event.target.value)} />
+      </div>
+    </AdminDialog>}
 
     {selectedEntryId && <AdminDialog
       open
@@ -420,6 +461,8 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
       bodyRef={receivableScrollRef}
       footer={settlementDialogOpen ? null : <div className="flex flex-wrap items-center justify-between gap-3">
         <AdminButton variant="secondary" onClick={() => { setSettlementDialogOpen(false); setLastSettledEntryId(null); onSelectEntry(null); }}>Fechar</AdminButton>
+        {finance.detailQuery.data?.id === selectedEntryId && canCancelRecurring(finance.detailQuery.data)
+          && <AdminButton variant="danger" onClick={() => askCancelRecurring(finance.detailQuery.data!)}><CircleX size={16} /> Cancelar recorrência</AdminButton>}
         {finance.detailQuery.data?.id === selectedEntryId && canSettle
           && !["cancelled", "reversed"].includes(finance.detailQuery.data.approval_status)
           && finance.detailQuery.data.installments.some(item => Number(item.original_amount) - Number(item.settled_amount) > 0.0001)
