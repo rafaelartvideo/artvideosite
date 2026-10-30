@@ -1,12 +1,12 @@
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, Pencil, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FCurrencyInput, FInput, FIntegerInput, FSelect, FTextarea } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -64,13 +64,14 @@ const emptyForm = () => ({
   allocations: emptyAllocations(),
 });
 
-export function FinanceRecurringSection() {
+export function FinanceRecurringSection({ createSignal = 0, dialogOnly = false, initialEntryType = "payable", onDialogClose }: { createSignal?: number; dialogOnly?: boolean; initialEntryType?: FinancialEntryType; onDialogClose?: () => void } = {}) {
   const { hasPermission } = useAuth();
   const recurring = useFinanceRecurring();
   const foundation = useFinanceFoundation();
   const canView = hasPermission("finance.recurring.view");
   const canManage = hasPermission("finance.recurring.manage");
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(dialogOnly);
+  useEffect(() => { if (createSignal > 0) { setForm({ ...emptyForm(), entry_type: initialEntryType }); setOpen(true); } }, [createSignal]);
   const [form, setForm] = useState(emptyForm);
   const [fieldErrors, setFieldErrors] = useState<{ description?: string; amount?: string; allocations?: string }>({});
   const [success, setSuccess] = useState("");
@@ -82,12 +83,6 @@ export function FinanceRecurringSection() {
 
   if (!canView) return <AdminCard className="p-6"><p className="text-sm text-[#5a6a82]">Você não possui permissão para visualizar recorrências.</p></AdminCard>;
 
-  const openNew = () => {
-    setForm(emptyForm());
-    setFieldErrors({});
-    setSuccess("");
-    setOpen(true);
-  };
 
   const edit = (rule: FinancialRecurringRule) => {
     setForm({
@@ -118,6 +113,7 @@ export function FinanceRecurringSection() {
   const close = () => {
     if (pending) return;
     setOpen(false);
+    onDialogClose?.();
     setForm(emptyForm());
     setFieldErrors({});
   };
@@ -160,6 +156,7 @@ export function FinanceRecurringSection() {
       const generated = await recurring.generateMutation.mutateAsync({ id });
       setSuccess(`Recorrência salva. ${generated.generated} ocorrência(s) gerada(s) para a janela de 90 dias.`);
       setOpen(false);
+      onDialogClose?.();
       setForm(emptyForm());
       setFieldErrors({});
     } catch (error) {
@@ -179,9 +176,9 @@ export function FinanceRecurringSection() {
   };
 
   return <div className="space-y-4">
-    {success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{success}</div>}
+    {!dialogOnly && success && <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{success}</div>}
 
-    <div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
+    {!dialogOnly && <><div className="flex flex-col gap-3 border-b border-border pb-4 sm:flex-row sm:items-center sm:justify-between">
       <p className="text-sm font-semibold text-muted-foreground">{rules.length} {rules.length === 1 ? "recorrência cadastrada" : "recorrências cadastradas"}</p>
 
     </div>
@@ -204,9 +201,9 @@ export function FinanceRecurringSection() {
         </table></FinanceTableSurface>}
 
 
-    {canManage && <AdminStickyToolbar className="justify-end"><AdminButton onClick={openNew}>Novo</AdminButton></AdminStickyToolbar>}
+    </>}
 
-    {open && <AdminDialog
+    {open && canManage && <AdminDialog
       open
       onClose={close}
       title={form.id ? "Editar recorrência" : "Nova recorrência"}
