@@ -12,11 +12,15 @@ test("finance header owns the context-specific new action", () => {
   assert.match(tab, /<Plus size=\{17\} \/> Novo/);
   assert.match(tab, /Gerar recibo/);
   assert.match(tab, /Histórico/);
+  assert.match(tab, /admin-action-blue-outline/);
+  assert.match(tab, /bg-primary\/25/);
+  assert.doesNotMatch(tab, /section === "recurring"/);
 });
 
 test("payables retain exactly three desktop filter columns and no OS field", () => {
   const entries = source("FinanceEntriesSection.tsx");
-  assert.match(entries, /md:grid md:grid-cols-3/);
+  assert.match(entries, /isReceivable \? "md:grid-cols-4" : "md:grid-cols-3"/);
+  assert.match(entries, /max-h-\[176px\]/);
   assert.match(entries, /label="Origem" value=\{originSearch\}/);
   assert.doesNotMatch(entries, /\{!isReceivable && <div[^\n]*label="OS"/);
   assert.match(entries, /value=\{operationalFilter\} options=/);
@@ -29,7 +33,11 @@ test("payables support supplier quick registration and recurring type", () => {
   assert.match(editor, /role="combobox"/);
   assert.match(editor, /FinanceQuickSupplierDialog/);
   assert.match(editor, /finance\.recurring\.manage/);
-  assert.match(editor, /onRecurringSelected\?\.\(\)/);
+  assert.match(editor, /setAccountType\(event\.target\.value\)/);
+  assert.match(editor, /recurring\.saveMutation\.mutateAsync/);
+  assert.match(editor, /FinanceModalDropdown/);
+  assert.match(source("FinanceModalDropdown.tsx"), /createPortal/);
+  assert.doesNotMatch(editor, /onRecurringSelected/);
   assert.match(source("FinanceQuickSupplierDialog.tsx"), /roles: \["supplier"\]/);
 });
 
@@ -39,6 +47,7 @@ test("finance amounts, summaries and loading retain requested styles", () => {
   assert.match(entries, /text-emerald-600 dark:text-emerald-400/);
   assert.match(entries, /text-foreground"\>\{formatCurrency\(entry\.original_amount\)\}/);
   assert.match(entries, /min-h-52 w-full items-center justify-center text-center/);
+  assert.match(entries, /text-amber-600 dark:text-amber-400/);
   assert.match(detail, /px-5 py-4 text-center/);
 });
 
@@ -47,4 +56,12 @@ test("financial sections use header creation and no sticky toolbars", () => {
     assert.doesNotMatch(source(name), /AdminStickyToolbar/, name);
     assert.match(source(name), /createSignal/, name);
   }
+});
+
+test("recurrence route is removed but recurring rules remain manageable in payables", () => {
+  const tabs = source("FinanceSectionTabs.tsx");
+  const entries = source("FinanceEntriesSection.tsx");
+  assert.doesNotMatch(tabs, /Recorrências/);
+  assert.match(entries, /Gerenciar recorrências/);
+  assert.match(entries, /<FinanceRecurringSection/);
 });
