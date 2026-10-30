@@ -166,3 +166,34 @@ test("site não utiliza o cookie de sessão exclusivo dos funcionários", () => 
   assert.match(client, /autoRefreshToken: true/);
   assert.match(client, /persistSession: true/);
 });
+
+
+test("cadastro verifica nome completo e CPF no servidor antes dos dois fluxos", () => {
+  const page = read("src/features/customer-account/presentation/CustomerAccountPage.tsx");
+  const edge = read("supabase/functions/artvideo-customer-access/index.ts");
+  assert.match(page, /"registration_identity"/);
+  assert.match(page, /const ticket=await validateSiteCpfName\(name,cpf\)/);
+  assert.match(page, /"registration_send",\{phone,cpf,name,site_cpf_ticket:ticket\}/);
+  assert.match(page, /site_cpf_ticket:ticket\}/);
+  assert.match(page, /registration_origin:"artvideo_customer"/);
+  assert.match(edge, /APICPF_SITE_API_KEY/);
+  assert.doesNotMatch(edge, /Deno\.env\.get\("APICPF_API_KEY"\)/);
+  assert.match(edge, /if\(action==="registration_identity"\)/);
+  assert.match(edge, /if\(cpfRequired&&!await siteCpfTicketConsume/);
+  assert.match(edge, /if\(await siteCpfEnforced\(\)\)/);
+  assert.match(edge, /site-cpf-global-minute/);
+  assert.match(edge, /site-cpf-global-day/);
+});
+
+test("consulta de CPF não vaza nome do provedor e prova de cadastro tem consumo único", () => {
+  const edge=read("supabase/functions/artvideo-customer-access/index.ts");
+  const sql=read("supabase/migrations/20261030143000_artvideo_site_cpf_full_name_verification.sql");
+  assert.match(edge, /O nome completo informado não corresponde ao CPF consultado/);
+  assert.match(edge, /return response\(request,\{success:true,required:true,ticket:data\.ticket\}\)/);
+  assert.match(sql, /artvideo_site_cpf_tickets/);
+  assert.match(sql, /used_at IS NULL/);
+  assert.match(sql, /identity_digest/);
+  assert.match(sql, /cpf_verification_required/);
+  assert.match(sql, /v_existing_account/);
+  assert.match(sql, /REVOKE ALL ON FUNCTION public\.artvideo_site_cpf_issue_v1/);
+});
