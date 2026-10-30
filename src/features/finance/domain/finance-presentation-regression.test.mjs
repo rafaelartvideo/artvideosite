@@ -82,3 +82,38 @@ test("receivable responsible dropdown binds outside-click to browser document, n
   assert.match(entries, /useDebouncedValue\(documentSearch\)/);
   assert.match(entries, /value=\{documentSearch\}/);
 });
+
+test("finance submenus show permission-scoped totals without duplicated table counters", () => {
+  const tab = source("TabFinance.tsx");
+  const tabs = source("FinanceSectionTabs.tsx");
+  const entries = source("FinanceEntriesSection.tsx");
+  const accounts = source("FinanceAccountsSection.tsx");
+  assert.match(tab, /count: "exact", head: true/);
+  assert.match(tab, /counts=\{tabCounts\}/);
+  assert.match(tabs, /Contas e caixas/);
+  assert.match(tabs, /counts\?\.\[id\]/);
+  assert.doesNotMatch(entries, /contas cadastradas/);
+  assert.doesNotMatch(accounts, /contas cadastradas/);
+});
+
+test("accounts and cash share one table with vault balances and account statements", () => {
+  const accounts = source("FinanceAccountsSection.tsx");
+  const cash = source("FinanceCashSection.tsx");
+  assert.match(accounts, /Saldo total/);
+  assert.match(accounts, /Bancos e PIX/);
+  assert.match(accounts, /Caixa físico/);
+  assert.match(accounts, /<Vault/);
+  assert.match(accounts, /setSelectedAccountId\(account\.id\)/);
+  assert.match(accounts, /Extrato da conta/);
+  assert.match(accounts, /max-h-\[264px\].*overflow-y-auto/);
+  assert.match(accounts, /movementPageSize: 60/);
+  assert.match(accounts, /Abrir caixa/);
+  assert.match(accounts, /Suprimento/);
+  assert.match(accounts, /Sangria/);
+  assert.match(accounts, /Fechar caixa/);
+  assert.doesNotMatch(accounts, /<FinanceCashSection/);
+  assert.match(cash, /openMutation\.mutateAsync/);
+  assert.match(cash, /adjustmentMutation\.mutateAsync/);
+  assert.match(cash, /closeMutation\.mutateAsync/);
+  assert.doesNotMatch(cash, /Caixa físico<\/h3>/);
+});
