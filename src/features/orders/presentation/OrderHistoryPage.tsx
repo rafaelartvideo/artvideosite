@@ -125,7 +125,7 @@ export function OrderHistoryPage({
     <AdminPage open onClose={onClose} breadcrumb={`${breadcrumb} > ${order.os_number || "OS"} > Histórico`} title="Histórico da OS" subtitle="Linha do tempo de alterações e registros da equipe" maxW="max-w-2xl">
       <div className="space-y-4 p-4 sm:p-5">
         <AdminCard className="bg-muted/35 p-3 shadow-none">
-          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] sm:items-end">
+          <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
             <div className="min-w-0 w-full">
               <label className="mb-1 block text-[10px] font-bold uppercase text-muted-foreground">Usuário</label>
               <AdminSelect
@@ -141,24 +141,17 @@ export function OrderHistoryPage({
               />
             </div>
 
-            <label className="min-w-0 w-full text-[10px] font-bold uppercase text-muted-foreground">
-              Data
-              <input
-                type="date"
-                value={history.dateFilter}
-                onChange={(event) => history.setDateFilter(event.target.value)}
-                className={cn(INPUT, "mt-1 w-full min-w-0 text-xs font-medium normal-case")}
-              />
-            </label>
-
-            <div className="flex min-w-0 items-end">
-              <button
-                type="button"
+            <div className="flex min-w-0 w-full items-end gap-2">
+              <label className="min-w-0 flex-1 text-[10px] font-bold uppercase text-muted-foreground">
+                Data
+                <input type="date" value={history.dateFilter} onChange={event => history.setDateFilter(event.target.value)}
+                  className={cn(INPUT, "mt-1 w-full min-w-0 text-xs font-medium normal-case")} />
+              </label>
+              <button type="button"
                 onClick={() => history.setSort(history.sort === "desc" ? "asc" : "desc")}
                 aria-label={history.sort === "desc" ? "Ordenar mais antigos primeiro" : "Ordenar mais recentes primeiro"}
                 title={history.sort === "desc" ? "Mais recentes primeiro" : "Mais antigos primeiro"}
-                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
+                className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground">
                 {history.sort === "desc" ? <SortDesc className="h-[18px] w-[18px]" /> : <SortAsc className="h-[18px] w-[18px]" />}
               </button>
             </div>
@@ -227,15 +220,15 @@ export function OrderHistoryPage({
           <button type="button" className="ml-2 font-bold underline" onClick={() => void linkedWorkQuery.refetch()}>Tentar novamente</button>
         </div>}
       </div>
-      <AdminStickyToolbar className="gap-2 px-3 py-3 sm:justify-between sm:px-5 sm:py-4">
-        <BtnSecondary onClick={onClose} className="min-w-0 flex-1 sm:flex-none">Voltar para a OS</BtnSecondary>
+      <AdminStickyToolbar className="flex items-center justify-between gap-2 px-3 py-3 sm:px-5 sm:py-4">
+        <BtnSecondary onClick={onClose} className="w-auto shrink-0">Voltar para a OS</BtnSecondary>
         {(canCreate || canCreateWorkItem) && <DropdownMenu>
           <DropdownMenuTrigger
             type="button"
             aria-label="Novo"
-            className="admin-primary-gradient inline-flex h-11 w-11 min-w-0 flex-none items-center justify-center rounded-lg border border-primary/30 px-0 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-auto sm:w-auto sm:px-4 sm:py-2.5"
+            className="admin-primary-gradient inline-flex h-11 min-w-0 flex-none items-center justify-center rounded-lg border border-primary/30 px-4 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-auto sm:py-2.5"
           >
-            <Plus className="h-5 w-5 sm:hidden" /><span className="sr-only sm:not-sr-only">Novo</span>
+            <Plus className="h-4 w-4" /><span>Novo</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
             {canCreate && <DropdownMenuItem onSelect={() => { history.setText(""); history.setModalOpen(true); }}>
