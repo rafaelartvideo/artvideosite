@@ -19,6 +19,7 @@ import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, Financia
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
 import { FinanceSettlementDialog } from "./FinanceSettlementDialog";
 import { FinanceEntryEditorDialog } from "./FinanceEntryEditorDialog";
+import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { formatFinancialDocument } from "./financeDisplay";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 
@@ -95,6 +96,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const receivableScrollRef = useRef<HTMLDivElement>(null);
   const [pageSize, setPageSize] = useState(10);
   const [editorOpen, setEditorOpen] = useState(false);
+  const [manageRecurringOpen, setManageRecurringOpen] = useState(false);
   const [editing, setEditing] = useState<FinancialEntryDetail | null>(null);
   const [counterpartySearch, setCounterpartySearch] = useState("");
   useEffect(() => {
@@ -128,7 +130,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
     const choices = creatorsQuery.data || [];
     return (search && !creatorId
       ? choices.filter(item => item.name.toLocaleLowerCase("pt-BR").includes(search))
-      : choices).slice(0, 8);
+      : choices);
   }, [creatorsQuery.data, creatorSearch, creatorId]);
   const finance = useFinanceEntries(
     entryType,
@@ -392,6 +394,14 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         </FinanceTableSurface>
       </>}
 
+
+    {!isReceivable && hasPermission("finance.recurring.manage") && <section className="border-t border-border pt-4">
+      <button type="button" aria-expanded={manageRecurringOpen} onClick={() => setManageRecurringOpen(value => !value)}
+        className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-card px-4 text-sm font-semibold text-foreground hover:bg-muted">
+        <span aria-hidden="true">{manageRecurringOpen ? "▾" : "▸"}</span> Gerenciar recorrências
+      </button>
+      {manageRecurringOpen && <div className="mt-4"><FinanceRecurringSection /></div>}
+    </section>}
 
     {selectedEntryId && <AdminDialog
       open
