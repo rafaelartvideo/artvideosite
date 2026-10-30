@@ -6,7 +6,7 @@ export function AdminInlineSearch({
   onChange,
   placeholder = "Buscar...",
   ariaLabel,
-  iconTone = "primary",
+  iconTone = "neutral",
   size = "default",
 }: {
   value: string;
