@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth";
 import { hasCustomerAddressData, normalizeSharedMapUrl, validateCustomerAddress } from "@/lib/address";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminCard, AdminIconButton, AdminPage, BtnPrimary, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/AdminFeedback";
@@ -145,6 +146,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
 
   const [nameSearch, setNameSearch] = useState("");
   const [documentSearch, setDocumentSearch] = useState("");
+  const [mobileSearchField, setMobileSearchField] = useState<"name" | "document">("name");
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [creatorFilter, setCreatorFilter] = useState("all");
@@ -773,18 +775,50 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
         </div>
       </div>
       <div className="p-3 sm:p-4">
+
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <div className="min-w-0">
+          <div className="col-span-2 min-w-0 md:hidden">
+            <AdminMobileSearchSwitch
+              value={mobileSearchField}
+              options={[{ value: "name", label: "Nome / Razão social" }, { value: "document", label: "CPF / CNPJ" }]}
+              onChange={value => {
+                if (value === mobileSearchField) return;
+                setMobileSearchField(value);
+                setNameSearch("");
+                setDocumentSearch("");
+                setPage(1);
+              }}
+            >
+              <div className="relative min-w-0">
+                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  id="registrations-mobile-search"
+                  type="search"
+                  aria-label={mobileSearchField === "name" ? "Buscar cadastro por nome ou razão social" : "Buscar cadastro por CPF ou CNPJ"}
+                  value={mobileSearchField === "name" ? nameSearch : documentSearch}
+                  onChange={event => {
+                    if (mobileSearchField === "name") setNameSearch(event.target.value);
+                    else setDocumentSearch(event.target.value);
+                    setPage(1);
+                  }}
+                  inputMode={mobileSearchField === "document" ? "numeric" : "text"}
+                  placeholder={mobileSearchField === "name" ? "Nome / Razão social" : "Digite o CPF ou CNPJ"}
+                  className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")}
+                />
+              </div>
+            </AdminMobileSearchSwitch>
+          </div>
+          <div className="hidden min-w-0 md:block">
             <label htmlFor="registrations-name" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
             <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+              <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input id="registrations-name" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")} />
             </div>
           </div>
-          <div className="min-w-0">
+          <div className="hidden min-w-0 md:block">
             <label htmlFor="registrations-document" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CPF/CNPJ</label>
             <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+              <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input id="registrations-document" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")} />
             </div>
           </div>
