@@ -199,7 +199,9 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       employeeOnly: platformUsersOnly,
     }),
     enabled: Boolean(activeOrganizationId && canView && !routeResourceId),
-    placeholderData: previous => previous,
+    // Reaproveita a página anterior apenas dentro da mesma empresa.
+    // Evita exibir dados de outra organização durante a troca de contexto.
+    placeholderData: (previous, previousQuery) => previousQuery?.queryKey[2] === activeOrganizationId ? previous : undefined,
   });
   const items = registrationsQuery.data?.items ?? [];
   const totalItems = registrationsQuery.data?.total ?? 0;
