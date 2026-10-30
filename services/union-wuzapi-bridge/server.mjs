@@ -185,7 +185,36 @@ async function provision(id, org) {
   return attempt;
 }
 
+// Visibilidade global somente leitura, protegida pela mesma assinatura HMAC.
+// O usuário do serviço NÃO recebe acesso ao Docker ou comandos de atualização.
+async function engineInfo() {
+  let report = {};
+  try {
+    const raw = JSON.parse(await readFile("/opt/union-wuzapi-bridge/engine-release.json", "utf8"));
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) report = raw;
+  } catch { /* Relatório ainda não instalado: versão desconhecida, nunca inferida. */ }
+  let reachable = false;
+  try {
+    const response = await fetch(wuzapiBase + "/admin/users", {
+      headers: { Authorization: adminToken },
+      signal: AbortSignal.timeout(4000),
+    });
+    reachable = response.ok;
+    // Intencionalmente não ler nem retornar usuários, tokens ou sessões.
+    await response.body?.cancel();
+  } catch { reachable = false; }
+  return {
+    ok: true, action: "engine_info", engine_reachable: reachable,
+    version: typeof report.version === "string" && /^v?[0-9]+\\.[0-9]+\\.[0-9]+$/.test(report.version) ? report.version : null,
+    image: typeof report.image === "string" && report.image.length <= 180 ? report.image : null,
+    image_id: typeof report.image_id === "string" && /^sha256:[a-f0-9]{64}$/.test(report.image_id) ? report.image_id : null,
+    observed_at: typeof report.observed_at === "string" ? report.observed_at : null,
+  };
+}
 async function operate({ action, connection_id: id, organization_id: org, chat_jid: chatJid, body_text: bodyText, client_message_id: clientMessageId, media_url: mediaUrl, media_name: mediaName, media_mime: mediaMime, media_type: mediaType, download_url: downloadUrl, media_key: mediaKey, file_sha256: fileSHA256, file_enc_sha256: fileEncSHA256, file_length: fileLength }) {
+  // Consulta de infraestrutura não usa tenant ou sessão de WhatsApp.
+  // A autenticação HMAC é exigida antes de chamar operate().
+  if (action === "engine_info") return engineInfo();
   if (!uuid(id) || !uuid(org)) throw new Error("bad_request");
   if (!["provision", "connect", "disconnect", "delete", "status", "qr", "logout", "webhook_setup", "send_text", "send_media", "download_media", "contact_lookup", "contact_avatar", "presence_subscribe", "contacts_export", "number_check"].includes(action)) throw new Error("bad_request");
   if (action === "provision") return provision(id, org);
