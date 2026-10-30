@@ -6,6 +6,7 @@ import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminFieldLabel, FInput, FSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { EmptyState, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { AdminButton, AdminDialog, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
@@ -85,6 +86,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   const [name, setName] = useState("");
   const [document, setDocument] = useState("");
   const [os, setOs] = useState("");
+  const [mobileCriterion, setMobileCriterion] = useState<"os" | "name" | "document">("name");
   const [creatorId, setCreatorId] = useState("");
   const [creatorSearch, setCreatorSearch] = useState("");
   const [creatorOpen, setCreatorOpen] = useState(false);
@@ -213,17 +215,38 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
           options={[{ value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigas" }]} />
       </>}
     >
+      <AdminMobileSearchSwitch
+        value={mobileCriterion}
+        options={[{value:"name",label:isReceivable?"Nome do cliente":"Nome do favorecido"},{value:"document",label:"CPF / CNPJ"},{value:"os",label:"Número da OS"}]}
+        onChange={value=>{setMobileCriterion(value);setName("");setDocument("");setOs("");setPage(1);}}
+      >
+        <div className="relative min-w-0">
+          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input type="search" className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"}
+            value={mobileCriterion==="name"?name:mobileCriterion==="document"?document:os}
+            onChange={event=>{
+              const value=event.target.value;
+              if(mobileCriterion==="name")setName(value);
+              else if(mobileCriterion==="document")setDocument(value);
+              else setOs(value);
+              setPage(1);
+            }}
+            inputMode={mobileCriterion==="document"?"numeric":"text"}
+            aria-label={mobileCriterion==="name"?"Buscar por nome":mobileCriterion==="document"?"Buscar por CPF ou CNPJ":"Buscar por número da OS"}
+            placeholder={mobileCriterion==="name"?"Digite o nome":mobileCriterion==="document"?"Digite o CPF ou CNPJ":"Digite o número da OS"} />
+        </div>
+      </AdminMobileSearchSwitch>
       <div className="grid min-w-0 grid-cols-1 items-end gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        {isReceivable && <FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />}
-        <FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" />
-        <FInput label="CPF / CNPJ" inputMode="numeric" value={document}
-          onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" />
+        {isReceivable && <div className="hidden md:block"><FInput label="Número da OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
+        <div className="hidden md:block"><FInput label={isReceivable ? "Nome do cliente" : "Nome do favorecido"} value={name} onChange={(event: any) => setName(event.target.value)} placeholder="Nome" /></div>
+        <div className="hidden md:block"><FInput label="CPF / CNPJ" inputMode="numeric" value={document}
+          onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" /></div>
         <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
           { value: "settled", label: "Baixadas" },
         ]} onChange={(event: any) => setOperationalFilter(event.target.value)} />
-        {!isReceivable && <FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" />}
+        {!isReceivable && <div className="hidden md:block"><FInput label="OS" value={os} onChange={(event: any) => setOs(event.target.value)} placeholder="Número da OS" /></div>}
         {isReceivable && <div ref={creatorContainerRef} className="relative z-20 min-w-0 space-y-1">
           <AdminFieldLabel label="Responsável" />
           <div className="relative">
