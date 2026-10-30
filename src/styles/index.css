@@ -1154,3 +1154,9 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
     animation: none;
   }
 }
+
+/* Os ícones de lupa dentro dos campos de busca são neutros em todo o CRM.
+   O destaque azul permanece nos botões, focos e barras de título. */
+.admin-crm svg.lucide-search.pointer-events-none {
+  color: var(--muted-foreground) !important;
+}
