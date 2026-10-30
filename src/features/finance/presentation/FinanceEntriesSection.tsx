@@ -386,7 +386,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
               </DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
                 {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
-                        {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
+                 {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
               </DropdownMenuContent></DropdownMenu>
             </div>
           </div>)}
