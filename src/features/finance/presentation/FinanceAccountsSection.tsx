@@ -166,9 +166,11 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
     if (!options.length || cash.sessionsQuery.isLoading) return null;
     return <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <AdminButton variant="tertiary" size="sm" ariaLabel={session ? "Operações do caixa" : "Abrir caixa"}>
+        <button type="button"
+          aria-label={session ? "Operações do caixa" : "Abrir caixa"}
+          className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border admin-action-blue-outline px-2.5 py-1.5 text-xs font-bold hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
           <MoreVertical size={16} /> <span className="hidden lg:inline">{session ? "Operações" : "Abrir caixa"}</span>
-        </AdminButton>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
         {options.map(option => {
