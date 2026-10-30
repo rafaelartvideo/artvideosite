@@ -71,7 +71,7 @@ test("lixeira global funciona em modal com expurgo seguro e prazo de sete dias",
   const trash=read("src/features/management/presentation/ManagementTrashDialog.tsx");
   const worker=read("supabase/functions/union-management-trash-cleanup/index.ts");
   const sql=read("supabase/migrations/20261028213000_union_management_trash_seven_day_purge.sql");
-  assert.match(page,/actions=\{<AdminButton size="sm" variant="tertiary"/);
+  assert.match(page,/<AdminButton size="sm" variant="tertiary" onClick=\{\(\)=>setTrashOpen\(true\)\}/);
   assert.match(page,/ManagementTrashDialog open=\{trashOpen\}/);
   assert.match(trash,/Esvaziar lixeira/);
   assert.match(trash,/Excluir definitivamente/);
