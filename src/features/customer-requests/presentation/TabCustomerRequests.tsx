@@ -241,7 +241,7 @@ export function TabCustomerRequests() {
             options={[{ value: "order", label: "Pedido / Produto / Serviço" }, { value: "customer", label: "Cliente / CPF / CNPJ" }]}
             className="h-[42px] min-h-0 w-full text-xs md:h-9" ariaLabel="Selecionar critério da busca" />
           <div className="relative mt-2 min-w-0">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
             <input className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-xs md:h-9")}
               aria-label={searchBy === "order" ? "Buscar pedido, produto ou serviço" : "Buscar cliente ou documento"}
               value={searchBy === "order" ? search : customerFilter}
