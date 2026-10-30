@@ -14,7 +14,7 @@ const LABELS: Record<FinanceSection, string> = {
   receivables: "A receber",
   payables: "A pagar",
   movements: "Extrato",
-  accounts: "Contas e caixa",
+  accounts: "Contas e caixas",
   reports: "Relatórios",
   registries: "Configurações",
 };
@@ -52,11 +52,12 @@ export function FinanceSubsectionTabs<T extends string>({
 }
 
 export function FinanceSectionTabs({
-  section, allowedSections, onSelect,
+  section, allowedSections, onSelect, counts,
 }: {
   section: FinanceSection;
   allowedSections: FinanceSection[];
   onSelect: (section: FinanceSection) => void;
+  counts?: Partial<Record<FinanceSection, number>>;
 }) {
   const primary = allowedSections.filter(id => id !== "registries");
   const secondary = allowedSections.filter(id => id === "registries");
@@ -71,6 +72,11 @@ export function FinanceSectionTabs({
           className={cn(tabClasses, selected ? "text-primary after:scale-x-100" : "text-muted-foreground after:scale-x-0 hover:text-primary")}>
           <Icon size={15} aria-hidden="true" />
           {LABELS[id]}
+          {counts?.[id] !== undefined && <span
+            aria-label={`${counts[id]!.toLocaleString("pt-BR")} cadastradas`}
+            className={cn("ml-0.5 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-black tabular-nums", selected ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground")}>
+            {counts[id]!.toLocaleString("pt-BR")}
+          </span>}
         </button>;
       })}
       {secondary.length > 0 && <>
