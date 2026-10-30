@@ -9,6 +9,7 @@ import {
 } from "@/shared/ui/admin/AdminLayout";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, FInput, FToggle, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { ConfirmDialog, EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -81,6 +82,7 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
   const [draft, setDraft] = useState<Draft | null>(null);
   const [deleteItem, setDeleteItem] = useState<ShippingZone | null>(null);
   const [search, setSearch] = useState("");
+  const [mobileCriterion, setMobileCriterion] = useState<"region" | "status">("region");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [sortOrder, setSortOrder] = useState<SortOrder>("asc");
   const [page, setPage] = useState(1);
@@ -233,7 +235,20 @@ export function SiteShippingZones({ canUpdate, onBack }: { canUpdate: boolean; o
       <AdminSearchSortMenu value={sortOrder} onChange={value => { setSortOrder(value); setPage(1); }}
         options={[{ value: "asc", label: "CEP crescente" }, { value: "desc", label: "CEP decrescente" }]} />
     </>}>
-      <div className="grid min-w-0 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] sm:items-end">
+      <AdminMobileSearchSwitch value={mobileCriterion}
+        options={[{value:"region",label:"Região / CEP"},{value:"status",label:"Situação"}]}
+        onChange={value=>{setMobileCriterion(value);setSearch("");setStatusFilter("all");setPage(1);}}>
+        {mobileCriterion==="status"
+          ? <AdminSelect ariaLabel="Filtrar situação" value={statusFilter} className="h-[42px] w-full min-w-0"
+              onValueChange={value=>{setStatusFilter(value as StatusFilter);setPage(1);}} options={STATUS_OPTIONS}/>
+          : <div className="relative min-w-0">
+              <Search size={16} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input type="search" className={INPUT+" h-[42px] w-full min-w-0 pl-10 text-sm"}
+                aria-label="Buscar região ou CEP" value={search}
+                onChange={event=>{setSearch(event.target.value);setPage(1);}} placeholder="Nome da região ou CEP" />
+            </div>}
+      </AdminMobileSearchSwitch>
+      <div className="hidden min-w-0 gap-3 md:grid md:grid-cols-[minmax(0,1fr)_minmax(180px,220px)] md:items-end">
         <div className="relative min-w-0">
           <label htmlFor="delivery-cep-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
             Buscar
