@@ -52,20 +52,43 @@ export function ImageUpload({ bucket, currentMediaId, onUpload, label = "Imagem"
     {displayUrl && <div className="mb-3 flex h-28 w-full max-w-44 items-center justify-center overflow-hidden rounded-xl border border-border bg-muted p-2"><img src={displayUrl} alt="" className="max-h-full max-w-full object-contain" /></div>}
     <input ref={inputRef} type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" onChange={handleFile} className="hidden" />
     <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFile} className="hidden" />
-    {canUpload && (bucket === "product-images" || bucket === "service-images") && <p className="mb-2 text-[11px] text-muted-foreground">Compressão automática das fotos para melhorar o carregamento do site.</p>}
-    {canUpload && (photoActions ? <div className="grid w-full min-w-0 grid-cols-2 gap-2">
-      <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading} loadingText="Enviando..." aria-label={displayUrl ? "Trocar imagem" : "Adicionar imagem"} title={displayUrl ? "Trocar imagem" : "Adicionar imagem"} className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-primary/30 px-2 py-0 text-primary hover:bg-primary/5 md:px-3"><Upload size={18} className="shrink-0" /><span className="hidden text-xs md:inline">{displayUrl ? "Trocar" : "Adicionar"}</span></AdminButton>
-      <AdminButton variant="secondary" size="sm" onClick={() => cameraInputRef.current?.click()} loading={uploading} loadingText="Enviando..." aria-label="Abrir câmera" title="Abrir câmera" className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-primary/30 px-2 py-0 text-primary hover:bg-primary/5 md:px-3"><Camera size={18} className="shrink-0" /><span className="hidden text-xs md:inline">Câmera</span></AdminButton>
-    </div> : <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading} loadingText="Enviando..." className="border-primary/30 text-primary hover:bg-primary/5"><Upload size={13} /> {displayUrl ? "Trocar imagem" : "Selecionar imagem"}</AdminButton>)}
-    {canUpload && onRemove && Boolean(currentMediaId) && <AdminButton variant="secondary" size="sm" onClick={handleRemove}
-      disabled={uploading}
-      aria-label={`Remover ${label.toLowerCase()}`}
-      title={`Remover ${label.toLowerCase()}`}
-      className={removeIconOnly
-        ? "mt-2 !h-9 !w-9 !min-w-9 !p-0 border-destructive/30 text-destructive hover:bg-destructive/5"
-        : "mt-2 w-full border-destructive/30 text-destructive hover:bg-destructive/5"}>
-      <Trash2 size={16} />{!removeIconOnly && " Remover imagem"}
-    </AdminButton>}
+    {canUpload && (removeIconOnly
+      ? <div className="flex w-full max-w-44 items-center gap-2">
+          <AdminButton
+            variant="secondary"
+            size="sm"
+            onClick={() => inputRef.current?.click()}
+            loading={uploading}
+            aria-label={displayUrl ? "Trocar imagem" : "Adicionar imagem"}
+            title={displayUrl ? "Trocar imagem" : "Adicionar imagem"}
+            className="!h-9 min-w-0 flex-1 !px-2 border-primary/30 text-primary hover:bg-primary/5"
+          ><Upload size={14} /> {displayUrl ? "Trocar" : "Adicionar"}</AdminButton>
+          {onRemove && Boolean(currentMediaId) && <AdminButton
+            variant="secondary"
+            size="sm"
+            onClick={handleRemove}
+            disabled={uploading}
+            aria-label={`Remover ${label.toLowerCase()}`}
+            title={`Remover ${label.toLowerCase()}`}
+            className="!h-9 !w-9 !min-w-9 shrink-0 !p-0 border-destructive/30 text-destructive hover:bg-destructive/5"
+          ><Trash2 size={16} /></AdminButton>}
+        </div>
+      : <div className="space-y-2">
+          {photoActions ? <div className="grid w-full min-w-0 grid-cols-2 gap-2">
+            <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading} loadingText="Enviando..." aria-label={displayUrl ? "Trocar imagem" : "Adicionar imagem"} title={displayUrl ? "Trocar imagem" : "Adicionar imagem"} className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-primary/30 px-2 py-0 text-primary hover:bg-primary/5 md:px-3"><Upload size={18} className="shrink-0" /><span className="hidden text-xs md:inline">{displayUrl ? "Trocar" : "Adicionar"}</span></AdminButton>
+            <AdminButton variant="secondary" size="sm" onClick={() => cameraInputRef.current?.click()} loading={uploading} loadingText="Enviando..." aria-label="Abrir câmera" title="Abrir câmera" className="h-[42px] w-full min-w-0 justify-center gap-1.5 border-primary/30 px-2 py-0 text-primary hover:bg-primary/5 md:px-3"><Camera size={18} className="shrink-0" /><span className="hidden text-xs md:inline">Câmera</span></AdminButton>
+          </div> : <AdminButton variant="secondary" size="sm" onClick={() => inputRef.current?.click()} loading={uploading} loadingText="Enviando..." className="border-primary/30 text-primary hover:bg-primary/5"><Upload size={13} /> {displayUrl ? "Trocar imagem" : "Selecionar imagem"}</AdminButton>}
+          {onRemove && Boolean(currentMediaId) && <AdminButton
+            variant="secondary"
+            size="sm"
+            onClick={handleRemove}
+            disabled={uploading}
+            aria-label={`Remover ${label.toLowerCase()}`}
+            title={`Remover ${label.toLowerCase()}`}
+            className="border-destructive/30 text-destructive hover:bg-destructive/5"
+          ><Trash2 size={16} /> Remover imagem</AdminButton>}
+        </div>
+    )}
     {canUpload && onRemove && !currentMediaId && <p className="mt-2 text-[11px] text-muted-foreground">Sem imagem. Você pode deixar este campo vazio.</p>}
   </div>;
 }
