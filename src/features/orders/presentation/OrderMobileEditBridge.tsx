@@ -146,7 +146,7 @@ export function OrderMobileEditBridge({
         size="sm"
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className="bg-[#0057e7] text-white hover:bg-[#0046bd]"
+        className="hidden md:inline-flex bg-[#0057e7] text-white hover:bg-[#0046bd]"
         title="Abrir a edição desta OS no celular"
       >
         <Smartphone size={14} />
