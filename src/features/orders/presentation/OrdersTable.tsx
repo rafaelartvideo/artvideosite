@@ -12,9 +12,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/shared/ui/primitives/dropdown-menu";
 import { filteredRowNumber } from "../domain/order-list-display.mjs";
@@ -42,6 +39,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 }) {
   const { profile } = useAuth();
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [expandedSituationOrderId, setExpandedSituationOrderId] = useState<string | null>(null);
   const [historyOrder, setHistoryOrder] = useState<any | null>(null);
   const [historyEntries, setHistoryEntries] = useState<ServiceOrderSituationHistoryEntry[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
@@ -117,7 +115,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
     const editable = canEdit(order);
     const hasAnyAction = canPrint || canChangeSituation || editable;
 
-    return <DropdownMenu>
+    return <DropdownMenu onOpenChange={open => { if (!open) setExpandedSituationOrderId(null); }}>
       <DropdownMenuTrigger asChild>
         <AdminRowActionsTrigger label={`Ações rápidas da OS ${order.os_number || ""}`}/>
       </DropdownMenuTrigger>
@@ -135,27 +133,35 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
 
         {canPrint && (canChangeSituation || editable) && <DropdownMenuSeparator />}
 
-        {canChangeSituation && <DropdownMenuSub>
-          <DropdownMenuSubTrigger className="gap-2 font-semibold">
+        {canChangeSituation && <>
+          <DropdownMenuItem
+            onSelect={event => {
+              event.preventDefault();
+              setExpandedSituationOrderId(current => current === order.id ? null : order.id);
+            }}
+            className="gap-2 font-semibold"
+            aria-expanded={expandedSituationOrderId === order.id}
+          >
             <SituationDot color={(order.situation as any)?.color} />
-            Alterar situação
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent className="min-w-56">
+            <span className="min-w-0 flex-1">Alterar situação</span>
+            <span className="text-xs">{expandedSituationOrderId === order.id ? "▴" : "▾"}</span>
+          </DropdownMenuItem>
+          {expandedSituationOrderId === order.id && <div className="w-full max-w-full border-t border-border bg-muted/30 p-1">
             {situations.map((situation: any) => (
               <DropdownMenuItem
                 key={situation.id}
                 onSelect={() => {
                   if (order.situation_id !== situation.id) void onSituationChange(order, situation.id);
                 }}
-                className="gap-2"
+                className="w-full min-w-0 gap-2"
               >
                 <SituationDot color={situation.color} />
                 <span className="min-w-0 flex-1 truncate">{situation.name}</span>
-                {order.situation_id === situation.id && <Check size={14} className="text-[#0057e7]" />}
+                {order.situation_id === situation.id && <Check size={14} className="text-primary" />}
               </DropdownMenuItem>
             ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>}
+          </div>}
+        </>}
 
         {canChangeSituation && editable && <DropdownMenuSeparator />}
 
