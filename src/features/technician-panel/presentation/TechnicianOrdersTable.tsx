@@ -2,6 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { CalendarDays, ClipboardList, Search } from "lucide-react";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { Popover, PopoverContent, PopoverTrigger } from "@/shared/ui/primitives/popover";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
@@ -40,6 +41,7 @@ export function TechnicianOrdersTable({
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [sort, setSort] = useState<Sort>("");
+  const [mobileCriterion, setMobileCriterion] = useState<"query" | "status" | "dateFrom" | "dateTo">("query");
   const [dateOpen, setDateOpen] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
@@ -107,7 +109,42 @@ export function TechnicianOrdersTable({
       <AdminSearchSortMenu value={sort} onChange={setSort}
         options={[{ value: "", label: "Ordenação padrão" }, { value: "asc", label: "OS crescente" }, { value: "desc", label: "OS decrescente" }]} />
     </>}>
-      <div className="space-y-3">
+      <AdminMobileSearchSwitch
+        value={mobileCriterion}
+        options={[
+          { value: "query", label: "OS / Cliente / Serviço" },
+          { value: "status", label: "Andamento" },
+          { value: "dateFrom", label: "Agendamento de" },
+          { value: "dateTo", label: "Agendamento até" },
+        ]}
+        onChange={value => {
+          setMobileCriterion(value);
+          setSearch(""); setFilter("all"); setDateFrom(""); setDateTo("");
+          setDraftFrom(""); setDraftTo(""); setDateOpen(false); setPage(1);
+        }}
+      >
+        {mobileCriterion === "status"
+          ? <select className={INPUT + " h-[42px] w-full min-w-0 text-sm"} value={filter}
+              aria-label="Filtrar andamento" onChange={event => { setFilter(event.target.value as Filter); setPage(1); }}>
+              {statuses.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          : mobileCriterion === "dateFrom" || mobileCriterion === "dateTo"
+            ? <input type="date" className={INPUT + " h-[42px] w-full min-w-0 text-sm"}
+                value={mobileCriterion === "dateFrom" ? dateFrom : dateTo}
+                aria-label={mobileCriterion === "dateFrom" ? "Agendamento de" : "Agendamento até"}
+                onChange={event => {
+                  if (mobileCriterion === "dateFrom") setDateFrom(event.target.value);
+                  else setDateTo(event.target.value);
+                  setPage(1);
+                }} />
+            : <div className="relative min-w-0">
+                <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); }}
+                  aria-label="Buscar minhas ordens de serviço" placeholder="Buscar OS, cliente ou serviço"
+                  className={INPUT + " h-[42px] w-full min-w-0 pl-9 text-sm"} />
+              </div>}
+      </AdminMobileSearchSwitch>
+      <div className="hidden space-y-3 md:block">
         <div className="flex min-w-0 items-end gap-2">
           <div className="min-w-0 flex-1">
             <label htmlFor="technician-order-search" className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
