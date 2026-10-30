@@ -158,7 +158,7 @@ export function OrderChecklistMobileBridge({
         size="sm"
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={connected ? "bg-emerald-600 text-white hover:bg-emerald-700" : "border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
+        className={connected ? "hidden md:inline-flex bg-emerald-600 text-white hover:bg-emerald-700" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
         title={scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
       >
         <Smartphone size={14} />
