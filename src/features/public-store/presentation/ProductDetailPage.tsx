@@ -139,7 +139,7 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
   const name = String(product.name);
   const positiveValue = (value: unknown) => Number.isFinite(Number(value)) && Number(value) > 0;
   const formatCm = (value: unknown) => (Number(value) / 10).toLocaleString("pt-BR", {maximumFractionDigits: 1}) + " cm";
-  const specs: { label: string; value: string }[] = [
+  const baseSpecs: { label: string; value: string }[] = [
     {label: "Marca", value: String(brand?.name ?? "")},
     {label: "Modelo", value: String(product.model ?? "")},
     {label: "Referência do fabricante", value: String(product.manufacturer_code ?? "")},
@@ -150,6 +150,17 @@ export function ProductDetailPage({ slug, setPage }: { slug: string | null; setP
     {label: "Altura", value: positiveValue(product.height_mm) ? formatCm(product.height_mm) : ""},
     {label: "Profundidade", value: positiveValue(product.length_mm) ? formatCm(product.length_mm) : ""},
   ].filter(item => item.value.trim() !== "");
+  const customSpecs = (Array.isArray(product.site_characteristics) ? product.site_characteristics : [])
+    .map((item: any) => ({
+      label: String(item?.label ?? "").trim(),
+      value: String(item?.value ?? "").trim(),
+    }))
+    .filter(item => item.label && item.value);
+  const baseLabels = new Set(baseSpecs.map(item => item.label.toLocaleLowerCase("pt-BR")));
+  const specs: { label: string; value: string }[] = [
+    ...baseSpecs,
+    ...customSpecs.filter(item => !baseLabels.has(item.label.toLocaleLowerCase("pt-BR"))),
+  ];
   const fullDescription = String(product.description ?? "").trim();
   const paragraphs = (fullDescription || String(product.short_description ?? "").trim())
     .split(/\n\s*\n/).map(part => part.trim()).filter(Boolean);
