@@ -279,7 +279,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
         <div className="hidden md:block"><FInput label="CPF / CNPJ" inputMode="numeric" value={document}
           onChange={(event: any) => setDocument(event.target.value)} placeholder="CPF ou CNPJ" /></div>
         <div className="hidden md:block"><FInput label="Origem" value={originSearch} onChange={(event: any) => setOriginSearch(event.target.value)} placeholder="Descrição ou origem do lançamento" /></div>
-        <FSelect label="Situação" value={operationalFilter options={[
+        <FSelect label="Situação" value={operationalFilter} options={[
           { value: "pending", label: "Pendentes / parciais" },
           { value: "all", label: "Todas" },
           { value: "settled", label: "Baixadas" },
