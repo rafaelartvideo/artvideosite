@@ -290,6 +290,7 @@ export function CustomerAccountPage() {
   async function completeAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (name.trim().split(/\s+/).length < 2) return setError("Informe seu nome completo.");
     if (!isValidCpf(cpf)) return setError("Informe um CPF válido.");
     if (!/^\d{10,11}$/.test(phone.replace(/\D/g, ""))) return setError("Informe um WhatsApp com DDD válido.");
     setBusy(true);
@@ -502,8 +503,8 @@ export function CustomerAccountPage() {
           </div>
       </AccountEntryShell> :
       state === "cpf_verification_required" || state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
-        <h2 className="text-xl font-bold text-[#173450]">Complete seu cadastro</h2>
-        <p className="mt-2 text-sm text-[#657a95]">Só precisamos de mais alguns dados para concluir sua conta.</p>
+        <h2 className="text-xl font-bold text-[#173450]">{state==="cpf_verification_required"?"Confirme seu nome e CPF":"Complete seu cadastro"}</h2>
+        <p className="mt-2 text-sm text-[#657a95]">{state==="cpf_verification_required"?"Para concluir sua conta, precisamos conferir seu nome completo com os dados do CPF.":"Só precisamos de mais alguns dados para concluir sua conta."}</p>
         <form onSubmit={event => void completeAccount(event)} className="mt-5 space-y-4">
           <label className="block text-xs font-semibold text-[#294361]">Nome completo<input className={inputClass + " mt-1.5"} value={name} onChange={event => setName(event.target.value)} required minLength={3} maxLength={120}/></label>
           <label className="block text-xs font-semibold text-[#294361]">CPF<input className={inputClass + " mt-1.5"} value={formatCpf(cpf)} onChange={event => setCpf(event.target.value.replace(/\D/g, "").slice(0, 11))} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} required/></label>
