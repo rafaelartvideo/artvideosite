@@ -143,6 +143,37 @@ async function verifySiteCpfWithProvider(cpf:string){
   } finally {clearTimeout(timeout);}
 }
 
+
+function normalizeSiteCpfFullName(value:string){
+  // Mesma equivalência usada na validação SQL: acentos, caixa e espaços.
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .trim().replace(/\s+/g," ").toLowerCase();
+}
+async function verifySiteCpfWithCache(cpf:string,submittedName:string){
+  // Controle de tentativas inclusive em cache: não permitir adivinhação de nomes.
+  await limit("site-cpf-identity-hour",cpf,12,3600);
+  await limit("site-cpf-identity-day",cpf,24,86400);
+  const cpfKey=await hmac("site-cpf-cache:v1:cpf:"+cpf);
+  const proposedNameKey=await hmac("site-cpf-cache:v1:name:"+normalizeSiteCpfFullName(submittedName));
+  const {data:cached,error:readError}=await admin.rpc("artvideo_site_cpf_cache_read_v1",{
+    p_cpf_key:cpfKey,
+  });
+  if(readError)throw Error("cpf_validation_unavailable");
+  if(cached?.hit===true){
+    const knownNameKey=String(cached.name_key||"");
+    if(!/^[a-f0-9]{64}$/.test(knownNameKey))throw Error("cpf_validation_unavailable");
+    return safeEqual(knownNameKey,proposedNameKey);
+  }
+  // So o cache miss consome consulta da conta exclusiva APICPF do site.
+  const providerName=await verifySiteCpfWithProvider(cpf);
+  const checkedNameKey=await hmac("site-cpf-cache:v1:name:"+normalizeSiteCpfFullName(providerName));
+  const {error:saveError}=await admin.rpc("artvideo_site_cpf_cache_save_v1",{
+    p_cpf_key:cpfKey,p_name_key:checkedNameKey,
+  });
+  if(saveError)throw Error("cpf_validation_unavailable");
+  return safeEqual(checkedNameKey,proposedNameKey);
+}
+
 async function bridge(channel:{id:string;organization_id:string},action:"number_check"|"send_text",phone:string,jid="",message=""){
   const url=new URL(bridgeUrl);
   if(url.protocol!=="https:"||url.username||url.password||bridgeSecret.length<32)throw Error("bridge_unavailable");
@@ -408,9 +439,12 @@ Deno.serve(async request=>{
       if(!enforced)return response(request,{success:true,required:false});
       if(!validCpf(cpf)||name.length<5||name.length>120||name.split(" ").length<2)
         return response(request,fail("Informe um CPF válido e o nome completo.",400),400);
-      const providerName=await verifySiteCpfWithProvider(cpf);
+      const identityMatched=await verifySiteCpfWithCache(cpf,name);
+      if(!identityMatched)
+        return response(request,fail("O nome completo informado não corresponde ao CPF consultado. Confira os dados.",422),422);
       const {data,error}=await admin.rpc("artvideo_site_cpf_issue_v1",{
-        p_cpf:cpf,p_name:name,p_provider_name:providerName,
+        // O servidor já conferiu o nome com o HMAC da fonte confiável.
+        p_cpf:cpf,p_name:name,p_provider_name:name,
       });
       if(error)throw Error("cpf_validation_unavailable");
       if(data?.verified!==true||!uuid(data?.ticket))
