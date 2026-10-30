@@ -1,11 +1,11 @@
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Banknote, Landmark, Pencil } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { FInput, FSelect, FTextarea, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { EmptyState, LoadingState, StatusBadge, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
-import { AdminButton, AdminCard, AdminDialog, AdminIconButton, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminCard, AdminDialog, AdminIconButton } from "@/shared/ui/admin/AdminLayout";
 import { FinanceTableRow } from "./FinanceTableRow";
 import { FinanceTableSurface } from "./FinanceTableSurface";
 import { AdminActiveStateButton } from "@/shared/ui/admin/AdminActiveStateButton";
@@ -48,7 +48,7 @@ function accountDetails(account: FinancialAccount) {
   return account.description || "Sem detalhes adicionais";
 }
 
-export function FinanceAccountsSection() {
+export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: number } = {}) {
   const { hasPermission } = useAuth();
   const finance = useFinanceFoundation();
   const money = useFinanceMovements({ loadMovements: false, loadScheduledSettlements: false, loadTransfers: false });
@@ -73,6 +73,7 @@ export function FinanceAccountsSection() {
     setNameError("");
     setFormOpen(true);
   };
+  useEffect(() => { if (createSignal > 0) openNew(); }, [createSignal]);
 
   const openEdit = (account: FinancialAccount) => {
     setForm({
@@ -142,8 +143,6 @@ export function FinanceAccountsSection() {
       </FinanceTableSurface>}
 
     {Boolean(finance.settingsQuery.data?.cash_session_enabled) && <FinanceCashSection accounts={accounts} />}
-
-    {canManage && <AdminStickyToolbar className="justify-end"><AdminButton onClick={openNew}>Novo</AdminButton></AdminStickyToolbar>}
 
     {formOpen && <AdminDialog
       open
