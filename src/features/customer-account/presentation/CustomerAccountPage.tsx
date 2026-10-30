@@ -122,6 +122,7 @@ export function CustomerAccountPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [registrationErrors, setRegistrationErrors] = useState<RegistrationErrors>({});
   const [registrationChallenge, setRegistrationChallenge] = useState("");
+  const [siteCpfTicket, setSiteCpfTicket] = useState("");
   const [registrationCode, setRegistrationCode] = useState("");
   const [registrationCooldown, setRegistrationCooldown] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
@@ -191,6 +192,16 @@ export function CustomerAccountPage() {
     return () => { cancelled = true; };
   }, [userId, waitingForSession, refreshIndex]);
 
+
+  async function validateSiteCpfName(fullName: string, document: string): Promise<string> {
+    const result=await customerAccessRequest<{required:boolean;ticket?:string}>("registration_identity",{
+      name:fullName.trim(),cpf:document.replace(/\D/g,""),
+    });
+    if(!result.required)return "";
+    if(!result.ticket)throw new Error("Não foi possível confirmar o CPF. Tente novamente.");
+    return result.ticket;
+  }
+
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
@@ -206,7 +217,7 @@ export function CustomerAccountPage() {
           return;
         }
         const result=await customerAccessRequest("registration_verify",{
-          challenge_id:registrationChallenge, code:registrationCode,cpf,name,phone,password,
+          challenge_id:registrationChallenge, code:registrationCode,cpf,name,phone,password,site_cpf_ticket:siteCpfTicket,
         });
         const {error:verificationError}=await supabase.auth.verifyOtp({
           token_hash:result.token_hash,type:"magiclink",
@@ -214,17 +225,21 @@ export function CustomerAccountPage() {
         if(verificationError)throw verificationError;
         setPassword("");setConfirmPassword("");setRegistrationCode("");setRegistrationChallenge("");
       } else if(!email.trim()) {
-        const result=await customerAccessRequest("registration_send",{phone});
+        const ticket=await validateSiteCpfName(name,cpf);
+        setSiteCpfTicket(ticket);
+        const result=await customerAccessRequest("registration_send",{phone,cpf,name,site_cpf_ticket:ticket});
         setRegistrationChallenge(result.challenge_id);
         setRegistrationCode("");
         setRegistrationCooldown(60);
       } else {
+        const ticket=await validateSiteCpfName(name,cpf);
+        setSiteCpfTicket(ticket);
         const {error:signupError}=await supabase.auth.signUp({
           email:email.trim().toLowerCase(),
           password,
           options:{
             emailRedirectTo:window.location.origin+"/minha-conta",
-            data:{registration_origin:"artvideo_customer",full_name:name.trim(),phone:phone.replace(/\D/g,""),cpf:cpf.replace(/\D/g,"")},
+            data:{registration_origin:"artvideo_customer",full_name:name.trim(),phone:phone.replace(/\D/g,""),cpf:cpf.replace(/\D/g,""),site_cpf_ticket:ticket},
           },
         });
         if(signupError)throw signupError;
@@ -280,6 +295,15 @@ export function CustomerAccountPage() {
     setBusy(true);
     setError("");
     try {
+      if(state==="cpf_verification_required"){
+        const ticket=await validateSiteCpfName(name,cpf);
+        if(ticket){
+          const {error:updateError}=await supabase.auth.updateUser({
+            data:{site_cpf_ticket:ticket,full_name:name.trim(),cpf:cpf.replace(/\D/g,"")},
+          });
+          if(updateError)throw updateError;
+        }
+      }
       const result = await activateCustomerAccount(name.trim(), phone.trim(), cpf.trim());
       if (result.status === "linked") setRefreshIndex(index => index + 1);
       else if (result.status === "invalid_phone") setError("Informe um telefone com DDD válido.");
@@ -404,13 +428,13 @@ export function CustomerAccountPage() {
                 <button type="submit" disabled={busy||registrationCode.length!==6} className={"w-full "+authButtonClass}>
                   {busy?<LoaderCircle size={19} className="animate-spin" aria-label="Validando..."/>:"Confirmar e criar conta"}
                 </button>
-                <button type="button" disabled={busy} onClick={()=>{setRegistrationChallenge("");setRegistrationCode("");setError("");}} className="block w-full text-center !text-xs font-medium text-[var(--art-primary)] hover:underline">Alterar dados</button>
+                <button type="button" disabled={busy} onClick={()=>{setRegistrationChallenge("");setRegistrationCode("");setSiteCpfTicket("");setError("");}} className="block w-full text-center !text-xs font-medium text-[var(--art-primary)] hover:underline">Alterar dados</button>
               </form> : <form onSubmit={event => void submitAuth(event)} noValidate className="space-y-4">
                 {mode === "register" && <>
                   <label className={authLabelClass}>Nome completo <span className="text-red-600">*</span>
                     <span className="relative mt-1.5 block">
                       <UserRound size={17} className={authIconClass}/>
-                      <input className={authInputClass + (registrationError("name")?" !border-red-500":"")} value={name} onChange={event => {setName(event.target.value);clearRegistrationError("name");}} onBlur={() => checkRegistrationField("name")} autoComplete="name" maxLength={120} placeholder="Seu nome completo" aria-invalid={!!registrationError("name")}/>
+                      <input className={authInputClass + (registrationError("name")?" !border-red-500":"")} value={name} onChange={event => {setName(event.target.value);setSiteCpfTicket("");clearRegistrationError("name");}} onBlur={() => checkRegistrationField("name")} autoComplete="name" maxLength={120} placeholder="Seu nome completo" aria-invalid={!!registrationError("name")}/>
                     </span>
                     {registrationError("name")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("name")}</span>}
                   </label>
@@ -418,7 +442,7 @@ export function CustomerAccountPage() {
                     <label className={authLabelClass}>CPF <span className="text-red-600">*</span>
                       <span className="relative mt-1.5 block">
                         <IdCard size={17} className={authIconClass}/>
-                        <input className={authInputClass+(registrationError("cpf")?" !border-red-500":"")} value={formatCpf(cpf)} onChange={event => {setCpf(event.target.value.replace(/\D/g,"").slice(0,11));clearRegistrationError("cpf");}} onBlur={()=>checkRegistrationField("cpf")} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={!!registrationError("cpf")}/>
+                        <input className={authInputClass+(registrationError("cpf")?" !border-red-500":"")} value={formatCpf(cpf)} onChange={event => {setCpf(event.target.value.replace(/\D/g,"").slice(0,11));setSiteCpfTicket("");clearRegistrationError("cpf");}} onBlur={()=>checkRegistrationField("cpf")} inputMode="numeric" autoComplete="off" placeholder="000.000.000-00" maxLength={14} aria-invalid={!!registrationError("cpf")}/>
                       </span>
                       {registrationError("cpf")&&<span role="alert" className="mt-1 block text-[11px] text-red-600">{registrationError("cpf")}</span>}
                     </label>
@@ -477,7 +501,7 @@ export function CustomerAccountPage() {
             </>}
           </div>
       </AccountEntryShell> :
-      state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
+      state === "cpf_verification_required" || state === "needs_name" || state === "needs_cpf" || state === "invalid_cpf" || state === "invalid_phone" ? <div className={"mx-auto max-w-lg " + cardClass}>
         <h2 className="text-xl font-bold text-[#173450]">Complete seu cadastro</h2>
         <p className="mt-2 text-sm text-[#657a95]">Só precisamos de mais alguns dados para concluir sua conta.</p>
         <form onSubmit={event => void completeAccount(event)} className="mt-5 space-y-4">
