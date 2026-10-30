@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { PageHeader } from "@/shared/ui/admin/AdminLayout";
-import { History, ReceiptText } from "lucide-react";
+import { History, Plus, ReceiptText } from "lucide-react";
 import { financeRoute } from "../domain/finance-foundation.mjs";
 import type { FinanceRegistrySection, FinanceSection } from "../domain/finance.types";
 import { FinanceAccountsSection } from "./FinanceAccountsSection";
@@ -27,6 +27,7 @@ export function TabFinance({
   const { hasPermission } = useAuth();
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [receiptHistoryOpen, setReceiptHistoryOpen] = useState(false);
+  const [newEntrySignal, setNewEntrySignal] = useState(0);
   const canIssueReceipt = hasPermission("finance.receivables.create") || hasPermission("finance.payables.create");
   const canViewReceiptHistory = hasPermission("finance.receivables.view") || hasPermission("finance.payables.view");
   const requested = financeRoute(routeResourceId || null, routeSubpage || null) as { section: FinanceSection; registry: FinanceRegistrySection | null; entryId?: string | null };
@@ -58,17 +59,23 @@ export function TabFinance({
     else onRouteChange?.(next, null);
   };
 
+  const canCreateInSection = section === "receivables" ? hasPermission("finance.receivables.create") : section === "payables" ? hasPermission("finance.payables.create") : section === "recurring" ? hasPermission("finance.recurring.manage") : false;
+
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
-      actions={canIssueReceipt || canViewReceiptHistory ? <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border border-primary/30 admin-primary-gradient text-white">
+      actions={canIssueReceipt || canViewReceiptHistory || canCreateInSection ? <div className="flex flex-wrap items-center justify-end gap-2">
         {canIssueReceipt && <button type="button" onClick={() => setReceiptOpen(true)}
-          className="inline-flex min-h-10 items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
           aria-label="Gerar recibo"><ReceiptText size={16} /> Gerar recibo</button>}
-        {canIssueReceipt && canViewReceiptHistory && <span className="h-6 w-px shrink-0 bg-white/30" aria-hidden="true" />}
         {canViewReceiptHistory && <button type="button" onClick={() => setReceiptHistoryOpen(true)}
           title="Histórico de recibos" aria-label="Histórico de recibos"
-          className="inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2.5 text-sm font-bold transition-colors hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/60">
-          <History size={17} /><span className={canIssueReceipt ? "sr-only" : ""}>Histórico de recibos</span>
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
+          <History size={17} /><span>Histórico</span>
+        </button>}
+        {canCreateInSection && <button type="button" onClick={() => setNewEntrySignal(current => current + 1)}
+          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg admin-primary-gradient px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+          aria-label={section === "recurring" ? "Nova recorrência" : section === "payables" ? "Nova conta a pagar" : "Nova conta a receber"}>
+          <Plus size={17} /> Novo
         </button>}
       </div> : undefined} />
     <FinanceSectionTabs section={section} allowedSections={allowedSections} onSelect={selectSection} />
@@ -76,11 +83,11 @@ export function TabFinance({
     {canViewReceiptHistory && <FinanceReceiptHistoryDialog open={receiptHistoryOpen} onClose={() => setReceiptHistoryOpen(false)} />}
 
     {section === "overview" && <FinanceOverviewFoundation onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
-    {section === "receivables" && <FinanceEntriesSection entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
-    {section === "payables" && <FinanceEntriesSection entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
+    {section === "receivables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
+    {section === "payables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
     {section === "movements" && <FinanceMovementsSection />}
     {section === "accounts" && <FinanceAccountsSection />}
-    {section === "recurring" && <FinanceRecurringSection />}
+    {section === "recurring" && <FinanceRecurringSection createSignal={newEntrySignal} />}
     {section === "reports" && <FinanceReportsSection />}
     {section === "registries" && <FinanceRegistriesSection registry={requested.registry} onSelect={registry => onRouteChange?.("registries", registry)} />}
   </div>;
