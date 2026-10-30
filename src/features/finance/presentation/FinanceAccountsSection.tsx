@@ -155,21 +155,25 @@ export function FinanceAccountsSection({ createSignal = 0 }: { createSignal?: nu
   const loading = finance.accountsQuery.isLoading || money.balancesQuery.isLoading;
   const cashOperations = (account: FinancialAccount) => {
     if (!cashEnabled || account.account_type !== "cash" || !account.allows_cash_session || !account.is_active) return null;
+    if (cash.sessionsQuery.isLoading) return null;
     const session = openSessions.get(account.id) || null;
-    const options = session
-      ? [
-          canSupplyCash && { action: "supply" as const, title: "Suprimento", icon: Plus },
-          canWithdrawCash && { action: "withdraw" as const, title: "Sangria", icon: Minus },
-          canCloseCash && { action: "close" as const, title: "Fechar caixa", icon: LockKeyhole },
-        ].filter(Boolean) as Array<{ action: FinanceCashAction; title: string; icon: typeof Plus }>
-      : (canOpenCash ? [{ action: "open" as const, title: "Abrir caixa", icon: Banknote }] : []);
-    if (!options.length || cash.sessionsQuery.isLoading) return null;
+    if (!session) return canOpenCash ? <button type="button"
+      onClick={() => setCashAction({ accountId: account.id, action: "open" })}
+      className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border admin-action-blue-outline px-2.5 py-1.5 text-xs font-bold hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
+      <Banknote size={15} /> Abrir caixa
+    </button> : null;
+    const options = [
+      canSupplyCash && { action: "supply" as const, title: "Suprimento", icon: Plus },
+      canWithdrawCash && { action: "withdraw" as const, title: "Sangria", icon: Minus },
+      canCloseCash && { action: "close" as const, title: "Fechar caixa", icon: LockKeyhole },
+    ].filter(Boolean) as Array<{ action: FinanceCashAction; title: string; icon: typeof Plus }>;
+    if (!options.length) return null;
     return <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <button type="button"
-          aria-label={session ? "Operações do caixa" : "Abrir caixa"}
+          aria-label="Operações do caixa"
           className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border admin-action-blue-outline px-2.5 py-1.5 text-xs font-bold hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">
-          <MoreVertical size={16} /> <span className="hidden lg:inline">{session ? "Operações" : "Abrir caixa"}</span>
+          <MoreVertical size={16} /> <span className="hidden lg:inline">Operações</span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
