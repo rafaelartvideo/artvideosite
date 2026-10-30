@@ -20,8 +20,8 @@ export function FinanceModalDropdown({ anchorRef, open, id, children }: {
       const modal = container.getBoundingClientRect();
       const below = modal.bottom - field.bottom - 12;
       const above = field.top - modal.top - 12;
-      const up = below < 210 && above > below;
-      const height = Math.max(52, Math.min(208, (up ? above : below) - 4));
+      const up = below < 200 && above > below;
+      const height = Math.max(52, Math.min(200, (up ? above : below) - 4));
       setPosition({
         container, height, width: Math.min(field.width, modal.width - 16),
         left: Math.max(8, Math.min(field.left - modal.left, modal.width - field.width - 8)),
