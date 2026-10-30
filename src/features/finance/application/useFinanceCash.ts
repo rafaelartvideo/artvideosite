@@ -8,12 +8,12 @@ import {
   recordFinancialCashAdjustment,
 } from "../infrastructure/finance-cash.repository";
 
-export function useFinanceCash() {
+export function useFinanceCash(loadSessions = true) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
-  const enabled = Boolean(activeOrganizationId);
+  const enabled = Boolean(activeOrganizationId && loadSessions);
 
   const sessionsQuery = useQuery({
     queryKey: queryKeys.finance.cashSessions(organizationKey),
