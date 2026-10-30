@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, Layers, Trash2, Plus, Upload, FolderInput } from "lucide-react";
+import { ChevronRight, File, FileText, Folder, FolderPlus, FolderOpen, Globe, KeyRound, Megaphone, MoreVertical, Search, Link2, Pencil, Archive, Eye, EyeOff, Layers, Trash2, Plus, Upload, FolderInput } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ManagementWorkspaceTools } from "./ManagementWorkspaceTools";
 import { ManagementTrashDialog } from "./ManagementTrashDialog";
