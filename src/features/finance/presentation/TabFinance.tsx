@@ -9,7 +9,6 @@ import { FinanceEntriesSection } from "./FinanceEntriesSection";
 import { FinanceMovementsSection } from "./FinanceMovementsSection";
 import { FinanceOverviewFoundation } from "./FinanceOverviewFoundation";
 import { FinanceRegistriesSection } from "./FinanceRegistriesSection";
-import { FinanceRecurringSection } from "./FinanceRecurringSection";
 import { FinanceReportsSection } from "./FinanceReportsSection";
 import { FinanceReceiptDialog } from "./FinanceReceiptDialog";
 import { FinanceReceiptHistoryDialog } from "./FinanceReceiptHistoryDialog";
@@ -39,7 +38,6 @@ export function TabFinance({
     if (hasPermission("finance.payables.view")) sections.push("payables");
     if (canViewAccounts) sections.push("movements");
     if (canViewAccounts) sections.push("accounts");
-    if (hasPermission("finance.recurring.view")) sections.push("recurring");
     if (hasPermission("finance.reports.view") && (hasPermission("finance.reports.dre") || hasPermission("finance.reports.cash_flow"))) sections.push("reports");
     if (hasPermission("finance.view")) sections.push("registries");
     return sections;
@@ -62,7 +60,6 @@ export function TabFinance({
 
   const canCreateInSection = section === "receivables" ? hasPermission("finance.receivables.create")
     : section === "payables" ? hasPermission("finance.payables.create")
-    : section === "recurring" ? hasPermission("finance.recurring.manage")
     : section === "accounts" ? hasPermission("finance.accounts.manage")
     : section === "movements" ? hasPermission("finance.transfers.create")
     : section === "registries" ? (requested.registry === "payment-methods" ? hasPermission("finance.payment_methods.manage") : requested.registry === "settings" ? false : hasPermission("finance.categories.manage"))
@@ -71,17 +68,20 @@ export function TabFinance({
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
       actions={canIssueReceipt || canViewReceiptHistory || canCreateInSection ? <div className="flex flex-wrap items-center justify-end gap-2">
-        {canIssueReceipt && <button type="button" onClick={() => setReceiptOpen(true)}
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-semibold text-foreground transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label="Gerar recibo"><ReceiptText size={16} /> Gerar recibo</button>}
-        {canViewReceiptHistory && <button type="button" onClick={() => setReceiptHistoryOpen(true)}
-          title="Histórico de recibos" aria-label="Histórico de recibos"
-          className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-border bg-card px-3 py-2.5 text-sm font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">
-          <History size={17} /><span>Histórico</span>
-        </button>}
+        {(canIssueReceipt || canViewReceiptHistory) && <div className="inline-flex max-w-full items-center overflow-hidden rounded-lg border admin-action-blue-outline">
+          {canIssueReceipt && <button type="button" onClick={() => setReceiptOpen(true)}
+            className="inline-flex min-h-10 items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            aria-label="Gerar recibo"><ReceiptText size={16} /> Gerar recibo</button>}
+          {canIssueReceipt && canViewReceiptHistory && <span className="h-6 w-px shrink-0 bg-primary/25" aria-hidden="true" />}
+          {canViewReceiptHistory && <button type="button" onClick={() => setReceiptHistoryOpen(true)}
+            title="Histórico de recibos" aria-label="Histórico de recibos"
+            className="inline-flex min-h-10 items-center justify-center gap-2 px-3 py-2.5 text-sm font-bold transition-colors hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
+            <History size={17} /><span className={canIssueReceipt ? "sr-only" : ""}>Histórico de recibos</span>
+          </button>}
+        </div>}
         {canCreateInSection && <button type="button" onClick={() => setNewEntrySignal(current => current + 1)}
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg admin-primary-gradient px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={section === "recurring" ? "Nova recorrência" : section === "payables" ? "Nova conta a pagar" : section === "receivables" ? "Nova conta a receber" : section === "movements" ? "Nova transferência" : section === "accounts" ? "Nova conta financeira" : "Novo cadastro financeiro"}>
+          aria-label={section === "payables" ? "Nova conta a pagar" : section === "receivables" ? "Nova conta a receber" : section === "movements" ? "Nova transferência" : section === "accounts" ? "Nova conta financeira" : "Novo cadastro financeiro"}>
           <Plus size={17} /> Novo
         </button>}
       </div> : undefined} />
@@ -94,7 +94,6 @@ export function TabFinance({
     {section === "payables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
     {section === "movements" && <FinanceMovementsSection createSignal={newEntrySignal} />}
     {section === "accounts" && <FinanceAccountsSection createSignal={newEntrySignal} />}
-    {section === "recurring" && <FinanceRecurringSection createSignal={newEntrySignal} />}
     {section === "reports" && <FinanceReportsSection />}
     {section === "registries" && <FinanceRegistriesSection createSignal={newEntrySignal} registry={requested.registry} onSelect={registry => { setNewEntrySignal(0); onRouteChange?.("registries", registry); }} />}
   </div>;
