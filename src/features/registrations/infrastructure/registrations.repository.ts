@@ -109,12 +109,37 @@ export type RegistrationListPageInput = {
   status?: "all" | "active" | "inactive";
   sort?: "" | "name_asc" | "name_desc" | "newest" | "oldest";
   employeeOnly?: boolean;
+  creatorFilter?: string;
+  createdDate?: string;
 };
 
 export type RegistrationListPage = {
   items: Registration[];
   total: number;
 };
+
+export type RegistrationCreator = { id: string; name: string };
+
+export async function listRegistrationCreators(organizationId: string): Promise<RegistrationCreator[]> {
+  const { data, error } = await supabase.rpc("list_registration_creators_v1", { p_organization_id: organizationId });
+  if (error) throw normalizeError(error);
+  return Array.isArray(data) ? data.filter((item): item is RegistrationCreator =>
+    Boolean(item && typeof item.id === "string" && typeof item.name === "string")) : [];
+}
+
+function createdDateBounds(value: string): { from: string | null; to: string | null } {
+  const parts = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!parts) return { from: null, to: null };
+  const year = Number(parts[1]);
+  const month = Number(parts[2]);
+  const day = Number(parts[3]);
+  const from = new Date(year, month - 1, day);
+  if (from.getFullYear() !== year || from.getMonth() !== month - 1 || from.getDate() !== day) {
+    return { from: null, to: null };
+  }
+  const to = new Date(year, month - 1, day + 1);
+  return { from: from.toISOString(), to: to.toISOString() };
+}
 
 export async function listRegistrationsPage({
   organizationId,
@@ -126,9 +151,12 @@ export async function listRegistrationsPage({
   status = "all",
   sort = "",
   employeeOnly = false,
+  creatorFilter = "all",
+  createdDate = "",
 }: RegistrationListPageInput): Promise<RegistrationListPage> {
+  const dateBounds = createdDateBounds(createdDate);
   const { data, error } = await supabase.rpc(
-    "search_registration_page_v2",
+    "search_registration_page_v3",
     {
       p_organization_id: organizationId,
       p_page: Math.max(1, page),
@@ -139,6 +167,10 @@ export async function listRegistrationsPage({
       p_status: status,
       p_sort: sort,
       p_employee_only: employeeOnly,
+      p_created_by: creatorFilter !== "all" && creatorFilter !== "system" ? creatorFilter : null,
+      p_system_only: creatorFilter === "system",
+      p_created_from: dateBounds.from,
+      p_created_to: dateBounds.to,
     },
   );
   if (error) throw normalizeError(error);
