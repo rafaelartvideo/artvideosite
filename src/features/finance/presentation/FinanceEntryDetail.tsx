@@ -30,6 +30,7 @@ function eventLabel(type: string) {
     document_attached: "Documento anexado",
     document_archived: "Documento arquivado",
     recurring_generated: "Ocorrência recorrente gerada",
+    recurring_cancelled: "Ocorrência cancelada após encerramento da assinatura",
   } as Record<string, string>)[type] || type;
 }
 
