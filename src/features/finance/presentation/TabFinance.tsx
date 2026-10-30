@@ -54,12 +54,19 @@ export function TabFinance({
   }, [section, requested.section, onRouteChange]);
 
   const selectSection = (next: FinanceSection) => {
+    setNewEntrySignal(0);
     if (next === "overview") onRouteChange?.(null, null);
     else if (next === "registries") onRouteChange?.("registries", requested.registry || "categories");
     else onRouteChange?.(next, null);
   };
 
-  const canCreateInSection = section === "receivables" ? hasPermission("finance.receivables.create") : section === "payables" ? hasPermission("finance.payables.create") : section === "recurring" ? hasPermission("finance.recurring.manage") : false;
+  const canCreateInSection = section === "receivables" ? hasPermission("finance.receivables.create")
+    : section === "payables" ? hasPermission("finance.payables.create")
+    : section === "recurring" ? hasPermission("finance.recurring.manage")
+    : section === "accounts" ? hasPermission("finance.accounts.manage")
+    : section === "movements" ? hasPermission("finance.transfers.create")
+    : section === "registries" ? (requested.registry === "payment-methods" ? hasPermission("finance.payment_methods.manage") : requested.registry === "settings" ? false : hasPermission("finance.categories.manage"))
+    : false;
 
   return <div className="min-w-0 space-y-5">
     <PageHeader title="Financeiro" subtitle="Controle simples das entradas, saídas e contas da empresa."
@@ -74,7 +81,7 @@ export function TabFinance({
         </button>}
         {canCreateInSection && <button type="button" onClick={() => setNewEntrySignal(current => current + 1)}
           className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg admin-primary-gradient px-4 py-2.5 text-sm font-bold text-white transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-          aria-label={section === "recurring" ? "Nova recorrência" : section === "payables" ? "Nova conta a pagar" : "Nova conta a receber"}>
+          aria-label={section === "recurring" ? "Nova recorrência" : section === "payables" ? "Nova conta a pagar" : section === "receivables" ? "Nova conta a receber" : section === "movements" ? "Nova transferência" : section === "accounts" ? "Nova conta financeira" : "Novo cadastro financeiro"}>
           <Plus size={17} /> Novo
         </button>}
       </div> : undefined} />
@@ -85,10 +92,10 @@ export function TabFinance({
     {section === "overview" && <FinanceOverviewFoundation onSelectEntry={(type, id) => onRouteChange?.(type === "receivable" ? "receivables" : "payables", id)} />}
     {section === "receivables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="receivable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("receivables", id)} />}
     {section === "payables" && <FinanceEntriesSection newEntrySignal={newEntrySignal} entryType="payable" selectedEntryId={requested.entryId || null} onSelectEntry={id => onRouteChange?.("payables", id)} />}
-    {section === "movements" && <FinanceMovementsSection />}
-    {section === "accounts" && <FinanceAccountsSection />}
+    {section === "movements" && <FinanceMovementsSection createSignal={newEntrySignal} />}
+    {section === "accounts" && <FinanceAccountsSection createSignal={newEntrySignal} />}
     {section === "recurring" && <FinanceRecurringSection createSignal={newEntrySignal} />}
     {section === "reports" && <FinanceReportsSection />}
-    {section === "registries" && <FinanceRegistriesSection registry={requested.registry} onSelect={registry => onRouteChange?.("registries", registry)} />}
+    {section === "registries" && <FinanceRegistriesSection createSignal={newEntrySignal} registry={requested.registry} onSelect={registry => { setNewEntrySignal(0); onRouteChange?.("registries", registry); }} />}
   </div>;
 }
