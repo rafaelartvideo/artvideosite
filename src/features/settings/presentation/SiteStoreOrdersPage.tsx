@@ -14,6 +14,7 @@ import { AdminSectionEmpty,
 import { Toast } from "@/shared/ui/admin/AdminFeedback";
 import { AdminCard } from "@/shared/ui/admin/AdminLayout";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { AdminFieldLabel, AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import {
@@ -145,6 +146,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const [customerSearch, setCustomerSearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
+  const [mobileSearchCriterion, setMobileSearchCriterion] = useState<"customer" | "order" | "product">("customer");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [deliveryFilter, setDeliveryFilter] = useState("all");
   const [supportFilter,setSupportFilter]=useState("all");
@@ -495,16 +497,36 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
         setPaymentFilter("all"); setDeliveryFilter("all"); setSupportFilter("all"); setPage(1);
       }} /> : undefined
     }>
+      <AdminMobileSearchSwitch
+        value={mobileSearchCriterion}
+        options={[{value:"customer",label:"Cliente"},{value:"order",label:"Pedido"},{value:"product",label:"Produto"}]}
+        onChange={value=>{setMobileSearchCriterion(value);setCustomerSearch("");setOrderSearch("");setProductSearch("");setPage(1);}}
+      >
+        <div className="relative min-w-0">
+          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <input type="search" className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"}
+            value={mobileSearchCriterion==="customer"?customerSearch:mobileSearchCriterion==="order"?orderSearch:productSearch}
+            onChange={event=>{
+              const value=event.target.value;
+              if(mobileSearchCriterion==="customer")setCustomerSearch(value);
+              else if(mobileSearchCriterion==="order")setOrderSearch(value);
+              else setProductSearch(value);
+              setPage(1);
+            }}
+            aria-label={mobileSearchCriterion==="customer"?"Buscar pelo cliente":mobileSearchCriterion==="order"?"Buscar número do pedido":"Buscar produto"}
+            placeholder={mobileSearchCriterion==="customer"?"Nome, e-mail ou telefone":mobileSearchCriterion==="order"?"Número do pedido":"Nome do produto"} />
+        </div>
+      </AdminMobileSearchSwitch>
       <div className="grid min-w-0 grid-cols-1 items-end gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-        <AdminSearchTextField label="Cliente" value={customerSearch}
+        <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Cliente" value={customerSearch}
           onChange={value => { setCustomerSearch(value); setPage(1); }}
-          placeholder="Nome, e-mail ou telefone" />
-        <AdminSearchTextField label="Pedido" value={orderSearch}
+          placeholder="Nome, e-mail ou telefone" /></div>
+        <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Pedido" value={orderSearch}
           onChange={value => { setOrderSearch(value); setPage(1); }}
-          placeholder="Número do pedido" />
-        <AdminSearchTextField label="Produto" value={productSearch}
+          placeholder="Número do pedido" /></div>
+        <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Produto" value={productSearch}
           onChange={value => { setProductSearch(value); setPage(1); }}
-          placeholder="Nome do produto" />
+          placeholder="Nome do produto" /></div>
         <div className="min-w-0">
           <AdminFieldLabel label="Pagamento" />
           <AdminSelect className="w-full min-w-0" ariaLabel="Filtrar pagamento"
