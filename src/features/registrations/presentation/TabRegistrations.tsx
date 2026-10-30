@@ -2,8 +2,6 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Check,
-  ChevronDown,
   Edit2,
   Eraser,
   Plus,
@@ -20,12 +18,6 @@ import { EmptyState, LoadingState, StatusBadge, Toast } from "@/shared/ui/admin/
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatCnpj, formatCpf, formatPhone, isValidEmail } from "@/shared/domain/formatters";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/shared/ui/primitives/dropdown-menu";
 import {
   emptyEmployeeAccessForm,
   type EmployeeAccessFormState,
@@ -50,6 +42,7 @@ import {
 import {
   getRegistration,
   getRegistrationSupplierItems,
+  listRegistrationCreators,
   listRegistrationsPage,
   saveRegistration,
   setEmployeeFieldTrackingPrompt,
@@ -73,7 +66,6 @@ type Props = {
   onOpenOrder?: (id: string, customerId?: string) => void;
 };
 
-type MobileRegistrationFilter = "name" | "document" | "role" | "status";
 type RegistrationSort = "" | "name_asc" | "name_desc" | "newest" | "oldest";
 type RegistrationEditorOrigin = "list" | "detail";
 
@@ -82,13 +74,6 @@ const roleLabels: Record<RegistrationRole, string> = {
   employee: "Funcionário",
   supplier: "Fornecedor",
 };
-
-const mobileFilterOptions: Array<{ value: MobileRegistrationFilter; label: string }> = [
-  { value: "name", label: "Nome / Razão social" },
-  { value: "document", label: "CPF ou CNPJ" },
-  { value: "role", label: "Vínculo" },
-  { value: "status", label: "Status" },
-];
 
 function accessFormFromResponse(access: any): EmployeeAccessFormState {
   return {
@@ -162,7 +147,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const [documentSearch, setDocumentSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | RegistrationRole>("all");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
-  const [mobileFilter, setMobileFilter] = useState<MobileRegistrationFilter>("name");
+  const [creatorFilter, setCreatorFilter] = useState("all");
+  const [createdDate, setCreatedDate] = useState("");
   const [sortOrder, setSortOrder] = useState<RegistrationSort>("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -170,6 +156,17 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   const debouncedDocumentSearch = useDebouncedValue(documentSearch);
 
   const listBaseKey = queryKeys.registrations.list(organizationKey);
+  const creatorsQuery = useQuery({
+    queryKey: [...listBaseKey, "creators"],
+    queryFn: () => listRegistrationCreators(activeOrganizationId!),
+    enabled: Boolean(activeOrganizationId && canView && !routeResourceId),
+    staleTime: 5 * 60_000,
+  });
+  const creatorOptions = [
+    { value: "all", label: "Todos os responsáveis" },
+    { value: "system", label: "Sistema / site / importação" },
+    ...(creatorsQuery.data || []).map(creator => ({ value: creator.id, label: creator.name })),
+  ];
   const listKey = [
     ...listBaseKey,
     {
@@ -179,6 +176,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       documentSearch: debouncedDocumentSearch,
       roleFilter,
       statusFilter,
+      creatorFilter,
+      createdDate,
       sortOrder,
       employeeOnly: platformUsersOnly,
     },
@@ -194,6 +193,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       documentSearch: debouncedDocumentSearch,
       role: platformUsersOnly ? "all" : roleFilter,
       status: statusFilter,
+      creatorFilter,
+      createdDate,
       sort: sortOrder,
       employeeOnly: platformUsersOnly,
     }),
@@ -383,6 +384,8 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     || documentSearch
     || (!platformUsersOnly && roleFilter !== "all")
     || statusFilter !== "all"
+    || creatorFilter !== "all"
+    || createdDate
     || sortOrder
   );
   const clearFilters = () => {
@@ -390,22 +393,23 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
     setDocumentSearch("");
     setRoleFilter("all");
     setStatusFilter("all");
+    setCreatorFilter("all");
+    setCreatedDate("");
     setSortOrder("");
     setPage(1);
   };
 
   useEffect(() => {
     setPage(1);
-  }, [nameSearch, documentSearch, roleFilter, statusFilter, sortOrder, pageSize, platformUsersOnly]);
+  }, [nameSearch, documentSearch, roleFilter, statusFilter, creatorFilter, createdDate, sortOrder, pageSize, platformUsersOnly]);
 
   useEffect(() => {
     if (!loading && page > totalPages) setPage(totalPages);
   }, [loading, page, totalPages]);
 
   useEffect(() => {
-    if (platformUsersOnly && mobileFilter === "role") setMobileFilter("name");
     if (platformUsersOnly && roleFilter !== "all") setRoleFilter("all");
-  }, [platformUsersOnly, mobileFilter, roleFilter]);
+  }, [platformUsersOnly, roleFilter]);
 
   const toggleRole = (role: RegistrationRole) => {
     const allowed = selected ? canEdit : canCreate;
@@ -750,18 +754,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
   // sem qualquer dado em cache, aguardamos a consulta para não exibir ficha falsa.
   if (routeResourceId && !routeRegistration && recordLoading) return <LoadingState text="Carregando cadastro..." />;
 
-  const visibleMobileFilterOptions = platformUsersOnly
-    ? mobileFilterOptions.filter(option => option.value !== "role")
-    : mobileFilterOptions;
-  const mobileFilterLabel = visibleMobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Nome / Razão social";
-  const renderMobileFilter = () => {
-    if (mobileFilter === "name") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Buscar por nome ou razão social" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
-    if (mobileFilter === "document") return <div className="relative min-w-0"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /><input aria-label="Buscar por CPF ou CNPJ" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")} /></div>;
-    if (mobileFilter === "role") return <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Filtrar por vínculo" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />;
-    return <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Filtrar por status" className="h-[42px] text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />;
-  };
-
-
   return <div className="space-y-5">
     {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     <PageHeader
@@ -778,37 +770,37 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
             options={[{ value: "", label: "Ordenação padrão" }, { value: "name_asc", label: "Nome A–Z" }, { value: "name_desc", label: "Nome Z–A" }, { value: "newest", label: "Mais recentes" }, { value: "oldest", label: "Mais antigos" }]} />
         </div>
       </div>
-      <div className="p-4 md:p-3">
-        <div className="space-y-3 md:hidden">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] w-full min-w-0 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-foreground shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-muted-foreground">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-muted-foreground" /></button></DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className={mobileFilter === option.value ? "text-[#0057e7]" : "text-muted-foreground"} /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent>
-          </DropdownMenu>
-          <div className="min-w-0">{renderMobileFilter()}</div>
-        </div>
-
-        <div className={cn("hidden gap-2 md:grid md:grid-cols-2", platformUsersOnly ? "xl:grid-cols-3" : "xl:grid-cols-4")}>
+      <div className="p-3 sm:p-4">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <div className="min-w-0">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
+            <label htmlFor="registrations-name" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Nome</label>
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={`${INPUT} h-9 py-1.5 pl-9 text-xs`} />
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+              <input id="registrations-name" value={nameSearch} onChange={event => setNameSearch(event.target.value)} placeholder="Nome / Razão social" className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")} />
             </div>
           </div>
           <div className="min-w-0">
-            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CPF/CNPJ</label>
+            <label htmlFor="registrations-document" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">CPF/CNPJ</label>
             <div className="relative">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-              <input value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={`${INPUT} h-9 py-1.5 pl-9 text-xs`} />
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-primary" />
+              <input id="registrations-document" value={documentSearch} onChange={event => setDocumentSearch(event.target.value)} placeholder="CPF ou CNPJ" inputMode="numeric" className={cn(INPUT, "h-9 w-full min-w-0 pl-9 text-xs")} />
             </div>
           </div>
           {!platformUsersOnly && <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vínculo</label>
-            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="min-h-9 py-1.5 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
+            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
           </div>}
           <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Status</label>
-            <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" className="min-h-9 py-1.5 text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+            <AdminSelect value={statusFilter} onValueChange={value => setStatusFilter(value as "all" | "active" | "inactive")} ariaLabel="Status" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os status" }, { value: "active", label: "Ativos" }, { value: "inactive", label: "Inativos" }]} />
+          </div>
+          <div className="min-w-0">
+            <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Cadastrado por</label>
+            <AdminSelect value={creatorFilter} onValueChange={setCreatorFilter} ariaLabel="Cadastrado por" className="h-9 min-w-0 py-1 text-xs" options={creatorOptions} />
+          </div>
+          <div className="min-w-0">
+            <label htmlFor="registrations-created-date" className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Data</label>
+            <input id="registrations-created-date" aria-label="Data de cadastro" type="date" value={createdDate} onChange={event => setCreatedDate(event.target.value)} className={cn(INPUT, "h-9 w-full min-w-0 px-2 py-1 text-xs")} />
           </div>
         </div>
       </div>
