@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import type { FinancialRecurringRule } from "../domain/finance.types";
 
-const RECURRING_COLUMNS = "id,organization_id,entry_type,description,original_amount,counterpart_entity_id,counterpart_name_snapshot,counterpart_document_snapshot,frequency,interval_value,custom_days,start_date,end_date,next_occurrence_date,installment_count,first_due_offset_days,allocations,notes,is_active,last_generated_at,created_by,updated_by,created_at,updated_at";
+const RECURRING_COLUMNS = "id,organization_id,entry_type,description,original_amount,counterpart_entity_id,counterpart_name_snapshot,counterpart_document_snapshot,frequency,interval_value,custom_days,start_date,end_date,next_occurrence_date,installment_count,first_due_offset_days,allocations,notes,is_active,last_generated_at,cancelled_at,cancelled_by,cancellation_reason,created_by,updated_by,created_at,updated_at";
 
 function requiredOrganizationId(organizationId: string) {
   const normalized = String(organizationId || "").trim();
