@@ -205,7 +205,7 @@ async function engineInfo() {
   } catch { reachable = false; }
   return {
     ok: true, action: "engine_info", engine_reachable: reachable,
-    version: typeof report.version === "string" && /^v?[0-9]+\\.[0-9]+\\.[0-9]+$/.test(report.version) ? report.version : null,
+    version: typeof report.version === "string" && /^v?[0-9]+\.[0-9]+\.[0-9]+$/.test(report.version) ? report.version : null,
     image: typeof report.image === "string" && report.image.length <= 180 ? report.image : null,
     image_id: typeof report.image_id === "string" && /^sha256:[a-f0-9]{64}$/.test(report.image_id) ? report.image_id : null,
     observed_at: typeof report.observed_at === "string" ? report.observed_at : null,
