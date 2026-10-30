@@ -1,4 +1,4 @@
-export type FinanceSection = "overview" | "receivables" | "payables" | "movements" | "accounts" | "recurring" | "reports" | "registries";
+export type FinanceSection = "overview" | "receivables" | "payables" | "movements" | "accounts" | "reports" | "registries";
 export type FinanceRegistrySection = "categories" | "cost-centers" | "payment-methods" | "settings";
 export type FinancialAccountType = "cash" | "bank" | "pix" | "other";
 export type FinancialCategoryNature = "revenue" | "expense";
