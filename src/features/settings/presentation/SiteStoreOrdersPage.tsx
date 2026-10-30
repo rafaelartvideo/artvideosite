@@ -146,7 +146,7 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
   const [customerSearch, setCustomerSearch] = useState("");
   const [orderSearch, setOrderSearch] = useState("");
   const [productSearch, setProductSearch] = useState("");
-  const [mobileSearchCriterion, setMobileSearchCriterion] = useState<"customer" | "order" | "product">("customer");
+  const [mobileSearchCriterion, setMobileSearchCriterion] = useState<"customer" | "order" | "product" | "payment" | "delivery" | "support">("customer");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [deliveryFilter, setDeliveryFilter] = useState("all");
   const [supportFilter,setSupportFilter]=useState("all");
@@ -499,25 +499,53 @@ export function SiteStoreOrdersPage({ onBack, embedded = false }: { onBack: () =
     }>
       <AdminMobileSearchSwitch
         value={mobileSearchCriterion}
-        options={[{value:"customer",label:"Cliente"},{value:"order",label:"Pedido"},{value:"product",label:"Produto"}]}
-        onChange={value=>{setMobileSearchCriterion(value);setCustomerSearch("");setOrderSearch("");setProductSearch("");setPage(1);}}
+        options={[
+          { value: "customer", label: "Cliente" },
+          { value: "order", label: "Pedido" },
+          { value: "product", label: "Produto" },
+          { value: "payment", label: "Pagamento" },
+          { value: "delivery", label: "Entrega" },
+          { value: "support", label: "Pós-venda" },
+        ]}
+        onChange={value => {
+          setMobileSearchCriterion(value);
+          setCustomerSearch("");
+          setOrderSearch("");
+          setProductSearch("");
+          setPaymentFilter("all");
+          setDeliveryFilter("all");
+          setSupportFilter("all");
+          setPage(1);
+        }}
       >
-        <div className="relative min-w-0">
-          <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-          <input type="search" className={INPUT+" h-[42px] w-full min-w-0 pl-9 text-sm"}
-            value={mobileSearchCriterion==="customer"?customerSearch:mobileSearchCriterion==="order"?orderSearch:productSearch}
-            onChange={event=>{
-              const value=event.target.value;
-              if(mobileSearchCriterion==="customer")setCustomerSearch(value);
-              else if(mobileSearchCriterion==="order")setOrderSearch(value);
-              else setProductSearch(value);
-              setPage(1);
-            }}
-            aria-label={mobileSearchCriterion==="customer"?"Buscar pelo cliente":mobileSearchCriterion==="order"?"Buscar número do pedido":"Buscar produto"}
-            placeholder={mobileSearchCriterion==="customer"?"Nome, e-mail ou telefone":mobileSearchCriterion==="order"?"Número do pedido":"Nome do produto"} />
-        </div>
+        {mobileSearchCriterion === "payment"
+          ? <AdminSelect className="h-[42px] w-full min-w-0" ariaLabel="Filtrar pagamento" value={paymentFilter}
+              onValueChange={value => { setPaymentFilter(value); setPage(1); }}
+              options={[{ value: "all", label: "Todos os pagamentos" }, ...Object.entries(paymentLabels).map(([value, label]) => ({ value, label }))]} />
+          : mobileSearchCriterion === "delivery"
+            ? <AdminSelect className="h-[42px] w-full min-w-0" ariaLabel="Filtrar entrega" value={deliveryFilter}
+                onValueChange={value => { setDeliveryFilter(value); setPage(1); }}
+                options={[{ value: "all", label: "Todas as entregas" }, { value: "unpaid", label: "Sem pagamento confirmado" }, ...Object.entries(deliveryLabels).map(([value, label]) => ({ value, label }))]} />
+            : mobileSearchCriterion === "support"
+              ? <AdminSelect className="h-[42px] w-full min-w-0" ariaLabel="Filtrar pós-venda" value={supportFilter}
+                  onValueChange={value => { setSupportFilter(value); setPage(1); }}
+                  options={[{ value: "all", label: "Todo pós-venda" }, { value: "active", label: "Com solicitação ativa" }, { value: "none", label: "Sem solicitações" }]} />
+              : <div className="relative min-w-0">
+                  <Search size={15} aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input type="search" className={INPUT + " h-[42px] w-full min-w-0 pl-9 text-sm"}
+                    value={mobileSearchCriterion === "customer" ? customerSearch : mobileSearchCriterion === "order" ? orderSearch : productSearch}
+                    onChange={event => {
+                      const value = event.target.value;
+                      if (mobileSearchCriterion === "customer") setCustomerSearch(value);
+                      else if (mobileSearchCriterion === "order") setOrderSearch(value);
+                      else setProductSearch(value);
+                      setPage(1);
+                    }}
+                    aria-label={mobileSearchCriterion === "customer" ? "Buscar pelo cliente" : mobileSearchCriterion === "order" ? "Buscar número do pedido" : "Buscar produto"}
+                    placeholder={mobileSearchCriterion === "customer" ? "Nome, e-mail ou telefone" : mobileSearchCriterion === "order" ? "Número do pedido" : "Nome do produto"} />
+                </div>}
       </AdminMobileSearchSwitch>
-      <div className="grid min-w-0 grid-cols-1 items-end gap-x-3 gap-y-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+      <div className="hidden min-w-0 grid-cols-1 items-end gap-x-3 gap-y-3 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <div className="hidden min-w-0 md:block"><AdminSearchTextField label="Cliente" value={customerSearch}
           onChange={value => { setCustomerSearch(value); setPage(1); }}
           placeholder="Nome, e-mail ou telefone" /></div>
