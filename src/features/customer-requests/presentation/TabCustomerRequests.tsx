@@ -7,6 +7,7 @@ import { cn, formatCnpj, formatCpf, formatPhone } from "@/shared/domain/formatte
 import { AdminButton, AdminCard, AdminDialog, AdminRowActionsTrigger, BtnPrimary, BtnSecondary, PageHeader, Section } from "@/shared/ui/admin/AdminLayout";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminSearchPanel, AdminSearchClearButton, AdminSearchSortMenu } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminMobileSearchSwitch } from "@/shared/ui/admin/AdminMobileSearchSwitch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { EmptyState, InlineLoading, LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -234,20 +235,23 @@ export function TabCustomerRequests() {
     </>}>
       <div className="grid min-w-0 grid-cols-1 items-end gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <div className="min-w-0 sm:col-span-2 xl:col-span-1">
-          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Buscar por</label>
-          <AdminSelect
+          <AdminMobileSearchSwitch
+            mobileOnly={false}
             value={searchBy}
-            onValueChange={value => { setSearchBy(value as "order" | "customer"); setSearch(""); setCustomerFilter(""); setPage(1); }}
+            onChange={value => { setSearchBy(value); setSearch(""); setCustomerFilter(""); setPage(1); }}
             options={[{ value: "order", label: "Pedido / Produto / Serviço" }, { value: "customer", label: "Cliente / CPF / CNPJ" }]}
-            className="h-[42px] min-h-0 w-full text-xs md:h-9" ariaLabel="Selecionar critério da busca" />
-          <div className="relative mt-2 min-w-0">
-            <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <input className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-xs md:h-9")}
-              aria-label={searchBy === "order" ? "Buscar pedido, produto ou serviço" : "Buscar cliente ou documento"}
-              value={searchBy === "order" ? search : customerFilter}
-              onChange={event => { if (searchBy === "order") setSearch(event.target.value); else setCustomerFilter(event.target.value); setPage(1); }}
-              placeholder={searchBy === "order" ? "Descreva o produto ou serviço" : "Nome ou documento do cliente"} />
-          </div>
+          >
+            <div className="relative min-w-0">
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <input
+                className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 text-sm")}
+                aria-label={searchBy === "order" ? "Buscar pedido, produto ou serviço" : "Buscar cliente ou documento"}
+                value={searchBy === "order" ? search : customerFilter}
+                onChange={event => { if (searchBy === "order") setSearch(event.target.value); else setCustomerFilter(event.target.value); setPage(1); }}
+                placeholder={searchBy === "order" ? "Descreva o produto ou serviço" : "Nome ou documento do cliente"}
+              />
+            </div>
+          </AdminMobileSearchSwitch>
         </div>
         <div className="min-w-0">
           <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Tipo</label>
