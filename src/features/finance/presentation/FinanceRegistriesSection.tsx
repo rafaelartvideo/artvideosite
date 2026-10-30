@@ -16,9 +16,11 @@ const REGISTRIES: Array<{ id: FinanceRegistrySection; label: string; permission:
 export function FinanceRegistriesSection({
   registry,
   onSelect,
+  createSignal = 0,
 }: {
   registry: FinanceRegistrySection | null;
   onSelect: (registry: FinanceRegistrySection) => void;
+  createSignal?: number;
 }) {
   const { hasPermission } = useAuth();
   const allowed = useMemo(() => REGISTRIES.filter(item => hasPermission(item.permission)), [hasPermission]);
@@ -39,8 +41,8 @@ export function FinanceRegistriesSection({
       ariaLabel="Cadastros financeiros"
     />
 
-    {selected === "categories" && <FinanceCategoriesSection />}
-    {selected === "payment-methods" && <FinancePaymentMethodsSection />}
+    {selected === "categories" && <FinanceCategoriesSection createSignal={createSignal} />}
+    {selected === "payment-methods" && <FinancePaymentMethodsSection createSignal={createSignal} />}
     {selected === "settings" && <FinanceSettingsSection />}
   </div>;
 }
