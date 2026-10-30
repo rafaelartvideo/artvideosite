@@ -184,13 +184,13 @@ export function FinanceRecurringSection({ createSignal = 0, dialogOnly = false, 
     </div>
       {recurring.rulesQuery.isLoading ? <div className="p-10"><LoadingState text="Carregando recorrências..." /></div> : recurring.rulesQuery.error ? <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{recurring.rulesQuery.error instanceof Error ? recurring.rulesQuery.error.message : "Não foi possível carregar as recorrências."}</div> : rules.length === 0 ? <div className="p-10"><EmptyState icon={CalendarClock} title="Nenhuma recorrência cadastrada" /></div> : <FinanceTableSurface>
         <table className="min-w-[980px]">
-          <thead><tr><th className="text-left">Descrição</th><th className="text-left">Tipo</th><th className="text-left">Periodicidade</th><th className="text-left">Próxima</th><th className="text-right">Valor</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
+          <thead><tr><th className="text-left">Origem</th><th className="text-left">Tipo</th><th className="text-left">Periodicidade</th><th className="text-left">Próxima</th><th className="text-right">Valor</th><th className="text-left">Status</th>{canManage && <th className="text-right">Ações</th>}</tr></thead>
           <tbody>{rules.map(rule => <FinanceTableRow key={rule.id} label={`Abrir recorrência ${rule.description}`} onOpen={canManage ? () => edit(rule) : undefined}>
             <td><p className="font-bold text-[#0d1b2e]">{rule.description}</p>{rule.counterpart_name_snapshot && <p className="text-xs text-[#5a6a82]">{rule.counterpart_name_snapshot}</p>}</td>
             <td className="text-xs font-semibold text-[#5a6a82]">{rule.entry_type === "receivable" ? "Receber" : "Pagar"}</td>
             <td className="text-xs text-[#5a6a82]">{frequencyLabel(rule)}</td>
             <td className="text-xs font-semibold">{formatDate(rule.next_occurrence_date)}</td>
-            <td className="text-right font-black text-[#0057e7]">{formatCurrency(rule.original_amount)}</td>
+            <td className="text-right font-bold tabular-nums text-foreground">{formatCurrency(rule.original_amount)}</td>
             <td><StatusBadge status={rule.is_active ? "Ativo" : "Inativo"} /></td>
             {canManage && <td><div className="flex justify-end gap-1">
               <AdminIconButton ariaLabel="Gerar ocorrências" title="Gerar próximos 90 dias" onClick={() => void generate(rule)}><RefreshCw size={15} /></AdminIconButton>
@@ -207,7 +207,7 @@ export function FinanceRecurringSection({ createSignal = 0, dialogOnly = false, 
       open
       onClose={close}
       title={form.id ? "Editar recorrência" : "Nova recorrência"}
-      description="Cada ocorrência gera um título financeiro independente."
+      description="Assinatura, mensalidade ou contrato, com ou sem data de término. Cada vencimento gera uma conta independente."
       className="max-w-4xl"
       footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <AdminButton variant="secondary" onClick={close} disabled={pending}>Cancelar</AdminButton>
@@ -218,7 +218,7 @@ export function FinanceRecurringSection({ createSignal = 0, dialogOnly = false, 
           <div className="grid gap-4 sm:grid-cols-2">
             <FSelect label="Tipo" value={form.entry_type} options={[{ value: "payable", label: "Conta a pagar" }, { value: "receivable", label: "Conta a receber" }]} onChange={(event: any) => setForm(current => ({ ...current, entry_type: event.target.value as FinancialEntryType, allocations: emptyAllocations() }))} />
             <FCurrencyInput label="Valor" error={fieldErrors.amount} value={form.original_amount} onChange={(event: any) => { setFieldErrors(current => ({ ...current, amount: undefined })); setForm(current => ({ ...current, original_amount: event.target.value })); }} />
-            <div className="sm:col-span-2"><FInput label="Descrição" required error={fieldErrors.description} value={form.description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setForm(current => ({ ...current, description: event.target.value })); }} /></div>
+            <div className="sm:col-span-2"><FInput label="Origem" required error={fieldErrors.description} value={form.description} onChange={(event: any) => { setFieldErrors(current => ({ ...current, description: undefined })); setForm(current => ({ ...current, description: event.target.value })); }} /></div>
             <FInput label="Contraparte (opcional)" value={form.counterpart_name} onChange={(event: any) => setForm(current => ({ ...current, counterpart_name: event.target.value }))} />
             <FInput label="CPF/CNPJ da contraparte" value={form.counterpart_document} onChange={(event: any) => setForm(current => ({ ...current, counterpart_document: event.target.value }))} />
           </div>
