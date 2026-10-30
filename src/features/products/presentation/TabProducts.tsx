@@ -275,7 +275,7 @@ function EditorTabTrigger({
 }) {
   return <TabsTrigger
     value={value}
-    className="group relative h-11 shrink-0 rounded-none border-0 border-b-2 border-transparent bg-transparent px-3.5 text-[13px] font-medium text-muted-foreground shadow-none transition-colors hover:bg-transparent hover:text-foreground data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:font-semibold data-[state=active]:text-primary data-[state=active]:shadow-none"
+    className="!h-12 !min-h-12 !flex-none shrink-0 !rounded-none !border-0 !border-b-2 !border-transparent !bg-transparent !px-1 text-sm !font-semibold !text-muted-foreground !shadow-none !after:hidden transition-colors hover:!text-foreground data-[state=active]:!border-primary data-[state=active]:!text-primary data-[state=active]:!bg-transparent dark:data-[state=active]:!bg-transparent"
   >
     <Icon size={14} />
     {children}
@@ -1017,8 +1017,8 @@ export function TabProducts({
       fullPage
     >
       <Tabs value={editorTab} onValueChange={value => setEditorTab(value as ProductEditorTab)} className="min-h-0">
-        <div className="flex flex-col gap-2 bg-muted/20 px-4 pt-2 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-          <TabsList className="flex h-auto max-w-full flex-1 justify-start gap-1 overflow-x-auto rounded-none border-0 bg-transparent p-0 shadow-none">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 sm:px-5">
+          <TabsList className="flex !h-auto !w-auto max-w-full min-w-0 flex-1 justify-start gap-5 overflow-x-auto !rounded-none !border-0 !bg-transparent !p-0 !shadow-none">
             <EditorTabTrigger value="general" icon={Package}>Geral</EditorTabTrigger>
             <EditorTabTrigger value="commercial" icon={Warehouse}>Comercial e estoque</EditorTabTrigger>
             {canViewSuppliers && <EditorTabTrigger value="suppliers" icon={Truck}>Fornecedores</EditorTabTrigger>}
@@ -1617,9 +1617,6 @@ export function TabProducts({
                   </div>
                 )}
               </div>
-              <p className="mt-3 text-[10px] leading-4 text-muted-foreground">
-                JPG, PNG e WebP são comprimidos automaticamente para melhorar o carregamento do site.
-              </p>
             </Section>
 
             <Section title="Prévia no site" description="Prévia aproximada da página pública usando os dados preenchidos acima.">
