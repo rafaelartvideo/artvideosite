@@ -244,6 +244,7 @@ export function useOrderResolution({
         .map((item: any) => ({
           key: item.id,
           mediaId: item.media_id,
+          media: item.media,
           name: item.media?.file_name || "Imagem da OS",
           kind: orderImageKindFromSortOrder(item.sort_order),
         })),
@@ -254,6 +255,7 @@ export function useOrderResolution({
         .map((item: any) => ({
           key: item.id,
           mediaId: item.media_id,
+          media: item.media,
           name: item.media?.file_name || "Imagem da solução",
           kind: "solution" as const,
         })),
@@ -474,6 +476,7 @@ export function useOrderResolution({
             .map((item: any) => ({
               key: item.id,
               mediaId: item.media_id,
+              media: item.media,
               name: item.media?.file_name || "Imagem da OS",
               kind: orderImageKindFromSortOrder(item.sort_order),
             })));
@@ -482,6 +485,7 @@ export function useOrderResolution({
             .map((item: any) => ({
               key: item.id,
               mediaId: item.media_id,
+              media: item.media,
               name: item.media?.file_name || "Imagem da solução",
               kind: "solution" as const,
             }));
@@ -585,6 +589,7 @@ export function useOrderResolution({
             .map((item: any) => ({
               key: item.id,
               mediaId: item.media_id,
+              media: item.media,
               name: item.media?.file_name || "Imagem da OS",
               kind: orderImageKindFromSortOrder(item.sort_order),
             })));

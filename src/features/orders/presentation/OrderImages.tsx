@@ -369,7 +369,7 @@ export function OrderImageDownloadMenu({
 }
 
 export function OrderImageThumb({ image, onRemove, onView }: { image: OrderImage; onRemove?: () => void; onView?: () => void }) {
-  const { url: mediaUrl, loading, error } = useMediaUrl(image.mediaId);
+  const { url: mediaUrl, loading, error } = useMediaUrl(image.url ? null : image.mediaId, image.media);
   const url = image.url || mediaUrl;
 
   return (
@@ -460,7 +460,7 @@ export function OrderImagesField({
 }
 
 export function OrderImageLightbox({ image, onClose }: { image: OrderImage; onClose: () => void }) {
-  const { url: mediaUrl } = useMediaUrl(image.mediaId);
+  const { url: mediaUrl } = useMediaUrl(image.url ? null : image.mediaId, image.media);
   const url = image.url || mediaUrl;
   const [busyFormat, setBusyFormat] = useState<OrderImageDownloadFormat | null>(null);
   const [downloadError, setDownloadError] = useState("");

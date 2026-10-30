@@ -400,7 +400,7 @@ export function OrderDetailsPage(props: Props) {
     const checklistPhotoUrls = Object.fromEntries(await Promise.all(
       checklistMedia.map(async link => [
         link.media_id,
-        await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
+        await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path, 3600, queryClient),
       ] as const),
     ));
 
@@ -540,7 +540,7 @@ export function OrderDetailsPage(props: Props) {
       const checklistPhotoUrls = Object.fromEntries(await Promise.all(
         checklistMedia.map(async link => [
           link.media_id,
-          await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path),
+          await resolveMediaStorageUrl(link.media!.bucket_id, link.media!.storage_path, 3600, queryClient),
         ] as const),
       ));
       const html = buildOrderPrintDocumentHtml(configuredTemplate, { order: detail, checklist, checklistPhotoUrls, usedItems: detailUsedItems, partRequests: detailPartRequests, history: details.detailHistory, printedBy: profileName, company });

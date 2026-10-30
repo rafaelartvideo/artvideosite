@@ -73,3 +73,18 @@ test('OS and technician secondary caches preserve the original preview deadline'
   assert.match(technician, /cached.urlsExpireAt <= Date.now\(\)/);
   assert.match(technician, /previews.map\(photo => photo.expiresAt\)/);
 });
+
+test('one-hour image previews do not shorten ten-minute task URLs or extend their deadline', async t => {
+  const client = new QueryClient(); t.after(() => client.clear());
+  t.mock.timers.enable({ apis: ['Date'], now: 1_000_000 });
+  let calls = 0;
+  const sign = async () => 'url-' + ++calls;
+  const short = await getStoragePreviewUrl(client, 'bucket', 'photo', sign);
+  const long = await getStoragePreviewUrl(client, 'bucket', 'photo', sign, 3600);
+  assert.notEqual(short.url, long.url);
+  assert.equal(long.expiresAt, 4_480_000);
+  t.mock.timers.tick(480_001);
+  assert.deepEqual(await getStoragePreviewUrl(client, 'bucket', 'photo', sign, 3600), long);
+  assert.notEqual((await getStoragePreviewUrl(client, 'bucket', 'photo', sign)).url, short.url);
+  assert.equal(calls, 3);
+});

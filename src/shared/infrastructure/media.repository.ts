@@ -2,6 +2,15 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { getActiveOrganizationId } from "@/lib/active-organization";
 import { supabase } from "@/lib/supabase";
 import { extensionForUploadFile, prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
+import type { QueryClient } from "@tanstack/react-query";
+import { getStoragePreviewUrl } from "@/infrastructure/query/storage-preview-cache";
+
+export type MediaPreviewSource = {
+  id: string;
+  bucket_id?: string | null;
+  bucket_name?: string | null;
+  storage_path: string;
+};
 
 export type MediaBucket = "service-images" | "product-images" | "brand-images" | "avatars" | "public-assets" | "registration-files";
 
@@ -105,14 +114,38 @@ export async function getMediaById(mediaId: string) {
   return data;
 }
 
+export async function getMediaPreview(client: QueryClient, mediaId: string, knownMedia?: MediaPreviewSource | null) {
+  // Workspace/checklist responses already include authorized media metadata.
+  // Retain it instead of issuing one extra PostgREST request per photograph.
+  const media = knownMedia?.id === mediaId && knownMedia.storage_path && (knownMedia.bucket_id || knownMedia.bucket_name)
+    ? knownMedia
+    : await client.fetchQuery({
+        queryKey: ["media-metadata", mediaId],
+        queryFn: () => getMediaById(mediaId),
+        staleTime: 30 * 60_000,
+      });
+  if (!media) throw new Error("Imagem não encontrada");
+  const bucket = media.bucket_id ?? media.bucket_name;
+  const path = media.storage_path;
+  if (!bucket || !path) throw new Error("Imagem indisponível");
+  if (bucket === "service-images") {
+    return getStoragePreviewUrl(client, bucket, path, () => resolveMediaStorageUrl(bucket, path, 3600), 3600);
+  }
+  return { url: getPublicStorageUrl(bucket, path), expiresAt: null };
+}
+
 export function getPublicStorageUrl(bucket: string, path: string) {
   if (!bucket || !path) return "";
   return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl;
 }
 
-export async function resolveMediaStorageUrl(bucket: string, path: string, expiresIn = 3600) {
+export async function resolveMediaStorageUrl(bucket: string, path: string, expiresIn = 3600, client?: QueryClient) {
   if (!bucket || !path) return "";
   if (bucket === "service-images") {
+    if (client) {
+      return (await getStoragePreviewUrl(client, bucket, path,
+        () => resolveMediaStorageUrl(bucket, path, expiresIn), expiresIn)).url;
+    }
     const { data, error } = await supabase.storage.from(bucket).createSignedUrl(path, expiresIn);
     if (error || !data?.signedUrl) throw new Error(error?.message || "Não foi possível abrir a imagem.");
     return data.signedUrl;

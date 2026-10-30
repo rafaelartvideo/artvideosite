@@ -3,6 +3,7 @@ export type OrderImageKind = "equipment" | "label" | "solution";
 export type OrderImage = {
   key: string;
   mediaId?: string;
+  media?: { id: string; bucket_id?: string | null; storage_path: string } | null;
   url?: string;
   file?: File;
   name: string;

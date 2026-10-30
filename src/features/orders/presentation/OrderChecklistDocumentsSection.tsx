@@ -11,6 +11,7 @@ function itemImages(item: OrderChecklistItem): OrderImage[] {
   return item.media.map(media => ({
     key: media.id,
     mediaId: media.media_id,
+    media: media.media,
     name: media.media?.file_name || item.title_snapshot || "Foto do checklist",
   }));
 }
