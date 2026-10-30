@@ -143,7 +143,7 @@ export function AdminSidebar({
   const sectionHeader = (label: string) => (
     collapsed
       ? <div className="mx-3 my-2 border-t border-white/7" />
-      : <div className="px-3 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</div>
+      : <div className="px-6 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">{label}</div>
   );
 
   return (
@@ -195,11 +195,11 @@ export function AdminSidebar({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <nav className="px-3 py-3">
+        <nav className="py-3">
           {(dashboardItems.length > 0 || isPlatformOperatorOrganization) && (
             <div className="space-y-1.5">
               {!collapsed && (
-                <div className="px-3 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
+                <div className="px-6 pb-1 pt-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/55">
                   Principal
                 </div>
               )}
