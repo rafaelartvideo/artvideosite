@@ -8,6 +8,7 @@ import { listOrderServiceTasks } from "../infrastructure/order-service-tasks.rep
 import { readOrderQuote } from "../infrastructure/order-quote.repository";
 import { listOrderQuotePhotos } from "../infrastructure/order-quote-photos.repository";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { generatedFileName } from "@/shared/domain/generated-file-name";
 import { getOrderChecklist } from "@/features/checklists/infrastructure/checklists.repository";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -436,9 +437,7 @@ export function OrderDetailsPage(props: Props) {
     if (!template) throw new Error("Documento não encontrado ou não está mais ativo.");
     const prepared = await prepareTemplateDocument(template);
     const frozen = await freezeOrderPrintPdf(prepared.configuredTemplate, prepared.context);
-    const safeTemplateName = String(template.name || "documento").replace(/[^a-z0-9._-]+/gi, "-");
-    const safeOrderNumber = String(detail?.os_number || "OS").replace(/[^a-z0-9._-]+/gi, "-");
-    return new File([frozen.blob], `${safeTemplateName}-${safeOrderNumber}.pdf`, { type: "application/pdf" });
+    return new File([frozen.blob], generatedFileName(template.name || "Documento", detail?.os_number || "OS"), { type: "application/pdf" });
   };
 
   const printTemplate = async (template: PrintTemplate) => {
@@ -468,12 +467,11 @@ export function OrderDetailsPage(props: Props) {
     try {
       const prepared = await prepareTemplateDocument(template);
       const frozen = await freezeOrderPrintPdf(prepared.configuredTemplate, prepared.context);
-      const safeTemplateName = String(template.name || "documento").replace(/[^a-z0-9._-]+/gi, "-");
-      const safeOrderNumber = String(detail?.os_number || "OS").replace(/[^a-z0-9._-]+/gi, "-");
+      const downloadName = generatedFileName(template.name || "Documento", detail?.os_number || "OS");
       const objectUrl = URL.createObjectURL(frozen.blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = `${safeTemplateName}-${safeOrderNumber}.pdf`;
+      anchor.download = downloadName;
       anchor.style.display = "none";
       document.body.appendChild(anchor);
       anchor.click();
