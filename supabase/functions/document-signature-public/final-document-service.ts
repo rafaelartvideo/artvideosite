@@ -43,8 +43,13 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
-function safeFileName(value: unknown) {
-  return text(value, 120).replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "documento-assinado";
+function readableDocumentFileName(value: unknown) {
+  return text(value, 120)
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/_/g, " ")
+    .replace(/[^\p{L}\p{N} .()-]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim() || "Documento assinado";
 }
 
 async function recordSystemEvent(client: any, request: Request, row: any, eventType: string, metadata: Record<string, unknown> = {}) {
@@ -200,7 +205,7 @@ async function sendFinalCopyEmail(client: any, request: Request, row: any, pdfBy
         to: [row.external_signer_email],
         subject: `${text(row.template_name_snapshot, 180)} assinado - OS ${text(row.order_number_snapshot, 80)}`,
         html: `<div style="font-family:Arial,sans-serif;color:#172536;line-height:1.55"><h2>${safeCompany}</h2><p>Olá, ${safeSigner}.</p><p>Seu documento <strong>${safeDocument}</strong> foi assinado eletronicamente e está anexado a este e-mail.</p><p>Código de autenticidade: <strong>${safeCode}</strong></p><p><a href="${safeVerificationUrl}">Verificar autenticidade</a></p></div>`,
-        attachments: [{ filename: `${safeFileName(row.template_name_snapshot)}-OS-${safeFileName(row.order_number_snapshot)}.pdf`, content: bytesToBase64(pdfBytes) }],
+        attachments: [{ filename: `${readableDocumentFileName(row.template_name_snapshot)} - ${readableDocumentFileName(row.order_number_snapshot)}.pdf`, content: bytesToBase64(pdfBytes) }],
       }),
     });
     const responseBody = await response.json().catch(() => ({}));
