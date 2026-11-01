@@ -1,4 +1,5 @@
 import { PdfInlineViewer } from "@/shared/ui/admin/PdfInlineViewer";
+import { generatedFileName } from "@/shared/domain/generated-file-name";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Download, ExternalLink, FileCheck2, LockKeyhole, ShieldCheck, PenLine } from "lucide-react";
 import { useParams } from "react-router";
@@ -170,7 +171,7 @@ export function PublicDocumentSignaturePage() {
       const result = await getPublicSignedDocument(token);
       const anchor = document.createElement("a");
       anchor.href = result.download_url;
-      anchor.download = `${inspection?.document_name || "documento-assinado"}.pdf`;
+      anchor.download = generatedFileName(inspection?.document_name || "Documento assinado", inspection?.order_number || "OS");
       anchor.rel = "noreferrer";
       document.body.appendChild(anchor);
       anchor.click();
