@@ -122,7 +122,7 @@ export async function buildWarrantyCertificateHtml(cert:WarrantyCertificate):Pro
     @media print{.ribbon,.terms-grid .ribbon{height:7mm;min-height:7mm}}
   `;
   const printOverflowCss="\n@media print{.page.certificate-overflow{height:auto;max-height:none;min-height:297mm;overflow:visible;padding-bottom:10mm}.page.certificate-overflow .contact,.page.certificate-overflow .bottom-notice{position:relative;left:auto;right:auto;bottom:auto;margin-top:2mm}}\n";
-  return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>CertificadoDeGarantia-'+esc(String(d.os_number||'OS'))+'</title><style>'+css+extraCss+printOverflowCss+ribbonLegibilityCss+'</style></head><body><article class="page">'+content+'</article><script>window.addEventListener("load",function(){setTimeout(function(){var p=document.querySelector(".page"), f=document.querySelector(".contact"), a=p&&p.querySelectorAll(".block,.terms-grid,.sign-row"),last=a&&a[a.length-1];if(p&&f&&last&&last.getBoundingClientRect().bottom+12>f.getBoundingClientRect().top){p.classList.add("certificate-overflow")}window.focus();window.print()},450)});</script></body></html>');
+  return ('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Certificado de Garantia - '+esc(String(d.os_number||'OS'))+'</title><style>'+css+extraCss+printOverflowCss+ribbonLegibilityCss+'</style></head><body><article class="page">'+content+'</article><script>window.addEventListener("load",function(){setTimeout(function(){var p=document.querySelector(".page"), f=document.querySelector(".contact"), a=p&&p.querySelectorAll(".block,.terms-grid,.sign-row"),last=a&&a[a.length-1];if(p&&f&&last&&last.getBoundingClientRect().bottom+12>f.getBoundingClientRect().top){p.classList.add("certificate-overflow")}window.focus();window.print()},450)});</script></body></html>');
 }
 
 /** A impressão e o envio usam o mesmo conteúdo e os mesmos dados congelados. */
@@ -149,10 +149,10 @@ export async function createWarrantyCertificatePdfFile(cert:WarrantyCertificate,
  const safeNumber=String(osNumber||"OS").replace(/[^a-z0-9_-]/gi,"");
  const blob=await html2pdf().set({
    margin:0,
-   filename:"CertificadoDeGarantia-"+safeNumber+".pdf",
+   filename:"Certificado de Garantia - "+safeNumber+".pdf",
    html2canvas:{scale:1.5,useCORS:true,logging:false},
    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
    pagebreak:{mode:["css","legacy"]}
  }).from(root).outputPdf("blob") as Blob;
- return new File([blob],"CertificadoDeGarantia-"+safeNumber+".pdf",{type:"application/pdf"});
+ return new File([blob],"Certificado de Garantia - "+safeNumber+".pdf",{type:"application/pdf"});
 }
