@@ -1635,8 +1635,6 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
         </aside>
         <section className={`${embedded ? "flex h-full w-full overflow-hidden" : selectedId ? "fixed inset-x-0 bottom-0 top-[var(--admin-shell-header-height,4rem)] z-[45] flex w-full overflow-hidden overscroll-contain md:static md:inset-auto md:h-auto md:w-auto" : "hidden md:flex"} min-h-0 min-w-0 flex-col bg-card`}>
           {!selected || conversationOpening ? <div role="status" className="flex h-full flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-            {selectedId && <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);}} aria-label="Voltar para conversas"
-              className="mb-6 flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-foreground md:hidden"><ChevronLeft size={22}/> Conversas</button>}
             {selectedId ? <>
               {conversationOpeningError
                 ? <p className="text-sm text-muted-foreground">Não foi possível preparar a conversa.</p>
@@ -1655,7 +1653,10 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
             </div>}
           </div> : <>
             <header className="flex shrink-0 flex-wrap items-center gap-x-2 gap-y-0 border-b border-border bg-muted/30 px-2 pt-2 md:min-h-16 md:flex-nowrap md:gap-3 md:px-4 md:py-0">
-              <button type="button" onClick={()=>{setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);}} aria-label="Voltar para conversas"
+              <button type="button" onClick={()=>{
+                  if (embedded) { onBack(); return; }
+                  setSelectedId(null);setProtocolFilter(null);setEmojiOpen(false);
+                }} aria-label={embedded ? "Voltar ao Painel do Técnico" : "Voltar para conversas"}
                 className="flex h-10 w-8 shrink-0 items-center justify-center rounded-full text-foreground hover:bg-muted md:hidden"><ChevronLeft size={25}/></button>
               <WhatsAppContactAvatar key={selected.id} name={selected.contact_name} size="header"
                 src={avatars[selected.id]} onError={()=>setAvatars(old=>({...old,[selected.id]:null}))}/>
@@ -1692,17 +1693,18 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                    Cliente: {linkedCustomers[selected.id]!.name} · Abrir cadastro
                  </button>}
               </div>
-              <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
-                {canAction("manage_contacts") && <button type="button"
+              {(!embedded || (!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
+                  (canOperateSelected || isActiveCollaborator))) && <div className="flex w-full shrink-0 items-center gap-1.5 overflow-x-auto border-t border-border/60 py-2 md:w-auto md:flex-wrap md:justify-end md:overflow-visible md:border-t-0 md:py-0">
+                {!embedded && canAction("manage_contacts") && <button type="button"
                   title="Editar contato" aria-label="Editar contato"
                   onClick={()=>{setEditContactId(selected.id);setContactsOpen(true);}}
                   className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <Pencil size={15}/><span className="hidden xl:inline">Editar</span>
                 </button>}
-                <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
+                {!embedded && <button type="button" onClick={()=>void viewProtocols()} title="Histórico de atendimentos e protocolos"
                   aria-label="Histórico do atendimento" className="flex h-8 items-center gap-1.5 rounded-md border border-border px-2 text-xs font-semibold hover:bg-muted">
                   <History size={15}/><span className="hidden xl:inline">Histórico</span>
-                </button>
+                </button>}
                 {!protocolFilter && selected.status==="in_att" && canAction("collaborate") &&
                   (canOperateSelected || isActiveCollaborator) &&
                   <AdminButton variant="secondary" size="sm" onClick={()=>void openParticipants()}>
@@ -1712,9 +1714,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                         {participants.filter(item=>item.status==="requested").length}
                       </span>}
                   </AdminButton>}
-                {!protocolFilter && selected.status === "waiting" && canAction("assume") &&
+                {!embedded && !protocolFilter && selected.status === "waiting" && canAction("assume") &&
                   <AdminButton size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("assume")}><UserCheck size={15}/> Assumir</AdminButton>}
-                {!protocolFilter && selected.status === "in_att" && canOperateSelected && <>
+                {!embedded && !protocolFilter && selected.status === "in_att" && canOperateSelected && <>
                   {onOpenOrder && selected.service_order_id && <button type="button" title="Abrir OS vinculada"
                     onClick={()=>onOpenOrder(selected.service_order_id!)} className="rounded-md border border-border px-2 py-1 text-xs font-semibold hover:bg-muted">OS</button>}
                   {onOpenOrder && hasPermission("orders.details.view") && canAction("link_orders") && <button type="button" title="Vincular OS deste cliente"
@@ -1730,9 +1732,9 @@ export function UnionWhatsAppInboxPage({ onBack, onConfigure, onOpenCustomer, on
                      {runningAction==="finish" ? "Finalizando..." : "Finalizar"}
                    </AdminButton>}
                 </>}
-                {!protocolFilter && selected.status === "finished" && canAction("reopen") &&
+                {!embedded && !protocolFilter && selected.status === "finished" && canAction("reopen") &&
                   <AdminButton variant="secondary" size="sm" disabled={Boolean(runningAction)} onClick={() => void operate("reopen")}><RotateCcw size={15}/> Reabrir</AdminButton>}
-              </div>
+              </div>}
             </header>
             {protocolFilter && <div className="flex items-center justify-between gap-2 border-b border-border bg-primary/5 px-4 py-2 text-xs">
               <span>Protocolo <strong>{protocolFilter.label}</strong></span>
