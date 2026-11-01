@@ -49,7 +49,7 @@ Deno.serve(async request => {
     ![1, 2].includes(mediaParts.length)
     || (hasDisplayName && !isUuid(objectId))
     || !originalFileName
-    || originalFileName.length > 120
+    || originalFileName.length > (hasDisplayName ? 120 : 220)
     || originalFileName.includes("/")
     || originalFileName.includes("\\")
     || originalFileName.includes("..")
