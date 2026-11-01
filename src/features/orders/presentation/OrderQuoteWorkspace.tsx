@@ -451,6 +451,33 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                       : confirmationAction==="reject" ? "Deseja rejeitar este orçamento?"
                       : "Deseja reabrir a negociação e elaborar uma nova versão?"}
                   </p>
+                  {confirmationAction==="approve" && <div className="space-y-3">
+                    {executionItemsLoading && <div className="flex items-center gap-2 text-xs text-muted-foreground"><LoadingSpinner size="sm"/> Consultando itens da execução...</div>}
+                    {executionItemsError && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">{executionItemsError}</p>}
+                    {!executionItemsLoading && !executionItemsError && executionItems.length>0 && <>
+                      <div className="rounded-lg border border-border p-3">
+                        <strong className="text-xs text-foreground">Itens já existentes na execução</strong>
+                        <div className="mt-2 max-h-36 space-y-2 overflow-y-auto">
+                          {executionItems.map(item=><div key={item.id} className="flex justify-between gap-3 text-xs">
+                            <span className="min-w-0 break-words text-muted-foreground">{item.title_snapshot} · Qtd. {item.quantity}</span>
+                            <strong className="shrink-0">{formatCurrency(Number(item.subtotal||0))}</strong>
+                          </div>)}
+                        </div>
+                      </div>
+                      <p className="text-xs font-semibold text-foreground">Como deseja aplicar o orçamento aprovado?</p>
+                      {([
+                        {value:"replace",title:"Substituir itens anteriores",description:"Preserva o histórico e utiliza somente os itens deste orçamento. Não permite substituir itens com tarefas, recibos, contas ou documentos fiscais."},
+                        {value:"keep",title:"Manter e adicionar",description:"Mantém os itens já registrados e acrescenta os aprovados, verificando duplicidades reais."},
+                      ] as const).map(option=><label key={option.value}
+                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${reconcileMode===option.value?"border-primary bg-primary/10":"border-border bg-background hover:bg-muted/50"}`}>
+                        <input type="radio" name="order-quote-reconciliation" className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
+                          checked={reconcileMode===option.value} onChange={()=>setReconcileMode(option.value)}/>
+                        <span className="min-w-0"><strong className="block text-sm text-foreground">{option.title}</strong>
+                        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.description}</span></span>
+                      </label>)}
+                      <p className="text-[11px] text-muted-foreground">A escolha ficará registrada. Se houver vínculos financeiros ou técnicos, a substituição será bloqueada.</p>
+                    </>}
+                  </div>}
                   {confirmationAction==="reject" && <FInput label="Motivo da rejeição"
                     required maxLength={2000} value={reason} disabled={busy}
                     onChange={(e:any)=>setReason(e.target.value)} placeholder="Informe o motivo da rejeição"/>}
