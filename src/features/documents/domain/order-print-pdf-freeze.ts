@@ -1,4 +1,5 @@
 import { buildOrderPrintDocumentHtml, getOrderPrintFooterMetadata, orderPrintSafeMargins, type PrintOrderContext } from "./order-print-document";
+import { generatedFileName } from "@/shared/domain/generated-file-name";
 import {
   copyComputedStyle,
   freezeRasterOptions,
@@ -179,7 +180,7 @@ export async function freezeOrderPrintPdf(
     worker = (html2pdf as any)()
       .set({
         margin: html2pdfMarginOrder(margins),
-        filename: `${template.name || "documento"}.pdf`,
+        filename: generatedFileName(template.name || "Documento"),
         image: { type: raster.imageType, quality: raster.imageQuality },
         html2canvas: {
           scale: raster.scale,
