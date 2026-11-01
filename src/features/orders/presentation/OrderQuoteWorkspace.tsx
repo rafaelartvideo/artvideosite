@@ -28,7 +28,7 @@ const ACTION_TITLES: Record<QuoteAction,string> = {
   submit: "Enviar orçamento para aprovação",
   approve: "Aprovar orçamento",
   reject: "Rejeitar orçamento",
-  renegotiate: "Reabrir negociação",
+  renegotiate: "Renegociar",
 };
 const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
   submit: "Confirmar envio",
@@ -321,19 +321,19 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     </Section>
     </div>
     {footerHost && createPortal(<>
-      {editable && <BtnPrimary disabled={busy} loading={busy}
-        onClick={() => openAction("submit")}><Send size={15}/> Enviar para aprovação</BtnPrimary>}
+      {editable && <BtnPrimary disabled={busy} loading={busy} className="w-full min-w-0 !px-2 text-xs md:w-auto md:!px-4 md:text-sm"
+        onClick={() => openAction("submit")}><Send size={15} className="hidden shrink-0 sm:block"/> Enviar para aprovação</BtnPrimary>}
       {proposal?.status==="awaiting_approval" && <>
-        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("renegotiate")}>
-          <RotateCcw size={15}/> Reabrir negociação</AdminButton>
-        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("reject")}>
-          <XCircle size={15}/> Rejeitar</AdminButton>
-        <BtnPrimary disabled={busy} loading={busy} onClick={()=>openAction("approve")}>
-          <CheckCircle2 size={15}/> Aprovar</BtnPrimary>
+        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("renegotiate")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
+          <RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</AdminButton>
+        <AdminButton variant="secondary" disabled={busy} onClick={()=>openAction("reject")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
+          <XCircle size={15} className="hidden shrink-0 sm:block"/> Rejeitar</AdminButton>
+        <BtnPrimary disabled={busy} loading={busy} onClick={()=>openAction("approve")} className="min-w-0 flex-1 basis-0 !px-1 text-[11px] sm:text-xs md:flex-none md:!px-4 md:text-sm">
+          <CheckCircle2 size={15} className="hidden shrink-0 sm:block"/> Aprovar</BtnPrimary>
       </>}
-      {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy}
-        onClick={()=>openAction("renegotiate")}><RotateCcw size={15}/> Reabrir negociação</BtnPrimary>}
-      {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)}>
+      {proposal?.status==="rejected" && <BtnPrimary disabled={busy} loading={busy} className="w-full min-w-0 !px-2 text-xs md:w-auto md:!px-4 md:text-sm"
+        onClick={()=>openAction("renegotiate")}><RotateCcw size={15} className="hidden shrink-0 sm:block"/> Renegociar</BtnPrimary>}
+      {proposal?.status==="approved" && <BtnPrimary onClick={()=>setShowExecution(true)} className="w-full min-w-0 whitespace-normal !px-2 text-xs md:w-auto md:!px-4 md:text-sm">
         Abrir produtos e serviços para execução</BtnPrimary>}
     </>,footerHost)}
     <AdminDialog
