@@ -3556,8 +3556,14 @@ Deno.serve(async request => {
 
       await ensureOutboxBucket();
 
-      const safeName = (uploadFile.name || "arquivo")
+      // O nome do documento entregue preserva os espaços (ex.: "Certificado de Garantia - 211.pdf").
+      // A chave do Storage mantém um nome restrito e único, independente do nome exibido.
+      const displayFileName = (uploadFile.name || "arquivo")
         .normalize("NFKD")
+        .replace(/[^A-Za-z0-9 ._-]+/g, "-")
+        .replace(/ {2,}/g, " ")
+        .slice(-120) || "arquivo";
+      const safeName = displayFileName
         .replace(/[^A-Za-z0-9._-]+/g, "-")
         .replace(/-+/g, "-")
         .slice(-120) || "arquivo";
@@ -3589,7 +3595,7 @@ Deno.serve(async request => {
       // carregam query string e nem sempre são aceitas pelo validador de mídia.
       // Usar o proxy próprio mantém um caminho limpo com extensão, MIME e
       // Content-Length corretos, sem tornar o bucket público.
-      const providerUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${mediaObjectId}/${encodeURIComponent(safeName)}`;
+      const providerUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${mediaObjectId}/${encodeURIComponent(displayFileName)}`;
 
       try {
         const mediaCheck = await fetch(providerUrl, { method: "HEAD" });
@@ -3726,7 +3732,7 @@ Deno.serve(async request => {
             sent_via_union: true,
             temp_storage_bucket: SAC_OUTBOX_BUCKET,
             temp_storage_path: storagePath,
-            local_file_name: safeName,
+            local_file_name: displayFileName,
             send_transport: mediaTransport,
             api_response: apiBody,
           },
