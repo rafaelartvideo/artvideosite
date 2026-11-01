@@ -271,7 +271,7 @@ export function OrderSacDigitalDialog({
             <span className="shrink-0">{text.length}/5000</span>
           </div>
 
-          {documentTemplates.length > 0 && onBuildDocument && (
+          {(documentTemplates.length > 0 || Boolean(order?.completed_at)) && onBuildDocument && (
             <div className="mt-3 space-y-2 rounded-lg border border-border bg-muted/25 p-3">
               <FSelect
                 label="Documento da OS"
@@ -287,6 +287,7 @@ export function OrderSacDigitalDialog({
                 }}
                 options={[
                   { value: "", label: "Sem documento gerado" },
+                  ...(order?.completed_at ? [{ value: "warranty-certificate", label: "Certificado de garantia · PDF" }] : []),
                   ...documentTemplates.map(template => ({
                     value: template.id,
                     label: `${template.name} · ${PRINT_TEMPLATE_TYPE_LABELS[template.document_type] || template.document_type}`,
@@ -294,7 +295,7 @@ export function OrderSacDigitalDialog({
                 ]}
               />
               <p className="text-[10px] text-muted-foreground">
-                São os mesmos modelos ativos disponíveis em Imprimir. O PDF será gerado com os dados atuais da OS e enviado ao cliente.
+                Selecione um modelo de impressão ou o certificado da OS concluída. O PDF será gerado com os dados registrados e enviado ao cliente.
               </p>
             </div>
           )}
