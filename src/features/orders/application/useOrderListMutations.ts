@@ -1,6 +1,8 @@
+import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { useRef, useState, type Dispatch, type DragEvent, type SetStateAction } from "react";
 import { useAuth } from "@/lib/auth";
 import { insertServiceOrderStatusHistory, updateServiceOrderSituation, updateServiceOrderStatus } from "../infrastructure/orders.repository";
+import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { cancelServiceOrder } from "../infrastructure/order-cancellation.repository";
 
 type ToastMessage = { msg: string; type: "success" | "error" };
@@ -93,6 +95,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   const updateOrderSituation = async (order: any, situationId: string) => {
     if (!situationId) { showToast({ msg: "A situação é obrigatória. Selecione uma situação para a OS.", type: "error" }); return false; }
     if (!hasPermission("orders.situation.change")) { showToast({ msg: "Você não possui permissão para alterar a situação.", type: "error" }); return false; }
+    if (isOrderSituationLocked(order)) { showToast({ msg: "A situação de uma OS fechada ou cancelada não pode ser alterada.", type: "error" }); return false; }
     const organizationId = requireTargetOrganization();
     if (!organizationId || order.organization_id !== organizationId) return false;
     const previousOrders = orders; const previousDetail = detail; const optimisticSituation = situations.find(item => item.id === situationId);
@@ -115,7 +118,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
 
     const order = orders.find(item => item.id === orderId);
     if (!order) return;
-    if (order.completed_at || order.cancelled_at || String(order.order_status?.name || "").toLowerCase() === "cancelada") return;
+    if (isOrderSituationLocked(order)) return;
     if ((order.situation_id || "") === situationId) return;
 
     suppressCardClickRef.current = true;
@@ -127,7 +130,7 @@ export function useOrderListMutations({ orders, setOrders, statuses, situations,
   };
 
   const handleCardDragStart = (event: DragEvent<HTMLElement>, order: any) => {
-    if (!hasPermission("orders.situation.change") || order.completed_at || order.cancelled_at || String(order.order_status?.name || "").toLowerCase() === "cancelada") {
+    if (!hasPermission("orders.situation.change") || isOrderSituationLocked(order)) {
       event.preventDefault();
       return;
     }
