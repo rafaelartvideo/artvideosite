@@ -40,7 +40,12 @@ Deno.serve(async request => {
   const hasDisplayName = mediaParts.length === 2;
   const objectId = hasDisplayName ? mediaParts[0] : "";
   const originalFileName = hasDisplayName ? mediaParts[1] : mediaParts[0] || "";
-  const fileName = hasDisplayName ? `${objectId}-${originalFileName}` : originalFileName;
+  // O nome visível pode conter espaços; a chave do Storage continua sanitizada.
+  // URLs antigas com nomes já sanitizados permanecem funcionando.
+  const storageName = hasDisplayName
+    ? originalFileName.normalize("NFKD").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/-+/g, "-").slice(-120)
+    : originalFileName;
+  const fileName = hasDisplayName ? `${objectId}-${storageName}` : originalFileName;
   const displayName = hasDisplayName ? originalFileName
     : fileName.replace(/^[0-9a-f]{8}-[0-9a-f-]{27}-/i, "");
 
@@ -53,7 +58,8 @@ Deno.serve(async request => {
     || originalFileName.includes("/")
     || originalFileName.includes("\\")
     || originalFileName.includes("..")
-    || !/^[A-Za-z0-9._-]+$/.test(originalFileName)
+    || !/^[A-Za-z0-9 ._-]+$/.test(originalFileName)
+    || !storageName
     || fileName.length > 220
     || !/^[0-9a-f-]{36}-[A-Za-z0-9._-]+$/i.test(fileName)
   ) {
