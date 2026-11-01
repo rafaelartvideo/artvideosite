@@ -95,7 +95,7 @@ function WarrantyCertificate({ item, detail, busy, onBusy, onError }: {
           Este arquivo é uma segunda via simplificada dos dados da garantia emitida.
           As condições de cobertura são as definidas pela Eletrônica Artvideo no certificado original.
         </p>`;
-      await html2pdf().set({margin:0,filename:"CertificadoDeGarantia-"+String(detail.order.os_number||"OS").replace(/[^a-z0-9_-]/gi,"")+".pdf",
+      await html2pdf().set({margin:0,filename:"Certificado de Garantia - "+String(detail.order.os_number||"OS").replace(/[^a-z0-9_-]/gi,"")+".pdf",
         html2canvas:{scale:2},jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}}).from(root).save();
     } catch (e) {
       onError(e instanceof Error ? e.message : "Não foi possível preparar o certificado.");
