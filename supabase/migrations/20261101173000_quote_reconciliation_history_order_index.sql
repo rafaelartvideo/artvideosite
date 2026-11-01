@@ -1,0 +1,1 @@
+create index if not exists service_order_quote_reconciliation_history_order_idx on private.service_order_quote_reconciliation_history (service_order_id,applied_at desc);
