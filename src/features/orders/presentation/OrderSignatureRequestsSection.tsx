@@ -1,6 +1,7 @@
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { systemErrorMessage } from "@/shared/domain/error-message";
+import { generatedFileName } from "@/shared/domain/generated-file-name";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Ban,
@@ -201,12 +202,11 @@ export function OrderSignatureRequestsSection({
 
   const openSignedPdf = (request: DocumentSignatureRequestSummary) => withBusy(request.id, async () => {
     const result = await getSignedSignatureDocument(order.organization_id, request.id);
-    const safeTemplateName = String(request.template_name_snapshot || "documento").replace(/[^a-z0-9._-]+/gi, "-");
-    const safeOrderNumber = String(request.order_number_snapshot || "OS").replace(/[^a-z0-9._-]+/gi, "-");
+
     setPdfPreview({
       source: result.download_url,
       title: `PDF assinado · ${request.template_name_snapshot || "Documento"}`,
-      fileName: `${safeTemplateName}-${safeOrderNumber}.pdf`,
+      fileName: generatedFileName(request.template_name_snapshot || "Documento assinado", request.order_number_snapshot || "OS"),
     });
   });
 
@@ -214,7 +214,7 @@ export function OrderSignatureRequestsSection({
     const result = await getSignedSignatureDocument(order.organization_id, request.id);
     const anchor = document.createElement("a");
     anchor.href = result.download_url;
-    anchor.download = `${request.template_name_snapshot || "documento"}-OS-${request.order_number_snapshot || ""}.pdf`;
+    anchor.download = generatedFileName(request.template_name_snapshot || "Documento assinado", request.order_number_snapshot || "OS");
     anchor.rel = "noreferrer";
     document.body.appendChild(anchor);
     anchor.click();
