@@ -43,7 +43,7 @@ Deno.serve(async request => {
   // O nome visível pode conter espaços; a chave do Storage continua sanitizada.
   // URLs antigas com nomes já sanitizados permanecem funcionando.
   const storageName = hasDisplayName
-    ? originalFileName.normalize("NFKD").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/-+/g, "-").slice(-120)
+    ? originalFileName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9._-]+/g, "-").replace(/-+/g, "-").slice(-120)
     : originalFileName;
   const fileName = hasDisplayName ? `${objectId}-${storageName}` : originalFileName;
   const displayName = hasDisplayName ? originalFileName
@@ -58,7 +58,7 @@ Deno.serve(async request => {
     || originalFileName.includes("/")
     || originalFileName.includes("\\")
     || originalFileName.includes("..")
-    || !/^[A-Za-z0-9 ._-]+$/.test(originalFileName)
+    || !/^[\p{L}\p{N} ._-]+$/u.test(originalFileName)
     || !storageName
     || fileName.length > 220
     || !/^[0-9a-f-]{36}-[A-Za-z0-9._-]+$/i.test(fileName)
@@ -80,7 +80,8 @@ Deno.serve(async request => {
   const headers = new Headers(baseHeaders);
   headers.set("Content-Type", data.type || "application/octet-stream");
   headers.set("Content-Length", String(data.size));
-  headers.set("Content-Disposition", `inline; filename="${displayName.replace(/"/g, "")}"`);
+  const asciiFallback = displayName.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^\x20-\x7E]/g, "").replace(/["\\]/g, "");
+  headers.set("Content-Disposition", `inline; filename="${asciiFallback}"; filename*=UTF-8''${encodeURIComponent(displayName)}`);
 
   if (request.method === "HEAD") {
     return new Response(null, { status: 200, headers });
