@@ -1,4 +1,5 @@
 import { formatZipCode } from "@/lib/address";
+import { generatedFileName } from "@/shared/domain/generated-file-name";
 import {
   formatCnpj,
   formatCpf,
@@ -458,7 +459,7 @@ export function buildOrderPrintDocumentHtml(template: PrintTemplateEditorValue, 
   const printScript = autoPrint
     ? "<script>window.addEventListener('load',function(){Promise.all(Array.from(document.images).map(function(img){if(img.complete)return Promise.resolve();return new Promise(function(resolve){img.addEventListener('load',resolve,{once:true});img.addEventListener('error',resolve,{once:true});setTimeout(resolve,8000)})})).then(function(){setTimeout(function(){window.focus();window.print()},150)})});window.addEventListener('afterprint',function(){window.close()})</script>"
     : "";
-  const documentTitle = autoPrint ? "" : template.name;
+  const documentTitle = generatedFileName(template.name || "Documento", context.order?.os_number || "OS").replace(/\.pdf$/i, "");
   const html = "<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>" + escapeHtml(documentTitle) + "</title><style>" +
     "@page{size:A4 " + orientation + ";margin:" + pagePadding + ";@top-left{content:none}@top-center{content:none}@top-right{content:none}@bottom-left{content:" + pageFooterLeft + ";font-family:Arial,sans-serif;font-size:7.5pt;color:#526174;text-align:left}@bottom-center{content:" + pageFooterCenter + ";font-family:Arial,sans-serif;font-size:8pt;color:#526174;text-align:center}@bottom-right{content:" + pageFooterRight + ";font-family:Arial,sans-serif;font-size:7.5pt;color:#526174;text-align:right}}" +
     "*{box-sizing:border-box}html{background:#eef2f6}body{width:" + pageWidth + "mm;max-width:100%;margin:0 auto;padding:" + pagePadding + ";background:#fff;color:#172536;font-family:" + layout.font_family + ",sans-serif;font-size:" + layout.body_font_size + "pt;line-height:" + Math.max(1.2, layout.line_height) + ";overflow-wrap:anywhere}" +
