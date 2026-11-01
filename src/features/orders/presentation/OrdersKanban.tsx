@@ -1,3 +1,4 @@
+import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { getOrderStatusBadgeClass } from "../domain/order-status-palette";
 import { useState } from "react";
@@ -23,7 +24,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
   const canCancelPermission = hasPermission("orders.cancel");
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
   const canCancel = (order: any) => canCancelPermission && !order.completed_at && !isCancelled(order);
-  const canDrag = (order: any) => canChangeSituation && !order.completed_at && !isCancelled(order);
+  const canDrag = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
   const columns = [
     { id: "", name: "Sem situação", color: "#94a3b8" },
     ...situations.map(situation => ({ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" })),
@@ -91,7 +92,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
 
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                   <span className="shrink-0 font-semibold">Situação:</span>
-                  {canChangeSituation && !order.completed_at && !isCancelled(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
+                  {canDrag(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
                 {order.is_solved && !order.completed_at && !isCancelled(order) && <span className={`mt-2 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${STATUS_TONE_CLASSES.success.badge}`}>✓ OS solucionada</span>}
