@@ -849,7 +849,7 @@ Deno.serve(async request=>{
         (entry:{id:string;type:string})=>entry.id===documentId&&entry.type==="signature"))
         return response(request,fail("Documento não disponível.",403),403);
       const path=String(document.final_pdf_storage_path).replace(/^signed-documents\//,"");
-      const downloadName="documento-assinado-"+String(details.order.os_number||"OS").replace(/[^a-z0-9_-]/gi,"_").slice(0,40)+".pdf";
+      const downloadName="Documento assinado - "+String(details.order.os_number||"OS").replace(/[^a-z0-9_-]/gi,"").slice(0,40)+".pdf";
       const options=body.download===true?{download:downloadName}:undefined;
       const {data:sign,error:signError}=await admin.storage.from("signed-documents").createSignedUrl(path,120,options);
       if(signError||!sign?.signedUrl)return response(request,fail("Documento indisponível no armazenamento.",404),404);
