@@ -249,7 +249,6 @@ async function buildImagesPdf(images: OrderImage[], fileName: string) {
 }
 async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadFormat, index: number) {
   if (format === "pdf") {
-    const baseName = safeFileBaseName(image.name, `imagem-${index + 1}`);
     await buildImagesPdf([image], generatedFileName(image.name || `Imagem ${index + 1}`));
     return;
   }
