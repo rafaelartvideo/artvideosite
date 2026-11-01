@@ -8,6 +8,7 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { queryKeys } from "@/infrastructure/query/query-keys";
 import { cancelServiceOrder } from "../infrastructure/order-cancellation.repository";
+import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 
 export function OrderDetailsActions({ detail, situations, hasPermission, onClose, onSituationChange, onRequestParts, onResolve, onComplete, onEdit, onCancel, cancelling = false, quoteMode = false, quoteExecutionAllowed = true, quoteFooterHostId }: {
@@ -42,7 +43,7 @@ export function OrderDetailsActions({ detail, situations, hasPermission, onClose
   }, []);
 
   const cancelled = cancelledLocally || Boolean(detail.cancelled_at) || String(detail.order_status?.name || "").toLowerCase() === "cancelada";
-  const canChangeSituation = !quoteMode && hasPermission("orders.situation.change") && !cancelled;
+  const canChangeSituation = !quoteMode && hasPermission("orders.situation.change") && !isOrderSituationLocked(detail);
   const canEdit = hasPermission("orders.edit");
   const canRequestParts = !quoteMode && quoteExecutionAllowed && hasPermission("orders.request_parts") && detail.is_solved !== true && !cancelled;
   const canResolve = !quoteMode && quoteExecutionAllowed && hasPermission("orders.solve") && !detail.is_solved && !detail.cannot_be_solved && !cancelled;
