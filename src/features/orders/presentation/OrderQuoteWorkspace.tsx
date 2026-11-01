@@ -38,7 +38,7 @@ const ACTION_BUTTON_LABELS: Record<QuoteAction,string> = {
 };
 const ACTION_SUCCESS: Record<QuoteAction,string> = {
   submit: "Orçamento enviado para aprovação. A proposta permanece aguardando uma decisão.",
-  approve: "Orçamento aprovado. Os itens foram incorporados à OS e a execução está liberada.",
+  approve: "Orçamento aprovado. Os serviços existentes foram preservados e vinculados à proposta, sem duplicação.",
   reject: "Orçamento rejeitado. O motivo ficou registrado e a negociação poderá ser reaberta.",
   renegotiate: "Negociação reaberta. Uma nova versão da proposta está pronta para edição.",
 };
@@ -59,6 +59,29 @@ function versionPricing(version: Record<string,any>) {
     ? subtotal*Number(version.discount_value||0)/100
     : Number(version.discount_value||0);
   return { subtotal, discount, total: Math.max(0,subtotal-discount) };
+}
+/** Compatibilidade um a um: preserva vínculos técnicos sem duplicar valores. */
+function canReuseQuoteExecution(execution: OrderCommercialItem[], proposed: OrderQuoteProposal["items"]): boolean {
+  if (!execution.length || !Array.isArray(proposed) || execution.length !== proposed.length) return false;
+  const matched = new Set<string>();
+  for (const item of proposed) {
+    const matches = execution.filter(previous => {
+      if (matched.has(previous.id) || previous.quote_proposal_id) return false;
+      if (previous.item_type !== item.item_type ||
+          Number(previous.quantity) !== Number(item.quantity) ||
+          Number(previous.unit_price) !== Number(item.unit_price) ||
+          Number(previous.additional_cost) !== Number(item.additional_cost || 0)) return false;
+      if (previous.item_type === "service")
+        return Boolean(previous.general_service_id) && previous.general_service_id === item.general_service_id;
+      if (previous.item_type === "product")
+        return Boolean(previous.inventory_item_id) && previous.inventory_item_id === item.inventory_item_id;
+      return previous.title_snapshot.trim().toLocaleLowerCase("pt-BR") ===
+        String(item.title_snapshot || "").trim().toLocaleLowerCase("pt-BR");
+    });
+    if (matches.length !== 1) return false;
+    matched.add(matches[0].id);
+  }
+  return matched.size === execution.length;
 }
 export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhotos,onPricingChange,footerHostId,onStatusChange}:{
   order:any;canEdit:boolean;canManagePhotos:boolean;canRemovePhotos:boolean;onPricingChange:(pricing:any)=>void;footerHostId:string;
@@ -89,7 +112,6 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   const [executionItems,setExecutionItems]=useState<OrderCommercialItem[]>([]);
   const [executionItemsLoading,setExecutionItemsLoading]=useState(false);
   const [executionItemsError,setExecutionItemsError]=useState("");
-  const [reconcileMode,setReconcileMode]=useState<"replace"|"keep"|null>(null);
   const submissionLocked=useRef(false);
   const [showExecution,setShowExecution]=useState(false);
   const [selectedVersion,setSelectedVersion]=useState<Record<string,any>|null>(null);
@@ -101,7 +123,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   useEffect(()=>{
     setConfirmationAction(null);
     setModalFeedback(null);
-    setExecutionItems([]);setExecutionItemsLoading(false);setExecutionItemsError("");setReconcileMode(null);
+    setExecutionItems([]);setExecutionItemsLoading(false);setExecutionItemsError("");
     submissionLocked.current=false;
   },[orderId]);
 
@@ -143,6 +165,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   const renegotiations = (proposal?.versions||[])
     .filter(version=>Number(version.version)<Number(proposal?.version||1))
     .sort((a,b)=>Number(b.version)-Number(a.version));
+  const canReuseExecution = canReuseQuoteExecution(executionItems, proposal?.items || []);
   const editable=canEdit&&!order.completed_at&&!order.cancelled_at&&
     (!proposal||proposal.status==="draft"||proposal.status==="renegotiation");
   const openAction = (action: QuoteAction) => {
@@ -150,7 +173,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     setModalFeedback(null);
     setConfirmationAction(action);
     if(action==="approve") {
-      setExecutionItems([]);setReconcileMode(null);setExecutionItemsError("");setExecutionItemsLoading(true);
+      setExecutionItems([]);setExecutionItemsError("");setExecutionItemsLoading(true);
       void listOrderCommercialItems(orderId)
         .then(items=>setExecutionItems(items.filter(item=>item.organization_id===org)))
         .catch(error=>setExecutionItemsError(systemErrorMessage(error,"Não foi possível consultar os itens existentes.")))
@@ -170,8 +193,8 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       setModalFeedback({type:"error",message:"Diagnóstico e solução proposta devem ter no máximo 400 caracteres cada."});
       return;
     }
-    if(action==="approve" && (executionItemsLoading || executionItemsError || (executionItems.length>0 && !reconcileMode))){
-      setModalFeedback({type:"error",message:executionItemsError||"Selecione como conciliar os itens existentes antes de aprovar."});return;
+    if(action==="approve" && (executionItemsLoading || executionItemsError || (executionItems.length>0 && !canReuseExecution))){
+      setModalFeedback({type:"error",message:executionItemsError||"Os itens do orçamento devem corresponder exatamente aos serviços existentes antes da aprovação."});return;
     }
     if(action==="reject" && !reason.trim()){
       setModalFeedback({type:"error",message:"Informe o motivo da rejeição antes de confirmar."});
@@ -187,7 +210,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         result=await changeOrderQuote(org,orderId,"submit");
       }else result=await changeOrderQuote(org,orderId,action,
         action==="reject"?{reason}:
-        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version,...(executionItems.length?{reconcile_mode:reconcileMode}:{})}: {});
+        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version,...(executionItems.length?{reconcile_mode:"reuse"}:{})}: {});
       queryClient.setQueryData(quoteKey, result);
       setProposal(result);
       setDraft(snapshot(result));
@@ -202,7 +225,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         }
       }
       if(action==="reject")setReason("");
-      setModalFeedback({type:"success",message:ACTION_SUCCESS[action]});
+      setModalFeedback({type:"success",message:action==="approve" && executionItems.length===0 ? "Orçamento aprovado. Os itens foram adicionados à execução da OS." : ACTION_SUCCESS[action]});
     }catch(err){
       setModalFeedback({type:"error",message:systemErrorMessage(err)});
     }finally{
@@ -392,7 +415,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       description={confirmationAction==="submit"
         ? "Confira a proposta antes de encaminhá-la para aprovação."
         : confirmationAction==="approve"
-          ? "Confirme a autorização para incluir os itens na execução da OS."
+          ? "Confirme a aprovação. Se já houver serviços equivalentes, a execução técnica será preservada."
           : confirmationAction==="reject"
             ? "A proposta ficará rejeitada e poderá ser renegociada posteriormente."
             : "Será iniciada uma nova versão, preservando o histórico anterior."}
@@ -402,7 +425,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           : <>
             <BtnSecondary disabled={busy} onClick={closeAction}>Voltar</BtnSecondary>
             <BtnPrimary
-              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim()) || (confirmationAction==="approve" && (executionItemsLoading || Boolean(executionItemsError) || (executionItems.length>0 && !reconcileMode)))}
+              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim()) || (confirmationAction==="approve" && (executionItemsLoading || Boolean(executionItemsError) || (executionItems.length>0 && !canReuseExecution)))}
               loading={busy}
               loadingText="Processando..."
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
@@ -464,18 +487,15 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                           </div>)}
                         </div>
                       </div>
-                      <p className="text-xs font-semibold text-foreground">Como deseja aplicar o orçamento aprovado?</p>
-                      {([
-                        {value:"replace",title:"Substituir itens anteriores",description:"Preserva o histórico e utiliza somente os itens deste orçamento. Não permite substituir itens com tarefas, recibos, contas ou documentos fiscais."},
-                        {value:"keep",title:"Manter e adicionar",description:"Mantém os itens já registrados e acrescenta os aprovados, verificando duplicidades reais."},
-                      ] as const).map(option=><label key={option.value}
-                        className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${reconcileMode===option.value?"border-primary bg-primary/10":"border-border bg-background hover:bg-muted/50"}`}>
-                        <input type="radio" name="order-quote-reconciliation" className="mt-0.5 h-4 w-4 shrink-0 accent-blue-600"
-                          checked={reconcileMode===option.value} onChange={()=>setReconcileMode(option.value)}/>
-                        <span className="min-w-0"><strong className="block text-sm text-foreground">{option.title}</strong>
-                        <span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.description}</span></span>
-                      </label>)}
-                      <p className="text-[11px] text-muted-foreground">A escolha ficará registrada. Se houver vínculos financeiros ou técnicos, a substituição será bloqueada.</p>
+                      {canReuseExecution ? <div className="flex items-start gap-3 rounded-lg border border-primary bg-primary/10 p-3">
+                        <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-primary" aria-hidden="true"/>
+                        <span className="min-w-0">
+                          <strong className="block text-sm text-foreground">Reutilizar serviços existentes</strong>
+                          <span className="mt-1 block text-xs leading-5 text-muted-foreground">Única opção disponível: associa o orçamento aos itens já cadastrados, preservando atividades técnicas, relatórios, fotos e valores. Nenhum item será duplicado ou excluído.</span>
+                        </span>
+                      </div> : <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-xs leading-5 text-foreground">
+                        Os itens, quantidades ou valores do orçamento não correspondem exatamente à execução, ou algum serviço já pertence a outra proposta. Revise os itens antes de aprovar; não serão feitas substituições nem duplicações.
+                      </p>}
                     </>}
                   </div>}
                   {confirmationAction==="reject" && <FInput label="Motivo da rejeição"
