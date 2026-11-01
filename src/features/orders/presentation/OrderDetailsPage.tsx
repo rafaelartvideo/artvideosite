@@ -45,7 +45,7 @@ import { PRINT_TEMPLATE_TYPE_LABELS, type PrintTemplate } from "@/features/docum
 import { buildOrderPrintDocumentHtml, openPrintWindow, renderOrderPrintDocument } from "@/features/documents/domain/order-print-document";
 import { freezeOrderPrintPdf } from "@/features/documents/domain/order-print-pdf-freeze";
 import { renderServiceOrderLabel } from "../domain/order-label-print";
-import { issueWarrantyCertificate, loadWarrantyCertificate, printWarrantyCertificate } from "../application/order-warranty";
+import { createWarrantyCertificatePdfFile, issueWarrantyCertificate, loadWarrantyCertificate, printWarrantyCertificate } from "../application/order-warranty";
 import { loadPrintTemplateEditorValue } from "@/features/documents/infrastructure/documents.repository";
 import { sendOrderDocumentEmail } from "@/features/documents/infrastructure/order-document-email.repository";
 import { getCompanyPrintContext } from "@/features/settings/infrastructure/company-settings.repository";
@@ -423,6 +423,15 @@ export function OrderDetailsPage(props: Props) {
   };
 
   const buildSacTemplateDocument = async (templateId: string) => {
+    if(templateId==="warranty-certificate") {
+      if(!detail?.completed_at || !canPrintDocuments) throw new Error("O certificado só pode ser enviado para OS concluída, com permissão para imprimir.");
+      let certificate=await loadWarrantyCertificate(detail.organization_id,detail.id);
+      if(!certificate) {
+        if(!hasPermission("orders.complete")) throw new Error("Certificado não emitido. Solicite sua emissão a um gestor.");
+        certificate=await issueWarrantyCertificate(detail.organization_id,detail.id,null);
+      }
+      return createWarrantyCertificatePdfFile(certificate,String(detail.os_number||"OS"));
+    }
     const template = printTemplates.templates.find(item => item.id === templateId);
     if (!template) throw new Error("Documento não encontrado ou não está mais ativo.");
     const prepared = await prepareTemplateDocument(template);
