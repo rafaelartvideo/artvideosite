@@ -1087,7 +1087,7 @@ export function TechnicianPanel() {
     <AdminDialog open={Boolean(chatConversationId) && !routeOrderId}
       onClose={() => setChatConversationId(null)}
       title="Atendimento WhatsApp"
-      className="!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-var(--admin-browser-bottom-inset,0px)-1.5rem)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1160px] sm:!w-[calc(100vw-2rem)]"
+      className="!h-[calc(100dvh-var(--admin-shell-header-height,4rem)-var(--admin-browser-bottom-inset,0px)-1.5rem)] !min-h-0 !w-[calc(100vw-1rem)] !max-w-[1160px] sm:!w-[calc(100vw-2rem)] max-md:!left-0 max-md:!right-0 max-md:!top-[var(--admin-shell-header-height,4rem)] max-md:!bottom-0 max-md:!h-[calc(100dvh-var(--admin-shell-header-height,4rem))] max-md:!max-h-none max-md:!w-screen max-md:!max-w-none max-md:!translate-x-0 max-md:!translate-y-0 max-md:!rounded-none max-md:!border-0 max-md:!shadow-none"
       bodyClassName="!flex !min-h-0 !flex-col !overflow-hidden !p-0">
       {chatConversationId && <Suspense fallback={<div className="flex h-full items-center justify-center">
         <LoadingState text="Carregando conversa..." />
