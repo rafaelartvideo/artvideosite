@@ -17,6 +17,7 @@ import {
 import { OrderQuoteCommercialEditor } from "./OrderQuoteCommercialEditor";
 import { OrderQuotePhotosSection } from "./OrderQuotePhotosSection";
 import { OrderProductsServicesSection } from "./OrderProductsServicesSection";
+import { listOrderCommercialItems, type OrderCommercialItem } from "../infrastructure/order-commercial-items.repository";
 import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
 import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 
@@ -85,6 +86,10 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   const [footerHost,setFooterHost]=useState<HTMLElement|null>(null);
   const [confirmationAction,setConfirmationAction]=useState<QuoteAction|null>(null);
   const [modalFeedback,setModalFeedback]=useState<ModalFeedback|null>(null);
+  const [executionItems,setExecutionItems]=useState<OrderCommercialItem[]>([]);
+  const [executionItemsLoading,setExecutionItemsLoading]=useState(false);
+  const [executionItemsError,setExecutionItemsError]=useState("");
+  const [reconcileMode,setReconcileMode]=useState<"replace"|"keep"|null>(null);
   const submissionLocked=useRef(false);
   const [showExecution,setShowExecution]=useState(false);
   const [selectedVersion,setSelectedVersion]=useState<Record<string,any>|null>(null);
@@ -96,6 +101,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
   useEffect(()=>{
     setConfirmationAction(null);
     setModalFeedback(null);
+    setExecutionItems([]);setExecutionItemsLoading(false);setExecutionItemsError("");setReconcileMode(null);
     submissionLocked.current=false;
   },[orderId]);
 
@@ -143,6 +149,13 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
     if(busy || submissionLocked.current)return;
     setModalFeedback(null);
     setConfirmationAction(action);
+    if(action==="approve") {
+      setExecutionItems([]);setReconcileMode(null);setExecutionItemsError("");setExecutionItemsLoading(true);
+      void listOrderCommercialItems(orderId)
+        .then(items=>setExecutionItems(items.filter(item=>item.organization_id===org)))
+        .catch(error=>setExecutionItemsError(systemErrorMessage(error,"Não foi possível consultar os itens existentes.")))
+        .finally(()=>setExecutionItemsLoading(false));
+    }
   };
   const closeAction = () => {
     if(busy || submissionLocked.current)return;
@@ -156,6 +169,9 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
       draft.proposed_solution.length>MAX_TECHNICAL_CHARS)){
       setModalFeedback({type:"error",message:"Diagnóstico e solução proposta devem ter no máximo 400 caracteres cada."});
       return;
+    }
+    if(action==="approve" && (executionItemsLoading || executionItemsError || (executionItems.length>0 && !reconcileMode))){
+      setModalFeedback({type:"error",message:executionItemsError||"Selecione como conciliar os itens existentes antes de aprovar."});return;
     }
     if(action==="reject" && !reason.trim()){
       setModalFeedback({type:"error",message:"Informe o motivo da rejeição antes de confirmar."});
@@ -171,12 +187,13 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
         result=await changeOrderQuote(org,orderId,"submit");
       }else result=await changeOrderQuote(org,orderId,action,
         action==="reject"?{reason}:
-        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version}: {});
+        action==="approve"?{confirmation:"CONFIRMAR_APROVACAO",version:proposal?.version,...(executionItems.length?{reconcile_mode:reconcileMode}:{})}: {});
       queryClient.setQueryData(quoteKey, result);
       setProposal(result);
       setDraft(snapshot(result));
       onStatusChange?.(result.status);
       if(action==="approve") {
+        void queryClient.invalidateQueries({queryKey:["orders","commercial-items",org,orderId]});
         try {
           const pricing=await readOrderPricingAfterApproval(org,orderId);
           onPricingChange(pricing);
@@ -385,7 +402,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           : <>
             <BtnSecondary disabled={busy} onClick={closeAction}>Voltar</BtnSecondary>
             <BtnPrimary
-              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim())}
+              disabled={busy || !confirmationAction || (confirmationAction==="reject" && !reason.trim()) || (confirmationAction==="approve" && (executionItemsLoading || Boolean(executionItemsError) || (executionItems.length>0 && !reconcileMode)))}
               loading={busy}
               loadingText="Processando..."
               onClick={()=>{if(confirmationAction)void act(confirmationAction);}}>
