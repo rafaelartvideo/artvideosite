@@ -3561,7 +3561,10 @@ Deno.serve(async request => {
         .replace(/[^A-Za-z0-9._-]+/g, "-")
         .replace(/-+/g, "-")
         .slice(-120) || "arquivo";
-      const publicFileName = `${crypto.randomUUID()}-${safeName}`;
+      // A chave de Storage continua única e imprevisível, mas o nome mostrado
+      // ao destinatário (último segmento da URL) não inclui o UUID.
+      const mediaObjectId = crypto.randomUUID();
+      const publicFileName = `${mediaObjectId}-${safeName}`;
       const storagePath = `${organizationId}/${publicFileName}`;
 
       const uploaded = await admin.storage
@@ -3586,7 +3589,7 @@ Deno.serve(async request => {
       // carregam query string e nem sempre são aceitas pelo validador de mídia.
       // Usar o proxy próprio mantém um caminho limpo com extensão, MIME e
       // Content-Length corretos, sem tornar o bucket público.
-      const providerUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${encodeURIComponent(publicFileName)}`;
+      const providerUrl = `${supabaseUrl}/functions/v1/sac-digital-media/${organizationId}/${mediaObjectId}/${encodeURIComponent(safeName)}`;
 
       try {
         const mediaCheck = await fetch(providerUrl, { method: "HEAD" });
@@ -3723,6 +3726,7 @@ Deno.serve(async request => {
             sent_via_union: true,
             temp_storage_bucket: SAC_OUTBOX_BUCKET,
             temp_storage_path: storagePath,
+            local_file_name: safeName,
             send_transport: mediaTransport,
             api_response: apiBody,
           },
