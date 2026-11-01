@@ -1,3 +1,4 @@
+import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { getOrderStatusHex } from "../domain/order-status-palette";
 import { useState } from "react";
 import { Check, ClipboardList, Clock3, Edit2, Printer } from "lucide-react";
@@ -58,6 +59,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const safePage = page;
   const openDetails = (order: any) => { if (canOpenDetails) onOpen(order); };
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
+  const canChangeOrderSituation = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
   const isSolvedPendingCompletion = (order: any) => Boolean(order.is_solved) && !order.completed_at && !isCancelled(order);
   const canComplete = (order: any) => canCompleteOrder && isSolvedPendingCompletion(order);
   const canEdit = (order: any) => canEditOrder && !order.is_solved && !isCancelled(order);
@@ -113,7 +115,8 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
   const quickActions = (order: any) => {
     const situations = availableSituations(order);
     const editable = canEdit(order);
-    const hasAnyAction = canPrint || canChangeSituation || editable;
+    const allowSituationChange = canChangeOrderSituation(order);
+    const hasAnyAction = canPrint || allowSituationChange || editable;
 
     return <DropdownMenu onOpenChange={open => { if (!open) setExpandedSituationOrderId(null); }}>
       <DropdownMenuTrigger asChild>
@@ -131,9 +134,9 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           {printingOrderId === order.id ? "Preparando A4..." : "Imprimir A4"}
         </DropdownMenuItem>}
 
-        {canPrint && (canChangeSituation || editable) && <DropdownMenuSeparator />}
+        {canPrint && (allowSituationChange || editable) && <DropdownMenuSeparator />}
 
-        {canChangeSituation && <>
+        {allowSituationChange && <>
           <DropdownMenuItem
             onSelect={event => {
               event.preventDefault();
@@ -163,7 +166,7 @@ export function OrdersTable({ loading, filteredOrders, pagedOrders, totalItems, 
           </div>}
         </>}
 
-        {canChangeSituation && editable && <DropdownMenuSeparator />}
+        {allowSituationChange && editable && <DropdownMenuSeparator />}
 
         {editable && <DropdownMenuItem
           onSelect={() => onEdit(order)}
