@@ -265,7 +265,7 @@ async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadF
   }
 
   const converted = await convertImageBlob(source.blob, format);
-  triggerImageDownload(converted, `${baseName}.${format === "png" ? "png" : "jpeg"}`);
+  triggerImageDownload(converted, generatedFileName(source.fileName || image.name || `Imagem ${index + 1}`, null, format === "png" ? "png" : "jpeg"));
 }
 
 export function OrderImageDownloadMenu({
