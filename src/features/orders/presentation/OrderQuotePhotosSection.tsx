@@ -110,16 +110,16 @@ export function OrderQuotePhotosSection({
         <p className="text-xs text-muted-foreground">
           As imagens anexadas aqui serão incluídas automaticamente na impressão e no PDF do orçamento.
         </p>
-        {canUpload && <div className="flex flex-wrap gap-2">
+        {canUpload && <div className="flex w-full min-w-0 flex-nowrap gap-2">
           <input ref={fileRef} className="hidden" type="file" multiple
             accept="image/jpeg,image/png,image/webp,image/heic,image/heif"
             onChange={event => { choose(event.target.files); event.currentTarget.value = ""; }} />
           <input ref={cameraRef} className="hidden" type="file" accept="image/*" capture="environment"
             onChange={event => { choose(event.target.files); event.currentTarget.value = ""; }} />
-          <BtnSecondary disabled={uploading || photos.length + selected.length >= MAX_PHOTOS}
-            onClick={() => fileRef.current?.click()}><ImagePlus size={15}/> Adicionar fotos</BtnSecondary>
-          <BtnSecondary disabled={uploading || photos.length + selected.length >= MAX_PHOTOS}
-            onClick={() => cameraRef.current?.click()}><Camera size={15}/> Usar câmera</BtnSecondary>
+          <BtnSecondary className="w-full min-w-0 flex-1 !gap-1.5 !px-2 text-[11px] sm:!px-4 sm:text-sm" disabled={uploading || photos.length + selected.length >= MAX_PHOTOS}
+            onClick={() => fileRef.current?.click()}><ImagePlus size={15} className="shrink-0"/> Adicionar fotos</BtnSecondary>
+          <BtnSecondary className="w-full min-w-0 flex-1 !gap-1.5 !px-2 text-[11px] sm:!px-4 sm:text-sm" disabled={uploading || photos.length + selected.length >= MAX_PHOTOS}
+            onClick={() => cameraRef.current?.click()}><Camera size={15} className="shrink-0"/> Usar câmera</BtnSecondary>
         </div>}
         {selected.length > 0 && <div className="space-y-3 rounded-lg border border-border bg-muted/30 p-3">
           <p className="text-xs font-semibold">Prévia antes de enviar ({selected.length})</p>
