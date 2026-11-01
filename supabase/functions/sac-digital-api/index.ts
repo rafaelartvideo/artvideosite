@@ -3559,11 +3559,13 @@ Deno.serve(async request => {
       // O nome do documento entregue preserva os espaços (ex.: "Certificado de Garantia - 211.pdf").
       // A chave do Storage mantém um nome restrito e único, independente do nome exibido.
       const displayFileName = (uploadFile.name || "arquivo")
-        .normalize("NFKD")
-        .replace(/[^A-Za-z0-9 ._-]+/g, "-")
+        .normalize("NFC")
+        .replace(/[^\p{L}\p{N} ._-]+/gu, "-")
         .replace(/ {2,}/g, " ")
         .slice(-120) || "arquivo";
       const safeName = displayFileName
+        .normalize("NFKD")
+        .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^A-Za-z0-9._-]+/g, "-")
         .replace(/-+/g, "-")
         .slice(-120) || "arquivo";
