@@ -18,6 +18,7 @@ export type OrderCommercialItem = {
   subtotal: number | null;
   created_at: string;
   updated_at: string;
+  quote_proposal_id?: string | null;
 };
 
 export type OrderCatalogOption = {
@@ -67,7 +68,7 @@ function normalizePricing(value: any): OrderCommercialPricing {
 export async function listOrderCommercialItems(serviceOrderId: string): Promise<OrderCommercialItem[]> {
   const { data, error } = await supabase
     .from("service_order_items")
-    .select("id,service_order_id,organization_id,item_type,general_service_id,inventory_item_id,title_snapshot,description_snapshot,quantity,unit_price,unit_snapshot,additional_cost,subtotal,created_at,updated_at")
+    .select("id,service_order_id,organization_id,item_type,general_service_id,inventory_item_id,title_snapshot,description_snapshot,quantity,unit_price,unit_snapshot,additional_cost,subtotal,created_at,updated_at,quote_proposal_id")
     .eq("service_order_id", serviceOrderId)
     .order("created_at", { ascending: true });
   if (error) throw error;
