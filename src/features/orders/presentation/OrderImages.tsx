@@ -3,6 +3,7 @@ import { Camera, Download, MoreVertical, Upload, X } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { getMediaById, resolveMediaStorageUrl } from "@/shared/infrastructure/media.repository";
 import { LoadingSpinner } from "@/shared/ui/admin/AdminFeedback";
+import { generatedFileName } from "@/shared/domain/generated-file-name";
 import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import type { OrderImage } from "../domain/order-image";
@@ -249,7 +250,7 @@ async function buildImagesPdf(images: OrderImage[], fileName: string) {
 async function downloadOrderImage(image: OrderImage, format: OrderImageDownloadFormat, index: number) {
   if (format === "pdf") {
     const baseName = safeFileBaseName(image.name, `imagem-${index + 1}`);
-    await buildImagesPdf([image], `${baseName}.pdf`);
+    await buildImagesPdf([image], generatedFileName(image.name || `Imagem ${index + 1}`));
     return;
   }
 
@@ -287,7 +288,7 @@ export function OrderImageDownloadMenu({
 
     try {
       if (format === "pdf") {
-        await buildImagesPdf(images, `${safeFileBaseName(label, "imagens")}.pdf`);
+        await buildImagesPdf(images, generatedFileName(label || "Imagens"));
         return;
       }
 
