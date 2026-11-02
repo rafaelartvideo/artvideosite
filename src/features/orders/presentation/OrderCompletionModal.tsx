@@ -327,15 +327,15 @@ export function OrderCompletionModal({
           <div className="space-y-3 border-t border-border pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">Serviços</span>
-              <strong className="text-foreground">{formatCurrency(completion.servicePrice)}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.servicePrice)}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">Produtos</span>
-              <strong className="text-foreground">{formatCurrency(completion.partsTotal)}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 border-t border-border pt-3 text-sm">
               <span className="font-bold text-foreground">Subtotal</span>
-              <strong className="text-foreground">{formatCurrency(completion.subtotal)}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.subtotal)}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 text-sm">
               <span className="text-muted-foreground">
@@ -343,11 +343,11 @@ export function OrderCompletionModal({
                   ? `Desconto (${formatNumber(completion.discountValue, { maximumFractionDigits: 2 })}%)`
                   : "Desconto"}
               </span>
-              <strong className="text-foreground">- {formatCurrency(completion.discountAmount)}</strong>
+              <strong className="text-red-600 dark:text-red-400">- {formatCurrency(completion.discountAmount)}</strong>
             </div>
             <div className="flex items-end justify-between gap-4 border-t border-border pt-4">
               <span className="text-sm font-black text-foreground">Valor final</span>
-              <strong className="text-2xl font-black text-primary">{formatCurrency(completion.finalTotal)}</strong>
+              <strong className="text-2xl font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.finalTotal)}</strong>
             </div>
           </div>
         </div>
@@ -380,7 +380,7 @@ export function OrderCompletionModal({
                     <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Serviços</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">Serviços registrados na composição da OS.</p>
                   </div>
-                  <strong className="text-sm text-primary">{formatCurrency(completion.servicePrice)}</strong>
+                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.servicePrice)}</strong>
                 </div>
                 {commercialServices.length ? (
                   <div className="divide-y divide-border border-y border-border">
@@ -399,7 +399,7 @@ export function OrderCompletionModal({
                     <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Produtos</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">Produtos da composição e peças utilizadas na solução sem duplicidade.</p>
                   </div>
-                  <strong className="text-sm text-primary">{formatCurrency(completion.partsTotal)}</strong>
+                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>
                 </div>
                 {commercialProducts.length || resolutionOnlyItems.length ? (
                   <div className="divide-y divide-border border-y border-border">
@@ -439,7 +439,7 @@ export function OrderCompletionModal({
                     <p className="text-xs font-black uppercase tracking-[0.1em] text-foreground">Produtos utilizados</p>
                     <p className="mt-0.5 text-[11px] text-muted-foreground">Peças aprovadas e registradas na solução.</p>
                   </div>
-                  <strong className="text-sm text-primary">{formatCurrency(completion.partsTotal)}</strong>
+                  <strong className="text-sm text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.partsTotal)}</strong>
                 </div>
                 {usedItems.length ? (
                   <div className="divide-y divide-border border-y border-border">
