@@ -9,6 +9,8 @@ import { AdminSectionEmpty,
   Section,
 } from "@/shared/ui/admin/AdminLayout";
 import { FTextarea } from "@/shared/ui/admin/AdminFormControls";
+import { capitalizeSentenceStarts } from "../domain/capitalize-sentence-starts";
+import { UnionQuoteAiActions, UnionQuoteAiUsage } from "./UnionQuoteAiActions";
 import { InfoRow } from "./OrderDetailsContent";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import {
@@ -72,14 +74,29 @@ export function OrderResolutionPage({
           </Section>
 
           <Section title="Diagnóstico">
-            <FTextarea aria-label="Diagnóstico" value={diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: e.target.value }))} rows={5} />
-            <p className="mt-1 text-right text-[10px] font-semibold text-[#7c899c]">{diagnosis.length} caracteres</p>
+            <div className="space-y-1">
+              <FTextarea label="Diagnóstico" aria-label="Diagnóstico" required autoCapitalize="sentences"
+                value={diagnosis} onChange={(e: any) => setSolveDraft(current => ({ ...current, diagnosis: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
+              <p className="text-right text-[11px] tabular-nums text-muted-foreground">{diagnosis.length} caracteres</p>
+              {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
+                organizationId={detail.organization_id} orderId={detail.id} field="diagnosis"
+                currentText={diagnosis} diagnosisText={diagnosis}
+                onApply={text => setSolveDraft(current => ({ ...current, diagnosis: text }))} />}
+            </div>
           </Section>
 
           <Section title="Solução">
-            <FTextarea aria-label="Solução" value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: e.target.value }))} rows={5} />
-            <p className="mt-1 text-right text-[10px] font-semibold text-[#7c899c]">{solution.length} caracteres</p>
+            <div className="space-y-1">
+              <FTextarea label="Solução" aria-label="Solução" required autoCapitalize="sentences"
+                value={solution} onChange={(e: any) => setSolveDraft(current => ({ ...current, solution: capitalizeSentenceStarts(e.target.value) }))} rows={5} />
+              <p className="text-right text-[11px] tabular-nums text-muted-foreground">{solution.length} caracteres</p>
+              {detail.organization_id && detail.id && <UnionQuoteAiActions context="resolution"
+                organizationId={detail.organization_id} orderId={detail.id} field="proposed_solution"
+                currentText={solution} diagnosisText={diagnosis}
+                onApply={text => setSolveDraft(current => ({ ...current, solution: text }))} />}
+            </div>
           </Section>
+          {detail.organization_id && <UnionQuoteAiUsage organizationId={detail.organization_id} />}
 
           <Section title="Peças avulsas">
             <FTextarea
