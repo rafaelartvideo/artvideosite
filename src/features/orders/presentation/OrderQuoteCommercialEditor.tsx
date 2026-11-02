@@ -260,9 +260,9 @@ export function OrderQuoteCommercialEditor({orderId,draft,onChange,disabled}: {
         <div className="space-y-3">
           {([["Total produtos",products],["Total serviços",services],["Subtotal",subtotal],["Desconto",-discount]] as const)
             .map(([label,value])=><div className="flex items-center justify-between gap-4 border-b border-border py-2 text-sm" key={label}>
-              <span className="text-muted-foreground">{label}</span><strong>{formatCurrency(value)}</strong></div>)}
+              <span className="text-muted-foreground">{label}</span><strong className={label==="Desconto"?"text-red-600 dark:text-red-400":"text-emerald-700 dark:text-emerald-300"}>{formatCurrency(value)}</strong></div>)}
           <div className="flex justify-between pt-2 text-sm font-bold">
-            <span>Total do orçamento</span><strong className="text-lg font-black text-primary">{formatCurrency(Math.max(0,subtotal-discount))}</strong></div>
+            <span>Total do orçamento</span><strong className="text-lg font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(Math.max(0,subtotal-discount))}</strong></div>
         </div>
         <div className="border border-border bg-muted/35 p-4">
           <p className="mb-3 text-xs font-black uppercase tracking-[0.12em]">Desconto</p>
