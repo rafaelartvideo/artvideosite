@@ -303,7 +303,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
             <td className="px-4 py-3 font-semibold">Versão {version.version}</td>
             <td className="px-4 py-3">{version.submitted_at?new Date(version.submitted_at).toLocaleString("pt-BR"):"—"}</td>
             <td className="px-4 py-3">{Array.isArray(version.items)?version.items.length:0}</td>
-            <td className="px-4 py-3 text-right font-bold">{formatCurrency(versionPricing(version).total)}</td>
+            <td className="px-4 py-3 text-right font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(version).total)}</td>
             <td className="px-4 py-3 text-right"><BtnSecondary onClick={()=>setSelectedVersion(version)}>Visualizar</BtnSecondary></td>
           </tr>)}</tbody>
         </table>
@@ -314,7 +314,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           className="w-full rounded-lg border border-border p-3 text-left transition-colors hover:border-primary/50 hover:bg-muted/30">
           <span className="flex items-center justify-between gap-2 text-sm font-bold">
             <span>Versão {version.version}</span>
-            <span>{formatCurrency(versionPricing(version).total)}</span>
+            <span className="text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(version).total)}</span>
           </span>
           <span className="mt-2 block text-xs text-muted-foreground">
             {version.submitted_at?new Date(version.submitted_at).toLocaleString("pt-BR"):"—"}
@@ -374,7 +374,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           <div><span className="block text-muted-foreground">Validade</span>
             <strong>{selectedVersion.valid_until?new Date(String(selectedVersion.valid_until)+"T12:00:00").toLocaleDateString("pt-BR"):"—"}</strong></div>
           <div><span className="block text-muted-foreground">Valor negociado</span>
-            <strong>{formatCurrency(versionPricing(selectedVersion).total)}</strong></div>
+            <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(selectedVersion).total)}</strong></div>
         </div>
         <div className="space-y-2 text-sm">
           <p><strong>Diagnóstico:</strong> {selectedVersion.diagnosis||"—"}</p>
@@ -400,10 +400,10 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
           </table>
         </div>
         <div className="ml-auto grid max-w-sm gap-2 text-xs">
-          <div className="flex justify-between"><span>Subtotal</span><strong>{formatCurrency(versionPricing(selectedVersion).subtotal)}</strong></div>
-          <div className="flex justify-between"><span>Desconto</span><strong>- {formatCurrency(versionPricing(selectedVersion).discount)}</strong></div>
+          <div className="flex justify-between"><span>Subtotal</span><strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(selectedVersion).subtotal)}</strong></div>
+          <div className="flex justify-between"><span>Desconto</span><strong className="text-red-600 dark:text-red-400">- {formatCurrency(versionPricing(selectedVersion).discount)}</strong></div>
           <div className="flex justify-between border-t border-border pt-2 text-sm font-bold">
-            <span>Total anterior</span><span>{formatCurrency(versionPricing(selectedVersion).total)}</span>
+            <span>Total anterior</span><span className="text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(selectedVersion).total)}</span>
           </div>
         </div>
       </div>}
@@ -504,7 +504,7 @@ export function OrderQuoteWorkspace({order,canEdit,canManagePhotos,canRemovePhot
                   <div className="rounded-lg border border-border bg-muted/30 p-3 text-sm">
                     <div className="flex items-center justify-between gap-3">
                       <span>Proposta · Versão {proposal?.version||1}</span>
-                      <strong>{formatCurrency(versionPricing(draft as Record<string,any>).total)}</strong>
+                      <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(versionPricing(draft as Record<string,any>).total)}</strong>
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">{draft.items.length} item(ns) no orçamento</p>
                   </div>
