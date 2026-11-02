@@ -196,12 +196,14 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   // e serializa gravações para que respostas antigas não sobrescrevam as novas.
   const [discountSaveRevision, setDiscountSaveRevision] = useState(0);
   const [discountSaving, setDiscountSaving] = useState(false);
+  const [discountError, setDiscountError] = useState<string | null>(null);
   const discountEditRevisionRef = useRef(0);
   const discountSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
   const discountOrderRef = useRef<string | null>(order?.id || null);
   const editDiscount = (type: "percentage" | "amount", value: string) => {
     discountEditRevisionRef.current += 1;
     setDiscountSaveRevision(discountEditRevisionRef.current);
+    setDiscountError(null);
     setDiscountType(type);
     setDiscountValue(value);
   };
@@ -372,7 +374,13 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     discountEditRevisionRef.current = 0;
     setDiscountSaveRevision(0);
     setDiscountSaving(false);
+    setDiscountError(null);
   }, [order?.id]);
+
+  useEffect(() => () => {
+    // Ignora respostas da OS anterior quando o editor for desmontado.
+    discountOrderRef.current = null;
+  }, []);
 
   useEffect(() => {
     setPricing(pricingFromOrder(order));
@@ -839,11 +847,14 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           if (discountOrderRef.current === orderId && discountEditRevisionRef.current === revision) {
             discountEditRevisionRef.current = 0;
             setDiscountSaveRevision(0);
+            setDiscountError(null);
             applyPricing(nextPricing);
           }
         } catch (error) {
           if (discountOrderRef.current === orderId && discountEditRevisionRef.current === revision) {
-            showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível salvar o desconto automaticamente.") });
+            const message = systemErrorMessage(error, "Não foi possível salvar o desconto automaticamente.");
+            setDiscountError(message);
+            showFeedback({ type: "error", text: message });
           }
         } finally {
           if (discountOrderRef.current === orderId) setDiscountSaving(false);
@@ -1280,9 +1291,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 />}
           </div>
 
-          {editable && <p role="status" className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
-            {(discountSaving || discountSaveRevision > 0) && <LoadingSpinner size="sm" />}
-            {discountSaving || discountSaveRevision > 0 ? "Salvando desconto automaticamente" : "Desconto aplicado automaticamente"}
+          {editable && <p role="status" className={cn("mt-3 flex items-center gap-2 text-[11px]", discountError ? "text-red-600 dark:text-red-400" : "text-muted-foreground")}>
+            {!discountError && (discountSaving || discountSaveRevision > 0) && <LoadingSpinner size="sm" />}
+            {discountError || (discountSaving || discountSaveRevision > 0 ? "Salvando desconto automaticamente" : "Desconto aplicado automaticamente")}
           </p>}
         </div>
       </div>
