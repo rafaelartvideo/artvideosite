@@ -118,15 +118,15 @@ function QuoteItemPicker({ orderId, category, onAdd, disabled, onCustomClick }: 
           />
         </div>
       </div>
-      <div className={cn("grid items-end gap-2 sm:gap-3",isService
-        ? "grid-cols-[84px_minmax(0,1fr)_auto] sm:grid-cols-[110px_minmax(0,1fr)_auto]"
-        : "grid-cols-1 sm:grid-cols-[110px_minmax(0,1fr)_auto]")}>
-        <NumberStepper label="Quantidade" value={quantity} min={1} step={1} integer
+      <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:gap-3">
+        <NumberStepper label="Quantidade" value={quantity} min={1} step={1} integer className="w-full"
           disabled={!selected || disabled} onChange={setQuantity}/>
-        <FCurrencyInput label="Preço unitário" placeholder="R$ 0,00" value={price}
-          onChange={(event:any) => setPrice(event.target.value)}
-          disabled={!selected || disabled || Boolean(fixedPrice)}/>
-        <BtnPrimary className="h-[42px] self-end px-2 sm:px-3"
+        <div className="min-w-0 w-full">
+          <FCurrencyInput label="Preço unitário" placeholder="R$ 0,00" value={price}
+            onChange={(event:any) => setPrice(event.target.value)}
+            disabled={!selected || disabled || Boolean(fixedPrice)}/>
+        </div>
+        <BtnPrimary className="col-span-2 h-[42px] w-full px-2 sm:col-span-1 sm:w-auto sm:px-3"
           disabled={!selected || disabled || price.trim() === ""}
           onClick={add}><Plus size={15}/> Adicionar</BtnPrimary>
       </div>
