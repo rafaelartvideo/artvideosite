@@ -9,9 +9,10 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderStatusDot } from "./OrderStatusDot";
 
-export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
+export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, topPagination, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
   filteredOrders: any[]; situations: any[]; serviceTypeSituations: any[]; serviceTypes: any[];
   selectedServiceTypeId: string; onServiceTypeChange: (serviceTypeId: string) => void;
+  topPagination?: React.ReactNode;
   draggingId: string | null; dragOverSituationId: string | null;
   hasPermission: (permission: string) => boolean; onDragOver: (situationId: string) => void; onDragLeave: (situationId: string) => void; onDrop: (situationId: string) => void;
   onCardDragStart: (event: React.DragEvent<HTMLDivElement>, order: any) => void; onCardDragEnd: () => void; onOpen: (order: any) => void;
@@ -108,6 +109,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
         })}
       </nav>
     </div>
+    {selectedServiceTypeId && topPagination}
     <div id="orders-kanban-board">
     {!selectedServiceTypeId ? (
       <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
