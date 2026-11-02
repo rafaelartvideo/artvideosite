@@ -223,7 +223,7 @@ export function useOrderFilters({
     totalItems,
     generalTotalItems: hasActiveServerFilters ? (generalTotalQuery.data ?? totalItems) : totalItems,
     // Mantém as linhas em cache ao atualizar filtros/página, sem flash de loading.
-    loading: enabled && Boolean(organizationId) && ordersQuery.isPending && !ordersQuery.data,
+    loading: enabled && Boolean(organizationId) && (!kanbanMode || Boolean(selectedServiceTypeId)) && ordersQuery.isPending && !ordersQuery.data,
     isFetching: ordersQuery.isFetching,
     error: ordersQuery.error,
     retryLoadOrders: () => void ordersQuery.refetch(),
