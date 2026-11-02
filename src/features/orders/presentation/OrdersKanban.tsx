@@ -1,7 +1,7 @@
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { getOrderStatusBadgeClass } from "../domain/order-status-palette";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type React from "react";
 import { Ban, Edit2, GripVertical } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
@@ -9,14 +9,69 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderStatusDot } from "./OrderStatusDot";
 
-export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
-  filteredOrders: any[]; situations: any[]; draggingId: string | null; dragOverSituationId: string | null;
+export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
+  filteredOrders: any[]; situations: any[]; serviceTypeSituations: any[]; serviceTypes: any[];
+  selectedServiceTypeId: string; onServiceTypeChange: (serviceTypeId: string) => void;
+  draggingId: string | null; dragOverSituationId: string | null;
   hasPermission: (permission: string) => boolean; onDragOver: (situationId: string) => void; onDragLeave: (situationId: string) => void; onDrop: (situationId: string) => void;
   onCardDragStart: (event: React.DragEvent<HTMLDivElement>, order: any) => void; onCardDragEnd: () => void; onOpen: (order: any) => void;
   onSituationChange: (order: any, situationId: string) => void; onEdit: (order: any) => void; onCancel: (order: any, reason: string) => Promise<boolean>; cancellingId: string | null;
   formatDate: (value?: string | null, time?: boolean) => string;
 }) {
   const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const boardScrollRef = useRef<HTMLDivElement>(null);
+  const [boardScrollWidth, setBoardScrollWidth] = useState(0);
+  const [horizontalOverflow, setHorizontalOverflow] = useState(false);
+
+  // As etapas pertencem ao tipo de atendimento, não à lista global de situações.
+  // Mantém a ordem de configuração e não cria colunas para situações sem vínculo.
+  const linkedSituations = serviceTypeSituations
+    .filter(link => link.service_type_id === selectedServiceTypeId)
+    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+  const linkedIds = new Set<string>();
+  const columns = linkedSituations.flatMap(link => {
+    if (!link.situation_id || linkedIds.has(link.situation_id)) return [];
+    linkedIds.add(link.situation_id);
+    const situation = situations.find(item => item.id === link.situation_id);
+    return situation ? [{ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" }] : [];
+  });
+  const displayedOrders = selectedServiceTypeId
+    ? filteredOrders.filter(order => order.service_type_id === selectedServiceTypeId && linkedIds.has(order.situation_id))
+    : [];
+
+  // Espelha a rolagem horizontal do quadro numa barra no TOPO; ResizeObserver
+  // recalcula a largura quando a tela ou a quantidade de colunas mudar.
+  useEffect(() => {
+    if (!selectedServiceTypeId || !columns.length) return;
+    const board = boardScrollRef.current;
+    if (!board) return;
+    const measure = () => {
+      setBoardScrollWidth(board.scrollWidth);
+      setHorizontalOverflow(board.scrollWidth > board.clientWidth + 1);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(board);
+    if (board.firstElementChild) observer.observe(board.firstElementChild);
+    window.addEventListener("resize", measure);
+    measure();
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+    };
+  }, [selectedServiceTypeId, columns.length]);
+
+  const syncTopScroll = () => {
+    const top = topScrollRef.current;
+    const board = boardScrollRef.current;
+    if (top && board && Math.abs(top.scrollLeft - board.scrollLeft) > 1) top.scrollLeft = board.scrollLeft;
+  };
+  const syncBoardScroll = () => {
+    const top = topScrollRef.current;
+    const board = boardScrollRef.current;
+    if (top && board && Math.abs(board.scrollLeft - top.scrollLeft) > 1) board.scrollLeft = top.scrollLeft;
+  };
+
   if (!hasPermission("orders.kanban.view")) return null;
   const canOpenDetails = hasPermission("orders.details.view");
   const canChangeSituation = hasPermission("orders.situation.change");
@@ -25,18 +80,38 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
   const isCancelled = (order: any) => Boolean(order.cancelled_at) || String(order.order_status?.name || "").toLowerCase() === "cancelada";
   const canCancel = (order: any) => canCancelPermission && !order.completed_at && !isCancelled(order);
   const canDrag = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
-  const columns = [
-    { id: "", name: "Sem situação", color: "#94a3b8" },
-    ...situations.map(situation => ({ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" })),
-  ];
-
   return <>
-    <div className="w-full overflow-x-auto pb-3">
-      <div className="grid min-w-0 grid-cols-1 items-start gap-3 md:flex md:min-w-max md:gap-4">{columns.map(column => {
-        const columnOrders = filteredOrders.filter(order => (order.situation_id || "") === column.id);
+    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:gap-4">
+      <label className="shrink-0 text-xs font-bold text-foreground">Tipo de atendimento</label>
+      <div className="w-full min-w-0 sm:max-w-sm">
+        <AdminSelect
+          ariaLabel="Selecionar tipo de atendimento do Kanban"
+          value={selectedServiceTypeId}
+          onValueChange={onServiceTypeChange}
+          className="min-h-10 w-full"
+          options={[{ value: "", label: "Selecione o tipo de atendimento" }, ...serviceTypes.filter(type => type.id).map(type => ({ value: type.id, label: type.title || type.name || "Sem nome" }))]}
+        />
+      </div>
+    </div>
+    {!selectedServiceTypeId ? (
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+        Selecione um tipo de atendimento para visualizar suas situações e ordens de serviço.
+      </div>
+    ) : columns.length === 0 ? (
+      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
+        Nenhuma situação vinculada a esse tipo de atendimento. Configure os vínculos em Tipos de Atendimento.
+      </div>
+    ) : <>
+      <div ref={topScrollRef} onScroll={syncBoardScroll} aria-label="Rolagem horizontal superior do Kanban"
+        className={cn("mb-2 h-4 w-full overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]", !horizontalOverflow && "hidden")}>
+        <div style={{ width: boardScrollWidth, height: 1 }} />
+      </div>
+      <div ref={boardScrollRef} onScroll={syncTopScroll} className="w-full overflow-x-auto pb-3" aria-label="Colunas do Kanban">
+        <div className="flex min-w-max items-start gap-3 md:gap-4">{columns.map(column => {
+        const columnOrders = displayedOrders.filter(order => order.situation_id === column.id);
         const isDragTarget = canChangeSituation && Boolean(column.id) && dragOverSituationId === column.id;
         return <div
-          key={column.id || "no-situation"}
+          key={column.id}
           onDragOver={event => {
             if (!canChangeSituation || !draggingId || !column.id) return;
             event.preventDefault();
@@ -50,7 +125,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
             onDrop(column.id);
           }}
           className={cn(
-            "w-full min-w-0 overflow-hidden rounded-xl border bg-muted transition-all md:w-[320px] md:flex-shrink-0",
+            "w-[min(85vw,320px)] shrink-0 overflow-hidden rounded-xl border bg-muted transition-all md:w-[320px]",
             isDragTarget ? "border-primary bg-primary-soft ring-2 ring-primary/10" : "border-border",
           )}
         >
@@ -92,7 +167,7 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
 
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                   <span className="shrink-0 font-semibold">Situação:</span>
-                  {canDrag(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
+                  {canDrag(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...columns.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
                 {order.is_solved && !order.completed_at && !isCancelled(order) && <span className={`mt-2 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${STATUS_TONE_CLASSES.success.badge}`}>✓ OS solucionada</span>}
@@ -106,8 +181,9 @@ export function OrdersKanban({ filteredOrders, situations, draggingId, dragOverS
             })}
           </div>
         </div>;
-      })}</div>
-    </div>
+        })}</div>
+      </div>
+    </>}
     <OrderCancelDialog
       order={cancelTarget}
       open={Boolean(cancelTarget)}
