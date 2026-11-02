@@ -42,7 +42,7 @@ export function OrderCompletionPaymentSection({
 
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <span className="mr-1 text-[11px] font-semibold text-muted-foreground">
-              Total: <strong className="text-foreground">{formatCurrency(completion.finalTotal)}</strong>
+              Total: <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.finalTotal)}</strong>
             </span>
 
             {quickCounts.map(count => (
@@ -306,11 +306,11 @@ export function OrderCompletionPaymentSection({
       <div className="flex min-w-[220px] items-end justify-between gap-6 lg:justify-end">
         <div className="text-right">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Subtotal</p>
-          <p className="mt-1 text-sm font-bold text-foreground">{formatCurrency(completion.subtotal)}</p>
+          <p className="mt-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.subtotal)}</p>
         </div>
         <div className="text-right">
           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Total final</p>
-          <p className="mt-1 text-xl font-black text-primary">{formatCurrency(completion.finalTotal)}</p>
+          <p className="mt-1 text-xl font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(completion.finalTotal)}</p>
         </div>
       </div>
     </div>
