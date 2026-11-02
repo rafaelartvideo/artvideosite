@@ -99,6 +99,7 @@ export function AdminButton({
     disabled={disabled || resolvedLoading}
     aria-busy={resolvedLoading || buttonProps["aria-busy"] === true ? true : undefined}
     aria-label={buttonProps["aria-label"] ?? ariaLabel ?? (mobileBackOnly ? String(children).trim() : undefined)}
+    data-admin-back-action={mobileBackOnly ? "true" : undefined}
     data-admin-loading={resolvedLoading ? "true" : undefined}
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
@@ -247,7 +248,7 @@ export function AdminStickyToolbar({ className = "", children, ...props }: React
     {...props}
     data-admin-sticky-toolbar="true"
     className={cn(
-      "sticky bottom-0 z-20 flex min-w-0 items-center justify-start gap-3 border-t border-primary bg-card px-4 py-4 text-card-foreground sm:px-5",
+      "sticky bottom-0 z-20 flex min-w-0 items-center justify-between gap-3 border-t border-primary bg-card px-4 py-4 text-card-foreground sm:justify-start sm:px-5",
       className,
     )}
   ><AdminStickyToolbarContext.Provider value={true}>{children}</AdminStickyToolbarContext.Provider></div>;
