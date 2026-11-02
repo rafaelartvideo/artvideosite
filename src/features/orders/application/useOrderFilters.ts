@@ -24,11 +24,13 @@ export function useOrderFilters({
   stateOptions,
   matchOrderNumberOrExternal = false,
   enabled = true,
+  kanbanMode = false,
 }: {
   organizationId?: string | null;
   stateOptions: StateOption[];
   matchOrderNumberOrExternal?: boolean;
   enabled?: boolean;
+  kanbanMode?: boolean;
 }) {
   const queryClient = useQueryClient();
   const [osNumberSearch, setOsNumberSearch] = useState("");
@@ -47,7 +49,12 @@ export function useOrderFilters({
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
+  const [listPageSize, setListPageSize] = useState(5);
+  const [kanbanPageSize, setKanbanPageSize] = useState(30);
+  // Quadro precisa mostrar mais que cinco cartões por página, sem consulta
+  // ilimitada. Não altera a preferência de paginação da lista convencional.
+  const pageSize = kanbanMode ? kanbanPageSize : listPageSize;
+  const setPageSize = kanbanMode ? setKanbanPageSize : setListPageSize;
   const debouncedOsNumberSearch = useDebouncedValue(osNumberSearch);
   const debouncedExternalOsSearch = useDebouncedValue(externalOsSearch);
   const debouncedCustomerNameSearch = useDebouncedValue(customerNameSearch);
@@ -131,7 +138,7 @@ export function useOrderFilters({
 
   const ordersQuery = useQuery({
     queryKey: listKey,
-    enabled: enabled && Boolean(organizationId) && !invalidPeriod,
+    enabled: enabled && Boolean(organizationId) && !invalidPeriod && (!kanbanMode || Boolean(selectedServiceTypeId)),
     placeholderData: keepPreviousData,
     retry: false,
     queryFn: async () => {
@@ -166,8 +173,8 @@ export function useOrderFilters({
     },
   });
 
-  const orders = invalidPeriod ? [] : ordersQuery.data?.items ?? [];
-  const totalItems = invalidPeriod ? 0 : ordersQuery.data?.total ?? 0;
+  const orders = invalidPeriod || (kanbanMode && !selectedServiceTypeId) ? [] : ordersQuery.data?.items ?? [];
+  const totalItems = invalidPeriod || (kanbanMode && !selectedServiceTypeId) ? 0 : ordersQuery.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const safePage = Math.min(page, totalPages);
   const setOrders: Dispatch<SetStateAction<any[]>> = useCallback(next => {
@@ -208,7 +215,7 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
-  }, [organizationId]);
+  }, [organizationId, kanbanMode]);
 
   return {
     orders,
