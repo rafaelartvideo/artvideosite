@@ -27,16 +27,16 @@ async function invokeAi(body:Record<string,unknown>):Promise<any> {
 }
 const usd=(v:number)=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"USD",minimumFractionDigits:4,maximumFractionDigits:4}).format(v);
 
-export function UnionQuoteAiActions({organizationId,orderId,field,currentText,diagnosisText,onApply}:{
+export function UnionQuoteAiActions({organizationId,orderId,field,currentText,diagnosisText,onApply,context="quote"}:{
   organizationId:string;orderId:string;field:Field;currentText:string;diagnosisText:string;
-  onApply:(text:string)=>void;
+  onApply:(text:string)=>void;context?:"quote"|"resolution";
 }) {
   const {hasPermission,hasModule,activeOrganizationId}=useAuth();
   const [preview,setPreview]=useState<Preview|null>(null);
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState("");
-  const authorized=Boolean(hasModule("ai")&&hasPermission("ai.view")&&hasPermission("orders.edit")&&activeOrganizationId===organizationId);
-  useEffect(()=>{setPreview(null);setError("");},[orderId,field]);
+  const authorized=Boolean(hasModule("ai")&&hasPermission("ai.view")&&hasPermission(context==="resolution"?"orders.solve":"orders.edit")&&activeOrganizationId===organizationId);
+  useEffect(()=>{setPreview(null);setError("");},[orderId,field,context]);
   const generate=async(mode:Mode)=>{
     if(loading||!authorized)return;
     setLoading(true);setError("");
@@ -69,7 +69,7 @@ export function UnionQuoteAiActions({organizationId,orderId,field,currentText,di
     </div>
     {!!error&&<p role="alert" className="text-right text-xs text-destructive">{error}</p>}
     <AdminDialog open={Boolean(preview)} onClose={()=>!loading&&setPreview(null)}
-      title={field==="diagnosis"?"Union IA · Diagnóstico":"Union IA · Solução proposta"}
+      title={field==="diagnosis"?"Union IA · Diagnóstico":context==="resolution"?"Union IA · Solução":"Union IA · Solução proposta"}
       description="Confira a sugestão antes de aplicar. A IA não confirma diagnósticos nem salva a OS automaticamente."
       className="max-w-xl"
       footer={<div className="flex w-full justify-end gap-2">
@@ -88,7 +88,7 @@ export function UnionQuoteAiActions({organizationId,orderId,field,currentText,di
         <p className="text-xs text-muted-foreground">
           {preview.inputTokens+preview.outputTokens} tokens nesta geração · Custo estimado {usd(preview.cost)}
         </p>
-        <p className="text-xs text-muted-foreground">Após aplicar, revise e salve o orçamento normalmente.</p>
+        <p className="text-xs text-muted-foreground">{context==="resolution"?"Após aplicar, revise e salve a solução da OS normalmente.":"Após aplicar, revise e salve o orçamento normalmente."}</p>
       </div>}
     </AdminDialog>
   </>;
