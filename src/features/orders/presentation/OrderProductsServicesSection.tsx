@@ -920,8 +920,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:items-end">
+          <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:gap-3">
             <NumberStepper
+              className="w-full"
               label="Quantidade"
               value={productQuantity}
               min={1}
@@ -930,18 +931,20 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               disabled={!selectedProduct}
               onChange={setProductQuantity}
             />
-            <FCurrencyInput
-              label="Preço unitário"
-              placeholder="R$ 0,00"
-              value={productPrice}
-              onChange={(event: any) => setProductPrice(event.target.value)}
-              disabled={!selectedProduct}
-            />
+            <div className="min-w-0 w-full">
+              <FCurrencyInput
+                label="Preço unitário"
+                placeholder="R$ 0,00"
+                value={productPrice}
+                onChange={(event: any) => setProductPrice(event.target.value)}
+                disabled={!selectedProduct}
+              />
+            </div>
             <BtnPrimary
               disabled={!selectedProduct || productPrice.trim() === "" || mutating}
               loading={mutating}
               onClick={() => void addProduct()}
-              className="h-[42px]"
+              className="col-span-2 h-[42px] w-full sm:col-span-1 sm:w-auto"
             ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
 
@@ -1038,8 +1041,9 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               {!techniciansLoading && !workflowReady && <p className="mt-2 text-xs text-muted-foreground">A seleção de equipe está indisponível nesta OS.</p>}
             </div>
           </div>}
-          <div className="grid grid-cols-[84px_minmax(0,1fr)_auto] items-end gap-2 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:gap-3">
+          <div className="grid grid-cols-2 items-end gap-2 sm:grid-cols-[110px_minmax(0,1fr)_auto] sm:gap-3">
             <NumberStepper
+              className="w-full"
               label="Quantidade"
               value={serviceQuantity}
               min={1}
@@ -1048,13 +1052,15 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
               disabled={!selectedService}
               onChange={setServiceQuantity}
             />
-            <FCurrencyInput
-              label="Preço unitário"
-              placeholder="R$ 0,00"
-              value={servicePrice}
-              onChange={() => undefined}
-              disabled
-            />
+            <div className="min-w-0 w-full">
+              <FCurrencyInput
+                label="Preço unitário"
+                placeholder="R$ 0,00"
+                value={servicePrice}
+                onChange={() => undefined}
+                disabled
+              />
+            </div>
             <BtnPrimary
               disabled={!selectedService || mutating || techniciansLoading ||
                 (workflowReady && (serviceNeedsSchedule
@@ -1062,7 +1068,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   : !serviceTechnicianIds.length))}
               loading={mutating}
               onClick={() => void addService()}
-              className="h-[42px] self-end px-2 sm:px-3"
+              className="col-span-2 h-[42px] w-full px-2 sm:col-span-1 sm:w-auto sm:px-3"
             ><Plus size={15} /> Adicionar</BtnPrimary>
           </div>
           {selectedService && <p className="text-[10px] leading-relaxed text-muted-foreground">
