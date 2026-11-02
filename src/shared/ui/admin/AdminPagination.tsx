@@ -5,20 +5,20 @@ const DEFAULT_ADMIN_PAGE_SIZE = 5;
 const DEFAULT_ADMIN_PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50, 100];
 const ADMIN_PAGE_SIZE_STORAGE_KEY = "union-admin-page-size-v1";
 
-function readPersistedPageSize(options: number[]) {
+function readPersistedPageSize(options: number[], storageKey: string) {
   if (typeof window === "undefined") return null;
   try {
-    const value = Number(window.localStorage.getItem(ADMIN_PAGE_SIZE_STORAGE_KEY));
+    const value = Number(window.localStorage.getItem(storageKey));
     return Number.isFinite(value) && options.includes(value) ? value : null;
   } catch {
     return null;
   }
 }
 
-function persistPageSize(value: number) {
+function persistPageSize(value: number, storageKey: string) {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(ADMIN_PAGE_SIZE_STORAGE_KEY, String(value));
+    window.localStorage.setItem(storageKey, String(value));
   } catch {
     // Preferência visual não deve impedir o uso da paginação.
   }
@@ -32,6 +32,8 @@ export function PaginationBar({
   onPageSizeChange,
   defaultPageSize = DEFAULT_ADMIN_PAGE_SIZE,
   pageSizeOptions = DEFAULT_ADMIN_PAGE_SIZE_OPTIONS,
+  pageSizeLabel = "Linhas:",
+  storageKey = ADMIN_PAGE_SIZE_STORAGE_KEY,
   showPageSizeSelector = true,
   showFilteredTotal = false,
 }: {
@@ -42,6 +44,8 @@ export function PaginationBar({
   onPageSizeChange: (nextPageSize: number) => void;
   defaultPageSize?: number;
   pageSizeOptions?: number[];
+  pageSizeLabel?: string;
+  storageKey?: string;
   showPageSizeSelector?: boolean;
   showFilteredTotal?: boolean;
 }) {
@@ -51,7 +55,7 @@ export function PaginationBar({
     if (normalizedRef.current) return;
     normalizedRef.current = true;
 
-    const persistedPageSize = readPersistedPageSize(pageSizeOptions);
+    const persistedPageSize = readPersistedPageSize(pageSizeOptions, storageKey);
     if (persistedPageSize !== null && pageSize !== persistedPageSize) {
       onPageSizeChange(persistedPageSize);
       return;
@@ -60,11 +64,11 @@ export function PaginationBar({
     if (!pageSizeOptions.includes(pageSize) && pageSize !== defaultPageSize) {
       onPageSizeChange(defaultPageSize);
     }
-  }, [pageSize, defaultPageSize, pageSizeOptions, onPageSizeChange]);
+  }, [pageSize, defaultPageSize, pageSizeOptions, onPageSizeChange, storageKey]);
 
   const handlePageSizeChange = (nextPageSize: number) => {
     if (!pageSizeOptions.includes(nextPageSize)) return;
-    persistPageSize(nextPageSize);
+    persistPageSize(nextPageSize, storageKey);
     onPageSizeChange(nextPageSize);
   };
 
@@ -74,7 +78,7 @@ export function PaginationBar({
   const pageButton = "flex h-11 w-11 cursor-default items-center justify-center rounded-lg border border-border bg-card text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-default disabled:opacity-40 sm:h-8 sm:w-8";
   return <div className={`flex min-w-0 flex-col gap-3 border-t border-border bg-muted/55 px-4 py-3 sm:flex-row sm:items-center ${showPageSizeSelector ? "sm:justify-between" : "sm:justify-end"}`}>
     {showPageSizeSelector && <div className="flex min-w-0 items-center justify-between gap-2 text-xs text-muted-foreground sm:justify-start">
-      <span>Linhas:</span>
+      <span>{pageSizeLabel}</span>
       <div className="w-[88px]"><AdminSelect value={pageSize} onValueChange={value => handlePageSizeChange(Number(value))} options={pageSizeOptions.map(value => ({ value, label: String(value) }))} className="min-h-11 py-2 text-xs sm:min-h-8 sm:py-1.5" ariaLabel="Linhas por página" /></div>
       {showFilteredTotal && <span className="whitespace-nowrap border-l border-border pl-3 font-semibold text-foreground" aria-live="polite">Total do filtro: {totalItems.toLocaleString("pt-BR")}</span>}
     </div>}
