@@ -41,7 +41,7 @@ export function OrdersListWorkspace(props: Props) {
     getSituations: getSituationsForType, formatDate: fmtDate, equipmentSummary, compactSharedView = false,
   } = props;
 
-  const { statuses, situations, serviceTypes, profiles, isOrganizationOverride } = workspace;
+  const { statuses, situations, serviceTypes, serviceTypeSituations, profiles, isOrganizationOverride } = workspace;
   const {
     osNumberSearch, setOsNumberSearch, externalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
     serialNumberSearch, setSerialNumberSearch, responsibleId, setResponsibleId, filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType,
@@ -60,6 +60,12 @@ export function OrdersListWorkspace(props: Props) {
   // A tabela depende apenas da consulta paginada. Os dados auxiliares (catálogos,
   // situações, funcionários) carregam em paralelo e não bloqueiam as OS já prontas.
   const loading = listLoading;
+  const changeKanbanServiceType = (serviceTypeId: string) => {
+    // Evita manter um filtro de situação pertencente a outro atendimento.
+    setFilterSituation("");
+    setSelectedServiceTypeId(serviceTypeId);
+    setPage(1);
+  };
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
     : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
@@ -92,7 +98,10 @@ export function OrdersListWorkspace(props: Props) {
       dateTo={dateTo}
       orderSort={orderSort}
       statuses={statuses}
-      situations={situations}
+      situations={resolvedDisplayMode === "kanban" && selectedServiceTypeId
+        ? situations.filter(situation => serviceTypeSituations.some(link =>
+          link.service_type_id === selectedServiceTypeId && link.situation_id === situation.id))
+        : situations}
       serviceTypes={serviceTypes}
       responsibles={profiles}
       stateOptions={ibgeStates}
@@ -107,7 +116,7 @@ export function OrdersListWorkspace(props: Props) {
       onResponsibleChange={(value) => { setResponsibleId(value); setPage(1); }}
       onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
       onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
-      onServiceTypeChange={(value) => { setSelectedServiceTypeId(value); setPage(1); }}
+      onServiceTypeChange={(value) => { if (resolvedDisplayMode === "kanban") changeKanbanServiceType(value); else { setSelectedServiceTypeId(value); setPage(1); } }}
       onStateSelect={(value) => setSelectedStates(current => current.includes(value) ? current : [...current, value])}
       onStateRemove={(value) => setSelectedStates(current => current.filter(state => state !== value))}
       onStatesClear={() => setSelectedStates([])}
@@ -158,6 +167,10 @@ export function OrdersListWorkspace(props: Props) {
       <OrdersKanban
         filteredOrders={filteredOrders}
         situations={situations}
+        serviceTypeSituations={serviceTypeSituations}
+        serviceTypes={serviceTypes}
+        selectedServiceTypeId={selectedServiceTypeId}
+        onServiceTypeChange={changeKanbanServiceType}
         draggingId={draggingId}
         dragOverSituationId={dragOverSituationId}
         hasPermission={hasPermission}
