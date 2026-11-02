@@ -65,6 +65,7 @@ export function OrdersFilters({
   statuses,
   situations,
   serviceTypes,
+  showServiceTypeFilter = true,
   responsibles,
   stateOptions,
   cityOptions,
@@ -106,6 +107,7 @@ export function OrdersFilters({
   statuses: any[];
   situations: any[];
   serviceTypes: any[];
+  showServiceTypeFilter?: boolean;
   responsibles: any[];
   stateOptions: StateOption[];
   cityOptions: CityOption[];
@@ -182,14 +184,19 @@ export function OrdersFilters({
   const cityFilterOptions = cityOptions;
   const ibgeStatesLoading = statesLoading;
   const cityFiltersLoading = citiesLoading;
-  const mobileFilterLabel = mobileFilterOptions.find(option => option.value === mobileFilter)?.label || "Número da OS / Externa";
+  const visibleMobileFilters = showServiceTypeFilter
+    ? mobileFilterOptions
+    : mobileFilterOptions.filter(option => option.value !== "serviceType");
+  // Ao mudar da lista para o Kanban, não deixar um filtro móvel oculto ativo.
+  const effectiveMobileFilter = !showServiceTypeFilter && mobileFilter === "serviceType" ? "osNumber" : mobileFilter;
+  const mobileFilterLabel = visibleMobileFilters.find(option => option.value === effectiveMobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
     osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || selectedServiceTypeId ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
   const renderMobileFilter = () => {
-    switch (mobileFilter) {
+    switch (effectiveMobileFilter) {
       case "osNumber": return <MobileSearchField value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" ariaLabel="Buscar por número da OS ou externa" />;
       case "customerName": return <MobileSearchField value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" ariaLabel="Buscar por nome do cliente" />;
       case "document": return <MobileSearchField value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" ariaLabel="Buscar por CPF ou CNPJ" inputMode="numeric" />;
@@ -230,7 +237,7 @@ export function OrdersFilters({
     </div>
     <div className="p-4 md:p-3">
       <div className="space-y-3 md:hidden">
-        <div className="flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[240px]">{mobileFilterOptions.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", mobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className="text-muted-foreground" /><span>{option.label}</span>{mobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>
+        <div className="flex items-center gap-2"><DropdownMenu><DropdownMenuTrigger asChild><button type="button" aria-label={`Buscar por: ${mobileFilterLabel}`} className="flex h-[42px] min-w-0 flex-1 items-center justify-between gap-2 rounded-lg border border-[#0d1b2e]/15 bg-white px-3 text-left text-xs font-bold text-[#0d1b2e] shadow-sm transition-colors hover:border-[#0057e7]/40 focus:outline-none focus:ring-2 focus:ring-[#0057e7]/40"><span className="min-w-0 truncate"><span className="font-medium text-[#5a6a82]">Buscar por:</span> {mobileFilterLabel}</span><ChevronDown size={15} className="shrink-0 text-[#5a6a82]" /></button></DropdownMenuTrigger><DropdownMenuContent align="start" className="min-w-[240px]">{visibleMobileFilters.map(option => <DropdownMenuItem key={option.value} onSelect={() => setMobileFilter(option.value)} className={cn("cursor-pointer", effectiveMobileFilter === option.value && "bg-[#eef5ff] font-bold text-[#0057e7] focus:bg-[#eef5ff] focus:text-[#0057e7]")}><Search size={14} className="text-muted-foreground" /><span>{option.label}</span>{effectiveMobileFilter === option.value && <Check size={14} className="ml-auto text-[#0057e7]" />}</DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu></div>
         <div className="min-w-0">{renderMobileFilter()}</div>
       </div>
 
@@ -246,7 +253,7 @@ export function OrdersFilters({
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
           <div><label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs md:h-9 md:py-1.5")} /></div>
           <div><label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs md:h-9 md:py-1.5")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
-          <div className="space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>
+          {showServiceTypeFilter && <div className="space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>}
           <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Responsável pela OS</label><AdminSelect value={responsibleId} onValueChange={onResponsibleChange} options={[{ value: "", label: "Todos os responsáveis" }, ...responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por responsável pela OS" /></div>
         </div>
       </div>
