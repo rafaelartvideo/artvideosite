@@ -186,7 +186,7 @@ export function OrdersListWorkspace(props: Props) {
         cancellingId={cancellingId}
         formatDate={fmtDate}
       />
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} onPageChange={setPage} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
+      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} pageSizeOptions={[30, 50, 100]} defaultPageSize={30} onPageChange={setPage} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
     </>}
   </>;
 }
