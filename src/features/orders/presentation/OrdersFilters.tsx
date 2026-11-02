@@ -191,7 +191,7 @@ export function OrdersFilters({
   const effectiveMobileFilter = !showServiceTypeFilter && mobileFilter === "serviceType" ? "osNumber" : mobileFilter;
   const mobileFilterLabel = visibleMobileFilters.find(option => option.value === effectiveMobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
-    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || selectedServiceTypeId ||
+    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || (showServiceTypeFilter && selectedServiceTypeId) ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
