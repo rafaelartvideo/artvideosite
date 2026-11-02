@@ -130,7 +130,13 @@ export function OrdersListWorkspace(props: Props) {
       onDateFromChange={setDateFrom}
       onDateToChange={setDateTo}
       onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
-      onClear={clearFilters}
+      onClear={() => {
+        // O tipo é uma subseção do Kanban, não um filtro descartável.
+        // Limpar a busca não deve desmontar o quadro selecionado.
+        const activeType = selectedServiceTypeId;
+        clearFilters();
+        if (resolvedDisplayMode === "kanban") setSelectedServiceTypeId(activeType);
+      }}
     />}
 
     {(filters.error || workspace.error) && <div role="alert"
