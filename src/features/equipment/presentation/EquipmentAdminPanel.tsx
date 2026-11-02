@@ -517,7 +517,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     {!editorRouteActive && <><PageHeader title="Equipamentos Técnicos" subtitle="Cadastre equipamentos, vincule marcas e organize os modelos" />
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border">
       <div className="flex w-full min-w-0 items-center sm:w-auto sm:max-w-full sm:flex-none">
-        <nav aria-label="Subseções de equipamentos técnicos" className="flex min-w-0 flex-wrap items-center gap-5">
+        <nav aria-label="Subseções de equipamentos técnicos" className="grid w-full min-w-0 grid-cols-3 items-end gap-1 sm:flex sm:w-auto sm:items-center sm:gap-5">
         {([
           ...(canViewTable ? [{ id: "registered" as const, label: "Cadastrados", Icon: Wrench }] : []),
           ...(canViewFields ? [{ id: "fields" as const, label: "Campos Extras", Icon: Settings2 }] : []),
@@ -530,10 +530,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
               else if (id === "fields") openFieldsPage();
               else openBrandsPage();
             }}
-            className={`inline-flex min-h-12 min-w-0 items-center justify-center gap-2 border-b-2 px-1 text-sm font-semibold transition-colors ${activeArea === id
+            className={`inline-flex min-h-12 min-w-0 items-center justify-center gap-1 whitespace-nowrap border-b-2 px-0.5 text-[11px] font-semibold transition-colors min-[390px]:text-xs sm:gap-2 sm:px-1 sm:text-sm ${activeArea === id
               ? "border-primary text-primary"
               : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            <Icon size={17} className="shrink-0" />{label}
+            <Icon size={17} className="hidden shrink-0 sm:block" />{label}
           </button>
         ))}
         </nav>
@@ -550,7 +550,7 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
         onEditBrand={canEdit ? openEditBrand : undefined}
         onToggleBrand={canEdit && canToggleActive ? (name, nextActive) => { void toggleBrandActive(name, nextActive); } : undefined}
         busyBrand={busyBrand} /> : null}
-    <AdminStickyToolbar>
+    <AdminStickyToolbar className="justify-between">
       <BtnSecondary onClick={onBack}>Voltar</BtnSecondary>
       {activeArea === "registered" ? canCreate && <BtnPrimary onClick={openNewPage}>Novo</BtnPrimary>
         : activeArea === "fields" && canManageFields ? <BtnPrimary onClick={openNewFieldPage}>Novo</BtnPrimary>
@@ -560,14 +560,14 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
     <AdminPage open={formOpen} onClose={closeEditor} breadcrumb="Equipamentos Técnicos"
       title="Cadastro de equipamentos" subtitle="Configure os dados e os vínculos do equipamento">
       <div className="space-y-5 p-4 sm:p-5">
-        <div role="tablist" aria-label="Seções do cadastro de equipamento" className="flex flex-wrap gap-1 border-b border-border">
+        <div role="tablist" aria-label="Seções do cadastro de equipamento" className="grid min-w-0 grid-cols-[0.75fr_1fr_1.5fr] items-end gap-1 border-b border-border sm:flex sm:flex-wrap">
           {([
             ["general", "Geral"],
             ["checklist", "Checklist"],
             ["brands", "Marcas e modelos"],
           ] as const).map(([key, label]) => <button key={key} type="button" role="tab"
             aria-selected={editorSection === key} onClick={() => setEditorSection(key)}
-            className={"border-b-2 px-4 py-2.5 text-xs font-bold transition-colors " + (editorSection === key
+            className={"min-w-0 whitespace-nowrap border-b-2 px-0.5 py-2.5 text-[11px] font-bold transition-colors min-[390px]:text-xs sm:px-4 " + (editorSection === key
               ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground")}>
             {label}
           </button>)}
@@ -711,10 +711,10 @@ export function EquipmentAdminPanel({ onBack, routeResourceId, routeSubpage, onR
           </>}
         </div>)}
       </div>
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-border bg-background px-4 py-4 sm:px-5">
-        <BtnSecondary onClick={closeEditor}>Cancelar</BtnSecondary>
+      <AdminStickyToolbar className="justify-between">
+        <BtnSecondary onClick={closeEditor}>Voltar</BtnSecondary>
         <BtnPrimary onClick={save} loading={saving} loadingText="Salvando..." disabled={saving}>Salvar</BtnPrimary>
-      </div>
+      </AdminStickyToolbar>
     </AdminPage>
     <AdminDialog
       open={serviceDraftIndex !== null && formOpen && canCreateGeneralService}
