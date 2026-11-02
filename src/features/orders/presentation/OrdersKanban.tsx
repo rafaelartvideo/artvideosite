@@ -75,6 +75,13 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
     };
   }, [linkedColumns.length]);
 
+  // Ao trocar o atendimento, reinicia apenas as outras colunas.
+  // "Sem situação" mantém posição, cartões e sua própria consulta.
+  useEffect(() => {
+    if (boardScrollRef.current) boardScrollRef.current.scrollLeft = 0;
+    if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
+  }, [selectedServiceTypeId]);
+
   const syncTopScroll = () => {
     const top = topScrollRef.current;
     const board = boardScrollRef.current;
@@ -175,7 +182,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
               className="w-full rounded-lg border border-red-300 px-3 py-2 text-xs font-semibold text-red-600">
               Erro ao carregar. Tentar novamente
             </button>}
-            {columnOrders.length === 0 && !unassignedLoading && !unassignedError ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
+            {columnOrders.length === 0 && (!isUnassigned || (!unassignedLoading && !unassignedError)) ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
               // Esta coluna é independente do tipo ativo. A atribuição pode ser
               // feita pelo seletor vinculado ao TIPO DA PRÓPRIA OS, não por arrasto
               // para situações possivelmente incompatíveis com seu atendimento.
