@@ -15,12 +15,10 @@ export function OrderFormActions({
   leftActions?: ReactNode;
 }) {
   return (
-    <AdminStickyToolbar className="flex-col gap-3 sm:flex-row sm:items-center">
+    <AdminStickyToolbar className="flex-row items-center justify-between gap-2 sm:gap-3">
       {leftActions && <div className="hidden min-w-0 items-center md:flex md:mr-auto">{leftActions}</div>}
-      <div className="ml-auto flex items-center justify-end gap-3">
-        <BtnSecondary onClick={onCancel} disabled={saving}>Cancelar</BtnSecondary>
-        {canSave && <BtnPrimary onClick={() => onSave()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
-      </div>
+      <BtnSecondary onClick={onCancel} disabled={saving} className="shrink-0">Voltar</BtnSecondary>
+      {canSave && <BtnPrimary className="ml-auto shrink-0" onClick={() => onSave()} loading={saving} loadingText="Salvando...">Salvar</BtnPrimary>}
     </AdminStickyToolbar>
   );
 }
