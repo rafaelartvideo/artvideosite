@@ -6,6 +6,7 @@ import {
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
+import { readOrderQuote, type OrderQuoteProposal } from "../infrastructure/order-quote.repository";
 import type { PartRequestForReview } from "../domain/part-request.types";
 import {
   getFullServiceOrder,
@@ -260,9 +261,25 @@ export function useOrderResolution({
           kind: "solution" as const,
         })),
     );
+    // Reaproveita a proposta aprovada sem sobrescrever dados técnicos já registrados.
+    // A consulta usa o cache do orçamento e só busca a proposta em OS de orçamento.
+    const quoteKey = ["orders", "quote", targetOrganizationId, order.id] as const;
+    let quote = queryClient.getQueryData<OrderQuoteProposal | null>(quoteKey) || null;
+    if (order?.service_type?.quote_workflow_enabled === true && quote?.status !== "approved") {
+      try {
+        quote = await queryClient.fetchQuery({
+          queryKey: quoteKey,
+          staleTime: 120_000,
+          queryFn: () => readOrderQuote(targetOrganizationId, order.id),
+        });
+      } catch (error) {
+        console.warn("[OS] Não foi possível consultar os dados da proposta para solucionar:", error);
+      }
+    }
+    const approvedQuote = quote?.status === "approved" ? quote : null;
     setSolveDraft({
-      diagnosis: currentOrder?.diagnosis || order.diagnosis || "",
-      solution: currentOrder?.solution || order.solution || "",
+      diagnosis: currentOrder?.diagnosis || order.diagnosis || approvedQuote?.diagnosis || "",
+      solution: currentOrder?.solution || order.solution || approvedQuote?.proposed_solution || "",
       looseParts,
       usedItems: approvedItems.map((item: any) => ({
         id: item.id,
