@@ -103,6 +103,7 @@ export function OrdersListWorkspace(props: Props) {
           link.service_type_id === selectedServiceTypeId && link.situation_id === situation.id))
         : situations}
       serviceTypes={serviceTypes}
+      showServiceTypeFilter={resolvedDisplayMode !== "kanban"}
       responsibles={profiles}
       stateOptions={ibgeStates}
       cityOptions={cityFilterOptions}
@@ -171,6 +172,18 @@ export function OrdersListWorkspace(props: Props) {
         serviceTypes={serviceTypes}
         selectedServiceTypeId={selectedServiceTypeId}
         onServiceTypeChange={changeKanbanServiceType}
+        topPagination={<PaginationBar
+          page={safePage}
+          pageSize={pageSize}
+          totalItems={totalItems}
+          pageSizeOptions={[30, 50, 100]}
+          defaultPageSize={30}
+          pageSizeLabel="OS por página:"
+          storageKey="union-kanban-page-size-v1"
+          showFilteredTotal
+          onPageChange={setPage}
+          onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }}
+        />}
         draggingId={draggingId}
         dragOverSituationId={dragOverSituationId}
         hasPermission={hasPermission}
@@ -186,7 +199,17 @@ export function OrdersListWorkspace(props: Props) {
         cancellingId={cancellingId}
         formatDate={fmtDate}
       />
-      <PaginationBar page={safePage} pageSize={pageSize} totalItems={totalItems} pageSizeOptions={[30, 50, 100]} defaultPageSize={30} onPageChange={setPage} onPageSizeChange={(nextPageSize) => { setPageSize(nextPageSize); setPage(1); }} />
+      {selectedServiceTypeId && <PaginationBar
+        page={safePage}
+        pageSize={pageSize}
+        totalItems={totalItems}
+        pageSizeOptions={[30, 50, 100]}
+        defaultPageSize={30}
+        pageSizeLabel="OS por página:"
+        storageKey="union-kanban-page-size-v1"
+        onPageChange={setPage}
+        onPageSizeChange={nextPageSize => { setPageSize(nextPageSize); setPage(1); }}
+      />}
     </>}
   </>;
 }
