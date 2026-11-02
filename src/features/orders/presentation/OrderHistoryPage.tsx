@@ -2,7 +2,7 @@ import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { FilterX, Plus, SortAsc, SortDesc } from "lucide-react";
+import { FilterX, SortAsc, SortDesc } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
 import { AdminCard, AdminDialog, AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
@@ -226,9 +226,9 @@ export function OrderHistoryPage({
           <DropdownMenuTrigger
             type="button"
             aria-label="Novo"
-            className="admin-primary-gradient inline-flex h-11 min-w-0 flex-none items-center justify-center rounded-lg border border-primary/30 px-4 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-auto sm:py-2.5"
+            className="admin-primary-gradient ml-auto inline-flex h-10 min-w-0 flex-none items-center justify-center rounded-lg border border-primary/30 px-4 text-sm font-bold text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 sm:h-auto sm:py-2.5"
           >
-            <Plus className="h-4 w-4" /><span>Novo</span>
+            <span>Novo</span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-52">
             {canCreate && <DropdownMenuItem onSelect={() => { history.setText(""); history.setModalOpen(true); }}>
