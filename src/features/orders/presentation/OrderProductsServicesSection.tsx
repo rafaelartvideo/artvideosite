@@ -1171,27 +1171,27 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
           <div className="grid gap-2 text-sm">
             <div className="flex items-center justify-between gap-4 border-b border-border py-2">
               <span className="text-muted-foreground">Total produtos</span>
-              <strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.parts_total))}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(pricing.parts_total))}</strong>
             </div>
             {resolutionProductsTotal > 0.009 && <div className="flex items-center justify-between gap-4 border-b border-border py-2 text-xs">
               <span className="text-muted-foreground">Inclui produtos usados na solução</span>
-              <span className="font-semibold text-muted-foreground">{formatCurrency(resolutionProductsTotal)}</span>
+              <span className="font-semibold text-emerald-700 dark:text-emerald-300">{formatCurrency(resolutionProductsTotal)}</span>
             </div>}
             <div className="flex items-center justify-between gap-4 border-b border-border py-2">
               <span className="text-muted-foreground">Total serviços</span>
-              <strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.service_price))}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(pricing.service_price))}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 border-b border-border py-2">
               <span className="text-muted-foreground">Subtotal</span>
-              <strong className="text-foreground">{formatCurrency(nonNegativeNumber(pricing.subtotal))}</strong>
+              <strong className="text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(pricing.subtotal))}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 border-b border-border py-2">
               <span className="text-muted-foreground">Desconto</span>
-              <strong className="text-foreground">- {formatCurrency(nonNegativeNumber(pricing.discount_amount))}</strong>
+              <strong className="text-red-600 dark:text-red-400">- {formatCurrency(nonNegativeNumber(pricing.discount_amount))}</strong>
             </div>
             <div className="flex items-center justify-between gap-4 pt-2">
               <span className="font-bold text-foreground">Total da OS</span>
-              <strong className="text-lg font-black text-primary">{formatCurrency(nonNegativeNumber(pricing.final_total))}</strong>
+              <strong className="text-lg font-black text-emerald-700 dark:text-emerald-300">{formatCurrency(nonNegativeNumber(pricing.final_total))}</strong>
             </div>
           </div>
         </div>
@@ -1235,12 +1235,12 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 />}
           </div>
 
-          {editable && <BtnSecondary
+          {editable && <BtnPrimary
             disabled={mutating}
             loading={mutating}
             onClick={() => void applyDiscount()}
             className="mt-3 w-full"
-          >Aplicar desconto</BtnSecondary>}
+          >Aplicar desconto</BtnPrimary>}
         </div>
       </div>
     </Section>
