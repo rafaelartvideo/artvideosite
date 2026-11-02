@@ -192,12 +192,28 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   const [discountValue, setDiscountValue] = useState(
     String(order?.discount_type === "amount" ? nonNegativeNumber(order?.discount_amount) : nonNegativeNumber(order?.discount_percentage)),
   );
+  // Persiste somente a última edição após uma pausa; evita RPC a cada tecla
+  // e serializa gravações para que respostas antigas não sobrescrevam as novas.
+  const [discountSaveRevision, setDiscountSaveRevision] = useState(0);
+  const [discountSaving, setDiscountSaving] = useState(false);
+  const discountEditRevisionRef = useRef(0);
+  const discountSaveQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const discountOrderRef = useRef<string | null>(order?.id || null);
+  const editDiscount = (type: "percentage" | "amount", value: string) => {
+    discountEditRevisionRef.current += 1;
+    setDiscountSaveRevision(discountEditRevisionRef.current);
+    setDiscountType(type);
+    setDiscountValue(value);
+  };
 
   const applyPricing = useCallback((next: OrderCommercialPricing) => {
     setPricing(next);
     onPricingChange(next);
-    setDiscountType(next.discount_type);
-    setDiscountValue(String(next.discount_type === "amount" ? next.discount_amount : next.discount_percentage));
+    // Não substitui o texto que está sendo digitado por uma resposta antiga.
+    if (discountEditRevisionRef.current === 0) {
+      setDiscountType(next.discount_type);
+      setDiscountValue(String(next.discount_type === "amount" ? next.discount_amount : next.discount_percentage));
+    }
   }, [onPricingChange]);
 
   const refreshTaskPhotos = useCallback(async () => {
@@ -352,9 +368,18 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
   }, [order?.id, refreshTaskPhotos, publishOverview]);
 
   useEffect(() => {
+    discountOrderRef.current = order?.id || null;
+    discountEditRevisionRef.current = 0;
+    setDiscountSaveRevision(0);
+    setDiscountSaving(false);
+  }, [order?.id]);
+
+  useEffect(() => {
     setPricing(pricingFromOrder(order));
-    setDiscountType(order?.discount_type === "amount" ? "amount" : "percentage");
-    setDiscountValue(String(order?.discount_type === "amount" ? nonNegativeNumber(order?.discount_amount) : nonNegativeNumber(order?.discount_percentage)));
+    if (discountEditRevisionRef.current === 0) {
+      setDiscountType(order?.discount_type === "amount" ? "amount" : "percentage");
+      setDiscountValue(String(order?.discount_type === "amount" ? nonNegativeNumber(order?.discount_amount) : nonNegativeNumber(order?.discount_percentage)));
+    }
   }, [
     order?.id,
     order?.service_price,
@@ -799,19 +824,34 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
     </div>;
   };
 
-  const applyDiscount = async () => {
-    if (!order?.id || !editable) return;
-    setMutating(true);
-    try {
-      const nextPricing = await setOrderCommercialDiscount(order.id, discountType, nonNegativeNumber(discountValue));
-      applyPricing(nextPricing);
-      showFeedback({ type: "success", text: "Desconto atualizado." });
-    } catch (error) {
-      showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível aplicar o desconto.") });
-    } finally {
-      setMutating(false);
-    }
-  };
+  useEffect(() => {
+    if (!editable || !order?.id || discountSaveRevision === 0) return;
+    const orderId = order.id;
+    const revision = discountSaveRevision;
+    const type = discountType;
+    const value = nonNegativeNumber(discountValue);
+    const timer = window.setTimeout(() => {
+      discountSaveQueueRef.current = discountSaveQueueRef.current.catch(() => undefined).then(async () => {
+        if (discountOrderRef.current !== orderId || discountEditRevisionRef.current !== revision) return;
+        setDiscountSaving(true);
+        try {
+          const nextPricing = await setOrderCommercialDiscount(orderId, type, value);
+          if (discountOrderRef.current === orderId && discountEditRevisionRef.current === revision) {
+            discountEditRevisionRef.current = 0;
+            setDiscountSaveRevision(0);
+            applyPricing(nextPricing);
+          }
+        } catch (error) {
+          if (discountOrderRef.current === orderId && discountEditRevisionRef.current === revision) {
+            showFeedback({ type: "error", text: systemErrorMessage(error, "Não foi possível salvar o desconto automaticamente.") });
+          }
+        } finally {
+          if (discountOrderRef.current === orderId) setDiscountSaving(false);
+        }
+      });
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [order?.id, editable, discountSaveRevision, discountType, discountValue, applyPricing]);
 
   const explicitProductTotal = useMemo(
     () => items.filter(item => item.item_type === "product").reduce((sum, item) => sum + nonNegativeNumber(item.subtotal), 0),
@@ -1212,8 +1252,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                 disabled={!editable}
                 onValueChange={value => {
                   const next = value === "amount" ? "amount" : "percentage";
-                  setDiscountType(next);
-                  setDiscountValue("0");
+                  editDiscount(next, "0");
                 }}
                 options={[
                   { value: "percentage", label: "Percentual (%)" },
@@ -1228,7 +1267,7 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   placeholder="R$ 0,00"
                   disabled={!editable}
                   value={discountValue}
-                  onChange={(event: any) => setDiscountValue(event.target.value)}
+                  onChange={(event: any) => editDiscount(discountType, event.target.value)}
                 />
               : <NumberStepper
                   label="Percentual (%)"
@@ -1237,16 +1276,14 @@ export function OrderProductsServicesSection({ order, canEdit, formatCurrency, o
                   max={100}
                   step={1}
                   disabled={!editable}
-                  onChange={setDiscountValue}
+                  onChange={value => editDiscount(discountType, value)}
                 />}
           </div>
 
-          {editable && <BtnPrimary
-            disabled={mutating}
-            loading={mutating}
-            onClick={() => void applyDiscount()}
-            className="mt-3 w-full"
-          >Aplicar desconto</BtnPrimary>}
+          {editable && <p role="status" className="mt-3 flex items-center gap-2 text-[11px] text-muted-foreground">
+            {(discountSaving || discountSaveRevision > 0) && <LoadingSpinner size="sm" />}
+            {discountSaving || discountSaveRevision > 0 ? "Salvando desconto automaticamente" : "Desconto aplicado automaticamente"}
+          </p>}
         </div>
       </div>
     </Section>
