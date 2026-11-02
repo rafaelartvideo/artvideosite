@@ -9,8 +9,17 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderStatusDot } from "./OrderStatusDot";
 
-export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, topPagination, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
-  filteredOrders: any[]; situations: any[]; serviceTypeSituations: any[]; serviceTypes: any[];
+export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal, unassignedLoading, unassignedLoadingMore, unassignedHasMore, unassignedError, onLoadUnassignedMore, onRefreshUnassigned, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, topPagination, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
+  filteredOrders: any[];
+  unassignedOrders: any[];
+  unassignedTotal: number;
+  unassignedLoading: boolean;
+  unassignedLoadingMore: boolean;
+  unassignedHasMore: boolean;
+  unassignedError: boolean;
+  onLoadUnassignedMore: () => void;
+  onRefreshUnassigned: () => void;
+  situations: any[]; serviceTypeSituations: any[]; serviceTypes: any[];
   selectedServiceTypeId: string; onServiceTypeChange: (serviceTypeId: string) => void;
   topPagination?: React.ReactNode;
   draggingId: string | null; dragOverSituationId: string | null;
@@ -31,12 +40,16 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
     .filter(link => link.service_type_id === selectedServiceTypeId)
     .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
   const linkedIds = new Set<string>();
-  const columns = linkedSituations.flatMap(link => {
+  const linkedColumns = linkedSituations.flatMap(link => {
     if (!link.situation_id || linkedIds.has(link.situation_id)) return [];
     linkedIds.add(link.situation_id);
     const situation = situations.find(item => item.id === link.situation_id);
     return situation ? [{ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" }] : [];
   });
+  const columns = [
+    { id: "", name: "Sem situação", color: "#94a3b8" },
+    ...linkedColumns,
+  ];
   const displayedOrders = selectedServiceTypeId
     ? filteredOrders.filter(order => order.service_type_id === selectedServiceTypeId && linkedIds.has(order.situation_id))
     : [];
@@ -44,7 +57,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
   // Espelha a rolagem horizontal do quadro numa barra no TOPO; ResizeObserver
   // recalcula a largura quando a tela ou a quantidade de colunas mudar.
   useEffect(() => {
-    if (!selectedServiceTypeId || !columns.length) return;
+    if (!boardScrollRef.current) return;
     const board = boardScrollRef.current;
     if (!board) return;
     const measure = () => {
@@ -60,7 +73,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
       observer.disconnect();
       window.removeEventListener("resize", measure);
     };
-  }, [selectedServiceTypeId, columns.length]);
+  }, [linkedColumns.length]);
 
   const syncTopScroll = () => {
     const top = topScrollRef.current;
@@ -111,22 +124,22 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
     </div>
     {selectedServiceTypeId && topPagination}
     <div id="orders-kanban-board">
-    {!selectedServiceTypeId ? (
-      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-        Selecione um tipo de atendimento para visualizar suas situações e ordens de serviço.
-      </div>
-    ) : columns.length === 0 ? (
-      <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
-        Nenhuma situação vinculada a esse tipo de atendimento. Configure os vínculos em Tipos de Atendimento.
-      </div>
-    ) : <>
+    <div className="mb-2 text-xs text-muted-foreground">
+      {!selectedServiceTypeId
+        ? "Selecione um tipo de atendimento para visualizar as outras situações. As OS sem situação permanecem à esquerda."
+        : linkedColumns.length === 0
+          ? "Nenhuma situação vinculada a esse atendimento. A coluna Sem situação continua disponível."
+          : "A coluna Sem situação reúne toda a organização e não segue os filtros ou páginas das outras colunas."}
+    </div>
+    <>
       <div ref={topScrollRef} onScroll={syncBoardScroll} aria-label="Rolagem horizontal superior do Kanban"
         className={cn("mb-2 h-4 w-full overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]", !horizontalOverflow && "hidden")}>
         <div style={{ width: boardScrollWidth, height: 1 }} />
       </div>
       <div ref={boardScrollRef} onScroll={syncTopScroll} className="w-full overflow-x-auto pb-3" aria-label="Colunas do Kanban">
         <div className="flex min-w-max items-start gap-3 md:gap-4">{columns.map(column => {
-        const columnOrders = displayedOrders.filter(order => order.situation_id === column.id);
+        const isUnassigned = !column.id;
+        const columnOrders = isUnassigned ? unassignedOrders : displayedOrders.filter(order => order.situation_id === column.id);
         const isDragTarget = canChangeSituation && Boolean(column.id) && dragOverSituationId === column.id;
         return <div
           key={column.id}
@@ -144,6 +157,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
           }}
           className={cn(
             "w-[min(85vw,320px)] shrink-0 overflow-hidden rounded-xl border bg-muted transition-all md:w-[320px]",
+            isUnassigned && "sticky left-0 z-10 border-slate-300 bg-muted",
             isDragTarget ? "border-primary bg-primary-soft ring-2 ring-primary/10" : "border-border",
           )}
         >
@@ -152,12 +166,27 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
               <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: column.color }} />
               <span className="truncate text-sm font-bold text-[#0d1b2e]">{column.name}</span>
             </div>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-[#5a6a82] md:bg-transparent md:px-0 md:py-0 md:text-xs">{columnOrders.length}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-[#5a6a82] md:bg-transparent md:px-0 md:py-0 md:text-xs">{isUnassigned ? unassignedTotal : columnOrders.length}</span>
           </div>
 
           <div className="min-h-0 space-y-2 p-2.5 md:min-h-[180px] md:space-y-3 md:p-3">
-            {columnOrders.length === 0 ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
-              const draggable = canDrag(order);
+            {isUnassigned && unassignedLoading && <p role="status" className="py-3 text-center text-xs text-muted-foreground">Carregando OS sem situação</p>}
+            {isUnassigned && unassignedError && <button type="button" onClick={onRefreshUnassigned}
+              className="w-full rounded-lg border border-red-300 px-3 py-2 text-xs font-semibold text-red-600">
+              Erro ao carregar. Tentar novamente
+            </button>}
+            {columnOrders.length === 0 && !unassignedLoading && !unassignedError ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
+              // Esta coluna é independente do tipo ativo. A atribuição pode ser
+              // feita pelo seletor vinculado ao TIPO DA PRÓPRIA OS, não por arrasto
+              // para situações possivelmente incompatíveis com seu atendimento.
+              const draggable = Boolean(column.id) && canDrag(order);
+              const orderSituations = isUnassigned
+                ? serviceTypeSituations
+                  .filter(link => link.service_type_id === order.service_type_id)
+                  .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0))
+                  .map(link => situations.find(item => item.id === link.situation_id))
+                  .filter((item): item is any => Boolean(item))
+                : linkedColumns;
               const orderStatus = order.order_status as any;
               return <div
                 key={order.id}
@@ -185,7 +214,11 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
 
                 <div className="mt-2 flex items-center gap-2 text-[11px] text-[#5a6a82]" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
                   <span className="shrink-0 font-semibold">Situação:</span>
-                  {canDrag(order) ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }} options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...columns.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div> : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
+                  {canDrag(order) && orderSituations.length > 0
+                    ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }}
+                        options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...orderSituations.map(situation => ({ value: situation.id, label: situation.name }))]}
+                        className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div>
+                    : <span className="truncate">{isUnassigned && !orderSituations.length ? "Sem situações vinculadas" : (order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
                 {order.is_solved && !order.completed_at && !isCancelled(order) && <span className={`mt-2 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${STATUS_TONE_CLASSES.success.badge}`}>✓ OS solucionada</span>}
@@ -197,6 +230,10 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
                 </div>}
               </div>;
             })}
+            {isUnassigned && unassignedHasMore && <button type="button" onClick={onLoadUnassignedMore}
+              disabled={unassignedLoadingMore} className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-xs font-bold text-primary disabled:opacity-50">
+              {unassignedLoadingMore ? "Carregando" : `Mostrar mais (${unassignedOrders.length} de ${unassignedTotal})`}
+            </button>}
           </div>
         </div>;
         })}</div>
