@@ -81,18 +81,34 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
   const canCancel = (order: any) => canCancelPermission && !order.completed_at && !isCancelled(order);
   const canDrag = (order: any) => canChangeSituation && !isOrderSituationLocked(order);
   return <>
-    <div className="mb-3 flex flex-col gap-2 rounded-lg border border-border bg-card p-3 sm:flex-row sm:items-center sm:gap-4">
-      <label className="shrink-0 text-xs font-bold text-foreground">Tipo de atendimento</label>
-      <div className="w-full min-w-0 sm:max-w-sm">
-        <AdminSelect
-          ariaLabel="Selecionar tipo de atendimento do Kanban"
-          value={selectedServiceTypeId}
-          onValueChange={onServiceTypeChange}
-          className="min-h-10 w-full"
-          options={[{ value: "", label: "Selecione o tipo de atendimento" }, ...serviceTypes.filter(type => type.id).map(type => ({ value: type.id, label: type.title || type.name || "Sem nome" }))]}
-        />
-      </div>
+    <div className="mb-3 min-w-0 border-b border-border">
+      <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+        Tipo de atendimento
+      </p>
+      <nav role="tablist" aria-label="Tipos de atendimento do Kanban"
+        className="flex min-w-0 w-full flex-nowrap items-center gap-2 overflow-x-auto pb-3">
+        {serviceTypes.filter(type => type.id).map(type => {
+          const active = selectedServiceTypeId === type.id;
+          return <button
+            key={type.id}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            aria-controls="orders-kanban-board"
+            onClick={() => { if (!active) onServiceTypeChange(type.id); }}
+            className={cn(
+              "inline-flex min-h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3.5 py-2 text-xs font-bold transition-colors sm:text-sm",
+              active
+                ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                : "border-border bg-card text-foreground hover:border-primary/40 hover:bg-muted",
+            )}
+          >
+            {type.title || type.name || "Sem nome"}
+          </button>;
+        })}
+      </nav>
     </div>
+    <div id="orders-kanban-board">
     {!selectedServiceTypeId ? (
       <div className="rounded-lg border border-dashed border-border bg-muted/30 px-4 py-10 text-center text-sm text-muted-foreground">
         Selecione um tipo de atendimento para visualizar suas situações e ordens de serviço.
@@ -184,6 +200,7 @@ export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations
         })}</div>
       </div>
     </>}
+    </div>
     <OrderCancelDialog
       order={cancelTarget}
       open={Boolean(cancelTarget)}
