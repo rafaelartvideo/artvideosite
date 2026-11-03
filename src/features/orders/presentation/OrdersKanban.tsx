@@ -1,7 +1,7 @@
 import { isOrderSituationLocked } from "../domain/order-situation-lock";
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
 import { getOrderStatusBadgeClass } from "../domain/order-status-palette";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type React from "react";
 import { Ban, Edit2, GripVertical } from "lucide-react";
 import { cn } from "@/shared/domain/formatters";
@@ -36,16 +36,27 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
 
   // As etapas pertencem ao tipo de atendimento, não à lista global de situações.
   // Mantém a ordem de configuração e não cria colunas para situações sem vínculo.
-  const linkedSituations = serviceTypeSituations
-    .filter(link => link.service_type_id === selectedServiceTypeId)
-    .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
-  const linkedIds = new Set<string>();
-  const linkedColumns = linkedSituations.flatMap(link => {
-    if (!link.situation_id || linkedIds.has(link.situation_id)) return [];
-    linkedIds.add(link.situation_id);
-    const situation = situations.find(item => item.id === link.situation_id);
-    return situation ? [{ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" }] : [];
-  });
+  // O catálogo é compartilhado pelo quadro e pelas OS sem situação.
+  // Indexar uma vez evita filtrar/ordenar todas as relações para cada cartão.
+  const situationsByType = useMemo(() => {
+    const byId = new Map(situations.map(situation => [situation.id, situation]));
+    const map = new Map<string, any[]>();
+    const linked = [...serviceTypeSituations].sort((a, b) =>
+      Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0));
+    for (const link of linked) {
+      if (!link.service_type_id || !link.situation_id) continue;
+      const situation = byId.get(link.situation_id);
+      if (!situation) continue;
+      const group = map.get(link.service_type_id) || [];
+      if (group.some(item => item.id === situation.id)) continue;
+      group.push(situation);
+      map.set(link.service_type_id, group);
+    }
+    return map;
+  }, [situations, serviceTypeSituations]);
+  const linkedColumns = (situationsByType.get(selectedServiceTypeId) || [])
+    .map(situation => ({ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" }));
+  const linkedIds = new Set(linkedColumns.map(column => column.id));
   const columns = [
     { id: "", name: "Sem situação", color: "#94a3b8" },
     ...linkedColumns,
@@ -188,11 +199,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
               // para situações possivelmente incompatíveis com seu atendimento.
               const draggable = Boolean(column.id) && canDrag(order);
               const orderSituations = isUnassigned
-                ? serviceTypeSituations
-                  .filter(link => link.service_type_id === order.service_type_id)
-                  .sort((a, b) => Number(a.sort_order ?? 0) - Number(b.sort_order ?? 0))
-                  .map(link => situations.find(item => item.id === link.situation_id))
-                  .filter((item): item is any => Boolean(item))
+                ? situationsByType.get(order.service_type_id) || []
                 : linkedColumns;
               const orderStatus = order.order_status as any;
               return <div
