@@ -4,7 +4,7 @@ import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from
 import { FInput, FPhoneInput, FEmailInput, FCpfInput, FCnpjInput, FGenderRadio, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
-import { fetchAddressByZipCode, getAddressMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
+import { getAddressMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
 import { isValidCpf, isValidCnpj } from "@/shared/domain/formatters";
 import { lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
 import { fetchCnpjData } from "@/features/customers/infrastructure/cnpj.gateway";
@@ -100,6 +100,9 @@ export function PlatformProviderEditor({
   const save = () => {
     if(!draft.name.trim()){
       notifyAdmin("Informe o nome do prestador.","error");return;
+    }
+    if(!editing && !draft.document.trim()){
+      notifyAdmin("Informe o "+(draft.person_type==="PF"?"CPF":"CNPJ")+" do prestador.","error");return;
     }
     if(draft.document.trim() && !(draft.person_type==="PF"?isValidCpf(draft.document):isValidCnpj(draft.document))){
       notifyAdmin("Informe um "+(draft.person_type==="PF"?"CPF":"CNPJ")+" válido.","error");return;
