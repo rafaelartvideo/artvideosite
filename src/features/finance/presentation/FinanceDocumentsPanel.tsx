@@ -90,11 +90,21 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
   const errorText = error ? systemErrorMessage(error) : "";
 
   const view = async (attachment: FinancialAttachment) => {
+    // O navegador precisa abrir a aba durante o clique, antes da assinatura do Storage.
+    const popup = window.open("", "_blank");
+    if (!popup) {
+      notifyAdmin("Permita pop-ups para abrir o documento financeiro.", "error");
+      return;
+    }
+    popup.opener = null;
     try {
       setArchiveReasonError("");
+      popup.document.title = "Abrindo documento";
+      popup.document.body.textContent = "Abrindo documento...";
       const url = await createFinancialAttachmentSignedUrl(attachment.storage_path, attachment.storage_bucket || "financial-documents");
-      window.open(url, "_blank", "noopener,noreferrer");
+      if (!popup.closed) popup.location.replace(url);
     } catch (caught) {
+      if (!popup.closed) popup.close();
       notifyAdmin(systemErrorMessage(caught, "Não foi possível abrir o documento."), "error");
     }
   };
