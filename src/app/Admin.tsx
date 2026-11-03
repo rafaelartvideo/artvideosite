@@ -242,6 +242,15 @@ export function AdminDashboard({
   const navigateOrderRoute = (orderId?: string | null, subpage?: string | null) => navigateAdmin("orders", orderId, subpage, { menuTab: locationState?.menuTab, origin: locationState?.origin });
   const closeOrderRoute = () => locationState?.origin ? navigateAdmin(locationState.origin.tab, locationState.origin.resourceId, locationState.origin.subpage) : navigateAdmin("orders");
 
+  // Pedidos Avulsos e Painel do Técnico pertencem ao CRM operacional da Union.
+  // URLs antigas continuam válidas, mas são direcionadas ao modo CRM.
+  useEffect(() => {
+    if (!isPlatformOperatorOrganization || crmMode) return;
+    if (activeTab === "customerRequests" || activeTab === "technicianPanel") {
+      navigateAdmin(activeTab, route.resourceId, route.subpage, { replace: true, crmMode: true });
+    }
+  }, [isPlatformOperatorOrganization, crmMode, activeTab, route.resourceId, route.subpage]);
+
   useLayoutEffect(() => { if (!route.resourceId) setPage(null); setSidebarOpen(false); }, [location.pathname, route.resourceId]);
 
   // Nenhuma rota do CRM força o scroll para o topo. Ao voltar dos detalhes de
