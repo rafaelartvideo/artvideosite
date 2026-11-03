@@ -1,6 +1,6 @@
 import type { Dispatch, SetStateAction } from "react";
 import { useLocation } from "react-router";
-import { Building2, Users, UserRound } from "lucide-react";
+import { Building2, Users, UserRound, Wrench } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { resolveAdminRoute } from "@/features/admin-shell/admin-routes";
 import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
@@ -29,17 +29,20 @@ import type { RegistrationRole, SupplierInventoryItem } from "../infrastructure/
 import { EmployeeSignatureSection } from "./EmployeeSignatureSection";
 import { RegistrationAddressesEditor } from "./RegistrationAddressesEditor";
 import { SupplierItemsEditor } from "./SupplierItemsEditor";
+import { ProviderServicesEditor } from "./ProviderServicesEditor";
 
 const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
   employee: "Funcionário",
   supplier: "Fornecedor",
+  service_provider: "Prestador de serviço",
 };
 
 const roleIcons: Record<RegistrationRole, typeof Users> = {
   customer: UserRound,
   employee: Users,
   supplier: Building2,
+  service_provider: Wrench,
 };
 
 export function RegistrationEditor({
@@ -110,7 +113,7 @@ export function RegistrationEditor({
     title={creating ? (employeeOnly ? "Novo usuário" : "Novo cadastro") : registrationDisplayName(form) || (employeeOnly ? "Editar usuário" : "Editar cadastro")}
     subtitle={creating
       ? (employeeOnly ? "Cadastre um funcionário e configure seu acesso à Union World." : "Cadastre uma pessoa ou empresa e defina seus vínculos.")
-      : (employeeOnly ? "Atualize os dados do funcionário e seu acesso ao sistema." : "Atualize dados pessoais, endereços, fornecedor e acesso quando permitido.")}
+      : (employeeOnly ? "Atualize os dados do funcionário e seu acesso ao sistema." : "Atualize dados pessoais, endereços, serviços prestados e acessos quando permitido.")}
     maxW="max-w-6xl"
   >
     <div className="space-y-5 p-4 sm:p-5">
@@ -124,7 +127,7 @@ export function RegistrationEditor({
               <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
             </button>
           </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-3">{(["customer", "employee", "supplier"] as RegistrationRole[]).map(role => {
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{(["customer", "employee", "supplier", "service_provider"] as RegistrationRole[]).map(role => {
             const Icon = roleIcons[role];
             const checked = form.roles.includes(role);
             return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
@@ -226,6 +229,8 @@ export function RegistrationEditor({
       {form.roles.includes("employee") && <EmployeeSignatureSection organizationId={organizationId} entityId={registrationId} canManage={canManageEmployeeSignature} />}
 
       {form.roles.includes("supplier") && <SupplierItemsEditor organizationId={organizationId} value={supplierItems} onChange={setSupplierItems} disabled={!canModify} />}
+      {form.roles.includes("service_provider") && <ProviderServicesEditor value={form.provider_services}
+        onChange={provider_services => setForm(current => ({ ...current, provider_services }))} disabled={!canModify} />}
     </div>
 
     <AdminStickyToolbar className="flex-wrap justify-end gap-2">
