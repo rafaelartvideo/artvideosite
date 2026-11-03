@@ -5,9 +5,10 @@ import { AdminFilterMultiSelect, type AdminFilterOption } from "@/shared/ui/admi
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import type { PlatformService, ProviderFilters } from "../infrastructure/platform-providers.repository";
 
-type MobileKey = "name" | "services" | "states" | "cities" | "statuses";
+type MobileKey = "name" | "equipment" | "services" | "states" | "cities" | "statuses";
 const mobileFields: {value:MobileKey;label:string}[] = [
   {value:"name",label:"Nome"},
+  {value:"equipment",label:"Equipamento"},
   {value:"services",label:"Serviço"},
   {value:"states",label:"Estado"},
   {value:"cities",label:"Cidade"},
@@ -32,9 +33,16 @@ export function ProviderFiltersPanel({
   const [mobileField,setMobileField] = useState<MobileKey>("name");
   const serviceOptions=useMemo<AdminFilterOption[]>(()=>services
     .filter(s=>s.is_active||filters.serviceIds.includes(s.id))
+    .filter(s=>filters.equipmentNames.length===0 || !s.equipment_name ||
+      filters.equipmentNames.includes(s.equipment_name) || filters.serviceIds.includes(s.id))
     .map(s=>({value:s.id,label:s.equipment_name?`${s.equipment_name} · ${s.name}`:s.name}))
     .sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})),
-    [services,filters.serviceIds]);
+    [services,filters.serviceIds,filters.equipmentNames]);
+  const equipmentOptions=useMemo<AdminFilterOption[]>(()=>Array.from(new Set(services
+    .filter(s=>s.is_active||filters.equipmentNames.includes(s.equipment_name||""))
+    .map(s=>s.equipment_name).filter((name):name is string=>Boolean(name))))
+    .sort((a,b)=>a.localeCompare(b,"pt-BR",{sensitivity:"base"}))
+    .map(name=>({value:name,label:name})),[services,filters.equipmentNames]);
   const stateOptions=useMemo<AdminFilterOption[]>(()=>Array.from(new Set(locations.map(l=>l.state)))
     .sort((a,b)=>a.localeCompare(b,"pt-BR"))
     .map(state=>({value:state,label:state})),[locations]);
@@ -45,7 +53,7 @@ export function ProviderFiltersPanel({
       .map(l=>[l.state+":"+l.city,{value:l.state+":"+l.city,label:l.city+" — "+l.state}])).values());
     return values.sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"}));
   },[locations,filters.states]);
-  const toggle=(field:"serviceIds"|"states"|"cities"|"statuses",value:string)=>{
+  const toggle=(field:"serviceIds"|"equipmentNames"|"states"|"cities"|"statuses",value:string)=>{
     const current=filters[field] as string[];
     const next=current.includes(value)?current.filter(v=>v!==value):[...current,value];
     if(field==="states"){
@@ -55,17 +63,23 @@ export function ProviderFiltersPanel({
       onChange({statuses:next as ProviderFilters["statuses"]});
     }else if(field==="serviceIds") {
       onChange({serviceIds:next});
+    }else if(field==="equipmentNames") {
+      onChange({equipmentNames:next});
     }else{
       onChange({cities:next});
     }
   };
-  const hasFilters=Boolean(searchText.trim()||filters.search||filters.serviceIds.length||
+  const hasFilters=Boolean(searchText.trim()||filters.search||filters.serviceIds.length||filters.equipmentNames.length||
     filters.states.length||filters.cities.length||filters.statuses.length);
   const field = (key:MobileKey) => {
     switch(key){
       case "name":
-        return <AdminSearchTextField label="Buscar por nome" value={searchText}
-          onChange={onSearchTextChange} placeholder="Buscar por nome"/>;
+        return <AdminSearchTextField label="Nome" value={searchText}
+          onChange={onSearchTextChange} placeholder="Nome"/>;
+      case "equipment":
+        return <AdminFilterMultiSelect label="Equipamento" options={equipmentOptions}
+          selectedValues={filters.equipmentNames} onToggle={v=>toggle("equipmentNames",v)}
+          placeholder="Todos os equipamentos"/>;
       case "services":
         return <AdminFilterMultiSelect label="Serviço" options={serviceOptions}
           selectedValues={filters.serviceIds} onToggle={v=>toggle("serviceIds",v)}
@@ -109,8 +123,9 @@ export function ProviderFiltersPanel({
       </DropdownMenu>
       <div className="min-w-0">{field(mobileField)}</div>
     </div>
-    <div className="hidden grid-cols-2 gap-3 md:grid xl:grid-cols-5">
+    <div className="hidden grid-cols-2 gap-3 md:grid xl:grid-cols-3">
       {field("name")}
+      {field("equipment")}
       {field("services")}
       {field("states")}
       {field("cities")}
