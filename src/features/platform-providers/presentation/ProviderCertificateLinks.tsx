@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { ExternalLink, FileCheck2, ShieldCheck } from "lucide-react";
 import { Section } from "@/shared/ui/admin/AdminLayout";
 
@@ -5,6 +6,8 @@ const PF_URL = "https://www.gov.br/pf/pt-br/assuntos/antecedentes-criminais/ante
 const STATE_DIRECTORY = "https://www.gov.br/pf/pt-br/assuntos/imigracao/declaracoes-e-formularios/certidoes-criminais";
 const TJ_SE = "https://www.tjse.jus.br/portal/servicos/judiciais/certidao-online/solicitacao-de-certidao-negativa";
 const TRF5 = "https://certidoes.trf5.jus.br/certidoes/";
+const UF_LIST = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
+  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 
 function CertificateLink({label,description,href}:{
   label:string;description:string;href:string;
@@ -24,10 +27,21 @@ function CertificateLink({label,description,href}:{
 
 /** Links oficiais para emissão manual; nenhuma consulta automática, custo ou dado criminal é enviado. */
 export function ProviderCertificateLinks({state}:{state?:string}) {
-  const uf=(state||"").toUpperCase();
+  const [selectedUf,setSelectedUf] = useState("");
+  useEffect(()=>setSelectedUf((state||"").toUpperCase()),[state]);
+  const uf=selectedUf;
   const isTrf5=["AL","CE","PB","PE","RN","SE"].includes(uf);
   return <Section title="Antecedentes criminais"
-    description="Emissão manual de certidões oficiais para conferência documental.">
+    description="Emissão manual de certidões oficiais para conferência documental."
+    actions={<label className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+      Estado
+      <select aria-label="Estado para certidões criminais"
+        value={uf} onChange={event=>setSelectedUf(event.target.value)}
+        className="h-9 min-w-24 rounded-lg border border-border bg-card px-2 text-xs font-semibold text-foreground">
+        <option value="">Todas as UFs</option>
+        {UF_LIST.map(item=><option key={item} value={item}>{item}</option>)}
+      </select>
+    </label>}>
     <div className="grid gap-3 lg:grid-cols-3">
       <CertificateLink label="Polícia Federal" description="Antecedentes criminais da PF"
         href={PF_URL}/>
