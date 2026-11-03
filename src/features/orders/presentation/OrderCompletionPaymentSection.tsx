@@ -5,6 +5,7 @@ import { InlineLoading } from "@/shared/ui/admin/AdminFeedback";
 import { FCurrencyInput, FDecimalInput, FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import { cn, formatNumber } from "@/shared/domain/formatters";
 import type { useOrderCompletion } from "../application/useOrderCompletion";
+import { OrderChecklistMobileBridge } from "@/features/checklists/presentation/OrderChecklistMobileBridge";
 
 type CompletionController = ReturnType<typeof useOrderCompletion>;
 
@@ -40,6 +41,15 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
         <span className={`text-[10px] font-semibold ${completion.paymentProofRequired ? "text-destructive" : "text-muted-foreground"}`}>
           {completion.paymentProofRequired ? "(obrigatório)" : "(opcional)"}
         </span>
+        {completion.canAttachPaymentProof && completion.paymentProofOrderId && !completion.paymentProofAttached && !completion.paymentProofAlreadyOnOrder && (
+          <OrderChecklistMobileBridge
+            orderId={completion.paymentProofOrderId}
+            osNumber={completion.paymentProofOsNumber}
+            scope="payment-proof"
+            disabled={saving}
+            onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
+          />
+        )}
       </div>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
         {completion.paymentProofRequired
