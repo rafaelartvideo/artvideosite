@@ -9,6 +9,8 @@ export type PlatformProvider = {
   phone: string | null; whatsapp: string | null; email: string | null;
   state: string; city: string; neighborhood: string | null;
   street: string | null; street_number: string | null; zip_code: string | null;
+  person_type: "PF" | "PJ"; birth_date: string | null; gender: "M" | "F" | "I" | null;
+  legal_name: string | null; complement: string | null;
   notes: string | null; is_active: boolean; service_ids: string[];
   service_names: string[]; attachment_count: number; total_count: number;
 };
@@ -21,6 +23,8 @@ export type PlatformProviderDraft = {
   name: string; document: string; phone: string; whatsapp: string; email: string;
   state: string; city: string; neighborhood: string; street: string;
   street_number: string; zip_code: string; notes: string; is_active: boolean;
+  person_type: "PF" | "PJ"; birth_date: string; gender: "M" | "F" | "I" | "";
+  legal_name: string; complement: string;
 };
 export type ProviderFilters = {
   search: string; serviceId: string; state: string; city: string;
@@ -31,6 +35,7 @@ export const emptyProviderDraft = (): PlatformProviderDraft => ({
   name: "", document: "", phone: "", whatsapp: "", email: "",
   state: "", city: "", neighborhood: "", street: "", street_number: "",
   zip_code: "", notes: "", is_active: true,
+  person_type: "PF", birth_date: "", gender: "", legal_name: "", complement: "",
 });
 
 export function draftFromProvider(provider: PlatformProvider): PlatformProviderDraft {
@@ -41,6 +46,9 @@ export function draftFromProvider(provider: PlatformProvider): PlatformProviderD
     neighborhood: provider.neighborhood || "", street: provider.street || "",
     street_number: provider.street_number || "", zip_code: provider.zip_code || "",
     notes: provider.notes || "", is_active: provider.is_active,
+    person_type: provider.person_type || (provider.document?.replace(/\D/g, "").length === 14 ? "PJ" : "PF"),
+    birth_date: provider.birth_date || "", gender: provider.gender || "",
+    legal_name: provider.legal_name || "", complement: provider.complement || "",
   };
 }
 
@@ -73,7 +81,7 @@ export async function editPlatformService(orgId: string, id: string, fields: {na
 }
 
 export async function listPlatformProviders(filters: ProviderFilters): Promise<{ providers: PlatformProvider[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_platform_service_providers", {
+  const { data, error } = await supabase.rpc("list_platform_service_providers_v2", {
     p_search: filters.search.trim(), p_service_id: filters.serviceId || null,
     p_state: filters.state, p_city: filters.city, p_status: filters.status,
     p_limit: filters.pageSize, p_offset: (filters.page - 1) * filters.pageSize,
@@ -81,6 +89,13 @@ export async function listPlatformProviders(filters: ProviderFilters): Promise<{
   if (error) throw error;
   const providers = (data || []) as PlatformProvider[];
   return { providers, total: Number(providers[0]?.total_count || 0) };
+}
+
+export async function countPlatformProviders(orgId: string) {
+  const {count,error} = await supabase.from("platform_service_providers")
+    .select("id",{head:true,count:"exact"}).eq("organization_id",orgId);
+  if (error) throw error;
+  return count ?? 0;
 }
 
 export async function listProviderLocations(): Promise<Array<{ state: string; city: string }>> {
