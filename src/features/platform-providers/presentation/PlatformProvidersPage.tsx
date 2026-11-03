@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, MapPin, Paperclip, Pencil, Plus, Search, Wrench, X } from "lucide-react";
+import { Check, MapPin, Paperclip, Pencil, Phone, Plus, Search, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
@@ -14,12 +14,15 @@ import {
   type ProviderFilters,
 } from "../infrastructure/platform-providers.repository";
 import { PlatformProviderEditor } from "./PlatformProviderEditor";
+import { ProviderFiltersPanel } from "./ProviderFiltersPanel";
+import { ProviderDetailsDialog } from "./ProviderDetailsDialog";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
+import { formatPhone } from "@/shared/domain/formatters";
 
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
-const labelClass = "mb-1.5 block text-xs font-semibold text-foreground";
 const normalSort = (a: string, b: string) => a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 const emptyFilters = (): ProviderFilters => ({
-  search: "", serviceId: "", state: "", city: "", status: "all", page: 1, pageSize: 24,
+  search: "", serviceIds: [], states: [], cities: [], statuses: [], page: 1, pageSize: 24,
 });
 
 function ServiceChoices({ services, selected, onToggle }: {
@@ -51,6 +54,7 @@ export function PlatformProvidersPage() {
   const [filters, setFilters] = useState<ProviderFilters>(emptyFilters());
   const [searchText, setSearchText] = useState("");
   const [editorOpen, setEditorOpen] = useState(false);
+  const [viewing, setViewing] = useState<PlatformProvider | null>(null);
   const [editing, setEditing] = useState<PlatformProvider | null>(null);
   const [draft, setDraft] = useState<PlatformProviderDraft>(emptyProviderDraft());
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
@@ -68,7 +72,7 @@ export function PlatformProvidersPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchText]);
-  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); }, [activeOrganizationId]);
+  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); }, [activeOrganizationId]);
 
   const servicesQuery = useQuery({
     queryKey: ["union-provider-services", activeOrganizationId],
@@ -100,11 +104,6 @@ export function PlatformProvidersPage() {
   const providers = providersQuery.data?.providers || [];
   const total = providersQuery.data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
-  const cities = useMemo(() => Array.from(new Set((locationsQuery.data || [])
-    .filter(item => !filters.state || item.state === filters.state).map(item => item.city)))
-    .sort(normalSort), [locationsQuery.data, filters.state]);
-  const states = useMemo(() => Array.from(new Set((locationsQuery.data || []).map(item => item.state)))
-    .sort(normalSort), [locationsQuery.data]);
   const catalogFiltered = useMemo(() => services
     .filter(item => item.name.toLocaleLowerCase("pt-BR").includes(catalogSearch.trim().toLocaleLowerCase("pt-BR")))
     .sort((a,b) => normalSort(a.name,b.name)), [services, catalogSearch]);
@@ -197,44 +196,10 @@ export function PlatformProvidersPage() {
     </div>
 
     {section === "providers" ? <>
-      <section className="rounded-xl border border-border bg-card p-4">
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <label className="sm:col-span-2 xl:col-span-1">
-            <span className={labelClass}>Buscar prestador</span>
-            <div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-3 text-muted-foreground" />
-              <input className={inputClass + " pl-9"} value={searchText}
-                placeholder="Nome, cidade ou bairro" onChange={event => setSearchText(event.target.value)} /></div>
-          </label>
-          <label><span className={labelClass}>Serviço</span>
-            <select className={inputClass} value={filters.serviceId} onChange={event => changeFilter({ serviceId: event.target.value })}>
-              <option value="">Todos os serviços</option>
-              {services.filter(item => item.is_active).map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
-          </label>
-          <label><span className={labelClass}>Estado</span>
-            <select className={inputClass} value={filters.state}
-              onChange={event => changeFilter({ state: event.target.value, city: "" })}>
-              <option value="">Todos os estados</option>{states.map(state => <option key={state} value={state}>{state}</option>)}
-            </select>
-          </label>
-          <label><span className={labelClass}>Cidade</span>
-            <select className={inputClass} value={filters.city} onChange={event => changeFilter({ city: event.target.value })}>
-              <option value="">Todas as cidades</option>{cities.map(city => <option key={city} value={city}>{city}</option>)}
-            </select>
-          </label>
-          <label><span className={labelClass}>Situação</span>
-            <select className={inputClass} value={filters.status}
-              onChange={event => changeFilter({ status: event.target.value as ProviderFilters["status"] })}>
-              <option value="all">Todas</option><option value="active">Ativos</option><option value="inactive">Inativos</option>
-            </select>
-          </label>
-        </div>
-        {(filters.search || filters.serviceId || filters.state || filters.city || filters.status !== "all") &&
-          <div className="mt-3 flex justify-end">
-            <button type="button" className="text-xs font-semibold text-primary hover:underline"
-              onClick={() => { setSearchText(""); setFilters(emptyFilters()); }}>Limpar filtros</button>
-          </div>}
-      </section>
+      <ProviderFiltersPanel filters={filters} searchText={searchText}
+        onSearchTextChange={setSearchText} services={services}
+        locations={locationsQuery.data || []} onChange={changeFilter}
+        onClear={() => { setSearchText(""); setFilters(emptyFilters()); }} />
 
       {providersQuery.isPending ? <LoadingState text="Carregando prestadores" /> :
         providersQuery.isError ? <p className="rounded-lg border border-destructive/20 p-4 text-sm text-destructive">
@@ -245,31 +210,56 @@ export function PlatformProvidersPage() {
           <p className="mt-1 text-xs text-muted-foreground">Revise os filtros ou cadastre um novo prestador.</p>
         </div> :
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {providers.map(provider => <article key={provider.id} className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-5 shadow-sm transition-shadow hover:shadow-md">
+          {providers.map(provider => <article key={provider.id}
+            role="button" tabIndex={0}
+            aria-label={"Ver detalhes de "+provider.name}
+            onClick={() => setViewing(provider)}
+            onKeyDown={event => {if(event.target===event.currentTarget && (event.key==="Enter"||event.key===" ")){
+              event.preventDefault();setViewing(provider);
+            }}}
+            className="flex min-w-0 cursor-pointer flex-col rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/35 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Wrench size={21} /></div>
               <div className="min-w-0 flex-1">
                 <h3 className="break-words text-base font-bold text-foreground">{provider.name}</h3>
-                <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ${provider.is_active ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300" : "bg-muted text-muted-foreground"}`}>
-                  {provider.is_active ? "Ativo" : "Inativo"}</span>
+                <span className={"mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold "+
+                  (provider.is_active?"bg-emerald-500/10 text-emerald-700 dark:text-emerald-300":"bg-muted text-muted-foreground")}>
+                  {provider.is_active?"Ativo":"Inativo"}
+                </span>
               </div>
-              {canManage && <button type="button" aria-label={`Editar ${provider.name}`} title="Editar prestador"
-                onClick={() => openEdit(provider)} className="rounded-lg border border-border p-2 text-muted-foreground hover:text-primary"><Pencil size={15} /></button>}
+              {canManage && <AdminIconButton ariaLabel={"Editar "+provider.name}
+                title="Editar prestador" variant="tertiary"
+                className="h-9 w-9 shrink-0" onClick={event=>{event.stopPropagation();openEdit(provider);}}>
+                <Pencil size={15}/>
+              </AdminIconButton>}
             </div>
             <div className="mt-4 space-y-2 text-xs text-muted-foreground">
-              <p className="flex items-center gap-2"><MapPin size={14} className="shrink-0" />{provider.city} / {provider.state}{provider.neighborhood ? ` · ${provider.neighborhood}` : ""}</p>
-              {(provider.whatsapp || provider.phone) && <p>{provider.whatsapp || provider.phone}</p>}
+              <p className="flex items-start gap-2"><MapPin size={14} className="mt-0.5 shrink-0"/>
+                <span>{provider.city} / {provider.state}{provider.neighborhood?" · "+provider.neighborhood:""}</span>
+              </p>
+              {(provider.phone||provider.whatsapp)&&<p className="flex items-center gap-2">
+                <Phone size={14} className="shrink-0"/><span>{formatPhone(provider.phone||provider.whatsapp||"")}</span>
+              </p>}
             </div>
-            <div className="mt-4 flex flex-wrap gap-1.5">
-              {provider.service_names.slice(0, 6).map(service => <span key={service}
-                className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary">{service}</span>)}
-              {provider.service_names.length > 6 && <span className="px-1 py-1 text-xs text-muted-foreground">+{provider.service_names.length - 6}</span>}
+            <div className="mt-4 grid grid-cols-3 gap-1.5">
+              {provider.service_names.map(service=><span key={service}
+                className="flex min-w-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 px-1.5 py-1.5 text-center text-[10px] font-semibold leading-snug text-primary">
+                <span className="min-w-0 break-words">{service}</span>
+              </span>)}
             </div>
-            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
-              <span className="flex items-center gap-1"><Paperclip size={14} /> {provider.attachment_count} anexo{provider.attachment_count === 1 ? "" : "s"}</span>
-              {provider.whatsapp && <a target="_blank" rel="noopener noreferrer" className="font-bold text-primary hover:underline"
-                href={`https://wa.me/${(() => { const digits = provider.whatsapp!.replace(/\D/g, ""); return digits.length <= 11 ? "55" + digits : digits; })()}`}>WhatsApp</a>}
-              {canManage && <button className="font-bold text-primary hover:underline" onClick={() => openEdit(provider)}>Detalhes</button>}
+            <div className="mt-auto mt-4 flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+              <span className="flex items-center gap-1"><Paperclip size={14}/>
+                {provider.attachment_count} anexo{provider.attachment_count===1?"":"s"}
+              </span>
+              {provider.whatsapp&&<a href={"https://wa.me/"+((digits)=>{
+                return digits.length<=11?"55"+digits:digits;
+              })(provider.whatsapp.replace(/\D/g,""))}
+                target="_blank" rel="noopener noreferrer"
+                aria-label={"Abrir WhatsApp de "+provider.name} title="Abrir WhatsApp"
+                onClick={event=>event.stopPropagation()}
+                className="ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-500/30 bg-card text-emerald-600 transition-colors hover:bg-emerald-500/10 focus-visible:outline-2 focus-visible:outline-primary">
+                <WhatsAppBrandIcon size={19}/>
+              </a>}
             </div>
           </article>)}
         </div>}
@@ -321,6 +311,8 @@ export function PlatformProvidersPage() {
       </div>
     </section>}
 
+    {viewing && activeOrganizationId && <ProviderDetailsDialog
+      provider={viewing} organizationId={activeOrganizationId} onClose={() => setViewing(null)}/>}
     {editorOpen && activeOrganizationId && <PlatformProviderEditor
       key={editing?.id || "new"} editing={editing} organizationId={activeOrganizationId}
       draft={draft} setDraft={setDraft}
