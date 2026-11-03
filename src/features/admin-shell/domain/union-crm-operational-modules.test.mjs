@@ -30,5 +30,5 @@ test("o menu das empresas parceiras não é alterado pelo filtro exclusivo da Un
   const nav=read("src/features/admin-shell/navigation-config.ts");
   assert.match(nav,/\{ id: "customerRequests", label: "Pedidos Avulsos"/);
   assert.match(nav,/\{ id: "technicianPanel", label: "Painel do Técnico"/);
-  assert.match(sidebar,/!\\(isPlatformOperatorOrganization/);
+  assert.match(sidebar,/!\(isPlatformOperatorOrganization/);
 });
