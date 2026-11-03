@@ -53,8 +53,10 @@ export function ProviderFiltersPanel({
       onChange({states:next,cities:filters.cities.filter(city=>states.size===0||states.has(city.split(":")[0]))});
     }else if(field==="statuses") {
       onChange({statuses:next as ProviderFilters["statuses"]});
+    }else if(field==="serviceIds") {
+      onChange({serviceIds:next});
     }else{
-      onChange({[field]:next});
+      onChange({cities:next});
     }
   };
   const hasFilters=Boolean(searchText.trim()||filters.search||filters.serviceIds.length||
