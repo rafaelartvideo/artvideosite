@@ -40,7 +40,7 @@ type NativeBarcodeDetectorConstructor = {
 
 type MobileScanTarget =
   | { kind: "capture"; sessionId: string; token: string }
-  | { kind: "edit" | "checklist"; sessionId: string; token: string; mode?: "documents" };
+  | { kind: "edit" | "checklist"; sessionId: string; token: string; mode?: "documents" | "payment-proof" };
 
 type CaptureInstallPrompt = Event & {
   prompt: () => Promise<void>;
@@ -73,7 +73,7 @@ function parsePairingPayload(value: string): MobileScanTarget | null {
     if (!sessionId || !token) return null;
 
     return kind === "checklist"
-      ? { kind, sessionId, token, mode: url.searchParams.get("mode") === "documents" ? "documents" : undefined }
+      ? { kind, sessionId, token, mode: url.searchParams.get("mode") === "payment-proof" ? "payment-proof" : url.searchParams.get("mode") === "documents" ? "documents" : undefined }
       : { kind, sessionId, token };
   } catch {
     return null;
@@ -83,7 +83,7 @@ function parsePairingPayload(value: string): MobileScanTarget | null {
 function navigateToMobileSession(target: Extract<MobileScanTarget, { kind: "edit" | "checklist" }>) {
   const route = target.kind === "edit" ? "/editar-os-mobile" : "/checklist-mobile";
   const params = new URLSearchParams({ session: target.sessionId, token: target.token });
-  if (target.mode === "documents") params.set("mode", "documents");
+  if (target.mode === "documents" || target.mode === "payment-proof") params.set("mode", target.mode);
   window.location.assign(`${route}?${params.toString()}`);
 }
 
@@ -319,7 +319,7 @@ export function MobileDeviceCapturePage() {
 
       try {
         const session = await pairMobileOrderChecklistCode(code);
-        navigateToMobileSession({ kind: "checklist", sessionId: session.id, token: session.token });
+        navigateToMobileSession({ kind: "checklist", sessionId: session.id, token: session.token, mode: session.mode });
         return;
       } catch { /* Not a checklist/documents code. */ }
 
