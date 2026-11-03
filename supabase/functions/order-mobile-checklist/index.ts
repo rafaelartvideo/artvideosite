@@ -418,6 +418,9 @@ async function uploadMobileDocument(context: any) {
   await requireSessionPermission(admin, session, "orders.section.images", "Seu acesso aos anexos foi removido.");
   const order = await orderById(admin, session.organization_id, session.service_order_id!);
   const kind = text(input.kind, 20);
+  if (session.mobile_flow === "payment_proof" && kind !== "attachment") {
+    throw Object.assign(new Error("Esta sessão aceita somente o comprovante de pagamento."), { status: 403 });
+  }
   if (kind !== "attachment" && kind !== "situation") {
     throw Object.assign(new Error("Tipo de documento inválido."), { status: 400 });
   }
@@ -428,6 +431,9 @@ async function uploadMobileDocument(context: any) {
   if (kind === "situation" && (!ACCEPTED_IMAGE_TYPES.has(file.type) || file.size > MAX_IMAGE_BYTES)) {
     throw Object.assign(new Error("Use JPG, PNG ou WebP com até 10 MB para situações."), { status: 400 });
   }
+  if (session.mobile_flow === "payment_proof" && !ACCEPTED_IMAGE_TYPES.has(file.type) && file.type !== "application/pdf") {
+    throw Object.assign(new Error("Comprovantes devem ser JPG, PNG, WebP ou PDF."), { status: 422 });
+  }
   if (kind === "attachment" && (!ACCEPTED_ATTACHMENT_TYPES.has(file.type) || file.size > MAX_ATTACHMENT_BYTES
       || /\.(?:html?|svg|js|exe|bat|cmd|sh|php|apk)$/i.test(file.name))) {
     throw Object.assign(new Error("Arquivo não permitido. Envie imagens, PDFs ou documentos de até 20 MB."), { status: 400 });
@@ -437,11 +443,14 @@ async function uploadMobileDocument(context: any) {
   let attachmentTypeId: string | null = null;
   if (kind === "attachment") {
     attachmentTypeId = requireUuid(input.attachment_type_id, "Tipo de anexo");
-    const { data, error } = await admin.from("attachment_types").select("id")
+    const { data, error } = await admin.from("attachment_types").select("id,name")
       .eq("organization_id", session.organization_id).eq("id", attachmentTypeId)
       .eq("is_active", true).maybeSingle();
     if (error) throw error;
     if (!data) throw Object.assign(new Error("Tipo de anexo inválido."), { status: 422 });
+    if (session.mobile_flow === "payment_proof" && data.name.trim().toLocaleLowerCase("pt-BR") !== "comprovante de pagamento") {
+      throw Object.assign(new Error("Esta sessão permite somente o tipo Comprovante de pagamento."), { status: 403 });
+    }
   } else {
     situationId = requireUuid(input.situation_id, "Situação");
     const { data, error } = await admin.from("os_situations").select("id")
@@ -658,7 +667,7 @@ async function getChecklist(context: any) {
 
   const { canChecklist, canDocuments } = await requireDocumentsOrChecklistPermission(admin, session);
   await touchSession(admin, session);
-  const payload = canChecklist
+  const payload = canChecklist && session.mobile_flow !== "payment_proof"
     ? await loadChecklist(admin, session)
     : { order: await orderById(admin, session.organization_id, session.service_order_id!), checklist: null };
   const canReopen = canChecklist && await memberHasPermission(admin, session.organization_id, session.created_by, "orders.checklists.reopen");
