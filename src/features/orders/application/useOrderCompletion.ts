@@ -317,7 +317,7 @@ export function useOrderCompletion({
       return;
     }
     const supportedImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
-    const supportedPdf = file.type === "application/pdf" || (file.type === "" && /\\.pdf$/i.test(file.name));
+    const supportedPdf = file.type === "application/pdf" || (file.type === "" && /\.pdf$/i.test(file.name));
     if (!supportedImage && !supportedPdf) {
       showToast({ msg: "Selecione um comprovante em JPG, PNG, WebP ou PDF.", type: "error" });
       return;
@@ -579,6 +579,7 @@ export function useOrderCompletion({
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
     financeEnabled, installments, applyInstallmentCount, addInstallment, removeInstallment, updateInstallment,
     paymentProofFile, choosePaymentProof, paymentProofTypeLoading, paymentProofTypeError, paymentProofAttached,
+    canAttachPaymentProof: hasPermission("orders.section.images"),
     installmentTotal, installmentDifference, totalPaidNow, openAmount,
     financeOptions, financeOptionsLoading, financeOptionsError, financeValidationMessage,
     commercialItems, commercialItemsLoading, commercialItemsError,
