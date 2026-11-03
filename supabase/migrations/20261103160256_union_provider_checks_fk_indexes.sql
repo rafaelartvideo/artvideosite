@@ -1,0 +1,2 @@
+create index if not exists platform_provider_checks_provider_org_idx on public.platform_provider_background_checks(provider_id,organization_id);
+create index if not exists platform_provider_checks_requester_idx on public.platform_provider_background_checks(requested_by);
