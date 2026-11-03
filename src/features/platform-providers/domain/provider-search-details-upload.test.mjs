@@ -17,6 +17,8 @@ test("busca de prestadores segue multiseleção do CRM com seletor mobile acima 
   assert.match(panel,/md:hidden/);
   assert.match(panel,/hidden grid-cols-2 gap-3 md:grid xl:grid-cols-5/);
   assert.match(panel,/field\(mobileField\)/);
+  assert.match(panel,/label="Nome"/);
+  assert.match(panel,/placeholder="Buscar por nome"/);
   for(const value of ["services","states","cities","statuses"]){
     assert.ok(panel.includes('case "'+value+'"'),value);
   }
@@ -40,8 +42,11 @@ test("card abre detalhes, somente lápis abre editor, 3 colunas e WhatsApp alinh
   assert.match(page,/WhatsAppBrandIcon/);
   assert.match(page,/className="ml-auto inline-flex h-9 w-9/);
   assert.match(page,/<Phone size=\{14\}/);
-  assert.match(page,/mt-4 grid grid-cols-3 gap-1\.5/);
-  assert.match(page,/mt-4 flex items-center justify-between gap-2 border-t border-border pt-4/);
+  assert.match(page,/grid min-h-\[70px\] grid-cols-3 auto-rows-\[32px\]/);
+  assert.match(page,/service_names\.slice\(0, provider\.service_names\.length > 6 \? 5 : 6\)/);
+  assert.match(page,/service_names\.length - 5/);
+  assert.match(page,/h-\[304px\]/);
+  assert.match(page,/mt-auto flex items-center justify-between gap-2 border-t border-border pt-4/);
   assert.doesNotMatch(page,/>Detalhes<\/button>/);
   assert.match(page,/<ProviderDetailsDialog/);
   assert.match(details,/listProviderAttachments/);
@@ -72,4 +77,24 @@ test("terceiro estilo compartilhado é aplicado aos ícones Editar e botões Con
   assert.match(shared,/tertiary: "admin-action-blue-outline border/);
   assert.match(shared,/editAction \? "tertiary" : variant/);
   assert.match(shared,/lookupAction \? "tertiary" : "secondary"/);
+});
+
+test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos anteriores",async()=>{
+  const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const editor=read("src/features/platform-providers/presentation/PlatformProviderEditor.tsx");
+  const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  const migration=read("supabase/migrations/20261103182000_union_provider_service_equipment_hierarchy.sql");
+  assert.match(page,/Buscar equipamento ou serviço/);
+  assert.match(page,/aria-expanded=\{isOpen\}/);
+  assert.match(page,/Serviços avulsos \/ Profissões/);
+  assert.match(page,/catalogGroups\.map/);
+  assert.match(editor,/serviceEquipmentName/);
+  assert.match(repository,/equipment_name: equipment \|\| null/);
+  assert.match(repository,/\.select\("id,organization_id,name,is_active,equipment_name"\)/);
+  assert.match(migration,/add column if not exists equipment_name/);
+  assert.match(migration,/platform_provider_services_unique_equipment_name/);
+  assert.match(migration,/or p\.name ilike/);
+  assert.doesNotMatch(migration,/or p\.city ilike/);
+  assert.ok((await transformWithEsbuild(page,"PlatformProvidersPage.tsx",{loader:"tsx"})).code.length>500);
+  assert.ok((await transformWithEsbuild(editor,"PlatformProviderEditor.tsx",{loader:"tsx"})).code.length>500);
 });
