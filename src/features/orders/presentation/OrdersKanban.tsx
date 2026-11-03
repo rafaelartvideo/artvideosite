@@ -245,7 +245,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
         </div>;
         })}</div>
       </div>
-    </>}
+    </>
     </div>
     <OrderCancelDialog
       order={cancelTarget}
