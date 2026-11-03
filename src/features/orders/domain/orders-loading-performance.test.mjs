@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
@@ -129,4 +130,23 @@ test("fotos do orçamento são independentes da aprovação e aparecem na impres
   assert.match(migration, /enable row level security/);
   assert.match(migration, /service_order_quote_photos_add/);
   assert.match(migration, /remove_service_order_quote_photo_v1/);
+});
+
+test("Kanban da OS compila TSX e preserva isolamento e limites das consultas", async () => {
+  const board = read("src/features/orders/presentation/OrdersKanban.tsx");
+  const list = read("src/features/orders/presentation/OrdersListWorkspace.tsx");
+
+  // O mesmo parser de sintaxe usado no build do Vite detecta fechamentos JSX
+  // incorretos (como o </>} que interrompeu a publicação do site).
+  const compiled = await transformWithEsbuild(board, "OrdersKanban.tsx", { loader: "tsx" });
+  assert.ok(compiled.code.length > 0);
+  assert.match(board, /situationsByType = useMemo/);
+  assert.match(board, /sticky left-0/);
+  assert.match(list, /useInfiniteQuery/);
+  assert.match(list, /organizationId \|\| "none"/);
+  assert.match(list, /\.is\("situation_id", null\)/);
+  assert.match(list, /count: pageParam === 0 \? "exact" : undefined/);
+  assert.match(list, /\.abortSignal\(signal\)/);
+  assert.match(list, /staleTime: 120_000/);
+  assert.match(list, /retry: false/);
 });
