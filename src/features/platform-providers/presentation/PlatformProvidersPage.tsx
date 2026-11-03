@@ -1,28 +1,36 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, MapPin, Paperclip, Pencil, Phone, Plus, Search, Wrench, X } from "lucide-react";
+import { Building2, Check, ChevronDown, MapPin, Paperclip, Pencil, Phone, Plus, Search, Trash2, UserRound, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
-  addPlatformService, addProviderAttachment, draftFromProvider,
-  countPlatformProviders, editPlatformService, emptyProviderDraft, listPlatformProviders, listPlatformServices,
+  addPlatformServices, addProviderAttachment, draftFromProvider,
+  countPlatformProviders, deletePlatformService, editPlatformService, emptyProviderDraft, listPlatformProviders, listPlatformServices,
   listProviderAttachments, listProviderLocations,
   removeProviderAttachment, savePlatformProvider,
   type PlatformProvider, type PlatformProviderDraft, type PlatformService,
-  type ProviderFilters,
+  type PlatformServiceBatchItem, type ProviderFilters,
 } from "../infrastructure/platform-providers.repository";
 import { PlatformProviderEditor } from "./PlatformProviderEditor";
+import { PlatformServiceBatchEditor } from "./PlatformServiceBatchEditor";
 import { ProviderFiltersPanel } from "./ProviderFiltersPanel";
 import { ProviderDetailsDialog } from "./ProviderDetailsDialog";
 import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { formatPhone } from "@/shared/domain/formatters";
 
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
+function FemaleProviderIcon() {
+  return <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor"
+    strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="4.5" r="2.2"/><path d="M9.9 9h4.2l3.1 9H6.8l3.1-9Z"/>
+    <path d="m9.3 11-3 4m8.4-4 3 4M10.1 18v3m3.8-3v3"/>
+  </svg>;
+}
 const normalSort = (a: string, b: string) => a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 const emptyFilters = (): ProviderFilters => ({
-  search: "", serviceIds: [], states: [], cities: [], statuses: [], page: 1, pageSize: 24,
+  search: "", serviceIds: [], equipmentNames: [], states: [], cities: [], statuses: [], page: 1, pageSize: 24,
 });
 
 function ServiceChoices({ services, selected, onToggle }: {
@@ -100,8 +108,9 @@ export function PlatformProvidersPage() {
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
   const [persistedProviderId, setPersistedProviderId] = useState<string | null>(null);
-  const [serviceName, setServiceName] = useState("");
-  const [serviceEquipmentName, setServiceEquipmentName] = useState("");
+  const [expandedCatalog, setExpandedCatalog] = useState<Record<string, boolean>>({});
+  const [deleteTarget, setDeleteTarget] = useState<PlatformService | null>(null);
+  const [deletingService, setDeletingService] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [editingService, setEditingService] = useState<PlatformService | null>(null);
@@ -113,7 +122,7 @@ export function PlatformProvidersPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchText]);
-  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); }, [activeOrganizationId]);
+  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); setDeleteTarget(null); setExpandedCatalog({}); }, [activeOrganizationId]);
 
   const servicesQuery = useQuery({
     queryKey: ["union-provider-services", activeOrganizationId],
@@ -149,6 +158,8 @@ export function PlatformProvidersPage() {
     .filter(item => [item.name, item.equipment_name || ""]
       .some(text => text.toLocaleLowerCase("pt-BR").includes(catalogSearch.trim().toLocaleLowerCase("pt-BR"))))
     .sort((a,b) => normalSort(a.name,b.name)), [services, catalogSearch]);
+  const equipmentSuggestions = useMemo(() => Array.from(new Set(services
+    .map(item => item.equipment_name).filter((name): name is string => Boolean(name)))).sort(normalSort), [services]);
   const catalogGroups = useMemo(() => {
     const groups = new Map<string, PlatformService[]>();
     for (const item of catalogFiltered) {
@@ -170,25 +181,45 @@ export function PlatformProvidersPage() {
   };
   const openNew = () => {
     setEditing(null); setDraft(emptyProviderDraft()); setSelectedServiceIds([]);
-    setPendingFiles([]); setServiceName(""); setServiceEquipmentName(""); setPersistedProviderId(null); setEditorOpen(true);
+    setPendingFiles([]); setPersistedProviderId(null); setEditorOpen(true);
   };
   const openEdit = (provider: PlatformProvider) => {
     if (!canManage) return;
     setEditing(provider); setDraft(draftFromProvider(provider));
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
-    setServiceName(""); setServiceEquipmentName(""); setPersistedProviderId(provider.id); setEditorOpen(true);
+    setPersistedProviderId(provider.id); setEditorOpen(true);
   };
-  const addService = async (selectNew: boolean) => {
-    if (!canManage || !activeOrganizationId || catalogSaving) return;
+  const addBatch = async (items: PlatformServiceBatchItem[], selectNew: boolean): Promise<boolean> => {
+    if (!canManage || !activeOrganizationId || catalogSaving) return false;
     setCatalogSaving(true);
     try {
-      const added = await addPlatformService(activeOrganizationId, serviceName, serviceEquipmentName);
+      const added = await addPlatformServices(activeOrganizationId, items);
       await queryClient.invalidateQueries({ queryKey: ["union-provider-services", activeOrganizationId] });
-      if (selectNew) setSelectedServiceIds(current => [...new Set([...current, added.id])]);
-      setServiceName(""); setServiceEquipmentName("");
-      notifyAdmin("Serviço cadastrado no catálogo da Union.", "success");
-    } catch (error) { notifyAdmin(systemErrorMessage(error, "Não foi possível cadastrar o serviço."), "error"); }
-    finally { setCatalogSaving(false); }
+      if (selectNew) setSelectedServiceIds(current => [...new Set([...current, ...added.map(item => item.id)])]);
+      notifyAdmin(added.length + " serviço(s) cadastrado(s) na Union.", "success");
+      return true;
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível cadastrar o lote. Nenhum item foi incluído."), "error");
+      return false;
+    } finally {
+      setCatalogSaving(false);
+    }
+  };
+  const confirmDeleteService = async () => {
+    if (!canManage || !activeOrganizationId || !deleteTarget || deletingService) return;
+    setDeletingService(true);
+    try {
+      await deletePlatformService(activeOrganizationId, deleteTarget.id);
+      setSelectedServiceIds(current => current.filter(id => id !== deleteTarget.id));
+      setFilters(current => ({...current, serviceIds: current.serviceIds.filter(id => id !== deleteTarget.id), page: 1}));
+      await queryClient.invalidateQueries({ queryKey: ["union-provider-services", activeOrganizationId] });
+      setDeleteTarget(null);
+      notifyAdmin("Serviço excluído do catálogo.", "success");
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível excluir o serviço."), "error");
+    } finally {
+      setDeletingService(false);
+    }
   };
   const saveServiceEdit = async (service: PlatformService, values: { name?: string; is_active?: boolean }) => {
     if (!canManage || !activeOrganizationId) return;
@@ -278,7 +309,14 @@ export function PlatformProvidersPage() {
             }}}
             className="flex h-[304px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/35 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary sm:p-5">
             <div className="flex items-start gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Wrench size={21} /></div>
+              <div className={"flex h-11 w-11 shrink-0 items-center justify-center rounded-xl " +
+                (provider.person_type === "PJ" ? "bg-muted text-muted-foreground" :
+                 provider.gender === "F" ? "bg-pink-500/10 text-pink-600 dark:text-pink-400" :
+                 provider.gender === "M" ? "bg-blue-500/10 text-blue-600 dark:text-blue-400" :
+                 "bg-muted text-muted-foreground")}>
+                {provider.person_type === "PJ" ? <Building2 size={21} /> :
+                 provider.gender === "F" ? <FemaleProviderIcon /> : <UserRound size={21}/>}
+              </div>
               <div className="min-w-0 flex-1">
                 <h3 className="line-clamp-2 break-words text-sm font-bold leading-5 text-foreground">{provider.name}</h3>
                 <span className={"mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold "+
@@ -337,50 +375,66 @@ export function PlatformProvidersPage() {
       </div>}
     </> : <section className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-bold text-foreground">Catálogo de serviços</h2>
-        <p className="mb-4 mt-1 text-xs text-muted-foreground">Organize por equipamento e suas subcategorias (Instalação, Reparo etc.) ou deixe o equipamento vazio para cadastrar profissões avulsas, como Pedreiro.</p>
-        {canManage && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
-          <input className={inputClass} value={serviceEquipmentName} maxLength={120}
-            aria-label="Equipamento ou categoria opcional"
-            placeholder="Equipamento/categoria (opcional)" onChange={event => setServiceEquipmentName(event.target.value)} />
-          <input className={inputClass} value={serviceName} maxLength={120}
-            aria-label="Serviço ou subcategoria"
-            placeholder="Serviço ou subcategoria (ex.: Instalação)" onChange={event => setServiceName(event.target.value)} />
-          <AdminButton onClick={() => void addService(false)} loading={catalogSaving} disabled={!serviceName.trim()}><Plus size={15} /> Adicionar serviço</AdminButton>
-        </div>}
+        <h2 className="text-sm font-bold text-foreground">Cadastrar serviços em lote</h2>
+        <p className="mb-4 mt-1 text-xs text-muted-foreground">
+          Crie várias subcategorias para o mesmo equipamento ou várias profissões avulsas.
+          Os serviços cadastrados serão compartilhados pelo catálogo da Union.
+        </p>
+        {canManage && <PlatformServiceBatchEditor
+          equipmentSuggestions={equipmentSuggestions}
+          onCreateBatch={items => addBatch(items, false)} loading={catalogSaving}/>}
       </div>
       <div className="rounded-xl border border-border bg-card p-4">
-        <div className="relative mb-4"><Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={15} />
+        <h2 className="mb-3 text-sm font-bold text-foreground">Serviços cadastrados</h2>
+        <div className="relative mb-4">
+          <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={15}/>
           <input className={inputClass + " pl-9"} value={catalogSearch}
-            placeholder="Buscar no catálogo de serviços" onChange={event => setCatalogSearch(event.target.value)} /></div>
+            placeholder="Buscar equipamento ou serviço" onChange={event => setCatalogSearch(event.target.value)}/>
+        </div>
         {servicesQuery.isPending ? <LoadingState text="Carregando serviços" /> : servicesQuery.isError ?
           <p className="text-sm text-destructive">{systemErrorMessage(servicesQuery.error)}</p> :
-          <div className="space-y-4">
-            {catalogGroups.map(([equipment, items]) => <div key={equipment || "standalone"}>
-              <h3 className="mb-2 text-xs font-bold text-muted-foreground">{equipment || "Serviços avulsos / Profissões"}</h3>
-              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-              {items.map(service => <div key={service.id}
-              className="flex min-w-0 items-center gap-2 rounded-lg border border-border p-3">
-              {editingService?.id === service.id ? <>
-                <input className={inputClass} maxLength={120} value={serviceEditName}
-                  onChange={event => setServiceEditName(event.target.value)} />
-                <button aria-label="Salvar nome" className="text-primary" onClick={() => void saveServiceEdit(service, { name: serviceEditName })}><Check size={16} /></button>
-                <button aria-label="Cancelar edição" onClick={() => setEditingService(null)}><X size={16} /></button>
-              </> : <>
-                <span className={`min-w-0 flex-1 truncate text-xs font-semibold ${service.is_active ? "text-foreground" : "text-muted-foreground line-through"}`} title={service.name}>{service.name}</span>
-                {!service.is_active && <span className="text-[10px] text-muted-foreground">Inativo</span>}
-                {canManage && <>
-                  <button title="Renomear serviço" aria-label={`Renomear ${service.name}`} className="p-1 text-muted-foreground hover:text-primary"
-                    onClick={() => { setEditingService(service); setServiceEditName(service.name); }}><Pencil size={14} /></button>
-                  <button className="rounded border border-border px-2 py-1 text-[10px] font-bold"
-                    onClick={() => void saveServiceEdit(service, { is_active: !service.is_active })}>
-                    {service.is_active ? "Desativar" : "Ativar"}
-                  </button>
-                </>}
-              </>}
-            </div>)}
-              </div>
-            </div>)}
+          catalogGroups.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Nenhum serviço encontrado.</p> :
+          <div className="space-y-3">
+            {catalogGroups.map(([equipment, items]) => {
+              const key = equipment || "__standalone__";
+              const expanded = expandedCatalog[key] ?? Boolean(catalogSearch.trim());
+              return <div key={key} className="overflow-hidden rounded-lg border border-border">
+                <button type="button" aria-expanded={expanded}
+                  onClick={() => setExpandedCatalog(current => ({...current, [key]: !expanded}))}
+                  className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
+                  <span className="truncate">{equipment || "Serviços avulsos / Profissões"}</span>
+                  <span className="ml-auto text-[10px] font-medium text-muted-foreground">{items.length}</span>
+                  <ChevronDown size={16} className={"shrink-0 transition-transform " + (expanded ? "" : "-rotate-90")}/>
+                </button>
+                {expanded && <div className="grid gap-2 border-t border-border p-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {items.map(service => <div key={service.id}
+                    className="flex min-w-0 items-center gap-1.5 rounded-lg border border-border p-2.5">
+                    {editingService?.id === service.id ? <>
+                      <input className={inputClass} maxLength={120} aria-label={"Editar " + service.name}
+                        value={serviceEditName} onChange={event => setServiceEditName(event.target.value)}/>
+                      <AdminIconButton ariaLabel={"Salvar " + service.name} variant="success"
+                        onClick={() => void saveServiceEdit(service, {name: serviceEditName})}><Check size={15}/></AdminIconButton>
+                      <AdminIconButton ariaLabel={"Cancelar edição de " + service.name} variant="secondary"
+                        onClick={() => setEditingService(null)}><X size={15}/></AdminIconButton>
+                    </> : <>
+                      <span title={service.name} className={"min-w-0 flex-1 truncate text-xs font-semibold " +
+                        (service.is_active ? "text-foreground" : "text-muted-foreground line-through")}>{service.name}</span>
+                      {canManage && <div className="flex shrink-0 items-center gap-1">
+                        <AdminIconButton ariaLabel={"Editar " + service.name} variant="tertiary" title="Editar"
+                          onClick={() => {setEditingService(service); setServiceEditName(service.name);}}>
+                          <Pencil size={14}/>
+                        </AdminIconButton>
+                        <AdminIconButton ariaLabel={(service.is_active ? "Desativar " : "Ativar ") + service.name}
+                          variant={service.is_active ? "warning" : "success"}
+                          onClick={() => void saveServiceEdit(service, {is_active: !service.is_active})}/>
+                        <AdminIconButton ariaLabel={"Excluir " + service.name} variant="danger"
+                          onClick={() => setDeleteTarget(service)}><Trash2 size={14}/></AdminIconButton>
+                      </div>}
+                    </>}
+                  </div>)}
+                </div>}
+              </div>;
+            })}
           </div>}
       </div>
     </section>}
@@ -393,15 +447,29 @@ export function PlatformProvidersPage() {
       servicesContent={<ServiceChoices services={services} selected={selectedServiceIds}
         onToggle={id => setSelectedServiceIds(current => current.includes(id)
           ? current.filter(item => item !== id) : [...current, id])}/>}
-      serviceCount={selectedServiceIds.length} serviceName={serviceName}
-      serviceEquipmentName={serviceEquipmentName} setServiceEquipmentName={setServiceEquipmentName}
-      setServiceName={setServiceName} catalogSaving={catalogSaving}
-      onCreateService={() => void addService(true)}
+      batchContent={<PlatformServiceBatchEditor equipmentSuggestions={equipmentSuggestions}
+        onCreateBatch={items => addBatch(items, true)} loading={catalogSaving}/>}
+      serviceCount={selectedServiceIds.length}
       pendingFiles={pendingFiles} setPendingFiles={setPendingFiles}
       attachments={attachmentsQuery.data || []} attachmentsLoading={Boolean(editing && attachmentsQuery.isPending)}
       saving={saving} onDeleteAttachment={item => void deleteAttachment(item)}
       onClose={() => { if (!saving) setEditorOpen(false); }}
       onSave={() => void save()}
     />}
+    {deleteTarget && <AdminDialog open title="Excluir serviço" description="Confirme a exclusão do serviço do catálogo"
+      onClose={() => {if (!deletingService) setDeleteTarget(null);}}
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" disabled={deletingService} onClick={() => setDeleteTarget(null)}>Cancelar</AdminButton>
+        <AdminButton variant="danger" loading={deletingService} onClick={() => void confirmDeleteService()}>
+          Excluir serviço
+        </AdminButton>
+      </div>}>
+      <p className="text-sm text-foreground">Deseja excluir <strong>{deleteTarget.name}</strong>
+        {deleteTarget.equipment_name ? " de " + deleteTarget.equipment_name : ""}?</p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        A exclusão não poderá ser desfeita. Serviços vinculados a prestadores não podem ser excluídos;
+        remova primeiro esses vínculos ou use Desativar.
+      </p>
+    </AdminDialog>}
   </div>;
 }
