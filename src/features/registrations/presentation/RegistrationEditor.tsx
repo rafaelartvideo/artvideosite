@@ -127,7 +127,7 @@ export function RegistrationEditor({
               <div className="font-black text-[#0d1b2e]">Pessoa Jurídica</div><div className="mt-1 text-xs text-[#5a6a82]">CNPJ e dados empresariais.</div>
             </button>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">{(["customer", "employee", "supplier", "service_provider"] as RegistrationRole[]).map(role => {
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{(["customer", "employee", "supplier", "service_provider"] as RegistrationRole[]).map(role => {
             const Icon = roleIcons[role];
             const checked = form.roles.includes(role);
             return <button key={role} type="button" disabled={!canModify} onClick={() => onToggleRole(role)} className={`flex items-center gap-3 rounded-xl border p-3 text-left disabled:opacity-40 ${checked ? "border-[#0057e7] bg-[#0057e7]/5" : "border-[#d9e1ec] bg-white"}`}>
