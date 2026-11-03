@@ -110,7 +110,7 @@ export function OrdersListWorkspace(props: Props) {
   };
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
-    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || selectedServiceTypeIds.length || (resolvedDisplayMode === "kanban" && selectedServiceTypeId) || selectedStates.length || selectedCities.length || dateFrom || dateTo);
+    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || (resolvedDisplayMode === "list" ? selectedServiceTypeIds.length : selectedServiceTypeId) || selectedStates.length || selectedCities.length || dateFrom || dateTo);
 
   if (!visible) return null;
 
