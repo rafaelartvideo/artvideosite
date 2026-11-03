@@ -12,7 +12,7 @@ import { listServiceOrdersPageWithCustomerName } from "../infrastructure/orders-
 export type CityFilterOption = { name: string; state: string };
 export type NeighborhoodFilterOption = FilterNeighborhood;
 
-const normalizeLocationText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
+const normalizeLocationText = (value: string | null | undefined) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
 
 type OrderType = "internal" | "external";
 type StateOption = { sigla: string; nome: string };
