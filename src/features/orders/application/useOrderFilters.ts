@@ -270,8 +270,12 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
-    setSelectedNeighborhoods([]);
   }, [organizationId, kanbanMode]);
+
+  // Trocar lista/kanban mantém o bairro selecionado; trocar de empresa limpa o escopo.
+  useEffect(() => {
+    setSelectedNeighborhoods([]);
+  }, [organizationId]);
 
   return {
     orders,
