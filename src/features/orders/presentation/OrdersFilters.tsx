@@ -53,10 +53,10 @@ export function OrdersFilters({
   customerNameSearch,
   documentSearch,
   serialNumberSearch,
-  responsibleId,
-  statusId,
-  situationId,
-  serviceTypeId,
+  responsibleIds,
+  statusIds,
+  situationIds,
+  serviceTypeIds,
   selectedStates,
   selectedCities,
   dateFrom,
@@ -95,10 +95,10 @@ export function OrdersFilters({
   customerNameSearch: string;
   documentSearch: string;
   serialNumberSearch: string;
-  responsibleId: string;
-  statusId: string;
-  situationId: string;
-  serviceTypeId: string;
+  responsibleIds: string[];
+  statusIds: string[];
+  situationIds: string[];
+  serviceTypeIds: string[];
   selectedStates: string[];
   selectedCities: CityOption[];
   dateFrom: string;
@@ -177,9 +177,6 @@ export function OrdersFilters({
     }
   };
 
-  const filterStatus = statusId;
-  const filterSituation = situationId;
-  const selectedServiceTypeId = serviceTypeId;
   const ibgeStates = stateOptions;
   const cityFilterOptions = cityOptions;
   const ibgeStatesLoading = statesLoading;
@@ -191,7 +188,7 @@ export function OrdersFilters({
   const effectiveMobileFilter = !showServiceTypeFilter && mobileFilter === "serviceType" ? "osNumber" : mobileFilter;
   const mobileFilterLabel = visibleMobileFilters.find(option => option.value === effectiveMobileFilter)?.label || "Número da OS / Externa";
   const hasActiveFilters = Boolean(
-    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || (showServiceTypeFilter && selectedServiceTypeId) ||
+    osNumberSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleIds.length > 0 || statusIds.length > 0 || situationIds.length > 0 || (showServiceTypeFilter && serviceTypeIds.length > 0) ||
     selectedStates.length > 0 || selectedCities.length > 0 || dateFrom || dateTo || orderSort
   );
 
@@ -214,10 +211,10 @@ export function OrdersFilters({
           <div className="mt-4 flex flex-wrap justify-end gap-2"><AdminButton variant="secondary" onClick={closeSerialScanner}>Cancelar</AdminButton><AdminButton variant="secondary" disabled={serialScanBusy} onClick={() => serialScannerInput.current?.click()}>Outra foto</AdminButton><AdminButton disabled={serialScanBusy || !serialScanValue.trim()} onClick={() => { onSerialNumberSearchChange(serialScanValue.trim()); closeSerialScanner(); }}>Usar número</AdminButton></div>
         </AdminDialog>
       </>;
-      case "responsible": return <AdminSelect value={responsibleId} onValueChange={onResponsibleChange} options={[{ value: "", label: "Todos os responsáveis" }, ...responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por responsável pela OS" />;
-      case "status": return <AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por status" />;
-      case "situation": return <AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por situação" />;
-      case "serviceType": return <AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="h-[42px] text-xs" ariaLabel="Filtrar por tipo de atendimento" />;
+      case "responsible": return <OrderFilterMultiSelect label="Responsáveis" options={responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))} selectedValues={responsibleIds} onSelect={onResponsibleChange} onRemove={onResponsibleChange} placeholder="Selecionar responsáveis" />;
+      case "status": return <OrderFilterMultiSelect label="Status" options={statuses.map(status => ({ value: status.id, label: status.name }))} selectedValues={statusIds} onSelect={onStatusChange} onRemove={onStatusChange} placeholder="Selecionar status" />;
+      case "situation": return <OrderFilterMultiSelect label="Situação" options={situations.map(situation => ({ value: situation.id, label: situation.name }))} selectedValues={situationIds} onSelect={onSituationChange} onRemove={onSituationChange} placeholder="Selecionar situações" />;
+      case "serviceType": return <OrderFilterMultiSelect label="Tipo de Atendimento" options={serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))} selectedValues={serviceTypeIds} onSelect={onServiceTypeChange} onRemove={onServiceTypeChange} placeholder="Selecionar atendimentos" />;
       case "states": return <OrderFilterMultiSelect label="Estado" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estado" loading={ibgeStatesLoading} />;
       case "cities": return <OrderFilterMultiSelect label="Cidade" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione primeiro um Estado" : "Selecionar Cidade"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />;
       case "period": return <div className="grid grid-cols-2 gap-2"><div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div><div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div>{invalidPeriod && <p className="col-span-2 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>;
@@ -247,14 +244,14 @@ export function OrdersFilters({
           <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
           <SearchField label="Número de série / Equipamento" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Série, tipo, marca ou modelo" />
-          <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Status</label><AdminSelect value={filterStatus} onValueChange={onStatusChange} options={[{ value: "", label: "Todos os status" }, ...statuses.map(status => ({ value: status.id, label: status.name }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por status" /></div>
-          <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Situação</label><AdminSelect value={filterSituation} onValueChange={onSituationChange} options={[{ value: "", label: "Todas as situações" }, ...situations.map(situation => ({ value: situation.id, label: situation.name }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por situação" /></div>
+          <OrderFilterMultiSelect label="Status" options={statuses.map(status => ({ value: status.id, label: status.name }))} selectedValues={statusIds} onSelect={onStatusChange} onRemove={onStatusChange} placeholder="Selecionar status" />
+          <OrderFilterMultiSelect label="Situação" options={situations.map(situation => ({ value: situation.id, label: situation.name }))} selectedValues={situationIds} onSelect={onSituationChange} onRemove={onSituationChange} placeholder="Selecionar situações" />
           <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
           <div><label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs md:h-9 md:py-1.5")} /></div>
           <div><label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] py-2 text-xs md:h-9 md:py-1.5")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
-          {showServiceTypeFilter && <div className="space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Tipo de Atendimento</label><AdminSelect value={selectedServiceTypeId} onValueChange={onServiceTypeChange} options={[{ value: "", label: "Todos os tipos" }, ...serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por tipo de atendimento" /></div>}
-          <div className="min-w-0 space-y-1 md:space-y-1"><label className="block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Responsável pela OS</label><AdminSelect value={responsibleId} onValueChange={onResponsibleChange} options={[{ value: "", label: "Todos os responsáveis" }, ...responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))]} className="min-h-9 py-1.5 text-xs" ariaLabel="Filtrar por responsável pela OS" /></div>
+          {showServiceTypeFilter && <OrderFilterMultiSelect label="Tipo de Atendimento" options={serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))} selectedValues={serviceTypeIds} onSelect={onServiceTypeChange} onRemove={onServiceTypeChange} placeholder="Selecionar atendimentos" />}
+          <OrderFilterMultiSelect label="Responsável pela OS" options={responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))} selectedValues={responsibleIds} onSelect={onResponsibleChange} onRemove={onResponsibleChange} placeholder="Selecionar responsáveis" />
         </div>
       </div>
     </div>
