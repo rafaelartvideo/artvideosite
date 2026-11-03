@@ -185,7 +185,7 @@ export function PlatformProvidersPage() {
 
   return <div className="space-y-5">
     <PageHeader title="Prestadores de Serviços"
-      subtitle={`${totalCountQuery.data ?? 0} cadastrados`}
+      subtitle={`${totalCountQuery.data ?? 0} cadastrado${totalCountQuery.data === 1 ? "" : "s"}`}
       actions={canManage ? <AdminButton onClick={openNew}><Plus size={16} /> Novo prestador</AdminButton> : undefined} />
 
     <div className="flex gap-5 border-b border-border" role="tablist" aria-label="Seções de prestadores">
