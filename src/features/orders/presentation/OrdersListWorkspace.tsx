@@ -47,7 +47,8 @@ export function OrdersListWorkspace(props: Props) {
     serialNumberSearch, setSerialNumberSearch, setFilterSituation, filterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, selectedResponsibleIds, setSelectedResponsibleIds, selectedStatusIds, setSelectedStatusIds,
     selectedSituationIds, setSelectedSituationIds, selectedServiceTypeIds, setSelectedServiceTypeIds, orderSort, setOrderSort, selectedStates, setSelectedStates,
-    selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
+    selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading,
+    selectedNeighborhoods, setSelectedNeighborhoods, neighborhoodFilterOptions, neighborhoodsLoading, dateFrom, setDateFrom, dateTo, setDateTo,
     page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, generalTotalItems, totalPages, safePage,
     clearFilters, loading: listLoading,
   } = filters;
@@ -70,7 +71,7 @@ export function OrdersListWorkspace(props: Props) {
   };
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
-    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || (resolvedDisplayMode === "list" ? selectedServiceTypeIds.length : selectedServiceTypeId) || selectedStates.length || selectedCities.length || dateFrom || dateTo);
+    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || (resolvedDisplayMode === "list" ? selectedServiceTypeIds.length : selectedServiceTypeId) || selectedStates.length || selectedCities.length || selectedNeighborhoods.length || dateFrom || dateTo);
 
   if (!visible) return null;
 
@@ -96,6 +97,7 @@ export function OrdersListWorkspace(props: Props) {
       serviceTypeIds={selectedServiceTypeIds}
       selectedStates={selectedStates}
       selectedCities={selectedCities}
+      selectedNeighborhoods={selectedNeighborhoods}
       dateFrom={dateFrom}
       dateTo={dateTo}
       orderSort={orderSort}
@@ -109,8 +111,10 @@ export function OrdersListWorkspace(props: Props) {
       responsibles={profiles}
       stateOptions={ibgeStates}
       cityOptions={cityFilterOptions}
+      neighborhoodOptions={neighborhoodFilterOptions}
       statesLoading={ibgeStatesLoading}
       citiesLoading={cityFiltersLoading}
+      neighborhoodsLoading={neighborhoodsLoading}
       invalidPeriod={invalidPeriod}
       onOsNumberSearchChange={(value) => { setOsNumberSearch(value); setPage(1); }}
       onCustomerNameSearchChange={(value) => { setCustomerNameSearch(value); setPage(1); }}
@@ -129,6 +133,13 @@ export function OrdersListWorkspace(props: Props) {
       }}
       onCityRemove={(value) => setSelectedCities(current => current.filter(city => `${city.state}:${city.name}` !== value))}
       onCitiesClear={() => setSelectedCities([])}
+      onNeighborhoodSelect={value => {
+        const option = neighborhoodFilterOptions.find(item => JSON.stringify([item.state, item.city, item.name]) === value);
+        if (option) setSelectedNeighborhoods(current => current.some(item =>
+          JSON.stringify([item.state, item.city, item.name]) === value) ? current : [...current, option]);
+      }}
+      onNeighborhoodRemove={value => setSelectedNeighborhoods(current => current.filter(item =>
+        JSON.stringify([item.state, item.city, item.name]) !== value))}
       onDateFromChange={setDateFrom}
       onDateToChange={setDateTo}
       onOrderSortChange={(value) => { setOrderSort(value); setPage(1); }}
