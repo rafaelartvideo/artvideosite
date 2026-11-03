@@ -81,7 +81,7 @@ export type DashboardRegistration = {
   person_type: "PF" | "PJ";
   is_active: boolean;
   created_at: string;
-  roles: Array<{ role: "customer" | "employee" | "supplier"; is_active: boolean }>;
+  roles: Array<{ role: "customer" | "employee" | "supplier" | "service_provider"; is_active: boolean }>;
 };
 
 export type DashboardInventoryItem = {
