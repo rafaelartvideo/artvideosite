@@ -1,7 +1,8 @@
 import { STATUS_TONE_CLASSES } from "@/shared/domain/status-tone";
+import { systemErrorMessage } from "@/shared/domain/error-message";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, CircleX, MoreVertical, Search, X } from "lucide-react";
+import { BanknoteArrowDown, BanknoteArrowUp, CheckCircle2, CircleX, FileCheck2, MoreVertical, Search, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { formatCurrency } from "@/shared/domain/formatters";
 import { AdminFieldLabel, FInput, FSelect, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
@@ -14,6 +15,7 @@ import { FinanceTableSurface } from "./FinanceTableSurface";
 import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { useFinanceEntries } from "../application/useFinanceEntries";
 import { listFinancialReceivableCreators } from "../infrastructure/finance-entries.repository";
+import { getFinancialEntryProofUrl } from "../infrastructure/finance-documents.repository";
 import { useFinanceFoundation } from "../application/useFinanceFoundation";
 import type { FinancialEntry, FinancialEntryDetail, FinancialEntryType, FinancialSettlementDraft } from "../domain/finance.types";
 import { FinanceEntryDetail } from "./FinanceEntryDetail";
@@ -160,6 +162,32 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   }, [name, documentSearch, os, originSearch, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
+  const canViewFinancialDocuments = hasPermission("finance.documents.view") || hasPermission("finance.documents.manage");
+
+  const openFinancialProof = async (entry: FinancialEntry) => {
+    if (!activeOrganizationId || !canViewFinancialDocuments) return;
+    // Abre a aba durante o clique: a URL privada só chega após a consulta.
+    const popup = window.open("", "_blank");
+    if (!popup) {
+      notifyAdmin("Permita pop-ups para abrir o comprovante financeiro.", "error");
+      return;
+    }
+    popup.opener = null;
+    try {
+      popup.document.title = "Abrindo comprovante";
+      popup.document.body.textContent = "Abrindo comprovante...";
+      const url = await getFinancialEntryProofUrl(activeOrganizationId, entry.id);
+      if (!url) {
+        popup.close();
+        notifyAdmin("Nenhum comprovante disponível para este lançamento.", "error");
+        return;
+      }
+      if (!popup.closed) popup.location.replace(url);
+    } catch (error) {
+      if (!popup.closed) popup.close();
+      notifyAdmin(systemErrorMessage(error, "Não foi possível abrir o comprovante financeiro."), "error");
+    }
+  };
   const canManageRecurring = !isReceivable && hasPermission("finance.recurring.manage");
   const recurring = useFinanceRecurring(!isReceivable && (hasPermission("finance.recurring.view") || canManageRecurring));
   const recurringById = useMemo(() => new Map((recurring.rulesQuery.data || []).map(rule => [rule.id, rule])), [recurring.rulesQuery.data]);
@@ -384,6 +412,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                 <button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"><MoreVertical size={18}/></button>
               </DropdownMenuTrigger><DropdownMenuContent align="end">
                 <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
+                {canViewFinancialDocuments && <DropdownMenuItem onSelect={() => void openFinancialProof(entry)}><FileCheck2 size={15} /> Comprovante</DropdownMenuItem>}
                 {canSettle && Number(entry.remaining_amount ?? entry.original_amount)>0.005 && !["cancelled","reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15}/> Dar baixa</DropdownMenuItem>}
                  {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
               </DropdownMenuContent></DropdownMenu>
@@ -419,6 +448,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
                      <DropdownMenuTrigger asChild><button type="button" aria-label={`Ações de ${entry.description}`} className="flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground" onClick={event => event.stopPropagation()}><MoreVertical size={18} /></button></DropdownMenuTrigger>
                      <DropdownMenuContent align="end">
                        <DropdownMenuItem onSelect={() => { setSettlementDialogOpen(false); onSelectEntry(entry.id); }}>Abrir extrato</DropdownMenuItem>
+                {canViewFinancialDocuments && <DropdownMenuItem onSelect={() => void openFinancialProof(entry)}><FileCheck2 size={15} /> Comprovante</DropdownMenuItem>}
                        {canSettle && Number(entry.remaining_amount ?? entry.original_amount) > 0.005 && !["cancelled", "reversed"].includes(entry.approval_status) && <DropdownMenuItem onSelect={() => { openSettlement(entry.id); }}><CheckCircle2 size={15} /> Dar baixa</DropdownMenuItem>}
                         {canCancelRecurring(entry) && <DropdownMenuItem className="text-red-600 focus:text-red-600" onSelect={() => askCancelRecurring(entry)}><CircleX size={15} /> Cancelar recorrência</DropdownMenuItem>}
                      </DropdownMenuContent>
