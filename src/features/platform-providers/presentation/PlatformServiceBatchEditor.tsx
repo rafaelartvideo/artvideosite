@@ -9,13 +9,14 @@ type BatchMode = "equipment" | "standalone";
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
 
 export function PlatformServiceBatchEditor({
-  equipmentSuggestions, onCreateBatch, loading, initialEquipmentName = "", initialMode = "equipment",
+  equipmentSuggestions, onCreateBatch, loading, initialEquipmentName = "", initialMode = "equipment", closeOnSuccess = false,
 }: {
   equipmentSuggestions: string[];
   onCreateBatch: (items: PlatformServiceBatchItem[]) => Promise<boolean>;
   loading: boolean;
   initialEquipmentName?: string;
   initialMode?: BatchMode;
+  closeOnSuccess?: boolean;
 }) {
   const idRef = useRef(2);
   const [equipmentOpen, setEquipmentOpen] = useState(initialMode === "equipment");
@@ -46,7 +47,7 @@ export function PlatformServiceBatchEditor({
       name, equipment_name: mode === "equipment" ? equipment : null,
     }));
     const saved = await onCreateBatch(items);
-    if (!saved) return; // Preserva o lote para corrigir nomes repetidos ou erros.
+    if (!saved || closeOnSuccess) return; // No modal, a confirmacao fecha e desmonta o editor.
     setterFor(mode)([{ id: idRef.current++, name: "" }]);
     if (mode === "equipment") setEquipmentName(initialEquipmentName);
   };
