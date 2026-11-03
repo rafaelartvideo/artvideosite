@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 export const PLATFORM_PROVIDER_BUCKET = "platform-provider-documents";
 export type PlatformService = {
   id: string; organization_id: string; name: string; is_active: boolean;
+  equipment_name: string | null;
 };
 export type PlatformProvider = {
   id: string; name: string; document: string | null;
@@ -56,18 +57,20 @@ export function draftFromProvider(provider: PlatformProvider): PlatformProviderD
 
 export async function listPlatformServices(orgId: string): Promise<PlatformService[]> {
   const { data, error } = await supabase.from("platform_provider_services")
-    .select("id,organization_id,name,is_active").eq("organization_id", orgId)
+    .select("id,organization_id,name,is_active,equipment_name").eq("organization_id", orgId)
     .order("name", { ascending: true });
   if (error) throw error;
   return (data || []) as PlatformService[];
 }
 
-export async function addPlatformService(orgId: string, name: string): Promise<PlatformService> {
+export async function addPlatformService(orgId: string, name: string, equipmentName = ""): Promise<PlatformService> {
   const normalized = name.trim();
+  const equipment = equipmentName.trim();
   if (normalized.length < 2 || normalized.length > 120) throw new Error("Informe um serviço com 2 a 120 caracteres.");
+  if (equipment.length > 120 || (equipment.length > 0 && equipment.length < 2)) throw new Error("O equipamento deve ter entre 2 e 120 caracteres.");
   const { data, error } = await supabase.from("platform_provider_services")
-    .insert({ organization_id: orgId, name: normalized })
-    .select("id,organization_id,name,is_active").single();
+    .insert({ organization_id: orgId, name: normalized, equipment_name: equipment || null })
+    .select("id,organization_id,name,is_active,equipment_name").single();
   if (error) throw error;
   return data as PlatformService;
 }
