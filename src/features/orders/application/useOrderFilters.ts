@@ -64,7 +64,6 @@ export function useOrderFilters({
   const debouncedCustomerNameSearch = useDebouncedValue(customerNameSearch);
   const debouncedDocumentSearch = useDebouncedValue(documentSearch);
   const debouncedSerialNumberSearch = useDebouncedValue(serialNumberSearch);
-  const debouncedResponsibleId = useDebouncedValue(responsibleId);
 
   const selectedStateKey = [...selectedStates].sort().join(",");
   const citiesQuery = useQuery({
