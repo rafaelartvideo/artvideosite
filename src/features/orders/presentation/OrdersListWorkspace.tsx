@@ -70,21 +70,22 @@ export function OrdersListWorkspace(props: Props) {
     initialPageParam: 0,
     staleTime: 30_000,
     retry: false,
-    queryFn: async ({ pageParam }) => {
+    queryFn: async ({ pageParam, signal }) => {
       const pageSize = 40;
       const { data, error, count } = await supabase.from("service_orders")
-        .select("id,organization_id,os_number,service_type_id,situation_id,created_at,scheduled_at,completed_at,cancelled_at,is_solved,cannot_be_solved,order_status:order_statuses(id,name,color),customer:customers(id,full_name),service:services(id,title),general_service:general_services(id,name)", { count: "exact" })
+        .select("id,organization_id,os_number,service_type_id,situation_id,created_at,scheduled_at,completed_at,cancelled_at,is_solved,cannot_be_solved,order_status:order_statuses(id,name,color),customer:customers(id,full_name),service:services(id,title),general_service:general_services(id,name)", { count: pageParam === 0 ? "exact" : undefined })
         .eq("organization_id", organizationId!)
         .is("situation_id", null)
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
-        .range(pageParam * pageSize, (pageParam + 1) * pageSize - 1);
+        .range(pageParam * pageSize, (pageParam + 1) * pageSize - 1)
+        .abortSignal(signal);
       if (error) throw error;
       return { items: data || [], total: count ?? 0 };
     },
     getNextPageParam: (lastPage, pages) => {
       const received = pages.reduce((sum, page) => sum + page.items.length, 0);
-      return lastPage.items.length > 0 && received < lastPage.total ? pages.length : undefined;
+      return lastPage.items.length > 0 && received < (pages[0]?.total ?? 0) ? pages.length : undefined;
     },
   });
   const unassignedOrders = unassignedQuery.data?.pages.flatMap(page => page.items) || [];
@@ -242,17 +243,9 @@ export function OrdersListWorkspace(props: Props) {
         onCardDragStart={handleCardDragStart}
         onCardDragEnd={handleCardDragEnd}
         onOpen={(order) => { if (!shouldSuppressCardOpen()) openDetail(order); }}
-        onSituationChange={(order, situationId) => {
-          void updateOrderSituation(order, situationId).then(changed => {
-            if (changed) refreshUnassigned();
-          });
-        }}
+        onSituationChange={(order, situationId) => { void updateOrderSituation(order, situationId); }}
         onEdit={(order) => { void openEdit(order); }}
-        onCancel={async (order, reason) => {
-          const changed = await cancelOrder(order, reason);
-          if (changed) refreshUnassigned();
-          return changed;
-        }}
+        onCancel={cancelOrder}
         cancellingId={cancellingId}
         formatDate={fmtDate}
       />
