@@ -498,8 +498,9 @@ export function useOrderCompletion({
       return;
     }
     setSaving(true);
+    let attachingPaymentProof = Boolean(paymentProofFile && !paymentProofAttached);
     try {
-      if (paymentProofFile && !paymentProofAttached) {
+      if (attachingPaymentProof && paymentProofFile) {
         if (!hasPermission("orders.section.images")) throw new Error("Você não tem permissão para anexar documentos.");
         await attachOrderSituationDocument({
           organizationId: String(detail.organization_id),
@@ -512,6 +513,7 @@ export function useOrderCompletion({
         // Limpar o arquivo evita enviar a mesma foto duas vezes em uma nova tentativa.
         setPaymentProofFile(null);
         setPaymentProofAttached(true);
+        attachingPaymentProof = false;
         const documentsKey = ["orders", String(detail.organization_id), String(detail.id)];
         void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents"] });
         void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents-count"] });
@@ -541,7 +543,10 @@ export function useOrderCompletion({
         console.warn("[OS] Falha ao atualizar a lista após conclusão:", error);
       });
     } catch (error) {
-      showToast({ msg: "Não foi possível concluir a OS: " + formatError(error), type: "error" });
+      showToast({
+        msg: (attachingPaymentProof ? "Não foi possível anexar o comprovante: " : "Não foi possível concluir a OS: ") + formatError(error),
+        type: "error",
+      });
     } finally { setSaving(false); }
   };
 
