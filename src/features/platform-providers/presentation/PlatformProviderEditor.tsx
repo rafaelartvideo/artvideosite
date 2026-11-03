@@ -2,7 +2,6 @@ import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction }
 import { FileText, MapPin, Paperclip, X, Plus } from "lucide-react";
 import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FPhoneInput, FEmailInput, FCpfInput, FCnpjInput, FGenderRadio, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
-import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
 import { getAddressMapUrl, validateCustomerAddress, type Address } from "@/lib/address";
 import { isValidCpf, isValidCnpj } from "@/shared/domain/formatters";
@@ -163,10 +162,14 @@ export function PlatformProviderEditor({
             <FInput type="date" label="Data de nascimento" value={draft.birth_date}
               max={new Date().toISOString().slice(0,10)}
               onChange={(event:any)=>update({birth_date:event.target.value})}/>
+            <FEmailInput label="E-mail de contato" value={draft.email}
+              onChange={(event:any)=>update({email:event.target.value})}/>
             <FGenderRadio value={draft.gender} onChange={gender=>update({gender})}/>
           </>:<>
             <FInput label="Razão social" value={draft.legal_name}
               onChange={(event:any)=>update({legal_name:event.target.value})}/>
+            <FEmailInput label="E-mail de contato" value={draft.email}
+              onChange={(event:any)=>update({email:event.target.value})}/>
           </>}
           <FPhoneInput label="Telefone" value={draft.phone} required={!draft.whatsapp}
             copyFromWhatsapp={draft.whatsapp} onCopyWhatsapp={phone=>update({phone})}
@@ -174,13 +177,10 @@ export function PlatformProviderEditor({
           <FPhoneInput label="WhatsApp" mobile value={draft.whatsapp}
             copyFromPhone={draft.phone} onCopyPhone={whatsapp=>update({whatsapp})}
             onChange={(event:any)=>update({whatsapp:event.target.value})}/>
-          <FEmailInput label="E-mail de contato" value={draft.email}
-            onChange={(event:any)=>update({email:event.target.value})}/>
+          <FInput label="Instagram" value={draft.instagram} maxLength={160}
+            placeholder="@usuario ou link do perfil"
+            onChange={(event:any)=>update({instagram:event.target.value})}/>
         </div>
-        <label className="mt-4 flex items-center gap-2 text-sm font-bold text-foreground">
-          <Checkbox checked={draft.is_active} onCheckedChange={value=>update({is_active:value===true})}/>
-          Prestador ativo
-        </label>
       </Section>
 
       <Section title="Endereço" description="Preencha o CEP para buscar o endereço automaticamente, como nos cadastros do CRM.">
@@ -211,7 +211,7 @@ export function PlatformProviderEditor({
         </div>
       </Section>
 
-      <Section title="Anexos" description="Documentos opcionais, inclusive certidões criminais emitidas nos portais oficiais. Acesso restrito à Union.">
+      <Section title="Anexos" description="Documentos opcionais com acesso restrito à Union.">
         <p className="mb-3 text-xs text-muted-foreground">PDF, foto, TXT, DOC ou DOCX. Até 10 MB por arquivo.</p>
         <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx"
           className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-lg file:border file:border-border file:bg-card file:px-3 file:py-2 file:font-semibold file:text-primary"
