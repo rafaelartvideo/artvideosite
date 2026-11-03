@@ -12,6 +12,42 @@ import {
 } from "@/shared/domain/formatters";
 import type { Registration, RegistrationRole } from "../infrastructure/registrations.repository";
 
+export type ProviderServiceForm = {
+  id?: string;
+  draft_key?: string;
+  name: string;
+  description: string;
+  reference_price: string;
+};
+
+export function parseProviderReferencePrice(value: string): number | null {
+  const raw = value.trim().replace(/^R\$\s*/, "").replace(/\s/g, "");
+  if (!raw) return null;
+  const normalized = raw.includes(",") ? raw.replace(/\./g, "").replace(",", ".") : raw;
+  if (!/^\d{1,10}(\.\d{1,2})?$/.test(normalized)) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount >= 0 && amount <= 9999999999.99 ? amount : null;
+}
+
+export function validateProviderServices(form: RegistrationFormState): string | null {
+  if (!form.roles.includes("service_provider")) return null;
+  if (!form.provider_services.length) return "Adicione pelo menos um serviço prestado.";
+  if (form.provider_services.length > 30) return "Cadastre no máximo 30 serviços para cada prestador.";
+  const names = new Set<string>();
+  for (const service of form.provider_services) {
+    const name = service.name.trim();
+    if (!name || name.length > 120) return "Informe o nome de cada serviço (até 120 caracteres).";
+    if (service.description.trim().length > 500) return "A descrição de cada serviço deve ter no máximo 500 caracteres.";
+    const key = name.toLocaleLowerCase("pt-BR");
+    if (names.has(key)) return "Não repita o mesmo serviço neste prestador.";
+    names.add(key);
+    if (service.reference_price.trim() && parseProviderReferencePrice(service.reference_price) === null) {
+      return "Informe um valor de referência válido em reais, com até duas casas decimais.";
+    }
+  }
+  return null;
+}
+
 export type RegistrationFormState = {
   person_type: "PF" | "PJ";
   name: string;
@@ -28,6 +64,7 @@ export type RegistrationFormState = {
   email: string;
   is_active: boolean;
   roles: RegistrationRole[];
+  provider_services: ProviderServiceForm[];
   job_title: string;
   team_name: string;
   admission_date: string;
@@ -57,6 +94,7 @@ export const emptyRegistrationForm = (): RegistrationFormState => ({
   email: "",
   is_active: true,
   roles: ["customer"],
+  provider_services: [],
   job_title: "",
   team_name: "",
   admission_date: "",
@@ -109,6 +147,12 @@ export function registrationFormFromRecord(registration: Registration): Registra
     email: registration.email || "",
     is_active: registration.is_active !== false,
     roles: activeRegistrationRoles(registration),
+    provider_services: (registration.provider_services || []).map(service => ({
+      id: service.id,
+      name: service.name,
+      description: service.description || "",
+      reference_price: service.reference_price == null ? "" : Number(service.reference_price).toFixed(2).replace(".", ","),
+    })),
     job_title: employee?.job_title || "",
     team_name: employee?.team_name || "",
     admission_date: employee?.admission_date || "",
@@ -163,6 +207,12 @@ export function registrationEntityPayload(form: RegistrationFormState) {
     whatsapp: normalizeDigits(form.whatsapp),
     email: form.email.trim().toLowerCase(),
     is_active: form.is_active,
+    provider_services: form.roles.includes("service_provider") ? form.provider_services.map(service => ({
+      ...(service.id ? { id: service.id } : {}),
+      name: service.name.trim(),
+      description: service.description.trim(),
+      reference_price: parseProviderReferencePrice(service.reference_price),
+    })) : [],
   };
 }
 
