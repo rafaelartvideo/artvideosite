@@ -264,6 +264,10 @@ export function OrderCompletionModal({
     || completion.warrantyLoading
     || Boolean(completion.warrantyError)
     || (completion.commercialPricing && Boolean(completion.commercialItemsError))
+    || completion.paymentProofRequirementLoading
+    || Boolean(completion.paymentProofRequirementError)
+    || (completion.paymentProofRequired && !completion.paymentProofFile
+      && !completion.paymentProofAttached && !completion.paymentProofAlreadyOnOrder)
     || (Boolean(completion.paymentProofFile) && (completion.paymentProofTypeLoading || Boolean(completion.paymentProofTypeError)));
 
   return <AdminDialog
