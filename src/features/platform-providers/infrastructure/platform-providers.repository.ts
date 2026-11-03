@@ -29,7 +29,7 @@ export type PlatformProviderDraft = {
   legal_name: string; complement: string;
 };
 export type ProviderFilters = {
-  search: string; serviceIds: string[]; states: string[]; cities: string[];
+  search: string; serviceIds: string[]; equipmentNames: string[]; states: string[]; cities: string[];
   statuses: ("active" | "inactive")[]; page: number; pageSize: number;
 };
 
@@ -75,6 +75,41 @@ export async function addPlatformService(orgId: string, name: string, equipmentN
   return data as PlatformService;
 }
 
+export type PlatformServiceBatchItem = { name: string; equipment_name: string | null };
+
+export async function addPlatformServices(orgId: string, items: PlatformServiceBatchItem[]): Promise<PlatformService[]> {
+  if (!items.length || items.length > 50) throw new Error("Informe entre 1 e 50 serviços por lote.");
+  const normalized = items.map(item => ({
+    organization_id: orgId,
+    name: item.name.trim(),
+    equipment_name: item.equipment_name?.trim() || null,
+  }));
+  const keys = normalized.map(item => `${(item.equipment_name || "").toLocaleLowerCase("pt-BR")}|${item.name.toLocaleLowerCase("pt-BR")}`);
+  if (new Set(keys).size !== keys.length) throw new Error("O lote contém serviços repetidos na mesma categoria.");
+  if (normalized.some(item => item.name.length < 2 || item.name.length > 120 ||
+      (item.equipment_name !== null && (item.equipment_name.length < 2 || item.equipment_name.length > 120)))) {
+    throw new Error("Informe nomes de serviços e equipamentos entre 2 e 120 caracteres.");
+  }
+  // Uma unica requisicao INSERT: ou todos os itens sao gravados ou nenhum, sem gravacao parcial.
+  const { data, error } = await supabase.from("platform_provider_services")
+    .insert(normalized).select("id,organization_id,name,is_active,equipment_name");
+  if (error) throw error;
+  return (data || []) as PlatformService[];
+}
+
+export async function deletePlatformService(orgId: string, serviceId: string): Promise<void> {
+  const { count, error: countError } = await supabase.from("platform_provider_service_links")
+    .select("provider_id", { head: true, count: "exact" })
+    .eq("organization_id", orgId).eq("service_id", serviceId);
+  if (countError) throw countError;
+  if ((count || 0) > 0) throw new Error(`Este serviço está vinculado a ${count} prestador(es). Remova os vínculos antes de excluir ou utilize Desativar.`);
+  const { data, error } = await supabase.from("platform_provider_services")
+    .delete().eq("organization_id", orgId).eq("id", serviceId).select("id");
+  if (error?.code === "23503") throw new Error("Este serviço ainda está vinculado a um prestador. Remova o vínculo antes de excluir.");
+  if (error) throw error;
+  if (!data?.length) throw new Error("Serviço não encontrado ou sem permissão para excluir.");
+}
+
 export async function editPlatformService(orgId: string, id: string, fields: {name?: string; is_active?: boolean}) {
   if (fields.name !== undefined && (fields.name.trim().length < 2 || fields.name.trim().length > 120)) {
     throw new Error("Informe um nome válido com 2 a 120 caracteres.");
@@ -86,8 +121,9 @@ export async function editPlatformService(orgId: string, id: string, fields: {na
 }
 
 export async function listPlatformProviders(filters: ProviderFilters): Promise<{ providers: PlatformProvider[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_platform_service_providers_v4", {
+  const { data, error } = await supabase.rpc("list_platform_service_providers_v5", {
     p_search: filters.search.trim(), p_service_ids: filters.serviceIds,
+    p_equipment_names: filters.equipmentNames,
     p_states: filters.states, p_cities: filters.cities, p_statuses: filters.statuses,
     p_limit: filters.pageSize, p_offset: (filters.page - 1) * filters.pageSize,
   });
