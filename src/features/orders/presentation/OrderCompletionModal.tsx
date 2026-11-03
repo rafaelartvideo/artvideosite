@@ -249,6 +249,7 @@ export function OrderCompletionModal({
           <p className="text-sm font-bold text-foreground">{completion.certificateBusy ? "Gerando certificado..." : "A OS foi concluída, mas o certificado não pôde ser emitido."}</p>
           {completion.certificateError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{completion.certificateError}</p>}
         </div>}
+        {completion.paymentProofAttached && <p className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300"><CheckCircle2 size={16} /> Comprovante de pagamento salvo nos documentos da OS.</p>}
         {completion.issuedCertificate && completion.certificateError && <p role="alert" className="text-xs font-semibold text-red-600">{completion.certificateError}</p>}
       </div>
     </AdminDialog>;
@@ -262,7 +263,8 @@ export function OrderCompletionModal({
     || completion.commercialItemsLoading
     || completion.warrantyLoading
     || Boolean(completion.warrantyError)
-    || (completion.commercialPricing && Boolean(completion.commercialItemsError));
+    || (completion.commercialPricing && Boolean(completion.commercialItemsError))
+    || (Boolean(completion.paymentProofFile) && (completion.paymentProofTypeLoading || Boolean(completion.paymentProofTypeError)));
 
   return <AdminDialog
     open={completion.open}
