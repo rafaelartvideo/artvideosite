@@ -47,7 +47,7 @@ export function OrdersListWorkspace(props: Props) {
   const { statuses, situations, serviceTypes, serviceTypeSituations, profiles, isOrganizationOverride } = workspace;
   const {
     osNumberSearch, setOsNumberSearch, externalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
-    serialNumberSearch, setSerialNumberSearch, filterOrderType,
+    serialNumberSearch, setSerialNumberSearch, setFilterSituation, filterOrderType,
     selectedServiceTypeId, setSelectedServiceTypeId, selectedResponsibleIds, setSelectedResponsibleIds, selectedStatusIds, setSelectedStatusIds,
     selectedSituationIds, setSelectedSituationIds, selectedServiceTypeIds, setSelectedServiceTypeIds, orderSort, setOrderSort, selectedStates, setSelectedStates,
     selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
@@ -101,6 +101,13 @@ export function OrdersListWorkspace(props: Props) {
   // A tabela depende apenas da consulta paginada. Os dados auxiliares (catálogos,
   // situações, funcionários) carregam em paralelo e não bloqueiam as OS já prontas.
   const loading = listLoading;
+  const changeKanbanServiceType = (serviceTypeId: string) => {
+    // O quadro tem um único atendimento ativo; situações incompatíveis são limpas.
+    setFilterSituation("");
+    setSelectedSituationIds([]);
+    setSelectedServiceTypeId(serviceTypeId);
+    setPage(1);
+  };
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
     : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || selectedServiceTypeIds.length || (resolvedDisplayMode === "kanban" && selectedServiceTypeId) || selectedStates.length || selectedCities.length || dateFrom || dateTo);
