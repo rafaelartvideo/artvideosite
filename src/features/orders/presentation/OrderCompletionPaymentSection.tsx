@@ -63,12 +63,9 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
     {completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">
       Não foi possível verificar a exigência do comprovante: {completion.paymentProofRequirementError}
     </p>}
-    {completion.paymentProofRequired && completion.paymentProofAlreadyOnOrder && !completion.paymentProofAttached && <p role="status"
+    {completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder ? <p role="status"
       className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-      <CheckCircle2 size={16} /> Esta OS já possui comprovante anexado. Não é necessário enviar novamente.
-    </p>}
-    {completion.paymentProofAttached ? <p role="status" className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
-      <CheckCircle2 size={16} /> Comprovante anexado à OS.
+      <CheckCircle2 size={16} /> Comprovante anexado à OS. Não é necessário enviar novamente.
     </p> : !completion.canAttachPaymentProof ? <p className="text-xs text-muted-foreground">
       Seu perfil não possui permissão para anexar documentos. A conclusão da OS continua disponível.
     </p> : <>
