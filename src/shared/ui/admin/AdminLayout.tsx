@@ -132,7 +132,7 @@ export const AdminRowActionsTrigger = React.forwardRef<HTMLButtonElement,
 
 type AdminIconButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   onClick?: React.MouseEventHandler<HTMLButtonElement>;
-  variant?: "secondary" | "success" | "warning" | "danger" | "ghost";
+  variant?: "secondary" | "tertiary" | "success" | "warning" | "danger" | "ghost";
   ariaLabel?: string;
   loading?: boolean;
 };
@@ -157,6 +157,7 @@ export function AdminIconButton({
   const resolvedLoading = loading || actionLoading;
   const variants = {
     secondary: "border border-border bg-card text-muted-foreground hover:bg-muted hover:text-primary",
+    tertiary: "admin-action-blue-outline border hover:bg-primary/5",
     success: "admin-action-success border",
     warning: "admin-action-warning border",
     danger: "admin-semantic-error border hover:brightness-95",
@@ -164,6 +165,10 @@ export function AdminIconButton({
   };
   const rawLabel = String(buttonProps["aria-label"] ?? ariaLabel ?? title ?? "").trim();
   const normalizedLabel = rawLabel.toLocaleLowerCase("pt-BR");
+  // Ações de edição usam o terceiro estilo do CRM em todas as telas que
+  // compartilham o botão de ícone, independentemente do módulo.
+  const editAction = /^editar(?:\s|$)/i.test(normalizedLabel);
+  const effectiveVariant = editAction ? "tertiary" : variant;
   const activeStateAction = normalizedLabel.startsWith("inativar") || normalizedLabel.startsWith("desativar")
     ? "deactivate"
     : normalizedLabel.startsWith("ativar")
@@ -203,7 +208,7 @@ export function AdminIconButton({
     data-admin-has-spinner={resolvedLoading ? "true" : undefined}
     className={cn(
       "inline-flex h-8 w-8 cursor-default items-center justify-center overflow-hidden rounded-lg bg-clip-padding transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-card disabled:cursor-default disabled:opacity-40",
-      activeStateAction ? activeStateClass : variants[variant],
+      activeStateAction ? activeStateClass : variants[effectiveVariant],
       className,
     )}
   >
