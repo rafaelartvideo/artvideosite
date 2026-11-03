@@ -33,6 +33,7 @@ export function useSaveCompanySettingsMutation() {
     }) => saveCompanySettings(settings, updatedBy, organizationId, scope),
     onSuccess: (saved, variables) => {
       queryClient.setQueryData(["company-settings", variables.organizationId], saved);
+      void queryClient.invalidateQueries({ queryKey: ["orders", variables.organizationId, "payment-proof-required"] });
     },
   });
 }
