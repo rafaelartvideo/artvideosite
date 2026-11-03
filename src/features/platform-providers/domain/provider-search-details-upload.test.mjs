@@ -15,15 +15,18 @@ test("busca de prestadores segue multiseleção do CRM com seletor mobile acima 
   assert.match(panel,/AdminSearchPanel/);
   assert.match(panel,/DropdownMenuTrigger/);
   assert.match(panel,/md:hidden/);
-  assert.match(panel,/hidden grid-cols-2 gap-3 md:grid xl:grid-cols-5/);
+  assert.match(panel,/hidden grid-cols-2 gap-3 md:grid xl:grid-cols-3/);
   assert.match(panel,/field\(mobileField\)/);
-  assert.match(panel,/label="Buscar por nome"/);
-  assert.match(panel,/placeholder="Buscar por nome"/);
-  for(const value of ["services","states","cities","statuses"]){
+  assert.match(panel,/label="Nome"/);
+  assert.match(panel,/placeholder="Nome"/);
+  assert.match(panel,/label="Equipamento"/);
+  assert.match(panel,/Todos os equipamentos/);
+  for(const value of ["equipment","services","states","cities","statuses"]){
     assert.ok(panel.includes('case "'+value+'"'),value);
   }
-  assert.match(repository,/list_platform_service_providers_v4/);
+  assert.match(repository,/list_platform_service_providers_v5/);
   assert.match(repository,/p_service_ids: filters.serviceIds/);
+  assert.match(repository,/p_equipment_names: filters.equipmentNames/);
   assert.match(repository,/p_states: filters.states/);
   assert.match(repository,/p_cities: filters.cities/);
   assert.match(repository,/p_statuses: filters.statuses/);
@@ -88,7 +91,13 @@ test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos ante
   assert.match(page,/aria-expanded=\{isOpen\}/);
   assert.match(page,/Serviços avulsos \/ Profissões/);
   assert.match(page,/catalogGroups\.map/);
-  assert.match(editor,/serviceEquipmentName/);
+  const batch=read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
+  assert.match(editor,/batchContent/);
+  assert.match(page,/<PlatformServiceBatchEditor/);
+  assert.match(batch,/equipmentName/);
+  assert.match(batch,/xl:grid-cols-3/);
+  assert.match(batch,/Adicionar outra subcategoria/);
+  assert.match(batch,/Adicionar outro serviço/);
   assert.match(repository,/equipment_name: equipment \|\| null/);
   assert.match(repository,/\.select\("id,organization_id,name,is_active,equipment_name"\)/);
   assert.match(migration,/add column if not exists equipment_name/);
@@ -97,4 +106,27 @@ test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos ante
   assert.doesNotMatch(migration,/or p\.city ilike/);
   assert.ok((await transformWithEsbuild(page,"PlatformProvidersPage.tsx",{loader:"tsx"})).code.length>500);
   assert.ok((await transformWithEsbuild(editor,"PlatformProviderEditor.tsx",{loader:"tsx"})).code.length>500);
+  assert.ok((await transformWithEsbuild(batch,"PlatformServiceBatchEditor.tsx",{loader:"tsx"})).code.length>500);
+});
+
+test("catalogo permite excluir com confirmacao e bloqueia exclusao vinculada, mantem RLS e valida filtro por equipamento",async()=>{
+  const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  const sql=read("supabase/migrations/20261103214943_union_provider_equipment_multiselect_filter_v5.sql");
+  assert.match(page,/deleteTarget && <AdminDialog open title="Excluir serviço"/);
+  assert.match(page,/confirmDeleteService/);
+  assert.match(page,/variant="danger"/);
+  assert.match(page,/ariaLabel=\{"Excluir " \+ service.name\}/);
+  assert.match(page,/ariaLabel=\{\(service.is_active \? "Desativar " : "Ativar "\)/);
+  assert.match(page,/expandedCatalog/);
+  assert.match(page,/provider.gender === "F"/);
+  assert.match(page,/FemaleProviderIcon/);
+  assert.match(repository,/deletePlatformService/);
+  assert.match(repository,/platform_provider_service_links/);
+  assert.match(repository,/addPlatformServices/);
+  assert.match(repository,/\.insert\(normalized\)/);
+  assert.match(sql,/security invoker/);
+  assert.match(sql,/p_equipment_names/);
+  assert.match(sql,/es\.equipment_name=any\(p_equipment_names\)/);
+  assert.ok((await transformWithEsbuild(page,"PlatformProvidersPage.tsx",{loader:"tsx"})).code.length>500);
 });
