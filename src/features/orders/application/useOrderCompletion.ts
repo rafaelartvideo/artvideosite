@@ -2,7 +2,12 @@ import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateActio
 import { useQueryClient } from "@tanstack/react-query";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
-import { attachOrderSituationDocument, listAttachmentTypes } from "../infrastructure/order-documents.repository";
+import {
+  attachOrderSituationDocument,
+  getOrderPaymentProofRequirement,
+  hasOrderPaymentProof,
+  listAttachmentTypes,
+} from "../infrastructure/order-documents.repository";
 import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate, type WarrantyOption, type WarrantyCertificate } from "./order-warranty";
 import {
   completeServiceOrderWithFinance,
@@ -135,6 +140,11 @@ export function useOrderCompletion({
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const paymentProofRequestRef = useRef(0);
+  const paymentProofRequirementRequestRef = useRef(0);
+  const [paymentProofRequired, setPaymentProofRequired] = useState(false);
+  const [paymentProofRequirementLoading, setPaymentProofRequirementLoading] = useState(false);
+  const [paymentProofRequirementError, setPaymentProofRequirementError] = useState("");
+  const [paymentProofAlreadyOnOrder, setPaymentProofAlreadyOnOrder] = useState(false);
   const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
   const [paymentProofAttachmentTypeId, setPaymentProofAttachmentTypeId] = useState("");
   const [paymentProofTypeLoading, setPaymentProofTypeLoading] = useState(false);
@@ -310,6 +320,42 @@ export function useOrderCompletion({
     }
   };
 
+  const loadPaymentProofRequirement = async (organizationId: string, serviceOrderId: string, requestId: number) => {
+    setPaymentProofRequirementLoading(true);
+    setPaymentProofRequirementError("");
+    try {
+      const required = await queryClient.fetchQuery({
+        queryKey: ["orders", organizationId, "payment-proof-required"],
+        queryFn: () => getOrderPaymentProofRequirement(organizationId),
+        staleTime: 30_000,
+      });
+      if (paymentProofRequirementRequestRef.current !== requestId) return;
+      setPaymentProofRequired(required);
+      if (!required) return;
+
+      const types = await queryClient.fetchQuery({
+        queryKey: ["documents", organizationId, "attachment-types", "active"],
+        queryFn: async () => {
+          const { data, error } = await listAttachmentTypes(true, organizationId);
+          if (error) throw error;
+          return data || [];
+        },
+        staleTime: 10 * 60_000,
+      });
+      if (paymentProofRequirementRequestRef.current !== requestId) return;
+      const receiptTypes = types.filter(type => type.name.trim().toLocaleLowerCase("pt-BR") === "comprovante de pagamento");
+      if (!receiptTypes.length) throw new Error("O tipo de anexo Comprovante de pagamento não está disponível nesta empresa.");
+      setPaymentProofAttachmentTypeId(receiptTypes[0].id);
+
+      const alreadyOnOrder = await hasOrderPaymentProof(organizationId, serviceOrderId, receiptTypes.map(type => type.id));
+      if (paymentProofRequirementRequestRef.current === requestId) setPaymentProofAlreadyOnOrder(alreadyOnOrder);
+    } catch (error) {
+      if (paymentProofRequirementRequestRef.current === requestId) setPaymentProofRequirementError(formatError(error));
+    } finally {
+      if (paymentProofRequirementRequestRef.current === requestId) setPaymentProofRequirementLoading(false);
+    }
+  };
+
   const choosePaymentProof = (file: File | null) => {
     if (!file) {
       setPaymentProofFile(null);
@@ -358,6 +404,11 @@ export function useOrderCompletion({
     }
 
     paymentProofRequestRef.current += 1;
+    const requirementRequestId = ++paymentProofRequirementRequestRef.current;
+    setPaymentProofRequired(false);
+    setPaymentProofRequirementLoading(true);
+    setPaymentProofRequirementError("");
+    setPaymentProofAlreadyOnOrder(false);
     setPaymentProofFile(null);
     setPaymentProofAttachmentTypeId("");
     setPaymentProofTypeError("");
@@ -404,6 +455,15 @@ export function useOrderCompletion({
     if (organizationId) {
       void loadFinanceOptions(String(organizationId));
       void loadWarrantyOptions(String(organizationId), String(target?.equipment_type_id || detail?.equipment_type_id || ""));
+      if (targetOrderId) {
+        void loadPaymentProofRequirement(String(organizationId), String(targetOrderId), requirementRequestId);
+      } else {
+        setPaymentProofRequirementError("Não foi possível identificar a OS.");
+        setPaymentProofRequirementLoading(false);
+      }
+    } else {
+      setPaymentProofRequirementError("Não foi possível identificar a empresa.");
+      setPaymentProofRequirementLoading(false);
     }
   };
 
@@ -491,6 +551,14 @@ export function useOrderCompletion({
     if (financeValidationMessage) { showToast({ msg: financeValidationMessage, type: "error" }); return; }
     if (warrantyLoading || warrantyError) {
       showToast({ msg: warrantyError || "Carregando opções de garantia.", type: "error" });
+      return;
+    }
+    if (paymentProofRequirementLoading || paymentProofRequirementError) {
+      showToast({ msg: paymentProofRequirementError || "Verificando a exigência do comprovante de pagamento.", type: "error" });
+      return;
+    }
+    if (paymentProofRequired && !paymentProofFile && !paymentProofAttached && !paymentProofAlreadyOnOrder) {
+      showToast({ msg: "Anexe o comprovante de pagamento antes de concluir a OS.", type: "error" });
       return;
     }
     if (paymentProofFile && (paymentProofTypeLoading || paymentProofTypeError || !paymentProofAttachmentTypeId)) {
@@ -584,6 +652,7 @@ export function useOrderCompletion({
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
     financeEnabled, installments, applyInstallmentCount, addInstallment, removeInstallment, updateInstallment,
     paymentProofFile, choosePaymentProof, paymentProofTypeLoading, paymentProofTypeError, paymentProofAttached,
+    paymentProofRequired, paymentProofRequirementLoading, paymentProofRequirementError, paymentProofAlreadyOnOrder,
     canAttachPaymentProof: hasPermission("orders.section.images"),
     installmentTotal, installmentDifference, totalPaidNow, openAmount,
     financeOptions, financeOptionsLoading, financeOptionsError, financeValidationMessage,
