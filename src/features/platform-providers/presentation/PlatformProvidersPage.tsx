@@ -519,6 +519,7 @@ export function PlatformProvidersPage() {
         equipmentSuggestions={equipmentSuggestions}
         initialEquipmentName={serviceModal.equipmentName}
         initialMode={serviceModal.mode}
+        closeOnSuccess
         onCreateBatch={async items => {
           const saved = await addBatch(items, serviceModal.selectNew);
           if (saved) setServiceModal(null);
