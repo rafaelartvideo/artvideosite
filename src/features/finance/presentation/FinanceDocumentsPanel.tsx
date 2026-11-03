@@ -92,7 +92,7 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
   const view = async (attachment: FinancialAttachment) => {
     try {
       setArchiveReasonError("");
-      const url = await createFinancialAttachmentSignedUrl(attachment.storage_path);
+      const url = await createFinancialAttachmentSignedUrl(attachment.storage_path, attachment.storage_bucket || "financial-documents");
       window.open(url, "_blank", "noopener,noreferrer");
     } catch (caught) {
       notifyAdmin(systemErrorMessage(caught, "Não foi possível abrir o documento."), "error");
@@ -136,14 +136,17 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
             {attachments.length === 0
               ? <tr><td colSpan={5} className="px-4 py-10 text-center text-sm text-muted-foreground"><FileText size={19} className="mx-auto mb-2" />Nenhum documento anexado.</td></tr>
               : attachments.map(item => <tr key={item.id} className="transition-colors hover:bg-muted/30">
-                <td className="max-w-[280px] truncate px-4 py-3 font-semibold text-foreground" title={item.file_name}>{item.file_name}</td>
+                <td className="max-w-[280px] px-4 py-3 font-semibold text-foreground" title={item.file_name}>
+                  <span className="block truncate">{item.file_name}</span>
+                  {item.source_media_id && <span className="mt-1 block text-[10px] font-medium text-muted-foreground">Vinculado à OS · arquivo original</span>}
+                </td>
                 <td className="px-4 py-3 text-muted-foreground">{typeLabel(item.attachment_type)}</td>
                 <td className="px-4 py-3 tabular-nums text-muted-foreground">{new Date(item.created_at).toLocaleString("pt-BR")}</td>
                 <td className="px-4 py-3 text-right tabular-nums text-muted-foreground">{formatSize(item.size_bytes)}</td>
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-2">
                     <AdminButton size="sm" variant="secondary" onClick={() => void view(item)}><Eye size={14} /> Abrir</AdminButton>
-                    {canManage && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setArchiveReasonError(""); }}><Archive size={14} /> Arquivar</AdminButton>}
+                    {canManage && !item.source_media_id && <AdminButton size="sm" variant="danger" onClick={() => { setArchiveTarget(item); setArchiveReason(""); setArchiveReasonError(""); }}><Archive size={14} /> Arquivar</AdminButton>}
                   </div>
                 </td>
               </tr>)}
