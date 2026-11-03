@@ -15,10 +15,9 @@ test("Buscar OS oferece bairros, grade de três colunas e período em campo divi
   assert.match(panel, /label="Estados"/);
   assert.match(panel, /label="Cidades"/);
   assert.match(panel, /label="Bairros"/);
-  assert.match(panel, /grid grid-cols-3 items-start gap-2/);
   assert.match(panel, /className="grid grid-cols-3 items-start gap-x-2 gap-y-3"/);
   assert.doesNotMatch(panel, /xl:grid-cols-4/);
-  assert.equal((panel.match(/<OrderDateRangeField dateFrom=\\{dateFrom\\}/g) || []).length, 2);
+  assert.equal((panel.match(/<OrderDateRangeField dateFrom=\{dateFrom\}/g) || []).length, 2);
   assert.match(panel, /aria-label="Data inicial"/);
   assert.match(panel, /aria-label="Data final"/);
   assert.match(panel, /h-6 w-px shrink-0 bg-border/);
