@@ -7,6 +7,7 @@ export type PlatformService = {
 export type PlatformProvider = {
   id: string; name: string; document: string | null;
   phone: string | null; whatsapp: string | null; email: string | null;
+  instagram: string | null;
   state: string; city: string; neighborhood: string | null;
   street: string | null; street_number: string | null; zip_code: string | null;
   person_type: "PF" | "PJ"; birth_date: string | null; gender: "M" | "F" | "I" | null;
@@ -20,7 +21,7 @@ export type PlatformProviderAttachment = {
   file_size: number; created_at: string;
 };
 export type PlatformProviderDraft = {
-  name: string; document: string; phone: string; whatsapp: string; email: string;
+  name: string; document: string; phone: string; whatsapp: string; email: string; instagram: string;
   state: string; city: string; neighborhood: string; street: string;
   street_number: string; zip_code: string; notes: string; is_active: boolean;
   person_type: "PF" | "PJ"; birth_date: string; gender: "M" | "F" | "I" | "";
@@ -32,7 +33,7 @@ export type ProviderFilters = {
 };
 
 export const emptyProviderDraft = (): PlatformProviderDraft => ({
-  name: "", document: "", phone: "", whatsapp: "", email: "",
+  name: "", document: "", phone: "", whatsapp: "", email: "", instagram: "",
   state: "", city: "", neighborhood: "", street: "", street_number: "",
   zip_code: "", notes: "", is_active: true,
   person_type: "PF", birth_date: "", gender: "", legal_name: "", complement: "",
@@ -42,7 +43,8 @@ export function draftFromProvider(provider: PlatformProvider): PlatformProviderD
   return {
     name: provider.name, document: provider.document || "",
     phone: provider.phone || "", whatsapp: provider.whatsapp || "",
-    email: provider.email || "", state: provider.state, city: provider.city,
+    email: provider.email || "", instagram: provider.instagram || "",
+    state: provider.state, city: provider.city,
     neighborhood: provider.neighborhood || "", street: provider.street || "",
     street_number: provider.street_number || "", zip_code: provider.zip_code || "",
     notes: provider.notes || "", is_active: provider.is_active,
@@ -81,7 +83,7 @@ export async function editPlatformService(orgId: string, id: string, fields: {na
 }
 
 export async function listPlatformProviders(filters: ProviderFilters): Promise<{ providers: PlatformProvider[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_platform_service_providers_v2", {
+  const { data, error } = await supabase.rpc("list_platform_service_providers_v3", {
     p_search: filters.search.trim(), p_service_id: filters.serviceId || null,
     p_state: filters.state, p_city: filters.city, p_status: filters.status,
     p_limit: filters.pageSize, p_offset: (filters.page - 1) * filters.pageSize,
