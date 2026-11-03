@@ -31,7 +31,7 @@ test("novo prestador reaproveita CPF, CNPJ e CEP e usa seções do CRM",()=>{
   assert.match(lookup,/platform\.providers\.manage/);
   assert.match(editor,/<AddressFields/);
   assert.match(editor,/validateCustomerAddress/);
-  assert.match(repository,/list_platform_service_providers_v3/);
+  assert.match(repository,/list_platform_service_providers_v4/);
   assert.match(migration,/person_type/);
   assert.match(migration,/complement/);
   assert.match(migration,/birth_date/);
