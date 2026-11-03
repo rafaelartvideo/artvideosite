@@ -9,16 +9,8 @@ import { AdminSelect } from "@/shared/ui/admin/AdminFormControls";
 import { OrderCancelDialog } from "./OrderCancelDialog";
 import { OrderStatusDot } from "./OrderStatusDot";
 
-export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal, unassignedLoading, unassignedLoadingMore, unassignedHasMore, unassignedError, onLoadUnassignedMore, onRefreshUnassigned, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, topPagination, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
+export function OrdersKanban({ filteredOrders, situations, serviceTypeSituations, serviceTypes, selectedServiceTypeId, onServiceTypeChange, topPagination, draggingId, dragOverSituationId, hasPermission, onDragOver, onDragLeave, onDrop, onCardDragStart, onCardDragEnd, onOpen, onSituationChange, onEdit, onCancel, cancellingId, formatDate }: {
   filteredOrders: any[];
-  unassignedOrders: any[];
-  unassignedTotal: number;
-  unassignedLoading: boolean;
-  unassignedLoadingMore: boolean;
-  unassignedHasMore: boolean;
-  unassignedError: boolean;
-  onLoadUnassignedMore: () => void;
-  onRefreshUnassigned: () => void;
   situations: any[]; serviceTypeSituations: any[]; serviceTypes: any[];
   selectedServiceTypeId: string; onServiceTypeChange: (serviceTypeId: string) => void;
   topPagination?: React.ReactNode;
@@ -36,8 +28,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
 
   // As etapas pertencem ao tipo de atendimento, não à lista global de situações.
   // Mantém a ordem de configuração e não cria colunas para situações sem vínculo.
-  // O catálogo é compartilhado pelo quadro e pelas OS sem situação.
-  // Indexar uma vez evita filtrar/ordenar todas as relações para cada cartão.
+  // Indexa os vínculos uma vez para montar apenas as colunas configuradas.
   const situationsByType = useMemo(() => {
     const byId = new Map(situations.map(situation => [situation.id, situation]));
     const map = new Map<string, any[]>();
@@ -57,10 +48,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
   const linkedColumns = (situationsByType.get(selectedServiceTypeId) || [])
     .map(situation => ({ id: situation.id, name: situation.name, color: situation.color || "var(--primary)" }));
   const linkedIds = new Set(linkedColumns.map(column => column.id));
-  const columns = [
-    { id: "", name: "Sem situação", color: "#94a3b8" },
-    ...linkedColumns,
-  ];
+  const columns = linkedColumns;
   const displayedOrders = selectedServiceTypeId
     ? filteredOrders.filter(order => order.service_type_id === selectedServiceTypeId && linkedIds.has(order.situation_id))
     : [];
@@ -86,8 +74,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
     };
   }, [linkedColumns.length]);
 
-  // Ao trocar o atendimento, reinicia apenas as outras colunas.
-  // "Sem situação" mantém posição, cartões e sua própria consulta.
+  // Ao trocar o tipo de atendimento, posiciona o quadro no início.
   useEffect(() => {
     if (boardScrollRef.current) boardScrollRef.current.scrollLeft = 0;
     if (topScrollRef.current) topScrollRef.current.scrollLeft = 0;
@@ -142,13 +129,11 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
     </div>
     {selectedServiceTypeId && topPagination}
     <div id="orders-kanban-board">
-    <div className="mb-2 text-xs text-muted-foreground">
+    {(!selectedServiceTypeId || linkedColumns.length === 0) && <p className="mb-2 text-xs text-muted-foreground">
       {!selectedServiceTypeId
-        ? "Selecione um tipo de atendimento para visualizar as outras situações. As OS sem situação permanecem à esquerda."
-        : linkedColumns.length === 0
-          ? "Nenhuma situação vinculada a esse atendimento. A coluna Sem situação continua disponível."
-          : "A coluna Sem situação reúne toda a organização e não segue os filtros ou páginas das outras colunas."}
-    </div>
+        ? "Selecione um tipo de atendimento para visualizar as situações."
+        : "Nenhuma situação vinculada a esse atendimento."}
+    </p>}
     <>
       <div ref={topScrollRef} onScroll={syncBoardScroll} aria-label="Rolagem horizontal superior do Kanban"
         className={cn("mb-2 h-4 w-full overflow-x-auto overflow-y-hidden [scrollbar-gutter:stable]", !horizontalOverflow && "hidden")}>
@@ -156,9 +141,8 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
       </div>
       <div ref={boardScrollRef} onScroll={syncTopScroll} className="w-full overflow-x-auto pb-3" aria-label="Colunas do Kanban">
         <div className="flex min-w-max items-start gap-3 md:gap-4">{columns.map(column => {
-        const isUnassigned = !column.id;
-        const columnOrders = isUnassigned ? unassignedOrders : displayedOrders.filter(order => order.situation_id === column.id);
-        const isDragTarget = canChangeSituation && Boolean(column.id) && dragOverSituationId === column.id;
+        const columnOrders = displayedOrders.filter(order => order.situation_id === column.id);
+        const isDragTarget = canChangeSituation && dragOverSituationId === column.id;
         return <div
           key={column.id}
           onDragOver={event => {
@@ -175,7 +159,6 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
           }}
           className={cn(
             "w-[min(85vw,320px)] shrink-0 overflow-hidden rounded-xl border bg-muted transition-all md:w-[320px]",
-            isUnassigned && "sticky left-0 z-10 border-slate-300 bg-muted",
             isDragTarget ? "border-primary bg-primary-soft ring-2 ring-primary/10" : "border-border",
           )}
         >
@@ -184,23 +167,13 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
               <span className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: column.color }} />
               <span className="truncate text-sm font-bold text-[#0d1b2e]">{column.name}</span>
             </div>
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-[#5a6a82] md:bg-transparent md:px-0 md:py-0 md:text-xs">{isUnassigned ? unassignedTotal : columnOrders.length}</span>
+            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-bold text-[#5a6a82] md:bg-transparent md:px-0 md:py-0 md:text-xs">{columnOrders.length}</span>
           </div>
 
           <div className="min-h-0 space-y-2 p-2.5 md:min-h-[180px] md:space-y-3 md:p-3">
-            {isUnassigned && unassignedLoading && <p role="status" className="py-3 text-center text-xs text-muted-foreground">Carregando OS sem situação</p>}
-            {isUnassigned && unassignedError && <button type="button" onClick={onRefreshUnassigned}
-              className="w-full rounded-lg border border-red-300 px-3 py-2 text-xs font-semibold text-red-600">
-              Erro ao carregar. Tentar novamente
-            </button>}
-            {columnOrders.length === 0 && (!isUnassigned || (!unassignedLoading && !unassignedError)) ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
-              // Esta coluna é independente do tipo ativo. A atribuição pode ser
-              // feita pelo seletor vinculado ao TIPO DA PRÓPRIA OS, não por arrasto
-              // para situações possivelmente incompatíveis com seu atendimento.
-              const draggable = Boolean(column.id) && canDrag(order);
-              const orderSituations = isUnassigned
-                ? situationsByType.get(order.service_type_id) || []
-                : linkedColumns;
+            {columnOrders.length === 0 ? <p className={cn("rounded-lg py-5 text-center text-[11px] text-[#5a6a82] transition-colors md:py-10 md:text-xs", isDragTarget && "bg-white/70 text-primary")}>{draggingId && canChangeSituation && column.id ? "Solte a OS aqui." : "Nenhuma OS."}</p> : columnOrders.map(order => {
+              const draggable = canDrag(order);
+              const orderSituations = linkedColumns;
               const orderStatus = order.order_status as any;
               return <div
                 key={order.id}
@@ -232,7 +205,7 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
                     ? <div className="min-w-0 flex-1"><AdminSelect value={order.situation_id || ""} onValueChange={value => { if (value) onSituationChange(order, value); }}
                         options={[...(!order.situation_id ? [{ value: "", label: "Selecionar situação" }] : []), ...orderSituations.map(situation => ({ value: situation.id, label: situation.name }))]}
                         className="min-h-9 px-1.5 py-1 text-[11px] md:min-h-8" ariaLabel={`Situação da OS ${order.os_number || ""}`} /></div>
-                    : <span className="truncate">{isUnassigned && !orderSituations.length ? "Sem situações vinculadas" : (order.situation as any)?.name || "Sem situação"}</span>}
+                    : <span className="truncate">{(order.situation as any)?.name || "Sem situação"}</span>}
                 </div>
 
                 {order.is_solved && !order.completed_at && !isCancelled(order) && <span className={`mt-2 inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${STATUS_TONE_CLASSES.success.badge}`}>✓ OS solucionada</span>}
@@ -244,10 +217,6 @@ export function OrdersKanban({ filteredOrders, unassignedOrders, unassignedTotal
                 </div>}
               </div>;
             })}
-            {isUnassigned && unassignedHasMore && <button type="button" onClick={onLoadUnassignedMore}
-              disabled={unassignedLoadingMore} className="w-full rounded-lg border border-border bg-card px-3 py-2.5 text-xs font-bold text-primary disabled:opacity-50">
-              {unassignedLoadingMore ? "Carregando" : `Mostrar mais (${unassignedOrders.length} de ${unassignedTotal})`}
-            </button>}
           </div>
         </div>;
         })}</div>
