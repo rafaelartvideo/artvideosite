@@ -26,6 +26,7 @@ export const ADMIN_TAB_PATHS: Record<AdminTab, string> = {
   nfse: "/admin/nfse",
   documents: "/admin/operation/documents",
   partnerCompanies: "/admin/partner-companies",
+  serviceProviders: "/admin/service-providers",
   audit: "/admin/audit",
   site: "/admin/site",
   services: "/admin/site/services",
