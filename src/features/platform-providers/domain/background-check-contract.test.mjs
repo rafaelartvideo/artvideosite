@@ -3,49 +3,54 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {transformWithEsbuild} from "vite";
 
-const read = (file) => readFileSync(file,"utf8");
+const read=(path)=>readFileSync(path,"utf8");
 
-test("prestadores têm consulta automática apenas no módulo da Union",async()=>{
-  const ui=read("src/features/platform-providers/presentation/ProviderBackgroundChecks.tsx");
+test("consulta de antecedentes é manual no catálogo de prestadores, sem execução automática",async()=>{
   const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
-  const repo=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
-  const built=await transformWithEsbuild(ui,"ProviderBackgroundChecks.tsx",{loader:"tsx"});
-  assert.ok(built.code.length>1000);
-  assert.match(page,/hasPermission\("platform.providers.check"\)/);
-  assert.match(page,/<ProviderBackgroundChecks/);
-  assert.match(ui,/informedDeclaration:true/);
-  assert.match(ui,/CPF/);
-  assert.match(ui,/Consultar ambas/);
-  assert.match(ui,/Revisão humana necessária/);
-  assert.match(repo,/platform_provider_background_checks/);
-  assert.match(repo,/functions\.invoke\("platform-provider-background-check"/);
+  const links=read("src/features/platform-providers/presentation/ProviderCertificateLinks.tsx");
+  const editor=read("src/features/platform-providers/presentation/PlatformProviderEditor.tsx");
+  assert.match(page,/<ProviderCertificateLinks state=\{filters\.state\}/);
+  assert.doesNotMatch(page,/ProviderBackgroundChecks/);
+  assert.doesNotMatch(links,/supabase\.functions\.invoke|requestProviderBackgroundCheck/);
+  assert.match(links,/gov\.br\/pf\/pt-br\/assuntos\/antecedentes-criminais/);
+  assert.match(links,/certidoes\.trf5\.jus\.br/);
+  assert.match(links,/tjse\.jus\.br/);
+  assert.match(links,/declaracoes-e-formularios\/certidoes-criminais/);
+  assert.match(editor,/certidões criminais emitidas nos portais oficiais/);
+  for(const [name,source] of [["ProviderCertificateLinks.tsx",links],["PlatformProviderEditor.tsx",editor]]){
+    assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code.length>300);
+  }
 });
 
-test("dados criminais e consultas são restritos e exigem autorização para cobrança",()=>{
-  const sql=read("supabase/migrations/20261103154215_union_provider_criminal_certificate_checks.sql");
-  const edge=read("supabase/functions/platform-provider-background-check/index.ts");
-  const config=read("supabase/config.toml");
-  assert.match(sql,/platform\.providers\.check/);
-  assert.match(sql,/enable row level security/);
-  assert.match(sql,/grant select on public\.platform_provider_background_checks to authenticated/);
-  assert.doesNotMatch(sql,/grant (insert|update|delete) on public\.platform_provider_background_checks to authenticated/i);
-  assert.match(edge,/auth\.getUser\(bearer\)/);
-  assert.match(edge,/my_organization_permissions/);
-  assert.match(edge,/DIRECTDATA_API_TOKEN/);
-  assert.match(edge,/informedDeclaration !== true/);
-  assert.match(edge,/platform_service_providers/);
-  assert.match(edge,/URL\(endpoint\)/);
-  assert.match(edge,/Authorization:"Bearer "\+DIRECTDATA_TOKEN/);
-  assert.match(edge,/result: "inconclusive"/);
-  assert.doesNotMatch(edge,/console\.log\(/);
-  assert.match(config,/\[functions\.platform-provider-background-check\][\s\S]*?verify_jwt = true/);
+test("novo prestador reaproveita CPF, CNPJ e CEP e usa seções do CRM",()=>{
+  const editor=read("src/features/platform-providers/presentation/PlatformProviderEditor.tsx");
+  const lookup=read("supabase/functions/lookup-cpf/index.ts");
+  const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  const migration=read("supabase/migrations/20261103155402_union_provider_crm_form_fields.sql");
+  for(const label of ["Dados Pessoais","Endereço","Serviços Prestados","Anexos","Observações"]){
+    assert.ok(editor.includes(label),label);
+  }
+  assert.match(editor,/from "@\/shared\/ui\/admin\/AdminLayout"/);
+  assert.match(editor,/<AdminPage open/);
+  assert.match(editor,/<AdminStickyToolbar/);
+  assert.match(editor,/FCpfInput/);
+  assert.match(editor,/FCnpjInput/);
+  assert.match(editor,/lookupCpf\(draft\.document,organizationId,null,\{checkExisting:false\}\)/);
+  assert.match(lookup,/platform\.providers\.manage/);
+  assert.match(editor,/<AddressFields/);
+  assert.match(editor,/validateCustomerAddress/);
+  assert.match(repository,/list_platform_service_providers_v2/);
+  assert.match(migration,/person_type/);
+  assert.match(migration,/complement/);
+  assert.match(migration,/birth_date/);
+  assert.match(migration,/security invoker/);
 });
 
-test("certidão negativa não é inferida automaticamente de respostas ambíguas",()=>{
-  const edge=read("supabase/functions/platform-provider-background-check/index.ts");
-  assert.match(edge,/let result: Result = "inconclusive"/);
-  assert.match(edge,/hasRecord === true/);
-  assert.match(edge,/source === "justica_estadual"/);
-  assert.match(edge,/TJ_UFS/);
-  assert.match(edge,/recent/);
+test("contador total fica no subtítulo e não no filtro",()=>{
+  const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  assert.match(page,/subtitle=\{\x60\$\{totalCountQuery\.data \?\? 0\} cadastrados\x60\}/);
+  assert.match(page,/countPlatformProviders/);
+  assert.doesNotMatch(page,/prestador\{total === 1/);
+  assert.match(repository,/count:"exact"/);
 });
