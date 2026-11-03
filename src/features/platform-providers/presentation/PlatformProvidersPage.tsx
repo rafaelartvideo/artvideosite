@@ -49,6 +49,8 @@ function ServiceChoices({ services, selected, onToggle }: {
   const equipmentNames = Array.from(new Set(choices
     .map(service => service.equipment_name).filter((name): name is string => Boolean(name))))
     .sort(normalSort);
+  const standaloneExpanded = expanded.__standalone__ ??
+    (Boolean(query) || standalone.some(service => selected.includes(service.id)));
   const choice = (service: PlatformService) => <label key={service.id}
     className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${selected.includes(service.id) ? "border-primary/40 bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground"}`}>
     <input type="checkbox" checked={selected.includes(service.id)}
@@ -82,14 +84,14 @@ function ServiceChoices({ services, selected, onToggle }: {
       </div>;
     })}
     {standalone.length > 0 && <div className="overflow-hidden rounded-lg border border-border">
-      <button type="button" aria-expanded={expanded.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id)))}
-        onClick={() => setExpanded(current => ({...current, __standalone__: !(current.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id))))}))}
+      <button type="button" aria-expanded={standaloneExpanded}
+        onClick={() => setExpanded(current => ({...current, __standalone__: !standaloneExpanded}))}
         className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
         <span>Serviços avulsos / Profissões</span>
         <ChevronDown size={16} className={"shrink-0 transition-transform " +
-          ((expanded.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id)))) ? "" : "-rotate-90")}/>
+          (standaloneExpanded ? "" : "-rotate-90")}/>
       </button>
-      {(expanded.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id)))) &&
+      {standaloneExpanded &&
         <div className="grid gap-2 border-t border-border p-2 sm:grid-cols-2 xl:grid-cols-3">{standalone.map(choice)}</div>}
     </div>}
     {choices.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">
