@@ -82,6 +82,7 @@ Deno.serve(async (request) => {
       "organizations.create",
       "organizations.edit",
       "organizations.members.manage",
+      "platform.providers.manage",
     ].some(key => permissionKeys.has(key));
     if (!canLookup) {
       return json({ success: false, error: "Você não possui permissão para consultar CPF nesta empresa." }, 403);
