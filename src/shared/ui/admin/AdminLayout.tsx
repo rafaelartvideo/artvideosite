@@ -605,7 +605,8 @@ export function BtnSecondary({ children, onClick, disabled, loading = false, loa
   loadingText?: React.ReactNode;
   className?: string;
 }) {
-  return <AdminButton variant="secondary" onClick={onClick} disabled={disabled} loading={loading} loadingText={loadingText} className={className}>{children}</AdminButton>;
+  const lookupAction = typeof children === "string" && /^consultar(?:\s|$)/i.test(children.trim());
+  return <AdminButton variant={lookupAction ? "tertiary" : "secondary"} onClick={onClick} disabled={disabled} loading={loading} loadingText={loadingText} className={className}>{children}</AdminButton>;
 }
 
 export function InternalBackButton({ onBack, inHeader = false }: { onBack: () => void; inHeader?: boolean }) {
