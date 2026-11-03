@@ -14,7 +14,6 @@ import {
   type ProviderFilters,
 } from "../infrastructure/platform-providers.repository";
 import { PlatformProviderEditor } from "./PlatformProviderEditor";
-import { ProviderCertificateLinks } from "./ProviderCertificateLinks";
 
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
 const labelClass = "mb-1.5 block text-xs font-semibold text-foreground";
@@ -236,8 +235,6 @@ export function PlatformProvidersPage() {
               onClick={() => { setSearchText(""); setFilters(emptyFilters()); }}>Limpar filtros</button>
           </div>}
       </section>
-
-      <ProviderCertificateLinks state={filters.state} />
 
       {providersQuery.isPending ? <LoadingState text="Carregando prestadores" /> :
         providersQuery.isError ? <p className="rounded-lg border border-destructive/20 p-4 text-sm text-destructive">
