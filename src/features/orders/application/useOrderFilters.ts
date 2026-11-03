@@ -43,6 +43,10 @@ export function useOrderFilters({
   const [filterSituation, setFilterSituation] = useState("");
   const [filterOrderType, setFilterOrderType] = useState<OrderType | "">("");
   const [selectedServiceTypeId, setSelectedServiceTypeId] = useState("");
+  const [selectedResponsibleIds, setSelectedResponsibleIds] = useState<string[]>([]);
+  const [selectedStatusIds, setSelectedStatusIds] = useState<string[]>([]);
+  const [selectedSituationIds, setSelectedSituationIds] = useState<string[]>([]);
+  const [selectedServiceTypeIds, setSelectedServiceTypeIds] = useState<string[]>([]);
   const [orderSort, setOrderSort] = useState<"" | "asc" | "desc">("");
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<CityFilterOption[]>([]);
@@ -98,11 +102,11 @@ export function useOrderFilters({
     customerNameSearch: debouncedCustomerNameSearch,
     documentSearch: debouncedDocumentSearch,
     serialNumberSearch: debouncedSerialNumberSearch,
-    responsibleId: debouncedResponsibleId,
-    statusId: filterStatus,
-    situationId: filterSituation,
+    responsibleIds: [...selectedResponsibleIds].sort(),
+    statusIds: [...selectedStatusIds].sort(),
+    situationIds: [...selectedSituationIds].sort(),
     orderType: filterOrderType,
-    serviceTypeId: selectedServiceTypeId,
+    serviceTypeIds: kanbanMode ? (selectedServiceTypeId ? [selectedServiceTypeId] : []) : [...selectedServiceTypeIds].sort(),
     states: [...selectedStates].sort(),
     stateNames: [...stateNames].sort(),
     cities: selectedCities.map(city => `${city.state}:${city.name}`).sort(),
@@ -110,7 +114,7 @@ export function useOrderFilters({
     dateTo,
     sort: orderSort,
     matchOrderNumberOrExternal,
-  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, debouncedResponsibleId, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
+  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, selectedResponsibleIds, selectedStatusIds, selectedSituationIds, filterOrderType, selectedServiceTypeId, selectedServiceTypeIds, kanbanMode, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
   const listKey = queryKeys.orders.list(queryFilters);
   const hasActiveServerFilters = Boolean(
     debouncedOsNumberSearch
@@ -118,11 +122,12 @@ export function useOrderFilters({
     || debouncedCustomerNameSearch
     || debouncedDocumentSearch
     || debouncedSerialNumberSearch
-    || debouncedResponsibleId
-    || filterStatus
-    || filterSituation
+    || selectedResponsibleIds.length
+    || selectedStatusIds.length
+    || selectedSituationIds.length
     || filterOrderType
-    || selectedServiceTypeId
+    || selectedServiceTypeIds.length
+    || (kanbanMode && selectedServiceTypeId)
     || selectedStates.length
     || selectedCities.length
     || dateFrom
@@ -153,11 +158,11 @@ export function useOrderFilters({
           customerNameSearch: debouncedCustomerNameSearch,
           documentSearch: debouncedDocumentSearch,
           serialNumberSearch: debouncedSerialNumberSearch,
-          responsibleId: debouncedResponsibleId,
-          statusId: filterStatus,
-          situationId: filterSituation,
+          responsibleIds: selectedResponsibleIds,
+          statusIds: selectedStatusIds,
+          situationIds: selectedSituationIds,
           orderType: filterOrderType,
-          serviceTypeId: selectedServiceTypeId,
+          serviceTypeIds: kanbanMode ? (selectedServiceTypeId ? [selectedServiceTypeId] : []) : selectedServiceTypeIds,
           states: selectedStates,
           stateNames,
           cities: selectedCities,
@@ -197,6 +202,10 @@ export function useOrderFilters({
     setFilterSituation("");
     setFilterOrderType("");
     setSelectedServiceTypeId("");
+    setSelectedResponsibleIds([]);
+    setSelectedStatusIds([]);
+    setSelectedSituationIds([]);
+    setSelectedServiceTypeIds([]);
     setOrderSort("");
     setSelectedStates([]);
     setSelectedCities([]);
@@ -207,7 +216,7 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
-  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, responsibleId, filterStatus, filterSituation, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
+  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, responsibleId, filterStatus, filterSituation, selectedResponsibleIds, selectedStatusIds, selectedSituationIds, selectedServiceTypeIds, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -247,6 +256,14 @@ export function useOrderFilters({
     setFilterOrderType,
     selectedServiceTypeId,
     setSelectedServiceTypeId,
+    selectedResponsibleIds,
+    setSelectedResponsibleIds,
+    selectedStatusIds,
+    setSelectedStatusIds,
+    selectedSituationIds,
+    setSelectedSituationIds,
+    selectedServiceTypeIds,
+    setSelectedServiceTypeIds,
     orderSort,
     setOrderSort,
     selectedStates,
