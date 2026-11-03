@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 const ORDER_LIST_SELECT = "*, order_status:order_statuses(id,name,color), situation:os_situations(id,name,color,hours), customer:customers(id,customer_type,full_name,phone,whatsapp,document,email,trade_name,legal_name,cnpj,state_registration,birth_date,addresses:customer_addresses(*)), service:services(id,title), assigned_profile:profiles!assigned_to(id,full_name), seller:employees!seller_id(id,full_name), technician:employees!technician_id(id,full_name), technician_links:service_order_technicians(employee_id,employee:employees(id,full_name,function_name,is_active)), seller_links:service_order_sellers(employee_id,employee:employees(id,full_name,function_name,is_active)), service_type:service_types(id,title,forecast_days,quote_workflow_enabled), general_service:general_services(id,name,price,price_at_completion,max_discount_percentage,max_discount_amount), equipment_type:equipment_types(id,name), equipment_brand:equipment_brands(id,name), equipment_model:equipment_models(id,name)";
 
 export type FilterCity = { name: string; state: string };
+export type FilterNeighborhood = { name: string; city: string; state: string };
 
 export type ExactOrderPageInput = {
   organizationId: string;
@@ -25,6 +26,7 @@ export type ExactOrderPageInput = {
   states?: string[];
   stateNames?: string[];
   cities?: FilterCity[];
+  neighborhoods?: FilterNeighborhood[];
   dateFrom?: string;
   dateTo?: string;
   sort?: "" | "asc" | "desc";
@@ -59,13 +61,14 @@ async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPag
     states = [],
     stateNames = [],
     cities = [],
+    neighborhoods = [],
     dateFrom = "",
     dateTo = "",
     sort = "",
     matchOrderNumberOrExternal = false,
   } = input;
 
-  const { data, error } = await supabase.rpc("search_service_order_page_ids_v4", {
+  const { data, error } = await supabase.rpc("search_service_order_page_ids_v5", {
     p_organization_id: organizationId,
     p_page: Math.max(1, page),
     p_page_size: Math.max(1, pageSize),
@@ -82,6 +85,7 @@ async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPag
     p_states: states,
     p_state_names: stateNames,
     p_cities: cities,
+    p_neighborhoods: neighborhoods,
     p_date_from: dateFrom || null,
     p_date_to: dateTo || null,
     p_sort: sort,
@@ -121,13 +125,14 @@ export async function listExactServiceOrdersPage(
     states = [],
     stateNames = [],
     cities = [],
+    neighborhoods = [],
     dateFrom = "",
     dateTo = "",
     sort = "",
     matchOrderNumberOrExternal = false,
   } = input;
 
-  const { data, error } = await supabase.rpc("search_service_order_page_v2", {
+  const { data, error } = await supabase.rpc("search_service_order_page_v3", {
     p_organization_id: organizationId,
     p_page: Math.max(1, page),
     p_page_size: Math.max(1, pageSize),
@@ -144,6 +149,7 @@ export async function listExactServiceOrdersPage(
     p_states: states,
     p_state_names: stateNames,
     p_cities: cities,
+    p_neighborhoods: neighborhoods,
     p_date_from: dateFrom || null,
     p_date_to: dateTo || null,
     p_sort: sort,
@@ -156,4 +162,13 @@ export async function listExactServiceOrdersPage(
     items: Array.isArray(row?.items) ? row.items : [],
     total: Number(row?.total_count ?? 0),
   };
+}
+
+/** Distintos bairros com OS acessíveis à empresa/perfil. Só devolve opções, nunca ordens inteiras. */
+export async function listOrderNeighborhoodOptions(organizationId: string): Promise<FilterNeighborhood[]> {
+  const { data, error } = await supabase.rpc("list_order_neighborhood_options_v1", {
+    p_organization_id: organizationId,
+  }).abortSignal(AbortSignal.timeout(20_000));
+  if (error) throw error;
+  return (data ?? []) as FilterNeighborhood[];
 }
