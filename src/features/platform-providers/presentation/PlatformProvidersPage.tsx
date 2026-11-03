@@ -60,6 +60,7 @@ export function PlatformProvidersPage() {
   const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
+  const [persistedProviderId, setPersistedProviderId] = useState<string | null>(null);
   const [serviceName, setServiceName] = useState("");
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -120,13 +121,13 @@ export function PlatformProvidersPage() {
   };
   const openNew = () => {
     setEditing(null); setDraft(emptyProviderDraft()); setSelectedServiceIds([]);
-    setPendingFiles([]); setServiceName(""); setEditorOpen(true);
+    setPendingFiles([]); setServiceName(""); setPersistedProviderId(null); setEditorOpen(true);
   };
   const openEdit = (provider: PlatformProvider) => {
     if (!canManage) return;
     setEditing(provider); setDraft(draftFromProvider(provider));
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
-    setServiceName(""); setEditorOpen(true);
+    setServiceName(""); setPersistedProviderId(provider.id); setEditorOpen(true);
   };
   const addService = async (selectNew: boolean) => {
     if (!canManage || !activeOrganizationId || catalogSaving) return;
@@ -153,15 +154,24 @@ export function PlatformProvidersPage() {
     if (!canManage || !activeOrganizationId || saving) return;
     setSaving(true);
     try {
-      const savedId = await savePlatformProvider(editing?.id || null, draft, selectedServiceIds);
-      let failures = 0;
+      const savedId = await savePlatformProvider(persistedProviderId || editing?.id || null, draft, selectedServiceIds);
+      setPersistedProviderId(savedId);
+      const failedFiles: File[] = [];
       for (const file of pendingFiles) {
         try { await addProviderAttachment(activeOrganizationId, savedId, file); }
-        catch (error) { failures++; notifyAdmin(systemErrorMessage(error, `Não foi possível anexar ${file.name}.`), "error"); }
+        catch (error) {
+          failedFiles.push(file);
+          notifyAdmin(systemErrorMessage(error, `Não foi possível anexar ${file.name}.`), "error");
+        }
       }
-      setEditorOpen(false); setEditing(null); setPendingFiles([]);
+      setPendingFiles(failedFiles);
       await refresh();
-      notifyAdmin(failures ? "Prestador salvo, mas alguns anexos não foram enviados." : "Prestador salvo com sucesso.", failures ? "warning" : "success");
+      if (failedFiles.length) {
+        notifyAdmin(`Prestador salvo. ${failedFiles.length} anexo(s) ainda não enviado(s). Os arquivos foram mantidos; tente salvar novamente.`, "warning");
+        return;
+      }
+      setEditorOpen(false); setEditing(null); setPersistedProviderId(null);
+      notifyAdmin("Prestador e anexos salvos com sucesso.", "success");
     } catch (error) { notifyAdmin(systemErrorMessage(error, "Não foi possível salvar o prestador."), "error"); }
     finally { setSaving(false); }
   };
@@ -247,7 +257,7 @@ export function PlatformProvidersPage() {
                 <span className="min-w-0 break-words">{service}</span>
               </span>)}
             </div>
-            <div className="mt-auto mt-4 flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground" style={{marginTop:"1rem"}}>
               <span className="flex items-center gap-1"><Paperclip size={14}/>
                 {provider.attachment_count} anexo{provider.attachment_count===1?"":"s"}
               </span>
