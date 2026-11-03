@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
-import { FileText, MapPin, Paperclip, X, Plus } from "lucide-react";
+import { FileText, MapPin, Paperclip, X } from "lucide-react";
 import { AdminPage, AdminStickyToolbar, BtnPrimary, BtnSecondary, Section } from "@/shared/ui/admin/AdminLayout";
 import { FInput, FPhoneInput, FEmailInput, FCpfInput, FCnpjInput, FGenderRadio, FTextarea, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AddressFields } from "@/shared/ui/address/AddressFields";
@@ -17,13 +17,8 @@ type EditorProps = {
   draft: PlatformProviderDraft;
   setDraft: Dispatch<SetStateAction<PlatformProviderDraft>>;
   servicesContent: ReactNode;
+  batchContent: ReactNode;
   serviceCount: number;
-  serviceName: string;
-  setServiceName: (value: string) => void;
-  serviceEquipmentName: string;
-  setServiceEquipmentName: (value: string) => void;
-  catalogSaving: boolean;
-  onCreateService: () => void;
   pendingFiles: File[];
   setPendingFiles: Dispatch<SetStateAction<File[]>>;
   attachments: PlatformProviderAttachment[];
@@ -35,8 +30,7 @@ type EditorProps = {
 };
 
 export function PlatformProviderEditor({
-  editing, organizationId, draft, setDraft, servicesContent, serviceCount,
-  serviceName, setServiceName, serviceEquipmentName, setServiceEquipmentName, catalogSaving, onCreateService,
+  editing, organizationId, draft, setDraft, servicesContent, batchContent, serviceCount,
   pendingFiles, setPendingFiles, attachments, attachmentsLoading,
   saving, onDeleteAttachment, onClose, onSave,
 }: EditorProps) {
@@ -204,15 +198,9 @@ export function PlatformProviderEditor({
         description="Abra o equipamento para marcar as subcategorias desejadas ou selecione uma profissão avulsa.">
         <p className="mb-3 text-xs font-semibold text-primary">{serviceCount} selecionado{serviceCount===1?"":"s"}</p>
         {servicesContent}
-        <div className="mt-4 grid gap-2 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
-          <input className={INPUT} maxLength={120} value={serviceEquipmentName}
-            aria-label="Equipamento opcional" onChange={event=>setServiceEquipmentName(event.target.value)}
-            placeholder="Equipamento/categoria (opcional)"/>
-          <input className={INPUT} maxLength={120} value={serviceName}
-            aria-label="Nome do serviço" onChange={event=>setServiceName(event.target.value)}
-            placeholder="Serviço ou subcategoria"/>
-          <BtnSecondary disabled={catalogSaving||!serviceName.trim()} loading={catalogSaving}
-            onClick={onCreateService}><Plus size={15}/> Criar e marcar</BtnSecondary>
+        <div className="mt-4">
+          <h3 className="mb-2 text-xs font-bold text-foreground">Cadastrar novos serviços em lote</h3>
+          {batchContent}
         </div>
       </Section>
 
