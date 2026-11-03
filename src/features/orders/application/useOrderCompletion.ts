@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
+import { attachOrderSituationDocument, listAttachmentTypes } from "../infrastructure/order-documents.repository";
 import { issueWarrantyCertificate, listWarrantyOptions, printWarrantyCertificate, type WarrantyOption, type WarrantyCertificate } from "./order-warranty";
 import {
   completeServiceOrderWithFinance,
@@ -131,6 +133,13 @@ export function useOrderCompletion({
   setSaving: Dispatch<SetStateAction<boolean>>;
 }) {
   const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const paymentProofRequestRef = useRef(0);
+  const [paymentProofFile, setPaymentProofFile] = useState<File | null>(null);
+  const [paymentProofAttachmentTypeId, setPaymentProofAttachmentTypeId] = useState("");
+  const [paymentProofTypeLoading, setPaymentProofTypeLoading] = useState(false);
+  const [paymentProofTypeError, setPaymentProofTypeError] = useState("");
+  const [paymentProofAttached, setPaymentProofAttached] = useState(false);
   const [discount, setDiscount] = useState("0");
   const [discountMode, setDiscountModeState] = useState<OrderCompletionDiscountMode>("percentage");
   const [servicePriceInput, setServicePriceInput] = useState("");
@@ -270,6 +279,64 @@ export function useOrderCompletion({
     }
   };
 
+  // Consulta o catálogo somente quando o operador escolhe um comprovante.
+  // Reutiliza o cache da aba Documentos, evitando requests em toda abertura do modal.
+  const loadPaymentProofType = async (organizationId: string, requestId: number) => {
+    setPaymentProofTypeLoading(true);
+    setPaymentProofTypeError("");
+    try {
+      const types = await queryClient.fetchQuery({
+        queryKey: ["documents", organizationId, "attachment-types", "active"],
+        queryFn: async () => {
+          const { data, error } = await listAttachmentTypes(true, organizationId);
+          if (error) throw error;
+          return data || [];
+        },
+        staleTime: 10 * 60_000,
+      });
+      if (paymentProofRequestRef.current !== requestId) return;
+      const type = types.find(candidate => candidate.name.trim().toLocaleLowerCase("pt-BR") === "comprovante de pagamento");
+      if (!type) {
+        setPaymentProofTypeError("Tipo Comprovante de pagamento não disponível para esta empresa.");
+        return;
+      }
+      setPaymentProofAttachmentTypeId(type.id);
+    } catch (error) {
+      if (paymentProofRequestRef.current === requestId) {
+        setPaymentProofTypeError(formatError(error));
+      }
+    } finally {
+      if (paymentProofRequestRef.current === requestId) setPaymentProofTypeLoading(false);
+    }
+  };
+
+  const choosePaymentProof = (file: File | null) => {
+    if (!file) {
+      setPaymentProofFile(null);
+      setPaymentProofTypeError("");
+      return;
+    }
+    const supportedImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+    const supportedPdf = file.type === "application/pdf" || (file.type === "" && /\\.pdf$/i.test(file.name));
+    if (!supportedImage && !supportedPdf) {
+      showToast({ msg: "Selecione um comprovante em JPG, PNG, WebP ou PDF.", type: "error" });
+      return;
+    }
+    if (file.size <= 0 || file.size > (supportedPdf ? 20 : 25) * 1024 * 1024) {
+      showToast({ msg: supportedPdf ? "O PDF deve ter até 20 MB." : "A foto deve ter até 25 MB antes da otimização.", type: "error" });
+      return;
+    }
+    if (!hasPermission("orders.section.images")) {
+      showToast({ msg: "Seu perfil não possui permissão para anexar documentos à OS.", type: "error" });
+      return;
+    }
+    setPaymentProofFile(file);
+    if (!paymentProofAttachmentTypeId && !paymentProofTypeLoading && detail?.organization_id) {
+      const requestId = ++paymentProofRequestRef.current;
+      void loadPaymentProofType(String(detail.organization_id), requestId);
+    }
+  };
+
   const resetPaymentState = (targetTotal: number) => {
     setInstallments(targetTotal > 0 ? splitInstallments(targetTotal, 1, todayIsoDate()) : []);
     setFinanceOptionsError("");
@@ -290,6 +357,12 @@ export function useOrderCompletion({
       return;
     }
 
+    paymentProofRequestRef.current += 1;
+    setPaymentProofFile(null);
+    setPaymentProofAttachmentTypeId("");
+    setPaymentProofTypeError("");
+    setPaymentProofTypeLoading(false);
+    setPaymentProofAttached(false);
     setCompletedSuccessfully(false);
     setIssuedCertificate(null);
     setCertificateError("");
@@ -420,8 +493,30 @@ export function useOrderCompletion({
       showToast({ msg: warrantyError || "Carregando opções de garantia.", type: "error" });
       return;
     }
+    if (paymentProofFile && (paymentProofTypeLoading || paymentProofTypeError || !paymentProofAttachmentTypeId)) {
+      showToast({ msg: paymentProofTypeError || "Preparando o tipo de anexo do comprovante.", type: "error" });
+      return;
+    }
     setSaving(true);
     try {
+      if (paymentProofFile && !paymentProofAttached) {
+        if (!hasPermission("orders.section.images")) throw new Error("Você não tem permissão para anexar documentos.");
+        await attachOrderSituationDocument({
+          organizationId: String(detail.organization_id),
+          serviceOrderId: String(detail.id),
+          attachmentTypeId: paymentProofAttachmentTypeId,
+          file: paymentProofFile,
+          optimizePhoto: true,
+        });
+        // O anexo permanece vinculado mesmo se a operação financeira precisar ser repetida.
+        // Limpar o arquivo evita enviar a mesma foto duas vezes em uma nova tentativa.
+        setPaymentProofFile(null);
+        setPaymentProofAttached(true);
+        const documentsKey = ["orders", String(detail.organization_id), String(detail.id)];
+        void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents"] });
+        void queryClient.invalidateQueries({ queryKey: [...documentsKey, "situation-documents-count"] });
+      }
+
       const priceOverride = commercialPricing ? null : priceAtCompletion ? servicePrice : null;
       const response = financeEnabled
         ? await completeServiceOrderWithFinance(detail.id, priceOverride, discountMode, discountValue, buildFinancePayload())
@@ -483,6 +578,7 @@ export function useOrderCompletion({
     partsTotal, subtotal, maxDiscount, maxDiscountPercentage, maxDiscountAmount,
     discountPercentage, discountAmount, discountExceedsMax, discountExceedsServicePrice, finalTotal,
     financeEnabled, installments, applyInstallmentCount, addInstallment, removeInstallment, updateInstallment,
+    paymentProofFile, choosePaymentProof, paymentProofTypeLoading, paymentProofTypeError, paymentProofAttached,
     installmentTotal, installmentDifference, totalPaidNow, openAmount,
     financeOptions, financeOptionsLoading, financeOptionsError, financeValidationMessage,
     commercialItems, commercialItemsLoading, commercialItemsError,
