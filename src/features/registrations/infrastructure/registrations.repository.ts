@@ -2,14 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { findCustomerWhatsappConflict, duplicateWhatsappMessage } from "@/shared/infrastructure/customer-whatsapp.repository";
 import { supabaseErrorMessage } from "@/shared/infrastructure/media.repository";
 
-export type RegistrationRole = "customer" | "employee" | "supplier" | "service_provider";
-
-export type RegistrationProviderService = {
-  id: string;
-  name: string;
-  description: string | null;
-  reference_price: number | null;
-};
+export type RegistrationRole = "customer" | "employee" | "supplier";
 
 export type SupplierInventoryItem = {
   id: string;
@@ -43,7 +36,6 @@ export type Registration = {
   updated_at: string;
   registration_source?: "crm" | "site" | "import";
   roles?: Array<{ role: RegistrationRole; is_active: boolean }> | null;
-  provider_services?: RegistrationProviderService[] | null;
   employee_details?: Array<{
     job_title: string | null;
     team_name: string | null;
@@ -92,8 +84,7 @@ const REGISTRATION_SELECT = `
   roles:entity_roles(role,is_active),
   employee_details:entity_employee_details(job_title,team_name,admission_date,profile_id,role_id,uniq_subscriber_id),
   legacy_employee:employees!entities_legacy_employee_id_fkey(id,profile_id,is_active,field_tracking_prompt_on_login),
-  addresses:entity_addresses!entity_addresses_entity_organization_fkey(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active),
-  provider_services:entity_provider_services!entity_provider_services_entity_org_fkey(id,name,description,reference_price)
+  addresses:entity_addresses!entity_addresses_entity_organization_fkey(id,type,zip_code,state,city,neighborhood,street,number,complement,reference,location_url,is_primary,is_active)
 `;
 
 function normalizeRegistration<T extends Record<string, any> | null>(row: T): T {
@@ -253,7 +244,6 @@ export type SaveRegistrationInput = {
     whatsapp?: string;
     email?: string;
     is_active: boolean;
-    provider_services?: Array<{ id?: string; name: string; description: string; reference_price: number | null }>;
   };
   roles: RegistrationRole[];
   employee?: {
