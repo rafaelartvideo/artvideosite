@@ -27,6 +27,7 @@ type CompanyForm = {
   company_state: string;
   company_logo_media_id: string;
   company_menu_logo_media_id: string;
+  require_payment_proof_on_completion: boolean;
 };
 
 const EMPTY_COMPANY: CompanyForm = {
@@ -34,6 +35,7 @@ const EMPTY_COMPANY: CompanyForm = {
   company_zip_code: "", company_street: "", company_number: "", company_complement: "",
   company_neighborhood: "", company_city: "", company_state: "", company_logo_media_id: "",
   company_menu_logo_media_id: "",
+  require_payment_proof_on_completion: false,
 };
 const COMPANY_KEYS = Object.keys(EMPTY_COMPANY) as Array<keyof CompanyForm>;
 const settingText = (value: unknown) => typeof value === "string" || typeof value === "number" ? String(value) : "";
@@ -66,6 +68,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
     setDocumentType(detectedDocumentType);
     setForm({
       ...loaded,
+      require_payment_proof_on_completion: query.data.require_payment_proof_on_completion === true,
       company_cnpj: detectedDocumentType === "CPF" ? formatCpf(loaded.company_cnpj) : formatCnpj(loaded.company_cnpj),
       company_phone: formatPhone(loaded.company_phone),
       company_zip_code: formatZipCode(loaded.company_zip_code),
@@ -120,6 +123,7 @@ export function TabSettings({ onBack, identityOnly = false }: {
             company_email: form.company_email,
             company_logo_media_id: form.company_logo_media_id,
             company_menu_logo_media_id: form.company_menu_logo_media_id,
+            require_payment_proof_on_completion: form.require_payment_proof_on_completion,
           }
         : form;
       await saveSettings.mutateAsync({
@@ -170,6 +174,24 @@ export function TabSettings({ onBack, identityOnly = false }: {
           <div className="min-w-0 w-full"><FInput label="Cidade" value={form.company_city} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_city", event.target.value)} /></div>
           <div className="min-w-0 w-full md:col-span-2"><FInput label="Estado / UF" maxLength={2} value={form.company_state} disabled={!canEditOfficialData || busy} onChange={(event: any) => update("company_state", event.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2))} /></div>
         </div></Section>
+        <Section title="Ordens de Serviço">
+          <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-4">
+            <input
+              type="checkbox"
+              checked={form.require_payment_proof_on_completion}
+              onChange={event => setForm(current => ({ ...current, require_payment_proof_on_completion: event.target.checked }))}
+              disabled={!canUpdate || busy}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-primary disabled:opacity-50"
+            />
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-foreground">Exigir comprovante de pagamento para concluir a OS</span>
+              <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                Quando ativado, a conclusão da OS só será permitida após anexar uma foto ou PDF
+                classificado como Comprovante de pagamento. O controle é independente para cada empresa.
+              </span>
+            </span>
+          </label>
+        </Section>
         </>}
         <Section title="Identidade visual"><p className="mb-3 text-xs text-muted-foreground">As logos são opcionais. Para deixar os documentos ou o menu sem logo, remova a imagem e clique em Salvar.</p><div className="grid min-w-0 grid-cols-1 gap-4 md:grid-cols-2">
           <ImageUpload photoActions bucket="public-assets" organizationId={activeOrganizationId} currentMediaId={form.company_logo_media_id} onUpload={(mediaId) => update("company_logo_media_id", mediaId)} onRemove={() => update("company_logo_media_id", "")} canUpload={canEditBranding && !busy} label="Logo utilizada nos documentos" />
