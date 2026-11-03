@@ -903,6 +903,20 @@ html[data-admin-theme="dark"] [data-slot="dropdown-menu-item"][class~="bg-[#eef5
 }
 
 
+/* Terceiro estilo para ações de edição em todos os módulos do CRM,
+   inclusive botões legados que não utilizam AdminIconButton. */
+.admin-crm button:is([aria-label^="Editar"], [title^="Editar"]):has(svg) {
+  border: 1px solid color-mix(in srgb, var(--primary) 26%, transparent);
+  border-radius: 0.5rem;
+  background-color: var(--primary-soft);
+  color: var(--primary);
+}
+.admin-crm button:is([aria-label^="Editar"], [title^="Editar"]):has(svg):hover {
+  border-color: color-mix(in srgb, var(--primary) 44%, transparent);
+  background-color: var(--primary-soft-strong);
+  color: var(--primary);
+}
+
 /* Ação azul suave compartilhada: Detalhes da OS e Meus horários da Agenda. */
 .admin-crm .admin-action-blue-outline {
 	border-color: rgba(16, 50, 220, 0.25);
