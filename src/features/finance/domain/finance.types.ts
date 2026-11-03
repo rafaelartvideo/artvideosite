@@ -277,6 +277,8 @@ export interface FinancialAttachment {
   attachment_type: FinancialAttachmentType;
   file_name: string;
   storage_path: string;
+  storage_bucket?: "financial-documents" | "service-images";
+  source_media_id?: string | null;
   mime_type: string | null;
   size_bytes: number | null;
   created_by: string | null;
