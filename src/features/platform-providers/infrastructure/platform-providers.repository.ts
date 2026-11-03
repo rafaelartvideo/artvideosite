@@ -28,8 +28,8 @@ export type PlatformProviderDraft = {
   legal_name: string; complement: string;
 };
 export type ProviderFilters = {
-  search: string; serviceId: string; state: string; city: string;
-  status: "all" | "active" | "inactive"; page: number; pageSize: number;
+  search: string; serviceIds: string[]; states: string[]; cities: string[];
+  statuses: ("active" | "inactive")[]; page: number; pageSize: number;
 };
 
 export const emptyProviderDraft = (): PlatformProviderDraft => ({
@@ -83,9 +83,9 @@ export async function editPlatformService(orgId: string, id: string, fields: {na
 }
 
 export async function listPlatformProviders(filters: ProviderFilters): Promise<{ providers: PlatformProvider[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_platform_service_providers_v3", {
-    p_search: filters.search.trim(), p_service_id: filters.serviceId || null,
-    p_state: filters.state, p_city: filters.city, p_status: filters.status,
+  const { data, error } = await supabase.rpc("list_platform_service_providers_v4", {
+    p_search: filters.search.trim(), p_service_ids: filters.serviceIds,
+    p_states: filters.states, p_cities: filters.cities, p_statuses: filters.statuses,
     p_limit: filters.pageSize, p_offset: (filters.page - 1) * filters.pageSize,
   });
   if (error) throw error;
