@@ -163,6 +163,48 @@ export async function savePlatformProvider(
   return String(data);
 }
 
+/**
+ * Exclui somente prestadores da empresa operadora que o usuario pode gerenciar.
+ * As FKs de servicos, anexos e verificacoes realizam cascade no banco.
+ * A limpeza privada dos blobs ocorre depois do delete para nunca remover arquivos
+ * se a exclusao do registro falhar.
+ */
+export async function deletePlatformProvider(orgId: string, providerId: string): Promise<{ orphanedFiles: number }> {
+  // Registra os caminhos de todos os anexos antes de excluir suas referencias.
+  // Consulta paginada para nao perder documentos se houver mais de 1000 arquivos.
+  const paths: string[] = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from("platform_provider_attachments")
+      .select("storage_path")
+      .eq("organization_id", orgId).eq("provider_id", providerId)
+      .order("id", { ascending: true })
+      .range(offset, offset + pageSize - 1);
+    if (error) throw error;
+    paths.push(...(data || []).map(item => item.storage_path));
+    if (!data || data.length < pageSize) break;
+  }
+
+  const { data, error } = await supabase.from("platform_service_providers")
+    .delete().eq("organization_id", orgId).eq("id", providerId).select("id");
+  if (error) throw error;
+  if (!data?.length) throw new Error("Prestador não encontrado ou sem permissão para excluir.");
+
+  // A exclusao do cadastro ja ocorreu. Se o Storage falhar, o chamador
+  // informa explicitamente quantos arquivos privados precisam de limpeza.
+  let orphanedFiles = 0;
+  for (let index = 0; index < paths.length; index += 100) {
+    const batch = paths.slice(index, index + 100);
+    try {
+      const { error: storageError } = await supabase.storage.from(PLATFORM_PROVIDER_BUCKET).remove(batch);
+      if (storageError) orphanedFiles += batch.length;
+    } catch {
+      orphanedFiles += batch.length;
+    }
+  }
+  return { orphanedFiles };
+}
+
 export async function listProviderAttachments(orgId: string, providerId: string): Promise<PlatformProviderAttachment[]> {
   const { data, error } = await supabase.from("platform_provider_attachments")
     .select("id,organization_id,provider_id,storage_path,file_name,mime_type,file_size,created_at")
