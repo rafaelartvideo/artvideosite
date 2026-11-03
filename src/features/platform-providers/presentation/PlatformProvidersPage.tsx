@@ -13,6 +13,7 @@ import {
   type PlatformProvider, type PlatformProviderDraft, type PlatformService,
   type ProviderFilters,
 } from "../infrastructure/platform-providers.repository";
+import { ProviderBackgroundChecks } from "./ProviderBackgroundChecks";
 
 const UF_LIST = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
   "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
@@ -401,6 +402,8 @@ export function PlatformProvidersPage() {
               onClick={() => void deleteAttachment(attachment)}><X size={15} /></button>}
           </div>)}
         </section>
+        {editing && activeOrganizationId && <ProviderBackgroundChecks key={editing.id} provider={editing}
+          organizationId={activeOrganizationId} canCheck={isUnion && hasPermission("platform.providers.check")} />}
       </div>
       <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
         <AdminButton variant="secondary" onClick={() => setEditorOpen(false)} disabled={saving}>Cancelar</AdminButton>
