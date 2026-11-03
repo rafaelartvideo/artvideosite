@@ -27,6 +27,10 @@ test("Artvideo exige comprovante e outras empresas podem alterar sem mudar regra
   assert.match(migration, /comprovante de pagamento/);
   assert.match(migration, /raise exception 'Anexe o comprovante de pagamento/);
   assert.match(migration, /orders\.complete/);
+  const ensureType = read("supabase/migrations/20261103181000_ensure_payment_receipt_type_when_required.sql");
+  assert.match(ensureType, /organization_company_settings_ensure_payment_proof_type/);
+  assert.match(ensureType, /new.require_payment_proof_on_completion/);
+  assert.match(ensureType, /on conflict do nothing/);
 });
 
 test("conclusão bloqueia apenas quando obrigatório e não existe comprovante", async () => {
