@@ -156,3 +156,48 @@ export async function removeProviderAttachment(attachment: PlatformProviderAttac
   const removed = await supabase.storage.from(PLATFORM_PROVIDER_BUCKET).remove([attachment.storage_path]);
   if (removed.error) throw removed.error;
 }
+
+export type ProviderBackgroundCheck = {
+  id: string; provider_id: string; source: "policia_federal" | "justica_estadual";
+  uf: string; result: "processing" | "negative" | "review" | "inconclusive" | "error";
+  source_status: string | null; certificate_number: string | null; validation_code: string | null;
+  issue_date: string | null; valid_until: string | null; request_date: string;
+  completed_at: string | null; error_reason: string | null;
+};
+
+export type BackgroundCheckRequest = {
+  providerId: string; source: "policia_federal" | "justica_estadual";
+  purpose: string; informedDeclaration: boolean;
+  motherName?: string; fatherName?: string; rg?: string; birthDate?: string;
+};
+
+export async function listProviderBackgroundChecks(organizationId: string, providerId: string) {
+  const {data,error} = await supabase.from("platform_provider_background_checks")
+    .select("id,provider_id,source,uf,result,source_status,certificate_number,validation_code,issue_date,valid_until,request_date,completed_at,error_reason")
+    .eq("organization_id",organizationId).eq("provider_id",providerId)
+    .order("request_date",{ascending:false}).limit(15);
+  if (error) throw error;
+  return (data||[]) as ProviderBackgroundCheck[];
+}
+
+export async function requestProviderBackgroundCheck(payload: BackgroundCheckRequest) {
+  const {data,error} = await supabase.functions.invoke("platform-provider-background-check",{
+    body:payload,
+  });
+  if (error) {
+    const failureResponse = (error as {context?: unknown}).context;
+    if (failureResponse instanceof Response) {
+      try {
+        const failure = await failureResponse.clone().json() as {error?: string};
+        if (failure?.error) throw new Error(failure.error);
+      } catch (failure) {
+        if (failure instanceof Error && failure.message !== "Unexpected end of JSON input") {
+          throw failure;
+        }
+      }
+    }
+    throw error;
+  }
+  if (data?.error) throw new Error(String(data.error));
+  return data as {success:true;checkId:string;result:string;source_status:string};
+}
