@@ -41,12 +41,12 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
         <span className={`text-[10px] font-semibold ${completion.paymentProofRequired ? "text-destructive" : "text-muted-foreground"}`}>
           {completion.paymentProofRequired ? "(obrigatório)" : "(opcional)"}
         </span>
-        {completion.canAttachPaymentProof && completion.paymentProofOrderId && !completion.paymentProofAttached && !completion.paymentProofAlreadyOnOrder && (
+        {completion.canAttachPaymentProof && completion.paymentProofOrderId && (
           <OrderChecklistMobileBridge
             orderId={completion.paymentProofOrderId}
             osNumber={completion.paymentProofOsNumber}
             scope="payment-proof"
-            disabled={saving}
+            disabled={saving || completion.paymentProofAttached || completion.paymentProofAlreadyOnOrder}
             onDocumentsUpdated={completion.refreshPaymentProofFromMobile}
           />
         )}
