@@ -83,7 +83,7 @@ test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos ante
   const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
   const editor=read("src/features/platform-providers/presentation/PlatformProviderEditor.tsx");
   const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
-  const migration=read("supabase/migrations/20261103182000_union_provider_service_equipment_hierarchy.sql");
+  const migration=read("supabase/migrations/20261103212128_union_provider_service_equipment_hierarchy.sql");
   assert.match(page,/Buscar equipamento ou serviço/);
   assert.match(page,/aria-expanded=\{isOpen\}/);
   assert.match(page,/Serviços avulsos \/ Profissões/);
