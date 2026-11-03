@@ -37,6 +37,7 @@ const TabDashboard = lazy(() => import("@/features/dashboard/presentation/TabDas
 const UnionPlatformDashboard = lazy(() => import("@/features/dashboard/presentation/UnionPlatformDashboard").then(({ UnionPlatformDashboard }) => ({ default: UnionPlatformDashboard })));
 const EquipmentAdminPanel = lazy(() => import("@/features/equipment/presentation/EquipmentAdminPanel").then(({ EquipmentAdminPanel }) => ({ default: EquipmentAdminPanel })));
 const TabPartnerCompanies = lazy(() => import("@/features/partner-companies/presentation/TabPartnerCompanies").then(({ TabPartnerCompanies }) => ({ default: TabPartnerCompanies })));
+const PlatformProvidersPage = lazy(() => import("@/features/platform-providers/presentation/PlatformProvidersPage").then(({ PlatformProvidersPage }) => ({ default: PlatformProvidersPage })));
 const TabAuditLog = lazy(() => import("@/features/audit/presentation/TabAuditLog").then(({ TabAuditLog }) => ({ default: TabAuditLog })));
 const GeneralServicesPanel = lazy(() => import("@/features/general-services/presentation/GeneralServicesPanel").then(({ GeneralServicesPanel }) => ({ default: GeneralServicesPanel })));
 const TabInventory = lazy(() => import("@/features/inventory/presentation/TabInventory").then(({ TabInventory }) => ({ default: TabInventory })));
@@ -72,7 +73,7 @@ type AdminLocationState = {
 };
 
 const ACCESS_FALLBACK_TABS: AdminTab[] = [
-  "home", "dashboard", "management", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "siteRequests", "partnerCompanies", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
+  "home", "dashboard", "management", "crm", "technicianPanel", "orders", "customers", "customerRequests", "agenda", "workItems", "fieldTracking", "inventory", "pdv", "finance", "siteRequests", "partnerCompanies", "serviceProviders", "audit", "site", "operation", "tools", "roles", "settings", "planUsage", "terms", "contact",
 ];
 
 function RetainedAdminWorkspace({
@@ -167,6 +168,7 @@ export function AdminDashboard({
       (hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
     );
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "serviceProviders") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.providers.view");
     if (tab === "announcements") return isPlatformOperatorOrganization && !crmMode && hasPermission("platform.announcements.view");
     if (tab === "management") return isPlatformOperatorOrganization && !crmMode && (hasPermission("platform.management.view") || hasPermission("platform.management.manage"));
     if (tab === "settings" && isPlatformOperatorOrganization && !crmMode) return hasPermission("settings.view") || hasPermission("settings.details.view") || hasPermission("settings.update");
@@ -203,7 +205,7 @@ export function AdminDashboard({
   const fallbackTab = ACCESS_FALLBACK_TABS.find(canAccessTab) ?? null;
   const operationModule = activeTab === "operation" || parentAdminTab(activeTab) === "operation";
   const siteModule = activeTab === "site" || parentAdminTab(activeTab) === "site";
-  const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
+  const mobileLabelModule = operationModule || siteModule || activeTab === "inventory" || activeTab === "pdv" || activeTab === "partnerCompanies" || activeTab === "serviceProviders" || activeTab === "finance" || activeTab === "audit" || (isPlatformOperatorOrganization && activeTab === "orders");
   const showCrmBackToolbar = crmMode
     && activeTab !== "crm"
     && !route.resourceId
@@ -486,6 +488,7 @@ export function AdminDashboard({
             <Route path="management/*" element={<ManagementPage spaceId={route.resourceId} folderId={route.subpage} onRouteChange={routeChange("management")} />} />
             <Route path="crm" element={crmHub} />
             <Route path="partner-companies/*" element={<TabPartnerCompanies onBack={() => navigateAdmin("home")} routeResourceId={route.resourceId} onRouteChange={routeChange("partnerCompanies")} />} />
+            <Route path="service-providers/*" element={<PlatformProvidersPage />} />
             <Route path="audit/*" element={<TabAuditLog />} />
             <Route path="site" element={siteHub} />
             <Route path="site/services/*" element={<TabServices onBack={() => backToParent("services")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("services")} />} />
