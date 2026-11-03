@@ -7,7 +7,7 @@ import type { PlatformService, ProviderFilters } from "../infrastructure/platfor
 
 type MobileKey = "name" | "services" | "states" | "cities" | "statuses";
 const mobileFields: {value:MobileKey;label:string}[] = [
-  {value:"name",label:"Nome / Localidade"},
+  {value:"name",label:"Nome"},
   {value:"services",label:"Serviço"},
   {value:"states",label:"Estado"},
   {value:"cities",label:"Cidade"},
@@ -32,7 +32,7 @@ export function ProviderFiltersPanel({
   const [mobileField,setMobileField] = useState<MobileKey>("name");
   const serviceOptions=useMemo<AdminFilterOption[]>(()=>services
     .filter(s=>s.is_active||filters.serviceIds.includes(s.id))
-    .map(s=>({value:s.id,label:s.name}))
+    .map(s=>({value:s.id,label:s.equipment_name?`${s.equipment_name} · ${s.name}`:s.name}))
     .sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})),
     [services,filters.serviceIds]);
   const stateOptions=useMemo<AdminFilterOption[]>(()=>Array.from(new Set(locations.map(l=>l.state)))
@@ -64,8 +64,8 @@ export function ProviderFiltersPanel({
   const field = (key:MobileKey) => {
     switch(key){
       case "name":
-        return <AdminSearchTextField label="Buscar prestador" value={searchText}
-          onChange={onSearchTextChange} placeholder="Nome, cidade ou bairro"/>;
+        return <AdminSearchTextField label="Nome" value={searchText}
+          onChange={onSearchTextChange} placeholder="Buscar por nome"/>;
       case "services":
         return <AdminFilterMultiSelect label="Serviço" options={serviceOptions}
           selectedValues={filters.serviceIds} onToggle={v=>toggle("serviceIds",v)}
