@@ -65,3 +65,7 @@ verify_jwt = false
 # Verificacao publica do codigo e entrada por convite; funcao confere OTP e ACL manualmente.
 [functions.artvideo-customer-access]
 verify_jwt = false
+
+# Consulta de antecedentes da Union: JWT obrigatório e autorização adicional por permissão.
+[functions.platform-provider-background-check]
+verify_jwt = true
