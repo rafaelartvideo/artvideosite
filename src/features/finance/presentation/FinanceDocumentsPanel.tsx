@@ -40,8 +40,8 @@ export function FinanceDocumentsPanel({ entryId }: { entryId: string }) {
   const queryClient = useQueryClient();
   const organizationId = activeOrganizationId || "";
   const organizationKey = activeOrganizationId || "none";
-  const canView = hasPermission("finance.documents.view");
   const canManage = hasPermission("finance.documents.manage");
+  const canView = hasPermission("finance.documents.view") || canManage;
   const [type, setType] = useState<FinancialAttachmentType>("other");
   const [file, setFile] = useState<File | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<FinancialAttachment | null>(null);
