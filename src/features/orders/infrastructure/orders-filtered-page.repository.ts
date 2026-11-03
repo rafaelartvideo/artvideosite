@@ -18,6 +18,10 @@ export type ExactOrderPageInput = {
   situationId?: string;
   orderType?: string;
   serviceTypeId?: string;
+  responsibleIds?: string[];
+  statusIds?: string[];
+  situationIds?: string[];
+  serviceTypeIds?: string[];
   states?: string[];
   stateNames?: string[];
   cities?: FilterCity[];
@@ -61,7 +65,7 @@ async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPag
     matchOrderNumberOrExternal = false,
   } = input;
 
-  const { data, error } = await supabase.rpc("search_service_order_page_ids_v3", {
+  const { data, error } = await supabase.rpc("search_service_order_page_ids_v4", {
     p_organization_id: organizationId,
     p_page: Math.max(1, page),
     p_page_size: Math.max(1, pageSize),
@@ -70,11 +74,11 @@ async function fetchOrderPageIndex(input: ExactOrderPageInput): Promise<OrderPag
     p_customer_name_search: customerNameSearch,
     p_document_search: documentSearch,
     p_serial_number_search: serialNumberSearch,
-    p_responsible_id: responsibleId || null,
-    p_status_id: statusId || null,
-    p_situation_id: situationId || null,
+    p_responsible_ids: input.responsibleIds ?? (responsibleId ? [responsibleId] : []),
+    p_status_ids: input.statusIds ?? (statusId ? [statusId] : []),
+    p_situation_ids: input.situationIds ?? (situationId ? [situationId] : []),
     p_order_type: orderType,
-    p_service_type_id: serviceTypeId || null,
+    p_service_type_ids: input.serviceTypeIds ?? (serviceTypeId ? [serviceTypeId] : []),
     p_states: states,
     p_state_names: stateNames,
     p_cities: cities,
@@ -123,7 +127,7 @@ export async function listExactServiceOrdersPage(
     matchOrderNumberOrExternal = false,
   } = input;
 
-  const { data, error } = await supabase.rpc("search_service_order_page_v1", {
+  const { data, error } = await supabase.rpc("search_service_order_page_v2", {
     p_organization_id: organizationId,
     p_page: Math.max(1, page),
     p_page_size: Math.max(1, pageSize),
@@ -132,11 +136,11 @@ export async function listExactServiceOrdersPage(
     p_customer_name_search: customerNameSearch,
     p_document_search: documentSearch,
     p_serial_number_search: serialNumberSearch,
-    p_responsible_id: responsibleId || null,
-    p_status_id: statusId || null,
-    p_situation_id: situationId || null,
+    p_responsible_ids: input.responsibleIds ?? (responsibleId ? [responsibleId] : []),
+    p_status_ids: input.statusIds ?? (statusId ? [statusId] : []),
+    p_situation_ids: input.situationIds ?? (situationId ? [situationId] : []),
     p_order_type: orderType,
-    p_service_type_id: serviceTypeId || null,
+    p_service_type_ids: input.serviceTypeIds ?? (serviceTypeId ? [serviceTypeId] : []),
     p_states: states,
     p_state_names: stateNames,
     p_cities: cities,
