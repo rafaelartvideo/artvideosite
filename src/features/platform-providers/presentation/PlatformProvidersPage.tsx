@@ -73,7 +73,7 @@ export function PlatformProvidersPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchText]);
-  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); }, [activeOrganizationId]);
+  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); }, [activeOrganizationId]);
 
   const servicesQuery = useQuery({
     queryKey: ["union-provider-services", activeOrganizationId],
@@ -257,7 +257,7 @@ export function PlatformProvidersPage() {
                 <span className="min-w-0 break-words">{service}</span>
               </span>)}
             </div>
-            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground" style={{marginTop:"1rem"}}>
+            <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Paperclip size={14}/>
                 {provider.attachment_count} anexo{provider.attachment_count===1?"":"s"}
               </span>
