@@ -234,7 +234,7 @@ export function OrdersFilters({
       case "states": return <OrderFilterMultiSelect label="Estado" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estado" loading={ibgeStatesLoading} />;
       case "cities": return <OrderFilterMultiSelect label="Cidade" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione primeiro um Estado" : "Selecionar Cidade"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />;
       case "neighborhoods": return <OrderFilterMultiSelect label="Bairro" options={neighborhoodFilterOptions.map(item => ({ value: neighborhoodValue(item), label: `${item.name} — ${item.city || "Cidade não informada"} / ${item.state || "UF não informada"}` }))} selectedValues={selectedNeighborhoodValues} onSelect={onNeighborhoodSelect} onRemove={onNeighborhoodRemove} placeholder={neighborhoodFilterOptions.length ? "Selecionar bairros" : "Nenhum bairro com OS"} loading={neighborhoodsLoading} />;
-      case "period": return <div className="grid grid-cols-2 gap-2"><div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div><div className="min-w-0"><label className="mb-1.5 block text-[10px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] min-w-0 px-2 py-2 text-xs")} /></div>{invalidPeriod && <p className="col-span-2 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>;
+      case "period": return <OrderDateRangeField dateFrom={dateFrom} dateTo={dateTo} invalidPeriod={invalidPeriod} onDateFromChange={onDateFromChange} onDateToChange={onDateToChange} mobile />;
     }
   };
 
@@ -255,31 +255,50 @@ export function OrdersFilters({
         <div className="min-w-0">{renderMobileFilter()}</div>
       </div>
 
-      <div className="hidden space-y-3 md:block">
-        <div className="grid grid-cols-2 items-start gap-2 xl:grid-cols-4">
+      <div className="hidden md:block">
+        <div className="grid grid-cols-3 items-start gap-x-2 gap-y-3">
           <SearchField label="Número da OS / Externa" value={osNumberSearch} onChange={onOsNumberSearchChange} placeholder="Digite o número da OS ou externa" />
           <SearchField label="Nome do cliente" value={customerNameSearch} onChange={onCustomerNameSearchChange} placeholder="Digite o nome do cliente" />
           <SearchField label="CPF ou CNPJ" value={documentSearch} onChange={onDocumentSearchChange} placeholder="Digite o CPF ou CNPJ" inputMode="numeric" />
           <SearchField label="Número de série / Equipamento" value={serialNumberSearch} onChange={onSerialNumberSearchChange} placeholder="Série, tipo, marca ou modelo" />
-        </div>
-        <div className="grid grid-cols-3 items-start gap-2">
+          {showServiceTypeFilter && <OrderFilterMultiSelect label="Tipo de Atendimento" options={serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))} selectedValues={serviceTypeIds} onSelect={onServiceTypeChange} onRemove={onServiceTypeChange} placeholder="Selecionar atendimentos" />}
+          <OrderDateRangeField dateFrom={dateFrom} dateTo={dateTo} invalidPeriod={invalidPeriod} onDateFromChange={onDateFromChange} onDateToChange={onDateToChange} />
           <OrderFilterMultiSelect label="Estados" options={ibgeStates.map(state => ({ value: state.sigla, label: `${state.sigla} — ${state.nome}` }))} selectedValues={selectedStates} onSelect={onStateSelect} onRemove={onStateRemove} placeholder="Selecionar Estados" loading={ibgeStatesLoading} />
           <OrderFilterMultiSelect label="Cidades" options={cityFilterOptions.map(city => ({ value: `${city.state}:${city.name}`, label: `${city.name} — ${city.state}` }))} selectedValues={selectedCities.map(city => `${city.state}:${city.name}`)} onSelect={onCitySelect} onRemove={onCityRemove} placeholder={selectedStates.length === 0 ? "Selecione ao menos um Estado" : "Selecionar Cidades"} disabled={selectedStates.length === 0} loading={cityFiltersLoading} />
           <OrderFilterMultiSelect label="Bairros" options={neighborhoodFilterOptions.map(item => ({ value: neighborhoodValue(item), label: `${item.name} — ${item.city || "Cidade não informada"} / ${item.state || "UF não informada"}` }))} selectedValues={selectedNeighborhoodValues} onSelect={onNeighborhoodSelect} onRemove={onNeighborhoodRemove} placeholder={neighborhoodFilterOptions.length ? "Selecionar Bairros" : "Nenhum bairro com OS"} loading={neighborhoodsLoading} />
-        </div>
-        <div className="grid grid-cols-3 items-start gap-2">
           <OrderFilterMultiSelect label="Status" options={statuses.map(status => ({ value: status.id, label: status.name }))} selectedValues={statusIds} onSelect={onStatusChange} onRemove={onStatusChange} placeholder="Selecionar status" />
           <OrderFilterMultiSelect label="Situação" options={situations.map(situation => ({ value: situation.id, label: situation.name }))} selectedValues={situationIds} onSelect={onSituationChange} onRemove={onSituationChange} placeholder="Selecionar situações" />
           <OrderFilterMultiSelect label="Responsável pela OS" options={responsibles.filter(profile => profile?.id && profile?.full_name?.trim()).map(profile => ({ value: profile.id, label: profile.full_name.trim() }))} selectedValues={responsibleIds} onSelect={onResponsibleChange} onRemove={onResponsibleChange} placeholder="Selecionar responsáveis" />
         </div>
-        <div className={showServiceTypeFilter ? "grid grid-cols-3 items-start gap-2" : "grid grid-cols-2 items-start gap-2"}>
-          {showServiceTypeFilter && <OrderFilterMultiSelect label="Tipo de Atendimento" options={serviceTypes.map(serviceType => ({ value: serviceType.id, label: serviceType.title }))} selectedValues={serviceTypeIds} onSelect={onServiceTypeChange} onRemove={onServiceTypeChange} placeholder="Selecionar atendimentos" />}
-          <div className="min-w-0"><label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data inicial</label><input type="date" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={cn(INPUT, "h-[42px] w-full py-2 text-xs md:h-9 md:py-1.5")} /></div>
-          <div className="min-w-0"><label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">Data final</label><input type="date" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={cn(INPUT, "h-[42px] w-full py-2 text-xs md:h-9 md:py-1.5")} />{invalidPeriod && <p className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}</div>
-        </div>
       </div>
     </div>
   </AdminCard>;
+}
+
+
+function OrderDateRangeField({
+  dateFrom, dateTo, invalidPeriod, onDateFromChange, onDateToChange, mobile = false,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  invalidPeriod: boolean;
+  onDateFromChange: (value: string) => void;
+  onDateToChange: (value: string) => void;
+  mobile?: boolean;
+}) {
+  const dateInputClass = "h-full w-1/2 min-w-0 flex-1 border-0 bg-transparent px-1.5 text-[11px] text-foreground outline-none focus:bg-primary/5 lg:px-2 xl:text-xs";
+  return <div className="min-w-0">
+    <div className="mb-1 flex min-w-0 text-[11px] font-bold uppercase tracking-wider text-[#5a6a82]">
+      <span className="min-w-0 flex-1 pr-2">Data inicial</span>
+      <span className="min-w-0 flex-1 pl-2">Data final</span>
+    </div>
+    <div className={cn("flex w-full min-w-0 items-center overflow-hidden rounded-lg border border-border bg-input-background transition-colors hover:border-primary/30 focus-within:border-primary focus-within:bg-card focus-within:ring-2 focus-within:ring-primary/20", mobile ? "h-[42px]" : "h-9")}>
+      <input type="date" aria-label="Data inicial" value={dateFrom} onChange={event => onDateFromChange(event.target.value)} className={dateInputClass} />
+      <span className="h-6 w-px shrink-0 bg-border" aria-hidden="true" />
+      <input type="date" aria-label="Data final" value={dateTo} onChange={event => onDateToChange(event.target.value)} className={dateInputClass} />
+    </div>
+    {invalidPeriod && <p role="alert" className="mt-1 text-xs text-red-600">A data final deve ser igual ou posterior à inicial.</p>}
+  </div>;
 }
 
 function SearchField({ label, value, onChange, placeholder, inputMode }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; inputMode?: "numeric" }) {
