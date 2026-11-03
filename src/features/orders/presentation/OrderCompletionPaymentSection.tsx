@@ -57,10 +57,6 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
       className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
       <CheckCircle2 size={16} /> Esta OS já possui comprovante anexado. Não é necessário enviar novamente.
     </p>}
-    {completion.paymentProofRequired && !completion.paymentProofAlreadyOnOrder && !completion.paymentProofAttached && !completion.paymentProofFile
-      && !completion.paymentProofRequirementLoading && !completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">
-      Anexe um comprovante de pagamento para liberar a conclusão.
-    </p>}
     {completion.paymentProofAttached ? <p role="status" className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
       <CheckCircle2 size={16} /> Comprovante anexado à OS.
     </p> : !completion.canAttachPaymentProof ? <p className="text-xs text-muted-foreground">
