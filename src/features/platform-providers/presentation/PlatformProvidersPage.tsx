@@ -123,6 +123,9 @@ export function PlatformProvidersPage() {
   const [deletingProvider, setDeletingProvider] = useState(false);
   const [deletingService, setDeletingService] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
+  const [serviceModal, setServiceModal] = useState<{
+    equipmentName: string; mode: "equipment" | "standalone"; selectNew: boolean;
+  } | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [editingService, setEditingService] = useState<PlatformService | null>(null);
   const [serviceEditName, setServiceEditName] = useState("");
@@ -133,7 +136,7 @@ export function PlatformProvidersPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchText]);
-  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); setDeleteTarget(null); setProviderDeleteTarget(null); setExpandedCatalog({}); }, [activeOrganizationId]);
+  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); setDeleteTarget(null); setProviderDeleteTarget(null); setServiceModal(null); setExpandedCatalog({}); }, [activeOrganizationId]);
 
   const servicesQuery = useQuery({
     queryKey: ["union-provider-services", activeOrganizationId],
@@ -199,6 +202,10 @@ export function PlatformProvidersPage() {
     setEditing(provider); setDraft(draftFromProvider(provider));
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
     setPersistedProviderId(provider.id); setEditorOpen(true);
+  };
+  const openServiceModal = (equipmentName = "", selectNew = false, mode: "equipment" | "standalone" = "equipment") => {
+    if (!canManage) return;
+    setServiceModal({ equipmentName, selectNew, mode });
   };
   const addBatch = async (items: PlatformServiceBatchItem[], selectNew: boolean): Promise<boolean> => {
     if (!canManage || !activeOrganizationId || catalogSaving) return false;
@@ -308,7 +315,9 @@ export function PlatformProvidersPage() {
   return <div className="space-y-5">
     <PageHeader title="Prestadores de Serviços"
       subtitle={`${totalCountQuery.data ?? 0} cadastrado${totalCountQuery.data === 1 ? "" : "s"}`}
-      actions={canManage ? <AdminButton onClick={openNew}><Plus size={16} /> Novo prestador</AdminButton> : undefined} />
+      actions={canManage ? (section === "services"
+        ? <AdminButton onClick={() => openServiceModal()}><Plus size={16} /> Novo serviço</AdminButton>
+        : <AdminButton onClick={openNew}><Plus size={16} /> Novo prestador</AdminButton>) : undefined} />
 
     <div className="flex gap-5 border-b border-border" role="tablist" aria-label="Seções de prestadores">
       {([{ key: "providers", name: "Prestadores" }, { key: "services", name: "Serviços" }] as const).map(item =>
@@ -416,16 +425,6 @@ export function PlatformProvidersPage() {
       </div>}
     </> : <section className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
-        <h2 className="text-sm font-bold text-foreground">Cadastrar serviços em lote</h2>
-        <p className="mb-4 mt-1 text-xs text-muted-foreground">
-          Crie várias subcategorias para o mesmo equipamento ou várias profissões avulsas.
-          Os serviços cadastrados serão compartilhados pelo catálogo da Union.
-        </p>
-        {canManage && <PlatformServiceBatchEditor
-          equipmentSuggestions={equipmentSuggestions}
-          onCreateBatch={items => addBatch(items, false)} loading={catalogSaving}/>}
-      </div>
-      <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="mb-3 text-sm font-bold text-foreground">Serviços cadastrados</h2>
         <div className="relative mb-4">
           <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={15}/>
@@ -473,6 +472,13 @@ export function PlatformProvidersPage() {
                       </div>}
                     </>}
                   </div>)}
+                  {canManage && <button type="button"
+                    aria-label={equipment ? "Adicionar serviço em " + equipment : "Adicionar serviço avulso"}
+                    title={equipment ? "Novo serviço de " + equipment : "Novo serviço avulso"}
+                    onClick={() => openServiceModal(equipment, false, equipment ? "equipment" : "standalone")}
+                    className="flex min-h-[42px] min-w-0 items-center justify-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
+                    <Plus size={16} /><span className="text-xs font-semibold">Adicionar</span>
+                  </button>}
                 </div>}
               </div>;
             })}
@@ -488,8 +494,8 @@ export function PlatformProvidersPage() {
       servicesContent={<ServiceChoices services={services} selected={selectedServiceIds}
         onToggle={id => setSelectedServiceIds(current => current.includes(id)
           ? current.filter(item => item !== id) : [...current, id])}/>}
-      batchContent={<PlatformServiceBatchEditor equipmentSuggestions={equipmentSuggestions}
-        onCreateBatch={items => addBatch(items, true)} loading={catalogSaving}/>}
+      batchContent={<AdminButton variant="secondary" size="sm"
+        onClick={() => openServiceModal("", true)}><Plus size={15}/> Novo serviço</AdminButton>}
       serviceCount={selectedServiceIds.length}
       pendingFiles={pendingFiles} setPendingFiles={setPendingFiles}
       attachments={attachmentsQuery.data || []} attachmentsLoading={Boolean(editing && attachmentsQuery.isPending)}
@@ -497,6 +503,29 @@ export function PlatformProvidersPage() {
       onClose={() => { if (!saving) setEditorOpen(false); }}
       onSave={() => void save()}
     />}
+    {serviceModal && <AdminDialog open title="Novo serviço"
+      description={serviceModal.equipmentName
+        ? "Adicione um ou vários serviços em " + serviceModal.equipmentName
+        : "Cadastre serviços por equipamento ou profissões avulsas em lote."}
+      className="w-[min(96vw,920px)] max-w-4xl"
+      minimizable={false}
+      onClose={() => { if (!catalogSaving) setServiceModal(null); }}
+      footer={<div className="flex justify-end">
+        <AdminButton variant="secondary" disabled={catalogSaving}
+          onClick={() => setServiceModal(null)}>Cancelar</AdminButton>
+      </div>}>
+      <PlatformServiceBatchEditor
+        key={serviceModal.mode + ":" + serviceModal.equipmentName}
+        equipmentSuggestions={equipmentSuggestions}
+        initialEquipmentName={serviceModal.equipmentName}
+        initialMode={serviceModal.mode}
+        onCreateBatch={async items => {
+          const saved = await addBatch(items, serviceModal.selectNew);
+          if (saved) setServiceModal(null);
+          return saved;
+        }}
+        loading={catalogSaving}/>
+    </AdminDialog>}
     {providerDeleteTarget && <AdminDialog open
       title="Excluir prestador" description="Confirme a exclusão do cadastro"
       onClose={() => { if (!deletingProvider) setProviderDeleteTarget(null); }}
