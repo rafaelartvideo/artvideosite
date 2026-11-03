@@ -162,7 +162,7 @@ export function FinanceEntriesSection({ entryType, selectedEntryId, onSelectEntr
   }, [name, documentSearch, os, originSearch, creatorId, dateFrom, dateTo, operationalFilter, sort, pageSize, entryType]);
 
   const isReceivable = entryType === "receivable";
-  const canViewFinancialDocuments = hasPermission("finance.documents.view") || hasPermission("finance.documents.manage");
+  const canViewFinancialDocuments = hasPermission("finance.documents.view");
 
   const openFinancialProof = async (entry: FinancialEntry) => {
     if (!activeOrganizationId || !canViewFinancialDocuments) return;
