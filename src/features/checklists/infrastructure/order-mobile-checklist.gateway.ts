@@ -44,6 +44,7 @@ export type MobileChecklistStage = {
 
 export type MobileOrderChecklistData = {
   expires_at: string;
+  mobile_flow?: "payment-proof";
   order: { id: string; os_number: string | null };
   can_manage_checklist?: boolean;
   documents?: {
@@ -85,7 +86,7 @@ async function invoke(body: Record<string, unknown> | FormData) {
 export async function createMobileOrderChecklistSession(
   organizationId: string,
   serviceOrderId: string,
-  scope: "checklist" | "documents" = "checklist",
+  scope: "checklist" | "documents" | "payment-proof" = "checklist",
 ): Promise<MobileOrderChecklistSession> {
   const data = await invoke({
     action: "create_session",
@@ -110,6 +111,7 @@ export async function pairMobileOrderChecklistCode(code: string) {
     token: String(data.session.token),
     expiresAt: String(data.session.expires_at || ""),
     serviceOrderId: String(data.session.service_order_id || ""),
+    mode: data.session.mode === "payment-proof" ? "payment-proof" as const : undefined,
   };
 }
 
