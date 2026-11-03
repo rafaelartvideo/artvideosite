@@ -26,7 +26,7 @@ test("prestadores são um módulo exclusivo da Union, sem vínculo de usuários 
 test("filtros paginados, cards, seleção alfabética com marcados no topo e novos serviços", () => {
   const ui = read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
   const repository = read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
-  const migration = read("supabase/migrations/20261103151200_union_platform_provider_directory_search.sql");
+  const migration = read("supabase/migrations/20261103152339_union_platform_provider_directory_search.sql");
   assert.match(ui, /grid gap-4 md:grid-cols-2 xl:grid-cols-3/);
   assert.match(ui, /selected.includes\(b.id\)/);
   assert.match(ui, /normalSort\(a.name, b.name\)/);
@@ -40,7 +40,7 @@ test("filtros paginados, cards, seleção alfabética com marcados no topo e nov
 });
 
 test("prestadores, serviços e anexos são isolados por permissão Union e RLS", () => {
-  const sql = read("supabase/migrations/20261103151000_union_platform_service_provider_directory.sql");
+  const sql = read("supabase/migrations/20261103152225_union_platform_service_provider_directory.sql");
   const repository = read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
   assert.match(sql, /enable row level security/);
   assert.match(sql, /private\.has_organization_permission/);
