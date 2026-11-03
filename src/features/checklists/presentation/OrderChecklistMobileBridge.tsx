@@ -96,7 +96,11 @@ export function OrderChecklistMobileBridge({
       if (lastChecklistUpdateRef.current) setSavedChanges(current => current + 1);
       else setSavedChanges(1);
       lastChecklistUpdateRef.current = updatedAt;
-      if (scope === "payment-proof") onDocumentsUpdated?.();
+      if (scope === "payment-proof") {
+        void Promise.resolve().then(() => onDocumentsUpdated?.()).catch(error => {
+          setError(error instanceof Error ? error.message : "Não foi possível confirmar o comprovante recebido.");
+        });
+      }
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.checklists.order(orderId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
