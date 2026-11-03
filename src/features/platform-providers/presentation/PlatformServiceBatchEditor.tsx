@@ -9,16 +9,18 @@ type BatchMode = "equipment" | "standalone";
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
 
 export function PlatformServiceBatchEditor({
-  equipmentSuggestions, onCreateBatch, loading,
+  equipmentSuggestions, onCreateBatch, loading, initialEquipmentName = "", initialMode = "equipment",
 }: {
   equipmentSuggestions: string[];
   onCreateBatch: (items: PlatformServiceBatchItem[]) => Promise<boolean>;
   loading: boolean;
+  initialEquipmentName?: string;
+  initialMode?: BatchMode;
 }) {
   const idRef = useRef(2);
-  const [equipmentOpen, setEquipmentOpen] = useState(true);
-  const [standaloneOpen, setStandaloneOpen] = useState(false);
-  const [equipmentName, setEquipmentName] = useState("");
+  const [equipmentOpen, setEquipmentOpen] = useState(initialMode === "equipment");
+  const [standaloneOpen, setStandaloneOpen] = useState(initialMode === "standalone");
+  const [equipmentName, setEquipmentName] = useState(initialEquipmentName);
   const [categories, setCategories] = useState<Row[]>([{ id: 0, name: "" }]);
   const [standalone, setStandalone] = useState<Row[]>([{ id: 1, name: "" }]);
   const rowsFor = (mode: BatchMode) => mode === "equipment" ? categories : standalone;
@@ -46,7 +48,7 @@ export function PlatformServiceBatchEditor({
     const saved = await onCreateBatch(items);
     if (!saved) return; // Preserva o lote para corrigir nomes repetidos ou erros.
     setterFor(mode)([{ id: idRef.current++, name: "" }]);
-    if (mode === "equipment") setEquipmentName("");
+    if (mode === "equipment") setEquipmentName(initialEquipmentName);
   };
 
   const fields = (mode: BatchMode) => {
