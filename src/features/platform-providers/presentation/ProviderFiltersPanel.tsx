@@ -39,7 +39,6 @@ export function ProviderFiltersPanel({
     .sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})),
     [services,filters.serviceIds,filters.equipmentNames]);
   const equipmentOptions=useMemo<AdminFilterOption[]>(()=>Array.from(new Set(services
-    .filter(s=>s.is_active||filters.equipmentNames.includes(s.equipment_name||""))
     .map(s=>s.equipment_name).filter((name):name is string=>Boolean(name))))
     .sort((a,b)=>a.localeCompare(b,"pt-BR",{sensitivity:"base"}))
     .map(name=>({value:name,label:name})),[services,filters.equipmentNames]);
