@@ -36,7 +36,6 @@ import {
   registrationEntityPayload,
   registrationFormFromRecord,
   validateRegistrationFormFields,
-  validateProviderServices,
   type RegistrationAddressForm,
   type RegistrationFieldErrors,
   type RegistrationFormState,
@@ -75,7 +74,6 @@ const roleLabels: Record<RegistrationRole, string> = {
   customer: "Cliente",
   employee: "Funcionário",
   supplier: "Fornecedor",
-  service_provider: "Prestador de serviço",
 };
 
 function accessFormFromResponse(access: any): EmployeeAccessFormState {
@@ -469,11 +467,6 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
       if (missingAddress || invalidAddress) setToast({ msg: missingAddress ? "Adicione um endereço completo ao cliente." : "Preencha os campos obrigatórios do endereço.", type: "error" });
       return;
     }
-    const servicesValidation = validateProviderServices(form);
-    if (servicesValidation) {
-      setToast({ msg: servicesValidation, type: "error" });
-      return;
-    }
     const accessValidation = validateAccess();
     if (accessValidation) {
       setToast({ msg: accessValidation, type: "error" });
@@ -808,7 +801,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           {mobileSearchField === "role" && !platformUsersOnly
             ? <AdminSelect value={roleFilter} onValueChange={value => { setRoleFilter(value as "all" | RegistrationRole); setPage(1); }}
                 ariaLabel="Filtrar por vínculo" className="h-[42px] w-full min-w-0 text-sm"
-                options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }, { value: "service_provider", label: "Prestadores de serviço" }]} />
+                options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
             : mobileSearchField === "status"
               ? <AdminSelect value={statusFilter} onValueChange={value => { setStatusFilter(value as "all" | "active" | "inactive"); setPage(1); }}
                   ariaLabel="Filtrar por status" className="h-[42px] w-full min-w-0 text-sm"
@@ -853,7 +846,7 @@ export function TabRegistrations({ routeResourceId, routeSubpage, onRouteChange,
           </div>
           {!platformUsersOnly && <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Vínculo</label>
-            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }, { value: "service_provider", label: "Prestadores de serviço" }]} />
+            <AdminSelect value={roleFilter} onValueChange={value => setRoleFilter(value as "all" | RegistrationRole)} ariaLabel="Vínculo" className="h-9 min-w-0 py-1 text-xs" options={[{ value: "all", label: "Todos os vínculos" }, { value: "customer", label: "Clientes" }, { value: "employee", label: "Funcionários" }, { value: "supplier", label: "Fornecedores" }]} />
           </div>}
           <div className="min-w-0">
             <label className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Status</label>
