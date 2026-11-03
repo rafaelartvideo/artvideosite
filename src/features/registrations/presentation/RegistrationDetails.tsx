@@ -23,9 +23,7 @@ import { RegistrationDetailsToolbar } from "./RegistrationDetailsToolbar";
 import { EmployeeAgendaSection } from "./EmployeeAgendaDialog";
 import { RegistrationLoginHistory } from "./RegistrationLoginHistory";
 
-const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor", service_provider: "Prestador de serviço" };
-
-const priceFormatter = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const roleLabels: Record<RegistrationRole, string> = { customer: "Cliente", employee: "Funcionário", supplier: "Fornecedor" };
 
 function detailValue(label: string, value: string) {
   return <div key={label} className="min-w-0">
@@ -208,18 +206,6 @@ export function RegistrationDetails({ selected, preview = false, supplierItems, 
         </Section>}
 
         {!preview && roles.includes("supplier") && <SupplierItemsTable items={supplierItems} />}
-        {!preview && roles.includes("service_provider") && <Section title="Serviços prestados"
-          emptyMessage={!selected.provider_services?.length ? "Nenhum serviço prestado cadastrado." : undefined}>
-          {(selected.provider_services || []).length > 0 && <div className="divide-y divide-border">
-            {(selected.provider_services || []).map(service => <div key={service.id} className="py-3 first:pt-0 last:pb-0">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-bold text-foreground">{service.name}</p>
-                <span className="text-xs font-semibold text-foreground">{service.reference_price == null ? "Valor a combinar" : priceFormatter.format(Number(service.reference_price))}</span>
-              </div>
-              {service.description && <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-muted-foreground">{service.description}</p>}
-            </div>)}
-          </div>}
-        </Section>}
       </div>
     </div>
 
