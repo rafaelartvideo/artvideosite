@@ -216,7 +216,7 @@ function appointmentTime(appointment: DashboardAppointment) {
   return labels[appointment.period || ""] || "Sem horário";
 }
 
-function registrationHasRole(registration: DashboardRegistration, role: "customer" | "employee" | "supplier" | "service_provider") {
+function registrationHasRole(registration: DashboardRegistration, role: "customer" | "employee" | "supplier") {
   return (registration.roles || []).some(item => item.role === role && item.is_active !== false);
 }
 
@@ -225,7 +225,6 @@ function registrationRoleLabel(registration: DashboardRegistration) {
   if (registrationHasRole(registration, "customer")) labels.push("Cliente");
   if (registrationHasRole(registration, "employee")) labels.push("Funcionário");
   if (registrationHasRole(registration, "supplier")) labels.push("Fornecedor");
-  if (registrationHasRole(registration, "service_provider")) labels.push("Prestador de serviço");
   return labels.length ? labels.join(" · ") : "Sem vínculo ativo";
 }
 
@@ -628,15 +627,13 @@ export function TabDashboard({ onNavigate, onOpenOrder }: TabDashboardProps) {
       const customers = activeRegistrations.filter(registration => registrationHasRole(registration, "customer"));
       const employees = activeRegistrations.filter(registration => registrationHasRole(registration, "employee"));
       const suppliers = activeRegistrations.filter(registration => registrationHasRole(registration, "supplier"));
-      const providers = activeRegistrations.filter(registration => registrationHasRole(registration, "service_provider"));
       const metrics: Metric[] = [
         { label: "Cadastros ativos", value: activeRegistrations.length, icon: Users, tone: "blue", hint: "pessoas e empresas" },
         { label: "Clientes", value: customers.length, icon: UserCheck, tone: "green", hint: "vínculo ativo" },
         { label: "Funcionários", value: employees.length, icon: Users, tone: "purple", hint: "vínculo ativo" },
         { label: "Fornecedores", value: suppliers.length, icon: Building2, tone: "amber", hint: "vínculo ativo" },
-        { label: "Prestadores", value: providers.length, icon: Wrench, tone: "blue", hint: "vínculo ativo" },
       ];
-      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários, fornecedores e prestadores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
+      return <DashboardArea metrics={metrics} left={<DashboardPanel title="Novos cadastros" subtitle={`Entradas nos últimos ${periodDays} dias`} icon={TrendingUp}><DashboardLineChart data={buildTrend(registrationsInPeriod, periodDays, registration => registration.created_at)} /></DashboardPanel>} right={<DashboardPanel title="Cadastros recentes" subtitle="Clientes, funcionários e fornecedores" icon={Users} onOpen={() => open("customers")}><CompactList>{data.registrations.slice(0, 10).map(registration => <CompactRow key={registration.id} title={registration.name} subtitle={`${registrationRoleLabel(registration)} · ${fmtDate(registration.created_at)}`} onClick={() => open("customers")} />)}{!data.registrations.length && <DashboardEmpty text="Nenhum cadastro encontrado." />}</CompactList></DashboardPanel>} />;
     }
 
     if (activeModule === "inventory") {
