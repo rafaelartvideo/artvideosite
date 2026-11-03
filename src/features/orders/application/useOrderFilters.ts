@@ -125,7 +125,7 @@ export function useOrderFilters({
     || selectedStatusIds.length
     || selectedSituationIds.length
     || filterOrderType
-    || selectedServiceTypeIds.length
+    || (!kanbanMode && selectedServiceTypeIds.length)
     || (kanbanMode && selectedServiceTypeId)
     || selectedStates.length
     || selectedCities.length
