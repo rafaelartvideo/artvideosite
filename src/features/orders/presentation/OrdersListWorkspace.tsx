@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { OrdersFilters } from "./OrdersFilters";
 import { OrdersHeader } from "./OrdersHeader";
 import { OrdersKanban } from "./OrdersKanban";
@@ -68,7 +69,7 @@ export function OrdersListWorkspace(props: Props) {
     enabled: visible && displayMode === "kanban" && !compactSharedView && !workspace.isOrganizationOverride
       && Boolean(organizationId) && hasPermission("orders.kanban.view"),
     initialPageParam: 0,
-    staleTime: 30_000,
+    staleTime: 120_000,
     retry: false,
     queryFn: async ({ pageParam, signal }) => {
       const pageSize = 40;
@@ -88,7 +89,10 @@ export function OrdersListWorkspace(props: Props) {
       return lastPage.items.length > 0 && received < (pages[0]?.total ?? 0) ? pages.length : undefined;
     },
   });
-  const unassignedOrders = unassignedQuery.data?.pages.flatMap(page => page.items) || [];
+  const unassignedOrders = useMemo(
+    () => unassignedQuery.data?.pages.flatMap(page => page.items) || [],
+    [unassignedQuery.data],
+  );
   const unassignedTotal = unassignedQuery.data?.pages[0]?.total ?? 0;
   const refreshUnassigned = () => void queryClient.invalidateQueries({ queryKey: unassignedKey });
   const sharedView = compactSharedView || isOrganizationOverride;
