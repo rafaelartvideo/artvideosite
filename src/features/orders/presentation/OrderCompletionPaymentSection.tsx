@@ -53,7 +53,7 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
       <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp,application/pdf,.pdf" className="hidden"
         aria-label="Selecionar foto ou PDF do comprovante"
         onChange={event => { select(event.currentTarget.files); event.currentTarget.value = ""; }} />
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+      <input ref={cameraInputRef} type="file" accept="image/jpeg,image/png,image/webp" capture="environment" className="hidden"
         aria-label="Fotografar comprovante"
         onChange={event => { select(event.currentTarget.files); event.currentTarget.value = ""; }} />
       <div className="flex min-w-0 gap-2">
