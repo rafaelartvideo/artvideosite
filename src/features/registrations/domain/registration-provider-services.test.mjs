@@ -30,7 +30,12 @@ test("filtros paginados, cards, seleção alfabética com marcados no topo e nov
   assert.match(ui, /grid gap-4 md:grid-cols-2 xl:grid-cols-3/);
   assert.match(ui, /selected.includes\(b.id\)/);
   assert.match(ui, /normalSort\(a.name, b.name\)/);
-  assert.match(ui, /onCreateBatch=\{items => addBatch\(items, true\)\}/);
+  // O cadastro em lote abre no modal; a selecao depende de onde ele foi aberto.
+  // Nao exigir a forma textual do callback (inline x funcao assíncrona).
+  assert.match(ui, /serviceModal && <AdminDialog open title="Novo serviço"/);
+  assert.match(ui, /onCreateBatch=/);
+  assert.match(ui, /addBatch\(items,\s*serviceModal\.selectNew\)/);
+  assert.match(ui, /if\s*\(selectNew\)\s*setSelectedServiceIds/);
   assert.match(ui, /setSelectedServiceIds\(current => \[\.\.\.new Set\(\[\.\.\.current, \.\.\.added\.map\(item => item\.id\)\]\)\]\)/);
   assert.match(repository, /addPlatformServices/);
   const batchEditor = read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
