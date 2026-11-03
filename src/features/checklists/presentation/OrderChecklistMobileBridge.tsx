@@ -25,11 +25,13 @@ export function OrderChecklistMobileBridge({
   osNumber,
   disabled = false,
   scope = "checklist",
+  onDocumentsUpdated,
 }: {
   orderId: string;
   osNumber?: string | null;
   disabled?: boolean;
-  scope?: "checklist" | "documents";
+  scope?: "checklist" | "documents" | "payment-proof";
+  onDocumentsUpdated?: () => void;
 }) {
   const { activeOrganizationId } = useAuth();
   const queryClient = useQueryClient();
@@ -94,6 +96,7 @@ export function OrderChecklistMobileBridge({
       if (lastChecklistUpdateRef.current) setSavedChanges(current => current + 1);
       else setSavedChanges(1);
       lastChecklistUpdateRef.current = updatedAt;
+      if (scope === "payment-proof") onDocumentsUpdated?.();
       void Promise.all([
         queryClient.invalidateQueries({ queryKey: queryKeys.checklists.order(orderId) }),
         queryClient.invalidateQueries({ queryKey: queryKeys.orders.all }),
@@ -142,10 +145,10 @@ export function OrderChecklistMobileBridge({
       if (expiryTimer !== null) window.clearTimeout(expiryTimer);
       unsubscribe();
     };
-  }, [session?.id, expired, orderId, queryClient]);
+  }, [session?.id, expired, orderId, queryClient, scope, onDocumentsUpdated]);
 
   const checklistUrl = session
-    ? `${window.location.origin}/checklist-mobile?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}${scope === "documents" ? "&mode=documents" : ""}`
+    ? `${window.location.origin}/checklist-mobile?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}${scope === "payment-proof" ? "&mode=payment-proof" : scope === "documents" ? "&mode=documents" : ""}`
     : "";
   const expiryLabel = session?.expiresAt
     ? new Date(session.expiresAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
@@ -158,8 +161,10 @@ export function OrderChecklistMobileBridge({
         size="sm"
         disabled={disabled || !activeOrganizationId}
         onClick={openBridge}
-        className={connected ? "hidden md:inline-flex bg-emerald-600 text-white hover:bg-emerald-700" : "hidden md:inline-flex border-[#0057e7]/25 text-[#0057e7] hover:bg-[#0057e7]/5"}
-        title={scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
+        className={scope === "payment-proof"
+          ? connected ? "inline-flex bg-emerald-600 text-white hover:bg-emerald-700" : "inline-flex border-primary/25 bg-card text-primary hover:bg-primary/5"
+          : connected ? "hidden md:inline-flex bg-emerald-600 text-white hover:bg-emerald-700" : "hidden md:inline-flex border-primary/25 text-primary hover:bg-primary/5"}
+        title={scope === "payment-proof" ? "Anexar comprovante de pagamento pelo celular" : scope === "documents" ? "Adicionar anexos, preencher checklist e fotografar situações da OS" : "Fazer o checklist desta OS pelo celular"}
       >
         <Smartphone size={14} />
         <span>{connected ? "Celular conectado" : "Usar celular"}</span>
@@ -169,8 +174,9 @@ export function OrderChecklistMobileBridge({
       <AdminDialog
         open={open}
         onClose={() => setOpen(false)}
-        title={`${scope === "documents" ? "Documentos" : "Checklist"} da OS ${osNumber ? `#${osNumber}` : ""} pelo celular`}
-        description={scope === "documents"
+        title={`${scope === "payment-proof" ? "Comprovante de pagamento" : scope === "documents" ? "Documentos" : "Checklist"} da OS ${osNumber ? `#${osNumber}` : ""} pelo celular`}
+        description={scope === "payment-proof" ? "Escaneie o QR ou informe o código na página de captura. Envie a foto ou PDF do comprovante com vinculação automática à OS."
+          : scope === "documents"
           ? "Escaneie o QR Code para acessar os documentos da OS pelo celular, sem precisar fazer login."
           : "Escaneie o QR no celular. A conexão é temporária e abre somente o checklist desta OS, sem exigir login no celular."}
         className="max-w-md"
@@ -213,7 +219,7 @@ export function OrderChecklistMobileBridge({
                     {connected ? "Celular conectado" : "Aguardando o celular"}
                   </p>
                   <p className="mt-0.5 text-xs text-[#5a6a82]">
-                    {connected ? "Os registros enviados pelo celular aparecem automaticamente na OS." : scope === "documents" ? "O QR abre anexos, checklist e fotos das situações desta OS." : "O QR abre diretamente o checklist desta OS."}
+                    {connected ? "Os registros enviados pelo celular aparecem automaticamente na OS." : scope === "payment-proof" ? "O comprovante aparece automaticamente na conclusão da OS." : scope === "documents" ? "O QR abre anexos, checklist e fotos das situações desta OS." : "O QR abre diretamente o checklist desta OS."}
                   </p>
                 </div>
               </div>
