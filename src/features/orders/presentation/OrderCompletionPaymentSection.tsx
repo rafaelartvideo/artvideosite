@@ -37,14 +37,30 @@ function OrderPaymentProofPicker({ completion, saving }: { completion: Completio
     <div>
       <div className="flex flex-wrap items-center gap-2">
         <p className="text-sm font-bold text-foreground">Comprovante de pagamento</p>
-        <span className="text-[10px] font-semibold text-muted-foreground">(opcional)</span>
+        <span className={`text-[10px] font-semibold ${completion.paymentProofRequired ? "text-destructive" : "text-muted-foreground"}`}>
+          {completion.paymentProofRequired ? "(obrigatório)" : "(opcional)"}
+        </span>
       </div>
       <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-        Se o pagamento já foi recebido, anexe uma foto ou PDF do comprovante.
-        O arquivo ficará disponível em Documentos → Anexos da OS.
+        {completion.paymentProofRequired
+          ? "Esta empresa exige um comprovante antes de concluir a OS, inclusive quando há valores pendentes."
+          : "Se o pagamento já foi recebido, anexe uma foto ou PDF do comprovante."}
+        {" "}O arquivo ficará disponível em Documentos → Anexos da OS.
       </p>
     </div>
 
+    {completion.paymentProofRequirementLoading && <p role="status" className="text-xs text-muted-foreground">Verificando exigência de comprovante...</p>}
+    {completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">
+      Não foi possível verificar a exigência do comprovante: {completion.paymentProofRequirementError}
+    </p>}
+    {completion.paymentProofRequired && completion.paymentProofAlreadyOnOrder && !completion.paymentProofAttached && <p role="status"
+      className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+      <CheckCircle2 size={16} /> Esta OS já possui comprovante anexado. Não é necessário enviar novamente.
+    </p>}
+    {completion.paymentProofRequired && !completion.paymentProofAlreadyOnOrder && !completion.paymentProofAttached && !completion.paymentProofFile
+      && !completion.paymentProofRequirementLoading && !completion.paymentProofRequirementError && <p role="alert" className="text-xs font-semibold text-destructive">
+      Anexe um comprovante de pagamento para liberar a conclusão.
+    </p>}
     {completion.paymentProofAttached ? <p role="status" className="flex items-center gap-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300">
       <CheckCircle2 size={16} /> Comprovante anexado à OS.
     </p> : !completion.canAttachPaymentProof ? <p className="text-xs text-muted-foreground">
