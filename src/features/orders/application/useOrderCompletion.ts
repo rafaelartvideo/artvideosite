@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { buildInstallments } from "@/features/finance/domain/finance-integration.mjs";
 import { completeServiceOrder } from "../infrastructure/orders.repository";
@@ -356,6 +356,37 @@ export function useOrderCompletion({
     }
   };
 
+  // O celular grava o comprovante diretamente em Documentos → Anexos.
+  // Atualiza a exigência no modal aberto sem duplicar o arquivo nem refazer
+  // cálculos financeiros ou reabrir a conclusão da OS.
+  const refreshPaymentProofFromMobile = useCallback(async () => {
+    if (!open || !detail?.organization_id || !detail?.id) return;
+    const requestId = paymentProofRequirementRequestRef.current;
+    const organizationId = String(detail.organization_id);
+    const types = await queryClient.fetchQuery({
+      queryKey: ["documents", organizationId, "attachment-types", "active"],
+      queryFn: async () => {
+        const { data, error } = await listAttachmentTypes(true, organizationId);
+        if (error) throw error;
+        return data || [];
+      },
+      staleTime: 10 * 60_000,
+    });
+    const receiptTypeIds = types
+      .filter(type => type.name.trim().toLocaleLowerCase("pt-BR") === "comprovante de pagamento")
+      .map(type => type.id);
+    if (!receiptTypeIds.length) return;
+    const attached = await hasOrderPaymentProof(organizationId, String(detail.id), receiptTypeIds);
+    if (requestId !== paymentProofRequirementRequestRef.current) return;
+    if (attached) {
+      setPaymentProofAlreadyOnOrder(true);
+      // A cópia móvel foi persistida e não deve ser enviada outra vez por
+      // engano ao concluir; o histórico mantém o arquivo enviado.
+      setPaymentProofFile(null);
+      void queryClient.invalidateQueries({ queryKey: ["orders", organizationId, String(detail.id), "situation-documents"] });
+    }
+  }, [open, detail?.id, detail?.organization_id, queryClient]);
+
   const choosePaymentProof = (file: File | null) => {
     if (!file) {
       setPaymentProofFile(null);
@@ -653,6 +684,9 @@ export function useOrderCompletion({
     financeEnabled, installments, applyInstallmentCount, addInstallment, removeInstallment, updateInstallment,
     paymentProofFile, choosePaymentProof, paymentProofTypeLoading, paymentProofTypeError, paymentProofAttached,
     paymentProofRequired, paymentProofRequirementLoading, paymentProofRequirementError, paymentProofAlreadyOnOrder,
+    paymentProofOrderId: detail?.id ? String(detail.id) : null,
+    paymentProofOsNumber: detail?.os_number ? String(detail.os_number) : null,
+    refreshPaymentProofFromMobile,
     canAttachPaymentProof: hasPermission("orders.section.images"),
     installmentTotal, installmentDifference, totalPaidNow, openAmount,
     financeOptions, financeOptionsLoading, financeOptionsError, financeValidationMessage,
