@@ -20,6 +20,8 @@ type EditorProps = {
   serviceCount: number;
   serviceName: string;
   setServiceName: (value: string) => void;
+  serviceEquipmentName: string;
+  setServiceEquipmentName: (value: string) => void;
   catalogSaving: boolean;
   onCreateService: () => void;
   pendingFiles: File[];
@@ -34,7 +36,7 @@ type EditorProps = {
 
 export function PlatformProviderEditor({
   editing, organizationId, draft, setDraft, servicesContent, serviceCount,
-  serviceName, setServiceName, catalogSaving, onCreateService,
+  serviceName, setServiceName, serviceEquipmentName, setServiceEquipmentName, catalogSaving, onCreateService,
   pendingFiles, setPendingFiles, attachments, attachmentsLoading,
   saving, onDeleteAttachment, onClose, onSave,
 }: EditorProps) {
@@ -199,13 +201,16 @@ export function PlatformProviderEditor({
       </Section>
 
       <Section title="Serviços Prestados"
-        description="Marque as especialidades. Os serviços selecionados aparecem primeiro, em ordem alfabética.">
+        description="Abra o equipamento para marcar as subcategorias desejadas ou selecione uma profissão avulsa.">
         <p className="mb-3 text-xs font-semibold text-primary">{serviceCount} selecionado{serviceCount===1?"":"s"}</p>
         {servicesContent}
-        <div className="mt-4 flex flex-col gap-2 rounded-lg border border-dashed border-border p-3 sm:flex-row">
+        <div className="mt-4 grid gap-2 rounded-lg border border-dashed border-border p-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
+          <input className={INPUT} maxLength={120} value={serviceEquipmentName}
+            aria-label="Equipamento opcional" onChange={event=>setServiceEquipmentName(event.target.value)}
+            placeholder="Equipamento/categoria (opcional)"/>
           <input className={INPUT} maxLength={120} value={serviceName}
-            onChange={event=>setServiceName(event.target.value)}
-            placeholder="Serviço ainda não cadastrado"/>
+            aria-label="Nome do serviço" onChange={event=>setServiceName(event.target.value)}
+            placeholder="Serviço ou subcategoria"/>
           <BtnSecondary disabled={catalogSaving||!serviceName.trim()} loading={catalogSaving}
             onClick={onCreateService}><Plus size={15}/> Criar e marcar</BtnSecondary>
         </div>
