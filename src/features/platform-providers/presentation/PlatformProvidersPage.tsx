@@ -274,10 +274,10 @@ export function PlatformProvidersPage() {
                 className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[11px] font-semibold text-primary">{service}</span>)}
               {provider.service_names.length > 6 && <span className="px-1 py-1 text-xs text-muted-foreground">+{provider.service_names.length - 6}</span>}
             </div>
-            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground" style={{ marginTop: "auto", paddingTop: "1rem" }}>
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Paperclip size={14} /> {provider.attachment_count} anexo{provider.attachment_count === 1 ? "" : "s"}</span>
               {provider.whatsapp && <a target="_blank" rel="noopener noreferrer" className="font-bold text-primary hover:underline"
-                href={`https://wa.me/${(() => { const digits = provider.whatsapp!.replace(/\\D/g, ""); return digits.length <= 11 ? "55" + digits : digits; })()}`}>WhatsApp</a>}
+                href={`https://wa.me/${(() => { const digits = provider.whatsapp!.replace(/\D/g, ""); return digits.length <= 11 ? "55" + digits : digits; })()}`}>WhatsApp</a>}
               {canManage && <button className="font-bold text-primary hover:underline" onClick={() => openEdit(provider)}>Detalhes</button>}
             </div>
           </article>)}
