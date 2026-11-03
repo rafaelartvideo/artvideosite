@@ -49,7 +49,8 @@ test("novo prestador reaproveita CPF, CNPJ e CEP e usa seções do CRM",()=>{
 test("contador total fica no subtítulo e não no filtro",()=>{
   const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
   const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
-  assert.match(page,/subtitle=\{\x60\$\{totalCountQuery\.data \?\? 0\} cadastrados\x60\}/);
+  assert.match(page,/totalCountQuery\.data \?\? 0/);
+  assert.match(page,/cadastrado\$\{totalCountQuery\.data === 1/);
   assert.match(page,/countPlatformProviders/);
   assert.doesNotMatch(page,/prestador\{total === 1/);
   assert.match(repository,/count:"exact"/);
