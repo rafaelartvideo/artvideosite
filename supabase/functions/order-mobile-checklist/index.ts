@@ -22,7 +22,7 @@ const ACCEPTED_ATTACHMENT_TYPES = new Set([
   "application/zip", "application/octet-stream",
 ]);
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
-const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at,purpose,service_order_id,order_updated_at,equipment_type_id";
+const SESSION_SELECT = "id,organization_id,created_by,token_hash,pairing_code_hash,status,expires_at,connected_at,last_seen_at,purpose,service_order_id,order_updated_at,equipment_type_id,mobile_flow";
 
 type AdminClient = ReturnType<typeof createClient>;
 type MobileSession = {
@@ -36,6 +36,7 @@ type MobileSession = {
   connected_at: string | null;
   last_seen_at: string | null;
   purpose: "order_checklist";
+  mobile_flow: string;
   service_order_id: string | null;
   order_updated_at: string | null;
   equipment_type_id: string | null;
@@ -504,7 +505,7 @@ async function createSession(context: any) {
   const organizationId = requireUuid(input.organization_id, "Empresa");
   const orderId = requireUuid(input.service_order_id, "OS");
 
-  const documentsMode = input.scope === "documents";
+  const documentsMode = input.scope === "documents" || input.scope === "payment-proof";
   const [canChecklist, canDocuments] = await Promise.all([
     memberHasPermission(admin, organizationId, user.id, "orders.checklists.manage"),
     memberHasPermission(admin, organizationId, user.id, "orders.section.images"),
@@ -545,6 +546,7 @@ async function createSession(context: any) {
       purpose: "order_checklist",
       service_order_id: orderId,
       equipment_type_id: order.equipment_type_id || null,
+      mobile_flow: input.scope === "payment-proof" ? "payment_proof" : "",
       expires_at: expiresAt,
     }).select(SESSION_SELECT).single();
 
@@ -588,6 +590,7 @@ async function pairCode(context: any) {
       token: `code:${code}`,
       expires_at: data.expires_at,
       service_order_id: data.service_order_id,
+      mode: data.mobile_flow === "payment_proof" ? "payment-proof" : undefined,
     },
   };
 }
@@ -665,6 +668,7 @@ async function getChecklist(context: any) {
     ...payload,
     can_reopen: canReopen,
     can_manage_checklist: canChecklist,
+    mobile_flow: session.mobile_flow === "payment_proof" ? "payment-proof" : undefined,
     documents: canDocuments ? await loadMobileDocuments(admin, session) : null,
   };
 }
