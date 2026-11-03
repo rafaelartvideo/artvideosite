@@ -198,8 +198,8 @@ export function PlatformProviderEditor({
         description="Abra o equipamento para marcar as subcategorias desejadas ou selecione uma profissão avulsa.">
         <p className="mb-3 text-xs font-semibold text-primary">{serviceCount} selecionado{serviceCount===1?"":"s"}</p>
         {servicesContent}
-        <div className="mt-4">
-          <h3 className="mb-2 text-xs font-bold text-foreground">Cadastrar novos serviços em lote</h3>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
+          <p className="text-xs font-medium text-muted-foreground">Não encontrou o serviço desejado?</p>
           {batchContent}
         </div>
       </Section>
