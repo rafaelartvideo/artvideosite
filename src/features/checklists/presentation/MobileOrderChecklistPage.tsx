@@ -294,7 +294,7 @@ export function MobileOrderChecklistPage() {
 
   const [pairing, setPairing] = useState<Pairing | null>(() => queryPairing || loadStoredPairing());
   const [activeMobileTab, setActiveMobileTab] = useState<"attachments" | "checklist" | "situations">(
-    params.get("mode") === "documents" ? "attachments" : "checklist",
+    ["documents", "payment-proof"].includes(params.get("mode") || "") ? "attachments" : "checklist",
   );
   const [pairingCode, setPairingCode] = useState("");
   const [state, setState] = useState<"checking" | "connect" | "ready" | "expired">("checking");
@@ -317,7 +317,8 @@ export function MobileOrderChecklistPage() {
     try {
       const next = await getMobileOrderChecklist(target.id, target.token);
       setData(next);
-      if (!next.documents) setActiveMobileTab("checklist");
+      if (next.mobile_flow === "payment-proof") setActiveMobileTab("attachments");
+      else if (!next.documents) setActiveMobileTab("checklist");
       else if (!next.can_manage_checklist) setActiveMobileTab(current => current === "checklist" ? "attachments" : current);
       setState("ready");
       storePairing(target);
@@ -397,6 +398,7 @@ export function MobileOrderChecklistPage() {
     try {
       const result = await pairMobileOrderChecklistCode(pairingCode);
       const next = { id: result.id, token: result.token };
+      if (result.mode === "payment-proof") setActiveMobileTab("attachments");
       setPairing(next);
       activePairingRef.current = next;
       await load(next);
@@ -563,7 +565,7 @@ export function MobileOrderChecklistPage() {
           </div>
         )}
 
-        {data?.documents && (
+        {data?.documents && data.mobile_flow !== "payment-proof" && (
           <nav aria-label="Seções de documentos" className={`grid gap-2 ${data.can_manage_checklist ? "grid-cols-3" : "grid-cols-2"}`}>
             {([
               ["attachments", "Anexos"],
@@ -586,6 +588,7 @@ export function MobileOrderChecklistPage() {
           <MobileOrderDocumentsSection
             section={activeMobileTab}
             documents={data.documents}
+            paymentProofOnly={data.mobile_flow === "payment-proof"}
             pairing={pairing}
             onRefresh={refresh}
             onNotice={setNotice}
