@@ -1,4 +1,3 @@
-import { useMemo } from "react";
 import { OrdersFilters } from "./OrdersFilters";
 import { OrdersHeader } from "./OrdersHeader";
 import { OrdersKanban } from "./OrdersKanban";
@@ -12,8 +11,6 @@ import { PaginationBar } from "@/shared/ui/admin/AdminPagination";
 import { AdminButton } from "@/shared/ui/admin/AdminLayout";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { LoadingState } from "@/shared/ui/admin/AdminFeedback";
-import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 
 type PermissionCheck = (permission: string) => boolean;
 
@@ -59,43 +56,6 @@ export function OrdersListWorkspace(props: Props) {
     handleKanbanDrop, handleCardDragStart, handleCardDragEnd, shouldSuppressCardOpen, handleDragLeave,
   } = mutations;
   const { ibgeStates, ibgeStatesLoading } = serviceAddress;
-  const queryClient = useQueryClient();
-  const organizationId = workspace.organizationId;
-  const unassignedKey = ["orders", "kanban", "unassigned", organizationId || "none"] as const;
-  // Consulta independente da situação, filtros, atendimento e paginação do quadro.
-  // O count é da organização inteira. Os cartões são carregados em lotes para
-  // não repetir milhares de registros nem contornar RLS.
-  const unassignedQuery = useInfiniteQuery({
-    queryKey: unassignedKey,
-    enabled: visible && displayMode === "kanban" && !compactSharedView && !workspace.isOrganizationOverride
-      && Boolean(organizationId) && hasPermission("orders.kanban.view"),
-    initialPageParam: 0,
-    staleTime: 120_000,
-    retry: false,
-    queryFn: async ({ pageParam, signal }) => {
-      const pageSize = 40;
-      const { data, error, count } = await supabase.from("service_orders")
-        .select("id,organization_id,os_number,service_type_id,situation_id,created_at,scheduled_at,completed_at,cancelled_at,is_solved,cannot_be_solved,order_status:order_statuses(id,name,color),customer:customers(id,full_name),service:services(id,title),general_service:general_services(id,name)", { count: pageParam === 0 ? "exact" : undefined })
-        .eq("organization_id", organizationId!)
-        .is("situation_id", null)
-        .order("created_at", { ascending: false })
-        .order("id", { ascending: false })
-        .range(pageParam * pageSize, (pageParam + 1) * pageSize - 1)
-        .abortSignal(signal);
-      if (error) throw error;
-      return { items: data || [], total: count ?? 0 };
-    },
-    getNextPageParam: (lastPage, pages) => {
-      const received = pages.reduce((sum, page) => sum + page.items.length, 0);
-      return lastPage.items.length > 0 && received < (pages[0]?.total ?? 0) ? pages.length : undefined;
-    },
-  });
-  const unassignedOrders = useMemo(
-    () => unassignedQuery.data?.pages.flatMap(page => page.items) || [],
-    [unassignedQuery.data],
-  );
-  const unassignedTotal = unassignedQuery.data?.pages[0]?.total ?? 0;
-  const refreshUnassigned = () => void queryClient.invalidateQueries({ queryKey: unassignedKey });
   const sharedView = compactSharedView || isOrganizationOverride;
   const resolvedDisplayMode: "list" | "kanban" = sharedView ? "list" : displayMode;
   // A tabela depende apenas da consulta paginada. Os dados auxiliares (catálogos,
@@ -215,14 +175,6 @@ export function OrdersListWorkspace(props: Props) {
     /> : workspace.loading ? <LoadingState text="Preparando quadro de ordens" /> : <>
       <OrdersKanban
         filteredOrders={filteredOrders}
-        unassignedOrders={unassignedOrders}
-        unassignedTotal={unassignedTotal}
-        unassignedLoading={unassignedQuery.isPending && unassignedQuery.isFetching}
-        unassignedLoadingMore={unassignedQuery.isFetchingNextPage}
-        unassignedHasMore={Boolean(unassignedQuery.hasNextPage)}
-        unassignedError={Boolean(unassignedQuery.isError)}
-        onLoadUnassignedMore={() => { void unassignedQuery.fetchNextPage(); }}
-        onRefreshUnassigned={refreshUnassigned}
         situations={situations}
         serviceTypeSituations={serviceTypeSituations}
         serviceTypes={serviceTypes}
