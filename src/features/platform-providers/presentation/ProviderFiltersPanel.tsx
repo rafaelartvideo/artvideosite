@@ -64,7 +64,7 @@ export function ProviderFiltersPanel({
   const field = (key:MobileKey) => {
     switch(key){
       case "name":
-        return <AdminSearchTextField label="Nome" value={searchText}
+        return <AdminSearchTextField label="Buscar por nome" value={searchText}
           onChange={onSearchTextChange} placeholder="Buscar por nome"/>;
       case "services":
         return <AdminFilterMultiSelect label="Serviço" options={serviceOptions}
