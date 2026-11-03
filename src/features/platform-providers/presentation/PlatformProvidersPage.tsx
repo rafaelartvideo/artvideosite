@@ -7,7 +7,7 @@ import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   addPlatformServices, addProviderAttachment, draftFromProvider,
-  countPlatformProviders, deletePlatformService, editPlatformService, emptyProviderDraft, listPlatformProviders, listPlatformServices,
+  countPlatformProviders, deletePlatformProvider, deletePlatformService, editPlatformService, emptyProviderDraft, listPlatformProviders, listPlatformServices,
   listProviderAttachments, listProviderLocations,
   removeProviderAttachment, savePlatformProvider,
   type PlatformProvider, type PlatformProviderDraft, type PlatformService,
@@ -119,6 +119,8 @@ export function PlatformProvidersPage() {
   const [persistedProviderId, setPersistedProviderId] = useState<string | null>(null);
   const [expandedCatalog, setExpandedCatalog] = useState<Record<string, boolean>>({});
   const [deleteTarget, setDeleteTarget] = useState<PlatformService | null>(null);
+  const [providerDeleteTarget, setProviderDeleteTarget] = useState<PlatformProvider | null>(null);
+  const [deletingProvider, setDeletingProvider] = useState(false);
   const [deletingService, setDeletingService] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
@@ -131,7 +133,7 @@ export function PlatformProvidersPage() {
     }, 300);
     return () => window.clearTimeout(timer);
   }, [searchText]);
-  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); setDeleteTarget(null); setExpandedCatalog({}); }, [activeOrganizationId]);
+  useEffect(() => { setFilters(emptyFilters()); setSearchText(""); setEditorOpen(false); setViewing(null); setPersistedProviderId(null); setDeleteTarget(null); setProviderDeleteTarget(null); setExpandedCatalog({}); }, [activeOrganizationId]);
 
   const servicesQuery = useQuery({
     queryKey: ["union-provider-services", activeOrganizationId],
@@ -228,6 +230,29 @@ export function PlatformProvidersPage() {
       notifyAdmin(systemErrorMessage(error, "Não foi possível excluir o serviço."), "error");
     } finally {
       setDeletingService(false);
+    }
+  };
+  const confirmDeleteProvider = async () => {
+    if (!canManage || !activeOrganizationId || !providerDeleteTarget || deletingProvider) return;
+    setDeletingProvider(true);
+    try {
+      const result = await deletePlatformProvider(activeOrganizationId, providerDeleteTarget.id);
+      if (viewing?.id === providerDeleteTarget.id) setViewing(null);
+      if (editing?.id === providerDeleteTarget.id) { setEditorOpen(false); setEditing(null); }
+      setProviderDeleteTarget(null);
+      if (providers.length === 1 && filters.page > 1) {
+        setFilters(current => ({...current, page: Math.max(1, current.page - 1)}));
+      }
+      await refresh();
+      if (result.orphanedFiles > 0) {
+        notifyAdmin(`Prestador excluído, mas ${result.orphanedFiles} anexo(s) precisam de limpeza no Storage.`, "warning");
+      } else {
+        notifyAdmin("Prestador excluído com sucesso.", "success");
+      }
+    } catch (error) {
+      notifyAdmin(systemErrorMessage(error, "Não foi possível excluir o prestador."), "error");
+    } finally {
+      setDeletingProvider(false);
     }
   };
   const saveServiceEdit = async (service: PlatformService, values: { name?: string; is_active?: boolean }) => {
@@ -333,11 +358,18 @@ export function PlatformProvidersPage() {
                   {provider.is_active?"Ativo":"Inativo"}
                 </span>
               </div>
-              {canManage && <AdminIconButton ariaLabel={"Editar "+provider.name}
-                title="Editar prestador" variant="tertiary"
-                className="h-9 w-9 shrink-0" onClick={event=>{event.stopPropagation();openEdit(provider);}}>
-                <Pencil size={15}/>
-              </AdminIconButton>}
+              {canManage && <div className="flex shrink-0 items-center gap-1">
+                <AdminIconButton ariaLabel={"Editar "+provider.name}
+                  title="Editar prestador" variant="tertiary"
+                  className="h-9 w-9 shrink-0" onClick={event=>{event.stopPropagation();openEdit(provider);}}>
+                  <Pencil size={15}/>
+                </AdminIconButton>
+                <AdminIconButton ariaLabel={"Excluir "+provider.name}
+                  title="Excluir prestador" variant="danger"
+                  className="h-9 w-9 shrink-0" onClick={event=>{event.stopPropagation();setProviderDeleteTarget(provider);}}>
+                  <Trash2 size={15}/>
+                </AdminIconButton>
+              </div>}
             </div>
             <div className="mt-4 space-y-2 text-xs text-muted-foreground">
               <p className="flex items-start gap-2"><MapPin size={14} className="mt-0.5 shrink-0"/>
@@ -465,6 +497,22 @@ export function PlatformProvidersPage() {
       onClose={() => { if (!saving) setEditorOpen(false); }}
       onSave={() => void save()}
     />}
+    {providerDeleteTarget && <AdminDialog open
+      title="Excluir prestador" description="Confirme a exclusão do cadastro"
+      onClose={() => { if (!deletingProvider) setProviderDeleteTarget(null); }}
+      footer={<div className="flex justify-end gap-2">
+        <AdminButton variant="secondary" disabled={deletingProvider}
+          onClick={() => setProviderDeleteTarget(null)}>Cancelar</AdminButton>
+        <AdminButton variant="primary" loading={deletingProvider}
+          onClick={() => void confirmDeleteProvider()}>Confirmar exclusão</AdminButton>
+      </div>}>
+      <p className="text-sm text-foreground">
+        Deseja realmente excluir o prestador <strong>{providerDeleteTarget.name}</strong>?
+      </p>
+      <p className="mt-2 text-xs text-muted-foreground">
+        Essa ação é permanente e também remove os serviços vinculados e anexos desse cadastro.
+      </p>
+    </AdminDialog>}
     {deleteTarget && <AdminDialog open title="Excluir serviço" description="Confirme a exclusão do serviço do catálogo"
       onClose={() => {if (!deletingService) setDeleteTarget(null);}}
       footer={<div className="flex justify-end gap-2">
