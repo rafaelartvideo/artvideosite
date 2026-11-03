@@ -34,7 +34,7 @@ test("QR e código reutilizam sessão temporária de documentos e enviam comprov
   assert.match(capture,/mode: session\.mode/);
   assert.match(gateway,/mode: data\.session\.mode === "payment-proof"/);
   assert.match(mobile,/mobile_flow === "payment-proof"/);
-  assert.match(docs,/paymentProofOnly=\s*false/);
+  assert.match(docs,/paymentProofOnly\s*=\s*false/);
   assert.match(docs,/effectiveTypeId = paymentProofOnly/);
   assert.match(docs,/comprovante de pagamento/);
 });
