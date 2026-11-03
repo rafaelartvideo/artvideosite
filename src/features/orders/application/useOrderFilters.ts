@@ -1,10 +1,18 @@
 import { useCallback, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/infrastructure/query/query-keys";
-import { countServiceOrders, type ExactOrderPage } from "../infrastructure/orders-filtered-page.repository";
+import {
+  countServiceOrders,
+  listOrderNeighborhoodOptions,
+  type ExactOrderPage,
+  type FilterNeighborhood,
+} from "../infrastructure/orders-filtered-page.repository";
 import { listServiceOrdersPageWithCustomerName } from "../infrastructure/orders-customer-name-filter.repository";
 
 export type CityFilterOption = { name: string; state: string };
+export type NeighborhoodFilterOption = FilterNeighborhood;
+
+const normalizeLocationText = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLocaleLowerCase("pt-BR");
 
 type OrderType = "internal" | "external";
 type StateOption = { sigla: string; nome: string };
@@ -50,6 +58,7 @@ export function useOrderFilters({
   const [orderSort, setOrderSort] = useState<"" | "asc" | "desc">("");
   const [selectedStates, setSelectedStates] = useState<string[]>([]);
   const [selectedCities, setSelectedCities] = useState<CityFilterOption[]>([]);
+  const [selectedNeighborhoods, setSelectedNeighborhoods] = useState<NeighborhoodFilterOption[]>([]);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [page, setPage] = useState(1);
@@ -87,6 +96,40 @@ export function useOrderFilters({
     setSelectedCities(current => current.filter(city => selectedStates.some(state => state.trim().toUpperCase() === city.state.trim().toUpperCase())));
   }, [selectedStates]);
 
+
+  const neighborhoodOptionsQuery = useQuery({
+    queryKey: ["orders", organizationId || "none", "neighborhood-options"],
+    enabled: enabled && Boolean(organizationId),
+    staleTime: 2 * 60_000,
+    queryFn: () => listOrderNeighborhoodOptions(organizationId!),
+  });
+
+  const canonicalState = useCallback((value: string) => {
+    const valueKey = normalizeLocationText(value);
+    const state = stateOptions.find(option =>
+      normalizeLocationText(option.sigla) === valueKey || normalizeLocationText(option.nome) === valueKey,
+    );
+    return state?.sigla.toUpperCase() || valueKey;
+  }, [stateOptions]);
+
+  const availableNeighborhoods = useMemo(() => (neighborhoodOptionsQuery.data ?? []).filter(option => {
+    const stateMatches = selectedStates.length === 0
+      || selectedStates.some(state => canonicalState(state) === canonicalState(option.state));
+    const cityMatches = selectedCities.length === 0 || selectedCities.some(city =>
+      canonicalState(city.state) === canonicalState(option.state)
+      && normalizeLocationText(city.name) === normalizeLocationText(option.city)
+    );
+    return stateMatches && cityMatches;
+  }), [neighborhoodOptionsQuery.data, selectedStates, selectedCities, canonicalState]);
+
+  useEffect(() => {
+    if (!neighborhoodOptionsQuery.data) return;
+    const available = new Set(availableNeighborhoods.map(option =>
+      [normalizeLocationText(option.name), normalizeLocationText(option.city), canonicalState(option.state)].join("|")));
+    setSelectedNeighborhoods(current => current.filter(option => available.has(
+      [normalizeLocationText(option.name), normalizeLocationText(option.city), canonicalState(option.state)].join("|"))));
+  }, [availableNeighborhoods, neighborhoodOptionsQuery.data, canonicalState]);
+
   const invalidPeriod = Boolean(dateFrom && dateTo && dateFrom > dateTo);
   const stateNames = useMemo(() => selectedStates.map(state => {
     const normalizedState = state.trim().toUpperCase();
@@ -109,11 +152,12 @@ export function useOrderFilters({
     states: [...selectedStates].sort(),
     stateNames: [...stateNames].sort(),
     cities: selectedCities.map(city => `${city.state}:${city.name}`).sort(),
+    neighborhoods: selectedNeighborhoods.map(item => `${item.state}:${item.city}:${item.name}`).sort(),
     dateFrom,
     dateTo,
     sort: orderSort,
     matchOrderNumberOrExternal,
-  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, selectedResponsibleIds, selectedStatusIds, selectedSituationIds, filterOrderType, selectedServiceTypeId, selectedServiceTypeIds, kanbanMode, selectedStates, stateNames, selectedCities, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
+  }), [organizationId, page, pageSize, debouncedOsNumberSearch, debouncedExternalOsSearch, debouncedCustomerNameSearch, debouncedDocumentSearch, debouncedSerialNumberSearch, selectedResponsibleIds, selectedStatusIds, selectedSituationIds, filterOrderType, selectedServiceTypeId, selectedServiceTypeIds, kanbanMode, selectedStates, stateNames, selectedCities, selectedNeighborhoods, dateFrom, dateTo, orderSort, matchOrderNumberOrExternal]);
   const listKey = queryKeys.orders.list(queryFilters);
   const hasActiveServerFilters = Boolean(
     debouncedOsNumberSearch
@@ -129,6 +173,7 @@ export function useOrderFilters({
     || (kanbanMode && selectedServiceTypeId)
     || selectedStates.length
     || selectedCities.length
+    || selectedNeighborhoods.length
     || dateFrom
     || dateTo
   );
@@ -165,6 +210,7 @@ export function useOrderFilters({
           states: selectedStates,
           stateNames,
           cities: selectedCities,
+          neighborhoods: selectedNeighborhoods,
           dateFrom,
           dateTo,
           sort: orderSort,
@@ -208,6 +254,7 @@ export function useOrderFilters({
     setOrderSort("");
     setSelectedStates([]);
     setSelectedCities([]);
+    setSelectedNeighborhoods([]);
     setDateFrom("");
     setDateTo("");
     setPage(1);
@@ -215,7 +262,7 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
-  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, responsibleId, filterStatus, filterSituation, selectedResponsibleIds, selectedStatusIds, selectedSituationIds, selectedServiceTypeIds, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, dateFrom, dateTo]);
+  }, [osNumberSearch, externalOsSearch, customerNameSearch, documentSearch, serialNumberSearch, responsibleId, filterStatus, filterSituation, selectedResponsibleIds, selectedStatusIds, selectedSituationIds, selectedServiceTypeIds, filterOrderType, selectedServiceTypeId, orderSort, selectedStates, selectedCities, selectedNeighborhoods, dateFrom, dateTo]);
 
   useEffect(() => {
     if (page > totalPages) setPage(totalPages);
@@ -223,6 +270,7 @@ export function useOrderFilters({
 
   useEffect(() => {
     setPage(1);
+    setSelectedNeighborhoods([]);
   }, [organizationId, kanbanMode]);
 
   return {
@@ -269,6 +317,10 @@ export function useOrderFilters({
     setSelectedStates,
     selectedCities,
     setSelectedCities,
+    selectedNeighborhoods,
+    setSelectedNeighborhoods,
+    neighborhoodFilterOptions: availableNeighborhoods,
+    neighborhoodsLoading: neighborhoodOptionsQuery.isPending && Boolean(organizationId),
     cityFilterOptions,
     cityFiltersLoading: selectedStates.length > 0 && citiesQuery.isFetching,
     dateFrom,
