@@ -21,6 +21,7 @@ export type CompanySettings = {
   company_state: string;
   company_logo_media_id: string;
   company_menu_logo_media_id: string;
+  require_payment_proof_on_completion: boolean;
 };
 
 export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
@@ -40,6 +41,7 @@ export const EMPTY_COMPANY_SETTINGS: CompanySettings = {
   company_state: "",
   company_logo_media_id: "",
   company_menu_logo_media_id: "",
+  require_payment_proof_on_completion: false,
 };
 
 function text(value: unknown) {
@@ -68,6 +70,7 @@ function fromRow(row: any, organizationSettings?: any): CompanySettings {
     company_state: text(row.state),
     company_logo_media_id: text(row.logo_media_id),
     company_menu_logo_media_id: text(row.menu_logo_media_id),
+    require_payment_proof_on_completion: row.require_payment_proof_on_completion === true,
   };
 }
 
@@ -98,6 +101,7 @@ export async function saveCompanySettings(
     logo_media_id: settings.company_logo_media_id || null,
     menu_logo_media_id: settings.company_menu_logo_media_id || null,
   };
+  const completionPayload = { require_payment_proof_on_completion: settings.require_payment_proof_on_completion === true };
   const contactPayload = {
     phone: settings.company_phone.trim() || null,
     email: settings.company_email.trim() || null,
@@ -105,7 +109,7 @@ export async function saveCompanySettings(
   const payload = scope === "branding"
     ? { ...commonPayload, ...brandingPayload }
     : scope === "partner"
-      ? { ...commonPayload, ...contactPayload, ...brandingPayload }
+      ? { ...commonPayload, ...contactPayload, ...brandingPayload, ...completionPayload }
       : {
           ...commonPayload,
           name: settings.company_name.trim(),
@@ -120,6 +124,7 @@ export async function saveCompanySettings(
           city: settings.company_city.trim() || null,
           state: settings.company_state.trim().toUpperCase() || null,
           ...brandingPayload,
+          ...completionPayload,
         };
 
   const updateSettings = async () => (supabase as any)
@@ -190,6 +195,7 @@ export async function saveCompanySettings(
     menu_logo_media_id: settings.company_menu_logo_media_id || preferred(null, organizationSettings.menu_logo_media_id),
     updated_by: updatedBy,
     updated_at: now,
+    ...completionPayload,
   };
 
   const { error: seedError } = await (supabase as any)
