@@ -47,8 +47,9 @@ export function OrdersListWorkspace(props: Props) {
   const { statuses, situations, serviceTypes, serviceTypeSituations, profiles, isOrganizationOverride } = workspace;
   const {
     osNumberSearch, setOsNumberSearch, externalOsSearch, customerNameSearch, setCustomerNameSearch, documentSearch, setDocumentSearch,
-    serialNumberSearch, setSerialNumberSearch, responsibleId, setResponsibleId, filterStatus, setFilterStatus, filterSituation, setFilterSituation, filterOrderType,
-    selectedServiceTypeId, setSelectedServiceTypeId, orderSort, setOrderSort, selectedStates, setSelectedStates,
+    serialNumberSearch, setSerialNumberSearch, setFilterSituation, filterOrderType,
+    selectedServiceTypeId, setSelectedServiceTypeId, selectedResponsibleIds, setSelectedResponsibleIds, selectedStatusIds, setSelectedStatusIds,
+    selectedSituationIds, setSelectedSituationIds, selectedServiceTypeIds, setSelectedServiceTypeIds, orderSort, setOrderSort, selectedStates, setSelectedStates,
     selectedCities, setSelectedCities, cityFilterOptions, cityFiltersLoading, dateFrom, setDateFrom, dateTo, setDateTo,
     page, setPage, pageSize, setPageSize, invalidPeriod, filteredOrders, pagedOrders, totalItems, generalTotalItems, totalPages, safePage,
     clearFilters, loading: listLoading,
@@ -103,12 +104,13 @@ export function OrdersListWorkspace(props: Props) {
   const changeKanbanServiceType = (serviceTypeId: string) => {
     // Evita manter um filtro de situação pertencente a outro atendimento.
     setFilterSituation("");
+    setSelectedSituationIds([]);
     setSelectedServiceTypeId(serviceTypeId);
     setPage(1);
   };
   const hasActiveFilters = sharedView
     ? Boolean(osNumberSearch || documentSearch)
-    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || responsibleId || filterStatus || filterSituation || filterOrderType || selectedServiceTypeId || selectedStates.length || selectedCities.length || dateFrom || dateTo);
+    : Boolean(osNumberSearch || externalOsSearch || customerNameSearch || documentSearch || serialNumberSearch || selectedResponsibleIds.length || selectedStatusIds.length || selectedSituationIds.length || filterOrderType || selectedServiceTypeIds.length || (resolvedDisplayMode === "kanban" && selectedServiceTypeId) || selectedStates.length || selectedCities.length || dateFrom || dateTo);
 
   if (!visible) return null;
 
@@ -128,10 +130,10 @@ export function OrdersListWorkspace(props: Props) {
       customerNameSearch={customerNameSearch}
       documentSearch={documentSearch}
       serialNumberSearch={serialNumberSearch}
-      responsibleId={responsibleId}
-      statusId={filterStatus}
-      situationId={filterSituation}
-      serviceTypeId={selectedServiceTypeId}
+      responsibleIds={selectedResponsibleIds}
+      statusIds={selectedStatusIds}
+      situationIds={selectedSituationIds}
+      serviceTypeIds={selectedServiceTypeIds}
       selectedStates={selectedStates}
       selectedCities={selectedCities}
       dateFrom={dateFrom}
@@ -154,10 +156,10 @@ export function OrdersListWorkspace(props: Props) {
       onCustomerNameSearchChange={(value) => { setCustomerNameSearch(value); setPage(1); }}
       onDocumentSearchChange={(value) => { setDocumentSearch(value); setPage(1); }}
       onSerialNumberSearchChange={(value) => { setSerialNumberSearch(value); setPage(1); }}
-      onResponsibleChange={(value) => { setResponsibleId(value); setPage(1); }}
-      onStatusChange={(value) => { setFilterStatus(value); setPage(1); }}
-      onSituationChange={(value) => { setFilterSituation(value); setPage(1); }}
-      onServiceTypeChange={(value) => { if (resolvedDisplayMode === "kanban") changeKanbanServiceType(value); else { setSelectedServiceTypeId(value); setPage(1); } }}
+      onResponsibleChange={(value) => setSelectedResponsibleIds(current => current.includes(value) ? current.filter(id => id !== value) : [...current, value])}
+      onStatusChange={(value) => setSelectedStatusIds(current => current.includes(value) ? current.filter(id => id !== value) : [...current, value])}
+      onSituationChange={(value) => setSelectedSituationIds(current => current.includes(value) ? current.filter(id => id !== value) : [...current, value])}
+      onServiceTypeChange={(value) => setSelectedServiceTypeIds(current => current.includes(value) ? current.filter(id => id !== value) : [...current, value])}
       onStateSelect={(value) => setSelectedStates(current => current.includes(value) ? current : [...current, value])}
       onStateRemove={(value) => setSelectedStates(current => current.filter(state => state !== value))}
       onStatesClear={() => setSelectedStates([])}
