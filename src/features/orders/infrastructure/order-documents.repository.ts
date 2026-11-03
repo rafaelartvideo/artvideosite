@@ -35,6 +35,32 @@ export async function listAttachmentTypes(activeOnly = true, organizationIdOverr
   return query as Promise<{ data: AttachmentType[] | null; error: any }>;
 }
 
+export async function getOrderPaymentProofRequirement(organizationId: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc("get_order_payment_proof_requirement_v1" as any, {
+    p_organization_id: organizationId,
+  });
+  if (error) throw error;
+  return data === true;
+}
+
+export async function hasOrderPaymentProof(
+  organizationId: string,
+  serviceOrderId: string,
+  attachmentTypeIds: string[],
+): Promise<boolean> {
+  if (!attachmentTypeIds.length) return false;
+  const { data, error } = await supabase
+    .from("service_order_situation_media")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("service_order_id", serviceOrderId)
+    .is("situation_id", null)
+    .in("attachment_type_id", attachmentTypeIds)
+    .limit(1);
+  if (error) throw error;
+  return Boolean(data?.length);
+}
+
 export async function countOrderSituationDocuments(serviceOrderId: string, organizationId: string) {
   // HEAD com contagem, sem trazer joins, nomes de arquivos ou dados pessoais.
   const { count, error } = await supabase.from("service_order_situation_media")
