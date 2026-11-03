@@ -130,3 +130,21 @@ test("catalogo permite excluir com confirmacao e bloqueia exclusao vinculada, ma
   assert.match(sql,/es\.equipment_name=any\(p_equipment_names\)/);
   assert.ok((await transformWithEsbuild(page,"PlatformProvidersPage.tsx",{loader:"tsx"})).code.length>500);
 });
+
+test("prestador pode ser excluido pelo card com modal simples de confirmacao azul", async () => {
+  const page = read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const repository = read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  assert.match(page, /ariaLabel=\{"Excluir "\+provider\.name\}/);
+  assert.match(page, /onClick=\{event=>\{event\.stopPropagation\(\);setProviderDeleteTarget\(provider\);\}\}/);
+  assert.match(page, /title="Excluir prestador"/);
+  assert.match(page, /variant="secondary" disabled=\{deletingProvider\}/);
+  assert.match(page, /variant="primary" loading=\{deletingProvider\}/);
+  assert.match(page, /Confirmar exclusão/);
+  assert.match(page, /confirmDeleteProvider/);
+  assert.match(repository, /export async function deletePlatformProvider/);
+  assert.match(repository, /\.delete\(\)\.eq\("organization_id", orgId\)\.eq\("id", providerId\)/);
+  assert.match(repository, /platform_provider_attachments/);
+  assert.match(repository, /PLATFORM_PROVIDER_BUCKET/);
+  assert.match(repository, /orphanedFiles/);
+  assert.ok((await transformWithEsbuild(page, "PlatformProvidersPage.tsx", {loader:"tsx"})).code.length > 500);
+});
