@@ -5,42 +5,49 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("cadastro suporta prestador como vínculo independente, sem alterar os vínculos existentes", () => {
-  const repository = read("src/features/registrations/infrastructure/registrations.repository.ts");
+test("prestadores são um módulo exclusivo da Union, sem vínculo de usuários ou cadastros das empresas", async () => {
   const editor = read("src/features/registrations/presentation/RegistrationEditor.tsx");
   const list = read("src/features/registrations/presentation/TabRegistrations.tsx");
   const dashboard = read("src/features/dashboard/presentation/TabDashboard.tsx");
-  assert.match(repository, /"customer" \| "employee" \| "supplier" \| "service_provider"/);
-  assert.match(editor, /"customer", "employee", "supplier", "service_provider"/);
-  assert.match(editor, /<ProviderServicesEditor/);
-  assert.match(list, /value: "service_provider", label: "Prestadores de serviço"/);
-  assert.match(dashboard, /registrationHasRole\(registration, "service_provider"\)/);
+  const routes = read("src/app/Admin.tsx");
+  const sidebar = read("src/features/admin-shell/presentation/AdminSidebar.tsx");
+  const providerScreen = read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+
+  for (const file of [editor, list, dashboard]) {
+    assert.doesNotMatch(file, /service_provider|ProviderServicesEditor|Prestadores de serviço/);
+  }
+  assert.match(routes, /tab === "serviceProviders"\) return isPlatformOperatorOrganization && !crmMode/);
+  assert.match(sidebar, /tab === "serviceProviders"\) return isPlatformOperatorOrganization/);
+  assert.match(providerScreen, /canManage = isUnion && hasPermission\("platform.providers.manage"\)/);
+  const result = await transformWithEsbuild(providerScreen, "PlatformProvidersPage.tsx", {loader:"tsx"});
+  assert.ok(result.code.length > 1000);
 });
 
-test("serviços do prestador têm edição, validação e salvamento no mesmo RPC do cadastro", async () => {
-  const editor = read("src/features/registrations/presentation/ProviderServicesEditor.tsx");
-  const form = read("src/features/registrations/domain/registration-form.ts");
-  const list = read("src/features/registrations/presentation/TabRegistrations.tsx");
-  const repository = read("src/features/registrations/infrastructure/registrations.repository.ts");
-  const details = read("src/features/registrations/presentation/RegistrationDetails.tsx");
-  const compiled = await transformWithEsbuild(editor, "ProviderServicesEditor.tsx", { loader: "tsx" });
-  assert.ok(compiled.code.length > 0);
-  assert.match(editor, /Adicionar serviço/);
-  assert.match(editor, /reference_price/);
-  assert.match(form, /validateProviderServices/);
-  assert.match(form, /parseProviderReferencePrice/);
-  assert.match(form, /provider_services: form\.roles\.includes\("service_provider"\)/);
-  assert.match(list, /const servicesValidation = validateProviderServices\(form\)/);
-  assert.match(repository, /provider_services:entity_provider_services/);
-  assert.match(details, /<Section title="Serviços prestados"/);
+test("filtros paginados, cards, seleção alfabética com marcados no topo e novos serviços", () => {
+  const ui = read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const repository = read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  const migration = read("supabase/migrations/20261103151200_union_platform_provider_directory_search.sql");
+  assert.match(ui, /grid gap-4 md:grid-cols-2 xl:grid-cols-3/);
+  assert.match(ui, /selected.includes\(b.id\)/);
+  assert.match(ui, /normalSort\(a.name, b.name\)/);
+  assert.match(ui, /addService\(true\)/);
+  assert.match(ui, /setSection\(item.key\)/);
+  assert.match(repository, /list_platform_service_providers/);
+  assert.match(migration, /p_service_id uuid/);
+  assert.match(migration, /p_state text/);
+  assert.match(migration, /p_city text/);
+  assert.match(migration, /limit least\(/);
 });
 
-test("migração preserva isolamento multiempresa e RLS no cadastro de serviços", () => {
-  const migration = read("supabase/migrations/20261103143000_registration_service_provider_services.sql");
-  assert.match(migration, /enable row level security/);
-  assert.match(migration, /entity_provider_services_entity_org_fkey/);
-  assert.match(migration, /private\.has_effective_organization_permission/);
-  assert.match(migration, /v_has_provider/);
-  assert.match(migration, /p_entity \? 'provider_services'/);
-  assert.match(migration, /on conflict \(id\) do update/);
+test("prestadores, serviços e anexos são isolados por permissão Union e RLS", () => {
+  const sql = read("supabase/migrations/20261103151000_union_platform_service_provider_directory.sql");
+  const repository = read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  assert.match(sql, /enable row level security/);
+  assert.match(sql, /private\.has_organization_permission/);
+  assert.match(sql, /platform_operator_organization_id/);
+  assert.match(sql, /security invoker/);
+  assert.match(sql, /platform_provider_files_insert/);
+  assert.match(sql, /public\.entity_roles add constraint entity_roles_role_check/);
+  assert.match(repository, /createSignedUrl/);
+  assert.match(repository, /file.size > 10 \* 1024 \* 1024/);
 });
