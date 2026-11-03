@@ -103,7 +103,8 @@ export function AdminSidebar({
   }
   const dashboardItems = visibleMainItems.filter(item => ["home", "dashboard"].includes(item.id));
   const serviceItems = visibleMainItems.filter(item =>
-    ["orders", "technicianPanel", "customers", "customerRequests", "agenda", "workItems", "serviceProviders"].includes(item.id),
+    ["orders", "technicianPanel", "customers", "customerRequests", "agenda", "workItems", "serviceProviders"].includes(item.id)
+    && !(isPlatformOperatorOrganization && ["technicianPanel", "customerRequests"].includes(item.id)),
   );
   const commercialItems = visibleMainItems.filter(item =>
     !isPlatformOperatorOrganization && ["inventory", "pdv", "finance"].includes(item.id),
