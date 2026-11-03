@@ -30,7 +30,12 @@ test("filtros paginados, cards, seleção alfabética com marcados no topo e nov
   assert.match(ui, /grid gap-4 md:grid-cols-2 xl:grid-cols-3/);
   assert.match(ui, /selected.includes\(b.id\)/);
   assert.match(ui, /normalSort\(a.name, b.name\)/);
-  assert.match(ui, /addService\(true\)/);
+  assert.match(ui, /onCreateBatch=\{items => addBatch\(items, true\)\}/);
+  assert.match(ui, /setSelectedServiceIds\(current => \[\.\.\.new Set\(\[\.\.\.current, \.\.\.added\.map\(item => item\.id\)\]\)\]\)/);
+  assert.match(repository, /addPlatformServices/);
+  const batchEditor = read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
+  assert.match(batchEditor, /Adicionar outra subcategoria/);
+  assert.match(batchEditor, /Adicionar outro serviço/);
   assert.match(ui, /setSection\(item.key\)/);
   assert.match(repository, /list_platform_service_providers/);
   assert.match(migration, /p_service_id uuid/);
