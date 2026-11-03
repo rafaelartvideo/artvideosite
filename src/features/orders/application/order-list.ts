@@ -45,21 +45,21 @@ export const filterServiceOrders = ({
   matchOrderNumberOrExternal?: boolean;
 }) =>
   orders.filter((order) => {
-    const normalizedOsSearch = normalizeIdentifier(osNumberSearch);
-    const normalizedExternalSearch = normalizeIdentifier(externalOsSearch);
+    const normalizedOsSearch = normalizeIdentifier(osNumberSearch).replace(/^os(?=\d)/, "");
+    const normalizedExternalSearch = normalizeIdentifier(externalOsSearch).replace(/^os(?=\d)/, "");
     const normalizedDocumentSearch = normalizeDigits(documentSearch);
     const customer = order.customer || {};
     const normalizedState = normalizeSearchText(order.service_state);
-    const normalizedOrderNumber = normalizeIdentifier(order.os_number);
-    const normalizedExternalNumber = normalizeIdentifier(order.external_os_number);
+    const normalizedOrderNumber = normalizeIdentifier(order.os_number).replace(/^os(?=\d)/, "");
+    const normalizedExternalNumber = normalizeIdentifier(order.external_os_number).replace(/^os(?=\d)/, "");
     const customerIdentifiers = [customer.document, customer.cnpj].map(normalizeDigits);
 
     const matchesOsNumber = matchOrderNumberOrExternal
-      ? !normalizedOsSearch || normalizedOrderNumber.includes(normalizedOsSearch) || normalizedExternalNumber.includes(normalizedOsSearch)
-      : !normalizedOsSearch || normalizedOrderNumber.includes(normalizedOsSearch);
+      ? !normalizedOsSearch || normalizedOrderNumber === normalizedOsSearch || normalizedExternalNumber === normalizedOsSearch
+      : !normalizedOsSearch || normalizedOrderNumber === normalizedOsSearch;
     const matchesExternalOs = matchOrderNumberOrExternal
       ? true
-      : !normalizedExternalSearch || normalizedExternalNumber.includes(normalizedExternalSearch);
+      : !normalizedExternalSearch || normalizedExternalNumber === normalizedExternalSearch;
     const matchesDocument =
       !normalizedDocumentSearch ||
       customerIdentifiers.some(value => value.includes(normalizedDocumentSearch));
