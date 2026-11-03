@@ -93,6 +93,7 @@ export async function addPlatformServices(orgId: string, items: PlatformServiceB
   // Uma unica requisicao INSERT: ou todos os itens sao gravados ou nenhum, sem gravacao parcial.
   const { data, error } = await supabase.from("platform_provider_services")
     .insert(normalized).select("id,organization_id,name,is_active,equipment_name");
+  if (error?.code === "23505") throw new Error("Um ou mais serviços já existem nessa categoria. Revise os nomes antes de cadastrar o lote.");
   if (error) throw error;
   return (data || []) as PlatformService[];
 }
