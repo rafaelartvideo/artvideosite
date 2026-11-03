@@ -148,3 +148,28 @@ test("prestador pode ser excluido pelo card com modal simples de confirmacao azu
   assert.match(repository, /orphanedFiles/);
   assert.ok((await transformWithEsbuild(page, "PlatformProvidersPage.tsx", {loader:"tsx"})).code.length > 500);
 });
+
+test("novo servico usa modal unico em vez do cadastro em lote na pagina",async()=>{
+  const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const batch=read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
+  const editor=read("src/features/platform-providers/presentation/PlatformProviderEditor.tsx");
+
+  assert.match(page,/section === "services"/);
+  assert.match(page,/> Novo serviço<\/AdminButton>/);
+  assert.match(page,/> Novo prestador<\/AdminButton>/);
+  assert.match(page,/serviceModal && <AdminDialog open title="Novo serviço"/);
+  assert.match(page,/initialEquipmentName=\{serviceModal\.equipmentName\}/);
+  assert.match(page,/initialMode=\{serviceModal\.mode\}/);
+  assert.match(page,/closeOnSuccess/);
+  assert.match(page,/onCreateBatch=\{async items =>/);
+  assert.match(page,/onClick=\{\(\) => openServiceModal\(equipment, false, equipment \? "equipment" : "standalone"\)\}/);
+  assert.match(page,/aria-label=\{equipment \? "Adicionar serviço em " \+ equipment : "Adicionar serviço avulso"\}/);
+  assert.match(page,/items\.map\(service => <div/);
+  assert.equal((page.match(/<PlatformServiceBatchEditor/g)||[]).length,1,
+    "Editor em lote deve aparecer somente no modal, nunca na pagina");
+  assert.match(editor,/\{batchContent\}/);
+  assert.match(batch,/useState\(initialEquipmentName\)/);
+  assert.match(batch,/closeOnSuccess/);
+  assert.ok((await transformWithEsbuild(page,"PlatformProvidersPage.tsx",{loader:"tsx"})).code.length>500);
+  assert.ok((await transformWithEsbuild(batch,"PlatformServiceBatchEditor.tsx",{loader:"tsx"})).code.length>500);
+});
