@@ -1,39 +1,27 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, FileText, MapPin, Paperclip, Pencil, Plus, Search, Wrench, X } from "lucide-react";
+import { Check, MapPin, Paperclip, Pencil, Plus, Search, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
-import { AdminButton, AdminDialog, PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import {
   addPlatformService, addProviderAttachment, draftFromProvider,
-  editPlatformService, emptyProviderDraft, listPlatformProviders, listPlatformServices,
-  listProviderAttachments, listProviderLocations, openProviderAttachment,
+  countPlatformProviders, editPlatformService, emptyProviderDraft, listPlatformProviders, listPlatformServices,
+  listProviderAttachments, listProviderLocations,
   removeProviderAttachment, savePlatformProvider,
   type PlatformProvider, type PlatformProviderDraft, type PlatformService,
   type ProviderFilters,
 } from "../infrastructure/platform-providers.repository";
-import { ProviderBackgroundChecks } from "./ProviderBackgroundChecks";
+import { PlatformProviderEditor } from "./PlatformProviderEditor";
+import { ProviderCertificateLinks } from "./ProviderCertificateLinks";
 
-const UF_LIST = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG",
-  "PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"];
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
 const labelClass = "mb-1.5 block text-xs font-semibold text-foreground";
 const normalSort = (a: string, b: string) => a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 const emptyFilters = (): ProviderFilters => ({
   search: "", serviceId: "", state: "", city: "", status: "all", page: 1, pageSize: 24,
 });
-
-function Field({ label, value, onChange, required = false, placeholder = "", type = "text" }: {
-  label: string; value: string; onChange: (next: string) => void; required?: boolean;
-  placeholder?: string; type?: string;
-}) {
-  return <label className="min-w-0">
-    <span className={labelClass}>{label}{required && <span className="text-destructive"> *</span>}</span>
-    <input className={inputClass} type={type} value={value} required={required}
-      placeholder={placeholder} onChange={event => onChange(event.target.value)} />
-  </label>;
-}
 
 function ServiceChoices({ services, selected, onToggle }: {
   services: PlatformService[]; selected: string[]; onToggle: (id: string) => void;
@@ -98,6 +86,11 @@ export function PlatformProvidersPage() {
     queryFn: () => listPlatformProviders(filters),
     enabled: Boolean(canView && activeOrganizationId), staleTime: 15_000,
   });
+  const totalCountQuery = useQuery({
+    queryKey: ["union-platform-providers-total", activeOrganizationId],
+    queryFn: () => countPlatformProviders(activeOrganizationId!),
+    enabled: Boolean(canView && activeOrganizationId), staleTime: 30_000,
+  });
   const attachmentsQuery = useQuery({
     queryKey: ["union-provider-attachments", activeOrganizationId, editing?.id],
     queryFn: () => listProviderAttachments(activeOrganizationId!, editing!.id),
@@ -120,12 +113,11 @@ export function PlatformProvidersPage() {
   const changeFilter = (patch: Partial<ProviderFilters>) =>
     setFilters(current => ({ ...current, ...patch, page: 1 }));
 
-  const updateDraft = (patch: Partial<PlatformProviderDraft>) =>
-    setDraft(current => ({ ...current, ...patch }));
   const refresh = async () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["union-platform-providers", activeOrganizationId] }),
       queryClient.invalidateQueries({ queryKey: ["union-provider-locations", activeOrganizationId] }),
+      queryClient.invalidateQueries({ queryKey: ["union-platform-providers-total", activeOrganizationId] }),
     ]);
   };
   const openNew = () => {
@@ -193,7 +185,7 @@ export function PlatformProvidersPage() {
 
   return <div className="space-y-5">
     <PageHeader title="Prestadores de Serviços"
-      subtitle="Diretório próprio da Union World, independente de usuários e cadastros das empresas."
+      subtitle={`${totalCountQuery.data ?? 0} cadastrados`}
       actions={canManage ? <AdminButton onClick={openNew}><Plus size={16} /> Novo prestador</AdminButton> : undefined} />
 
     <div className="flex gap-5 border-b border-border" role="tablist" aria-label="Seções de prestadores">
@@ -238,13 +230,14 @@ export function PlatformProvidersPage() {
             </select>
           </label>
         </div>
-        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>{total} prestador{total === 1 ? "" : "es"} encontrado{total === 1 ? "" : "s"}</span>
-          {(filters.search || filters.serviceId || filters.state || filters.city || filters.status !== "all") &&
-            <button type="button" className="font-semibold text-primary hover:underline"
-              onClick={() => { setSearchText(""); setFilters(emptyFilters()); }}>Limpar filtros</button>}
-        </div>
+        {(filters.search || filters.serviceId || filters.state || filters.city || filters.status !== "all") &&
+          <div className="mt-3 flex justify-end">
+            <button type="button" className="text-xs font-semibold text-primary hover:underline"
+              onClick={() => { setSearchText(""); setFilters(emptyFilters()); }}>Limpar filtros</button>
+          </div>}
       </section>
+
+      <ProviderCertificateLinks state={filters.state} />
 
       {providersQuery.isPending ? <LoadingState text="Carregando prestadores" /> :
         providersQuery.isError ? <p className="rounded-lg border border-destructive/20 p-4 text-sm text-destructive">
@@ -331,85 +324,20 @@ export function PlatformProvidersPage() {
       </div>
     </section>}
 
-    <AdminDialog open={editorOpen} onClose={() => { if (!saving) setEditorOpen(false); }}
-      title={editing ? "Editar prestador" : "Novo prestador"} description="Cadastro independente dos usuários do CRM."
-      className="max-w-5xl">
-      <div className="max-h-[70vh] space-y-5 overflow-y-auto p-1">
-        <section className="space-y-3">
-          <h3 className="text-sm font-bold text-foreground">Dados do prestador</h3>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="sm:col-span-2"><Field label="Nome / Nome fantasia" required value={draft.name} onChange={name => updateDraft({name})} /></div>
-            <Field label="CPF ou CNPJ (opcional)" value={draft.document} onChange={document => updateDraft({document})} />
-            <Field label="Telefone" value={draft.phone} onChange={phone => updateDraft({phone})} />
-            <Field label="WhatsApp" value={draft.whatsapp} onChange={whatsapp => updateDraft({whatsapp})} />
-            <Field label="E-mail (opcional)" type="email" value={draft.email} onChange={email => updateDraft({email})} />
-            <label><span className={labelClass}>Estado <span className="text-destructive">*</span></span>
-              <select className={inputClass} value={draft.state} onChange={event => updateDraft({state:event.target.value})}>
-                <option value="">Selecionar estado</option>{UF_LIST.map(state => <option key={state} value={state}>{state}</option>)}
-              </select></label>
-            <Field label="Cidade" required value={draft.city} onChange={city => updateDraft({city})} placeholder="Nome da cidade" />
-            <Field label="Bairro" value={draft.neighborhood} onChange={neighborhood => updateDraft({neighborhood})} />
-            <Field label="Rua / Endereço" value={draft.street} onChange={street => updateDraft({street})} />
-            <Field label="Número" value={draft.street_number} onChange={street_number => updateDraft({street_number})} />
-            <Field label="CEP" value={draft.zip_code} onChange={zip_code => updateDraft({zip_code})} />
-          </div>
-          <label className="block"><span className={labelClass}>Observações</span>
-            <textarea rows={3} value={draft.notes} onChange={event => updateDraft({notes:event.target.value})}
-              maxLength={3000} className={inputClass + " h-auto min-h-20 py-2"} placeholder="Experiência, atendimento, disponibilidade..." /></label>
-          <label className="flex items-center gap-2 text-xs font-semibold text-foreground">
-            <input type="checkbox" checked={draft.is_active} onChange={event => updateDraft({is_active:event.target.checked})} className="h-4 w-4 accent-primary" />
-            Prestador ativo
-          </label>
-        </section>
-
-        <section className="space-y-3 border-t border-border pt-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div><h3 className="text-sm font-bold text-foreground">Serviços prestados <span className="text-destructive">*</span></h3>
-              <p className="mt-1 text-xs text-muted-foreground">Marque as especialidades. As selecionadas sobem ao início e permanecem em ordem alfabética.</p></div>
-            <span className="text-xs font-bold text-primary">{selectedServiceIds.length} selecionados</span>
-          </div>
-          <ServiceChoices services={services} selected={selectedServiceIds}
-            onToggle={id => setSelectedServiceIds(current => current.includes(id) ? current.filter(item => item !== id) : [...current,id])} />
-          {canManage && <div className="flex flex-col gap-2 rounded-lg border border-dashed border-border p-3 sm:flex-row">
-            <input className={inputClass} maxLength={120} value={serviceName}
-              onChange={event => setServiceName(event.target.value)} placeholder="Serviço ainda não cadastrado" />
-            <AdminButton variant="secondary" disabled={!serviceName.trim()} loading={catalogSaving}
-              onClick={() => void addService(true)}><Plus size={15} /> Criar e marcar</AdminButton>
-          </div>}
-        </section>
-
-        <section className="space-y-3 border-t border-border pt-4">
-          <h3 className="text-sm font-bold text-foreground">Anexos (opcional)</h3>
-          <p className="text-xs text-muted-foreground">PDF, foto, TXT, DOC ou DOCX. Até 10 MB por arquivo. Acesso privado à Union.</p>
-          <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.webp,.txt,.doc,.docx"
-            className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-lg file:border file:border-border file:bg-card file:px-3 file:py-2 file:font-semibold file:text-primary"
-            onChange={event => {
-              const picked = Array.from(event.target.files || []);
-              setPendingFiles(current => [...current, ...picked]);
-              event.target.value = "";
-            }} />
-          {pendingFiles.map((file,index) => <div key={index} className="flex items-center gap-2 text-xs">
-            <FileText size={14} className="shrink-0 text-primary" /><span className="min-w-0 flex-1 truncate">{file.name}</span>
-            <button type="button" aria-label={`Remover ${file.name}`} onClick={() => setPendingFiles(files => files.filter((_,i) => i !== index))}><X size={14} /></button>
-          </div>)}
-          {editing && (attachmentsQuery.data || []).map(attachment => <div key={attachment.id}
-            className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-xs">
-            <Paperclip size={14} className="shrink-0" />
-            <button type="button" className="min-w-0 flex-1 truncate text-left font-semibold text-primary hover:underline"
-              onClick={() => void openProviderAttachment(attachment).catch(error => notifyAdmin(systemErrorMessage(error), "error"))}>
-              {attachment.file_name}</button>
-            {canManage && <button aria-label={`Excluir ${attachment.file_name}`} className="p-1 text-destructive"
-              onClick={() => void deleteAttachment(attachment)}><X size={15} /></button>}
-          </div>)}
-        </section>
-        {editing && activeOrganizationId && <ProviderBackgroundChecks key={editing.id} provider={editing}
-          organizationId={activeOrganizationId} canCheck={isUnion && hasPermission("platform.providers.check")} />}
-      </div>
-      <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
-        <AdminButton variant="secondary" onClick={() => setEditorOpen(false)} disabled={saving}>Cancelar</AdminButton>
-        <AdminButton loading={saving} disabled={!draft.name.trim() || !draft.city.trim() || !draft.state || !selectedServiceIds.length}
-          onClick={() => void save()}>{editing ? "Salvar alterações" : "Cadastrar prestador"}</AdminButton>
-      </div>
-    </AdminDialog>
+    {editorOpen && activeOrganizationId && <PlatformProviderEditor
+      key={editing?.id || "new"} editing={editing} organizationId={activeOrganizationId}
+      draft={draft} setDraft={setDraft}
+      servicesContent={<ServiceChoices services={services} selected={selectedServiceIds}
+        onToggle={id => setSelectedServiceIds(current => current.includes(id)
+          ? current.filter(item => item !== id) : [...current, id])}/>}
+      serviceCount={selectedServiceIds.length} serviceName={serviceName}
+      setServiceName={setServiceName} catalogSaving={catalogSaving}
+      onCreateService={() => void addService(true)}
+      pendingFiles={pendingFiles} setPendingFiles={setPendingFiles}
+      attachments={attachmentsQuery.data || []} attachmentsLoading={Boolean(editing && attachmentsQuery.isPending)}
+      saving={saving} onDeleteAttachment={item => void deleteAttachment(item)}
+      onClose={() => { if (!saving) setEditorOpen(false); }}
+      onSave={() => void save()}
+    />}
   </div>;
 }
