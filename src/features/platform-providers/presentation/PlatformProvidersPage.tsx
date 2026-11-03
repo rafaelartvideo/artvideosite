@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, MapPin, Paperclip, Pencil, Phone, Plus, Search, Wrench, X } from "lucide-react";
+import { Check, ChevronDown, MapPin, Paperclip, Pencil, Phone, Plus, Search, Wrench, X } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminButton, AdminIconButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
@@ -28,19 +28,58 @@ const emptyFilters = (): ProviderFilters => ({
 function ServiceChoices({ services, selected, onToggle }: {
   services: PlatformService[]; selected: string[]; onToggle: (id: string) => void;
 }) {
-  const sorted = useMemo(() => services
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const query = equipmentSearch.trim().toLocaleLowerCase("pt-BR");
+  const choices = useMemo(() => services
     .filter(item => item.is_active || selected.includes(item.id))
+    .filter(item => !query || item.name.toLocaleLowerCase("pt-BR").includes(query) ||
+      (item.equipment_name || "").toLocaleLowerCase("pt-BR").includes(query))
     .sort((a, b) => Number(selected.includes(b.id)) - Number(selected.includes(a.id)) || normalSort(a.name, b.name)),
-    [services, selected]);
-  return <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-    {sorted.map(service => <label key={service.id}
-      className={`flex min-h-11 cursor-pointer items-center gap-2.5 rounded-lg border px-3 py-2 text-xs font-semibold ${selected.includes(service.id) ? "border-primary/40 bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground"}`}>
-      <input type="checkbox" checked={selected.includes(service.id)}
-        onChange={() => onToggle(service.id)} className="h-4 w-4 shrink-0 accent-primary" />
-      <span className="min-w-0 flex-1">{service.name}</span>
-      {selected.includes(service.id) && <Check size={13} className="shrink-0 text-primary" />}
-    </label>)}
-    {sorted.length === 0 && <p className="text-xs text-muted-foreground">Cadastre o primeiro serviço.</p>}
+    [services, selected, query]);
+  const standalone = choices.filter(service => !service.equipment_name);
+  const equipmentNames = Array.from(new Set(choices
+    .map(service => service.equipment_name).filter((name): name is string => Boolean(name))))
+    .sort(normalSort);
+  const choice = (service: PlatformService) => <label key={service.id}
+    className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${selected.includes(service.id) ? "border-primary/40 bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground"}`}>
+    <input type="checkbox" checked={selected.includes(service.id)}
+      onChange={() => onToggle(service.id)} className="h-4 w-4 shrink-0 accent-primary" />
+    <span className="min-w-0 flex-1">{service.name}</span>
+    {selected.includes(service.id) && <Check size={13} className="shrink-0 text-primary" />}
+  </label>;
+  return <div className="space-y-3">
+    <div className="relative">
+      <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={15}/>
+      <input value={equipmentSearch} onChange={event => setEquipmentSearch(event.target.value)}
+        className={inputClass + " pl-9"} aria-label="Buscar equipamento ou serviço"
+        placeholder="Buscar equipamento ou serviço" />
+    </div>
+    {equipmentNames.map(equipment => {
+      const members = choices.filter(service => service.equipment_name === equipment);
+      const isOpen = expanded[equipment] ?? (Boolean(query) || members.some(service => selected.includes(service.id)));
+      return <div key={equipment} className="overflow-hidden rounded-lg border border-border">
+        <button type="button" aria-expanded={isOpen}
+          onClick={() => setExpanded(current => ({...current, [equipment]: !isOpen}))}
+          className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
+          <span className="min-w-0 truncate">{equipment}</span>
+          <span className="ml-auto shrink-0 text-[10px] font-medium text-muted-foreground">
+            {members.filter(service => selected.includes(service.id)).length}/{members.length}
+          </span>
+          <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`}/>
+        </button>
+        {isOpen && <div className="grid gap-2 border-t border-border p-2 sm:grid-cols-2 xl:grid-cols-3">
+          {members.map(choice)}
+        </div>}
+      </div>;
+    })}
+    {standalone.length > 0 && <div className="space-y-2">
+      <h3 className="text-xs font-bold text-muted-foreground">Serviços avulsos / Profissões</h3>
+      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{standalone.map(choice)}</div>
+    </div>}
+    {choices.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">
+      Nenhum equipamento ou serviço encontrado.
+    </p>}
   </div>;
 }
 
@@ -62,6 +101,7 @@ export function PlatformProvidersPage() {
   const [saving, setSaving] = useState(false);
   const [persistedProviderId, setPersistedProviderId] = useState<string | null>(null);
   const [serviceName, setServiceName] = useState("");
+  const [serviceEquipmentName, setServiceEquipmentName] = useState("");
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [editingService, setEditingService] = useState<PlatformService | null>(null);
@@ -106,8 +146,17 @@ export function PlatformProvidersPage() {
   const total = providersQuery.data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
   const catalogFiltered = useMemo(() => services
-    .filter(item => item.name.toLocaleLowerCase("pt-BR").includes(catalogSearch.trim().toLocaleLowerCase("pt-BR")))
+    .filter(item => [item.name, item.equipment_name || ""]
+      .some(text => text.toLocaleLowerCase("pt-BR").includes(catalogSearch.trim().toLocaleLowerCase("pt-BR"))))
     .sort((a,b) => normalSort(a.name,b.name)), [services, catalogSearch]);
+  const catalogGroups = useMemo(() => {
+    const groups = new Map<string, PlatformService[]>();
+    for (const item of catalogFiltered) {
+      const key = item.equipment_name || "";
+      groups.set(key, [...(groups.get(key) || []), item]);
+    }
+    return Array.from(groups.entries()).sort(([a],[b]) => !a ? 1 : !b ? -1 : normalSort(a,b));
+  }, [catalogFiltered]);
 
   const changeFilter = (patch: Partial<ProviderFilters>) =>
     setFilters(current => ({ ...current, ...patch, page: 1 }));
@@ -121,22 +170,22 @@ export function PlatformProvidersPage() {
   };
   const openNew = () => {
     setEditing(null); setDraft(emptyProviderDraft()); setSelectedServiceIds([]);
-    setPendingFiles([]); setServiceName(""); setPersistedProviderId(null); setEditorOpen(true);
+    setPendingFiles([]); setServiceName(""); setServiceEquipmentName(""); setPersistedProviderId(null); setEditorOpen(true);
   };
   const openEdit = (provider: PlatformProvider) => {
     if (!canManage) return;
     setEditing(provider); setDraft(draftFromProvider(provider));
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
-    setServiceName(""); setPersistedProviderId(provider.id); setEditorOpen(true);
+    setServiceName(""); setServiceEquipmentName(""); setPersistedProviderId(provider.id); setEditorOpen(true);
   };
   const addService = async (selectNew: boolean) => {
     if (!canManage || !activeOrganizationId || catalogSaving) return;
     setCatalogSaving(true);
     try {
-      const added = await addPlatformService(activeOrganizationId, serviceName);
+      const added = await addPlatformService(activeOrganizationId, serviceName, serviceEquipmentName);
       await queryClient.invalidateQueries({ queryKey: ["union-provider-services", activeOrganizationId] });
       if (selectNew) setSelectedServiceIds(current => [...new Set([...current, added.id])]);
-      setServiceName("");
+      setServiceName(""); setServiceEquipmentName("");
       notifyAdmin("Serviço cadastrado no catálogo da Union.", "success");
     } catch (error) { notifyAdmin(systemErrorMessage(error, "Não foi possível cadastrar o serviço."), "error"); }
     finally { setCatalogSaving(false); }
@@ -227,11 +276,11 @@ export function PlatformProvidersPage() {
             onKeyDown={event => {if(event.target===event.currentTarget && (event.key==="Enter"||event.key===" ")){
               event.preventDefault();setViewing(provider);
             }}}
-            className="flex min-w-0 cursor-pointer flex-col rounded-xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/35 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary">
+            className="flex h-[304px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/35 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary sm:p-5">
             <div className="flex items-start gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Wrench size={21} /></div>
               <div className="min-w-0 flex-1">
-                <h3 className="break-words text-base font-bold text-foreground">{provider.name}</h3>
+                <h3 className="line-clamp-2 break-words text-sm font-bold leading-5 text-foreground">{provider.name}</h3>
                 <span className={"mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold "+
                   (provider.is_active?"bg-emerald-500/10 text-emerald-700 dark:text-emerald-300":"bg-muted text-muted-foreground")}>
                   {provider.is_active?"Ativo":"Inativo"}
@@ -245,19 +294,25 @@ export function PlatformProvidersPage() {
             </div>
             <div className="mt-4 space-y-2 text-xs text-muted-foreground">
               <p className="flex items-start gap-2"><MapPin size={14} className="mt-0.5 shrink-0"/>
-                <span>{provider.city} / {provider.state}{provider.neighborhood?" · "+provider.neighborhood:""}</span>
+                <span className="line-clamp-2">{provider.city} / {provider.state}{provider.neighborhood?" · "+provider.neighborhood:""}</span>
               </p>
               {(provider.phone||provider.whatsapp)&&<p className="flex items-center gap-2">
                 <Phone size={14} className="shrink-0"/><span>{formatPhone(provider.phone||provider.whatsapp||"")}</span>
               </p>}
             </div>
-            <div className="mt-4 grid grid-cols-3 gap-1.5">
-              {provider.service_names.map(service=><span key={service}
-                className="flex min-w-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 px-1.5 py-1.5 text-center text-[10px] font-semibold leading-snug text-primary">
-                <span className="min-w-0 break-words">{service}</span>
+            <div className="mt-4 grid min-h-[70px] grid-cols-3 auto-rows-[32px] gap-1.5">
+              {provider.service_names.slice(0, provider.service_names.length > 6 ? 5 : 6).map(service=><span key={service}
+                className="flex min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/15 bg-primary/5 px-1 py-0.5 text-center text-[9px] font-medium leading-3 text-primary"
+                title={service}>
+                <span className="line-clamp-2 min-w-0 break-words">{service}</span>
               </span>)}
+              {provider.service_names.length > 6 && <span
+                className="flex min-w-0 items-center justify-center rounded-md border border-primary/15 bg-primary/5 text-[10px] font-semibold text-primary"
+                title={`${provider.service_names.length - 5} serviços adicionais`}>
+                +{provider.service_names.length - 5}
+              </span>}
             </div>
-            <div className="mt-4 flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
+            <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Paperclip size={14}/>
                 {provider.attachment_count} anexo{provider.attachment_count===1?"":"s"}
               </span>
@@ -283,10 +338,14 @@ export function PlatformProvidersPage() {
     </> : <section className="space-y-4">
       <div className="rounded-xl border border-border bg-card p-4">
         <h2 className="text-sm font-bold text-foreground">Catálogo de serviços</h2>
-        <p className="mb-4 mt-1 text-xs text-muted-foreground">Os serviços são cadastrados uma vez na Union e ficam disponíveis para todos os prestadores. Inativos permanecem no histórico.</p>
-        {canManage && <div className="flex flex-col gap-2 sm:flex-row">
+        <p className="mb-4 mt-1 text-xs text-muted-foreground">Organize por equipamento e suas subcategorias (Instalação, Reparo etc.) ou deixe o equipamento vazio para cadastrar profissões avulsas, como Pedreiro.</p>
+        {canManage && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_auto]">
+          <input className={inputClass} value={serviceEquipmentName} maxLength={120}
+            aria-label="Equipamento ou categoria opcional"
+            placeholder="Equipamento/categoria (opcional)" onChange={event => setServiceEquipmentName(event.target.value)} />
           <input className={inputClass} value={serviceName} maxLength={120}
-            placeholder="Ex.: Instalador de cerca elétrica" onChange={event => setServiceName(event.target.value)} />
+            aria-label="Serviço ou subcategoria"
+            placeholder="Serviço ou subcategoria (ex.: Instalação)" onChange={event => setServiceName(event.target.value)} />
           <AdminButton onClick={() => void addService(false)} loading={catalogSaving} disabled={!serviceName.trim()}><Plus size={15} /> Adicionar serviço</AdminButton>
         </div>}
       </div>
@@ -296,8 +355,11 @@ export function PlatformProvidersPage() {
             placeholder="Buscar no catálogo de serviços" onChange={event => setCatalogSearch(event.target.value)} /></div>
         {servicesQuery.isPending ? <LoadingState text="Carregando serviços" /> : servicesQuery.isError ?
           <p className="text-sm text-destructive">{systemErrorMessage(servicesQuery.error)}</p> :
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {catalogFiltered.map(service => <div key={service.id}
+          <div className="space-y-4">
+            {catalogGroups.map(([equipment, items]) => <div key={equipment || "standalone"}>
+              <h3 className="mb-2 text-xs font-bold text-muted-foreground">{equipment || "Serviços avulsos / Profissões"}</h3>
+              <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+              {items.map(service => <div key={service.id}
               className="flex min-w-0 items-center gap-2 rounded-lg border border-border p-3">
               {editingService?.id === service.id ? <>
                 <input className={inputClass} maxLength={120} value={serviceEditName}
@@ -317,6 +379,8 @@ export function PlatformProvidersPage() {
                 </>}
               </>}
             </div>)}
+              </div>
+            </div>)}
           </div>}
       </div>
     </section>}
@@ -330,6 +394,7 @@ export function PlatformProvidersPage() {
         onToggle={id => setSelectedServiceIds(current => current.includes(id)
           ? current.filter(item => item !== id) : [...current, id])}/>}
       serviceCount={selectedServiceIds.length} serviceName={serviceName}
+      serviceEquipmentName={serviceEquipmentName} setServiceEquipmentName={setServiceEquipmentName}
       setServiceName={setServiceName} catalogSaving={catalogSaving}
       onCreateService={() => void addService(true)}
       pendingFiles={pendingFiles} setPendingFiles={setPendingFiles}
