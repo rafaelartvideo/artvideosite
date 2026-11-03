@@ -5,7 +5,7 @@ import { transformWithEsbuild } from "vite";
 
 const read = path => readFileSync(path, "utf8");
 
-test("Buscar OS oferece seleção múltipla de bairros e grade sem campos solitários", async () => {
+test("Buscar OS oferece bairros, grade de três colunas e período em campo dividido", async () => {
   const panel = read("src/features/orders/presentation/OrdersFilters.tsx");
   const workspace = read("src/features/orders/presentation/OrdersListWorkspace.tsx");
   for (const [file, contents] of [["OrdersFilters.tsx", panel], ["OrdersListWorkspace.tsx", workspace]]) {
@@ -16,7 +16,12 @@ test("Buscar OS oferece seleção múltipla de bairros e grade sem campos solit�
   assert.match(panel, /label="Cidades"/);
   assert.match(panel, /label="Bairros"/);
   assert.match(panel, /grid grid-cols-3 items-start gap-2/);
-  assert.match(panel, /xl:grid-cols-4/);
+  assert.match(panel, /className="grid grid-cols-3 items-start gap-x-2 gap-y-3"/);
+  assert.doesNotMatch(panel, /xl:grid-cols-4/);
+  assert.equal((panel.match(/<OrderDateRangeField dateFrom=\\{dateFrom\\}/g) || []).length, 2);
+  assert.match(panel, /aria-label="Data inicial"/);
+  assert.match(panel, /aria-label="Data final"/);
+  assert.match(panel, /h-6 w-px shrink-0 bg-border/);
   assert.match(panel, /selectedNeighborhoodValues/);
   assert.match(panel, /selectedNeighborhoods\.length > 0/);
   assert.match(workspace, /onNeighborhoodSelect=/);
