@@ -64,12 +64,14 @@ export async function attachOrderSituationDocument({
   situationId,
   attachmentTypeId,
   file,
+  optimizePhoto = false,
 }: {
   organizationId?: string | null;
   serviceOrderId: string;
   situationId?: string | null;
   attachmentTypeId?: string | null;
   file: File;
+  optimizePhoto?: boolean;
 }) {
   const organizationId = organizationIdOverride || await getServiceOrderOrganizationId(serviceOrderId);
   const { data: order, error: orderError } = await supabase
@@ -81,7 +83,9 @@ export async function attachOrderSituationDocument({
   if (orderError) throw orderError;
   if (!order) throw new Error("A OS não pertence à empresa informada ou não está disponível para este acesso.");
 
-  const preparedFile = await prepareFileForUpload(file, "document-image");
+  // Comprovantes fotografados usam o otimizador do CRM com preset legível para documentos;
+  // os anexos comuns e os PDFs preservam os bytes originais.
+  const preparedFile = await prepareFileForUpload(file, optimizePhoto && file.type.startsWith("image/") ? "service-label" : "document-image");
   const extension = extensionForUploadFile(preparedFile);
   const scope = situationId ? `situations/${situationId}` : "attachments";
   const path = `orders/${serviceOrderId}/${scope}/${Date.now()}-${crypto.randomUUID()}.${extension}`;
