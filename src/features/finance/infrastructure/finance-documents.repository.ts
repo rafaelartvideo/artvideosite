@@ -2,7 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { prepareFileForUpload } from "@/shared/application/upload-file-optimizer";
 import type { FinancialAttachment, FinancialAttachmentType } from "../domain/finance.types";
 
-const ATTACHMENT_COLUMNS = "id,organization_id,financial_entry_id,financial_settlement_id,attachment_type,file_name,storage_path,mime_type,size_bytes,created_by,created_at,archived_at,archived_by,archive_reason";
+const ATTACHMENT_COLUMNS = "id,organization_id,financial_entry_id,financial_settlement_id,attachment_type,file_name,storage_path,storage_bucket,source_media_id,mime_type,size_bytes,created_by,created_at,archived_at,archived_by,archive_reason";
 
 function requiredOrganizationId(organizationId: string) {
   const normalized = String(organizationId || "").trim();
@@ -67,11 +67,24 @@ export async function uploadFinancialAttachment(
   return String(data);
 }
 
-export async function createFinancialAttachmentSignedUrl(storagePath: string): Promise<string> {
-  const { data, error } = await supabase.storage.from("financial-documents").createSignedUrl(storagePath, 300);
+export async function createFinancialAttachmentSignedUrl(
+  storagePath: string,
+  storageBucket: "financial-documents" | "service-images" = "financial-documents",
+): Promise<string> {
+  const { data, error } = await supabase.storage.from(storageBucket).createSignedUrl(storagePath, 300);
   if (error) throw error;
   if (!data?.signedUrl) throw new Error("Não foi possível gerar o link do documento.");
   return data.signedUrl;
+}
+
+
+// Executado apenas na ação do usuário. Evita consultas por comprovante para
+// cada linha da tabela e não duplica arquivos no Storage.
+export async function getFinancialEntryProofUrl(organizationId: string, entryId: string): Promise<string | null> {
+  const attachments = await listFinancialAttachments(organizationId, entryId);
+  const latestProof = attachments.find(attachment => attachment.attachment_type === "proof");
+  if (!latestProof) return null;
+  return createFinancialAttachmentSignedUrl(latestProof.storage_path, latestProof.storage_bucket || "financial-documents");
 }
 
 export async function archiveFinancialAttachment(
