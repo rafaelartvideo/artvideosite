@@ -81,9 +81,16 @@ function ServiceChoices({ services, selected, onToggle }: {
         </div>}
       </div>;
     })}
-    {standalone.length > 0 && <div className="space-y-2">
-      <h3 className="text-xs font-bold text-muted-foreground">Serviços avulsos / Profissões</h3>
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{standalone.map(choice)}</div>
+    {standalone.length > 0 && <div className="overflow-hidden rounded-lg border border-border">
+      <button type="button" aria-expanded={expanded.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id)))}
+        onClick={() => setExpanded(current => ({...current, __standalone__: !(current.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id))))}))}
+        className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
+        <span>Serviços avulsos / Profissões</span>
+        <ChevronDown size={16} className={"shrink-0 transition-transform " +
+          ((expanded.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id)))) ? "" : "-rotate-90")}/>
+      </button>
+      {(expanded.__standalone__ ?? (Boolean(query) || standalone.some(service => selected.includes(service.id)))) &&
+        <div className="grid gap-2 border-t border-border p-2 sm:grid-cols-2 xl:grid-cols-3">{standalone.map(choice)}</div>}
     </div>}
     {choices.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">
       Nenhum equipamento ou serviço encontrado.
