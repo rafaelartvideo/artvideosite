@@ -96,6 +96,9 @@ export function PlatformProviderEditor({
     if(!draft.name.trim()){
       notifyAdmin("Informe o nome do prestador.","error");return;
     }
+    if(!editing && draft.profession.trim().length < 2){
+      notifyAdmin("Informe a profissão do prestador.", "error");return;
+    }
     if(!editing && !draft.document.trim()){
       notifyAdmin("Informe o "+(draft.person_type==="PF"?"CPF":"CNPJ")+" do prestador.","error");return;
     }
@@ -154,6 +157,9 @@ export function PlatformProviderEditor({
           </div>
           <FInput label={draft.person_type==="PF"?"Nome completo":"Nome fantasia"} required
             value={draft.name} onChange={(event:any)=>update({name:event.target.value})}/>
+          <FInput label="Profissão" required={!editing} maxLength={120}
+            placeholder="Ex.: Técnico de refrigeração"
+            value={draft.profession} onChange={(event:any)=>update({profession:event.target.value})}/>
           {draft.person_type==="PF"?<>
             <FInput type="date" label="Data de nascimento" value={draft.birth_date}
               max={new Date().toISOString().slice(0,10)}
@@ -195,8 +201,8 @@ export function PlatformProviderEditor({
       </Section>
 
       <Section title="Serviços Prestados"
-        description="Abra o equipamento para marcar as subcategorias desejadas ou selecione uma profissão avulsa.">
-        <p className="mb-3 text-xs font-semibold text-primary">{serviceCount} selecionado{serviceCount===1?"":"s"}</p>
+        description="Profissão → Equipamento → Serviço, ou serviço direto sem equipamento. Vincular serviços é opcional.">
+        <p className="mb-3 text-xs font-semibold text-primary">{serviceCount} serviço{serviceCount===1?"":"s"} selecionado{serviceCount===1?"":"s"}</p>
         {servicesContent}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
           <p className="text-xs font-medium text-muted-foreground">Não encontrou o serviço desejado?</p>
@@ -239,7 +245,7 @@ export function PlatformProviderEditor({
     <AdminStickyToolbar className="flex-wrap justify-end gap-2">
       <BtnSecondary disabled={saving} onClick={onClose}>Cancelar</BtnSecondary>
       <BtnPrimary loading={saving}
-        disabled={!draft.name.trim()||!draft.city.trim()||!draft.state||serviceCount===0}
+        disabled={!draft.name.trim()||!draft.city.trim()||!draft.state||(!editing&&!draft.profession.trim())}
         onClick={save}>{editing?"Salvar alterações":"Cadastrar prestador"}</BtnPrimary>
     </AdminStickyToolbar>
   </AdminPage>;
