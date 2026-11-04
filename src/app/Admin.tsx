@@ -62,6 +62,7 @@ const UnionAiToolPage = lazy(() => import("@/features/union-ai/presentation/Unio
 const UnionPbxToolPage = lazy(() => import("@/features/telephony/presentation/UnionPbxToolPage").then(({ UnionPbxToolPage }) => ({ default: UnionPbxToolPage })));
 const UnionPbxExtensionsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxExtensionsPage").then(({ UnionPbxExtensionsPage }) => ({ default: UnionPbxExtensionsPage })));
 const UnionPbxQueuesPage = lazy(() => import("@/features/telephony/presentation/UnionPbxQueuesPage").then(({ UnionPbxQueuesPage }) => ({ default: UnionPbxQueuesPage })));
+const UnionPbxInboundPage = lazy(() => import("@/features/telephony/presentation/UnionPbxInboundPage").then(({ UnionPbxInboundPage }) => ({ default: UnionPbxInboundPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
@@ -424,7 +425,9 @@ export function AdminDashboard({
         ? canManagePbxTool ? <UnionPbxExtensionsPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
         : route.subpage === "filas"
           ? canManagePbxTool ? <UnionPbxQueuesPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
-          : null /* Telefone persistente montado fora das rotas. */
+          : route.subpage === "entrada"
+            ? canManagePbxTool ? <UnionPbxInboundPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+            : null /* Telefone persistente montado fora das rotas. */
     : route.resourceId === "union-ia"
     ? canAccessAiTool
       ? <UnionAiToolPage onBack={() => navigateAdmin("tools")} />
@@ -588,6 +591,7 @@ export function AdminDashboard({
               onOpen={() => navigateAdmin("tools", "union-pbx")}
               onManage={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "ramais") : undefined}
               onManageQueues={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "filas") : undefined}
+              onManageInbound={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "entrada") : undefined}
               onBack={() => navigateAdmin("tools")}
             />
           </Suspense>
