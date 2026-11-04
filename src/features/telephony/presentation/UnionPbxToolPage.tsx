@@ -26,7 +26,7 @@ type SipSession = {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, isPageOpen }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; isPageOpen: boolean }) {
+export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, onManageInbound, isPageOpen }: { onBack: () => void; onOpen: () => void; onManage?: () => void; onManageQueues?: () => void; onManageInbound?: () => void; isPageOpen: boolean }) {
   const { activeOrganizationId } = useAuth();
   const [password, setPassword] = useState("");
   const [sipUser, setSipUser] = useState(SIP_USER);
@@ -449,6 +449,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, isP
       <div className="flex flex-wrap gap-4">
         {onManage && <button type="button" onClick={onManage} className="text-sm font-semibold text-primary hover:underline">Gerenciar ramais</button>}
         {onManageQueues && <button type="button" onClick={onManageQueues} className="text-sm font-semibold text-primary hover:underline">Gerenciar filas</button>}
+        {onManageInbound && <button type="button" onClick={onManageInbound} className="text-sm font-semibold text-primary hover:underline">Planejar entrada FVX</button>}
         <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">Voltar para Ferramentas</button>
       </div>
     </div>
