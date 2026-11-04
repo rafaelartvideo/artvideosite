@@ -3,6 +3,7 @@ import { Check, LoaderCircle, Pencil, Phone, Plus, RefreshCw, Save, ShieldCheck,
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { UnionPbxAgentPanel } from "./UnionPbxAgentPanel";
 
 type Extension = {
   id: string;
@@ -140,6 +141,22 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
     setReloadKey(key => key + 1);
   }
 
+  async function retry(item: Extension) {
+    if (!activeOrganizationId || !canManage || saving || item.provisioning_status !== "failed") return;
+    setSaving(true);
+    setError("");
+    const result = await supabase.rpc("pbx_retry_extension", {
+      p_organization_id: activeOrganizationId,
+      p_extension_id: item.id,
+    });
+    setSaving(false);
+    if (result.error) setError(result.error.message);
+    else {
+      setMessage("Nova tentativa solicitada. A VPS receberá a pendência automaticamente.");
+      setReloadKey(key => key + 1);
+    }
+  }
+
   async function toggle(item: Extension) {
     if (!activeOrganizationId || !canManage || saving || !item.is_managed) return;
     const label = item.desired_enabled ? "desativar" : "ativar";
@@ -182,6 +199,8 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
         </button>}
       </div>
     </div>
+
+    {canManage && activeOrganizationId && <UnionPbxAgentPanel organizationId={activeOrganizationId} />}
 
     {error && <p role="alert" className="rounded-lg border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
     {message && <p role="status" className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-700 dark:text-emerald-400">{message}</p>}
@@ -233,6 +252,10 @@ export function UnionPbxExtensionsPage({ onBack }: { onBack: () => void }) {
               <button type="button" onClick={() => beginEdit(item)} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground" title="Editar ramal">
                 <Pencil size={14} /> Editar
               </button>
+              {item.is_managed && item.provisioning_status === "failed" &&
+                <button type="button" onClick={() => void retry(item)} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
+                  <RefreshCw size={14} /> Tentar novamente
+                </button>}
               {item.is_managed
                 ? <button type="button" onClick={() => void toggle(item)} disabled={saving} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-semibold text-foreground">
                     {item.desired_enabled ? <X size={14}/> : <Check size={14}/>} {item.desired_enabled ? "Desativar" : "Ativar"}

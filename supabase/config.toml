@@ -69,3 +69,8 @@ verify_jwt = false
 # Consulta de antecedentes da Union: JWT obrigatório e autorização adicional por permissão.
 [functions.platform-provider-background-check]
 verify_jwt = true
+
+# A VPS usa identidade Ed25519 assinada (sem JWT do navegador).
+# A Edge Function valida chave publica, tempo e sequência antes de consultar ramais.
+[functions.union-pbx-agent]
+verify_jwt = false

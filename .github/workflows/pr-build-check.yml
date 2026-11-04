@@ -31,5 +31,8 @@ jobs:
       - name: SAC Digital tests
         run: npm run test:sac
 
+      - name: PBX provisioning agent tests
+        run: python3 -m unittest discover -s scripts/union-pbx-agent -p 'test_*.py'
+
       - name: Build
         run: npm run build

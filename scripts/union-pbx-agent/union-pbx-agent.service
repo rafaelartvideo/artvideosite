@@ -1,0 +1,25 @@
+[Unit]
+Description=Union PABX outbound signed provisioning agent
+After=network-online.target asterisk.service
+Wants=network-online.target
+Requires=asterisk.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/bin/python3 /opt/union-pbx-agent/agent.py run
+WorkingDirectory=/opt/union-pbx-agent
+Restart=on-failure
+RestartSec=15
+Environment=PYTHONUNBUFFERED=1
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/etc/asterisk/pjsip.d /var/lib/union-pbx-agent
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
