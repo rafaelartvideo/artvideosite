@@ -68,3 +68,40 @@ A remoção é uma operação de manutenção que deve ser revisada antes de edi
 - Servidores com clock desatualizado rejeitarão as assinaturas (tolerância de 2 min).
 - A perda de comunicação com o Supabase não derruba chamadas existentes.
 - Não coloque o arquivo de chave privada, JSONs de estado ou senhas SIP no Git.
+
+## Login criptografado por funcionário (versão 2)
+
+A interface do CRM permite **vincular um funcionário** a um ramal gerenciado.
+Quando esse funcionário entra no PABX, seu navegador gera uma chave RSA-OAEP
+temporária (2048 bits, SHA-256) e solicita uma credencial de uso único.
+
+1. O Supabase confere vínculo do funcionário, organização, permissão `pbx.view`
+   e se o ramal está aplicado e ativo.
+2. O agente consulta esse pedido, criptografa a **senha SIP local** com a chave
+   pública do navegador e retorna somente o texto criptografado.
+3. O navegador recebe o resultado uma vez, descriptografa em memória e registra
+   seu próprio endpoint no Asterisk via WSS.
+4. A chave privada temporária e a senha SIP **não são armazenadas** no navegador
+   nem em texto puro no Supabase. O ramal 301 continua manual.
+
+Para atualizar um agente instalado sem alterar a configuração SIP:
+
+```bash
+sudo systemctl stop union-pbx-agent
+sudo cp -a /opt/union-pbx-agent/agent.py \
+  "/root/union-pbx-agent.py.backup.$(date +%Y%m%d-%H%M%S)"
+sudo curl -fsSL \
+  https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent/agent.py \
+  -o /opt/union-pbx-agent/agent.py
+sudo python3 -m py_compile /opt/union-pbx-agent/agent.py
+sudo systemctl start union-pbx-agent
+sudo systemctl is-active union-pbx-agent
+```
+
+Se o agente estava sendo executado manualmente, apenas atualize o script,
+sem mexer no systemd. Execute `once --dry-run` para consultar pendências
+antes de aplicar qualquer alteração.
+
+**Importante:** as novas credenciais automáticas ainda exigem um ramal gerenciado
+vinculado a um funcionário ativo. O ramal `union-301` não é migrado por esta
+entrega, e o tronco FVX não é modificado.

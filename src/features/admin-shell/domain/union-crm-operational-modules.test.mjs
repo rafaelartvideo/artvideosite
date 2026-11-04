@@ -89,3 +89,29 @@ test("a ponte assinada do PABX não exige portas públicas, credenciais FVX ou s
   assert.doesNotMatch(panel, /SUPABASE_SERVICE_ROLE_KEY|password=|private\.pem/);
   assert.ok((await transformWithEsbuild(panel,"UnionPbxAgentPanel.tsx",{loader:"tsx"})).code.length>200);
 });
+
+
+test("PABX vinculado ao funcionário usa segredo efêmero e preserva ramal 301",async()=>{
+  const screen=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  const handoff=read("src/features/telephony/application/managed-browser-credentials.ts");
+  const edge=read("supabase/functions/union-pbx-agent/index.ts");
+  const agent=read("scripts/union-pbx-agent/agent.py");
+  assert.match(screen,/useState\(SIP_USER\)/);
+  assert.match(screen,/findMyManagedPbxExtension\(activeOrganizationId\)/);
+  assert.match(screen,/acquireManagedPbxCredentials\(/);
+  assert.match(screen,/startSip\(SIP_USER,password,generation\)/);
+  assert.match(screen,/Conectar meu ramal/);
+  assert.match(handoff,/pbx_request_browser_login/);
+  assert.match(handoff,/pbx_take_browser_login/);
+  assert.match(handoff,/modulusLength:2048/);
+  assert.match(handoff,/name:"RSA-OAEP"/);
+  assert.match(handoff,/false,\["encrypt","decrypt"\]/);
+  assert.match(edge,/action==="report_login"/);
+  assert.match(edge,/\.eq\("organization_id",agent\.organization_id\)/);
+  assert.match(agent,/rsa_padding_mode:oaep/);
+  assert.match(agent,/encrypt_login_for_browser/);
+  assert.doesNotMatch(handoff,/localStorage|sessionStorage|SUPABASE_SERVICE_ROLE_KEY/);
+  assert.doesNotMatch(screen,/localStorage|sessionStorage|SUPABASE_SERVICE_ROLE_KEY/);
+  assert.ok((await transformWithEsbuild(screen,"UnionPbxToolPage.tsx",{loader:"tsx"})).code.length>200);
+  assert.ok((await transformWithEsbuild(handoff,"managed-browser-credentials.ts",{loader:"ts"})).code.length>200);
+});
