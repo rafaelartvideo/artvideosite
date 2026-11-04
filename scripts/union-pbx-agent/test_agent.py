@@ -1,0 +1,69 @@
+import importlib.util
+from pathlib import Path
+import re
+import subprocess
+import tempfile
+import unittest
+import uuid
+
+AGENT_PATH = Path(__file__).with_name("agent.py")
+spec = importlib.util.spec_from_file_location("union_pbx_agent", AGENT_PATH)
+agent = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(agent)
+
+class AgentSafetyTests(unittest.TestCase):
+    def test_web_rtc_template_is_restricted(self):
+        endpoint = "uw-" + "a" * 32
+        text = agent.sip_conf(endpoint, 302, "safePassword_" + "b" * 35)
+        self.assertIn("context=union-internal", text)
+        self.assertIn("transport=transport-ws", text)
+        self.assertIn("webrtc=yes", text)
+        self.assertIn("rtp_symmetric=yes", text)
+        self.assertNotIn("union-fvx", text)
+        self.assertNotIn("from-internal", text)
+        self.assertNotIn("exten =>", text)
+
+    def test_job_rejects_cross_tenant(self):
+        organization_id = str(uuid.uuid4())
+        job = {
+            "id": str(uuid.uuid4()), "organization_id": str(uuid.uuid4()),
+            "endpoint_name": "uw-" + "b" * 32, "number": 302,
+            "desired_enabled": True, "updated_at": "2026-11-04T11:00:00Z",
+        }
+        with self.assertRaises(agent.AgentError):
+            agent.validate_job(job, organization_id)
+
+    def test_job_rejects_injected_endpoint(self):
+        organization_id = str(uuid.uuid4())
+        job = {
+            "id": str(uuid.uuid4()), "organization_id": organization_id,
+            "endpoint_name": "uw-hello\n#include evil", "number": 302,
+            "desired_enabled": True, "updated_at": "2026-11-04T11:00:00Z",
+        }
+        with self.assertRaises(agent.AgentError):
+            agent.validate_job(job, organization_id)
+
+    def test_signature_works_with_standard_openssl_ed25519(self):
+        with tempfile.TemporaryDirectory() as directory:
+            key=Path(directory)/"key.pem"
+            pub=Path(directory)/"pub.pem"
+            subprocess.run(["openssl","genpkey","-algorithm","ED25519","-out",str(key)],check=True)
+            subprocess.run(["openssl","pkey","-in",str(key),"-pubout","-out",str(pub)],check=True)
+            data=b'1700000000000\n1\n{"action":"poll"}'
+            sign=subprocess.run(
+                ["openssl","pkeyutl","-sign","-inkey",str(key),"-rawin"],
+                input=data,stdout=subprocess.PIPE,check=True).stdout
+            self.assertEqual(len(sign),64)
+            subprocess.run(
+                ["openssl","pkeyutl","-verify","-pubin","-inkey",str(pub),"-rawin",
+                 "-sigfile",str(self._signature_file(directory,sign))],
+                input=data,stdout=subprocess.PIPE,check=True)
+
+    @staticmethod
+    def _signature_file(directory, content):
+        target=Path(directory)/"sig"
+        target.write_bytes(content)
+        return target
+
+if __name__=="__main__":
+    unittest.main()
