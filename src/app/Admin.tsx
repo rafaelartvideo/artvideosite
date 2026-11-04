@@ -415,7 +415,7 @@ export function AdminDashboard({
   />;
   const toolsContent = route.resourceId === "union-pbx"
     ? canAccessPbxTool
-      ? <UnionPbxToolPage onBack={() => navigateAdmin("tools")} />
+      ? null /* O telefone persistente e renderizado fora das rotas para manter o ramal conectado. */
       : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "union-ia"
     ? canAccessAiTool
@@ -569,6 +569,17 @@ export function AdminDashboard({
           </Routes>}
         </RetainedAdminWorkspace>
         </Suspense>
+        {/* Uma unica instancia do telefone para todas as rotas: navegação não derruba o WebSocket nem o audio. */}
+        {canAccessPbxTool && user?.id && activeOrganizationId && (
+          <Suspense fallback={null}>
+            <UnionPbxToolPage
+              key={`${user.id}:${activeOrganizationId}`}
+              isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx"}
+              onOpen={() => navigateAdmin("tools", "union-pbx")}
+              onBack={() => navigateAdmin("tools")}
+            />
+          </Suspense>
+        )}
         {showCrmBackToolbar && <AdminStickyToolbar className="mt-5">
           <BtnSecondary onClick={() => navigateAdmin("crm", null, null, { crmMode: true })}>Voltar para CRM</BtnSecondary>
         </AdminStickyToolbar>}
