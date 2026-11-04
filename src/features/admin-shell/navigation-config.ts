@@ -202,7 +202,7 @@ export function isAdminModuleEnabled(
   hasModule: (moduleKey: string) => boolean,
 ) {
   if (tab === "nfse") return false;
-  if (tab === "integrations") return hasModule("company_settings") || hasModule("sac_digital"); // Etapa fiscal temporariamente suspensa.
+  if (tab === "integrations") return hasModule("company_settings") || hasModule("sac_digital") || hasModule("whatsapp");
   if (tab === "home" || tab === "crm" || tab === "announcements" || tab === "management") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
