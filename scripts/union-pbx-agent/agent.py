@@ -28,6 +28,17 @@ DIALPLAN_MANAGED = Path("/etc/asterisk/extensions.d/union-internal-managed.conf"
 DIALPLAN_FILE_INCLUDE = '#include "extensions.d/union-internal-managed.conf"'
 DIALPLAN_CONTEXT = "union-pbx-local-extensions"
 DIALPLAN_CONTEXT_INCLUDE = "include => union-pbx-local-extensions"
+QUEUE_MAIN = Path("/etc/asterisk/queues.conf")
+QUEUE_DIR = Path("/etc/asterisk/queues.d")
+QUEUE_FILE = QUEUE_DIR / "union-managed-queues.conf"
+QUEUE_MAIN_INCLUDE = '#include "queues.d/union-managed-queues.conf"'
+QUEUE_TEST_FILE = Path("/etc/asterisk/extensions.d/union-queue-tests.conf")
+QUEUE_TEST_INCLUDE = '#include "extensions.d/union-queue-tests.conf"'
+QUEUE_TEST_CONTEXT = "union-pbx-queue-tests"
+QUEUE_TEST_CONTEXT_INCLUDE = "include => union-pbx-queue-tests"
+QUEUE_STATE_DIR = STATE_DIR / "queues"
+QUEUE_STRATEGIES = {"ringall", "rrmemory", "linear"}
+
 PRIVATE_KEY = CONFIG_DIR / "private.pem"
 PUBLIC_KEY = CONFIG_DIR / "public.key"
 AGENT_CONFIG = CONFIG_DIR / "agent.json"
@@ -232,6 +243,10 @@ def render_internal_routes(overrides=None):
     for number, endpoint in sorted(routes.items()):
         lines.append(f"exten => {number},1,Dial(PJSIP/{endpoint},25)\n")
         lines.append(" same => n,Hangup()\n")
+    # O roteamento de filas é opcional e nunca altera o contexto de entrada FVX.
+    if QUEUE_TEST_FILE.is_file():
+        lines.append(QUEUE_TEST_CONTEXT_INCLUDE + "\n")
+        lines.append(QUEUE_TEST_INCLUDE + "\n")
     return "".join(lines).encode("utf-8"), sorted(routes)
 
 
