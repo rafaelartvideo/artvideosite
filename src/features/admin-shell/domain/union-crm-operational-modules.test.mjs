@@ -182,3 +182,30 @@ test('monitoramento PBX usa uma assinatura realtime por empresa e telemetria ass
   assert.ok(!live.includes('SUPABASE_SERVICE_ROLE_KEY'));
   assert.ok((await transformWithEsbuild(live,'UnionPbxQueueLiveStatus.tsx',{loader:'tsx'})).code.length>200);
 });
+
+
+test("entrada FVX: planejar destino sem acionar Asterisk ou publicar troca automaticamente",async()=>{
+  const app=read("src/app/Admin.tsx");
+  const phone=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  const page=read("src/features/telephony/presentation/UnionPbxInboundPage.tsx");
+  const sql=read("supabase/migrations/20261104141218_pbx_inbound_route_plan_inert.sql");
+  const agent=read("scripts/union-pbx-agent/agent.py");
+  const edge=read("supabase/functions/union-pbx-agent/index.ts");
+  assert.match(app,/route.subpage === "entrada"/);
+  assert.match(app,/canManagePbxTool \? <UnionPbxInboundPage/);
+  assert.match(app,/onManageInbound=\{canManagePbxTool/);
+  assert.match(phone,/Planejar entrada FVX/);
+  assert.match(page,/hasPermission\("pbx.manage"\)/);
+  assert.match(page,/\.eq\("organization_id",activeOrganizationId\)/);
+  assert.match(page,/\.rpc\("pbx_save_inbound_route_plan"/);
+  assert.match(page,/Salvar planejamento/);
+  assert.match(page,/Nenhuma alteração foi aplicada à VPS/);
+  assert.match(sql,/public\.pbx_inbound_route_plans/);
+  assert.match(sql,/private\.is_platform_organization/);
+  assert.match(sql,/private\.has_organization_permission\(p_organization_id,'pbx.manage'\)/);
+  assert.match(sql,/provisioning_status='applied'/);
+  assert.doesNotMatch(edge,/pbx_inbound_route_plans|report_inbound/);
+  assert.doesNotMatch(agent,/union-fvx-router|inbound-enable/);
+  assert.doesNotMatch(page,/SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage/);
+  assert.ok((await transformWithEsbuild(page,"UnionPbxInboundPage.tsx",{loader:"tsx"})).code.length>200);
+});
