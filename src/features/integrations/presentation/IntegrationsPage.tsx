@@ -8,13 +8,13 @@ import { SacDigitalSettingsPage } from "@/features/sac-digital/presentation/SacD
 import { WhatsAppChannelsPage } from "@/features/whatsapp-channels/presentation/WhatsAppChannelsPage";
 
 export function IntegrationsPage({ onBack }: { onBack: () => void }) {
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasModule } = useAuth();
   const [searchParams] = useSearchParams();
   const [selected, setSelected] = useState<"sac" | "channels" | null>(
     searchParams.get("channels") === "1" ? "channels" : null,
   );
-  const canSac = hasPermission("sac_digital.settings.manage");
-  const canChannels = hasPermission("settings.channels.view") || hasPermission("settings.channels.manage");
+  const canSac = hasModule("sac_digital") && hasPermission("sac_digital.settings.manage");
+  const canChannels = hasModule("whatsapp") && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete"));
   if (selected === "sac" && canSac) return <SacDigitalSettingsPage onBack={() => setSelected(null)} />;
   if (selected === "channels" && canChannels) return <WhatsAppChannelsPage onBack={() => setSelected(null)}
     initialSection={(["configuration","connections","departments","queues","operators"].includes(searchParams.get("section") || "")
