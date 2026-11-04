@@ -173,3 +173,29 @@ test("novo servico usa modal unico em vez do cadastro em lote na pagina",async()
   assert.ok((await transformWithEsbuild(page,"PlatformProvidersPage.tsx",{loader:"tsx"})).code.length>500);
   assert.ok((await transformWithEsbuild(batch,"PlatformServiceBatchEditor.tsx",{loader:"tsx"})).code.length>500);
 });
+
+test("profissão separada, serviço opcional e catálogo de três níveis preservam os cadastros", async () => {
+  const repository=read("src/features/platform-providers/infrastructure/platform-providers.repository.ts");
+  const page=read("src/features/platform-providers/presentation/PlatformProvidersPage.tsx");
+  const editor=read("src/features/platform-providers/presentation/PlatformProviderEditor.tsx");
+  const batch=read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
+  const migration=read("supabase/migrations/20261104090000_union_provider_profession_equipment_service.sql");
+
+  assert.match(migration,/add column if not exists profession text/);
+  assert.match(migration,/add column if not exists profession_name text/);
+  assert.match(migration,/list_platform_service_providers_v6/);
+  assert.match(migration,/security invoker/);
+  assert.doesNotMatch(migration,/delete from public\.platform_service_providers/);
+  assert.doesNotMatch(migration,/delete from public\.platform_provider_services/);
+  assert.match(editor,/label="Profissão"/);
+  assert.doesNotMatch(editor,/serviceCount===0/);
+  assert.match(repository,/profession_name: profession/);
+  assert.doesNotMatch(repository,/Marque ao menos um serviço prestado/);
+  assert.match(page,/provider\.profession/);
+  assert.match(page,/equipmentGroups\.map/);
+  assert.match(batch,/profession_name: profession/);
+  assert.match(batch,/Serviços diretos \(sem equipamento\)/);
+  for (const [source,name] of [[page,"PlatformProvidersPage.tsx"],[editor,"PlatformProviderEditor.tsx"],[batch,"PlatformServiceBatchEditor.tsx"]]) {
+    assert.ok((await transformWithEsbuild(source,name,{loader:"tsx"})).code.length>500);
+  }
+});
