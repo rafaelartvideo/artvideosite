@@ -148,12 +148,46 @@ def select_queue(number):
         raise pbx.AgentError("Fila nao ativa ou inexistente no agente.")
     queue=found[0]
     name=pbx.queue_identity(queue["id"])
-    live=pbx.asterisk("queue show "+name)
-    if not live.lstrip().startswith(name+" has "):
+    # Use the same full status report that operators see with "queue show".
+    # Depending on Asterisk CLI formatting, queue show <name> can differ.
+    # Inspect ONLY the selected queue's Members section and exact configured
+    # PJSIP endpoints; never accept an available member of a different queue.
+    live=pbx.asterisk("queue show")
+    found=False
+    inside=False
+    reading_members=False
+    available=False
+    endpoints={member["endpoint_name"] for member in queue["members"]}
+    for line in live.splitlines():
+        heading=re.match(r"^\s*(\S+) has \d+ calls?\b",line)
+        if heading:
+            inside=heading.group(1)==name
+            found=found or inside
+            reading_members=False
+            continue
+        if not inside:
+            continue
+        stripped=line.strip()
+        if stripped=="Members:":
+            reading_members=True
+            continue
+        if stripped.startswith(("Callers:","No Callers","No Members")):
+            reading_members=False
+            continue
+        if not reading_members or "(Not in use)" not in line:
+            continue
+        if re.search(r"\bpaused\b",line,re.IGNORECASE):
+            continue
+        for endpoint in endpoints:
+            if re.search(r"\(PJSIP/"+re.escape(endpoint)+r"\)(?:\s|$)",line):
+                available=True
+                break
+    if not found:
         raise pbx.AgentError("Fila nao encontrada no Asterisk.")
-    # Strict activation preflight; a busy-only queue cannot be activated yet.
-    if not any("(Not in use)" in line for line in live.splitlines()):
-        raise pbx.AgentError("Nenhum ramal disponivel no momento da ativacao.")
+    if not available:
+        raise pbx.AgentError(
+            "Nenhum ramal disponivel na fila selecionada (confira queue show)."
+        )
     return queue,name
 
 
