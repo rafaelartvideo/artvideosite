@@ -91,14 +91,14 @@ class AgentSafetyTests(unittest.TestCase):
 
     def test_queue_module_status_rejects_not_running(self):
         unavailable=(
-            "Module Description Use Count Status Support Level\\n"
-            "app_queue.so True Call Queueing 0 Not Running core\\n"
-            "1 modules loaded\\n"
+            "Module Description Use Count Status Support Level\n"
+            "app_queue.so True Call Queueing 0 Not Running core\n"
+            "1 modules loaded\n"
         )
         available=(
-            "Module Description Use Count Status Support Level\\n"
-            "app_queue.so True Call Queueing 0 Running core\\n"
-            "1 modules loaded\\n"
+            "Module Description Use Count Status Support Level\n"
+            "app_queue.so True Call Queueing 0 Running core\n"
+            "1 modules loaded\n"
         )
         self.assertFalse(agent.module_is_running(unavailable,"app_queue.so"))
         self.assertTrue(agent.module_is_running(available,"app_queue.so"))
