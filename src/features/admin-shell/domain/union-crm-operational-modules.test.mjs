@@ -123,7 +123,7 @@ test("PABX chama somente numeros internos cadastrados, sem alterar discagem exte
   assert.match(screen,/type InternalDirectoryEntry/);
   assert.match(screen,/\.from\("pbx_extensions"\)/);
   assert.match(screen,/\.eq\("organization_id",activeOrganizationId\)/);
-  assert.match(screen,/dialableExtensions\.some\(item => item\.number === destination\)/);
+  assert.match(screen,/dialableNumbers\.has\(destination\)/);
   assert.match(screen,/sip:\$\{destination\}@\$\{SIP_HOST\}/);
   assert.match(screen,/const callInternal = \(\) =>/);
   assert.match(screen,/registration !== "registered"/);
@@ -134,4 +134,32 @@ test("PABX chama somente numeros internos cadastrados, sem alterar discagem exte
   assert.match(agent,/Dial\(PJSIP\/\{endpoint\},25\)/);
   assert.doesNotMatch(agent,/Dial\(PJSIP\/union-fvx/);
   assert.ok((await transformWithEsbuild(screen,"UnionPbxToolPage.tsx",{loader:"tsx"})).code.length>200);
+});
+
+
+test("PABX Union: filas somente na organização plataforma e nunca redirecionam FVX automaticamente",async()=>{
+  const app=read("src/app/Admin.tsx");
+  const page=read("src/features/telephony/presentation/UnionPbxQueuesPage.tsx");
+  const phone=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  const edge=read("supabase/functions/union-pbx-agent/index.ts");
+  const agent=read("scripts/union-pbx-agent/agent.py");
+  assert.match(app,/route.subpage === "filas"/);
+  assert.match(app,/canManagePbxTool \? <UnionPbxQueuesPage/);
+  assert.match(app,/onManageQueues=\{canManagePbxTool/);
+  assert.match(phone,/Gerenciar filas/);
+  assert.match(page,/hasPermission\("pbx.manage"\)/);
+  assert.match(page,/\.eq\("organization_id",activeOrganizationId\)/);
+  assert.match(page,/\.rpc\("pbx_save_queue"/);
+  assert.match(page,/\.rpc\("pbx_retry_queue"/);
+  assert.match(page,/O número|número \(11\) 4290-1575 continua direcionado|número \(11\) 4290-1575/);
+  assert.match(edge,/queue_jobs:queueJobs/);
+  assert.match(edge,/body.action==="report_queue"/);
+  assert.match(edge,/\.eq\("organization_id",agent.organization_id\)/);
+  assert.match(agent,/def install_queues\(\):/);
+  assert.match(agent,/def apply_queue_job\(job,org_id\):/);
+  assert.match(agent,/QUEUE_MAIN_INCLUDE =/);
+  assert.match(agent,/assert_no_calls\(\)/);
+  assert.doesNotMatch(agent,/extensions\.d\/union-fvx\.conf/);
+  assert.doesNotMatch(page,/SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage/);
+  assert.ok((await transformWithEsbuild(page,"UnionPbxQueuesPage.tsx",{loader:"tsx"})).code.length>200);
 });

@@ -89,6 +89,79 @@ class AgentSafetyTests(unittest.TestCase):
                       {"endpoint":"uw-"+"e"*32,"number":302,"enabled":True},
                     ])
 
+    def test_queue_config_is_internal_and_uses_only_registered_pjsip_members(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            root.mkdir(exist_ok=True)
+            organization_id=str(uuid.uuid4())
+            active={
+                "id":str(uuid.uuid4()),
+                "organization_id":organization_id,
+                "name":"Atendimento geral",
+                "test_extension":850,
+                "strategy":"ringall",
+                "ring_seconds":20,
+                "max_wait_seconds":120,
+                "enabled":True,
+                "updated_at":"2026-11-04T09:20:00Z",
+                "members":[
+                    {"organization_id":organization_id,"number":301,"endpoint_name":"union-301","position":1,
+                     "desired_enabled":True,"provisioning_status":"manual"},
+                    {"organization_id":organization_id,"number":302,"endpoint_name":"uw-"+"a"*32,"position":2,
+                     "desired_enabled":True,"provisioning_status":"applied"},
+                ],
+            }
+            agent.validate_queue_job(active,organization_id)
+            with patch.object(agent,"QUEUE_STATE_DIR",root):
+                conf,dial,names,numbers=agent.render_queue_configs([active])
+                config=conf.decode()
+                routes=dial.decode()
+                self.assertEqual(numbers,{850})
+                self.assertEqual(names,[agent.queue_identity(active["id"])])
+                self.assertIn("strategy=ringall",config)
+                self.assertIn("ringinuse=no",config)
+                self.assertIn("member => PJSIP/union-301,0,Ramal 301",config)
+                self.assertIn("member => PJSIP/uw-"+"a"*32+",0,Ramal 302",config)
+                self.assertIn("exten => 850,1,Answer()",routes)
+                self.assertIn("Queue("+names[0]+",,,,120)",routes)
+                self.assertNotIn("union-fvx",config+routes)
+                self.assertNotIn("_X.",config+routes)
+                self.assertNotIn("union-entrada",config+routes)
+                off={**active,"enabled":False}
+                conf2,dial2,names2,numbers2=agent.render_queue_configs([off])
+                self.assertEqual(names2,[])
+                self.assertEqual(numbers2,set())
+                self.assertNotIn("exten => 850",dial2.decode())
+
+    def test_queue_blocks_cross_tenant_invalid_extension_and_duplicate_members(self):
+        org=str(uuid.uuid4())
+        member={"organization_id":org,"number":301,"endpoint_name":"union-301","position":1,
+                "desired_enabled":True,"provisioning_status":"manual"}
+        payload={"id":str(uuid.uuid4()),"organization_id":org,"name":"Suporte",
+          "test_extension":850,"strategy":"rrmemory","ring_seconds":20,
+          "max_wait_seconds":120,"enabled":True,"updated_at":"2026-11-04T09:20:00Z",
+          "members":[member]}
+        invalid=[
+            ({**payload,"organization_id":str(uuid.uuid4())},org),
+            ({**payload,"test_extension":301},org),
+            ({**payload,"test_extension":900},org),
+            ({**payload,"strategy":"system"},org),
+            ({**payload,"members":[member,member]},org),
+            ({**payload,"members":[{**member,"endpoint_name":"PJSIP/FVX"}]},org),
+            ({**payload,"members":[{**member,"desired_enabled":False}]},org),
+            ({**payload,"members":[{**member,"number":900}]},org),
+            ({**payload,"members":[{**member,"organization_id":str(uuid.uuid4())}]},org),
+        ]
+        for job,organization in invalid:
+            with self.subTest(test=job):
+                with self.assertRaises(agent.AgentError):
+                    agent.validate_queue_job(job,organization)
+
+    def test_queue_provisioning_defers_when_call_in_progress(self):
+        with patch.object(agent,"asterisk",return_value="2 active channels\n2 active calls\n"):
+            with self.assertRaises(agent.Busy):
+                agent.assert_no_calls()
+
     def test_signature_works_with_standard_openssl_ed25519(self):
         with tempfile.TemporaryDirectory() as directory:
             key=Path(directory)/"key.pem"

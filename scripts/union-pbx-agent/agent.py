@@ -28,6 +28,17 @@ DIALPLAN_MANAGED = Path("/etc/asterisk/extensions.d/union-internal-managed.conf"
 DIALPLAN_FILE_INCLUDE = '#include "extensions.d/union-internal-managed.conf"'
 DIALPLAN_CONTEXT = "union-pbx-local-extensions"
 DIALPLAN_CONTEXT_INCLUDE = "include => union-pbx-local-extensions"
+QUEUE_MAIN = Path("/etc/asterisk/queues.conf")
+QUEUE_DIR = Path("/etc/asterisk/queues.d")
+QUEUE_FILE = QUEUE_DIR / "union-managed-queues.conf"
+QUEUE_MAIN_INCLUDE = '#include "queues.d/union-managed-queues.conf"'
+QUEUE_TEST_FILE = Path("/etc/asterisk/extensions.d/union-queue-tests.conf")
+QUEUE_TEST_INCLUDE = '#include "extensions.d/union-queue-tests.conf"'
+QUEUE_TEST_CONTEXT = "union-pbx-queue-tests"
+QUEUE_TEST_CONTEXT_INCLUDE = "include => union-pbx-queue-tests"
+QUEUE_STATE_DIR = STATE_DIR / "queues"
+QUEUE_STRATEGIES = {"ringall", "rrmemory", "linear"}
+
 PRIVATE_KEY = CONFIG_DIR / "private.pem"
 PUBLIC_KEY = CONFIG_DIR / "public.key"
 AGENT_CONFIG = CONFIG_DIR / "agent.json"
@@ -232,6 +243,10 @@ def render_internal_routes(overrides=None):
     for number, endpoint in sorted(routes.items()):
         lines.append(f"exten => {number},1,Dial(PJSIP/{endpoint},25)\n")
         lines.append(" same => n,Hangup()\n")
+    # O roteamento de filas é opcional e nunca altera o contexto de entrada FVX.
+    if QUEUE_TEST_FILE.is_file():
+        lines.append(QUEUE_TEST_CONTEXT_INCLUDE + "\n")
+        lines.append(QUEUE_TEST_INCLUDE + "\n")
     return "".join(lines).encode("utf-8"), sorted(routes)
 
 
@@ -299,6 +314,260 @@ def install_internal_routes():
         raise
     print("Rotas internas configuradas: " + ", ".join(str(n) for n in numbers))
     print("Linha FVX e suas rotas de entrada permanecem inalteradas.")
+
+
+def queue_identity(queue_id):
+    return "uwq-" + uuid.UUID(str(queue_id)).hex
+
+
+def validate_queue_job(job, org_id):
+    """Whitelist all values before touching any Asterisk configuration file."""
+    if not isinstance(job, dict):
+        raise AgentError("Trabalho de fila invalido.")
+    queue_id = str(uuid.UUID(str(job["id"])))
+    if queue_id != job["id"] or job.get("organization_id") != org_id:
+        raise AgentError("Fila pertence a outra organizacao.")
+    name = job.get("name")
+    if not isinstance(name, str) or not 2 <= len(name.strip()) <= 80:
+        raise AgentError("Nome de fila invalido.")
+    test_number = job.get("test_extension")
+    if type(test_number) is not int or not 850 <= test_number <= 899:
+        raise AgentError("Numero de teste da fila fora do intervalo permitido.")
+    if job.get("strategy") not in QUEUE_STRATEGIES:
+        raise AgentError("Estrategia de fila invalida.")
+    ring_seconds = job.get("ring_seconds")
+    wait_seconds = job.get("max_wait_seconds")
+    if type(ring_seconds) is not int or not 10 <= ring_seconds <= 40:
+        raise AgentError("Tempo de toque invalido.")
+    if type(wait_seconds) is not int or not 30 <= wait_seconds <= 300:
+        raise AgentError("Tempo maximo de espera invalido.")
+    if type(job.get("enabled")) is not bool:
+        raise AgentError("Situacao da fila invalida.")
+    if not REVISION_RE.fullmatch(str(job.get("updated_at", ""))):
+        raise AgentError("Revisao de fila invalida.")
+    members = job.get("members", [])
+    if not isinstance(members, list) or len(members)>20 or (job["enabled"] and not members):
+        raise AgentError("Quantidade de participantes da fila invalida.")
+    numbers, endpoints, positions = set(), set(), set()
+    for member in members:
+        if not isinstance(member, dict):
+            raise AgentError("Participante invalido.")
+        if member.get("organization_id") != org_id:
+            raise AgentError("Participante pertence a outra organizacao.")
+        number = member.get("number")
+        endpoint = member.get("endpoint_name")
+        position = member.get("position")
+        if type(number) is not int or not 100 <= number <= 9999 or number==900:
+            raise AgentError("Numero de participante invalido.")
+        if not (endpoint=="union-301" and number==301 or
+                isinstance(endpoint,str) and ENDPOINT_RE.fullmatch(endpoint)):
+            raise AgentError("Endpoint de participante nao permitido.")
+        if type(position) is not int or position<1 or position>20:
+            raise AgentError("Ordem de participante invalida.")
+        if member.get("desired_enabled") is not True or (
+            member.get("provisioning_status") not in ("manual","applied")
+        ):
+            raise AgentError("Fila inclui ramal nao provisionado ou desativado.")
+        if number in numbers or endpoint in endpoints or position in positions:
+            raise AgentError("Participante duplicado.")
+        numbers.add(number)
+        endpoints.add(endpoint)
+        positions.add(position)
+    return queue_id
+
+
+def queue_states(overrides=None):
+    data = {}
+    if QUEUE_STATE_DIR.is_dir():
+        for path in QUEUE_STATE_DIR.glob("*.json"):
+            if not re.fullmatch(r"[a-f0-9-]{36}\.json",path.name):
+                raise AgentError("Arquivo de estado de fila inesperado.")
+            state=json.loads(path.read_text())
+            queue_id=validate_queue_job(state,state.get("organization_id"))
+            if path.stem != queue_id:
+                raise AgentError("Estado de fila com identidade divergente.")
+            data[queue_id]=state
+    for state in overrides or []:
+        queue_id=validate_queue_job(state,state.get("organization_id"))
+        data[queue_id]=state
+    return data
+
+
+def render_queue_configs(overrides=None):
+    states=queue_states(overrides)
+    queue_lines=["; Filas internas gerenciadas pela Union. Nao modificar manualmente.\n"]
+    dial_lines=[
+        "; Testes internos das filas; a linha FVX nao e encaminhada aqui.\n",
+        "["+QUEUE_TEST_CONTEXT+"]\n",
+    ]
+    used_numbers=set()
+    active_names=[]
+    for queue_id,state in sorted(states.items(),key=lambda item:item[1]["test_extension"]):
+        if not state["enabled"]:
+            continue
+        test_number=state["test_extension"]
+        if test_number in used_numbers:
+            raise AgentError("Colisao de numeros de teste entre filas.")
+        used_numbers.add(test_number)
+        name=queue_identity(queue_id)
+        active_names.append(name)
+        queue_lines.extend([
+            "\n["+name+"]\n",
+            "strategy="+state["strategy"]+"\n",
+            "timeout="+str(state["ring_seconds"])+"\n",
+            "retry=5\n",
+            "autofill=yes\n",
+            "joinempty=yes\n",
+            "leavewhenempty=no\n",
+            "ringinuse=no\n",
+            "wrapuptime=5\n",
+            "autopause=no\n",
+            "musicclass=default\n",
+        ])
+        for member in sorted(state["members"], key=lambda m:m["position"]):
+            queue_lines.append("member => PJSIP/"+member["endpoint_name"]+
+                               ",0,Ramal "+str(member["number"])+"\n")
+        dial_lines.extend([
+            "exten => "+str(test_number)+",1,Answer()\n",
+            " same => n,Queue("+name+",,,,"
+               +str(state["max_wait_seconds"])+")\n",
+            " same => n,Hangup()\n",
+        ])
+    return "".join(queue_lines).encode(), "".join(dial_lines).encode(), active_names, used_numbers
+
+
+def _check_queue_reload(names,numbers,old_fvx):
+    queue_result=asterisk("module reload app_queue.so")
+    if "reloaded successfully" not in queue_result.lower():
+        raise AgentError("O Asterisk nao confirmou a recarga do modulo de filas.")
+    dial_result=asterisk("dialplan reload")
+    if "reloaded" not in dial_result.lower():
+        raise AgentError("A recarga do dialplan de filas nao foi confirmada.")
+    output=asterisk("dialplan show "+QUEUE_TEST_CONTEXT)
+    for number in numbers:
+        if not re.search(r"(?m)^\s*'?" + str(number) + r"'?\s*=>",output):
+            raise AgentError("Numero de teste da fila nao apareceu no Asterisk.")
+    for name in names:
+        detail=asterisk("queue show "+name)
+        if name not in detail or "has " not in detail:
+            raise AgentError("Fila nao foi carregada pelo Asterisk.")
+    # Confirm disabled queues were actually removed from the Asterisk registry.
+    for queue_id,state in queue_states().items():
+        if not state["enabled"]:
+            old=asterisk("queue show "+queue_identity(queue_id))
+            if queue_identity(queue_id) in old and "has " in old:
+                raise AgentError("Fila desativada ainda presente no Asterisk.")
+    assert_fvx(old_fvx)
+
+
+def install_queues():
+    """Optional one-time queue setup. Inbound FVX remains exactly as configured."""
+    require_root()
+    if not QUEUE_MAIN.is_file() or not DIALPLAN_MANAGED.is_file() or not MASTER_FILE.is_file():
+        raise AgentError("Asterisk sem arquivos necessarios. Verifique queues.conf e rotas internas.")
+    assert_no_calls()
+    previous_fvx=asterisk("pjsip show registrations")
+    module=asterisk("module show like app_queue")
+    if "app_queue.so" not in module or "Running" not in module:
+        raise AgentError("Modulo app_queue.so nao esta em execucao.")
+    queue_main_before=QUEUE_MAIN.read_bytes()
+    queue_main_stat=QUEUE_MAIN.stat()
+    dialplan_before=DIALPLAN_MANAGED.read_bytes()
+    dialplan_stat=DIALPLAN_MANAGED.stat()
+    had_config=QUEUE_FILE.is_file()
+    config_before=QUEUE_FILE.read_bytes() if had_config else None
+    had_routes=QUEUE_TEST_FILE.is_file()
+    routes_before=QUEUE_TEST_FILE.read_bytes() if had_routes else None
+    QUEUE_DIR.mkdir(parents=True,exist_ok=True)
+    QUEUE_STATE_DIR.mkdir(parents=True,exist_ok=True)
+    group=grp.getgrnam("asterisk").gr_gid
+    os.chown(QUEUE_DIR,0,group)
+    os.chmod(QUEUE_DIR,0o750)
+    os.chmod(QUEUE_STATE_DIR,0o700)
+    include_text=queue_main_before.decode()
+    if QUEUE_MAIN_INCLUDE not in include_text.splitlines():
+        include_text+=("" if include_text.endswith("\n") else "\n")+"\n"+QUEUE_MAIN_INCLUDE+"\n"
+    queues_content,test_content,names,numbers=render_queue_configs()
+    stamp=time.strftime("%Y%m%d-%H%M%S")
+    write_atomic(Path("/root")/("queues.conf.before-union-queues-"+stamp),queue_main_before)
+    write_atomic(Path("/root")/("union-internal-managed.conf.before-queues-"+stamp),dialplan_before)
+    try:
+        write_atomic(QUEUE_FILE,queues_content,0o640,group)
+        write_atomic(QUEUE_TEST_FILE,test_content,0o640,group)
+        refreshed_dialplan,_=render_internal_routes()
+        write_atomic(DIALPLAN_MANAGED,refreshed_dialplan,dialplan_stat.st_mode & 0o777,dialplan_stat.st_gid)
+        if include_text.encode()!=queue_main_before:
+            write_atomic(QUEUE_MAIN,include_text.encode(),
+                queue_main_stat.st_mode & 0o777,queue_main_stat.st_gid)
+        _check_queue_reload(names,numbers,previous_fvx)
+        internal=asterisk("dialplan show union-internal")
+        if "900" not in internal or "union-pbx-local-extensions" not in internal:
+            raise AgentError("O roteamento interno existente nao foi preservado.")
+    except Exception:
+        write_atomic(QUEUE_MAIN,queue_main_before,
+            queue_main_stat.st_mode & 0o777,queue_main_stat.st_gid)
+        write_atomic(DIALPLAN_MANAGED,dialplan_before,
+            dialplan_stat.st_mode & 0o777,dialplan_stat.st_gid)
+        if had_config:
+            write_atomic(QUEUE_FILE,config_before,0o640,group)
+        else:
+            QUEUE_FILE.unlink(missing_ok=True)
+        if had_routes:
+            write_atomic(QUEUE_TEST_FILE,routes_before,0o640,group)
+        else:
+            QUEUE_TEST_FILE.unlink(missing_ok=True)
+        try:
+            asterisk("module reload app_queue.so")
+            asterisk("dialplan reload")
+        except Exception:
+            print("CRITICO: confirme o rollback do modulo de filas.",file=sys.stderr)
+        raise
+    print("Motor de filas habilitado para testes internos. Linha FVX e ramais preservados.")
+
+
+def apply_queue_job(job,org_id):
+    queue_id=validate_queue_job(job,org_id)
+    if not (QUEUE_FILE.is_file() and QUEUE_TEST_FILE.is_file()):
+        raise Busy("Aguardando habilitacao das filas com o comando queues-init.")
+    assert_no_calls()
+    old_fvx=asterisk("pjsip show registrations")
+    state_file=QUEUE_STATE_DIR/(queue_id+".json")
+    old_state=state_file.read_bytes() if state_file.is_file() else None
+    old_config=QUEUE_FILE.read_bytes()
+    old_routes=QUEUE_TEST_FILE.read_bytes()
+    old_dialplan=DIALPLAN_MANAGED.read_bytes()
+    old_stat=DIALPLAN_MANAGED.stat()
+    group=grp.getgrnam("asterisk").gr_gid
+    # Prevent a stale or forged update from moving a configured queue to another tenant.
+    if old_state:
+        current=json.loads(old_state)
+        if current.get("organization_id")!=org_id:
+            raise AgentError("Organizacao da fila nao pode ser alterada.")
+    proposed_queues,proposed_routes,names,numbers=render_queue_configs([job])
+    try:
+        write_atomic(state_file,json_bytes(job))
+        write_atomic(QUEUE_FILE,proposed_queues,0o640,group)
+        write_atomic(QUEUE_TEST_FILE,proposed_routes,0o640,group)
+        # Existing 301/302 routes are regenerated unchanged, with a queue-test include.
+        dialplan,_=render_internal_routes()
+        write_atomic(DIALPLAN_MANAGED,dialplan,old_stat.st_mode & 0o777,old_stat.st_gid)
+        _check_queue_reload(names,numbers,old_fvx)
+    except Exception:
+        if old_state is None:
+            state_file.unlink(missing_ok=True)
+        else:
+            write_atomic(state_file,old_state)
+        write_atomic(QUEUE_FILE,old_config,0o640,group)
+        write_atomic(QUEUE_TEST_FILE,old_routes,0o640,group)
+        write_atomic(DIALPLAN_MANAGED,old_dialplan,old_stat.st_mode & 0o777,old_stat.st_gid)
+        try:
+            asterisk("module reload app_queue.so")
+            asterisk("dialplan reload")
+        except Exception:
+            print("CRITICO: nao foi possivel confirmar rollback da fila.",file=sys.stderr)
+        raise
+    print("Fila de teste "+str(job["test_extension"])+": "+
+      ("ativa" if job["enabled"] else "desativada")+".")
 
 
 def asterisk(command_name):
@@ -439,11 +708,14 @@ def cycle(dry_run=False):
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")
+    queue_jobs = payload.get("queue_jobs", [])
+    if not isinstance(queue_jobs,list) or len(queue_jobs)>10:
+        raise AgentError("Resposta de filas invalida.")
     logins = payload.get("login_requests", [])
     if not isinstance(logins, list) or len(logins) > 10:
         raise AgentError("Resposta de solicitações de acesso inválida.")
-    if not jobs and not logins and dry_run:
-        print("Sem ramais ou solicitações de acesso pendentes.")
+    if not jobs and not logins and not queue_jobs and dry_run:
+        print("Sem ramais, filas ou solicitações de acesso pendentes.")
     for job in jobs:
         try:
             validate_job(job, config["organization_id"])
@@ -465,6 +737,30 @@ def cycle(dry_run=False):
                 print("Cadastro modificado durante a aplicação; versão nova será processada.")
             elif not reply.get("accepted"):
                 raise AgentError("Ponte não confirmou a versão do ramal.")
+
+    for queue in queue_jobs:
+        try:
+            validate_queue_job(queue,config["organization_id"])
+            if dry_run:
+                print("Previa: fila interna "+
+                  str(queue["test_extension"])+" com "+str(len(queue["members"]))+" ramais.")
+                continue
+            apply_queue_job(queue,config["organization_id"])
+            status,error="applied",None
+        except Busy as exc:
+            print(str(exc))
+            continue  # Mantem a fila pendente; nao interrompe chamadas existentes.
+        except Exception as exc:
+            status,error="failed",str(exc)[:220]
+            print("Falha no provisionamento da fila: "+type(exc).__name__,file=sys.stderr)
+        if not dry_run:
+            result=signed_request({"action":"report_queue",
+              "id":queue["id"],"version":queue["updated_at"],
+              "status":status,"error":error})
+            if result.get("stale"):
+                print("Fila alterada durante o provisionamento; uma nova versao sera aplicada.")
+            elif not result.get("accepted"):
+                raise AgentError("A ponte nao confirmou a fila.")
 
     for login in logins:
         try:
@@ -489,6 +785,7 @@ def main():
     actions.add_parser("init")
     actions.add_parser("public-key")
     actions.add_parser("internal-routes")
+    actions.add_parser("queues-init")
     configure_action=actions.add_parser("configure")
     configure_action.add_argument("agent_id")
     configure_action.add_argument("organization_id")
@@ -503,6 +800,8 @@ def main():
             print(PUBLIC_KEY.read_text().strip())
         elif args.action=="internal-routes":
             install_internal_routes()
+        elif args.action=="queues-init":
+            install_queues()
         elif args.action=="configure":
             configure(args.agent_id,args.organization_id)
         elif args.action=="once":

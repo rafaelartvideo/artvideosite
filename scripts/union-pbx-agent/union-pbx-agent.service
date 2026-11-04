@@ -18,7 +18,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectHome=true
 ProtectSystem=strict
-ReadWritePaths=/etc/asterisk/pjsip.d /etc/asterisk/extensions.d /var/lib/union-pbx-agent
+ReadWritePaths=/etc/asterisk/pjsip.d /etc/asterisk/extensions.d /etc/asterisk/queues.d /var/lib/union-pbx-agent
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 
 [Install]
