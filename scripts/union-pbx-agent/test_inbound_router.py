@@ -25,6 +25,44 @@ class InboundRouteSafetyTests(unittest.TestCase):
             self.assertEqual(found,state)
             command.assert_called_once_with('queue show')
 
+    def test_select_queue_accepts_real_ansi_colored_302_only(self):
+        queue_id=str(uuid.uuid4())
+        name=pbx.queue_identity(queue_id)
+        member_302="uw-"+"c"*32
+        state={"id":queue_id,"enabled":True,"test_extension":850,
+               "members":[{"endpoint_name":"union-301","number":301},
+                          {"endpoint_name":member_302,"number":302}]}
+        output=(
+            name+" has 0 calls (max unlimited) in 'ringall' strategy\n"
+            "   Members:\n"
+            "      Ramal 301 (PJSIP/union-301) (ringinuse disabled)"
+            "\x1b[0m\x1b[0m\x1b[0m (\x1b[1;31;40mUnavailable\x1b[0m)\n"
+            "      Ramal 302 (PJSIP/"+member_302+") (ringinuse disabled)"
+            "\x1b[0m\x1b[0m\x1b[0m (\x1b[1;32;40mNot in use\x1b[0m)\n"
+            "   No Callers\n"
+        )
+        with patch.object(pbx,"queue_states",return_value={queue_id:state}), \
+             patch.object(pbx,"asterisk",return_value=output) as command:
+            found,parsed_name=inbound.select_queue(850)
+        self.assertEqual(found,state)
+        self.assertEqual(parsed_name,name)
+        command.assert_called_once_with("queue show")
+
+    def test_select_queue_rejects_colored_unavailable(self):
+        queue_id=str(uuid.uuid4())
+        name=pbx.queue_identity(queue_id)
+        state={"id":queue_id,"enabled":True,"test_extension":850,
+               "members":[{"endpoint_name":"union-301","number":301}]}
+        output=(name+" has 0 calls (max unlimited) in 'ringall' strategy\n"
+                "   Members:\n"
+                "      Ramal 301 (PJSIP/union-301) (ringinuse disabled)"
+                "\x1b[0m (\x1b[1;31;40mUnavailable\x1b[0m)\n"
+                "   No Callers\n")
+        with patch.object(pbx,"queue_states",return_value={queue_id:state}), \
+             patch.object(pbx,"asterisk",return_value=output):
+            with self.assertRaisesRegex(pbx.AgentError,"Nenhum ramal disponivel"):
+                inbound.select_queue(850)
+
     def test_select_queue_rejects_offline_members(self):
         queue_id=str(uuid.uuid4())
         name=pbx.queue_identity(queue_id)
