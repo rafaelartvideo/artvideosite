@@ -72,7 +72,7 @@ Deno.serve(async (request) => {
     const permissionKeys = new Set((permissions || []).map((item: any) =>
       String(typeof item === "string" ? item : item?.permission_key || "")
     ));
-    const canLookup = [
+    let canLookup = [
       "customers.create",
       "customers.edit",
       "customer_requests.create",
@@ -84,6 +84,51 @@ Deno.serve(async (request) => {
       "organizations.members.manage",
       "platform.providers.manage",
     ].some(key => permissionKeys.has(key));
+
+    // Ao cadastrar usuários de uma parceira, o gestor da Union não é membro
+    // dessa empresa. A permissão de gestão está na organização da plataforma.
+    // Aceitar APENAS gestores da Union com organizations.members.manage e APENAS
+    // empresas parceiras ativas; nunca expandir acesso a empresas arbitrárias.
+    if (!canLookup) {
+      const { data: platformOrganizationId, error: platformError } =
+        await adminClient.rpc("platform_operator_organization_id");
+      if (platformError || !platformOrganizationId) {
+        console.error("[CPF LOOKUP] platform organization lookup failed");
+        return json({ success: false, error: "Não foi possível validar o acesso da Union World." }, 503);
+      }
+
+      const { data: platformPermissions, error: platformPermissionError } =
+        await client.rpc("my_organization_permissions", {
+          p_organization_id: platformOrganizationId,
+        });
+      if (platformPermissionError) {
+        console.error("[CPF LOOKUP] platform permission lookup failed");
+        return json({ success: false, error: "Não foi possível validar sua permissão para consultar CPF." }, 403);
+      }
+
+      const platformKeys = new Set((platformPermissions || []).map((item: any) =>
+        String(typeof item === "string" ? item : item?.permission_key || "")
+      ));
+      if (platformKeys.has("organizations.members.manage")) {
+        const { data: targetCompany, error: companyError } = await adminClient
+          .from("organizations")
+          .select("id,organization_type,status,settings")
+          .eq("id", organizationId)
+          .maybeSingle();
+        if (companyError) {
+          console.error("[CPF LOOKUP] partner organization lookup failed");
+          return json({ success: false, error: "Não foi possível validar a empresa parceira." }, 503);
+        }
+        canLookup = Boolean(
+          targetCompany &&
+          targetCompany.id !== platformOrganizationId &&
+          targetCompany.status === "active" &&
+          (targetCompany.organization_type === "partner" ||
+            targetCompany.settings?.is_artvideo_tenant === true),
+        );
+      }
+    }
+
     if (!canLookup) {
       return json({ success: false, error: "Você não possui permissão para consultar CPF nesta empresa." }, 403);
     }

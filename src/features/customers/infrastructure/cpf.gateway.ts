@@ -21,7 +21,21 @@ function cpfLookupError(data: any, fallback: string) {
 
 async function invokeCpfLookup(body: Record<string, unknown>, fallback: string) {
   const { data, error } = await supabase.functions.invoke("lookup-cpf", { body });
-  if (error) throw new Error("Não foi possível acessar o serviço de consulta de CPF.");
+  if (error) {
+    // A Edge Function pode responder 401/403/429 com JSON útil. Não ocultar
+    // erros de autorização ou de limite sob uma mensagem genérica de conexão.
+    const context = (error as { context?: unknown }).context;
+    if (context instanceof Response) {
+      const payload = await context.clone().json().catch(() => null);
+      if (payload && typeof payload.error === "string" && payload.error.length <= 300) {
+        throw cpfLookupError(payload, fallback);
+      }
+      if (context.status === 401) throw new Error("Sua sessão expirou. Entre novamente para consultar o CPF.");
+      if (context.status === 403) throw new Error("Seu perfil não tem permissão para consultar CPF nesta empresa.");
+      if (context.status === 429) throw new Error("Limite temporário de consultas de CPF atingido. Tente novamente mais tarde.");
+    }
+    throw new Error("Não foi possível acessar o serviço de consulta de CPF. Verifique a conexão e tente novamente.");
+  }
   if (!data?.success) throw cpfLookupError(data, fallback);
   return data;
 }
