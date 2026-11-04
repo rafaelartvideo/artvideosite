@@ -1,4 +1,7 @@
 import importlib.util
+import base64
+import json
+from unittest.mock import patch
 from pathlib import Path
 import re
 import subprocess
@@ -60,6 +63,46 @@ class AgentSafetyTests(unittest.TestCase):
                 ["openssl","pkeyutl","-verify","-pubin","-inkey",str(pub),"-rawin",
                  "-sigfile",str(self._signature_file(directory,sign)),"-in",str(message_file)],
                 stdout=subprocess.PIPE,check=True)
+
+    def test_sip_password_only_leaves_vps_as_rsa_oaep_ciphertext(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            extension_id=str(uuid.uuid4())
+            organization_id=str(uuid.uuid4())
+            password="SafeSIPpassword_" + "a"*40
+            (root/"extensions").mkdir()
+            (root/"extensions"/(extension_id+".json")).write_text(json.dumps({
+                "id":extension_id,
+                "organization_id":organization_id,
+                "endpoint":"uw-"+"a"*32,
+                "password":password,
+                "enabled":True,
+            }))
+            private=root/"rsa-private.pem"
+            subprocess.run(["openssl","genpkey","-algorithm","RSA",
+               "-pkeyopt","rsa_keygen_bits:2048","-out",str(private)],
+               check=True,stderr=subprocess.DEVNULL)
+            der=subprocess.run(["openssl","pkey","-in",str(private),"-pubout","-outform","DER"],
+                stdout=subprocess.PIPE,check=True).stdout
+            payload={
+                "id":str(uuid.uuid4()),
+                "organization_id":organization_id,
+                "extension_id":extension_id,
+                "public_key_base64":base64.b64encode(der).decode(),
+            }
+            with patch.object(agent,"STATE_DIR",root):
+                request_id,ciphertext=agent.encrypt_login_for_browser(payload,organization_id)
+            self.assertEqual(request_id,payload["id"])
+            self.assertNotIn(password,ciphertext)
+            encrypted_file=root/"encrypted.bin"
+            encrypted_file.write_bytes(base64.b64decode(ciphertext))
+            decrypted=subprocess.run(["openssl","pkeyutl","-decrypt","-inkey",str(private),
+              "-pkeyopt","rsa_padding_mode:oaep","-pkeyopt","rsa_oaep_md:sha256",
+              "-pkeyopt","rsa_mgf1_md:sha256","-in",str(encrypted_file)],
+              stdout=subprocess.PIPE,check=True).stdout
+            self.assertEqual(decrypted.decode(),password)
+            self.assertFalse(list(root.glob(".rsa-public-*")))
+            self.assertFalse(list(root.glob(".sip-secret-*")))
 
     @staticmethod
     def _signature_file(directory, content):

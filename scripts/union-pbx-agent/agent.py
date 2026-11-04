@@ -257,16 +257,65 @@ def apply_job(job, org_id):
         raise
     print(f"Ramal {number}: configuração {'ativada' if state['enabled'] else 'desativada'} ({endpoint}).")
 
+def encrypt_login_for_browser(request, org_id):
+    """RSA-OAEP-SHA256: only the authorized browser's ephemeral key can decrypt."""
+    login_id = str(uuid.UUID(str(request["id"])))
+    extension_id = str(uuid.UUID(str(request["extension_id"])))
+    if request.get("organization_id") != org_id:
+        raise AgentError("Solicitação de login pertence a outra empresa.")
+    public_key = request.get("public_key_base64")
+    if not isinstance(public_key, str) or not (350 <= len(public_key) <= 700):
+        raise AgentError("Chave pública de login inválida.")
+    try:
+        der = base64.b64decode(public_key, validate=True)
+    except Exception as exc:
+        raise AgentError("Chave pública Base64 inválida.") from exc
+    if not 280 <= len(der) <= 510:
+        raise AgentError("Chave RSA incompatível.")
+    state_file = STATE_DIR / "extensions" / (extension_id + ".json")
+    if not state_file.is_file():
+        raise AgentError("O ramal vinculado ainda não foi provisionado.")
+    state = json.loads(state_file.read_text())
+    if state.get("id") != extension_id or state.get("organization_id") != org_id:
+        raise AgentError("Vínculo do ramal não corresponde à organização.")
+    if not state.get("enabled") or not ENDPOINT_RE.fullmatch(str(state.get("endpoint",""))):
+        raise AgentError("Ramal desativado ou inválido.")
+    password = state.get("password")
+    if not isinstance(password,str) or not PASSWORD_RE.fullmatch(password):
+        raise AgentError("Credencial SIP local indisponível.")
+
+    # Temp files must never be logged, copied to /tmp or sent to Supabase in plaintext.
+    tmpid = secrets.token_hex(12)
+    pubfile = STATE_DIR / (".rsa-public-" + tmpid)
+    secretfile = STATE_DIR / (".sip-secret-" + tmpid)
+    try:
+        write_atomic(pubfile, der, 0o600)
+        write_atomic(secretfile, password.encode(), 0o600)
+        ciphertext = command("openssl", "pkeyutl", "-encrypt",
+            "-pubin", "-keyform", "DER", "-inkey", str(pubfile),
+            "-pkeyopt", "rsa_padding_mode:oaep",
+            "-pkeyopt", "rsa_oaep_md:sha256",
+            "-pkeyopt", "rsa_mgf1_md:sha256",
+            "-in", str(secretfile))
+        if len(ciphertext) != 256:
+            raise AgentError("O navegador exige uma chave RSA de 2048 bits.")
+        return login_id, base64.b64encode(ciphertext).decode()
+    finally:
+        pubfile.unlink(missing_ok=True)
+        secretfile.unlink(missing_ok=True)
+
+
 def cycle(dry_run=False):
     config = json.loads(AGENT_CONFIG.read_text())
     payload = signed_request({"action":"poll"})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")
-    if not jobs:
-        if dry_run:
-            print("Sem ramais pendentes.")
-        return
+    logins = payload.get("login_requests", [])
+    if not isinstance(logins, list) or len(logins) > 10:
+        raise AgentError("Resposta de solicitações de acesso inválida.")
+    if not jobs and not logins and dry_run:
+        print("Sem ramais ou solicitações de acesso pendentes.")
     for job in jobs:
         try:
             validate_job(job, config["organization_id"])
@@ -288,6 +337,23 @@ def cycle(dry_run=False):
                 print("Cadastro modificado durante a aplicação; versão nova será processada.")
             elif not reply.get("accepted"):
                 raise AgentError("Ponte não confirmou a versão do ramal.")
+
+    for login in logins:
+        try:
+            if dry_run:
+                print("Prévia: entrega segura de credencial pendente (sem mostrar senha).")
+                continue
+            login_id, ciphertext = encrypt_login_for_browser(login, config["organization_id"])
+            result = signed_request({
+                "action": "report_login",
+                "id": login_id,
+                "ciphertext": ciphertext,
+            })
+            if not result.get("accepted"):
+                print("Solicitação expirada ou invalidada; nenhuma senha foi entregue.")
+        except Exception as exc:
+            # Do not include any credentials in diagnostic logs.
+            print("Entrega criptografada adiada: " + type(exc).__name__, file=sys.stderr)
 
 def main():
     parser=argparse.ArgumentParser(description="Agente assinado Union PABX (sem porta pública)")

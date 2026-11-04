@@ -41,12 +41,42 @@ Deno.serve(async request=>{
       if(!body||typeof body!=="object"||Array.isArray(body)) throw Error();
     } catch {return respond({error:"JSON inválido"},400)}
     if(body.action==="poll"){
+      // Apaga segredos criptografados que expiraram. O navegador só pode obtê-los uma vez.
+      const expiredAt=new Date().toISOString();
+      const {error:cleanupError}=await admin.from("pbx_browser_login_requests")
+        .update({status:"failed",encrypted_secret:null})
+        .eq("status","ready").lt("expires_at",expiredAt);
+      if(cleanupError) return respond({error:"Falha na limpeza de credenciais expiradas"},503);
+      // Remove registros antigos; mantém apenas evidências recentes sem senha.
+      const retention=new Date(Date.now()-24*3600*1000).toISOString();
+      await admin.from("pbx_browser_login_requests").delete().lt("created_at",retention);
       const {data,error}=await admin.from("pbx_extensions")
         .select("id,organization_id,number,endpoint_name,desired_enabled,updated_at")
         .eq("organization_id",agent.organization_id).eq("is_managed",true)
         .eq("provisioning_status","pending").order("updated_at").limit(10);
       if(error) return respond({error:"Erro ao consultar ramais"},503);
-      return respond({jobs:data||[]});
+      const {data:loginRequests,error:loginError}=await admin.from("pbx_browser_login_requests")
+        .select("id,organization_id,extension_id,public_key_base64,expires_at")
+        .eq("organization_id",agent.organization_id)
+        .eq("status","pending")
+        .gt("expires_at",new Date().toISOString())
+        .order("created_at")
+        .limit(10);
+      if(loginError) return respond({error:"Erro ao consultar solicitações de acesso"},503);
+      return respond({jobs:data||[],login_requests:loginRequests||[]});
+    }
+    if(body.action==="report_login"){
+      const requestId=String(body.id||""),ciphertext=String(body.ciphertext||"");
+      if(!uuid.test(requestId)||!/^[A-Za-z0-9+/]{342}==$/.test(ciphertext)) {
+        return respond({error:"Resposta criptografada inválida"},400);
+      }
+      const {data,error}=await admin.from("pbx_browser_login_requests")
+        .update({status:"ready",encrypted_secret:ciphertext,fulfilled_at:new Date().toISOString()})
+        .eq("id",requestId).eq("organization_id",agent.organization_id)
+        .eq("status","pending").gt("expires_at",new Date().toISOString())
+        .select("id").maybeSingle();
+      if(error) return respond({error:"Não foi possível entregar a credencial criptografada"},503);
+      return respond({accepted:Boolean(data)});
     }
     if(body.action==="report"){
       const jobId=String(body.id||""),version=String(body.version||""),status=String(body.status||"");

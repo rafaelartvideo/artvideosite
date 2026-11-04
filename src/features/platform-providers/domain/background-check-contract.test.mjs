@@ -34,7 +34,8 @@ test("novo prestador reaproveita CPF, CNPJ e CEP e usa seções do CRM",()=>{
   assert.match(repository,/list_platform_service_providers_v6/);
   assert.match(repository,/p_equipment_names: filters.equipmentNames/);
   const equipmentFilterSql=read("supabase/migrations/20261103214943_union_provider_equipment_multiselect_filter_v5.sql");
-  assert.match(equipmentFilterSql,/list_platform_service_providers_v6/);
+  // v5 is a historical migration; v6 is defined by a later migration.
+  assert.match(equipmentFilterSql,/list_platform_service_providers_v5/);
   assert.match(equipmentFilterSql,/security invoker/);
   assert.match(migration,/person_type/);
   assert.match(migration,/complement/);

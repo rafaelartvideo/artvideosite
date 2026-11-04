@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug } from "lucide-react";
 import { PageHeader } from "@/shared/ui/admin/AdminLayout";
+import { useAuth } from "@/lib/auth";
+import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
 // Primeira etapa: somente a Union World e a extensao 900 (teste de eco).
 // Credenciais SIP sao inseridas pelo operador e nunca persistidas no navegador.
@@ -23,7 +25,12 @@ type SipSession = {
 };
 
 export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onBack: () => void; onOpen: () => void; onManage?: () => void; isPageOpen: boolean }) {
+  const { activeOrganizationId } = useAuth();
   const [password, setPassword] = useState("");
+  const [sipUser, setSipUser] = useState(SIP_USER);
+  const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
+  const [checkingManaged, setCheckingManaged] = useState(false);
+  const [manualMode, setManualMode] = useState(false);
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
@@ -35,6 +42,17 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
   const sessionRef = useRef<SipSession | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const generationRef = useRef(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!isPageOpen || !activeOrganizationId) return () => { cancelled = true; };
+    setCheckingManaged(true);
+    void findMyManagedPbxExtension(activeOrganizationId)
+      .then(extension => { if (!cancelled) setManagedExtension(extension); })
+      .catch(() => { if (!cancelled) setManagedExtension(null); })
+      .finally(() => { if (!cancelled) setCheckingManaged(false); });
+    return () => { cancelled = true; };
+  }, [activeOrganizationId,isPageOpen]);
 
   const clearAudio = () => {
     const element = remoteAudioRef.current;
@@ -57,6 +75,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
     setCallState("idle");
     setRegistration("offline");
     setPassword("");
+    setSipUser(SIP_USER);
     setNotice("Ramal desconectado.");
   };
 
@@ -85,19 +104,14 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
     if (session.connection) bindPeer(session.connection);
   };
 
-  const connect = async () => {
-    if (uaRef.current || registration === "connecting") return;
-    if (!password.trim()) {
-      setNotice("Informe a senha SIP exclusiva do ramal union-301.");
-      return;
-    }
+  const startSip = async (username: string, secret: string, generation: number) => {
     if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
       setRegistration("error");
       setNotice("Este navegador precisa de HTTPS e permissao de microfone para usar WebRTC.");
       return;
     }
 
-    const generation = ++generationRef.current;
+    setSipUser(username);
     setRegistration("connecting");
     setNotice("Conectando ao PABX Union...");
     try {
@@ -107,9 +121,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
       const JsSIP = (module as any).default || module;
       const ua = new JsSIP.UA({
         sockets: [new JsSIP.WebSocketInterface(SIP_WSS)],
-        uri: `sip:${SIP_USER}@${SIP_HOST}`,
-        authorization_user: SIP_USER,
-        password,
+        uri: `sip:${username}@${SIP_HOST}`,
+        authorization_user: username,
+        password: secret,
         display_name: "Union World",
         register: true,
         session_timers: false,
@@ -172,6 +186,35 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
     }
   };
 
+
+  const connect = () => {
+    if (uaRef.current || registration === "connecting") return;
+    if (!password.trim()) { setNotice("Informe a senha SIP exclusiva do ramal union-301."); return; }
+    const generation = ++generationRef.current;
+    void startSip(SIP_USER,password,generation);
+  };
+
+  const connectManaged = async () => {
+    if (uaRef.current || registration === "connecting" || !activeOrganizationId ||
+        !managedExtension || managedExtension.provisioning_status !== "applied") return;
+    const generation=++generationRef.current;
+    setRegistration("connecting");
+    setNotice("Solicitando acesso criptografado ao seu ramal...");
+    try {
+      const sip=await acquireManagedPbxCredentials(
+        activeOrganizationId,
+        () => generationRef.current !== generation,
+        message => { if (generationRef.current === generation) setNotice(message); }
+      );
+      if(generationRef.current !== generation) return;
+      await startSip(sip.username,sip.password,generation);
+    } catch (error) {
+      if(generationRef.current !== generation) return;
+      setRegistration("error");
+      setNotice(error instanceof Error?error.message:"Não foi possível conectar o ramal.");
+    }
+  };
+
   const callEcho = () => {
     if (registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
     setNotice("Chamando extensao de teste 900...");
@@ -221,7 +264,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-base font-semibold text-foreground">Linha Union World</h2>
-            <p className="mt-1 text-sm text-muted-foreground">(11) 4290-1575 · Ramal {SIP_USER}</p>
+            <p className="mt-1 text-sm text-muted-foreground">(11) 4290-1575 · Ramal {sipUser}</p>
           </div>
           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${registration === "registered" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" : registration === "connecting" ? "bg-blue-500/10 text-blue-700 dark:text-blue-300" : "bg-muted text-muted-foreground"}`}>
             {registration === "registered" ? "Conectado" : registration === "connecting" ? "Conectando" : registration === "error" ? "Falha na conexao" : "Desconectado"}
@@ -229,6 +272,25 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
         </div>
 
         {registration === "offline" && <div className="mt-5 space-y-3">
+          {managedExtension && !manualMode && (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold text-foreground">Meu ramal {managedExtension.number} · {managedExtension.display_name}</p>
+              <p className="text-xs text-muted-foreground">
+                {managedExtension.provisioning_status === "applied"
+                  ? "Acesso individual protegido. A senha permanece na VPS e é enviada somente criptografada para este navegador."
+                  : "Ramal ainda não ativado na VPS."}
+              </p>
+              <button type="button" onClick={() => void connectManaged()}
+                disabled={checkingManaged || managedExtension.provisioning_status !== "applied"}
+                className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+                <Phone size={16} /> Conectar meu ramal {managedExtension.number}
+              </button>
+              <button type="button" onClick={() => setManualMode(true)}
+                className="block text-xs font-semibold text-primary hover:underline">Usar o ramal manual 301</button>
+            </div>
+          )}
+          {(!managedExtension || manualMode) && <>
+          {checkingManaged && <p className="text-xs text-muted-foreground">Verificando ramal vinculado...</p>}
           <label htmlFor="union-sip-password" className="block text-sm font-medium text-foreground">Senha SIP do ramal {SIP_USER}</label>
           <input id="union-sip-password" type="password" value={password} onChange={event => setPassword(event.target.value)}
             autoComplete="off" spellCheck={false} placeholder="Digite a senha protegida na VPS"
@@ -238,6 +300,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
             className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
             <Phone size={16} /> Conectar ramal
           </button>
+          {managedExtension && <button type="button" onClick={() => setManualMode(false)}
+            className="block text-xs font-semibold text-primary hover:underline">Voltar para meu ramal {managedExtension.number}</button>}
+          </>}
         </div>}
 
         {registration !== "offline" && <div className="mt-5 flex flex-wrap gap-2">
@@ -286,7 +351,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
 
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p>O ramal recebe chamadas da linha da Union World e permite teste interno no 900. Discagem externa ainda nao foi habilitada. A conexao fica ativa ao navegar entre as paginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
+        <p>O ramal 301 recebe chamadas da linha da Union World; ramais gerenciados novos ainda não entram na rota de chamadas externas. Todos podem testar o áudio interno pelo 900. Discagem externa ainda não foi habilitada. A conexao fica ativa ao navegar entre as paginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
       <div className="flex flex-wrap gap-4">
         {onManage && <button type="button" onClick={onManage} className="text-sm font-semibold text-primary hover:underline">Gerenciar ramais</button>}
@@ -302,7 +367,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
       >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-semibold">PABX Union <span className="ml-1 text-xs font-normal text-muted-foreground">· {SIP_USER}</span></p>
+            <p className="text-sm font-semibold">PABX Union <span className="ml-1 text-xs font-normal text-muted-foreground">· {sipUser}</span></p>
             <p className="mt-1 text-xs text-muted-foreground">
               {callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligação" : callState === "dialing" ? "Chamando" : registration === "registered" ? "Ramal conectado" : registration === "connecting" ? "Conectando" : "Falha na conexão"}
             </p>
