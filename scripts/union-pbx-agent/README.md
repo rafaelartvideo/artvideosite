@@ -263,3 +263,50 @@ systemctl is-active union-pbx-agent
 Verifique o painel com uma chamada de teste para a fila 850 e confirme
 que a leitura aparece em aproximadamente 30 segundos. A sincronizacao e
 aproximada, nao substitui eventos instantaneos do Asterisk/AMI.
+
+
+## Entrada FVX — preparação de troca segura, NÃO ativada automaticamente
+
+O contexto confirmado na VPS recebe chamadas em [union-entrada], s, e executa
+`Dial(PJSIP/union-301,25)`. O arquivo é
+`/etc/asterisk/extensions.d/union-fvx.conf`, com padrão `_X.` que vai para s e
+contexto `h` de encerramento. A linha FVX está registrada separadamente.
+
+O novo `inbound_router.py` é uma ferramenta de operação manual e estritamente
+opt-in, e **NÃO é executado pelo serviço do agente**. Não está ligado ao
+botão 'Salvar planejamento' do CRM. Publicá-lo no GitHub não altera nenhuma
+rota. O estado atual do PABX permanece como está.
+
+Proteções de implantação:
+- Recusa arquivos FVX diferentes da versão auditada.
+- Não altera tronco SIP, senha, pjsip.conf nem o provisionamento de ramais.
+- Comandos mutáveis exigem root, flag `--acknowledge-live-change`,
+  zero canais ativos, tronco FVX registrado e validação de `dialplan reload`.
+- Antes da primeira mudança salva o arquivo original sob /root.
+- `prepare` cria uma subrotina separada e **continua enviando tudo ao 301**.
+- Somente uma segunda ação manual `activate-queue --queue 850` permite a fila;
+  valida que ela existe, está ativa e possui atendente disponível.
+- A fila usa o tempo de espera cadastrado e, quando o Queue retorna ao dialplan,
+  tenta o ramal 301 como contingência; quando o chamador já desligou,
+  não há chamada ativa para encaminhar.
+- `restore-301` troca a subrotina para chamada direta; `restore-original`
+  repõe os bytes originais verificados do arquivo confirmado.
+- Falha de reload ou de verificação provoca tentativa de restauração imediata.
+- Se faltar qualquer condição de segurança, a operação é recusada.
+
+**Somente leitura** (após copiar também `inbound_router.py` para o mesmo diretório
+do script `agent.py` na VPS):
+
+```bash
+python3 /opt/union-pbx-agent/inbound_router.py status
+python3 /opt/union-pbx-agent/inbound_router.py preview --queue 850
+```
+
+**NÃO execute prepare ou activate-queue sem aprovação separada, janela de teste,
+atendentes online e plano de contingência.** Alterar roteamento telefônico
+pode interromper o atendimento. O CRM, neste estágio, guarda somente
+o destino planejado; não envia comando para mudar a FVX.
+
+Quando autorizado, a operação deverá ser feita por uma pessoa com acesso root
+na VPS, em duas etapas separadas: primeiro apenas preservar o 301 através de
+uma subrotina controlada, e só depois ativar a fila externa com teste real.
