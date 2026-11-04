@@ -12,7 +12,7 @@ const INTEGRATIONS = [
   { key: "olx", title: "OLX", category: "Marketplace externo", description: "Publicação e sincronização de anúncios elegíveis, após homologação e autorização OAuth.", icon: Store, ready: false },
   { key: "whatsapp", title: "WhatsApp · WuzAPI", category: "Comunicação", description: "Motor de mensagens da Union; cada empresa utiliza uma sessão isolada.", icon: MessageCircle, ready: true },
   { key: "sac_digital", title: "SAC Digital", category: "Atendimento", description: "Integração do SAC Digital com canais, webhooks e atendimento.", icon: Headphones, ready: true },
-  { key: "pbx", title: "PABX · SIP/Asterisk", category: "Telefonia", description: "Telefonia integrada e ramais no motor central da Union.", icon: Phone, ready: true },
+  { key: "pbx", title: "PABX · SIP/Asterisk", category: "Telefonia", description: "Motor da Union ativo; provisionamento para empresas parceiras ainda em preparação.", icon: Phone, ready: false },
   { key: "queue", title: "Union Senhas", category: "Atendimento", description: "Integração da fila eletrônica aos atendimentos e ordens de serviço.", icon: Ticket, ready: true },
   { key: "ai", title: "Union IA", category: "Inteligência artificial", description: "Recursos de IA disponibilizados pela plataforma conforme o plano.", icon: WandSparkles, ready: true },
 ] as const;
@@ -125,7 +125,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
           <div className="flex items-start justify-between gap-2">
             <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary"><Icon size={21}/></span>
             <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-muted-foreground">
-              {item.ready ? "Disponível" : "Em homologação"}
+              {item.ready ? "Disponível" : item.key === "olx" ? "Em homologação" : "Em preparação"}
             </span>
           </div>
           <div className="mt-3 font-semibold text-foreground">{item.title}</div>
@@ -151,6 +151,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
         <CircleAlert size={17} className="mt-0.5 shrink-0"/>
         Disponibilizar a OLX não conecta nenhuma conta e não publica anúncios. A API permanece desativada até a homologação e autorização oficial.
       </p>}
+      {selected === "pbx" && <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><CircleAlert size={17} className="mt-0.5 shrink-0"/> O PABX ainda é exclusivo da Union. A disponibilização para parceiras ficará bloqueada até existir provisionamento individual de troncos e ramais SIP.</p>}
       <p className="mt-3 flex items-start gap-2 text-xs leading-5 text-muted-foreground">
         <LockKeyhole size={16} className="shrink-0"/> Este painel controla o módulo liberado para a empresa. Credenciais, sessões e dados operacionais permanecem isolados por organização. Não há compartilhamento de tokens.
       </p>
@@ -168,7 +169,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
           : companies.length === 0 ? <p className="p-5 text-center text-sm text-muted-foreground">Nenhuma empresa encontrada.</p>
           : companies.map(company => {
             const enabled = assigned[company.id] === true;
-            const disabled = !canManage || !availableKeys.includes(selected) || savingId !== null || company.status !== "active";
+            const disabled = !canManage || selected === "pbx" || !availableKeys.includes(selected) || savingId !== null || company.status !== "active";
             return <div key={company.id} className="flex min-w-0 flex-wrap items-center justify-between gap-3 p-3 sm:px-4">
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{company.name}</p>
