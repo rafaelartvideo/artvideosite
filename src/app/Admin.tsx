@@ -64,6 +64,7 @@ const UnionPbxExtensionsPage = lazy(() => import("@/features/telephony/presentat
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
+const PlatformIntegrationsPage = lazy(() => import("@/features/integrations/presentation/PlatformIntegrationsPage").then(({ PlatformIntegrationsPage }) => ({ default: PlatformIntegrationsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 const UnionCatalogAdminPage = lazy(() => import("@/features/segments/presentation/UnionCatalogAdminPage").then(({ UnionCatalogAdminPage }) => ({ default: UnionCatalogAdminPage })));
 
@@ -177,6 +178,7 @@ export function AdminDashboard({
     if (tab === "planUsage") return !isPlatformOperatorOrganization && hasPermission("settings.details.view");
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
+    if (tab === "integrations" && isPlatformOperatorOrganization && !crmMode) return hasPermission("organizations.view") || hasPermission("organizations.modules.manage");
     if (tab === "integrations") return (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("sac_digital.settings.manage") || (hasPermission("settings.update") && hasPermission("site.view"))) && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
@@ -539,7 +541,9 @@ export function AdminDashboard({
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
-            <Route path="operation/integrations/*" element={<IntegrationsPage onBack={() => backToParent("integrations")} />} />
+            <Route path="operation/integrations/*" element={isPlatformOperatorOrganization && !crmMode
+              ? <PlatformIntegrationsPage onBack={() => navigateAdmin("dashboard")} />
+              : <IntegrationsPage onBack={() => backToParent("integrations")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<Navigate to={adminPath("siteRequests", "orcamentos", route.resourceId)} replace />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
