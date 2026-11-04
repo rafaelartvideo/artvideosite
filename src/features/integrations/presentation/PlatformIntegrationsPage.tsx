@@ -33,7 +33,6 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [reload, setReload] = useState(0);
   const [loading, setLoading] = useState(true);
   const [companies, setCompanies] = useState<PartnerRow[]>([]);
   const [total, setTotal] = useState(0);
@@ -55,6 +54,9 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
     async function load() {
       setLoading(true);
       setError("");
+      setCompanies([]);
+      setAssigned({});
+      setTotal(0);
       const system = await supabase.from("system_modules").select("key").in("key", INTEGRATIONS.map(item => item.key));
       if (cancelled) return;
       if (system.error) { setError("Não foi possível consultar as integrações da plataforma."); setLoading(false); return; }
@@ -87,7 +89,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
     }
     void load();
     return () => { cancelled = true; };
-  }, [selected, page, search, reload]);
+  }, [selected, page, search]);
 
   async function updateCompany(company: PartnerRow, enabled: boolean) {
     if (!canManage || savingId || !availableKeys.includes(selected)) return;
@@ -100,7 +102,6 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
       setAssigned(previous => ({ ...previous, [company.id]: enabled }));
     } catch {
       setError("Não foi possível salvar o acesso de " + company.name + ". Nenhuma alteração foi confirmada.");
-      setReload(value => value + 1);
     } finally {
       setSavingId(null);
     }
