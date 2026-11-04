@@ -19,6 +19,8 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
   const [error, setError] = useState("");
   const [reload, setReload] = useState(0);
 
+  useEffect(() => { setRegisteredId(null); }, [organizationId]);
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
