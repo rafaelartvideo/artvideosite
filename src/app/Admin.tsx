@@ -59,6 +59,7 @@ const TabTerms = lazy(() => import("@/features/terms/presentation/TabTerms").the
 const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration/presentation/QueueIntegrationToolPage").then(({ QueueIntegrationToolPage }) => ({ default: QueueIntegrationToolPage })));
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
 const UnionAiToolPage = lazy(() => import("@/features/union-ai/presentation/UnionAiToolPage").then(({ UnionAiToolPage }) => ({ default: UnionAiToolPage })));
+const UnionPbxToolPage = lazy(() => import("@/features/telephony/presentation/UnionPbxToolPage").then(({ UnionPbxToolPage }) => ({ default: UnionPbxToolPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
@@ -334,6 +335,8 @@ export function AdminDashboard({
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");
+  // Primeiro softphone pertence exclusivamente a Union World; empresas parceiras exigirao provisionamento individual.
+  const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission("pbx.view");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
     ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
@@ -351,6 +354,7 @@ export function AdminDashboard({
       { id: "marketplace", label: "Marketplace Union", icon: Store, description: isPlatformOperatorOrganization ? "Modere lojas, anúncios e categorias do marketplace." : "Configure sua loja e gerencie serviços e produtos publicados.", href: null },
     ] : []),
     ...(canAccessAiTool ? [{ id: "union-ia", label: "Union IA", icon: Sparkles, description: "Consumo, histórico e limites de inteligência artificial.", href: null }] : []),
+    ...(canAccessPbxTool ? [{ id: "union-pbx", label: "PABX Union", icon: Phone, description: "Conecte o ramal WebRTC e teste o audio sem sair do CRM.", href: null }] : []),
     ...((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use") ? [
       { id: "uniq", label: "UNIQ", icon: Phone, description: "Acesse a plataforma de telefonia e atendimento UNIQ.", href: "https://web.uniq.app/login" },
     ] : []),
@@ -401,11 +405,19 @@ export function AdminDashboard({
         navigateAdmin("tools", "union-ia");
         return;
       }
+      if (id === "union-pbx" && canAccessPbxTool) {
+        navigateAdmin("tools", "union-pbx");
+        return;
+      }
       const tool = toolItems.find(item => item.id === id);
       if (tool?.href) window.open(tool.href, "_blank", "noopener,noreferrer");
     }}
   />;
-  const toolsContent = route.resourceId === "union-ia"
+  const toolsContent = route.resourceId === "union-pbx"
+    ? canAccessPbxTool
+      ? <UnionPbxToolPage onBack={() => navigateAdmin("tools")} />
+      : <Navigate to={adminPath("tools")} replace />
+    : route.resourceId === "union-ia"
     ? canAccessAiTool
       ? <UnionAiToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
