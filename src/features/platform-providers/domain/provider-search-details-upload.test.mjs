@@ -18,7 +18,7 @@ test("busca de prestadores segue multiseleção do CRM com seletor mobile acima 
   assert.match(panel,/hidden grid-cols-2 gap-3 md:grid xl:grid-cols-3/);
   assert.match(panel,/field\(mobileField\)/);
   assert.match(panel,/aria-label="Buscar por nome"/);
-  assert.match(panel,/md:h-9 md:py-1\\.5/);
+  assert.match(panel,/md:h-9 md:py-1\.5/);
   assert.match(panel,/md:mb-1/);
   assert.match(panel,/placeholder="Nome"/);
   assert.match(panel,/label="Equipamento"/);
