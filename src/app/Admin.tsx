@@ -542,7 +542,7 @@ export function AdminDashboard({
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
             <Route path="operation/integrations/*" element={isPlatformOperatorOrganization && !crmMode
-              ? <PlatformIntegrationsPage onBack={() => navigateAdmin("dashboard")} />
+              ? <PlatformIntegrationsPage onBack={() => navigateAdmin("dashboard")} onOpenTool={tool => navigateAdmin("tools", tool)} />
               : <IntegrationsPage onBack={() => backToParent("integrations")} />} />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<Navigate to={adminPath("siteRequests", "orcamentos", route.resourceId)} replace />} />
