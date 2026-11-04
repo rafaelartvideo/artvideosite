@@ -51,7 +51,7 @@ Deno.serve(async request=>{
           const item=entry as Record<string,unknown>;
           if(typeof item.queue_id!=="string" || !uuid.test(item.queue_id) ||
             !["active","missing"].includes(String(item.queue_state)) ||
-            !Number.isInteger(item.waiting_count) ||
+            typeof item.waiting_count!=="number" || !Number.isInteger(item.waiting_count) ||
             Number(item.waiting_count)<0 || Number(item.waiting_count)>500 ||
             !Array.isArray(item.members) || item.members.length>20) return false;
           const nums=new Set<number>();
@@ -67,6 +67,7 @@ Deno.serve(async request=>{
         });
         if(valid){
           const ids=telemetry.map((entry:{queue_id:string})=>entry.queue_id);
+          if(new Set(ids).size!==ids.length) return respond({error:"Identificadores de fila duplicados"},400);
           const {data:allowed,error:verifyError}=await admin.from("pbx_queues")
             .select("id").eq("organization_id",agent.organization_id)
             .eq("enabled",true).eq("provisioning_status","applied").in("id",ids);
