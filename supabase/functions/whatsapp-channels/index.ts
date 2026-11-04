@@ -118,6 +118,14 @@ Deno.serve(async request => {
     const keys = new Set((Array.isArray(permissionRows) ? permissionRows : []).map(
       (p: Record<string, unknown>) => String(p.permission_key || ""),
     ));
+    // O módulo precisa estar liberado para a própria organização; as permissões
+    // do perfil, isoladamente, não podem contornar a distribuição da Union.
+    const { data: whatsappModule, error: moduleError } = await privileged.from("organization_modules")
+      .select("is_enabled").eq("organization_id", org).eq("module_key", "whatsapp").maybeSingle();
+    if (moduleError) return json({ success: false, error: "Não foi possível verificar a disponibilidade do WhatsApp." }, 503);
+    if (whatsappModule?.is_enabled !== true) {
+      return json({ success: false, error: "A integração WhatsApp não está liberada para esta empresa." }, 403);
+    }
     const canManage = keys.has("settings.channels.manage");
     const canDelete = keys.has("settings.channels.delete");
     const canRead = canManage || canDelete || keys.has("settings.channels.view");
