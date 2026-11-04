@@ -2,10 +2,9 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Edit2, Plus, Users } from "lucide-react";
 import { isValidUsername, normalizeUsername } from "@/features/auth/domain/username";
-import { ensureCpfAvailable, lookupCpf } from "@/features/customers/infrastructure/cpf.gateway";
-import { isPastOrTodayIsoDate, isValidBrazilianPhone, isValidCpf, isValidEmail, normalizeDigits, todayDateOnly } from "@/shared/domain/formatters";
+import { isPastOrTodayIsoDate, isValidBrazilianPhone, isValidCpf, isValidEmail, todayDateOnly } from "@/shared/domain/formatters";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
+import { AdminCard, AdminCardContent, AdminCardHeader, AdminDialog, AdminIconButton, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
 import { EmptyState, LoadingState, Toast } from "@/shared/ui/admin/AdminFeedback";
 import { FCpfInput, FEmailInput, FInput, FPhoneInput, FSelect, FToggle } from "@/shared/ui/admin/AdminFormControls";
 import { createPartnerUser, listPartnerRoles, listPartnerUsers, updatePartnerUser } from "../infrastructure/partner-companies.repository";
@@ -63,7 +62,6 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<Form>(empty);
   const [errors, setErrors] = useState<FormErrors>({});
-  const [cpfLoading, setCpfLoading] = useState(false);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
 
   const usersQuery = useQuery({
@@ -99,9 +97,8 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      // Na edição, o endpoint partner-users verifica o CPF contra outros usuários,
-      // excluindo o cadastro atual pelo user_id. Evita marcar o próprio CPF como duplicado.
-      if (!editing) await ensureCpfAvailable(form.cpf, organizationId);
+      // A validação de formato ocorre no formulário; duplicidades são verificadas
+      // pelo endpoint seguro partner-users, sem consulta externa de CPF.
       const payload = {
         organization_id: organizationId,
         full_name: form.full_name.trim(),
@@ -156,48 +153,6 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
   const setField = (key: keyof Form, value: string | boolean) => {
     setForm(current => ({ ...current, [key]: value }));
     setErrors(current => ({ ...current, [key]: undefined }));
-  };
-
-  const lookupCpfIdentity = async () => {
-    if (!isValidCpf(form.cpf)) {
-      setErrors(current => ({ ...current, cpf: "Informe um CPF válido." }));
-      return;
-    }
-
-    const requestedCpf = normalizeDigits(form.cpf);
-    setCpfLoading(true);
-    setErrors(current => ({ ...current, cpf: undefined }));
-    try {
-      // O cadastro consultado pode ser o próprio usuário editado. A função publicada
-      // nem sempre devolve entity_id na listagem, portanto só procure duplicidade
-      // quando o CPF tiver sido alterado ou se tratar de novo usuário.
-      const sameCpfBeingEdited = Boolean(editing) && requestedCpf === normalizeDigits(editing.cpf || "");
-      const result = await lookupCpf(requestedCpf, organizationId, editing?.entity_id || null, {
-        checkExisting: !sameCpfBeingEdited,
-      });
-      setForm(current => {
-        if (normalizeDigits(current.cpf) !== requestedCpf) return current;
-        return {
-          ...current,
-          full_name: result.name || current.full_name,
-          birth_date: result.birthDate || current.birth_date,
-        };
-      });
-      setErrors(current => ({ ...current, full_name: undefined, birth_date: undefined }));
-      setToast({
-        msg: result.birthDate
-          ? "Nome e data de nascimento preenchidos pela consulta de CPF."
-          : "Nome preenchido pela consulta de CPF.",
-        type: "success",
-      });
-    } catch (error) {
-      setErrors(current => ({
-        ...current,
-        cpf: systemErrorMessage(error, "Não foi possível consultar o CPF."),
-      }));
-    } finally {
-      setCpfLoading(false);
-    }
   };
 
   const saveUser = () => {
@@ -279,12 +234,7 @@ export function PartnerCompanyUsersSection({ organizationId, companyStatus }: { 
         <div>
             <div className="grid gap-4 sm:grid-cols-2">
               <FInput label="Nome completo" required error={errors.full_name} value={form.full_name} onChange={(e: any) => setField("full_name", e.target.value)} />
-              <div className="min-w-0">
-                <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
-                  <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
-                  <AdminButton variant="secondary" size="sm" loading={cpfLoading} loadingText="Consultar" onClick={() => void lookupCpfIdentity()} disabled={saveMutation.isPending || !isValidCpf(form.cpf)} className="h-[42px] shrink-0 border-primary/30 px-4 text-primary hover:bg-primary/5">Consultar</AdminButton>
-                </div>
-              </div>
+              <FCpfInput label="CPF" required error={errors.cpf} value={form.cpf} onChange={(e: any) => setField("cpf", e.target.value)} />
               <FInput label="Data de nascimento" type="date" required max={todayDateOnly()} error={errors.birth_date} value={form.birth_date} onChange={(e: any) => setField("birth_date", e.target.value)} />
               <FPhoneInput label="Telefone" error={errors.phone} value={form.phone} onChange={(e: any) => setField("phone", e.target.value)} />
               <FEmailInput label="E-mail" error={errors.email} autoComplete="email" value={form.email} onChange={(e: any) => setField("email", e.target.value)} />
