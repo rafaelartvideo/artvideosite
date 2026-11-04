@@ -9,9 +9,11 @@ type BatchMode = "equipment" | "standalone";
 const inputClass = "h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground outline-none focus:border-primary";
 
 export function PlatformServiceBatchEditor({
-  equipmentSuggestions, onCreateBatch, loading, initialEquipmentName = "", initialMode = "equipment", closeOnSuccess = false,
+  equipmentSuggestions, professionSuggestions = [], onCreateBatch, loading, initialEquipmentName = "", initialProfessionName = "", initialMode = "equipment", closeOnSuccess = false,
 }: {
   equipmentSuggestions: string[];
+  professionSuggestions?: string[];
+  initialProfessionName?: string;
   onCreateBatch: (items: PlatformServiceBatchItem[]) => Promise<boolean>;
   loading: boolean;
   initialEquipmentName?: string;
@@ -22,6 +24,7 @@ export function PlatformServiceBatchEditor({
   const [equipmentOpen, setEquipmentOpen] = useState(initialMode === "equipment");
   const [standaloneOpen, setStandaloneOpen] = useState(initialMode === "standalone");
   const [equipmentName, setEquipmentName] = useState(initialEquipmentName);
+  const [professionName, setProfessionName] = useState(initialProfessionName);
   const [categories, setCategories] = useState<Row[]>([{ id: 0, name: "" }]);
   const [standalone, setStandalone] = useState<Row[]>([{ id: 1, name: "" }]);
   const rowsFor = (mode: BatchMode) => mode === "equipment" ? categories : standalone;
@@ -39,12 +42,17 @@ export function PlatformServiceBatchEditor({
       return;
     }
     const equipment = equipmentName.trim();
+    const profession = professionName.trim();
+    if (profession.length < 2) {
+      notifyAdmin("Informe primeiro a profissão.", "error");
+      return;
+    }
     if (mode === "equipment" && equipment.length < 2) {
       notifyAdmin("Informe o equipamento ou categoria antes de cadastrar.", "error");
       return;
     }
     const items = rows.map(name => ({
-      name, equipment_name: mode === "equipment" ? equipment : null,
+      name, profession_name: profession, equipment_name: mode === "equipment" ? equipment : null,
     }));
     const saved = await onCreateBatch(items);
     if (!saved || closeOnSuccess) return; // No modal, a confirmacao fecha e desmonta o editor.
@@ -61,7 +69,7 @@ export function PlatformServiceBatchEditor({
           className={inputClass}
           maxLength={120}
           aria-label={category ? "Subcategoria " + (index + 1) : "Serviço avulso " + (index + 1)}
-          placeholder={category ? "Ex.: Instalação, Reparo..." : "Ex.: Pedreiro, Pintor..."}
+          placeholder={category ? "Ex.: Instalação, Reparo..." : "Ex.: Visita técnica, Consultoria..."}
           value={row.name}
           onChange={event => updateRow(mode, row.id, event.target.value)}
         />
@@ -77,10 +85,20 @@ export function PlatformServiceBatchEditor({
   };
 
   return <div className="space-y-3">
+    <div>
+      <label className="mb-1.5 block text-xs font-bold text-muted-foreground" htmlFor="provider-batch-profession">Profissão *</label>
+      <input id="provider-batch-profession" className={inputClass} maxLength={120}
+        list="provider-batch-profession-options" placeholder="Ex.: Técnico de refrigeração"
+        value={professionName} onChange={event => setProfessionName(event.target.value)}/>
+      <datalist id="provider-batch-profession-options">
+        {professionSuggestions.map(name => <option key={name} value={name}/>)}
+      </datalist>
+      <p className="mt-1 text-xs text-muted-foreground">Todos os serviços abaixo pertencem à profissão indicada.</p>
+    </div>
     <section className="overflow-hidden rounded-lg border border-border">
       <button type="button" aria-expanded={equipmentOpen} onClick={() => setEquipmentOpen(value => !value)}
         className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground">
-        <span>Por equipamento / categoria</span>
+        <span>Equipamentos da profissão</span>
         <ChevronDown size={17} className={"shrink-0 transition-transform " + (equipmentOpen ? "" : "-rotate-90")}/>
       </button>
       {equipmentOpen && <div className="space-y-3 border-t border-border p-3">
@@ -105,11 +123,11 @@ export function PlatformServiceBatchEditor({
     <section className="overflow-hidden rounded-lg border border-border">
       <button type="button" aria-expanded={standaloneOpen} onClick={() => setStandaloneOpen(value => !value)}
         className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground">
-        <span>Serviços avulsos / profissões</span>
+        <span>Serviços diretos (sem equipamento)</span>
         <ChevronDown size={17} className={"shrink-0 transition-transform " + (standaloneOpen ? "" : "-rotate-90")}/>
       </button>
       {standaloneOpen && <div className="space-y-3 border-t border-border p-3">
-        <p className="text-xs text-muted-foreground">Cadastre várias profissões sem equipamento, como Pedreiro, Pintor ou Chaveiro.</p>
+        <p className="text-xs text-muted-foreground">Cadastre serviços da profissão sem vincular um equipamento.</p>
         {fields("standalone")}
         <div className="flex justify-end">
           <AdminButton size="sm" loading={loading} disabled={loading} onClick={() => void submit("standalone")}>
