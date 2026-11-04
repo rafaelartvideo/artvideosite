@@ -80,10 +80,10 @@ Deno.serve(async request=>{
           ...queue,
           members:(members||[]).filter(member=>member.queue_id===queue.id).map(member=>({
             position:member.position,
-            number:(member.pbx_extensions as {number:number}|null)?.number,
-            endpoint_name:(member.pbx_extensions as {endpoint_name:string}|null)?.endpoint_name,
-            desired_enabled:(member.pbx_extensions as {desired_enabled:boolean}|null)?.desired_enabled,
-            provisioning_status:(member.pbx_extensions as {provisioning_status:string}|null)?.provisioning_status,
+            number:(member.pbx_extensions as unknown as {number:number}|null)?.number,
+            endpoint_name:(member.pbx_extensions as unknown as {endpoint_name:string}|null)?.endpoint_name,
+            desired_enabled:(member.pbx_extensions as unknown as {desired_enabled:boolean}|null)?.desired_enabled,
+            provisioning_status:(member.pbx_extensions as unknown as {provisioning_status:string}|null)?.provisioning_status,
           })),
         }));
       }
@@ -92,7 +92,7 @@ Deno.serve(async request=>{
     if(body.action==="report_queue"){
       const queueId=String(body.id||""),version=String(body.version||""),status=String(body.status||"");
       if(!uuid.test(queueId)||
-        !/^\\d{4}-\\d\\d-\\d\\dT[\\d:.]+(?:Z|[+-]\\d\\d:\\d\\d)$/.test(version)||
+        !/^\d{4}-\d\d-\d\dT[\d:.]+(?:Z|[+-]\d\d:\d\d)$/.test(version)||
         !["applied","failed"].includes(status)) return respond({error:"Confirmação de fila inválida"},400);
       const errorText=status==="failed"?String(body.error||"Falha ao configurar fila").slice(0,240):null;
       const {data,error}=await admin.from("pbx_queues")
