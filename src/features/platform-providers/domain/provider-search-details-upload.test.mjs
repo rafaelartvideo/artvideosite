@@ -17,7 +17,9 @@ test("busca de prestadores segue multiseleção do CRM com seletor mobile acima 
   assert.match(panel,/md:hidden/);
   assert.match(panel,/hidden grid-cols-2 gap-3 md:grid xl:grid-cols-3/);
   assert.match(panel,/field\(mobileField\)/);
-  assert.match(panel,/label="Nome"/);
+  assert.match(panel,/aria-label="Buscar por nome"/);
+  assert.match(panel,/md:h-9 md:py-1\\.5/);
+  assert.match(panel,/md:mb-1/);
   assert.match(panel,/placeholder="Nome"/);
   assert.match(panel,/label="Equipamento"/);
   assert.match(panel,/Todos os equipamentos/);
@@ -59,6 +61,20 @@ test("card abre detalhes, somente lápis abre editor, 3 colunas e WhatsApp alinh
   for(const [file,source] of [["PlatformProvidersPage.tsx",page],["ProviderDetailsDialog.tsx",details]]){
     assert.ok((await transformWithEsbuild(source,file,{loader:"tsx"})).code.length>500);
   }
+});
+
+test("ações de contato e mapa aparecem nos cabeçalhos corretos do prestador", async () => {
+  const details=read("src/features/platform-providers/presentation/ProviderDetailsDialog.tsx");
+  assert.match(details,/<Section title="Dados pessoais" actions=\{personalActions\}/);
+  assert.match(details,/<Section title="Endereço" actions=\{mapUrl\?/);
+  assert.match(details,/WhatsAppBrandIcon size=\{16\}/);
+  assert.match(details,/aria-label="Ligar para o prestador"/);
+  assert.match(details,/aria-label="Abrir WhatsApp do prestador"/);
+  assert.match(details,/aria-label="Abrir Instagram do prestador"/);
+  assert.match(details,/aria-label="Abrir endereço do prestador no mapa"/);
+  assert.equal((details.match(/>Abrir mapa<\/span>/g)||[]).length,1);
+  assert.doesNotMatch(details,/<Phone size=\{15\}\/> WhatsApp/);
+  assert.ok((await transformWithEsbuild(details,"ProviderDetailsDialog.tsx",{loader:"tsx"})).code.length>500);
 });
 
 test("anexos: RLS vincula pasta pelo nome do arquivo no storage e arquivos falhos podem ser reenviados",()=>{
