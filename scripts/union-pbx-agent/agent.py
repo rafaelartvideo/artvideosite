@@ -243,6 +243,8 @@ def install_internal_routes():
     assert_no_calls()
     main_before = DIALPLAN_MAIN.read_bytes()
     browser_before = DIALPLAN_BROWSER.read_bytes()
+    main_stat = DIALPLAN_MAIN.stat()
+    browser_stat = DIALPLAN_BROWSER.stat()
     had_routes = DIALPLAN_MANAGED.exists()
     routes_before = DIALPLAN_MANAGED.read_bytes() if had_routes else None
     browser_text = browser_before.decode("utf-8")
@@ -268,9 +270,9 @@ def install_internal_routes():
     try:
         write_atomic(DIALPLAN_MANAGED,generated,0o640,group)
         if main_text.encode() != main_before:
-            write_atomic(DIALPLAN_MAIN,main_text.encode(),0o644)
+            write_atomic(DIALPLAN_MAIN,main_text.encode(),main_stat.st_mode & 0o777,main_stat.st_gid)
         if browser_text.encode() != browser_before:
-            write_atomic(DIALPLAN_BROWSER,browser_text.encode(),0o640,group)
+            write_atomic(DIALPLAN_BROWSER,browser_text.encode(),browser_stat.st_mode & 0o777,browser_stat.st_gid)
         result=asterisk("dialplan reload")
         if "reloaded" not in result.lower():
             raise AgentError("Asterisk nao confirmou a recarga do dialplan.")
@@ -282,8 +284,8 @@ def install_internal_routes():
         if "900" not in echo:
             raise AgentError("O teste interno 900 deixou de estar disponivel.")
     except Exception:
-        write_atomic(DIALPLAN_MAIN,main_before,0o644)
-        write_atomic(DIALPLAN_BROWSER,browser_before,0o640,group)
+        write_atomic(DIALPLAN_MAIN,main_before,main_stat.st_mode & 0o777,main_stat.st_gid)
+        write_atomic(DIALPLAN_BROWSER,browser_before,browser_stat.st_mode & 0o777,browser_stat.st_gid)
         if had_routes:
             write_atomic(DIALPLAN_MANAGED,routes_before,0o640,group)
         else:
