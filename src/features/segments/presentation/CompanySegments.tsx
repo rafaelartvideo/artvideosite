@@ -25,7 +25,7 @@ const SEGMENT_ICONS: Record<string, LucideIcon> = {
 
 function SegmentIcon({ segment }: { segment: BusinessSegment }) {
   const Icon = SEGMENT_ICONS[segment.icon] ?? Wrench;
-  return <Icon aria-hidden="true" className="h-7 w-7 text-[#1032dc]" />;
+  return <Icon aria-hidden="true" className="h-7 w-7 text-[var(--primary-light)]" />;
 }
 
 function SegmentPicker({
@@ -85,7 +85,7 @@ function SegmentPicker({
   </div>;
 
   const content = <div className="space-y-5">
-    <h3 className="text-base font-extrabold text-[#132039]">Qual é o principal segmento da sua empresa?</h3>
+    <h3 className="text-base font-extrabold text-foreground">Qual é o principal segmento da sua empresa?</h3>
 
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
       {[...data.segments].sort((a, b) => a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" })).map(segment => {
@@ -96,43 +96,43 @@ function SegmentPicker({
           aria-pressed={selected}
           disabled={saving}
           onClick={() => selectPrimary(segment.code)}
-          className={`relative flex min-h-[166px] min-w-0 flex-col items-start gap-3 rounded-xl border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1032dc] disabled:opacity-60 ${selected
-            ? "border-[#1032dc] bg-[#edf1ff]"
-            : "border-[#dce3ec] bg-[#f8fafd] hover:border-[#7990e9]"}`}
+          className={`relative flex min-h-[166px] min-w-0 flex-col items-start gap-3 rounded-xl border-2 p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--ring)] disabled:opacity-60 ${selected
+            ? "border-[var(--primary-light)] bg-[var(--primary-soft)]"
+            : "border-border bg-muted/40 hover:border-[var(--primary-light)]"}`}
         >
-          {selected && <CheckCircle2 aria-label="Selecionado" className="absolute right-4 top-4 h-5 w-5 text-[#1032dc]" />}
-          <div className="rounded-xl bg-white p-3 shadow-sm"><SegmentIcon segment={segment} /></div>
-          <span className="pr-6 text-base font-bold text-[#17263b]">{segment.name}</span>
-          <span className="text-sm leading-5 text-[#6b7788]">{segment.description}</span>
+          {selected && <CheckCircle2 aria-label="Selecionado" className="absolute right-4 top-4 h-5 w-5 text-[var(--primary-light)]" />}
+          <div className="rounded-xl border border-border bg-card p-3 shadow-sm"><SegmentIcon segment={segment} /></div>
+          <span className="pr-6 text-base font-bold text-foreground">{segment.name}</span>
+          <span className="text-sm leading-5 text-muted-foreground">{segment.description}</span>
         </button>;
       })}
     </div>
 
     {primary && <section className="space-y-3">
-      <h4 className="flex flex-wrap items-center gap-2 text-sm font-bold text-[#17263b]">
+      <h4 className="flex flex-wrap items-center gap-2 text-sm font-bold text-foreground">
         Sua empresa trabalha com outros segmentos?
-        <span className="text-xs font-medium text-[#66758a]">(Opcional)</span>
+        <span className="text-xs font-medium text-muted-foreground">(Opcional)</span>
       </h4>
-      <div className="grid grid-cols-1 gap-x-6 border-y border-[#0d1b2e]/8 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-x-6 border-y border-border sm:grid-cols-2 lg:grid-cols-3">
         {data.segments.filter(item => item.code !== primary)
           .sort((a, b) => Number(additional.includes(b.code)) - Number(additional.includes(a.code)) || a.name.localeCompare(b.name, "pt-BR", { sensitivity: "base" }))
           .map(segment => <label
           key={segment.code}
-          className="flex min-w-0 cursor-pointer items-center gap-3 border-b border-[#0d1b2e]/8 py-3 text-sm font-medium text-[#20314b]"
+          className="flex min-w-0 cursor-pointer items-center gap-3 border-b border-border py-3 text-sm font-medium text-foreground"
         >
           <input
             type="checkbox"
             checked={additional.includes(segment.code)}
             onChange={() => toggleAdditional(segment.code)}
             disabled={saving}
-            className="h-4 w-4 shrink-0 accent-[#1032dc]"
+            className="h-4 w-4 shrink-0 accent-[var(--primary-light)]"
           />
           {segment.name}
         </label>)}
       </div>
     </section>}
 
-    {error && <p role="alert" className="text-sm font-semibold text-red-600">{error}</p>}
+    {error && <p role="alert" className="text-sm font-semibold text-red-600 dark:text-red-400">{error}</p>}
   </div>;
 
   if (onboarding) {
@@ -195,7 +195,7 @@ export function CompanySegmentsOnboardingGate({ hasPendingTerms }: { hasPendingT
     title="Selecionar segmentos da empresa"
   >
     <div className="space-y-3">
-      <p role="alert" className="text-sm text-red-600">{error}</p>
+      <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
       <BtnSecondary onClick={() => setRetry(value => value + 1)}>Tentar novamente</BtnSecondary>
     </div>
   </AdminDialog>;
@@ -239,16 +239,16 @@ export function CompanySegmentsSettings({ organizationId }: { organizationId: st
     .filter(segment => segment.code === data.primaryCode || data.additionalCodes.includes(segment.code))
     .map(segment => segment.name).join(", ");
 
-  return <section className="rounded-xl border border-[#dce3ec] bg-white p-4 sm:p-5">
+  return <section className="rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-5">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h3 className="text-base font-extrabold text-[#17263b]">Segmentos da empresa</h3>
-        <p className="mt-1 text-sm text-[#68778b]">{selectedNames || "Nenhum segmento configurado."}</p>
+        <h3 className="text-base font-extrabold text-foreground">Segmentos da empresa</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{selectedNames || "Nenhum segmento configurado."}</p>
       </div>
       {!editing && data && <BtnSecondary onClick={() => { setNotice(""); setEditing(true); }}>Alterar segmentos</BtnSecondary>}
     </div>
-    {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
-    {notice && <p role="status" className="mt-3 text-sm text-green-700">{notice}</p>}
+    {error && <p role="alert" className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
+    {notice && <p role="status" className="mt-3 text-sm text-green-700 dark:text-green-400">{notice}</p>}
     {editing && data && <div className="mt-5">
       <SegmentPicker
         key={data.primaryCode || "none"}
