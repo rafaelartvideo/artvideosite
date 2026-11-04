@@ -15,7 +15,7 @@ não é lida, copiada ou modificada. O ramal manual `union-301` não é gerencia
 - Senhas SIP individuais são geradas e armazenadas **apenas na VPS**, com permissões root.
 - O agente não permite SQL livre, comandos de shell, alteração de rotas ou da FVX.
 - Não recarrega o PJSIP enquanto existirem canais ativos; faz rollback se falhar.
-- Novos ramais ficam no contexto `union-internal` (somente 900 nesta etapa).
+- Novos ramais ficam no contexto `union-internal`; por padrão, somente o 900 está ativo até habilitar as rotas internas.
 - A criação de um endpoint não conecta automaticamente o telefone do funcionário.
   A entrega segura das credenciais por operador é uma próxima fase.
 
@@ -105,3 +105,58 @@ antes de aplicar qualquer alteração.
 **Importante:** as novas credenciais automáticas ainda exigem um ramal gerenciado
 vinculado a um funcionário ativo. O ramal `union-301` não é migrado por esta
 entrega, e o tronco FVX não é modificado.
+
+## Chamadas internas (ramais 301, 302 e próximos)
+
+A nova versão adiciona a ação opcional **`internal-routes`**.
+Ela preserva o contexto `union-internal` (inclusive o eco 900) e apenas inclui
+um contexto isolado com **números exatos**, por exemplo:
+
+```ini
+[union-pbx-local-extensions]
+exten => 301,1,Dial(PJSIP/union-301,25)
+ same => n,Hangup()
+exten => 302,1,Dial(PJSIP/uw-...,25)
+ same => n,Hangup()
+```
+
+O agente gera o arquivo real a partir de seus registros protegidos, sem utilizar
+um padrão genérico de discagem. **Não existe rota para ligar a números externos**.
+
+Na VPS:
+
+```bash
+sudo systemctl stop union-pbx-agent
+sudo cp -a /opt/union-pbx-agent/agent.py "/root/agent.py.before-internal.$(date +%Y%m%d-%H%M%S)"
+sudo curl -fsSL \
+  https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent/agent.py \
+  -o /opt/union-pbx-agent/agent.py
+sudo python3 -m py_compile /opt/union-pbx-agent/agent.py
+# Atualize a unidade systemd para permitir escrita no novo arquivo de dialplan:
+sudo curl -fsSL \
+  https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent/union-pbx-agent.service \
+  -o /etc/systemd/system/union-pbx-agent.service
+sudo systemctl daemon-reload
+sudo asterisk -rx "core show channels count"
+# So execute a etapa seguinte se houver zero chamadas ativas:
+sudo python3 /opt/union-pbx-agent/agent.py internal-routes
+sudo asterisk -rx "dialplan show union-internal"
+sudo asterisk -rx "dialplan show union-pbx-local-extensions"
+sudo asterisk -rx "pjsip show registrations"
+sudo systemctl start union-pbx-agent
+sudo systemctl is-active union-pbx-agent
+```
+
+**Instalação/rollback:** o comando salva backups de `extensions.conf` e
+`union-browser.conf` sob `/root`, preserva suas permissões e restaura
+os arquivos se a validação falhar. Não edita o arquivo do tronco FVX
+nem a rota das chamadas externas recebidas.
+
+Depois de ativada essa opção, as novas configurações de ramal gerenciado
+atualizam também o dialplan interno, sempre após confirmar **zero chamadas ativas**.
+Os números da lista são os ramais cadastrados e não comprovam presença online.
+
+**Teste:** conecte o ramal 301 e o 302 em dispositivos ou sessões diferentes,
+abra o PABX Union, escolha o outro número na lista e clique em **Ligar**.
+Faça o teste nos dois sentidos. O 900 continua disponível.
+

@@ -22,6 +22,12 @@ SIP_DIR = Path("/etc/asterisk/pjsip.d")
 PJSIP_FILE = Path("/etc/asterisk/pjsip.conf")
 MASTER_FILE = SIP_DIR / "union-managed.conf"
 INCLUDE = '#include "pjsip.d/union-managed.conf"'
+DIALPLAN_MAIN = Path("/etc/asterisk/extensions.conf")
+DIALPLAN_BROWSER = Path("/etc/asterisk/extensions.d/union-browser.conf")
+DIALPLAN_MANAGED = Path("/etc/asterisk/extensions.d/union-internal-managed.conf")
+DIALPLAN_FILE_INCLUDE = '#include "extensions.d/union-internal-managed.conf"'
+DIALPLAN_CONTEXT = "union-pbx-local-extensions"
+DIALPLAN_CONTEXT_INCLUDE = "include => union-pbx-local-extensions"
 PRIVATE_KEY = CONFIG_DIR / "private.pem"
 PUBLIC_KEY = CONFIG_DIR / "public.key"
 AGENT_CONFIG = CONFIG_DIR / "agent.json"
@@ -191,6 +197,110 @@ def render_master(overrides=None):
             parts.append(sip_conf(endpoint, state["number"], state["password"]))
     return "".join(parts).encode()
 
+def render_internal_routes(overrides=None):
+    """Generate an exact-number, internal-only dialplan. No public-number patterns."""
+    states = {}
+    for path in (STATE_DIR / "extensions").glob("*.json"):
+        state = json.loads(path.read_text())
+        extension_id = str(uuid.UUID(str(state["id"])))
+        if path.stem != extension_id:
+            raise AgentError("Arquivo de ramal sem identidade correspondente.")
+        if not ENDPOINT_RE.fullmatch(str(state.get("endpoint", ""))):
+            raise AgentError("Endpoint de ramal invalido.")
+        if not PASSWORD_RE.fullmatch(str(state.get("password", ""))):
+            raise AgentError("Segredo SIP local invalido.")
+        states[state["endpoint"]] = state
+    if overrides:
+        for state in overrides:
+            if not ENDPOINT_RE.fullmatch(str(state.get("endpoint", ""))):
+                raise AgentError("Sobrescrita de endpoint invalida.")
+            states[state["endpoint"]] = state
+    routes = {301: "union-301"}  # Ramal manual preservado. Nunca altera suas credenciais.
+    for endpoint, state in sorted(states.items()):
+        if not state.get("enabled"):
+            continue
+        number = state.get("number")
+        if type(number) is not int or number < 100 or number > 9999 or number in (301, 900):
+            raise AgentError("Numero de ramal reservado ou invalido.")
+        if number in routes:
+            raise AgentError("Numero de ramal duplicado no dialplan.")
+        routes[number] = endpoint
+    lines = [
+        "; Gerado pelo agente Union PABX. Apenas chamadas internas por numero exato.\n",
+        f"[{DIALPLAN_CONTEXT}]\n",
+    ]
+    for number, endpoint in sorted(routes.items()):
+        lines.append(f"exten => {number},1,Dial(PJSIP/{endpoint},25)\n")
+        lines.append(" same => n,Hangup()\n")
+    return "".join(lines).encode("utf-8"), sorted(routes)
+
+
+def install_internal_routes():
+    """One-time opt-in setup for internal routing; does not change the FVX inbound context."""
+    require_root()
+    if not all(path.is_file() for path in (DIALPLAN_MAIN,DIALPLAN_BROWSER,MASTER_FILE)):
+        raise AgentError("Arquivos esperados do Asterisk nao foram encontrados.")
+    assert_no_calls()
+    previous_fvx = asterisk("pjsip show registrations")
+    main_before = DIALPLAN_MAIN.read_bytes()
+    browser_before = DIALPLAN_BROWSER.read_bytes()
+    main_stat = DIALPLAN_MAIN.stat()
+    browser_stat = DIALPLAN_BROWSER.stat()
+    had_routes = DIALPLAN_MANAGED.exists()
+    routes_before = DIALPLAN_MANAGED.read_bytes() if had_routes else None
+    browser_text = browser_before.decode("utf-8")
+    context_matches = list(re.finditer(r"(?m)^\[union-internal\]\s*$", browser_text))
+    if len(context_matches) != 1:
+        raise AgentError("Contexto union-internal deve existir uma unica vez.")
+    start = context_matches[0].end()
+    next_context = re.search(r"(?m)^\[[^\]]+\]", browser_text[start:])
+    end = start + next_context.start() if next_context else len(browser_text)
+    section = browser_text[start:end]
+    if DIALPLAN_CONTEXT_INCLUDE not in section.splitlines():
+        browser_text = browser_text[:start] + "\n" + DIALPLAN_CONTEXT_INCLUDE + browser_text[start:]
+    main_text = main_before.decode("utf-8")
+    if DIALPLAN_FILE_INCLUDE not in main_text.splitlines():
+        main_text += ("" if main_text.endswith("\n") else "\n") + "\n" + DIALPLAN_FILE_INCLUDE + "\n"
+    generated, numbers = render_internal_routes()
+    group = grp.getgrnam("asterisk").gr_gid
+
+    # Backups outside the Asterisk include directory are never parsed as live dialplans.
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    for path, old in ((DIALPLAN_MAIN,main_before),(DIALPLAN_BROWSER,browser_before)):
+        write_atomic(Path("/root") / f"{path.name}.before-local-pbx-{stamp}",old)
+    try:
+        write_atomic(DIALPLAN_MANAGED,generated,0o640,group)
+        if main_text.encode() != main_before:
+            write_atomic(DIALPLAN_MAIN,main_text.encode(),main_stat.st_mode & 0o777,main_stat.st_gid)
+        if browser_text.encode() != browser_before:
+            write_atomic(DIALPLAN_BROWSER,browser_text.encode(),browser_stat.st_mode & 0o777,browser_stat.st_gid)
+        result=asterisk("dialplan reload")
+        if "reloaded" not in result.lower():
+            raise AgentError("Asterisk nao confirmou a recarga do dialplan.")
+        detail=asterisk("dialplan show " + DIALPLAN_CONTEXT)
+        for number in numbers:
+            if not re.search(r"(?m)^\s*'?" + str(number) + r"'?\s*=>",detail):
+                raise AgentError("Rota interna nao foi confirmada no Asterisk.")
+        echo=asterisk("dialplan show union-internal")
+        if "900" not in echo:
+            raise AgentError("O teste interno 900 deixou de estar disponivel.")
+        assert_fvx(previous_fvx)
+    except Exception:
+        write_atomic(DIALPLAN_MAIN,main_before,main_stat.st_mode & 0o777,main_stat.st_gid)
+        write_atomic(DIALPLAN_BROWSER,browser_before,browser_stat.st_mode & 0o777,browser_stat.st_gid)
+        if had_routes:
+            write_atomic(DIALPLAN_MANAGED,routes_before,0o640,group)
+        else:
+            DIALPLAN_MANAGED.unlink(missing_ok=True)
+        try:
+            asterisk("dialplan reload")
+        except Exception:
+            print("CRITICO: nao foi possivel validar rollback do dialplan.",file=sys.stderr)
+        raise
+    print("Rotas internas configuradas: " + ", ".join(str(n) for n in numbers))
+    print("Linha FVX e suas rotas de entrada permanecem inalteradas.")
+
+
 def asterisk(command_name):
     return command("asterisk", "-rx", command_name).decode(errors="replace")
 
@@ -217,6 +327,7 @@ def apply_job(job, org_id):
     state_path = STATE_DIR / "extensions" / (job_id + ".json")
     old_state = state_path.read_bytes() if state_path.exists() else None
     old_master = MASTER_FILE.read_bytes()
+    old_dialplan = DIALPLAN_MANAGED.read_bytes() if DIALPLAN_MANAGED.exists() else None
     old_fvx = asterisk("pjsip show registrations")
     assert_no_calls()
     if old_state:
@@ -232,10 +343,13 @@ def apply_job(job, org_id):
     state["number"] = number
     state["enabled"] = job["desired_enabled"]
     proposed = render_master([state])
+    proposed_routes,route_numbers = render_internal_routes([state]) if old_dialplan is not None else (None,[])
     group = grp.getgrnam("asterisk").gr_gid
     try:
         write_atomic(state_path, json_bytes(state))
         write_atomic(MASTER_FILE, proposed, 0o640, group)
+        if proposed_routes is not None:
+            write_atomic(DIALPLAN_MANAGED,proposed_routes,0o640,group)
         result = asterisk("module reload res_pjsip.so")
         if "reloaded successfully" not in result.lower():
             raise AgentError("Asterisk não confirmou o reload.")
@@ -243,6 +357,14 @@ def apply_job(job, org_id):
         present = bool(re.search(r"(?m)^\s*Endpoint:\s+" + re.escape(endpoint) + r"\b", detail))
         if present != state["enabled"]:
             raise AgentError("Estado do endpoint não corresponde ao solicitado.")
+        if proposed_routes is not None:
+            output=asterisk("dialplan reload")
+            if "reloaded" not in output.lower():
+                raise AgentError("Falha na recarga do dialplan interno.")
+            detail=asterisk("dialplan show " + DIALPLAN_CONTEXT)
+            for dial_number in route_numbers:
+                if not re.search(r"(?m)^\s*'?" + str(dial_number) + r"'?\s*=>",detail):
+                    raise AgentError("Numero interno ausente do Asterisk.")
         assert_fvx(old_fvx)
     except Exception:
         if old_state is None:
@@ -250,6 +372,12 @@ def apply_job(job, org_id):
         else:
             write_atomic(state_path, old_state)
         write_atomic(MASTER_FILE, old_master, 0o640, group)
+        if old_dialplan is not None:
+            write_atomic(DIALPLAN_MANAGED,old_dialplan,0o640,group)
+            try:
+                asterisk("dialplan reload")
+            except Exception:
+                print("CRITICO: falha no rollback do dialplan.",file=sys.stderr)
         try:
             asterisk("module reload res_pjsip.so")
         except Exception:
@@ -360,6 +488,7 @@ def main():
     actions=parser.add_subparsers(dest="action",required=True)
     actions.add_parser("init")
     actions.add_parser("public-key")
+    actions.add_parser("internal-routes")
     configure_action=actions.add_parser("configure")
     configure_action.add_argument("agent_id")
     configure_action.add_argument("organization_id")
@@ -372,6 +501,8 @@ def main():
             init()
         elif args.action=="public-key":
             print(PUBLIC_KEY.read_text().strip())
+        elif args.action=="internal-routes":
+            install_internal_routes()
         elif args.action=="configure":
             configure(args.agent_id,args.organization_id)
         elif args.action=="once":

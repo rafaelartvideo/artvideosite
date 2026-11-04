@@ -46,6 +46,49 @@ class AgentSafetyTests(unittest.TestCase):
         with self.assertRaises(agent.AgentError):
             agent.validate_job(job, organization_id)
 
+    def test_internal_dialplan_dials_exact_extensions_only(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/"extensions").mkdir()
+            extension_id=str(uuid.uuid4())
+            state={
+                "id":extension_id,"organization_id":str(uuid.uuid4()),
+                "endpoint":"uw-"+"a"*32,
+                "number":302,"enabled":True,
+                "password":"securePassword_"+"b"*40,
+            }
+            (root/"extensions"/(extension_id+".json")).write_text(json.dumps(state))
+            with patch.object(agent,"STATE_DIR",root):
+                output,numbers=agent.render_internal_routes()
+                self.assertEqual(numbers,[301,302])
+                content=output.decode()
+                self.assertIn("[union-pbx-local-extensions]",content)
+                self.assertIn("exten => 301,1,Dial(PJSIP/union-301,25)",content)
+                self.assertIn("exten => 302,1,Dial(PJSIP/uw-"+"a"*32+",25)",content)
+                self.assertNotIn("=> _X.",content)
+                self.assertNotIn("union-fvx",content)
+                self.assertNotIn("exten => 900",content)
+                off,numbers_off=agent.render_internal_routes([{**state,"enabled":False}])
+                self.assertEqual(numbers_off,[301])
+                self.assertNotIn("exten => 302",off.decode())
+
+    def test_internal_dialplan_blocks_collisions_and_reserved_numbers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            (root/"extensions").mkdir()
+            with patch.object(agent,"STATE_DIR",root):
+                for forbidden in (301,900,99,10000):
+                    with self.assertRaises(agent.AgentError):
+                        agent.render_internal_routes([{
+                          "endpoint":"uw-"+"c"*32,
+                          "number":forbidden,"enabled":True,
+                        }])
+                with self.assertRaises(agent.AgentError):
+                    agent.render_internal_routes([
+                      {"endpoint":"uw-"+"d"*32,"number":302,"enabled":True},
+                      {"endpoint":"uw-"+"e"*32,"number":302,"enabled":True},
+                    ])
+
     def test_signature_works_with_standard_openssl_ed25519(self):
         with tempfile.TemporaryDirectory() as directory:
             key=Path(directory)/"key.pem"

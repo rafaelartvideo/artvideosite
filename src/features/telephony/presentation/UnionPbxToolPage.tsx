@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Headphones, LoaderCircle, Mic, MicOff, Phone, PhoneIncoming, PhoneOff, ShieldCheck, Unplug } from "lucide-react";
 import { PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { useAuth } from "@/lib/auth";
+import { supabase } from "@/lib/supabase";
 import { acquireManagedPbxCredentials, findMyManagedPbxExtension, type ManagedPbxExtension } from "@/features/telephony/application/managed-browser-credentials";
 
 // Primeira etapa: somente a Union World e a extensao 900 (teste de eco).
@@ -12,6 +13,7 @@ const SIP_WSS = `wss://${SIP_HOST}/ws`;
 
 type RegistrationState = "offline" | "connecting" | "registered" | "error";
 type CallState = "idle" | "dialing" | "incoming" | "active";
+type InternalDirectoryEntry = { number: number; display_name: string; desired_enabled: boolean; provisioning_status: string };
 
 type SipSession = {
   direction?: string;
@@ -31,6 +33,10 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
   const [managedExtension, setManagedExtension] = useState<ManagedPbxExtension | null>(null);
   const [checkingManaged, setCheckingManaged] = useState(false);
   const [manualMode, setManualMode] = useState(false);
+  const [directory, setDirectory] = useState<InternalDirectoryEntry[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [directoryError, setDirectoryError] = useState("");
+  const [dialTarget, setDialTarget] = useState("");
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
   const [remoteParty, setRemoteParty] = useState("");
@@ -53,6 +59,31 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
       .finally(() => { if (!cancelled) setCheckingManaged(false); });
     return () => { cancelled = true; };
   }, [activeOrganizationId,isPageOpen]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!activeOrganizationId || !isPageOpen) return () => { cancelled = true; };
+    setDirectoryLoading(true);
+    setDirectoryError("");
+    setDirectory([]);
+    void supabase.from("pbx_extensions")
+      .select("number,display_name,desired_enabled,provisioning_status")
+      .eq("organization_id",activeOrganizationId)
+      .order("number")
+      .limit(100)
+      .then(({data,error}) => {
+        if (cancelled) return;
+        if (error) setDirectoryError("Não foi possível carregar os ramais internos.");
+        else setDirectory(((data || []) as InternalDirectoryEntry[]).filter(item =>
+          item.desired_enabled && (item.provisioning_status === "applied" || item.provisioning_status === "manual")
+        ));
+      })
+      .finally(() => { if (!cancelled) setDirectoryLoading(false); });
+    return () => { cancelled = true; };
+  }, [activeOrganizationId,isPageOpen]);
+
+  const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number;
+  const dialableExtensions = directory.filter(item => item.number !== ownNumber);
 
   const clearAudio = () => {
     const element = remoteAudioRef.current;
@@ -228,6 +259,22 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
     }
   };
 
+  const callInternal = () => {
+    const destination = Number(dialTarget);
+    if (!dialTarget || !Number.isInteger(destination) ||
+        !dialableExtensions.some(item => item.number === destination) ||
+        registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
+    setNotice("Chamando ramal interno " + destination + "...");
+    try {
+      uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
+        mediaConstraints: { audio: true, video: false },
+        pcConfig: { iceServers: [] },
+      });
+    } catch {
+      setNotice("Não foi possível ligar para o ramal. Verifique o microfone e o PABX.");
+    }
+  };
+
   const answer = () => {
     if (callState !== "incoming" || !sessionRef.current) return;
     try {
@@ -318,7 +365,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
         <div className="flex flex-col items-center gap-3 rounded-lg bg-muted/40 p-5 text-center">
           <Headphones className="text-primary" size={30} />
           <p className="text-lg font-semibold text-foreground">{callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligacao" : callState === "dialing" ? "Chamando" : "Teste de audio"}</p>
-          <p className="text-sm text-muted-foreground">{callState === "idle" ? "Disque 900 para ouvir sua propria voz." : remoteParty}</p>
+          <p className="text-sm text-muted-foreground">{callState === "idle" ? "Teste o áudio no 900 ou ligue para outro ramal da Union." : remoteParty}</p>
           <p className="max-w-md text-xs leading-5 text-muted-foreground">{notice}</p>
         </div>
 
@@ -329,6 +376,28 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onB
           Habilitar audio da chamada
         </button>}
 
+        {callState === "idle" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
+          <label htmlFor="pbx-internal-destination" className="text-sm font-semibold text-foreground">Ligação entre ramais</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <select id="pbx-internal-destination" value={dialTarget}
+              onChange={event => setDialTarget(event.target.value)}
+              className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground"
+              disabled={directoryLoading || registration !== "registered"}>
+              <option value="">Selecione um ramal</option>
+              {dialableExtensions.map(item => (
+                <option key={item.number} value={String(item.number)}>{item.number} · {item.display_name}</option>
+              ))}
+            </select>
+            <button type="button" onClick={callInternal}
+              disabled={registration !== "registered" || !dialableExtensions.some(item => String(item.number) === dialTarget)}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
+              <Phone size={16}/> Ligar
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {directoryLoading ? "Carregando ramais" : directoryError || "A lista mostra ramais cadastrados; a disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
+          </p>
+        </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
           {callState === "idle" && <button type="button" disabled={registration !== "registered"} onClick={callEcho}
             className="flex h-11 items-center gap-2 rounded-lg bg-[#0057e7] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
