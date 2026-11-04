@@ -120,8 +120,15 @@ def signed_request(body):
     encoded = json.dumps(body, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     time_header = str(int(time.time() * 1000))
     message = time_header.encode() + b"\n" + str(sequence).encode() + b"\n" + encoded
-    signature = base64.b64encode(command("openssl", "pkeyutl", "-sign", "-inkey",
-                                         str(PRIVATE_KEY), "-rawin", input_data=message)).decode()
+    message_file = STATE_DIR / (".sign-" + secrets.token_hex(12))
+    try:
+        write_atomic(message_file, message, 0o600)
+        signature = base64.b64encode(command(
+            "openssl", "pkeyutl", "-sign", "-inkey", str(PRIVATE_KEY),
+            "-rawin", "-in", str(message_file)
+        )).decode()
+    finally:
+        message_file.unlink(missing_ok=True)
     request = urllib.request.Request(config["url"], encoded, method="POST", headers={
         "Content-Type": "application/json",
         "X-Pbx-Agent": config["agent_id"],
