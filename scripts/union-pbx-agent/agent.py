@@ -713,8 +713,14 @@ def encrypt_login_for_browser(request, org_id):
         secretfile.unlink(missing_ok=True)
 
 
+def strip_ansi(value):
+    """Asterisk CLI may emit ANSI colors inside (Not in use) and (Unavailable)."""
+    return re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", value)
+
+
 def _queue_member_state(line):
     """Parse Asterisk queue show state; never treat unknown as available."""
+    line = strip_ansi(line)
     if re.search(r"\(paused(?:[:)]|\s)", line, re.IGNORECASE):
         return "paused"
     match = re.search(
@@ -742,7 +748,7 @@ def gather_queue_telemetry():
               if state["enabled"]]
     if not active:
         return []
-    raw = asterisk("queue show")
+    raw = strip_ansi(asterisk("queue show"))
     observed = {}
     current = None
     for line in raw.splitlines():
