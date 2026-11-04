@@ -160,3 +160,69 @@ Os números da lista são os ramais cadastrados e não comprovam presença onlin
 abra o PABX Union, escolha o outro número na lista e clique em **Ligar**.
 Faça o teste nos dois sentidos. O 900 continua disponível.
 
+
+## Filas do PABX Union — ativação segura para teste interno
+
+No CRM, Ferramentas → PABX Union → Gerenciar filas permite cadastrar filas,
+vincular ramais 301/302 e definir a distribuição: todos tocam, rodízio ou sequencial.
+Os testes utilizam os números internos 850 a 899.
+
+O agente cria arquivos isolados em /etc/asterisk/queues.d e
+/etc/asterisk/extensions.d, sem modificar o tronco FVX nem a rota de entrada.
+O arquivo principal queues.conf recebe apenas uma referência ao arquivo gerado.
+Os arquivos existentes são salvos em /root antes de qualquer modificação.
+
+### Instalação na VPS
+
+Somente depois do merge e da publicação da versão no CRM. Verifique que não há
+chamadas ativas e que app_queue.so está carregado.
+
+```bash
+set -e
+BASE=https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent
+AGENT=/opt/union-pbx-agent/agent.py
+UNIT=/etc/systemd/system/union-pbx-agent.service
+TMP_AGENT=$(mktemp)
+TMP_UNIT=$(mktemp)
+trap 'rm -f "$TMP_AGENT" "$TMP_UNIT"; systemctl start union-pbx-agent || true' EXIT
+curl -fsSL "$BASE/agent.py" -o "$TMP_AGENT"
+curl -fsSL "$BASE/union-pbx-agent.service" -o "$TMP_UNIT"
+python3 -m py_compile "$TMP_AGENT"
+asterisk -rx 'core show channels count'
+asterisk -rx 'module show like app_queue'
+systemctl stop union-pbx-agent
+cp -a "$AGENT" "/root/agent.before-queues.$(date +%Y%m%d-%H%M%S).py"
+cp -a "$UNIT" "/root/union-pbx-agent.service.before-queues.$(date +%Y%m%d-%H%M%S)"
+install -m 0755 "$TMP_AGENT" "$AGENT"
+install -m 0644 "$TMP_UNIT" "$UNIT"
+systemctl daemon-reload
+asterisk -rx 'core show channels count'
+python3 "$AGENT" queues-init
+asterisk -rx 'dialplan show union-pbx-local-extensions'
+asterisk -rx 'dialplan show union-pbx-queue-tests'
+asterisk -rx 'pjsip show registrations'
+```
+
+O comando queues-init apenas prepara o motor de filas. Não cria nem altera a
+configuração de entrada da operadora. Caso a validação falhe, o agente tenta
+restaurar o que já existia. Não execute durante chamadas ativas.
+
+### Teste pelo CRM
+
+Crie uma fila 850 — Atendimento geral e selecione os ramais 301 e 302.
+Quando o agente aplicar a fila, ela aparecerá como Configuração aplicada.
+Ao abrir o telefone do CRM, escolha Fila 850 na lista de destinos e clique em Ligar.
+Teste o toque simultâneo, o atendimento, o áudio e o tempo máximo de espera.
+
+Verificações na VPS:
+
+```bash
+systemctl is-active union-pbx-agent
+asterisk -rx 'queue show'
+asterisk -rx 'dialplan show union-pbx-queue-tests'
+asterisk -rx 'pjsip show registrations'
+```
+
+A linha principal (11) 4290-1575 continuará com seu roteamento atual. A troca
+para uma fila externa, a pausa de atendentes, URA, gravações e histórico ainda
+serão fases separadas, após o teste interno.
