@@ -445,50 +445,77 @@ export function PlatformProvidersPage() {
           <p className="text-sm text-destructive">{systemErrorMessage(servicesQuery.error)}</p> :
           catalogGroups.length === 0 ? <p className="py-6 text-center text-xs text-muted-foreground">Nenhum serviço encontrado.</p> :
           <div className="space-y-3">
-            {catalogGroups.map(([equipment, items]) => {
-              const key = equipment || "__standalone__";
-              const expanded = expandedCatalog[key] ?? Boolean(catalogSearch.trim());
-              return <div key={key} className="overflow-hidden rounded-lg border border-border">
-                <button type="button" aria-expanded={expanded}
-                  onClick={() => setExpandedCatalog(current => ({...current, [key]: !expanded}))}
-                  className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
-                  <span className="truncate">{equipment || "Serviços avulsos / Profissões"}</span>
-                  <span className="ml-auto text-[10px] font-medium text-muted-foreground">{items.length}</span>
-                  <ChevronDown size={16} className={"shrink-0 transition-transform " + (expanded ? "" : "-rotate-90")}/>
+            {catalogGroups.map(({profession, equipmentGroups}) => {
+              const professionKey = "profession:" + profession;
+              const professionExpanded = expandedCatalog[professionKey] ?? Boolean(catalogSearch.trim());
+              const totalServices = equipmentGroups.reduce((count,[,items]) => count + items.length,0);
+              return <div key={professionKey} className="overflow-hidden rounded-lg border border-border">
+                <button type="button" aria-expanded={professionExpanded}
+                  onClick={() => setExpandedCatalog(current => ({...current, [professionKey]: !professionExpanded}))}
+                  className="flex w-full items-center gap-2 bg-muted/30 px-3 py-3 text-left text-sm font-bold text-foreground hover:bg-muted/60">
+                  <span className="min-w-0 flex-1 truncate">{profession}</span>
+                  <span className="text-[10px] font-medium text-muted-foreground">{totalServices} serviço(s)</span>
+                  <ChevronDown size={16} className={"shrink-0 transition-transform " + (professionExpanded ? "" : "-rotate-90")}/>
                 </button>
-                {expanded && <div className="grid gap-2 border-t border-border p-3 sm:grid-cols-2 xl:grid-cols-3">
-                  {items.map(service => <div key={service.id}
-                    className="flex min-w-0 items-center gap-1.5 rounded-lg border border-border p-2.5">
-                    {editingService?.id === service.id ? <>
-                      <input className={inputClass} maxLength={120} aria-label={"Editar " + service.name}
-                        value={serviceEditName} onChange={event => setServiceEditName(event.target.value)}/>
-                      <AdminIconButton ariaLabel={"Salvar " + service.name} variant="success"
-                        onClick={() => void saveServiceEdit(service, {name: serviceEditName})}><Check size={15}/></AdminIconButton>
-                      <AdminIconButton ariaLabel={"Cancelar edição de " + service.name} variant="secondary"
-                        onClick={() => setEditingService(null)}><X size={15}/></AdminIconButton>
-                    </> : <>
-                      <span title={service.name} className={"min-w-0 flex-1 truncate text-xs font-semibold " +
-                        (service.is_active ? "text-foreground" : "text-muted-foreground line-through")}>{service.name}</span>
-                      {canManage && <div className="flex shrink-0 items-center gap-1">
-                        <AdminIconButton ariaLabel={"Editar " + service.name} variant="tertiary" title="Editar"
-                          onClick={() => {setEditingService(service); setServiceEditName(service.name);}}>
-                          <Pencil size={14}/>
-                        </AdminIconButton>
-                        <AdminIconButton ariaLabel={(service.is_active ? "Desativar " : "Ativar ") + service.name}
-                          variant={service.is_active ? "warning" : "success"}
-                          onClick={() => void saveServiceEdit(service, {is_active: !service.is_active})}/>
-                        <AdminIconButton ariaLabel={"Excluir " + service.name} variant="danger"
-                          onClick={() => setDeleteTarget(service)}><Trash2 size={14}/></AdminIconButton>
+                {professionExpanded && <div className="space-y-2 border-t border-border p-3">
+                  {equipmentGroups.map(([equipment,items]) => {
+                    const equipmentKey = professionKey + ":" + (equipment || "__direct__");
+                    const equipmentExpanded = expandedCatalog[equipmentKey] ?? Boolean(catalogSearch.trim());
+                    return <div key={equipmentKey} className="overflow-hidden rounded-lg border border-border">
+                      <button type="button" aria-expanded={equipmentExpanded}
+                        onClick={() => setExpandedCatalog(current => ({...current, [equipmentKey]: !equipmentExpanded}))}
+                        className="flex w-full items-center justify-between gap-2 bg-card px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/30">
+                        <span className="min-w-0 flex-1 truncate">{equipment || "Serviços diretos (sem equipamento)"}</span>
+                        <span className="text-[10px] font-medium text-muted-foreground">{items.length}</span>
+                        <ChevronDown size={15} className={"shrink-0 transition-transform " + (equipmentExpanded ? "" : "-rotate-90")}/>
+                      </button>
+                      {equipmentExpanded && <div className="grid gap-2 border-t border-border p-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {items.map(service => <div key={service.id}
+                          className="flex min-w-0 items-center gap-1.5 rounded-lg border border-border p-2.5">
+                          {editingService?.id === service.id ? <>
+                            <input className={inputClass} maxLength={120} aria-label={"Editar " + service.name}
+                              value={serviceEditName} onChange={event => setServiceEditName(event.target.value)}/>
+                            <AdminIconButton ariaLabel={"Salvar " + service.name} variant="success"
+                              onClick={() => void saveServiceEdit(service, {name: serviceEditName})}><Check size={15}/></AdminIconButton>
+                            <AdminIconButton ariaLabel={"Cancelar edição de " + service.name} variant="secondary"
+                              onClick={() => setEditingService(null)}><X size={15}/></AdminIconButton>
+                          </> : <>
+                            <span title={service.name} className={"min-w-0 flex-1 truncate text-xs font-semibold " +
+                              (service.is_active ? "text-foreground" : "text-muted-foreground line-through")}>{service.name}</span>
+                            {canManage && <div className="flex shrink-0 items-center gap-1">
+                              <AdminIconButton ariaLabel={"Editar " + service.name} variant="tertiary" title="Editar"
+                                onClick={() => {setEditingService(service);setServiceEditName(service.name);}}>
+                                <Pencil size={14}/>
+                              </AdminIconButton>
+                              <AdminIconButton ariaLabel={(service.is_active ? "Desativar " : "Ativar ") + service.name}
+                                variant={service.is_active ? "warning" : "success"}
+                                onClick={() => void saveServiceEdit(service, {is_active: !service.is_active})}>
+                                {service.is_active ? <X size={14}/> : <Check size={14}/>}
+                              </AdminIconButton>
+                              <AdminIconButton ariaLabel={"Excluir " + service.name} variant="danger"
+                                onClick={() => setDeleteTarget(service)}><Trash2 size={14}/></AdminIconButton>
+                            </div>}
+                          </>}
+                        </div>)}
+                        {canManage && <button type="button"
+                          aria-label={equipment ? "Adicionar serviço em " + equipment : "Adicionar serviço direto"}
+                          onClick={() => openServiceModal(equipment, false, equipment ? "equipment" : "standalone", profession)}
+                          className="flex min-h-[42px] items-center justify-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-primary hover:bg-primary/10">
+                          <Plus size={16}/><span className="text-xs font-semibold">Adicionar</span>
+                        </button>}
                       </div>}
-                    </>}
-                  </div>)}
-                  {canManage && <button type="button"
-                    aria-label={equipment ? "Adicionar serviço em " + equipment : "Adicionar serviço avulso"}
-                    title={equipment ? "Novo serviço de " + equipment : "Novo serviço avulso"}
-                    onClick={() => openServiceModal(equipment, false, equipment ? "equipment" : "standalone")}
-                    className="flex min-h-[42px] min-w-0 items-center justify-center gap-2 rounded-lg border border-dashed border-primary/30 bg-primary/5 px-3 py-2 text-primary transition-colors hover:bg-primary/10 focus-visible:outline-2 focus-visible:outline-primary">
-                    <Plus size={16} /><span className="text-xs font-semibold">Adicionar</span>
-                  </button>}
+                    </div>;
+                  })}
+                  {canManage && <div className="flex flex-wrap gap-2">
+                    <AdminButton variant="tertiary" size="sm"
+                      onClick={() => openServiceModal("", false, "equipment", profession)}>
+                      <Plus size={14}/> Equipamento
+                    </AdminButton>
+                    <AdminButton variant="tertiary" size="sm"
+                      onClick={() => openServiceModal("", false, "standalone", profession)}>
+                      <Plus size={14}/> Serviço direto
+                    </AdminButton>
+                  </div>}
                 </div>}
               </div>;
             })}
