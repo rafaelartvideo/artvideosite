@@ -162,8 +162,8 @@ test("novo servico usa modal unico em vez do cadastro em lote na pagina",async()
   assert.match(page,/initialMode=\{serviceModal\.mode\}/);
   assert.match(page,/closeOnSuccess/);
   assert.match(page,/onCreateBatch=\{async items =>/);
-  assert.match(page,/onClick=\{\(\) => openServiceModal\(equipment, false, equipment \? "equipment" : "standalone"\)\}/);
-  assert.match(page,/aria-label=\{equipment \? "Adicionar serviço em " \+ equipment : "Adicionar serviço avulso"\}/);
+  assert.match(page,/onClick=\{\(\) => openServiceModal\(equipment, false, equipment \? "equipment" : "standalone", profession\)\}/);
+  assert.match(page,/aria-label=\{equipment \? "Adicionar serviço em " \+ equipment : "Adicionar serviço direto"\}/);
   assert.match(page,/items\.map\(service => <div/);
   assert.equal((page.match(/<PlatformServiceBatchEditor/g)||[]).length,1,
     "Editor em lote deve aparecer somente no modal, nunca na pagina");
