@@ -67,3 +67,25 @@ test("gerenciador de ramais é isolado da telefonia ativa e protegido por permis
   assert.doesNotMatch(manager,/SIP_PASSWORD|FVX_PASSWORD|service_role/);
   assert.ok((await transformWithEsbuild(manager,"UnionPbxExtensionsPage.tsx",{loader:"tsx"})).code.length>200);
 });
+
+
+test("a ponte assinada do PABX não exige portas públicas, credenciais FVX ou service role no navegador", async () => {
+  const panel=read("src/features/telephony/presentation/UnionPbxAgentPanel.tsx");
+  const manager=read("src/features/telephony/presentation/UnionPbxExtensionsPage.tsx");
+  const edge=read("supabase/functions/union-pbx-agent/index.ts");
+  const worker=read("scripts/union-pbx-agent/agent.py");
+  assert.match(manager, /<UnionPbxAgentPanel organizationId=\{activeOrganizationId\}/);
+  assert.match(panel, /\.rpc\("pbx_register_agent"/);
+  assert.match(panel, /\.rpc\("pbx_list_agents"/);
+  assert.match(panel, /\.rpc\("pbx_disable_agent"/);
+  assert.match(manager, /\.rpc\("pbx_retry_extension"/);
+  assert.match(edge, /crypto\.subtle\.verify\("Ed25519"/);
+  assert.match(edge, /\.lt\("last_sequence",seq\)/);
+  assert.match(edge, /\.eq\("organization_id",agent\.organization_id\)/);
+  assert.match(worker, /assert_no_calls\(\)/);
+  assert.match(worker, /context=union-internal/);
+  assert.match(worker, /module reload res_pjsip\.so/);
+  assert.doesNotMatch(worker, /extensions\.d\/union-fvx\.conf/);
+  assert.doesNotMatch(panel, /SUPABASE_SERVICE_ROLE_KEY|password=|private\.pem/);
+  assert.ok((await transformWithEsbuild(panel,"UnionPbxAgentPanel.tsx",{loader:"tsx"})).code.length>200);
+});
