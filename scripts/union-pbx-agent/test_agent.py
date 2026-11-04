@@ -50,14 +50,16 @@ class AgentSafetyTests(unittest.TestCase):
             subprocess.run(["openssl","genpkey","-algorithm","ED25519","-out",str(key)],check=True)
             subprocess.run(["openssl","pkey","-in",str(key),"-pubout","-out",str(pub)],check=True)
             data=b'1700000000000\n1\n{"action":"poll"}'
+            message_file=Path(directory)/"message"
+            message_file.write_bytes(data)
             sign=subprocess.run(
-                ["openssl","pkeyutl","-sign","-inkey",str(key),"-rawin"],
-                input=data,stdout=subprocess.PIPE,check=True).stdout
+                ["openssl","pkeyutl","-sign","-inkey",str(key),"-rawin","-in",str(message_file)],
+                stdout=subprocess.PIPE,check=True).stdout
             self.assertEqual(len(sign),64)
             subprocess.run(
                 ["openssl","pkeyutl","-verify","-pubin","-inkey",str(pub),"-rawin",
-                 "-sigfile",str(self._signature_file(directory,sign))],
-                input=data,stdout=subprocess.PIPE,check=True)
+                 "-sigfile",str(self._signature_file(directory,sign)),"-in",str(message_file)],
+                stdout=subprocess.PIPE,check=True)
 
     @staticmethod
     def _signature_file(directory, content):
