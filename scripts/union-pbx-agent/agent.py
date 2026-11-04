@@ -352,6 +352,8 @@ def validate_queue_job(job, org_id):
     for member in members:
         if not isinstance(member, dict):
             raise AgentError("Participante invalido.")
+        if member.get("organization_id") != org_id:
+            raise AgentError("Participante pertence a outra organizacao.")
         number = member.get("number")
         endpoint = member.get("endpoint_name")
         position = member.get("position")
@@ -449,6 +451,12 @@ def _check_queue_reload(names,numbers,old_fvx):
         detail=asterisk("queue show "+name)
         if name not in detail or "has " not in detail:
             raise AgentError("Fila nao foi carregada pelo Asterisk.")
+    # Confirm disabled queues were actually removed from the Asterisk registry.
+    for queue_id,state in queue_states().items():
+        if not state["enabled"]:
+            old=asterisk("queue show "+queue_identity(queue_id))
+            if queue_identity(queue_id) in old and "has " in old:
+                raise AgentError("Fila desativada ainda presente no Asterisk.")
     assert_fvx(old_fvx)
 
 
