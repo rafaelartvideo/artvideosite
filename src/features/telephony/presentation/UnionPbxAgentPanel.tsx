@@ -23,7 +23,6 @@ export function UnionPbxAgentPanel({ organizationId }: { organizationId: string 
     let cancelled = false;
     setLoading(true);
     setError("");
-    setRegisteredId(null);
     setAgents([]);
     void (async () => {
       const { data, error } = await supabase.rpc("pbx_list_agents", {
