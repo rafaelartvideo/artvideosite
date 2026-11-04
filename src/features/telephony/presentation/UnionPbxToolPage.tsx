@@ -22,7 +22,7 @@ type SipSession = {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack }: { onBack: () => void }) {
+export function UnionPbxToolPage({ onBack, onOpen, isPageOpen }: { onBack: () => void; onOpen: () => void; isPageOpen: boolean }) {
   const [password, setPassword] = useState("");
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
@@ -211,8 +211,10 @@ export function UnionPbxToolPage({ onBack }: { onBack: () => void }) {
     }
   };
 
-  return <div className="min-w-0 space-y-5">
-    <PageHeader title="PABX Union" subtitle="Telefone WebRTC do CRM - primeiro teste de conexao e audio." />
+  return <>
+    {/* Mantido montado mesmo fora da rota: WebSocket, sessao SIP e audio nao sao interrompidos na navegacao. */}
+    <div className={isPageOpen ? "min-w-0 space-y-5" : "hidden"} aria-hidden={!isPageOpen}>
+    <PageHeader title="PABX Union" subtitle="Telefone WebRTC da Union World. Continue conectado enquanto navega pelo CRM." />
 
     <div className="mx-auto w-full max-w-2xl space-y-4">
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
@@ -284,9 +286,61 @@ export function UnionPbxToolPage({ onBack }: { onBack: () => void }) {
 
       <div className="flex gap-2 rounded-lg border border-border bg-muted/30 p-3 text-xs leading-5 text-muted-foreground">
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
-        <p>Etapa segura de teste: somente a extensao interna 900 esta liberada. O encaminhamento da linha externa e as chamadas para numeros publicos ainda nao foram ativados. A conexao termina ao sair desta pagina.</p>
+        <p>O ramal recebe chamadas da linha da Union World e permite teste interno no 900. Discagem externa ainda nao foi habilitada. A conexao fica ativa ao navegar entre as paginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
       <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">Voltar para Ferramentas</button>
     </div>
-  </div>;
+    </div>
+    {!isPageOpen && (registration !== "offline" || callState !== "idle") && (
+      <section
+        role={callState === "incoming" ? "alert" : "region"}
+        aria-label="Telefone PABX Union"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 right-3 z-[95] space-y-3 rounded-xl border border-border bg-card p-4 text-foreground shadow-[0_15px_50px_rgba(0,0,0,0.18)] sm:bottom-5 sm:left-auto sm:right-5 sm:w-[350px]"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">PABX Union <span className="ml-1 text-xs font-normal text-muted-foreground">· {SIP_USER}</span></p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {callState === "incoming" ? "Chamada recebida" : callState === "active" ? "Em ligação" : callState === "dialing" ? "Chamando" : registration === "registered" ? "Ramal conectado" : registration === "connecting" ? "Conectando" : "Falha na conexão"}
+            </p>
+          </div>
+          <button type="button" onClick={onOpen} className="shrink-0 rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted" aria-label="Abrir telefone completo">
+            Abrir
+          </button>
+        </div>
+        {callState !== "idle" && <p className="truncate text-sm font-semibold">{remoteParty || "Chamada"}</p>}
+        {callState === "incoming" && <p className="text-xs text-muted-foreground">Clique em Atender para usar o microfone do computador.</p>}
+        <div className="flex flex-wrap items-center gap-2">
+          {callState === "incoming" && (
+            <button type="button" onClick={answer} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 text-sm font-semibold text-white">
+              <PhoneIncoming size={16} /> Atender
+            </button>
+          )}
+          {callState === "active" && (
+            <button type="button" onClick={toggleMute} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm font-semibold">
+              {muted ? <MicOff size={16} /> : <Mic size={16} />} {muted ? "Ativar microfone" : "Silenciar"}
+            </button>
+          )}
+          {callState !== "idle" && (
+            <button type="button" onClick={hangup} className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-lg bg-red-600 px-3 text-sm font-semibold text-white">
+              <PhoneOff size={16} /> Desligar
+            </button>
+          )}
+          {callState === "idle" && (
+            <button type="button" onClick={stop} className="inline-flex h-10 items-center gap-2 rounded-lg border border-border px-3 text-xs font-semibold">
+              <Unplug size={15} /> {registration === "registered" ? "Desconectar" : "Reiniciar conexão"}
+            </button>
+          )}
+          {registration === "connecting" && <LoaderCircle size={18} className="animate-spin text-primary" />}
+        </div>
+        {audioBlocked && (
+          <button type="button" onClick={() => {
+            void remoteAudioRef.current?.play().then(() => setAudioBlocked(false)).catch(() => setNotice("Habilite o audio do site nas configuracoes do navegador."));
+          }} className="w-full rounded-lg border border-amber-500/40 px-3 py-2 text-sm font-semibold">
+            Habilitar áudio da chamada
+          </button>
+        )}
+      </section>
+    )}
+  </>;
 }

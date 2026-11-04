@@ -32,3 +32,22 @@ test("o menu das empresas parceiras não é alterado pelo filtro exclusivo da Un
   assert.match(nav,/\{ id: "technicianPanel", label: "Painel do Técnico"/);
   assert.match(sidebar,/!\(isPlatformOperatorOrganization/);
 });
+
+test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou usuario", async () => {
+  const app = read("src/app/Admin.tsx");
+  const phone = read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  assert.match(app, /const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission\("pbx.view"\)/);
+  assert.match(app, /const toolsContent = route.resourceId === "union-pbx"[\s\S]*?\? null/);
+  const workspaceEnd = app.indexOf("</RetainedAdminWorkspace>");
+  const phoneMount = app.indexOf("<UnionPbxToolPage", workspaceEnd);
+  assert.ok(workspaceEnd > 0 && phoneMount > workspaceEnd, "softphone deve ficar fora da rota retida");
+  assert.match(app, /key=\{\`\$\{user.id\}:\$\{activeOrganizationId\}\`\}/);
+  assert.match(app, /isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx"\}/);
+  assert.match(phone, /<audio ref=\{remoteAudioRef\}/);
+  assert.match(phone, /!isPageOpen && \(registration !== "offline" \|\| callState !== "idle"\)/);
+  assert.match(phone, /callState === "incoming" && \(/);
+  assert.match(phone, /sessionRef.current\?\.terminate\(\)/);
+  assert.match(phone, /uaRef.current\?\.stop\(\)/);
+  assert.doesNotMatch(phone, /localStorage|sessionStorage|service_role/);
+  assert.ok((await transformWithEsbuild(phone, "UnionPbxToolPage.tsx", {loader:"tsx"})).code.length>200);
+});
