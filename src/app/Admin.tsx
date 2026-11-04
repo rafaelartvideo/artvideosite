@@ -61,6 +61,7 @@ const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentati
 const UnionAiToolPage = lazy(() => import("@/features/union-ai/presentation/UnionAiToolPage").then(({ UnionAiToolPage }) => ({ default: UnionAiToolPage })));
 const UnionPbxToolPage = lazy(() => import("@/features/telephony/presentation/UnionPbxToolPage").then(({ UnionPbxToolPage }) => ({ default: UnionPbxToolPage })));
 const UnionPbxExtensionsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxExtensionsPage").then(({ UnionPbxExtensionsPage }) => ({ default: UnionPbxExtensionsPage })));
+const UnionPbxQueuesPage = lazy(() => import("@/features/telephony/presentation/UnionPbxQueuesPage").then(({ UnionPbxQueuesPage }) => ({ default: UnionPbxQueuesPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
@@ -421,7 +422,9 @@ export function AdminDashboard({
     ? !canAccessPbxTool ? <Navigate to={adminPath("tools")} replace />
       : route.subpage === "ramais"
         ? canManagePbxTool ? <UnionPbxExtensionsPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
-        : null /* Telefone persistente montado fora das rotas. */
+        : route.subpage === "filas"
+          ? canManagePbxTool ? <UnionPbxQueuesPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+          : null /* Telefone persistente montado fora das rotas. */
     : route.resourceId === "union-ia"
     ? canAccessAiTool
       ? <UnionAiToolPage onBack={() => navigateAdmin("tools")} />
@@ -584,6 +587,7 @@ export function AdminDashboard({
               isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx" && route.subpage === null}
               onOpen={() => navigateAdmin("tools", "union-pbx")}
               onManage={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "ramais") : undefined}
+              onManageQueues={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "filas") : undefined}
               onBack={() => navigateAdmin("tools")}
             />
           </Suspense>
