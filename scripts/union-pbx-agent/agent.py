@@ -241,6 +241,7 @@ def install_internal_routes():
     if not all(path.is_file() for path in (DIALPLAN_MAIN,DIALPLAN_BROWSER,MASTER_FILE)):
         raise AgentError("Arquivos esperados do Asterisk nao foram encontrados.")
     assert_no_calls()
+    previous_fvx = asterisk("pjsip show registrations")
     main_before = DIALPLAN_MAIN.read_bytes()
     browser_before = DIALPLAN_BROWSER.read_bytes()
     main_stat = DIALPLAN_MAIN.stat()
@@ -283,6 +284,7 @@ def install_internal_routes():
         echo=asterisk("dialplan show union-internal")
         if "900" not in echo:
             raise AgentError("O teste interno 900 deixou de estar disponivel.")
+        assert_fvx(previous_fvx)
     except Exception:
         write_atomic(DIALPLAN_MAIN,main_before,main_stat.st_mode & 0o777,main_stat.st_gid)
         write_atomic(DIALPLAN_BROWSER,browser_before,browser_stat.st_mode & 0o777,browser_stat.st_gid)
