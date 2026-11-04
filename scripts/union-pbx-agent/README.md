@@ -132,6 +132,11 @@ sudo curl -fsSL \
   https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent/agent.py \
   -o /opt/union-pbx-agent/agent.py
 sudo python3 -m py_compile /opt/union-pbx-agent/agent.py
+# Atualize a unidade systemd para permitir escrita no novo arquivo de dialplan:
+sudo curl -fsSL \
+  https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent/union-pbx-agent.service \
+  -o /etc/systemd/system/union-pbx-agent.service
+sudo systemctl daemon-reload
 sudo asterisk -rx "core show channels count"
 # So execute a etapa seguinte se houver zero chamadas ativas:
 sudo python3 /opt/union-pbx-agent/agent.py internal-routes
