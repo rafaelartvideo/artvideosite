@@ -1,0 +1,102 @@
+import os
+from pathlib import Path
+from unittest.mock import patch
+import tempfile
+import unittest
+import uuid
+
+import inbound_router as inbound
+import agent as pbx
+
+
+class InboundRouteSafetyTests(unittest.TestCase):
+    def test_original_exactly_preserved_as_reference(self):
+        original=inbound.EXPECTED.encode()
+        self.assertTrue(inbound.is_original(original))
+        prepared=inbound.staged_source(original).decode()
+        self.assertEqual(prepared.count(inbound.GOSUB),1)
+        self.assertEqual(prepared.count(inbound.INCLUDE),1)
+        self.assertIn("exten => _X.,1,Goto(s,1)",prepared)
+        self.assertIn("exten => h,1,NoOp(Chamada Union World encerrada)",prepared)
+        self.assertIn("same => n,NoOp(Resultado: ${DIALSTATUS})",prepared)
+        self.assertNotIn("Dial(PJSIP/union-301,25)",prepared)
+        self.assertIn("Dial(PJSIP/union-301,25)",inbound.direct_route().decode())
+
+    def test_modified_baseline_refused_without_changes(self):
+        for change in (
+            inbound.EXPECTED.replace("union-301","union-302"),
+            inbound.EXPECTED+"exten => 123,1,Hangup()\n",
+            inbound.EXPECTED.replace("Goto(s,1)","Goto(s,2)"),
+            inbound.EXPECTED.replace("[union-entrada]","[another-context]"),
+        ):
+            with self.subTest(modified=change[:25]):
+                with self.assertRaises(pbx.AgentError):
+                    inbound.staged_source(change.encode())
+
+    def test_queue_route_has_original_fallback_and_no_sip_trunk_edits(self):
+        item={
+            "id":str(uuid.uuid4()),
+            "enabled":True,
+            "max_wait_seconds":120,
+        }
+        content=inbound.queue_route(item).decode()
+        name=pbx.queue_identity(item["id"])
+        self.assertIn("QUEUE_MEMBER("+name+",count)",content)
+        self.assertIn("Queue("+name+",,,,120)",content)
+        self.assertIn("n(reserva),Dial(PJSIP/union-301,25)",content)
+        self.assertIn("same => n,Return()",content)
+        self.assertNotIn("union-fvx-registration",content)
+        self.assertNotIn("sip2.fvx.com.br",content)
+        self.assertNotIn("pjsip.conf",content)
+        for wait in (0, 301, "120"):
+            with self.subTest(wait=wait):
+                with self.assertRaises(pbx.AgentError):
+                    inbound.queue_route({**item,"max_wait_seconds":wait})
+
+    def test_main_requires_explicit_operator_opt_in(self):
+        with patch("sys.argv",["inbound_router.py","prepare"]), \
+             patch.object(inbound,"prepare") as prepare, \
+             patch.object(pbx,"require_root") as root:
+            self.assertEqual(inbound.main(),1)
+            prepare.assert_not_called()
+            root.assert_not_called()
+
+    def test_preview_is_read_only_and_checks_registered_trunk(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            main=root/"extensions.conf"
+            main.write_text('#include "extensions.d/union-fvx.conf"\n')
+            original=root/"union-fvx.conf"
+            original.write_text(inbound.EXPECTED)
+            with patch.object(inbound,"FVX",original), \
+                 patch.object(inbound,"TARGET",root/"managed.conf"), \
+                 patch.object(inbound,"STATE",root/"state.json"), \
+                 patch.object(pbx,"DIALPLAN_MAIN",main), \
+                 patch.object(inbound,"registered",return_value="Registered"):
+                inbound.preview(None)
+                self.assertEqual(original.read_text(),inbound.EXPECTED)
+                self.assertFalse((root/"managed.conf").exists())
+                self.assertFalse((root/"state.json").exists())
+
+    def test_prepare_never_changes_live_route_while_calls_active(self):
+        with patch.object(inbound,"baseline"), \
+             patch.object(pbx,"assert_no_calls",side_effect=pbx.Busy("Ativas")), \
+             patch.object(inbound,"registered") as registered, \
+             patch.object(inbound,"FVX") as source:
+            with self.assertRaises(pbx.Busy):
+                inbound.prepare()
+            source.read_bytes.assert_not_called()
+            registered.assert_not_called()
+
+    def test_unprepared_apply_and_restore_are_blocked(self):
+        with patch.object(inbound,"read_state",return_value=None):
+            with self.assertRaises(pbx.AgentError):
+                inbound.change("queue",850)
+            with self.assertRaises(pbx.AgentError):
+                inbound.change("direct_301")
+            with self.assertRaises(pbx.AgentError):
+                inbound.restore_original()
+
+
+if __name__=="__main__":
+    unittest.main()
