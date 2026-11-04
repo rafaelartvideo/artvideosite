@@ -152,7 +152,7 @@ def select_queue(number):
     # Depending on Asterisk CLI formatting, queue show <name> can differ.
     # Inspect ONLY the selected queue's Members section and exact configured
     # PJSIP endpoints; never accept an available member of a different queue.
-    live=pbx.asterisk("queue show")
+    live=pbx.strip_ansi(pbx.asterisk("queue show"))
     found=False
     inside=False
     reading_members=False
