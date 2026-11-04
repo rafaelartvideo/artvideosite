@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -87,6 +88,48 @@ class InboundRouteSafetyTests(unittest.TestCase):
                 inbound.prepare()
             source.read_bytes.assert_not_called()
             registered.assert_not_called()
+
+    def test_prepare_stages_only_direct_301_and_preserves_backup(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            source=root/"union-fvx.conf"
+            target=root/"union-fvx-managed.conf"
+            state=root/"router.json"
+            backups=root/"backups"
+            dialplan=root/"extensions.conf"
+            source.write_bytes(inbound.EXPECTED.encode())
+            dialplan.write_text('#include "extensions.d/union-fvx.conf"\n')
+            def answer(command):
+                if command=="dialplan reload":
+                    return "Dialplan reloaded"
+                if command=="dialplan show union-entrada":
+                    return ("Gosub(union-fvx-managed,s,1) Goto(s,1) "
+                            "Chamada Union World encerrada")
+                if command=="dialplan show union-fvx-managed":
+                    return "[ Context 'union-fvx-managed' ] Dial(PJSIP/union-301,25)"
+                raise AssertionError("Unexpected Asterisk command "+command)
+            def local_write(path,data,stat=None,gid=None):
+                path.parent.mkdir(parents=True,exist_ok=True)
+                path.write_bytes(data)
+            with patch.object(inbound,"FVX",source),\
+                 patch.object(inbound,"TARGET",target),\
+                 patch.object(inbound,"STATE",state),\
+                 patch.object(inbound,"BACKUPS",backups),\
+                 patch.object(pbx,"DIALPLAN_MAIN",dialplan),\
+                 patch.object(pbx,"asterisk",side_effect=answer),\
+                 patch.object(pbx,"assert_no_calls"),\
+                 patch.object(pbx,"assert_fvx"),\
+                 patch.object(inbound,"registered",return_value="Registered"),\
+                 patch.object(pbx.grp,"getgrnam",return_value=type("Group",(),{"gr_gid":0})()),\
+                 patch.object(inbound,"write",side_effect=local_write):
+                inbound.prepare()
+            self.assertIn(inbound.GOSUB,source.read_text())
+            self.assertNotIn(inbound.DIRECT,source.read_text())
+            self.assertEqual(target.read_bytes(),inbound.direct_route())
+            self.assertEqual(json.loads(state.read_text())["mode"],"direct_301")
+            copied=list(backups.glob("*.conf"))
+            self.assertEqual(len(copied),1)
+            self.assertEqual(copied[0].read_bytes(),inbound.EXPECTED.encode())
 
     def test_unprepared_apply_and_restore_are_blocked(self):
         with patch.object(inbound,"read_state",return_value=None):
