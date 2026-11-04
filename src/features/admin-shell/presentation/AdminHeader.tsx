@@ -13,7 +13,6 @@ import {
   ListTodo,
   Mail,
   Menu,
-  MessageCircle,
   Moon,
   Settings,
   ScrollText,
@@ -22,6 +21,7 @@ import {
 } from "lucide-react";
 import { useMediaUrl } from "@/shared/application/useMediaUrl";
 import { AutoFitLogo } from "@/shared/ui/media/AutoFitLogo";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import { useCompanySettingsQuery } from "@/features/settings/presentation/useCompanySettingsQuery";
 import { changeAdminPassword } from "@/features/auth/infrastructure/auth.repository";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
@@ -393,7 +393,7 @@ export function AdminHeader({
       onClick={() => setOpenMenu(null)}
       className="flex items-center gap-3 rounded-md px-2.5 py-2.5 text-left transition-colors hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
     >
-      <MessageCircle size={19} className="shrink-0 text-primary-light" aria-hidden="true" />
+      <WhatsAppBrandIcon size={19} className="shrink-0 text-[#25D366]" />
       <span className="min-w-0">
         <span className="block text-sm font-semibold text-foreground">WhatsApp</span>
         <span className="block text-xs text-muted-foreground">(11) 4290-1575</span>
