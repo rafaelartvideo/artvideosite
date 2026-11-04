@@ -73,13 +73,14 @@ Deno.serve(async request=>{
       let queueJobs:Record<string,unknown>[]=[];
       if(queues?.length){
         const {data:members,error:membersError}=await admin.from("pbx_queue_members")
-          .select("queue_id,position,pbx_extensions(number,endpoint_name,desired_enabled,provisioning_status)")
+          .select("queue_id,position,pbx_extensions(organization_id,number,endpoint_name,desired_enabled,provisioning_status)")
           .in("queue_id",queues.map(queue=>queue.id)).order("position");
         if(membersError) return respond({error:"Não foi possível consultar membros da fila"},503);
         queueJobs=queues.map(queue=>({
           ...queue,
           members:(members||[]).filter(member=>member.queue_id===queue.id).map(member=>({
             position:member.position,
+            organization_id:(member.pbx_extensions as unknown as {organization_id:string}|null)?.organization_id,
             number:(member.pbx_extensions as unknown as {number:number}|null)?.number,
             endpoint_name:(member.pbx_extensions as unknown as {endpoint_name:string}|null)?.endpoint_name,
             desired_enabled:(member.pbx_extensions as unknown as {desired_enabled:boolean}|null)?.desired_enabled,
