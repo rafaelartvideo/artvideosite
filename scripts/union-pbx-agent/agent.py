@@ -465,7 +465,7 @@ def module_is_running(module_list, module_name):
     for line in module_list.splitlines():
         fields=line.split()
         if fields and fields[0]==module_name:
-            return bool(re.search(r"\\s+\\d+\\s+Running(?:\\s|$)",line))
+            return bool(re.search(r"\s+\d+\s+Running(?:\s|$)",line))
     return False
 
 
