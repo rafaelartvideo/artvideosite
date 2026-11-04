@@ -212,6 +212,42 @@ class AgentSafetyTests(unittest.TestCase):
           {"number": 302, "state": "ringing"},
         ])
 
+    def test_colored_asterisk_output_parses_real_301_offline_and_302_available(self):
+        """Regression for CLI output with ANSI styles *inside* queue state brackets."""
+        queue_id = str(uuid.uuid4())
+        name = agent.queue_identity(queue_id)
+        member_302 = "uw-" + "c" * 32
+        state = {
+            "id": queue_id, "enabled": True, "test_extension": 850,
+            "members": [
+                {"number": 301, "endpoint_name": "union-301", "position": 1},
+                {"number": 302, "endpoint_name": member_302, "position": 2},
+            ],
+        }
+        raw = (
+            name + " has 0 calls (max unlimited) in 'ringall' strategy\n"
+            "   Members:\n"
+            "      Ramal 301 (PJSIP/union-301) (ringinuse disabled)"
+            "\x1b[0m\x1b[0m\x1b[0m (\x1b[1;31;40mUnavailable\x1b[0m)"
+            " has taken 1 calls\n"
+            "      Ramal 302 (PJSIP/" + member_302 + ") (ringinuse disabled)"
+            "\x1b[0m\x1b[0m\x1b[0m (\x1b[1;32;40mNot in use\x1b[0m)"
+            " has taken 1 calls\n"
+            "   No Callers\n"
+        )
+        self.assertEqual(agent._queue_member_state(raw.splitlines()[2]), "unavailable")
+        self.assertEqual(agent._queue_member_state(raw.splitlines()[3]), "available")
+        self.assertNotIn("\x1b", agent.strip_ansi(raw))
+        with patch.object(agent, "queue_states", return_value={queue_id: state}), \
+             patch.object(agent, "asterisk", return_value=raw) as command:
+            result = agent.gather_queue_telemetry()
+        command.assert_called_once_with("queue show")
+        self.assertEqual(result[0]["waiting_count"], 0)
+        self.assertEqual(result[0]["members"], [
+            {"number": 301, "state": "unavailable"},
+            {"number": 302, "state": "available"},
+        ])
+
     def test_queue_telemetry_never_assumes_unknown_is_available(self):
         self.assertEqual(agent._queue_member_state(
             "Ramal 301 (PJSIP/union-301) (paused: break) (Not in use)"
