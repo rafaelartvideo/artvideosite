@@ -7,9 +7,9 @@ const helpCenter = "https://ajuda.olx.com.br/s/article/como-cadastrar-integrador
 const emailBody = [
   "Olá, equipe de integrações da OLX.",
   "",
-  "Somos da Eletrônica Artvideo e utilizamos o sistema Union World (https://unionworld.com.br) para gerenciar nosso catálogo de produtos e serviços, publicado no site https://eletronicaartvideo.com.br.",
+  "Somos da Union World (https://unionworld.com.br), uma plataforma de gestão multiempresa. Queremos habilitar a aplicação Union World como integrador de anúncios para empresas parceiras elegíveis.",
   "",
-  "Gostaríamos de solicitar a avaliação/homologação do Union World como integrador, para publicar e atualizar automaticamente os anúncios elegíveis na conta OLX da empresa.",
+  "Gostaríamos de solicitar a avaliação/homologação do Union World como integrador, para permitir publicar e atualizar anúncios elegíveis nas contas OLX autorizadas de cada empresa parceira.",
   "",
   "Por favor, confirmem:",
   "1. Se nossa conta e plano são elegíveis para integração via API/autoupload;",
@@ -22,13 +22,13 @@ const emailBody = [
   "Aguardamos orientações. Obrigado!",
 ].join("\n");
 const requestMailto = "mailto:suporteintegrador@olxbr.com?subject=" +
-  encodeURIComponent("Solicitação de homologação OLX — Union World / Eletrônica Artvideo") +
+  encodeURIComponent("Solicitação de homologação OLX — Union World") +
   "&body=" + encodeURIComponent(emailBody);
 
 export function OlxIntegrationPage({ onBack }: { onBack: () => void }) {
   return <div className="space-y-5">
     <PageHeader title="Integração OLX"
-      subtitle="Publicação e sincronização de anúncios da Eletrônica Artvideo com uma conta OLX autorizada."
+      subtitle="Homologação da Union World como integradora, com autorização individual de cada empresa parceira."
       actions={<AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>} />
 
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-amber-950">
@@ -37,7 +37,7 @@ export function OlxIntegrationPage({ onBack }: { onBack: () => void }) {
         <div>
           <p className="text-sm font-semibold">Aguardando liberação da OLX</p>
           <p className="mt-1 text-[13px] leading-6 text-amber-900">
-            Esta empresa ainda não está conectada à API da OLX. A publicação automática permanece
+            A Union World ainda não possui a aplicação homologada para integração com a API da OLX. A publicação automática permanece
             desativada até a homologação do integrador, confirmação do plano e autorização da conta
             via OAuth. Nenhum anúncio será enviado sem essas etapas.
           </p>

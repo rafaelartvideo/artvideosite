@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, Globe, LayoutGrid, PanelLeftClose, PanelLeftOpen, Settings, Wrench } from "lucide-react";
+import { ArrowLeft, Building2, Globe, LayoutGrid, PanelLeftClose, PanelLeftOpen, Plug, Settings, Wrench } from "lucide-react";
 import type { AdminTab } from "../domain/admin.types";
 import { cn } from "@/shared/domain/formatters";
 import { isAdminModuleEnabled, mainItems, operationItems, permissionForTab, siteItems, utilityItems } from "../navigation-config";
@@ -44,6 +44,7 @@ export function AdminSidebar({
       && isAdminModuleEnabled(tab, hasModule);
     if ((tab === "siteDelivery" || tab === "siteStoreOrders") && !isArtVideoOrganization) return false;
     if (tab === "crm") return isPlatformOperatorOrganization;
+    if (tab === "integrations") return isPlatformOperatorOrganization && (hasPermission("organizations.view") || hasPermission("organizations.modules.manage"));
     if (tab === "siteRequests") return isArtVideoOrganization && hasPermission("site.view") && (
       (hasPermission("quotes.view") && isAdminModuleEnabled("quotes", hasModule)) ||
       (hasPermission("site_settings.view") && isAdminModuleEnabled("siteStoreOrders", hasModule))
@@ -68,8 +69,8 @@ export function AdminSidebar({
     return hasPermission(permission) && isAdminModuleEnabled(tab, hasModule);
   };
 
-  const selectedTab = isPlatformOperatorOrganization && activeTab === "settings"
-    ? "settings"
+  const selectedTab = isPlatformOperatorOrganization && (activeTab === "settings" || activeTab === "integrations")
+    ? activeTab
     : activeTab === "fieldTracking" ? "tools" : (parentAdminTab(activeTab) || activeTab);
   const canAccessSite = siteItems.some(item => canAccessTab(item.id as AdminTab));
   const canAccessOperation = !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item =>
@@ -123,6 +124,7 @@ export function AdminSidebar({
   ]);
   const administrationSectionItems = sortUnionSection([
     ...administrationItems,
+    ...(canAccessTab("integrations") ? [{ id: "integrations", label: "Integrações", icon: Plug }] : []),
     ...(canAccessOperation ? [{ id: "operation", label: "Operação", icon: Settings }] : []),
     ...(canAccessSite ? [{ id: "site", label: "Site", icon: Globe }] : []),
     ...(canAccessTools ? [{ id: "tools", label: "Ferramentas", icon: Wrench }] : []),
@@ -230,7 +232,7 @@ export function AdminSidebar({
             </div>
           )}
 
-          {(administrationItems.length > 0 || canAccessSite || canAccessOperation || canAccessTools) && (
+          {(administrationSectionItems.length > 0) && (
             <div className="space-y-1.5">
               {sectionHeader("Administração")}
               {administrationSectionItems.map(renderMainItem)}
