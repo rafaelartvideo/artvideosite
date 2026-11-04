@@ -24,7 +24,7 @@ test("busca de prestadores segue multiseleção do CRM com seletor mobile acima 
   for(const value of ["equipment","services","states","cities","statuses"]){
     assert.ok(panel.includes('case "'+value+'"'),value);
   }
-  assert.match(repository,/list_platform_service_providers_v5/);
+  assert.match(repository,/list_platform_service_providers_v6/);
   assert.match(repository,/p_service_ids: filters.serviceIds/);
   assert.match(repository,/p_equipment_names: filters.equipmentNames/);
   assert.match(repository,/p_states: filters.states/);
@@ -45,13 +45,13 @@ test("card abre detalhes, somente lápis abre editor, 3 colunas e WhatsApp alinh
   assert.match(page,/WhatsAppBrandIcon/);
   assert.match(page,/className="ml-auto inline-flex h-9 w-9/);
   assert.match(page,/<Phone size=\{14\}/);
-  assert.match(page,/grid min-h-\[70px\] grid-cols-3 auto-rows-\[32px\]/);
-  assert.match(page,/service_names\.slice\(0, provider\.service_names\.length > 6 \? 5 : 6\)/);
-  assert.match(page,/service_names\.length - 5/);
-  assert.match(page,/h-\[304px\]/);
   assert.match(page,/mt-auto flex items-center justify-between gap-2 border-t border-border pt-4/);
   assert.doesNotMatch(page,/>Detalhes<\/button>/);
   assert.match(page,/<ProviderDetailsDialog/);
+  assert.match(page,/provider\\.profession\\?\\.trim\\(\\)/);
+  assert.doesNotMatch(page,/provider\\.service_names\\.slice/);
+  assert.match(page,/min-h-\\[236px\\]/);
+  assert.match(details,/Atuação profissional/);
   assert.match(details,/listProviderAttachments/);
   assert.match(details,/<AdminDialog open/);
   assert.match(details,/Dados pessoais/);
@@ -89,7 +89,7 @@ test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos ante
   const migration=read("supabase/migrations/20261103212128_union_provider_service_equipment_hierarchy.sql");
   assert.match(page,/Buscar equipamento ou serviço/);
   assert.match(page,/aria-expanded=\{isOpen\}/);
-  assert.match(page,/Serviços avulsos \/ Profissões/);
+  assert.match(page,/Serviços diretos \\(sem equipamento\\)/);
   assert.match(page,/catalogGroups\.map/);
   const batch=read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
   assert.match(editor,/batchContent/);
