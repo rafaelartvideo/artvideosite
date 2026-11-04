@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { lazy, useEffect, useState } from "react";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, Headphones, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import { AdminButton, PageHeader } from "@/shared/ui/admin/AdminLayout";
 import { setOrganizationModuleEnabled } from "@/features/partner-companies/infrastructure/partner-companies.repository";
 import { OlxIntegrationPage } from "./OlxIntegrationPage";
+
+const UnionWhatsAppEnginePage = lazy(() => import("@/features/management/presentation/UnionWhatsAppEnginePage").then(module => ({ default: module.UnionWhatsAppEnginePage })));
 
 const INTEGRATIONS = [
   { key: "olx", title: "OLX", category: "Marketplace externo", description: "Publicação e sincronização de anúncios elegíveis, após homologação e autorização OAuth.", icon: Store, ready: false },
@@ -20,11 +22,14 @@ type PartnerRow = { id: string; name: string; status: string };
 type ModuleRow = { organization_id: string; module_key: string; is_enabled: boolean };
 const PAGE_SIZE = 15;
 
-export function PlatformIntegrationsPage({ onBack }: { onBack: () => void }) {
+type IntegrationTool = "sac-digital" | "union-whatsapp" | "union-pbx" | "union-senhas" | "union-ia";
+
+export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () => void; onOpenTool: (tool: IntegrationTool) => void }) {
   const { hasPermission, user } = useAuth();
   const canManage = hasPermission("organizations.modules.manage");
   const [selected, setSelected] = useState<IntegrationKey>("olx");
   const [showOlxGuide, setShowOlxGuide] = useState(false);
+  const [showEngine, setShowEngine] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -39,6 +44,12 @@ export function PlatformIntegrationsPage({ onBack }: { onBack: () => void }) {
   const [error, setError] = useState("");
 
   const provider = INTEGRATIONS.find(item => item.key === selected)!;
+  const relatedTool: IntegrationTool | null = selected === "sac_digital" ? "sac-digital"
+    : selected === "pbx" ? "union-pbx" : selected === "queue" ? "union-senhas"
+    : selected === "ai" ? "union-ia" : selected === "whatsapp" ? "union-whatsapp" : null;
+  const canOpenRelatedTool = selected === "sac_digital" ? hasPermission("sac_digital.view")
+    : selected === "pbx" ? hasPermission("pbx.view") : selected === "queue" ? hasPermission("queue.manage")
+    : selected === "ai" ? hasPermission("ai.view") : selected === "whatsapp" ? hasPermission("whatsapp.inbox.view") : false;
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -96,6 +107,7 @@ export function PlatformIntegrationsPage({ onBack }: { onBack: () => void }) {
   }
 
   if (showOlxGuide) return <OlxIntegrationPage onBack={() => setShowOlxGuide(false)} />;
+  if (showEngine) return <UnionWhatsAppEnginePage onBack={() => setShowEngine(false)} />;
   return <div className="space-y-5">
     <PageHeader title="Integrações"
       subtitle="Gestão central da Union World: escolha quais integrações ficam disponíveis para cada empresa parceira."
@@ -129,7 +141,11 @@ export function PlatformIntegrationsPage({ onBack }: { onBack: () => void }) {
           <h2 className="mt-1 text-lg font-bold">{provider.title}</h2>
           <p className="mt-1 text-sm text-muted-foreground">Disponibilização por empresa · {total} empresa(s) encontrada(s)</p>
         </div>
-        {selected === "olx" && <AdminButton variant="secondary" onClick={() => setShowOlxGuide(true)}>Requisitos da OLX</AdminButton>}
+        <div className="flex flex-wrap gap-2">
+          {selected === "olx" && <AdminButton variant="secondary" onClick={() => setShowOlxGuide(true)}>Requisitos da OLX</AdminButton>}
+          {selected === "whatsapp" && hasPermission("platform.management.manage") && <AdminButton variant="secondary" onClick={() => setShowEngine(true)}>Gerenciar motor WuzAPI</AdminButton>}
+          {relatedTool && canOpenRelatedTool && <AdminButton variant="secondary" onClick={() => onOpenTool(relatedTool)}>Abrir módulo</AdminButton>}
+        </div>
       </div>
       {selected === "olx" && <p className="mt-3 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
         <CircleAlert size={17} className="mt-0.5 shrink-0"/>
