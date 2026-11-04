@@ -45,3 +45,32 @@ test("distribuição reutiliza organization_modules, aplica permissões e não d
   assert.match(nav, /id: "sitePayments"/);
   assert.doesNotMatch(platform, /mercado_pago|artvideo_store_payment/);
 });
+
+
+test("WhatsApp da Union usa canais próprios e separa motor de operação", () => {
+  const platform = read("src/features/integrations/presentation/PlatformIntegrationsPage.tsx");
+  const tenant = read("src/features/integrations/presentation/IntegrationsPage.tsx");
+  const admin = read("src/app/Admin.tsx");
+  const navigation = read("src/features/admin-shell/navigation-config.ts");
+
+  assert.match(platform, /showingOwnChannels/);
+  assert.match(platform, /<WhatsAppChannelsPage/);
+  assert.match(platform, /Canais da Union/);
+  assert.match(platform, /Atendimentos da Union/);
+  assert.match(platform, /Gerenciar motor WuzAPI/);
+  assert.match(admin, /onConfigure=\{\(\) => navigate\(\x60\$\{adminPath\("integrations"\)\}\?channels=1\x60\)\}/);
+  assert.match(tenant, /hasModule\("whatsapp"\)/);
+  assert.match(navigation, /hasModule\("sac_digital"\) \|\| hasModule\("whatsapp"\)/);
+});
+
+test("WhatsApp exige a liberação do módulo também nas duas Edge Functions", () => {
+  const channels = read("supabase/functions/whatsapp-channels/index.ts");
+  const inbox = read("supabase/functions/union-whatsapp-inbox/index.ts");
+  for (const edge of [channels, inbox]) {
+    assert.match(edge, /from\("organization_modules"\)/);
+    assert.match(edge, /eq\("organization_id",\s*org\)/);
+    assert.match(edge, /eq\("module_key",\s*"whatsapp"\)/);
+    assert.match(edge, /whatsappModule\?\.is_enabled\s*!==\s*true/);
+    assert.match(edge, /integração WhatsApp não está liberada para esta empresa/);
+  }
+});
