@@ -22,7 +22,7 @@ type SipSession = {
   unmute: (options: { audio: boolean }) => void;
 };
 
-export function UnionPbxToolPage({ onBack, onOpen, isPageOpen }: { onBack: () => void; onOpen: () => void; isPageOpen: boolean }) {
+export function UnionPbxToolPage({ onBack, onOpen, onManage, isPageOpen }: { onBack: () => void; onOpen: () => void; onManage?: () => void; isPageOpen: boolean }) {
   const [password, setPassword] = useState("");
   const [registration, setRegistration] = useState<RegistrationState>("offline");
   const [callState, setCallState] = useState<CallState>("idle");
@@ -288,7 +288,10 @@ export function UnionPbxToolPage({ onBack, onOpen, isPageOpen }: { onBack: () =>
         <ShieldCheck size={18} className="mt-0.5 shrink-0 text-primary" />
         <p>O ramal recebe chamadas da linha da Union World e permite teste interno no 900. Discagem externa ainda nao foi habilitada. A conexao fica ativa ao navegar entre as paginas do CRM e termina ao desconectar, trocar de empresa, sair da conta ou fechar esta aba.</p>
       </div>
-      <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">Voltar para Ferramentas</button>
+      <div className="flex flex-wrap gap-4">
+        {onManage && <button type="button" onClick={onManage} className="text-sm font-semibold text-primary hover:underline">Gerenciar ramais</button>}
+        <button type="button" onClick={onBack} className="text-sm font-semibold text-primary hover:underline">Voltar para Ferramentas</button>
+      </div>
     </div>
     </div>
     {!isPageOpen && (registration !== "offline" || callState !== "idle") && (

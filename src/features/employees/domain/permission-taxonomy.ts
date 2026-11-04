@@ -270,6 +270,7 @@ const EXPLICIT_DEPENDENCIES: Record<string, string[]> = {
   "field_tracking.share": ["tools.view"],
   "queue.view": ["tools.view"],
   "pbx.view": ["tools.view"],
+  "pbx.manage": ["pbx.view", "tools.view"],
   "marketplace.view": ["tools.view"],
   "ai.view": ["tools.view"],
   "sac_digital.view": ["tools.view"],

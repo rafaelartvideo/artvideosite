@@ -37,12 +37,12 @@ test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou u
   const app = read("src/app/Admin.tsx");
   const phone = read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
   assert.match(app, /const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission\("pbx.view"\)/);
-  assert.match(app, /const toolsContent = route.resourceId === "union-pbx"[\s\S]*?\? null/);
+  assert.match(app, /const toolsContent = route.resourceId === "union-pbx"[\s\S]*?route\.subpage === "ramais"/);
   const workspaceEnd = app.indexOf("</RetainedAdminWorkspace>");
   const phoneMount = app.indexOf("<UnionPbxToolPage", workspaceEnd);
   assert.ok(workspaceEnd > 0 && phoneMount > workspaceEnd, "softphone deve ficar fora da rota retida");
   assert.match(app, /key=\{\`\$\{user.id\}:\$\{activeOrganizationId\}\`\}/);
-  assert.match(app, /isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx"\}/);
+  assert.match(app, /isPageOpen=\{activeTab === "tools" && route.resourceId === "union-pbx" && route.subpage === null\}/);
   assert.match(phone, /<audio ref=\{remoteAudioRef\}/);
   assert.match(phone, /!isPageOpen && \(registration !== "offline" \|\| callState !== "idle"\)/);
   assert.match(phone, /callState === "incoming" && \(/);
@@ -50,4 +50,20 @@ test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou u
   assert.match(phone, /uaRef.current\?\.stop\(\)/);
   assert.doesNotMatch(phone, /localStorage|sessionStorage|service_role/);
   assert.ok((await transformWithEsbuild(phone, "UnionPbxToolPage.tsx", {loader:"tsx"})).code.length>200);
+});
+
+
+test("gerenciador de ramais é isolado da telefonia ativa e protegido por permissão",async()=>{
+  const app=read("src/app/Admin.tsx");
+  const manager=read("src/features/telephony/presentation/UnionPbxExtensionsPage.tsx");
+  assert.match(app,/canManagePbxTool = canAccessPbxTool && hasPermission\("pbx.manage"\)/);
+  assert.match(app,/route.subpage === "ramais"/);
+  assert.match(app,/<UnionPbxExtensionsPage onBack=/);
+  assert.match(app,/onManage=\{canManagePbxTool/);
+  assert.match(manager,/\.from\("pbx_extensions"\)/);
+  assert.match(manager,/\.eq\("organization_id", activeOrganizationId\)/);
+  assert.match(manager,/Aguardando ativação na VPS/);
+  assert.match(manager,/Legado protegido/);
+  assert.doesNotMatch(manager,/SIP_PASSWORD|FVX_PASSWORD|service_role/);
+  assert.ok((await transformWithEsbuild(manager,"UnionPbxExtensionsPage.tsx",{loader:"tsx"})).code.length>200);
 });

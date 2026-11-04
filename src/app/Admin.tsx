@@ -60,6 +60,7 @@ const QueueIntegrationToolPage = lazy(() => import("@/features/queue-integration
 const MarketplaceToolPage = lazy(() => import("@/features/marketplace/presentation/MarketplaceToolPage").then(({ MarketplaceToolPage }) => ({ default: MarketplaceToolPage })));
 const UnionAiToolPage = lazy(() => import("@/features/union-ai/presentation/UnionAiToolPage").then(({ UnionAiToolPage }) => ({ default: UnionAiToolPage })));
 const UnionPbxToolPage = lazy(() => import("@/features/telephony/presentation/UnionPbxToolPage").then(({ UnionPbxToolPage }) => ({ default: UnionPbxToolPage })));
+const UnionPbxExtensionsPage = lazy(() => import("@/features/telephony/presentation/UnionPbxExtensionsPage").then(({ UnionPbxExtensionsPage }) => ({ default: UnionPbxExtensionsPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
 const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
@@ -337,6 +338,7 @@ export function AdminDashboard({
   const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");
   // Primeiro softphone pertence exclusivamente a Union World; empresas parceiras exigirao provisionamento individual.
   const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission("pbx.view");
+  const canManagePbxTool = canAccessPbxTool && hasPermission("pbx.manage");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
     ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
@@ -414,9 +416,10 @@ export function AdminDashboard({
     }}
   />;
   const toolsContent = route.resourceId === "union-pbx"
-    ? canAccessPbxTool
-      ? null /* O telefone persistente e renderizado fora das rotas para manter o ramal conectado. */
-      : <Navigate to={adminPath("tools")} replace />
+    ? !canAccessPbxTool ? <Navigate to={adminPath("tools")} replace />
+      : route.subpage === "ramais"
+        ? canManagePbxTool ? <UnionPbxExtensionsPage onBack={() => navigateAdmin("tools", "union-pbx")} /> : <Navigate to={adminPath("tools", "union-pbx")} replace />
+        : null /* Telefone persistente montado fora das rotas. */
     : route.resourceId === "union-ia"
     ? canAccessAiTool
       ? <UnionAiToolPage onBack={() => navigateAdmin("tools")} />
@@ -574,8 +577,9 @@ export function AdminDashboard({
           <Suspense fallback={null}>
             <UnionPbxToolPage
               key={`${user.id}:${activeOrganizationId}`}
-              isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx"}
+              isPageOpen={activeTab === "tools" && route.resourceId === "union-pbx" && route.subpage === null}
               onOpen={() => navigateAdmin("tools", "union-pbx")}
+              onManage={canManagePbxTool ? () => navigateAdmin("tools", "union-pbx", "ramais") : undefined}
               onBack={() => navigateAdmin("tools")}
             />
           </Suspense>
