@@ -1,10 +1,11 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, FileText, MapPin, Paperclip, Phone, Instagram } from "lucide-react";
+import { ExternalLink, MapPin, Paperclip, Phone, Instagram } from "lucide-react";
 import { AdminButton, AdminDialog, Section } from "@/shared/ui/admin/AdminLayout";
 import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { systemErrorMessage } from "@/shared/domain/error-message";
 import { formatCpf, formatCnpj, formatPhone } from "@/shared/domain/formatters";
 import { getAddressMapUrl } from "@/lib/address";
+import { WhatsAppBrandIcon } from "@/shared/ui/icons/WhatsAppBrandIcon";
 import {
   listProviderAttachments, openProviderAttachment, type PlatformProvider,
 } from "../infrastructure/platform-providers.repository";
@@ -55,11 +56,30 @@ export function ProviderDetailsDialog({provider,organizationId,onClose}:{
   const mapUrl=getAddressMapUrl(address);
   const documentDigits=(provider.document||"").replace(/\D/g,"");
   const formattedDocument=provider.person_type==="PJ"?formatCnpj(documentDigits):formatCpf(documentDigits);
+  const instagramUrl=provider.instagram?instagramLink(provider.instagram):null;
+  const headerActionClass="inline-flex h-9 w-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border bg-card p-0 text-xs font-bold transition-colors hover:bg-muted sm:w-auto sm:px-3";
+  const personalActions=(provider.phone||provider.whatsapp||instagramUrl) ? <>
+    {provider.phone&&<a href={"tel:"+provider.phone.replace(/[^\d+]/g,"")}
+      aria-label="Ligar para o prestador" title="Ligar"
+      className={headerActionClass+" border-primary/25 text-primary hover:bg-primary/5"}>
+      <Phone size={15} aria-hidden="true"/><span className="hidden sm:inline">Ligar</span>
+    </a>}
+    {provider.whatsapp&&<a href={whatsappLink(provider.whatsapp)} target="_blank" rel="noopener noreferrer"
+      aria-label="Abrir WhatsApp do prestador" title="WhatsApp"
+      className={headerActionClass+" border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/10"}>
+      <WhatsAppBrandIcon size={16}/><span className="hidden sm:inline">WhatsApp</span>
+    </a>}
+    {instagramUrl&&<a href={instagramUrl} target="_blank" rel="noopener noreferrer"
+      aria-label="Abrir Instagram do prestador" title="Instagram"
+      className={headerActionClass+" border-primary/25 text-primary hover:bg-primary/5"}>
+      <Instagram size={15} aria-hidden="true"/><span className="hidden sm:inline">Instagram</span>
+    </a>}
+  </> : undefined;
   return <AdminDialog open onClose={onClose} title={provider.name}
     description="Detalhes do prestador" className="w-[min(96vw,800px)] max-w-3xl"
     footer={<div className="flex justify-end"><AdminButton variant="secondary" onClick={onClose}>Fechar</AdminButton></div>}>
     <div className="space-y-4">
-      <Section title="Dados pessoais" contentClassName="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
+      <Section title="Dados pessoais" actions={personalActions} contentClassName="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
         <Detail label="Tipo" value={provider.person_type==="PJ"?"Pessoa Jurídica":"Pessoa Física"}/>
         <Detail label={provider.person_type==="PJ"?"CNPJ":"CPF"} value={documentDigits?formattedDocument:null}/>
         <Detail label={provider.person_type==="PJ"?"Nome fantasia":"Nome completo"} value={provider.name}/>
@@ -71,7 +91,11 @@ export function ProviderDetailsDialog({provider,organizationId,onClose}:{
         <Detail label="E-mail de contato" value={provider.email}/>
         <Detail label="Instagram" value={provider.instagram}/>
       </Section>
-      <Section title="Endereço">
+      <Section title="Endereço" actions={mapUrl?<a href={mapUrl} target="_blank" rel="noopener noreferrer"
+        aria-label="Abrir endereço do prestador no mapa" title="Abrir mapa"
+        className={headerActionClass+" border-primary/25 text-primary hover:bg-primary/5"}>
+        <MapPin size={15} aria-hidden="true"/><span className="hidden sm:inline">Abrir mapa</span>
+      </a>:undefined}>
         <div className="grid grid-cols-1 gap-x-5 gap-y-4 sm:grid-cols-2">
           <Detail label="CEP" value={provider.zip_code}/>
           <Detail label="Estado" value={provider.state}/>
@@ -81,10 +105,6 @@ export function ProviderDetailsDialog({provider,organizationId,onClose}:{
           <Detail label="Número" value={provider.street_number}/>
           <Detail label="Complemento" value={provider.complement}/>
         </div>
-        {mapUrl&&<a href={mapUrl} target="_blank" rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline">
-          <MapPin size={15}/> Abrir mapa <ExternalLink size={13}/>
-        </a>}
       </Section>
       <Section title="Atuação profissional">
         <Detail label="Profissão" value={provider.profession || "Não informada"}/>
@@ -127,21 +147,6 @@ export function ProviderDetailsDialog({provider,organizationId,onClose}:{
       {provider.notes&&<Section title="Observações">
         <p className="whitespace-pre-wrap break-words text-sm text-foreground">{provider.notes}</p>
       </Section>}
-      <div className="flex flex-wrap justify-end gap-2">
-        {provider.phone&&<a href={"tel:"+provider.phone.replace(/[^\d+]/g,"")}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground hover:bg-muted">
-          <Phone size={15}/> Ligar
-        </a>}
-        {provider.whatsapp&&<a href={whatsappLink(provider.whatsapp)} target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground hover:bg-muted">
-          <Phone size={15}/> WhatsApp
-        </a>}
-        {provider.instagram&&instagramLink(provider.instagram)&&<a href={instagramLink(provider.instagram)!}
-          target="_blank" rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-bold text-foreground hover:bg-muted">
-          <Instagram size={15}/> Instagram
-        </a>}
-      </div>
     </div>
   </AdminDialog>;
 }
