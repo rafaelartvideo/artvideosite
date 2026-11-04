@@ -34,6 +34,7 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, isP
   const [checkingManaged, setCheckingManaged] = useState(false);
   const [manualMode, setManualMode] = useState(false);
   const [directory, setDirectory] = useState<InternalDirectoryEntry[]>([]);
+  const [testQueues, setTestQueues] = useState<{number:number; name:string}[]>([]);
   const [directoryLoading, setDirectoryLoading] = useState(false);
   const [directoryError, setDirectoryError] = useState("");
   const [dialTarget, setDialTarget] = useState("");
@@ -82,8 +83,26 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, isP
     return () => { cancelled = true; };
   }, [activeOrganizationId,isPageOpen]);
 
+  useEffect(() => {
+    let cancelled=false;
+    setTestQueues([]);
+    if(!activeOrganizationId || !isPageOpen) return () => { cancelled=true; };
+    void supabase.rpc("pbx_available_test_queues",{p_organization_id:activeOrganizationId})
+      .then(({data,error})=>{
+        if(cancelled || error) return;
+        setTestQueues(((data||[]) as {test_extension:number;name:string}[]).map(item=>({
+          number:item.test_extension,name:item.name,
+        })));
+      });
+    return () => { cancelled=true; };
+  },[activeOrganizationId,isPageOpen]);
+
   const ownNumber = sipUser === SIP_USER ? 301 : managedExtension?.number;
   const dialableExtensions = directory.filter(item => item.number !== ownNumber);
+  const dialableNumbers = new Set([
+    ...dialableExtensions.map(item=>item.number),
+    ...testQueues.map(item=>item.number),
+  ]);
 
   const clearAudio = () => {
     const element = remoteAudioRef.current;
@@ -262,9 +281,9 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, isP
   const callInternal = () => {
     const destination = Number(dialTarget);
     if (!dialTarget || !Number.isInteger(destination) ||
-        !dialableExtensions.some(item => item.number === destination) ||
+        !dialableNumbers.has(destination) ||
         registration !== "registered" || !uaRef.current?.isRegistered?.() || sessionRef.current) return;
-    setNotice("Chamando ramal interno " + destination + "...");
+    setNotice("Chamando destino interno " + destination + "...");
     try {
       uaRef.current.call(`sip:${destination}@${SIP_HOST}`, {
         mediaConstraints: { audio: true, video: false },
@@ -377,25 +396,30 @@ export function UnionPbxToolPage({ onBack, onOpen, onManage, onManageQueues, isP
         </button>}
 
         {callState === "idle" && <div className="mt-4 space-y-2 rounded-lg border border-border p-3">
-          <label htmlFor="pbx-internal-destination" className="text-sm font-semibold text-foreground">Ligação entre ramais</label>
+          <label htmlFor="pbx-internal-destination" className="text-sm font-semibold text-foreground">Ligações internas e filas</label>
           <div className="flex flex-wrap items-center gap-2">
             <select id="pbx-internal-destination" value={dialTarget}
               onChange={event => setDialTarget(event.target.value)}
               className="h-10 min-w-0 flex-1 rounded-lg border border-input bg-background px-3 text-sm text-foreground"
               disabled={directoryLoading || registration !== "registered"}>
-              <option value="">Selecione um ramal</option>
+              <option value="">Selecione um ramal ou fila</option>
               {dialableExtensions.map(item => (
-                <option key={item.number} value={String(item.number)}>{item.number} · {item.display_name}</option>
+                <option key={item.number} value={String(item.number)}>{item.number} · Ramal · {item.display_name}</option>
+              ))}
+              {testQueues.map(item=>(
+                <option key={"fila-"+item.number} value={String(item.number)}>
+                  {item.number} · Fila · {item.name}
+                </option>
               ))}
             </select>
             <button type="button" onClick={callInternal}
-              disabled={registration !== "registered" || !dialableExtensions.some(item => String(item.number) === dialTarget)}
+              disabled={registration !== "registered" || !dialableNumbers.has(Number(dialTarget))}
               className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0057e7] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50">
               <Phone size={16}/> Ligar
             </button>
           </div>
           <p className="text-xs text-muted-foreground">
-            {directoryLoading ? "Carregando ramais" : directoryError || "A lista mostra ramais cadastrados; a disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
+            {directoryLoading ? "Carregando ramais" : directoryError || "A lista mostra ramais e filas internas aplicadas. A disponibilidade é confirmada ao chamar. Ligações externas continuam desabilitadas."}
           </p>
         </div>}
         <div className="mt-4 flex flex-wrap justify-center gap-3">
