@@ -226,3 +226,40 @@ asterisk -rx 'pjsip show registrations'
 A linha principal (11) 4290-1575 continuará com seu roteamento atual. A troca
 para uma fila externa, a pausa de atendentes, URA, gravações e histórico ainda
 serão fases separadas, após o teste interno.
+
+
+## Monitoramento das filas no CRM (sem alterar rotas)
+
+O agente envia uma amostra de status das filas ao Supabase junto com seu polling HTTPS
+assinado. Ele executa um unico `asterisk -rx 'queue show'` em cada ciclo de 30s.
+O CRM abre uma unica assinatura Supabase Realtime para as filas da organizacao
+quando a tela Gerenciar filas estiver aberta. Sem polling frequente do navegador.
+
+Campos: chamadas em espera, ramais disponiveis, ocupados, chamando, pausados
+ou indisponiveis. Se o agente deixar de comunicar por 95s ou a fila nao existir,
+o CRM deixa de afirmar disponibilidade. Este painel nao controla ainda pausas,
+recusas, transferencias ou o recebimento da linha FVX.
+
+### Atualizacao segura na VPS
+
+Execute somente depois do merge e dos testes. O script abaixo nao edita arquivos
+do Asterisk, nao altera senhas e nao executa reload de modulos.
+
+```bash
+set -e
+BASE=https://raw.githubusercontent.com/rafaelartvideo/artvideosite/main/scripts/union-pbx-agent
+AGENT=/opt/union-pbx-agent/agent.py
+NEW=$(mktemp)
+trap 'rm -f "$NEW"' EXIT
+curl -fsSL "$BASE/agent.py" -o "$NEW"
+python3 -m py_compile "$NEW"
+cp -a "$AGENT" "/root/agent.before-queue-metrics.$(date +%Y%m%d-%H%M%S).py"
+systemctl stop union-pbx-agent
+install -m 0755 "$NEW" "$AGENT"
+systemctl start union-pbx-agent
+systemctl is-active union-pbx-agent
+```
+
+Verifique o painel com uma chamada de teste para a fila 850 e confirme
+que a leitura aparece em aproximadamente 30 segundos. A sincronizacao e
+aproximada, nao substitui eventos instantaneos do Asterisk/AMI.

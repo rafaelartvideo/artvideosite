@@ -163,3 +163,22 @@ test("PABX Union: filas somente na organização plataforma e nunca redirecionam
   assert.doesNotMatch(page,/SUPABASE_SERVICE_ROLE_KEY|localStorage|sessionStorage/);
   assert.ok((await transformWithEsbuild(page,"UnionPbxQueuesPage.tsx",{loader:"tsx"})).code.length>200);
 });
+
+
+test('monitoramento PBX usa uma assinatura realtime por empresa e telemetria assinada',async()=>{
+  const page=read('src/features/telephony/presentation/UnionPbxQueuesPage.tsx');
+  const live=read('src/features/telephony/presentation/UnionPbxQueueLiveStatus.tsx');
+  const agent=read('scripts/union-pbx-agent/agent.py');
+  const edge=read('supabase/functions/union-pbx-agent/index.ts');
+  assert.ok(page.includes('usePbxQueueLive('));
+  assert.ok(page.includes('<QueueLiveDetails'));
+  assert.ok(live.includes('pbx_queue_live_status'));
+  assert.ok(live.includes('removeChannel(channel)'));
+  assert.ok(live.includes('ACTIVE_WINDOW_MS = 95_000'));
+  assert.ok(agent.includes('def gather_queue_telemetry()'));
+  assert.ok(agent.includes('signed_request({"action":"poll", "telemetry": telemetry})'));
+  assert.ok(edge.includes('telemetry.length <= 10'));
+  assert.ok(edge.includes('agent.organization_id'));
+  assert.ok(!live.includes('SUPABASE_SERVICE_ROLE_KEY'));
+  assert.ok((await transformWithEsbuild(live,'UnionPbxQueueLiveStatus.tsx',{loader:'tsx'})).code.length>200);
+});

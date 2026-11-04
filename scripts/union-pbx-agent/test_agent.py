@@ -172,6 +172,57 @@ class AgentSafetyTests(unittest.TestCase):
                 with self.assertRaises(agent.AgentError):
                     agent.validate_queue_job(job,organization)
 
+
+    def test_queue_telemetry_parses_waiters_and_status(self):
+        organization_id = str(uuid.uuid4())
+        queue_id = str(uuid.uuid4())
+        name = agent.queue_identity(queue_id)
+        state = {
+          "id": queue_id, "organization_id": organization_id,
+          "name": "Atendimento", "test_extension": 850,
+          "strategy": "ringall", "ring_seconds": 20,
+          "max_wait_seconds": 120, "enabled": True,
+          "updated_at": "2026-11-04T12:00:00Z",
+          "members": [
+            {"organization_id": organization_id, "number": 301,
+             "endpoint_name": "union-301", "position": 1,
+             "desired_enabled": True, "provisioning_status": "manual"},
+            {"organization_id": organization_id, "number": 302,
+             "endpoint_name": "uw-"+"c"*32, "position": 2,
+             "desired_enabled": True, "provisioning_status": "applied"},
+          ],
+        }
+        output = (
+          name + " has 2 calls (max unlimited) in 'ringall' strategy\n"
+          "   Members:\n"
+          "      Ramal 301 (PJSIP/union-301) (ringinuse disabled) (Not in use)\n"
+          "      Ramal 302 (PJSIP/uw-"+"c"*32+") (ringinuse disabled) (Ringing)\n"
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            (folder/(queue_id+".json")).write_text(json.dumps(state))
+            with patch.object(agent, "QUEUE_STATE_DIR", folder):
+                with patch.object(agent, "asterisk", return_value=output) as cli:
+                    snapshots = agent.gather_queue_telemetry()
+                    self.assertEqual(cli.call_count, 1)
+        self.assertEqual(snapshots[0]["queue_state"], "active")
+        self.assertEqual(snapshots[0]["waiting_count"], 2)
+        self.assertEqual(snapshots[0]["members"], [
+          {"number": 301, "state": "available"},
+          {"number": 302, "state": "ringing"},
+        ])
+
+    def test_queue_telemetry_never_assumes_unknown_is_available(self):
+        self.assertEqual(agent._queue_member_state(
+            "Ramal 301 (PJSIP/union-301) (paused: break) (Not in use)"
+        ), "paused")
+        self.assertEqual(agent._queue_member_state(
+            "Ramal 301 (PJSIP/union-301) (Unavailable)"
+        ), "unavailable")
+        self.assertEqual(agent._queue_member_state(
+            "Ramal 301 (PJSIP/union-301) (unexpected)"
+        ), "unknown")
+
     def test_queue_provisioning_defers_when_call_in_progress(self):
         with patch.object(agent,"asterisk",return_value="2 active channels\n2 active calls\n"):
             with self.assertRaises(agent.Busy):
