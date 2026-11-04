@@ -37,7 +37,7 @@ test("PABX Union permanece montado ao navegar e encerra em troca de empresa ou u
   const app = read("src/app/Admin.tsx");
   const phone = read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
   assert.match(app, /const canAccessPbxTool = isPlatformOperatorOrganization && hasPermission\("pbx.view"\)/);
-  assert.match(app, /const toolsContent = route.resourceId === "union-pbx"[\s\S]*?\? null/);
+  assert.match(app, /const toolsContent = route.resourceId === "union-pbx"[\s\S]*?route\.subpage === "ramais"/);
   const workspaceEnd = app.indexOf("</RetainedAdminWorkspace>");
   const phoneMount = app.indexOf("<UnionPbxToolPage", workspaceEnd);
   assert.ok(workspaceEnd > 0 && phoneMount > workspaceEnd, "softphone deve ficar fora da rota retida");
