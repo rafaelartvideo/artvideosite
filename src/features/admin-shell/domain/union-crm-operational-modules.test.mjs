@@ -123,7 +123,7 @@ test("PABX chama somente numeros internos cadastrados, sem alterar discagem exte
   assert.match(screen,/type InternalDirectoryEntry/);
   assert.match(screen,/\.from\("pbx_extensions"\)/);
   assert.match(screen,/\.eq\("organization_id",activeOrganizationId\)/);
-  assert.match(screen,/dialableExtensions\.some\(item => item\.number === destination\)/);
+  assert.match(screen,/dialableNumbers\.has\(destination\)/);
   assert.match(screen,/sip:\$\{destination\}@\$\{SIP_HOST\}/);
   assert.match(screen,/const callInternal = \(\) =>/);
   assert.match(screen,/registration !== "registered"/);
