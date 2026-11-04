@@ -700,11 +700,14 @@ def cycle(dry_run=False):
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")
+    queue_jobs = payload.get("queue_jobs", [])
+    if not isinstance(queue_jobs,list) or len(queue_jobs)>10:
+        raise AgentError("Resposta de filas invalida.")
     logins = payload.get("login_requests", [])
     if not isinstance(logins, list) or len(logins) > 10:
         raise AgentError("Resposta de solicitações de acesso inválida.")
-    if not jobs and not logins and dry_run:
-        print("Sem ramais ou solicitações de acesso pendentes.")
+    if not jobs and not logins and not queue_jobs and dry_run:
+        print("Sem ramais, filas ou solicitações de acesso pendentes.")
     for job in jobs:
         try:
             validate_job(job, config["organization_id"])
@@ -726,6 +729,30 @@ def cycle(dry_run=False):
                 print("Cadastro modificado durante a aplicação; versão nova será processada.")
             elif not reply.get("accepted"):
                 raise AgentError("Ponte não confirmou a versão do ramal.")
+
+    for queue in queue_jobs:
+        try:
+            validate_queue_job(queue,config["organization_id"])
+            if dry_run:
+                print("Previa: fila interna "+
+                  str(queue["test_extension"])+" com "+str(len(queue["members"]))+" ramais.")
+                continue
+            apply_queue_job(queue,config["organization_id"])
+            status,error="applied",None
+        except Busy as exc:
+            print(str(exc))
+            continue  # Mantem a fila pendente; nao interrompe chamadas existentes.
+        except Exception as exc:
+            status,error="failed",str(exc)[:220]
+            print("Falha no provisionamento da fila: "+type(exc).__name__,file=sys.stderr)
+        if not dry_run:
+            result=signed_request({"action":"report_queue",
+              "id":queue["id"],"version":queue["updated_at"],
+              "status":status,"error":error})
+            if result.get("stale"):
+                print("Fila alterada durante o provisionamento; uma nova versao sera aplicada.")
+            elif not result.get("accepted"):
+                raise AgentError("A ponte nao confirmou a fila.")
 
     for login in logins:
         try:
@@ -750,6 +777,7 @@ def main():
     actions.add_parser("init")
     actions.add_parser("public-key")
     actions.add_parser("internal-routes")
+    actions.add_parser("queues-init")
     configure_action=actions.add_parser("configure")
     configure_action.add_argument("agent_id")
     configure_action.add_argument("organization_id")
@@ -764,6 +792,8 @@ def main():
             print(PUBLIC_KEY.read_text().strip())
         elif args.action=="internal-routes":
             install_internal_routes()
+        elif args.action=="queues-init":
+            install_queues()
         elif args.action=="configure":
             configure(args.agent_id,args.organization_id)
         elif args.action=="once":
