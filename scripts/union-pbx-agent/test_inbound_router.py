@@ -11,6 +11,50 @@ import agent as pbx
 
 
 class InboundRouteSafetyTests(unittest.TestCase):
+    def test_select_queue_parses_asterisk_full_output(self):
+        queue_id=str(uuid.uuid4())
+        name=pbx.queue_identity(queue_id)
+        state={'id':queue_id,'enabled':True,'test_extension':850,
+               'members':[{'endpoint_name':'union-301','number':301}]}
+        output=(name+' has 0 calls (max unlimited) in ringall strategy\n'
+                '   Members:\n'
+                '      Ramal 301 (PJSIP/union-301) (ringinuse disabled) (Not in use) has taken 1 calls\n'
+                '   No Callers\n')
+        with patch.object(pbx,'queue_states',return_value={queue_id:state}), patch.object(pbx,'asterisk',return_value=output) as command:
+            found,_=inbound.select_queue(850)
+            self.assertEqual(found,state)
+            command.assert_called_once_with('queue show')
+
+    def test_select_queue_rejects_offline_members(self):
+        queue_id=str(uuid.uuid4())
+        name=pbx.queue_identity(queue_id)
+        state={'id':queue_id,'enabled':True,'test_extension':850,
+               'members':[{'endpoint_name':'union-301','number':301}]}
+        output=(name+' has 0 calls (max unlimited) in ringall strategy\n'
+                '   Members:\n'
+                '      Ramal 301 (PJSIP/union-301) (Unavailable)\n'
+                '   No Callers\n')
+        with patch.object(pbx,'queue_states',return_value={queue_id:state}), patch.object(pbx,'asterisk',return_value=output):
+            with self.assertRaisesRegex(pbx.AgentError,'Nenhum ramal disponivel'):
+                inbound.select_queue(850)
+    def test_select_queue_does_not_confuse_other_queues(self):
+        queue_id=str(uuid.uuid4())
+        other_id=str(uuid.uuid4())
+        name=pbx.queue_identity(queue_id)
+        other=pbx.queue_identity(other_id)
+        state={'id':queue_id,'enabled':True,'test_extension':850,
+               'members':[{'endpoint_name':'union-301','number':301}]}
+        output=(name+' has 0 calls in ringall strategy\n'
+                '   Members:\n'
+                '      Ramal 301 (PJSIP/union-301) (Unavailable)\n'
+                '   No Callers\n'
+                +other+' has 0 calls in ringall strategy\n'
+                '   Members:\n'
+                '      Ramal 301 (PJSIP/union-301) (Not in use)\n'
+                '   No Callers\n')
+        with patch.object(pbx,'queue_states',return_value={queue_id:state}), patch.object(pbx,'asterisk',return_value=output):
+            with self.assertRaisesRegex(pbx.AgentError,'Nenhum ramal disponivel'):
+                inbound.select_queue(850)
     def test_original_exactly_preserved_as_reference(self):
         original=inbound.EXPECTED.encode()
         self.assertTrue(inbound.is_original(original))
