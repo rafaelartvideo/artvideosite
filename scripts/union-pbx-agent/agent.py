@@ -713,9 +713,78 @@ def encrypt_login_for_browser(request, org_id):
         secretfile.unlink(missing_ok=True)
 
 
+def _queue_member_state(line):
+    """Parse Asterisk queue show state; never treat unknown as available."""
+    if re.search(r"\(paused(?:[:)]|\s)", line, re.IGNORECASE):
+        return "paused"
+    match = re.search(
+        r"\((Not in use|In use|Unavailable|Busy|Ringing|Unknown|On Hold)\)",
+        line, re.IGNORECASE,
+    )
+    if not match:
+        return "unknown"
+    value = match.group(1).lower()
+    return {
+        "not in use": "available",
+        "in use": "busy",
+        "unavailable": "unavailable",
+        "busy": "busy",
+        "ringing": "ringing",
+        "unknown": "unknown",
+        "on hold": "busy",
+    }[value]
+
+
+def gather_queue_telemetry():
+    """Read-only snapshot. One Asterisk CLI command per agent cycle."""
+    states = queue_states()
+    active = [(queue_id, state) for queue_id, state in states.items()
+              if state["enabled"]]
+    if not active:
+        return []
+    raw = asterisk("queue show")
+    observed = {}
+    current = None
+    for line in raw.splitlines():
+        header = re.match(r"^(\S+) has (\d+) calls?\b", line)
+        if header:
+            current = header.group(1)
+            observed[current] = {"waiting": min(int(header.group(2)), 500),
+                                 "lines": []}
+        elif current is not None:
+            observed[current]["lines"].append(line)
+    result = []
+    for queue_id,state in active[:10]:
+        name = queue_identity(queue_id)
+        snapshot = observed.get(name)
+        members = []
+        for member in sorted(state["members"], key=lambda m: m["position"]):
+            endpoint = member["endpoint_name"]
+            status = "unknown"
+            if snapshot:
+                for line in snapshot["lines"]:
+                    if re.search(r"\(PJSIP/"+re.escape(endpoint)+r"\)",line):
+                        status = _queue_member_state(line)
+                        break
+            members.append({"number": member["number"], "state": status})
+        result.append({
+            "queue_id":queue_id,
+            "queue_state":"active" if snapshot else "missing",
+            "waiting_count":snapshot["waiting"] if snapshot else 0,
+            "members":members,
+        })
+    return result
+
+
 def cycle(dry_run=False):
     config = json.loads(AGENT_CONFIG.read_text())
-    payload = signed_request({"action":"poll"})
+    try:
+        telemetry = [] if dry_run else gather_queue_telemetry()
+    except Exception as exc:
+        # Failed telemetry must never block provisioning or browser login.
+        print("Telemetria indisponivel: "+type(exc).__name__, file=sys.stderr)
+        telemetry = []
+    payload = signed_request({"action":"poll", "telemetry": telemetry})
     jobs = payload.get("jobs", [])
     if not isinstance(jobs, list) or len(jobs) > 10:
         raise AgentError("Resposta de jobs inválida.")
