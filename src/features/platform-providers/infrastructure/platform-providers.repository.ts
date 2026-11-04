@@ -4,9 +4,10 @@ export const PLATFORM_PROVIDER_BUCKET = "platform-provider-documents";
 export type PlatformService = {
   id: string; organization_id: string; name: string; is_active: boolean;
   equipment_name: string | null;
+  profession_name: string;
 };
 export type PlatformProvider = {
-  id: string; name: string; document: string | null;
+  id: string; name: string; profession: string | null; document: string | null;
   phone: string | null; whatsapp: string | null; email: string | null;
   instagram: string | null;
   state: string; city: string; neighborhood: string | null;
@@ -22,7 +23,7 @@ export type PlatformProviderAttachment = {
   file_size: number; created_at: string;
 };
 export type PlatformProviderDraft = {
-  name: string; document: string; phone: string; whatsapp: string; email: string; instagram: string;
+  name: string; profession: string; document: string; phone: string; whatsapp: string; email: string; instagram: string;
   state: string; city: string; neighborhood: string; street: string;
   street_number: string; zip_code: string; notes: string; is_active: boolean;
   person_type: "PF" | "PJ"; birth_date: string; gender: "M" | "F" | "I" | "";
@@ -34,7 +35,7 @@ export type ProviderFilters = {
 };
 
 export const emptyProviderDraft = (): PlatformProviderDraft => ({
-  name: "", document: "", phone: "", whatsapp: "", email: "", instagram: "",
+  name: "", profession: "", document: "", phone: "", whatsapp: "", email: "", instagram: "",
   state: "", city: "", neighborhood: "", street: "", street_number: "",
   zip_code: "", notes: "", is_active: true,
   person_type: "PF", birth_date: "", gender: "", legal_name: "", complement: "",
@@ -42,7 +43,7 @@ export const emptyProviderDraft = (): PlatformProviderDraft => ({
 
 export function draftFromProvider(provider: PlatformProvider): PlatformProviderDraft {
   return {
-    name: provider.name, document: provider.document || "",
+    name: provider.name, profession: provider.profession || "", document: provider.document || "",
     phone: provider.phone || "", whatsapp: provider.whatsapp || "",
     email: provider.email || "", instagram: provider.instagram || "",
     state: provider.state, city: provider.city,
@@ -57,42 +58,46 @@ export function draftFromProvider(provider: PlatformProvider): PlatformProviderD
 
 export async function listPlatformServices(orgId: string): Promise<PlatformService[]> {
   const { data, error } = await supabase.from("platform_provider_services")
-    .select("id,organization_id,name,is_active,equipment_name").eq("organization_id", orgId)
+    .select("id,organization_id,name,is_active,equipment_name,profession_name").eq("organization_id", orgId)
     .order("name", { ascending: true });
   if (error) throw error;
   return (data || []) as PlatformService[];
 }
 
-export async function addPlatformService(orgId: string, name: string, equipmentName = ""): Promise<PlatformService> {
+export async function addPlatformService(orgId: string, name: string, professionName: string, equipmentName = ""): Promise<PlatformService> {
   const normalized = name.trim();
   const equipment = equipmentName.trim();
+  const profession = professionName.trim();
+  if (profession.length < 2 || profession.length > 120) throw new Error("Informe uma profissão com 2 a 120 caracteres.");
   if (normalized.length < 2 || normalized.length > 120) throw new Error("Informe um serviço com 2 a 120 caracteres.");
   if (equipment.length > 120 || (equipment.length > 0 && equipment.length < 2)) throw new Error("O equipamento deve ter entre 2 e 120 caracteres.");
   const { data, error } = await supabase.from("platform_provider_services")
-    .insert({ organization_id: orgId, name: normalized, equipment_name: equipment || null })
-    .select("id,organization_id,name,is_active,equipment_name").single();
+    .insert({ organization_id: orgId, name: normalized, profession_name: profession, equipment_name: equipment || null })
+    .select("id,organization_id,name,is_active,equipment_name,profession_name").single();
   if (error) throw error;
   return data as PlatformService;
 }
 
-export type PlatformServiceBatchItem = { name: string; equipment_name: string | null };
+export type PlatformServiceBatchItem = { name: string; equipment_name: string | null; profession_name: string };
 
 export async function addPlatformServices(orgId: string, items: PlatformServiceBatchItem[]): Promise<PlatformService[]> {
   if (!items.length || items.length > 50) throw new Error("Informe entre 1 e 50 serviços por lote.");
   const normalized = items.map(item => ({
     organization_id: orgId,
     name: item.name.trim(),
+    profession_name: item.profession_name.trim(),
     equipment_name: item.equipment_name?.trim() || null,
   }));
-  const keys = normalized.map(item => `${(item.equipment_name || "").toLocaleLowerCase("pt-BR")}|${item.name.toLocaleLowerCase("pt-BR")}`);
+  const keys = normalized.map(item => `${item.profession_name.toLocaleLowerCase("pt-BR")}|${(item.equipment_name || "").toLocaleLowerCase("pt-BR")}|${item.name.toLocaleLowerCase("pt-BR")}`);
   if (new Set(keys).size !== keys.length) throw new Error("O lote contém serviços repetidos na mesma categoria.");
-  if (normalized.some(item => item.name.length < 2 || item.name.length > 120 ||
+  if (normalized.some(item => item.profession_name.length < 2 || item.profession_name.length > 120 ||
+      item.name.length < 2 || item.name.length > 120 ||
       (item.equipment_name !== null && (item.equipment_name.length < 2 || item.equipment_name.length > 120)))) {
     throw new Error("Informe nomes de serviços e equipamentos entre 2 e 120 caracteres.");
   }
   // Uma unica requisicao INSERT: ou todos os itens sao gravados ou nenhum, sem gravacao parcial.
   const { data, error } = await supabase.from("platform_provider_services")
-    .insert(normalized).select("id,organization_id,name,is_active,equipment_name");
+    .insert(normalized).select("id,organization_id,name,is_active,equipment_name,profession_name");
   if (error?.code === "23505") throw new Error("Um ou mais serviços já existem nessa categoria. Revise os nomes antes de cadastrar o lote.");
   if (error) throw error;
   return (data || []) as PlatformService[];
@@ -122,7 +127,7 @@ export async function editPlatformService(orgId: string, id: string, fields: {na
 }
 
 export async function listPlatformProviders(filters: ProviderFilters): Promise<{ providers: PlatformProvider[]; total: number }> {
-  const { data, error } = await supabase.rpc("list_platform_service_providers_v5", {
+  const { data, error } = await supabase.rpc("list_platform_service_providers_v6", {
     p_search: filters.search.trim(), p_service_ids: filters.serviceIds,
     p_equipment_names: filters.equipmentNames,
     p_states: filters.states, p_cities: filters.cities, p_statuses: filters.statuses,
@@ -154,7 +159,9 @@ export async function savePlatformProvider(
     throw new Error("Informe estado e cidade do prestador.");
   }
   if (!draft.phone.trim() && !draft.whatsapp.trim()) throw new Error("Informe um telefone ou WhatsApp.");
-  if (!services.length) throw new Error("Marque ao menos um serviço prestado.");
+  if (draft.profession.trim().length > 120 || (draft.profession.trim().length > 0 && draft.profession.trim().length < 2)) {
+    throw new Error("Informe uma profissão válida de até 120 caracteres.");
+  }
   const { data, error } = await supabase.rpc("save_platform_service_provider", {
     p_provider_id: id, p_payload: draft, p_service_ids: services,
   });
