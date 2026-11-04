@@ -115,3 +115,23 @@ test("PABX vinculado ao funcionário usa segredo efêmero e preserva ramal 301",
   assert.ok((await transformWithEsbuild(screen,"UnionPbxToolPage.tsx",{loader:"tsx"})).code.length>200);
   assert.ok((await transformWithEsbuild(handoff,"managed-browser-credentials.ts",{loader:"ts"})).code.length>200);
 });
+
+
+test("PABX chama somente numeros internos cadastrados, sem alterar discagem externa",async()=>{
+  const screen=read("src/features/telephony/presentation/UnionPbxToolPage.tsx");
+  const agent=read("scripts/union-pbx-agent/agent.py");
+  assert.match(screen,/type InternalDirectoryEntry/);
+  assert.match(screen,/\.from\("pbx_extensions"\)/);
+  assert.match(screen,/\.eq\("organization_id",activeOrganizationId\)/);
+  assert.match(screen,/dialableExtensions\.some\(item => item\.number === destination\)/);
+  assert.match(screen,/sip:\$\{destination\}@\$\{SIP_HOST\}/);
+  assert.match(screen,/const callInternal = \(\) =>/);
+  assert.match(screen,/registration !== "registered"/);
+  assert.match(agent,/DIALPLAN_CONTEXT = "union-pbx-local-extensions"/);
+  assert.match(agent,/def install_internal_routes\(\):/);
+  assert.match(agent,/def render_internal_routes\(overrides=None\):/);
+  assert.match(agent,/assert_no_calls\(\)/);
+  assert.match(agent,/Dial\(PJSIP\/\{endpoint\},25\)/);
+  assert.doesNotMatch(agent,/Dial\(PJSIP\/union-fvx/);
+  assert.ok((await transformWithEsbuild(screen,"UnionPbxToolPage.tsx",{loader:"tsx"})).code.length>200);
+});
