@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { Check, ChevronDown, Search } from "lucide-react";
-import { AdminSearchPanel, AdminSearchClearButton, AdminSearchTextField } from "@/shared/ui/admin/AdminSearchPanel";
+import { AdminSearchPanel, AdminSearchClearButton } from "@/shared/ui/admin/AdminSearchPanel";
+import { INPUT } from "@/shared/ui/admin/AdminFormControls";
+import { cn } from "@/shared/domain/formatters";
 import { AdminFilterMultiSelect, type AdminFilterOption } from "@/shared/ui/admin/AdminFilterMultiSelect";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/shared/ui/primitives/dropdown-menu";
 import type { PlatformService, ProviderFilters } from "../infrastructure/platform-providers.repository";
@@ -73,8 +75,18 @@ export function ProviderFiltersPanel({
   const field = (key:MobileKey) => {
     switch(key){
       case "name":
-        return <AdminSearchTextField label="Nome" value={searchText}
-          onChange={onSearchTextChange} placeholder="Nome"/>;
+        return <div className="min-w-0">
+          <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:mb-1">
+            Nome
+          </label>
+          <div className="relative min-w-0">
+            <Search size={15} aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"/>
+            <input type="search" value={searchText} onChange={event => onSearchTextChange(event.target.value)}
+              aria-label="Buscar por nome" placeholder="Nome"
+              className={cn(INPUT, "h-[42px] w-full min-w-0 pl-9 pr-2 text-xs md:h-9 md:py-1.5")}/>
+          </div>
+        </div>;
       case "equipment":
         return <AdminFilterMultiSelect label="Equipamento" options={equipmentOptions}
           selectedValues={filters.equipmentNames} onToggle={v=>toggle("equipmentNames",v)}
