@@ -33,47 +33,51 @@ const emptyFilters = (): ProviderFilters => ({
   search: "", serviceIds: [], equipmentNames: [], states: [], cities: [], statuses: [], page: 1, pageSize: 24,
 });
 
-function ServiceChoices({ services, selected, onToggle }: {
-  services: PlatformService[]; selected: string[]; onToggle: (id: string) => void;
+function ServiceChoices({ services, profession, selected, onToggle }: {
+  services: PlatformService[]; profession: string; selected: string[]; onToggle: (id: string) => void;
 }) {
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const query = equipmentSearch.trim().toLocaleLowerCase("pt-BR");
+  const professionKey = profession.trim().toLocaleLowerCase("pt-BR");
   const choices = useMemo(() => services
+    .filter(item => Boolean(professionKey) && item.profession_name.trim().toLocaleLowerCase("pt-BR") === professionKey)
     .filter(item => item.is_active || selected.includes(item.id))
     .filter(item => !query || item.name.toLocaleLowerCase("pt-BR").includes(query) ||
       (item.equipment_name || "").toLocaleLowerCase("pt-BR").includes(query))
     .sort((a, b) => Number(selected.includes(b.id)) - Number(selected.includes(a.id)) || normalSort(a.name, b.name)),
-    [services, selected, query]);
+    [services, professionKey, selected, query]);
   const standalone = choices.filter(service => !service.equipment_name);
   const equipmentNames = Array.from(new Set(choices
-    .map(service => service.equipment_name).filter((name): name is string => Boolean(name))))
-    .sort(normalSort);
-  const standaloneExpanded = expanded.__standalone__ ??
-    (Boolean(query) || standalone.some(service => selected.includes(service.id)));
+    .map(service => service.equipment_name).filter((name): name is string => Boolean(name)))).sort(normalSort);
+  const standaloneExpanded = expanded.__standalone__ ?? (Boolean(query) || standalone.some(item => selected.includes(item.id)));
   const choice = (service: PlatformService) => <label key={service.id}
     className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium ${selected.includes(service.id) ? "border-primary/40 bg-primary/5 text-foreground" : "border-border bg-card text-muted-foreground"}`}>
     <input type="checkbox" checked={selected.includes(service.id)}
-      onChange={() => onToggle(service.id)} className="h-4 w-4 shrink-0 accent-primary" />
+      onChange={() => onToggle(service.id)} className="h-4 w-4 shrink-0 accent-primary"/>
     <span className="min-w-0 flex-1">{service.name}</span>
-    {selected.includes(service.id) && <Check size={13} className="shrink-0 text-primary" />}
+    {selected.includes(service.id) && <Check size={13} className="shrink-0 text-primary"/>}
   </label>;
+  if (!professionKey) return <p className="py-3 text-center text-xs text-muted-foreground">
+    Informe a profissão para listar equipamentos e serviços correspondentes.
+  </p>;
   return <div className="space-y-3">
-    <div className="relative">
+    <p className="text-xs font-semibold text-foreground">Profissão: {profession.trim()}</p>
+    {choices.length > 0 && <div className="relative">
       <Search className="pointer-events-none absolute left-3 top-3 text-muted-foreground" size={15}/>
       <input value={equipmentSearch} onChange={event => setEquipmentSearch(event.target.value)}
         className={inputClass + " pl-9"} aria-label="Buscar equipamento ou serviço"
-        placeholder="Buscar equipamento ou serviço" />
-    </div>
+        placeholder="Buscar equipamento ou serviço"/>
+    </div>}
     {equipmentNames.map(equipment => {
       const members = choices.filter(service => service.equipment_name === equipment);
       const isOpen = expanded[equipment] ?? (Boolean(query) || members.some(service => selected.includes(service.id)));
       return <div key={equipment} className="overflow-hidden rounded-lg border border-border">
         <button type="button" aria-expanded={isOpen}
           onClick={() => setExpanded(current => ({...current, [equipment]: !isOpen}))}
-          className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
+          className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground">
           <span className="min-w-0 truncate">{equipment}</span>
-          <span className="ml-auto shrink-0 text-[10px] font-medium text-muted-foreground">
+          <span className="ml-auto text-[10px] text-muted-foreground">
             {members.filter(service => selected.includes(service.id)).length}/{members.length}
           </span>
           <ChevronDown size={16} className={`shrink-0 transition-transform ${isOpen ? "" : "-rotate-90"}`}/>
@@ -86,16 +90,16 @@ function ServiceChoices({ services, selected, onToggle }: {
     {standalone.length > 0 && <div className="overflow-hidden rounded-lg border border-border">
       <button type="button" aria-expanded={standaloneExpanded}
         onClick={() => setExpanded(current => ({...current, __standalone__: !standaloneExpanded}))}
-        className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground hover:bg-muted/60">
-        <span>Serviços avulsos / Profissões</span>
-        <ChevronDown size={16} className={"shrink-0 transition-transform " +
-          (standaloneExpanded ? "" : "-rotate-90")}/>
+        className="flex w-full items-center justify-between gap-2 bg-muted/30 px-3 py-3 text-left text-xs font-bold text-foreground">
+        <span>Serviços diretos (sem equipamento)</span>
+        <ChevronDown size={16} className={`shrink-0 transition-transform ${standaloneExpanded ? "" : "-rotate-90"}`}/>
       </button>
-      {standaloneExpanded &&
-        <div className="grid gap-2 border-t border-border p-2 sm:grid-cols-2 xl:grid-cols-3">{standalone.map(choice)}</div>}
+      {standaloneExpanded && <div className="grid gap-2 border-t border-border p-2 sm:grid-cols-2 xl:grid-cols-3">
+        {standalone.map(choice)}
+      </div>}
     </div>}
     {choices.length === 0 && <p className="py-3 text-center text-xs text-muted-foreground">
-      Nenhum equipamento ou serviço encontrado.
+      Nenhum serviço cadastrado para esta profissão. O prestador pode ser salvo sem serviços.
     </p>}
   </div>;
 }
@@ -124,7 +128,7 @@ export function PlatformProvidersPage() {
   const [deletingService, setDeletingService] = useState(false);
   const [catalogSaving, setCatalogSaving] = useState(false);
   const [serviceModal, setServiceModal] = useState<{
-    equipmentName: string; mode: "equipment" | "standalone"; selectNew: boolean;
+    equipmentName: string; professionName: string; mode: "equipment" | "standalone"; selectNew: boolean;
   } | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
   const [editingService, setEditingService] = useState<PlatformService | null>(null);
@@ -169,18 +173,28 @@ export function PlatformProvidersPage() {
   const total = providersQuery.data?.total || 0;
   const totalPages = Math.max(1, Math.ceil(total / filters.pageSize));
   const catalogFiltered = useMemo(() => services
-    .filter(item => [item.name, item.equipment_name || ""]
+    .filter(item => [item.name, item.equipment_name || "", item.profession_name]
       .some(text => text.toLocaleLowerCase("pt-BR").includes(catalogSearch.trim().toLocaleLowerCase("pt-BR"))))
     .sort((a,b) => normalSort(a.name,b.name)), [services, catalogSearch]);
   const equipmentSuggestions = useMemo(() => Array.from(new Set(services
     .map(item => item.equipment_name).filter((name): name is string => Boolean(name)))).sort(normalSort), [services]);
+  const professionSuggestions = useMemo(() => Array.from(new Set([
+    ...services.map(item => item.profession_name), ...providers.map(provider => provider.profession || ""),
+  ].filter(Boolean))).sort(normalSort), [services, providers]);
   const catalogGroups = useMemo(() => {
-    const groups = new Map<string, PlatformService[]>();
+    const groups = new Map<string, Map<string, PlatformService[]>>();
     for (const item of catalogFiltered) {
-      const key = item.equipment_name || "";
-      groups.set(key, [...(groups.get(key) || []), item]);
+      const profession = item.profession_name;
+      const equipments = groups.get(profession) || new Map<string, PlatformService[]>();
+      const equipment = item.equipment_name || "";
+      equipments.set(equipment, [...(equipments.get(equipment) || []), item]);
+      groups.set(profession, equipments);
     }
-    return Array.from(groups.entries()).sort(([a],[b]) => !a ? 1 : !b ? -1 : normalSort(a,b));
+    return Array.from(groups.entries()).sort(([a],[b]) => normalSort(a,b))
+      .map(([profession, equipments]) => ({
+        profession,
+        equipmentGroups: Array.from(equipments.entries()).sort(([a],[b]) => !a ? 1 : !b ? -1 : normalSort(a,b)),
+      }));
   }, [catalogFiltered]);
 
   const changeFilter = (patch: Partial<ProviderFilters>) =>
@@ -203,9 +217,9 @@ export function PlatformProvidersPage() {
     setSelectedServiceIds(provider.service_ids || []); setPendingFiles([]);
     setPersistedProviderId(provider.id); setEditorOpen(true);
   };
-  const openServiceModal = (equipmentName = "", selectNew = false, mode: "equipment" | "standalone" = "equipment") => {
+  const openServiceModal = (equipmentName = "", selectNew = false, mode: "equipment" | "standalone" = "equipment", professionName = "") => {
     if (!canManage) return;
-    setServiceModal({ equipmentName, selectNew, mode });
+    setServiceModal({ equipmentName, selectNew, mode, professionName });
   };
   const addBatch = async (items: PlatformServiceBatchItem[], selectNew: boolean): Promise<boolean> => {
     if (!canManage || !activeOrganizationId || catalogSaving) return false;
@@ -275,7 +289,9 @@ export function PlatformProvidersPage() {
     if (!canManage || !activeOrganizationId || saving) return;
     setSaving(true);
     try {
-      const savedId = await savePlatformProvider(persistedProviderId || editing?.id || null, draft, selectedServiceIds);
+      const allowedServiceIds = selectedServiceIds.filter(id => services.some(service =>
+        service.id === id && service.profession_name.trim().toLocaleLowerCase("pt-BR") === draft.profession.trim().toLocaleLowerCase("pt-BR")));
+      const savedId = await savePlatformProvider(persistedProviderId || editing?.id || null, draft, allowedServiceIds);
       setPersistedProviderId(savedId);
       const failedFiles: File[] = [];
       for (const file of pendingFiles) {
@@ -350,7 +366,7 @@ export function PlatformProvidersPage() {
             onKeyDown={event => {if(event.target===event.currentTarget && (event.key==="Enter"||event.key===" ")){
               event.preventDefault();setViewing(provider);
             }}}
-            className="flex h-[304px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/35 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary sm:p-5">
+            className="flex min-h-[236px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/35 hover:shadow-md focus-visible:outline-2 focus-visible:outline-primary sm:p-5">
             <div className="flex items-start gap-3">
               <div className={"flex h-11 w-11 shrink-0 items-center justify-center rounded-xl " +
                 (provider.person_type === "PJ" ? "bg-muted text-muted-foreground" :
@@ -388,17 +404,11 @@ export function PlatformProvidersPage() {
                 <Phone size={14} className="shrink-0"/><span>{formatPhone(provider.phone||provider.whatsapp||"")}</span>
               </p>}
             </div>
-            <div className="mt-4 grid min-h-[70px] grid-cols-3 auto-rows-[32px] gap-1.5">
-              {provider.service_names.slice(0, provider.service_names.length > 6 ? 5 : 6).map(service=><span key={service}
-                className="flex min-w-0 items-center justify-center overflow-hidden rounded-md border border-primary/15 bg-primary/5 px-1 py-0.5 text-center text-[9px] font-medium leading-3 text-primary"
-                title={service}>
-                <span className="line-clamp-2 min-w-0 break-words">{service}</span>
-              </span>)}
-              {provider.service_names.length > 6 && <span
-                className="flex min-w-0 items-center justify-center rounded-md border border-primary/15 bg-primary/5 text-[10px] font-semibold text-primary"
-                title={`${provider.service_names.length - 5} serviços adicionais`}>
-                +{provider.service_names.length - 5}
-              </span>}
+            <div className="mt-4">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Profissão</p>
+              <p className="mt-1 text-sm font-semibold text-primary">
+                {provider.profession?.trim() || "Profissão não informada"}
+              </p>
             </div>
             <div className="mt-auto flex items-center justify-between gap-2 border-t border-border pt-4 text-xs text-muted-foreground">
               <span className="flex items-center gap-1"><Paperclip size={14}/>
@@ -491,11 +501,11 @@ export function PlatformProvidersPage() {
     {editorOpen && activeOrganizationId && <PlatformProviderEditor
       key={editing?.id || "new"} editing={editing} organizationId={activeOrganizationId}
       draft={draft} setDraft={setDraft}
-      servicesContent={<ServiceChoices services={services} selected={selectedServiceIds}
+      servicesContent={<ServiceChoices services={services} profession={draft.profession} selected={selectedServiceIds}
         onToggle={id => setSelectedServiceIds(current => current.includes(id)
           ? current.filter(item => item !== id) : [...current, id])}/>}
       batchContent={<AdminButton variant="secondary" size="sm"
-        onClick={() => openServiceModal("", true)}><Plus size={15}/> Novo serviço</AdminButton>}
+        onClick={() => openServiceModal("", true, "equipment", draft.profession)}><Plus size={15}/> Novo serviço</AdminButton>}
       serviceCount={selectedServiceIds.length}
       pendingFiles={pendingFiles} setPendingFiles={setPendingFiles}
       attachments={attachmentsQuery.data || []} attachmentsLoading={Boolean(editing && attachmentsQuery.isPending)}
@@ -506,7 +516,7 @@ export function PlatformProvidersPage() {
     {serviceModal && <AdminDialog open title="Novo serviço"
       description={serviceModal.equipmentName
         ? "Adicione um ou vários serviços em " + serviceModal.equipmentName
-        : "Cadastre serviços por equipamento ou profissões avulsas em lote."}
+        : "Cadastre uma profissão, seus equipamentos e serviços, ou serviços diretos."}
       className="w-[min(96vw,920px)] max-w-4xl"
       minimizable={false}
       onClose={() => { if (!catalogSaving) setServiceModal(null); }}
@@ -515,8 +525,10 @@ export function PlatformProvidersPage() {
           onClick={() => setServiceModal(null)}>Cancelar</AdminButton>
       </div>}>
       <PlatformServiceBatchEditor
-        key={serviceModal.mode + ":" + serviceModal.equipmentName}
+        key={serviceModal.professionName + ":" + serviceModal.mode + ":" + serviceModal.equipmentName}
         equipmentSuggestions={equipmentSuggestions}
+        professionSuggestions={professionSuggestions}
+        initialProfessionName={serviceModal.professionName}
         initialEquipmentName={serviceModal.equipmentName}
         initialMode={serviceModal.mode}
         closeOnSuccess
