@@ -183,6 +183,13 @@ Deno.serve(async request => {
     if(permissionError) return json({success:false,error:"Acesso negado."},403);
     const permissions=new Set((Array.isArray(permissionRows)?permissionRows:[])
       .map((row:Record<string,unknown>)=>String(row.permission_key || "")));
+    // Acesso operacional exige liberação do módulo para esta organização.
+    // Bloqueia chamadas diretas às Edge Functions após a Union desabilitar a integração.
+    const {data:whatsappModule,error:moduleError}=await admin.from("organization_modules")
+      .select("is_enabled").eq("organization_id",org).eq("module_key","whatsapp").maybeSingle();
+    if(moduleError)return json({success:false,error:"Não foi possível verificar a disponibilidade do WhatsApp."},503);
+    if(whatsappModule?.is_enabled!==true)
+      return json({success:false,error:"A integração WhatsApp não está liberada para esta empresa."},403);
     // Autorização efetiva = papel ativo + permissão do CRM + matriz da empresa.
     const {data:myBinding,error:myBindingError}=await admin.from("union_whatsapp_operator_bindings")
       .select("staff_role,is_active").eq("organization_id",org).eq("user_id",actorId).maybeSingle();
