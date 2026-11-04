@@ -48,9 +48,9 @@ test("card abre detalhes, somente lápis abre editor, 3 colunas e WhatsApp alinh
   assert.match(page,/mt-auto flex items-center justify-between gap-2 border-t border-border pt-4/);
   assert.doesNotMatch(page,/>Detalhes<\/button>/);
   assert.match(page,/<ProviderDetailsDialog/);
-  assert.match(page,/provider\\.profession\\?\\.trim\\(\\)/);
-  assert.doesNotMatch(page,/provider\\.service_names\\.slice/);
-  assert.match(page,/min-h-\\[236px\\]/);
+  assert.match(page,/provider\.profession\?\.trim\(\)/);
+  assert.doesNotMatch(page,/provider\.service_names\.slice/);
+  assert.match(page,/min-h-\[236px\]/);
   assert.match(details,/Atuação profissional/);
   assert.match(details,/listProviderAttachments/);
   assert.match(details,/<AdminDialog open/);
@@ -89,7 +89,7 @@ test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos ante
   const migration=read("supabase/migrations/20261103212128_union_provider_service_equipment_hierarchy.sql");
   assert.match(page,/Buscar equipamento ou serviço/);
   assert.match(page,/aria-expanded=\{isOpen\}/);
-  assert.match(page,/Serviços diretos \\(sem equipamento\\)/);
+  assert.match(page,/Serviços diretos \(sem equipamento\)/);
   assert.match(page,/catalogGroups\.map/);
   const batch=read("src/features/platform-providers/presentation/PlatformServiceBatchEditor.tsx");
   assert.match(editor,/batchContent/);
@@ -99,7 +99,7 @@ test("catalogo separa equipamentos e profissoes avulsas sem perder vinculos ante
   assert.match(batch,/Adicionar outra subcategoria/);
   assert.match(batch,/Adicionar outro serviço/);
   assert.match(repository,/equipment_name: equipment \|\| null/);
-  assert.match(repository,/\.select\("id,organization_id,name,is_active,equipment_name"\)/);
+  assert.match(repository,/\.select\("id,organization_id,name,is_active,equipment_name,profession_name"\)/);
   assert.match(migration,/add column if not exists equipment_name/);
   assert.match(migration,/platform_provider_services_unique_equipment_name/);
   assert.match(migration,/or p\.name ilike/);
