@@ -460,16 +460,27 @@ def _check_queue_reload(names,numbers,old_fvx):
     assert_fvx(old_fvx)
 
 
+def module_is_running(module_list, module_name):
+    """Distinguish 'Running' from 'Not Running' in Asterisk module list."""
+    for line in module_list.splitlines():
+        fields=line.split()
+        if fields and fields[0]==module_name:
+            return bool(re.search(r"\s+\d+\s+Running(?:\s|$)",line))
+    return False
+
+
 def install_queues():
     """Optional one-time queue setup. Inbound FVX remains exactly as configured."""
     require_root()
-    if not QUEUE_MAIN.is_file() or not DIALPLAN_MANAGED.is_file() or not MASTER_FILE.is_file():
-        raise AgentError("Asterisk sem arquivos necessarios. Verifique queues.conf e rotas internas.")
+    missing=[str(path) for path in (QUEUE_MAIN,DIALPLAN_MANAGED,MASTER_FILE)
+             if not path.is_file()]
+    if missing:
+        raise AgentError("Arquivos obrigatorios do Asterisk ausentes: "+", ".join(missing))
     assert_no_calls()
     previous_fvx=asterisk("pjsip show registrations")
     module=asterisk("module show like app_queue")
-    if "app_queue.so" not in module or "Running" not in module:
-        raise AgentError("Modulo app_queue.so nao esta em execucao.")
+    if not module_is_running(module, "app_queue.so"):
+        raise AgentError("Modulo app_queue.so nao esta em execucao. Verifique queues.conf e a configuracao de modules.conf.")
     queue_main_before=QUEUE_MAIN.read_bytes()
     queue_main_stat=QUEUE_MAIN.stat()
     dialplan_before=DIALPLAN_MANAGED.read_bytes()
