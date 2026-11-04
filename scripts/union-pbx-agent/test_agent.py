@@ -105,9 +105,9 @@ class AgentSafetyTests(unittest.TestCase):
                 "enabled":True,
                 "updated_at":"2026-11-04T09:20:00Z",
                 "members":[
-                    {"number":301,"endpoint_name":"union-301","position":1,
+                    {"organization_id":organization_id,"number":301,"endpoint_name":"union-301","position":1,
                      "desired_enabled":True,"provisioning_status":"manual"},
-                    {"number":302,"endpoint_name":"uw-"+"a"*32,"position":2,
+                    {"organization_id":organization_id,"number":302,"endpoint_name":"uw-"+"a"*32,"position":2,
                      "desired_enabled":True,"provisioning_status":"applied"},
                 ],
             }
@@ -134,9 +134,9 @@ class AgentSafetyTests(unittest.TestCase):
                 self.assertNotIn("exten => 850",dial2.decode())
 
     def test_queue_blocks_cross_tenant_invalid_extension_and_duplicate_members(self):
-        member={"number":301,"endpoint_name":"union-301","position":1,
-                "desired_enabled":True,"provisioning_status":"manual"}
         org=str(uuid.uuid4())
+        member={"organization_id":org,"number":301,"endpoint_name":"union-301","position":1,
+                "desired_enabled":True,"provisioning_status":"manual"}
         payload={"id":str(uuid.uuid4()),"organization_id":org,"name":"Suporte",
           "test_extension":850,"strategy":"rrmemory","ring_seconds":20,
           "max_wait_seconds":120,"enabled":True,"updated_at":"2026-11-04T09:20:00Z",
@@ -150,6 +150,7 @@ class AgentSafetyTests(unittest.TestCase):
             ({**payload,"members":[{**member,"endpoint_name":"PJSIP/FVX"}]},org),
             ({**payload,"members":[{**member,"desired_enabled":False}]},org),
             ({**payload,"members":[{**member,"number":900}]},org),
+            ({**payload,"members":[{**member,"organization_id":str(uuid.uuid4())}]},org),
         ]
         for job,organization in invalid:
             with self.subTest(test=job):
