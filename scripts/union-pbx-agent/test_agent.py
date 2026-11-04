@@ -89,6 +89,21 @@ class AgentSafetyTests(unittest.TestCase):
                       {"endpoint":"uw-"+"e"*32,"number":302,"enabled":True},
                     ])
 
+    def test_queue_module_status_rejects_not_running(self):
+        unavailable=(
+            "Module Description Use Count Status Support Level\\n"
+            "app_queue.so True Call Queueing 0 Not Running core\\n"
+            "1 modules loaded\\n"
+        )
+        available=(
+            "Module Description Use Count Status Support Level\\n"
+            "app_queue.so True Call Queueing 0 Running core\\n"
+            "1 modules loaded\\n"
+        )
+        self.assertFalse(agent.module_is_running(unavailable,"app_queue.so"))
+        self.assertTrue(agent.module_is_running(available,"app_queue.so"))
+        self.assertFalse(agent.module_is_running("0 modules loaded","app_queue.so"))
+
     def test_queue_config_is_internal_and_uses_only_registered_pjsip_members(self):
         with tempfile.TemporaryDirectory() as temporary:
             root=Path(temporary)
