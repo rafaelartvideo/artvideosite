@@ -8,9 +8,9 @@ const decode=(s:string)=>Uint8Array.from(atob(s),c=>c.charCodeAt(0));
 Deno.serve(async request=>{
   if(request.method!=="POST") return respond({error:"Método não permitido"},405);
   if((request.headers.get("content-type")||"").split(";")[0]!=="application/json") return respond({error:"Content-Type inválido"},415);
-  if(Number(request.headers.get("content-length")||"0")>6000) return respond({error:"Tamanho inválido"},413);
+  if(Number(request.headers.get("content-length")||"0")>16000) return respond({error:"Tamanho inválido"},413);
   const raw=await request.text();
-  if(raw.length>6000) return respond({error:"Tamanho inválido"},413);
+  if(raw.length>16000) return respond({error:"Tamanho inválido"},413);
   const url=Deno.env.get("SUPABASE_URL");
   const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if(!url||!key) return respond({error:"Ponte não configurada"},503);
@@ -41,6 +41,57 @@ Deno.serve(async request=>{
       if(!body||typeof body!=="object"||Array.isArray(body)) throw Error();
     } catch {return respond({error:"JSON inválido"},400)}
     if(body.action==="poll"){
+      // Telemetria enviada no mesmo ciclo assinado, sem conexao adicional
+      // e sem bloquear ramais ou a entrega de credenciais em caso de falha.
+      const telemetry = Array.isArray(body.telemetry) ? body.telemetry : [];
+      if(telemetry.length <= 10 && telemetry.length > 0) {
+        const states = new Set(["available","busy","ringing","paused","unavailable","unknown"]);
+        const valid = telemetry.every((entry:unknown) => {
+          if(!entry || typeof entry!=="object" || Array.isArray(entry)) return false;
+          const item=entry as Record<string,unknown>;
+          if(typeof item.queue_id!=="string" || !uuid.test(item.queue_id) ||
+            !["active","missing"].includes(String(item.queue_state)) ||
+            !Number.isInteger(item.waiting_count) ||
+            Number(item.waiting_count)<0 || Number(item.waiting_count)>500 ||
+            !Array.isArray(item.members) || item.members.length>20) return false;
+          const nums=new Set<number>();
+          return item.members.every((member:unknown)=>{
+            if(!member || typeof member!=="object" || Array.isArray(member)) return false;
+            const m=member as Record<string,unknown>;
+            const num=Number(m.number);
+            if(typeof m.number!=="number" || !Number.isInteger(num) ||
+              num<100 || num>9999 || !states.has(String(m.state)) || nums.has(num)) return false;
+            nums.add(num);
+            return true;
+          });
+        });
+        if(valid){
+          const ids=telemetry.map((entry:{queue_id:string})=>entry.queue_id);
+          const {data:allowed,error:verifyError}=await admin.from("pbx_queues")
+            .select("id").eq("organization_id",agent.organization_id)
+            .eq("enabled",true).eq("provisioning_status","applied").in("id",ids);
+          if(!verifyError && allowed?.length){
+            const allowedIds=new Set(allowed.map(q=>q.id));
+            const sampledAt=new Date().toISOString();
+            const rows=telemetry.filter((entry:{queue_id:string})=>allowedIds.has(entry.queue_id))
+              .map((entry:{queue_id:string;queue_state:string;waiting_count:number;members:unknown[]})=>({
+                queue_id:entry.queue_id,
+                organization_id:agent.organization_id,
+                waiting_count:entry.waiting_count,
+                queue_state:entry.queue_state,
+                members:entry.members,
+                sampled_at:sampledAt,
+              }));
+            if(rows.length){
+              const {error:telemetryError}=await admin.from("pbx_queue_live_status")
+                .upsert(rows,{onConflict:"queue_id"});
+              if(telemetryError) console.error("PBX telemetry storage failed",telemetryError.code);
+            }
+          } else if(verifyError) console.error("PBX telemetry authorization failed",verifyError.code);
+        } else {
+          console.error("PBX telemetry malformed");
+        }
+      }
       // Apaga segredos criptografados que expiraram. O navegador só pode obtê-los uma vez.
       const expiredAt=new Date().toISOString();
       const {error:cleanupError}=await admin.from("pbx_browser_login_requests")
