@@ -35,7 +35,7 @@ export function ProviderFiltersPanel({
     .filter(s=>s.is_active||filters.serviceIds.includes(s.id))
     .filter(s=>filters.equipmentNames.length===0 || !s.equipment_name ||
       filters.equipmentNames.includes(s.equipment_name) || filters.serviceIds.includes(s.id))
-    .map(s=>({value:s.id,label:s.equipment_name?`${s.equipment_name} · ${s.name}`:s.name}))
+    .map(s=>({value:s.id,label:[s.profession_name,s.equipment_name,s.name].filter(Boolean).join(" · ")}))
     .sort((a,b)=>a.label.localeCompare(b.label,"pt-BR",{sensitivity:"base"})),
     [services,filters.serviceIds,filters.equipmentNames]);
   const equipmentOptions=useMemo<AdminFilterOption[]>(()=>Array.from(new Set(services
