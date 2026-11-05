@@ -65,7 +65,8 @@ const UnionPbxQueuesPage = lazy(() => import("@/features/telephony/presentation/
 const UnionPbxInboundPage = lazy(() => import("@/features/telephony/presentation/UnionPbxInboundPage").then(({ UnionPbxInboundPage }) => ({ default: UnionPbxInboundPage })));
 const SacDigitalToolPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalToolPage").then(({ SacDigitalToolPage }) => ({ default: SacDigitalToolPage })));
 const UnionWhatsAppInboxPage = lazy(() => import("@/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage").then(({ UnionWhatsAppInboxPage }) => ({ default: UnionWhatsAppInboxPage })));
-const IntegrationsPage = lazy(() => import("@/features/integrations/presentation/IntegrationsPage").then(({ IntegrationsPage }) => ({ default: IntegrationsPage })));
+const WhatsAppChannelsPage = lazy(() => import("@/features/whatsapp-channels/presentation/WhatsAppChannelsPage").then(({ WhatsAppChannelsPage }) => ({ default: WhatsAppChannelsPage })));
+const SacDigitalSettingsPage = lazy(() => import("@/features/sac-digital/presentation/SacDigitalSettingsPage").then(({ SacDigitalSettingsPage }) => ({ default: SacDigitalSettingsPage })));
 const PlatformIntegrationsPage = lazy(() => import("@/features/integrations/presentation/PlatformIntegrationsPage").then(({ PlatformIntegrationsPage }) => ({ default: PlatformIntegrationsPage })));
 const PlanUsagePage = lazy(() => import("@/features/subscriptions/presentation/PlanUsagePage").then(({ PlanUsagePage }) => ({ default: PlanUsagePage })));
 const UnionCatalogAdminPage = lazy(() => import("@/features/segments/presentation/UnionCatalogAdminPage").then(({ UnionCatalogAdminPage }) => ({ default: UnionCatalogAdminPage })));
@@ -181,7 +182,6 @@ export function AdminDashboard({
     if (tab === "finance" && isPlatformOperatorOrganization && !crmMode) return hasPermission("platform.billing.view");
     if (tab === "orders" && isPlatformOperatorOrganization && !crmMode) return hasPermission("orders.monitor.view");
     if (tab === "integrations" && isPlatformOperatorOrganization && !crmMode) return hasPermission("organizations.view") || hasPermission("organizations.modules.manage");
-    if (tab === "integrations") return ((hasModule("whatsapp") && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete"))) || (hasModule("sac_digital") && hasPermission("sac_digital.settings.manage")) || (hasPermission("settings.update") && hasPermission("site.view"))) && isAdminModuleEnabled(tab, hasModule);
     if (tab === "fieldTracking") return (hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled(tab, hasModule));
     if (tab === "siteSettings") return hasPermission("site.view")
@@ -193,13 +193,20 @@ export function AdminDashboard({
     if (!isPlatformOperatorOrganization && parentAdminTab(tab) === "operation" && !hasPermission("operation.view")) return false;
     if (tab === "site") return siteItems.some(item => canAccessTab(item.id as AdminTab));
     if (tab === "operation") return !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
-    if (tab === "tools") return (hasPermission("tools.view") || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))) && (
+    if (tab === "tools") return (
+      hasPermission("tools.view")
+      || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
+      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
+    ) && (
       hasPermission("tools.view")
       ||       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
+      || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete")))
+      || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization) && hasPermission("tools.uniq.use"))
       || ((isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue")) && hasPermission("queue.view"))
       || ((isPlatformOperatorOrganization || hasModule("pbx")) && hasPermission("pbx.view"))
@@ -331,13 +338,16 @@ export function AdminDashboard({
     : navigateAdmin(parentAdminTab(tab) || "dashboard");
   const crmHub = <PlatformCrmHub onSelect={tab => navigateAdmin(tab, null, null, { crmMode: true })} />;
   const siteHub = <AdminHubPage title="Site" description="Conteúdo e cadastros exibidos no site público." items={siteItems.filter(item => canAccessTab(item.id as AdminTab))} onSelect={id => navigateAdmin(id as AdminTab)} />;
-  const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => (item.id === "integrations" ? canAccessTab("integrations") : hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule)))} onSelect={id => navigateAdmin(id as AdminTab)} />;
+  const operationHub = <AdminHubPage title="Operação" description="Cadastros e configurações internas da assistência técnica." items={operationItems.filter(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule))} onSelect={id => navigateAdmin(id as AdminTab)} />;
   const canAccessQueueTool = (isArtVideoOrganization || isPlatformOperatorOrganization || hasModule("queue"))
     && hasPermission("queue.view");
   const canManageQueueTool = canAccessQueueTool && hasPermission("queue.manage");
   const canAccessSacDigitalTool = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view");
+  const canConfigureSacDigital = (isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.settings.manage");
   const canAccessWhatsAppTool = (isPlatformOperatorOrganization || hasModule("whatsapp"))
     && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view");
+  const canViewWhatsAppChannels = (isPlatformOperatorOrganization || hasModule("whatsapp"))
+    && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete"));
   const canAccessUnionCatalogTool = isPlatformOperatorOrganization && hasPermission("platform.catalog.view");
   const canAccessMarketplaceTool = (isPlatformOperatorOrganization || hasModule("marketplace")) && hasPermission("marketplace.view");
   const canAccessAiTool = (isPlatformOperatorOrganization || hasModule("ai")) && hasPermission("ai.view");
@@ -352,10 +362,10 @@ export function AdminDashboard({
       && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)) ? [
       { id: "fieldTracking", label: "Mapa de Campo", icon: MapPinned, description: "Acompanhe em tempo real técnicos, veículos e dispositivos em campo.", href: null },
     ] : []),
-    ...(canAccessSacDigitalTool ? [
+    ...((canAccessSacDigitalTool || canConfigureSacDigital) ? [
       { id: "sac-digital", label: "SAC Digital", icon: MessageSquare, description: "Atenda clientes e responda mensagens sem sair da Union.", href: null },
     ] : []),
-    ...(canAccessWhatsAppTool ? [
+    ...((canAccessWhatsAppTool || canViewWhatsAppChannels) ? [
       { id: "union-whatsapp", label: "Atendimentos", icon: MessageSquare, description: "Central de atendimento por canais, começando pelo WhatsApp.", href: null },
     ] : []),
     ...(canAccessMarketplaceTool ? [
@@ -397,12 +407,12 @@ export function AdminDashboard({
         navigateAdmin("tools", "union-senhas");
         return;
       }
-      if (id === "sac-digital" && canAccessSacDigitalTool) {
-        navigateAdmin("tools", "sac-digital");
+      if (id === "sac-digital" && (canAccessSacDigitalTool || canConfigureSacDigital)) {
+        navigateAdmin("tools", "sac-digital", canAccessSacDigitalTool ? null : "configuracoes");
         return;
       }
-      if (id === "union-whatsapp" && canAccessWhatsAppTool) {
-        navigateAdmin("tools", "union-whatsapp");
+      if (id === "union-whatsapp" && (canAccessWhatsAppTool || canViewWhatsAppChannels)) {
+        navigateAdmin("tools", "union-whatsapp", canAccessWhatsAppTool ? null : "canais");
         return;
       }
       if (id === "marketplace" && canAccessMarketplaceTool) {
@@ -447,10 +457,22 @@ export function AdminDashboard({
       ? <QueueIntegrationToolPage onBack={() => navigateAdmin("tools")} />
       : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "union-whatsapp"
-      ? canAccessWhatsAppTool
+      ? route.subpage === "canais"
+        ? canViewWhatsAppChannels
+          ? <WhatsAppChannelsPage
+            key={activeOrganizationId || "no-company"}
+            onBack={() => canAccessWhatsAppTool ? navigateAdmin("tools", "union-whatsapp") : navigateAdmin("tools")}
+            onOpenInbox={canAccessWhatsAppTool ? () => navigateAdmin("tools", "union-whatsapp") : undefined}
+            initialSection={((
+              ["configuration","connections","departments","queues","operators","permissions"].includes(new URLSearchParams(location.search).get("section") || "")
+                ? new URLSearchParams(location.search).get("section") : "configuration"
+            ) || "configuration") as "configuration" | "connections" | "departments" | "queues" | "operators" | "permissions"}
+          />
+          : <Navigate to={adminPath("tools")} replace />
+        : canAccessWhatsAppTool
         ? <UnionWhatsAppInboxPage
           onBack={() => navigateAdmin("tools")}
-          onConfigure={() => navigate(`${adminPath("integrations")}?channels=1`)}
+          onConfigure={() => navigateAdmin("tools", "union-whatsapp", "canais")}
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers",customerId,"customer"))
             : undefined}
@@ -458,10 +480,15 @@ export function AdminDashboard({
             ? orderId => openAuthenticatedAdminTab(adminPath("orders",orderId))
             : undefined}
         />
-        : <Navigate to={adminPath("tools")} replace />
+        : canViewWhatsAppChannels ? <Navigate to={adminPath("tools", "union-whatsapp", "canais")} replace /> : <Navigate to={adminPath("tools")} replace />
     : route.resourceId === "sac-digital"
-      ? canAccessSacDigitalTool
+      ? route.subpage === "configuracoes"
+        ? canConfigureSacDigital
+          ? <SacDigitalSettingsPage onBack={() => canAccessSacDigitalTool ? navigateAdmin("tools", "sac-digital") : navigateAdmin("tools")} />
+          : <Navigate to={adminPath("tools")} replace />
+        : canAccessSacDigitalTool
         ? <SacDigitalToolPage
+          onConfigure={() => navigateAdmin("tools", "sac-digital", "configuracoes")}
           onBack={() => navigateAdmin("tools")}
           onOpenCustomer={hasPermission("customers.view")
             ? customerId => openAuthenticatedAdminTab(adminPath("customers", customerId, "customer"))
@@ -473,7 +500,7 @@ export function AdminDashboard({
             ? customerId => openAuthenticatedAdminTab(`${adminPath("orders", "new")}?customer=${encodeURIComponent(customerId)}`)
             : undefined}
         />
-        : <Navigate to={adminPath("tools")} replace />
+        : canConfigureSacDigital ? <Navigate to={adminPath("tools", "sac-digital", "configuracoes")} replace /> : <Navigate to={adminPath("tools")} replace />
       : toolsHub;
   const handleOrganizationChange = async (organizationId: string) => { if (!organizationId || organizationId === activeOrganizationId) return; await setActiveOrganization(organizationId); navigateAdmin("home", null, null, { replace: true, crmMode: false }); };
 
@@ -549,9 +576,16 @@ export function AdminDashboard({
             <Route path="operation/employees/*" element={<Navigate to="/admin/operation/roles" replace />} />
             <Route path="operation/documents/*" element={<TabDocuments onBack={() => backToParent("documents")} routeResourceId={route.resourceId} routeSubpage={route.subpage} onRouteChange={routeChange("documents")} />} />
             <Route path="operation/company/*" element={<TabSettings identityOnly={isPlatformOperatorOrganization && !crmMode} onBack={() => crmMode ? navigateAdmin("crm", null, null, { crmMode: true }) : isPlatformOperatorOrganization ? navigateAdmin("dashboard") : backToParent("settings")} />} />
-            <Route path="operation/integrations/*" element={isPlatformOperatorOrganization && !crmMode
+            <Route path="integrations/*" element={isPlatformOperatorOrganization && !crmMode
               ? <PlatformIntegrationsPage onBack={() => navigateAdmin("dashboard")} onOpenTool={tool => navigateAdmin("tools", tool)} />
-              : <IntegrationsPage onBack={() => backToParent("integrations")} />} />
+              : <Navigate to={adminPath("tools")} replace />} />
+            <Route path="operation/integrations/*" element={
+              new URLSearchParams(location.search).get("channels") === "1"
+                ? <Navigate to={`${adminPath("tools", "union-whatsapp", "canais")}${new URLSearchParams(location.search).get("section") ? `?section=${encodeURIComponent(new URLSearchParams(location.search).get("section") || "")}` : ""}`} replace />
+                : isPlatformOperatorOrganization && !crmMode
+                  ? <Navigate to={adminPath("integrations")} replace />
+                  : <Navigate to={adminPath("tools")} replace />
+            } />
             <Route path="operation/terms/*" element={<TabTerms onBack={() => backToParent("terms")} />} />
             <Route path="quotes/*" element={<Navigate to={adminPath("siteRequests", "orcamentos", route.resourceId)} replace />} />
             <Route path="orders/*" element={isPlatformOperatorOrganization && !crmMode
