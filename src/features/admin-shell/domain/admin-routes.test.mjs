@@ -39,3 +39,14 @@ test("legacy product routes retain the inventory destination and identifiers", (
     });
   }
 });
+
+test("configurações dos atendimentos têm URL própria em Ferramentas", () => {
+  assert.equal(adminPath("integrations"), "/admin/integrations");
+  assert.deepEqual(resolveAdminRoute("/admin/tools/union-whatsapp/canais"), {
+    tab: "tools", resourceId: "union-whatsapp", subpage: "canais",
+  });
+  assert.deepEqual(resolveAdminRoute("/admin/tools/sac-digital/configuracoes"), {
+    tab: "tools", resourceId: "sac-digital", subpage: "configuracoes",
+  });
+  assert.notEqual(resolveAdminRoute("/admin/operation/integrations").tab, "integrations");
+});
