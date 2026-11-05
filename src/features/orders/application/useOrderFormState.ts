@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
+import type { DeviceUnlockType } from "../infrastructure/order-device-unlock.repository";
 
 type OrderType = "internal" | "external";
 
@@ -59,6 +60,11 @@ const createEmptyOrderForm = () => ({
   queue_override_reason: "",
   technicalValues: {} as Record<string, string>,
   technicalHistory: [] as ServiceOrderTechnicalValue[],
+  unlock_type: "none" as DeviceUnlockType,
+  unlock_value: "",
+  unlock_authorized: false,
+  unlock_dirty: false,
+  unlock_has_existing: false,
 });
 
 export function useOrderFormState() {
@@ -167,6 +173,7 @@ export function useOrderFormState() {
   };
 
   const closeOrderForm = () => {
+    setForm(current => ({ ...current, unlock_value: "", unlock_authorized: false, unlock_dirty: false }));
     setFormOpen(false);
     updateField("external_os_number", "");
   };
