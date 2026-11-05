@@ -105,7 +105,7 @@ function appDomainMetadata(target: AppTarget) {
 
       await writeFile(
         path.join(outDir, "robots.txt"),
-        "User-agent: *\nDisallow: /\nAllow: /$\n\nSitemap: https://unionworld.com.br/sitemap.xml\n",
+        "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /captura\nDisallow: /editar-os-mobile\nDisallow: /checklist-mobile\nDisallow: /assinatura\nDisallow: /verificar-documento\n\nSitemap: https://unionworld.com.br/sitemap.xml\n",
         "utf8",
       );
       await writeFile(
