@@ -164,7 +164,7 @@ export function OrderDeviceUnlockEditor({
     </div>
     {existing && <p className="mb-3 text-xs font-medium text-emerald-700">Código já registrado de forma protegida.</p>}
     {canManage ? <>
-      <div className={`grid min-w-0 items-start gap-3 ${type === "none" ? "grid-cols-1" : "grid-cols-2"}`}>
+      <div className={`grid min-w-0 items-start gap-3 ${type === "none" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2"}`}>
         <div className="min-w-0">
           <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="device-unlock-type">Tipo de bloqueio</label>
           <select id="device-unlock-type" className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 sm:px-3 text-sm text-foreground"
