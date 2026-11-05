@@ -167,35 +167,47 @@ export function OrderDeviceUnlockEditor({
     </div>
     {existing && <p className="mb-3 text-xs font-medium text-emerald-700">Código já registrado de forma protegida.</p>}
     {canManage ? <>
-      <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="device-unlock-type">Tipo de bloqueio</label>
-      <select id="device-unlock-type" className="h-[42px] w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground"
-        value={type}
-        onChange={event => onUpdate({ unlock_type: event.target.value, unlock_value: "", unlock_authorized: false, unlock_dirty: true })}>
-        {Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
-      </select>
-      {type !== "none" && <>
-        <div className="mt-3">
-          {type === "pattern" ? <div>
-            <p className="mb-2 text-xs font-semibold text-muted-foreground">Desenhe o padrão de desbloqueio</p>
-            <PatternGrid value={value} onChange={next => onUpdate({ unlock_value: next, unlock_dirty: true })} />
-            <button type="button" onClick={() => onUpdate({ unlock_value: "", unlock_dirty: true })}
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"><RotateCcw size={13} /> Limpar desenho</button>
-          </div> : <div>
-            <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="device-unlock-value">{type === "pin" ? "PIN (4 a 12 números)" : "Senha do aparelho"}</label>
-            <input id="device-unlock-value" type="password" autoComplete="off" inputMode={type === "pin" ? "numeric" : "text"}
-              maxLength={type === "pin" ? 12 : 64}
-              value={value}
-              onChange={event => onUpdate({ unlock_value: type === "pin" ? event.target.value.replace(/\D/g, "") : event.target.value, unlock_dirty: true })}
-              placeholder={editing && existing ? "Deixe vazio para manter o código atual" : "Informe o código"}
-              className="h-[42px] w-full rounded-lg border border-border bg-background px-3 text-sm text-foreground" />
-          </div>}
+      <div className={`grid min-w-0 items-start gap-3 ${type === "none" ? "grid-cols-1" : "grid-cols-2"}`}>
+        <div className="min-w-0">
+          <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="device-unlock-type">Tipo de bloqueio</label>
+          <select id="device-unlock-type" className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-2 sm:px-3 text-sm text-foreground"
+            value={type}
+            onChange={event => onUpdate({ unlock_type: event.target.value, unlock_value: "", unlock_authorized: false, unlock_dirty: true })}>
+            {Object.entries(labels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
         </div>
+        {type !== "none" && (
+          <div className="min-w-0">
+            {type === "pattern" ? (
+              <>
+                <p className="mb-1 text-xs font-semibold text-muted-foreground">Desenhe o padrão de desbloqueio</p>
+                <PatternGrid value={value} onChange={next => onUpdate({ unlock_value: next, unlock_dirty: true })} />
+                <button type="button" onClick={() => onUpdate({ unlock_value: "", unlock_dirty: true })}
+                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
+                  <RotateCcw size={13} /> Limpar desenho
+                </button>
+              </>
+            ) : (
+              <>
+                <label className="mb-1 block text-xs font-semibold text-muted-foreground" htmlFor="device-unlock-value">{type === "pin" ? "PIN (4 a 12 números)" : "Senha do aparelho"}</label>
+                <input id="device-unlock-value" type="password" autoComplete="off" inputMode={type === "pin" ? "numeric" : "text"}
+                  maxLength={type === "pin" ? 12 : 64}
+                  value={value}
+                  onChange={event => onUpdate({ unlock_value: type === "pin" ? event.target.value.replace(/\D/g, "") : event.target.value, unlock_dirty: true })}
+                  placeholder={editing && existing ? "Deixe vazio para manter o código atual" : "Informe o código"}
+                  className="h-[42px] w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground" />
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      {type !== "none" && (
         <label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
           <input type="checkbox" className="mt-0.5 accent-primary" checked={authorized}
             onChange={event => onUpdate({ unlock_authorized: event.target.checked, unlock_dirty: true })} />
           Cliente autorizou o acesso temporário ao aparelho para testes e reparo.
         </label>
-      </>}
+      )}
     </> : <p className="text-xs text-muted-foreground">A edição do desbloqueio exige uma permissão específica na Union.</p>}
     {editing && existing && canView && <div className="mt-3">
       <button type="button" disabled={loadingReveal} onClick={() => revealed ? setRevealed(null) : void reveal()}
