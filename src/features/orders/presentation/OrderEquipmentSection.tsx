@@ -133,7 +133,7 @@ export function OrderEquipmentSection({
   ) || Boolean(editingOS && String(form.serial_number || "").trim());
   const showDeviceUnlock = isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name)
     && (unlockCanManage || unlockCanView);
-  const extraFieldCount = (showSerial ? 1 : 0) + (showDeviceUnlock ? 1 : 0) + displayedTechnicalFields.length;
+  const extraFieldCount = (showSerial ? 1 : 0) + displayedTechnicalFields.length;
   // Um campo sozinho, ou o último sem par, deve ocupar toda a largura da linha.
   const extraFieldSpanClass = (index: number) => extraFieldCount % 2 === 1 && index === extraFieldCount - 1 ? "sm:col-span-2" : "";
   const labelImages = images.filter(image => image.kind === "label");
@@ -281,27 +281,12 @@ export function OrderEquipmentSection({
             </div>
           </AdminDialog>
         </div>}
-        {showDeviceUnlock && (
-          <div className={`min-w-0 w-full ${extraFieldSpanClass(showSerial ? 1 : 0)}`}>
-            <OrderDeviceUnlockEditor
-            type={form.unlock_type || "none"}
-            value={form.unlock_value || ""}
-            authorized={Boolean(form.unlock_authorized)}
-            existing={Boolean(form.unlock_has_existing)}
-            editing={editing}
-            orderId={editing ? orderId : undefined}
-            canManage={unlockCanManage}
-            canView={unlockCanView}
-            onUpdate={onUnlockUpdate}
-            />
-          </div>
-        )}
         {displayedTechnicalFields.map((relation, index) => {
           const field = relation.technical_field;
           if (!field) return null;
           const isCurrentField = technicalFields.some(item => item.technical_field_id === relation.technical_field_id);
           return (
-            <div key={relation.technical_field_id} className={`min-w-0 w-full ${extraFieldSpanClass((showSerial ? 1 : 0) + (showDeviceUnlock ? 1 : 0) + index)}`}>
+            <div key={relation.technical_field_id} className={`min-w-0 w-full ${extraFieldSpanClass((showSerial ? 1 : 0) + index)}`}>
               <FInput
                 label={field.label}
                 className="w-full"
@@ -315,6 +300,23 @@ export function OrderEquipmentSection({
           );
         })}
         </div>}
+
+        {showDeviceUnlock && (
+          <div className="min-w-0 w-full sm:col-span-2">
+            <OrderDeviceUnlockEditor
+              type={form.unlock_type || "none"}
+              value={form.unlock_value || ""}
+              authorized={Boolean(form.unlock_authorized)}
+              existing={Boolean(form.unlock_has_existing)}
+              editing={editing}
+              orderId={editing ? orderId : undefined}
+              canManage={unlockCanManage}
+              canView={unlockCanView}
+              onUpdate={onUnlockUpdate}
+            />
+          </div>
+        )}
+
         {showImages && (
           <div className="min-w-0 border-t border-border pt-4 sm:col-span-2">
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
