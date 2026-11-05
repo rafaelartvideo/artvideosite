@@ -309,7 +309,7 @@ export function OrderSignatureRequestsSection({
     </div>
 
     <SignatureQrDialog link={createdQrLink} onClose={() => setCreatedQrLink(null)} />
-    <OrderSignatureRequestDialog
+    {createOpen && <OrderSignatureRequestDialog
       open={createOpen}
       order={order}
       templates={onlineTemplates}
@@ -328,7 +328,7 @@ export function OrderSignatureRequestsSection({
         setMessage({ text: feedback.message, type: feedback.type });
         void load();
       }}
-    />
+    />}
 
     {auditRequest && <AdminDialog
       open
