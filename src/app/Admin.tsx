@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router";
-import { Database, List, MapPinned, MessageSquare, Phone, Store, Sparkles } from "lucide-react";
+import { Database, List, MapPinned, MessageSquare, Phone, Store, Sparkles, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { AdminPageContext } from "@/features/admin-shell/application/AdminNavigationContext";
 import type { AdminPageState, AdminTab } from "@/features/admin-shell/domain/admin.types";
@@ -194,7 +194,8 @@ export function AdminDashboard({
     if (tab === "site") return siteItems.some(item => canAccessTab(item.id as AdminTab));
     if (tab === "operation") return !isPlatformOperatorOrganization && hasPermission("operation.view") && operationItems.some(item => hasPermission(item.permissionKey) && isAdminModuleEnabled(item.id as AdminTab, hasModule));
     if (tab === "tools") return (hasPermission("tools.view") || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))) && (
-      (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
+      hasPermission("tools.view")
+      ||       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       ||       ((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
         && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)))
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
@@ -345,6 +346,7 @@ export function AdminDashboard({
   const canManagePbxTool = canAccessPbxTool && hasPermission("pbx.manage");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
+    { id: "anatel", label: "Anatel", icon: ShieldCheck, description: "Consulte restrições de IMEI por roubo, furto ou extravio.", href: "https://www.consultaaparelhoimpedido.com.br/public-web/welcome" },
     ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)) ? [
