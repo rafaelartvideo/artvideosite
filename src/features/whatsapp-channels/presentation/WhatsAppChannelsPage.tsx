@@ -412,7 +412,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
         </AdminCardContent>
       </AdminCard> : section === "departments" || section === "queues" || section === "operators" ?
       <WhatsAppOperationsSettings key={section} section={section} createRequest={settingsCreateRequest}/> : section === "permissions" ?
-      <WhatsAppRolePermissions/> :
+      <WhatsAppRolePermissions onBack={onBack}/> :
       <AdminCard square>
         <div className="overflow-x-auto">
           <table className="min-w-[850px] w-full">
@@ -474,7 +474,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
           O WhatsApp está confirmando a conexão. A verificação ocorre automaticamente.
         </p>}
       </AdminCard>}
-    <AdminStickyToolbar className="justify-between">
+    {section !== "permissions" && <AdminStickyToolbar className="justify-between">
       <AdminButton variant="secondary" onClick={onBack}><ArrowLeft size={16}/> Voltar</AdminButton>
       {(section === "departments" || section === "queues") && canManage &&
         <AdminButton onClick={() => setSettingsCreateRequest(value => value + 1)}>Novo</AdminButton>}
@@ -485,7 +485,7 @@ export function WhatsAppChannelsPage({ onBack, onOpenInbox, initialSection = "co
           "Cadastre até três números, com apenas um ativo por empresa."}>
         <Plus size={16}/> Nova conexão
       </AdminButton>}
-    </AdminStickyToolbar>
+    </AdminStickyToolbar>}
 
     <AdminDialog open={createConnectionOpen} onClose={closeCreateConnection}
       title="Nova conexão"
