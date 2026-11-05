@@ -54,6 +54,8 @@ export async function listAdminNotifications(
     .from("organization_notifications")
     .select("id,organization_id,recipient_user_id,audit_log_id,actor_user_id,actor_name_snapshot,module_key,event_type,entity_type,entity_id,title,message,route,metadata,created_at")
     .eq("organization_id", organizationId)
+    // Do not show actions performed by the current user as new notifications.
+    .or(`actor_user_id.is.null,actor_user_id.neq.${userId}`)
     .order("created_at", { ascending: false })
     .limit(limit);
 
@@ -159,6 +161,7 @@ export function subscribeToAdminNotifications(
         if (!row?.id) return;
         // Filtro de defesa adicional à RLS para notificações individuais.
         if (row.recipient_user_id && row.recipient_user_id !== userId) return;
+        if (row.actor_user_id === userId) return;
         handlers.onNotification({ ...row, read_at: null });
       },
     )
