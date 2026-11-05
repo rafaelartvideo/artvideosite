@@ -59,6 +59,7 @@ export async function createSignatureRequest(input: CreateDocumentSignatureReque
   return invokeSignatureAdmin<{
     request: DocumentSignatureRequestSummary;
     link?: string | null;
+    base_pdf_upload?: { storage_path: string; upload_token: string } | null;
     email_warning?: string | null;
     finalization_warning?: string | null;
   }>("create", input as unknown as Record<string, unknown>);
@@ -68,8 +69,11 @@ export async function attachFrozenPrintPdf(
   organizationId: string,
   requestId: string,
   frozenPdf: FrozenOrderPrintPdf,
+  preparedUpload?: { storage_path: string; upload_token: string } | null,
 ) {
-  const prepared = await invokeSignaturePdf<{ storage_path: string; upload_token: string }>("prepare_upload", {
+  // New requests receive the tenant-scoped signed upload token with the
+  // create response; older servers or retries use the original secure action.
+  const prepared = preparedUpload ?? await invokeSignaturePdf<{ storage_path: string; upload_token: string }>("prepare_upload", {
     organization_id: organizationId,
     request_id: requestId,
   });
