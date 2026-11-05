@@ -100,6 +100,7 @@ export function OrderSignatureRequestsSection({
 }: Props) {
   const [requests, setRequests] = useState<DocumentSignatureRequestSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requestsError, setRequestsError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [createdQrLink, setCreatedQrLink] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -119,10 +120,13 @@ export function OrderSignatureRequestsSection({
   const load = useCallback(async () => {
     if (!canView || !order?.organization_id || !order?.id) return;
     setLoading(true);
+    setRequestsError("");
     try {
       setRequests(await listOrderSignatureRequests(order.organization_id, order.id));
     } catch (error) {
-      setMessage({ text: systemErrorMessage(error), type: "error" });
+      const message = systemErrorMessage(error, "Não foi possível consultar assinaturas anteriores.");
+      setRequestsError(message);
+      setMessage({ text: message, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -313,6 +317,10 @@ export function OrderSignatureRequestsSection({
       partRequests={partRequests}
       history={history}
       printedBy={printedBy}
+      existingRequests={requests}
+      requestsLoading={loading}
+      requestsError={requestsError}
+      onRefreshRequests={() => void load()}
       onClose={() => setCreateOpen(false)}
       onCreated={result => {
         if (result.link) setCreatedQrLink(result.link);
