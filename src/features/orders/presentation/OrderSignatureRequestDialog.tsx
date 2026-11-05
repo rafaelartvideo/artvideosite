@@ -9,6 +9,7 @@ import {
   cancelSignatureRequest,
   createSignatureRequest,
   getSignatureAdminLink,
+  listOrderSignatureRequests,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getSacDigitalIntegrationStatus, sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { buildSignatureWhatsAppUrl, isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
@@ -56,10 +57,12 @@ export function OrderSignatureRequestDialog({
   partRequests: any[];
   history: any[];
   printedBy?: string | null;
-  existingRequests: DocumentSignatureRequestSummary[];
-  requestsLoading: boolean;
-  requestsError: string;
-  onRefreshRequests: () => void;
+  // The documents panel supplies its loaded list. The OS details shortcut
+  // opens independently, so it must load the list itself when these are absent.
+  existingRequests?: DocumentSignatureRequestSummary[];
+  requestsLoading?: boolean;
+  requestsError?: string;
+  onRefreshRequests?: () => void;
   onClose: () => void;
   onCreated: (result: {
     link?: string | null;
@@ -88,6 +91,10 @@ export function OrderSignatureRequestDialog({
   const [saving, setSaving] = useState(false);
   const [sacEnabled, setSacEnabled] = useState<boolean | null>(null);
   const [sacStatusError, setSacStatusError] = useState("");
+  const [directRequests, setDirectRequests] = useState<DocumentSignatureRequestSummary[]>([]);
+  const [directRequestsLoading, setDirectRequestsLoading] = useState(true);
+  const [directRequestsError, setDirectRequestsError] = useState("");
+  const [requestsRefreshNonce, setRequestsRefreshNonce] = useState(0);
   const [fieldErrors, setFieldErrors] = useState<{
     customer?: string;
     contactName?: string;
@@ -96,9 +103,17 @@ export function OrderSignatureRequestDialog({
     contactPhone?: string;
   }>({});
 
+  const providedRequests = Array.isArray(existingRequests);
+  const currentRequests = providedRequests ? existingRequests : directRequests;
+  const checkingRequests = providedRequests ? requestsLoading === true : directRequestsLoading;
+  const currentRequestsError = providedRequests ? (requestsError || "") : directRequestsError;
+  const refreshRequests = () => {
+    if (providedRequests) onRefreshRequests?.();
+    else setRequestsRefreshNonce(value => value + 1);
+  };
   const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || onlineTemplates[0] || null;
   const customer = order?.customer || {};
-  const activeRequest = existingRequests.find(item =>
+  const activeRequest = currentRequests.find(item =>
     item.print_template_id === selectedTemplate?.id
     && isActiveSignatureStatus(item.status)
     && Date.parse(item.expires_at) > Date.now()
@@ -120,6 +135,21 @@ export function OrderSignatureRequestDialog({
       .catch(error => { if (alive) setSacStatusError(systemErrorMessage(error, "Não foi possível consultar a integração WhatsApp desta empresa.")); });
     return () => { alive = false; };
   }, [open, order?.organization_id]);
+
+  useEffect(() => {
+    if (!open || providedRequests || !order?.organization_id || !order?.id) return;
+    let active = true;
+    setDirectRequests([]);
+    setDirectRequestsLoading(true);
+    setDirectRequestsError("");
+    void listOrderSignatureRequests(order.organization_id, order.id)
+      .then(items => { if (active) setDirectRequests(items); })
+      .catch(error => {
+        if (active) setDirectRequestsError(systemErrorMessage(error, "Não foi possível verificar as assinaturas ativas da OS."));
+      })
+      .finally(() => { if (active) setDirectRequestsLoading(false); });
+    return () => { active = false; };
+  }, [open, providedRequests, order?.organization_id, order?.id, requestsRefreshNonce]);
 
   useEffect(() => {
     if (!open) return;
@@ -183,7 +213,7 @@ export function OrderSignatureRequestDialog({
   };
 
   const submit = async () => {
-    if (!order?.id || !order?.organization_id || !selectedTemplate || saving || activeRequest || requestsLoading || requestsError) return;
+    if (!order?.id || !order?.organization_id || !selectedTemplate || saving || activeRequest || checkingRequests || currentRequestsError) return;
     setFieldErrors({});
     const nextErrors: typeof fieldErrors = {};
     if (selectedTemplate.require_external_signature) {
@@ -320,14 +350,14 @@ export function OrderSignatureRequestDialog({
         catch { /* best effort: prevent a partially prepared link from remaining active */ }
       }
       const message = systemErrorMessage(submitError, "Não foi possível criar a solicitação de assinatura.");
-      if (message.includes("Já existe uma solicitação ativa")) onRefreshRequests();
+      if (message.includes("Já existe uma solicitação ativa")) refreshRequests();
       notifyAdmin(message, "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const preparing = requestsLoading || (
+  const preparing = checkingRequests || (
     selectedTemplate?.require_external_signature === true
     && sacEnabled === null
     && !sacStatusError
@@ -351,7 +381,7 @@ export function OrderSignatureRequestDialog({
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
         loading={saving}
         loadingText={activeRequest ? "Preparando link existente..." : "Criando e enviando pelo WhatsApp..."}
-        disabled={onlineTemplates.length === 0 || requestsLoading || Boolean(requestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (sacEnabled === null || Boolean(sacStatusError)))}
+        disabled={onlineTemplates.length === 0 || checkingRequests || Boolean(currentRequestsError) || (!activeRequest && selectedTemplate?.require_external_signature === true && (sacEnabled === null || Boolean(sacStatusError)))}
       >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>}
   >
@@ -361,7 +391,7 @@ export function OrderSignatureRequestDialog({
       </div>
     ) : <div className="space-y-5">
         {sacStatusError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sacStatusError}</p>}
-        {requestsError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{requestsError}</p>}
+        {currentRequestsError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{currentRequestsError}</p>}
         {activeRequest && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
           <p className="font-bold">Este modelo já possui uma assinatura {activeRequest.status === "viewed" ? "visualizada" : "pendente"}.</p>
           <p className="mt-1">Assinante: {activeRequest.external_signer_name || "não informado"}. O link é válido até {new Date(activeRequest.expires_at).toLocaleString("pt-BR")}.</p>
