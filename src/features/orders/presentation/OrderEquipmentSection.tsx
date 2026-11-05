@@ -32,6 +32,7 @@ export function OrderEquipmentSection({
   unlockCanManage,
   unlockCanView,
   onUnlockUpdate,
+  orderId,
 }: {
   form: any;
   equipmentTypes: any[];
@@ -55,6 +56,7 @@ export function OrderEquipmentSection({
   unlockCanManage: boolean;
   unlockCanView: boolean;
   onUnlockUpdate: (patch: Record<string, unknown>) => void;
+  orderId?: string;
 }) {
   const scannerInput = useRef<HTMLInputElement>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -298,7 +300,7 @@ export function OrderEquipmentSection({
             authorized={Boolean(form.unlock_authorized)}
             existing={Boolean(form.unlock_has_existing)}
             editing={editing}
-            orderId={editing ? form.id || undefined : undefined}
+            orderId={editing ? orderId : undefined}
             canManage={unlockCanManage}
             canView={unlockCanView}
             onUpdate={onUnlockUpdate}
