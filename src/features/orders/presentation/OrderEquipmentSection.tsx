@@ -5,6 +5,7 @@ import { FInput, FSelect } from "@/shared/ui/admin/AdminFormControls";
 import type { EquipmentTypeTechnicalField, ServiceOrderTechnicalValue } from "@/features/equipment/domain/equipment";
 import { NewOrderEntryChecklist } from "@/features/checklists/presentation/NewOrderEntryChecklist";
 import { DeviceCaptureBridge } from "./DeviceCaptureBridge";
+import { isMobileDeviceType, OrderDeviceUnlockEditor } from "./OrderDeviceUnlockField";
 import { OrderImageDownloadMenu, OrderImagesField, type OrderImage } from "./OrderImages";
 import type { OrderImageKind } from "../domain/order-image";
 
@@ -28,6 +29,9 @@ export function OrderEquipmentSection({
   canAddImages,
   canRemoveImages,
   showImages,
+  unlockCanManage,
+  unlockCanView,
+  onUnlockUpdate,
 }: {
   form: any;
   equipmentTypes: any[];
@@ -48,6 +52,9 @@ export function OrderEquipmentSection({
   canAddImages: boolean;
   canRemoveImages: boolean | ((image: OrderImage) => boolean);
   showImages: boolean;
+  unlockCanManage: boolean;
+  unlockCanView: boolean;
+  onUnlockUpdate: (patch: Record<string, unknown>) => void;
 }) {
   const scannerInput = useRef<HTMLInputElement>(null);
   const [scanOpen, setScanOpen] = useState(false);
@@ -148,6 +155,7 @@ export function OrderEquipmentSection({
                 upF("equipment_brand_id", "");
                 upF("equipment_model_id", "");
                 upF("technicalValues", {});
+                onUnlockUpdate({ unlock_type: "none", unlock_value: "", unlock_authorized: false, unlock_dirty: false, unlock_has_existing: false });
               }}
               options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]}
             />
@@ -282,6 +290,20 @@ export function OrderEquipmentSection({
             </div>
           );
         })}
+
+        {isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name) && (unlockCanManage || unlockCanView) && (
+          <OrderDeviceUnlockEditor
+            type={form.unlock_type || "none"}
+            value={form.unlock_value || ""}
+            authorized={Boolean(form.unlock_authorized)}
+            existing={Boolean(form.unlock_has_existing)}
+            editing={editing}
+            orderId={editing ? form.id || undefined : undefined}
+            canManage={unlockCanManage}
+            canView={unlockCanView}
+            onUpdate={onUnlockUpdate}
+          />
+        )}
 
         {showImages && (
           <div className="min-w-0 border-t border-border pt-4 sm:col-span-2">
