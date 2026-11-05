@@ -829,7 +829,7 @@ Deno.serve(async request=>{
       const secret=Deno.env.get("SIGNATURE_TOKEN_KEY")||"";
       if(secret.length<16)return response(request,fail("Assinatura temporariamente indisponível.",503),503);
       const token=await decryptSignatureToken(secret,item.token_ciphertext,item.token_iv);
-      return response(request,{success:true,url:"https://eletronicaartvideo.com.br/assinatura/"+encodeURIComponent(token)});
+      return response(request,{success:true,url:"https://unionworld.com.br/assinatura/"+encodeURIComponent(token)});
     }
     if(action==="signed_document"){
       const {data:user,error}=await scoped(request).auth.getUser();
