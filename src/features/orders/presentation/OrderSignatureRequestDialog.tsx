@@ -96,7 +96,7 @@ export function OrderSignatureRequestDialog({
     contactPhone?: string;
   }>({});
 
-  const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || null;
+  const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || onlineTemplates[0] || null;
   const customer = order?.customer || {};
   const activeRequest = existingRequests.find(item =>
     item.print_template_id === selectedTemplate?.id
