@@ -13,13 +13,11 @@ export async function saveOrderDeviceUnlock(
   orderId: string,
   type: DeviceUnlockType,
   value: string,
-  authorized: boolean,
 ): Promise<void> {
   const { error } = await supabase.rpc("set_service_order_unlock_v1", {
     p_order_id: orderId,
     p_type: type,
     p_value: value,
-    p_authorized: authorized,
   });
   if (error) throw error;
 }
