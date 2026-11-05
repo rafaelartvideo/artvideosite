@@ -45,3 +45,14 @@ test("segmentos oferecem documentos editáveis com assinatura online sem sobresc
   assert.match(migration, /lower\(btrim\(name\)\)=lower\(btrim\(d\.template_config->>'name'\)\)/);
   assert.match(migration, /\{"quote":2\}/);
 });
+
+test("documentos padrão por segmento permanecem somente entrada e orçamento", () => {
+  const migration = read("supabase/migrations/20261105174000_limit_union_segment_documents_to_order_and_quote_refresh_test.sql");
+  assert.match(migration, /delete from private\.union_segment_document_blueprints where document_type='ENTRADA'/);
+  assert.match(migration, /foreach v_type in array array\['OS','ORCAMENTO'\]/);
+  assert.match(migration, /v_source\.settings \|\| jsonb_build_object\('section_columns'/);
+  assert.match(migration, /delete from public\.print_template_sections where template_id=v_target\.id/);
+  assert.match(migration, /'Orçamento Técnico'/);
+  assert.match(migration, /count\(\*\) from private\.union_segment_document_blueprints\)<>2/);
+  assert.match(migration, /count\(\*\) from public\.print_templates where organization_id=v_teste\)<>2/);
+});
