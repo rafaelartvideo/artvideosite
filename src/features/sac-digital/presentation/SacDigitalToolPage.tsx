@@ -23,6 +23,7 @@ import {
   UserRound,
   Volume2,
   ChevronDown,
+  Settings2,
   LoaderCircle,
   Check,
   CheckCheck,
@@ -309,11 +310,13 @@ function EmptySacConversationState() {
 
 export function SacDigitalToolPage({
   onBack,
+  onConfigure,
   onOpenCustomer,
   onOpenOrder,
   onCreateOrder,
 }: {
   onBack: () => void;
+  onConfigure?: () => void;
   onOpenCustomer?: (customerId: string) => void;
   onOpenOrder?: (orderId: string) => void;
   onCreateOrder?: (customerId: string) => void;
@@ -1980,6 +1983,11 @@ export function SacDigitalToolPage({
       subtitle="Atendimento integrado à SAC Digital."
       actions={
         <>
+          {onConfigure && hasPermission("sac_digital.settings.manage") && (
+            <AdminButton variant="secondary" onClick={onConfigure}>
+              <Settings2 size={16} /> Configurações
+            </AdminButton>
+          )}
           {canSendMessages && status?.enabled && (
             <AdminButton onClick={() => {
               setNewConversationStarter(null);
