@@ -9,8 +9,12 @@ test("send dialog reuses the previously fetched signature requests and hides all
   assert.match(section, /existingRequests=\{requests\}/);
   assert.match(section, /requestsLoading=\{loading\}/);
   assert.match(section, /requestsError=\{requestsError\}/);
-  assert.doesNotMatch(dialog, /listOrderSignatureRequests/);
-  assert.match(dialog, /existingRequests\.find\(/);
+  assert.match(dialog, /providedRequests = Array\.isArray\(existingRequests\)/);
+  assert.match(dialog, /currentRequests = providedRequests \? existingRequests : directRequests/);
+  assert.match(dialog, /currentRequests\.find\(/);
+  assert.match(dialog, /if \(!open \|\| providedRequests \|\| !order\?\.organization_id \|\| !order\?\.id\) return/);
+  assert.match(dialog, /listOrderSignatureRequests\(order\.organization_id, order\.id\)/);
+  assert.match(dialog, /const checkingRequests = providedRequests \?/);
   assert.match(dialog, /const preparing = requestsLoading/);
   assert.match(dialog, /min-h-\[240px\].*items-center justify-center/);
   assert.match(dialog, /LoadingState text="Preparando envio para assinatura\.\.\."/);
@@ -47,4 +51,18 @@ test("signature preparation notifications are suppressed, only signed is announc
   assert.match(sql, /new\.title := 'Documento assinado'/);
   assert.match(sql, /and notification\.actor_user_id is distinct from \(select auth\.uid\(\)\)/);
   assert.match(notifications, /if \(row\.actor_user_id === userId\) return/);
+});
+
+test("both signature entry points are safe: the OS shortcut mounts only when open", () => {
+  const details = read("src/features/orders/presentation/OrderDetailsPage.tsx");
+  const section = read("src/features/orders/presentation/OrderSignatureRequestsSection.tsx");
+  const dialog = read("src/features/orders/presentation/OrderSignatureRequestDialog.tsx");
+  assert.match(details, /detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog/);
+  assert.match(section, /existingRequests=\{requests\}/);
+  assert.match(section, /requestsLoading=\{loading\}/);
+  assert.match(dialog, /existingRequests\?: DocumentSignatureRequestSummary\[\]/);
+  assert.match(dialog, /currentRequests\.find\(item =>/);
+  assert.match(dialog, /const checkingRequests = providedRequests \?/);
+  assert.match(dialog, /currentRequestsError = providedRequests \?/);
+  assert.match(dialog, /if \(message\.includes\("Já existe uma solicitação ativa"\)\) refreshRequests\(\)/);
 });
