@@ -275,7 +275,7 @@ export function OrderSignatureRequestDialog({
       });
       createdRequestId = result.request.id;
 
-      const frozenResult = await attachFrozenPrintPdf(order.organization_id, result.request.id, frozenPdf);
+      const frozenResult = await attachFrozenPrintPdf(order.organization_id, result.request.id, frozenPdf, result.base_pdf_upload);
       let whatsappWarning: string | null = null;
       if (result.link && result.request?.id && externalSigner?.phone) {
         try {
