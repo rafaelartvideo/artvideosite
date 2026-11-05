@@ -53,6 +53,7 @@ test("canais e SAC Digital possuem rotas próprias de configuração dentro de F
   const channels = read("src/features/whatsapp-channels/presentation/WhatsAppChannelsPage.tsx");
   const permissions = read("src/features/whatsapp-channels/presentation/WhatsAppRolePermissions.tsx");
   const sac = read("src/features/sac-digital/presentation/SacDigitalToolPage.tsx");
+  const inbox = read("src/features/whatsapp-channels/presentation/UnionWhatsAppInboxPage.tsx");
 
   assert.doesNotMatch(platform, /showingOwnChannels|<WhatsAppChannelsPage|Canais da Union/);
   assert.match(platform, /Atendimentos da Union/);
@@ -68,6 +69,8 @@ test("canais e SAC Digital possuem rotas próprias de configuração dentro de F
   assert.match(permissions, /onBack \? <AdminStickyToolbar/);
   assert.match(permissions, /Salvar permissões/);
   assert.match(sac, /onConfigure && hasPermission\("sac_digital.settings.manage"\)/);
+  assert.match(inbox, /aria-label="Abrir Canais de Atendimento"/);
+  assert.doesNotMatch(inbox, /settingsModal|settingsMenuRef/);
   assert.match(navigation, /if \(tab === "integrations"\) return true;/);
 });
 
