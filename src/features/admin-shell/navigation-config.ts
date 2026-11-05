@@ -111,7 +111,7 @@ export const permissionForTab: Record<AdminTab, string> = {
   serviceProviders: "platform.providers.view",
   audit: "organizations.audit.view",
   settings: "settings.details.view",
-  integrations: "settings.channels.view",
+  integrations: "organizations.view",
   planUsage: "settings.details.view",
   terms: "terms.view",
   siteSettings: "site_settings.view",
@@ -154,7 +154,7 @@ export const moduleForTab: Record<AdminTab, string | null> = {
   serviceProviders: null,
   audit: null,
   settings: "company_settings",
-  integrations: "company_settings",
+  integrations: null,
   planUsage: null,
   terms: "company_settings",
   contact: "site_settings",
@@ -202,7 +202,7 @@ export function isAdminModuleEnabled(
   hasModule: (moduleKey: string) => boolean,
 ) {
   if (tab === "nfse") return false;
-  if (tab === "integrations") return hasModule("company_settings") || hasModule("sac_digital") || hasModule("whatsapp");
+  if (tab === "integrations") return true;
   if (tab === "home" || tab === "crm" || tab === "announcements" || tab === "management") return true;
   if (tab === "site") return siteModuleKeys.some(hasModule);
   if (tab === "operation") return operationModuleKeys.some(hasModule);
