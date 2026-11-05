@@ -77,9 +77,9 @@ def queue_route(queue):
         "[union-fvx-managed]\n"
         "exten => s,1,NoOp(Encaminhamento FVX para fila Union)\n"
         " same => n,GotoIf($[${QUEUE_MEMBER(" + name + ",count)} > 0]?fila:reserva)\n"
-        # Keep the inbound SIP call in ringing state until an agent answers.
-        # Queue() does not answer itself; r provides ringback instead of MOH.
-        " same => n(fila),Ringing()\n"
+        # Signal early media before Queue(), which may generate ringback RTP.
+        # Progress() sends 183/SDP without answering; Queue(r) provides tone.
+        " same => n(fila),Progress()\n"
         " same => n,Queue(" + name + ",r,,," + str(limit) + ")\n"
         " same => n,NoOp(Resultado fila: ${QUEUESTATUS})\n"
         " same => n(reserva),Dial(PJSIP/union-301,25)\n"
