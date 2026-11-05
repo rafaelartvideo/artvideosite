@@ -541,8 +541,10 @@ async function createAction(context: any) {
   const organizationId = requireUuid(body.organization_id, "Empresa");
   const serviceOrderId = requireUuid(body.service_order_id, "OS");
   const templateId = requireUuid(body.print_template_id, "Modelo");
-  await requirePermission(adminClient, user.id, organizationId, "documents.signatures.send");
-  await ensureOrderVisible(authClient, organizationId, serviceOrderId);
+  await Promise.all([
+    requirePermission(adminClient, user.id, organizationId, "documents.signatures.send"),
+    ensureOrderVisible(authClient, organizationId, serviceOrderId),
+  ]);
   const [order, template, fieldKeys, company] = await Promise.all([
     loadOrder(adminClient, organizationId, serviceOrderId),
     loadTemplate(adminClient, organizationId, templateId),
@@ -552,7 +554,7 @@ async function createAction(context: any) {
 
   const { data: activeRows, error: activeError } = await adminClient
     .from("document_signature_requests")
-    .select("*")
+    .select("id,organization_id,status,expires_at")
     .eq("organization_id", organizationId)
     .eq("service_order_id", serviceOrderId)
     .eq("print_template_id", templateId)
@@ -728,6 +730,17 @@ async function createAction(context: any) {
       supersedes_request_id: previousId,
     });
 
+    // The creator is already authorized for this exact OS and tenant. Prepare
+    // the same scoped upload token during creation, in parallel with the invite
+    // email, to save a separate Edge Function call and its repeated permission/
+    // OS lookups. The existing prepare_upload action remains a safe fallback.
+    const basePdfPath = `${basePath}/original.pdf`;
+    const pdfUploadPromise = adminClient.storage.from("signed-documents")
+      .createSignedUploadUrl(basePdfPath, { upsert: true })
+      .then(({ data, error }: any) => error || !data?.token
+        ? null : { storage_path: basePdfPath, upload_token: data.token })
+      .catch(() => null);
+
     let currentRequest = inserted;
     let finalizationWarning: string | null = null;
     if (!externalSigner) {
@@ -765,8 +778,15 @@ async function createAction(context: any) {
       }
     }
 
-    const [summary] = await enrichRequests(adminClient, [currentRequest]);
-    return { success: true, request: summary, link, email_warning: emailWarning, finalization_warning: finalizationWarning };
+    const [summary, basePdfUpload] = await Promise.all([
+      enrichRequests(adminClient, [currentRequest]).then(rows => rows[0]),
+      pdfUploadPromise,
+    ]);
+    return {
+      success: true, request: summary, link,
+      base_pdf_upload: basePdfUpload,
+      email_warning: emailWarning, finalization_warning: finalizationWarning,
+    };
   } catch (error) {
     if (!persisted && uploadedPaths.length) {
       try { await adminClient.storage.from("signed-documents").remove(uploadedPaths); } catch { /* best effort cleanup */ }
