@@ -9,7 +9,6 @@ import {
   cancelSignatureRequest,
   createSignatureRequest,
   getSignatureAdminLink,
-  listOrderSignatureRequests,
 } from "@/features/documents/infrastructure/document-signatures.repository";
 import { getSacDigitalIntegrationStatus, sendSacDigitalSignatureInvite } from "@/features/sac-digital/infrastructure/sac-digital.repository";
 import { buildSignatureWhatsAppUrl, isActiveSignatureStatus } from "@/features/documents/domain/document-signature-ui.mjs";
@@ -20,7 +19,7 @@ import { systemErrorMessage } from "@/shared/domain/error-message";
 import { isValidEmail, normalizeDigits } from "@/shared/domain/formatters";
 import { AdminSelect, INPUT } from "@/shared/ui/admin/AdminFormControls";
 import { AdminDialog, BtnPrimary, BtnSecondary } from "@/shared/ui/admin/AdminLayout";
-import { notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
+import { LoadingState, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 
 const signerOptions = [
   { value: "customer", label: "Cliente da OS" },
@@ -43,6 +42,10 @@ export function OrderSignatureRequestDialog({
   partRequests,
   history,
   printedBy,
+  existingRequests,
+  requestsLoading,
+  requestsError,
+  onRefreshRequests,
   onClose,
   onCreated,
 }: {
@@ -53,6 +56,10 @@ export function OrderSignatureRequestDialog({
   partRequests: any[];
   history: any[];
   printedBy?: string | null;
+  existingRequests: DocumentSignatureRequestSummary[];
+  requestsLoading: boolean;
+  requestsError: string;
+  onRefreshRequests: () => void;
   onClose: () => void;
   onCreated: (result: {
     link?: string | null;
@@ -81,9 +88,6 @@ export function OrderSignatureRequestDialog({
   const [saving, setSaving] = useState(false);
   const [sacEnabled, setSacEnabled] = useState<boolean | null>(null);
   const [sacStatusError, setSacStatusError] = useState("");
-  const [signatureRequests, setSignatureRequests] = useState<DocumentSignatureRequestSummary[]>([]);
-  const [requestsLoading, setRequestsLoading] = useState(true);
-  const [requestsError, setRequestsError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<{
     customer?: string;
     contactName?: string;
@@ -94,7 +98,7 @@ export function OrderSignatureRequestDialog({
 
   const selectedTemplate = onlineTemplates.find(template => template.id === templateId) || null;
   const customer = order?.customer || {};
-  const activeRequest = signatureRequests.find(item =>
+  const activeRequest = existingRequests.find(item =>
     item.print_template_id === selectedTemplate?.id
     && isActiveSignatureStatus(item.status)
     && Date.parse(item.expires_at) > Date.now()
@@ -116,19 +120,6 @@ export function OrderSignatureRequestDialog({
       .catch(error => { if (alive) setSacStatusError(systemErrorMessage(error, "Não foi possível consultar a integração WhatsApp desta empresa.")); });
     return () => { alive = false; };
   }, [open, order?.organization_id]);
-
-  useEffect(() => {
-    if (!open || !order?.organization_id || !order?.id) return;
-    let alive = true;
-    setSignatureRequests([]);
-    setRequestsError("");
-    setRequestsLoading(true);
-    void listOrderSignatureRequests(order.organization_id, order.id)
-      .then(items => { if (alive) setSignatureRequests(items); })
-      .catch(error => { if (alive) setRequestsError(systemErrorMessage(error, "Não foi possível consultar as assinaturas da OS.")); })
-      .finally(() => { if (alive) setRequestsLoading(false); });
-    return () => { alive = false; };
-  }, [open, order?.id, order?.organization_id]);
 
   useEffect(() => {
     if (!open) return;
@@ -224,12 +215,14 @@ export function OrderSignatureRequestDialog({
     setSaving(true);
     let createdRequestId: string | null = null;
     try {
-      const configuredTemplate = await loadPrintTemplateEditorValue(selectedTemplate);
-      const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
-      const [company, checklist] = await Promise.all([
+      // Template and company are independent: load them concurrently instead of
+      // waiting for the template before starting the company lookup.
+      const [configuredTemplate, company] = await Promise.all([
+        loadPrintTemplateEditorValue(selectedTemplate),
         getCompanyPrintContext(order.organization_id),
-        needsChecklist ? getOrderChecklist(order.id) : Promise.resolve(null),
       ]);
+      const needsChecklist = [...configuredTemplate.selectedFields].some(key => key.startsWith("checklists."));
+      const checklist = needsChecklist ? await getOrderChecklist(order.id) : null;
       const checklistMedia = (checklist?.stages || [])
         .filter(stage => configuredTemplate.selectedFields.has(`checklists.${stage.stage_type_snapshot}`))
         .flatMap(stage => stage.items.flatMap(item => item.media.flatMap(link => link.media ? [link] : [])));
@@ -327,21 +320,24 @@ export function OrderSignatureRequestDialog({
         catch { /* best effort: prevent a partially prepared link from remaining active */ }
       }
       const message = systemErrorMessage(submitError, "Não foi possível criar a solicitação de assinatura.");
-      if (message.includes("Já existe uma solicitação ativa")) {
-        void listOrderSignatureRequests(order.organization_id, order.id)
-          .then(setSignatureRequests).catch(() => { /* keep original error */ });
-      }
+      if (message.includes("Já existe uma solicitação ativa")) onRefreshRequests();
       notifyAdmin(message, "error");
     } finally {
       setSaving(false);
     }
   };
 
+  const preparing = requestsLoading || (
+    selectedTemplate?.require_external_signature === true
+    && sacEnabled === null
+    && !sacStatusError
+  );
+
   return <AdminDialog
     open
     onClose={onClose}
     title="Enviar para assinatura"
-    description="O documento será congelado em PDF e o link de assinatura será enviado ao WhatsApp do assinante."
+    description={preparing ? undefined : "O documento será congelado em PDF e o link de assinatura será enviado ao WhatsApp do assinante."}
     minimizedDescription={[
       `OS ${order?.os_number || "—"}`,
       signerType === "customer" ? customerName(customer) : contactName.trim(),
@@ -349,7 +345,7 @@ export function OrderSignatureRequestDialog({
     ].filter(Boolean).join(" · ")}
     minimizable={!saving}
     className="max-w-xl"
-    footer={<div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+    footer={preparing ? null : <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <BtnSecondary onClick={onClose} disabled={saving}>Cancelar</BtnSecondary>
       <BtnPrimary
         onClick={() => void (activeRequest ? reuseExisting() : submit())}
@@ -359,9 +355,12 @@ export function OrderSignatureRequestDialog({
       >{activeRequest ? (existingMatchesSigner ? "Reenviar link existente" : "Ver link existente") : "Criar e enviar"}</BtnPrimary>
     </div>}
   >
-    <div className="space-y-5">
+    {preparing ? (
+      <div className="flex min-h-[240px] items-center justify-center" role="status" aria-live="polite">
+        <LoadingState text="Preparando envio para assinatura..." />
+      </div>
+    ) : <div className="space-y-5">
         {sacStatusError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{sacStatusError}</p>}
-        {requestsLoading && <p className="text-xs text-muted-foreground">Verificando assinaturas ativas da OS...</p>}
         {requestsError && <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{requestsError}</p>}
         {activeRequest && <div role="status" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-900">
           <p className="font-bold">Este modelo já possui uma assinatura {activeRequest.status === "viewed" ? "visualizada" : "pendente"}.</p>
@@ -403,7 +402,7 @@ export function OrderSignatureRequestDialog({
 
         </>}
 
-    </div>
+    </div>}
 
   </AdminDialog>;
 }
