@@ -580,7 +580,7 @@ export function OrderDetailsPage(props: Props) {
         onBuildDocument={canPrintDocuments ? buildSacTemplateDocument : undefined}
       />
     )}
-    {detail && !monitorView && <OrderSignatureRequestDialog
+    {detail && !monitorView && signatureRequestOpen && <OrderSignatureRequestDialog
       open={signatureRequestOpen}
       order={detail}
       templates={printTemplates.templates}
