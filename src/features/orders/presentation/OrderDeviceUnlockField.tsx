@@ -157,7 +157,7 @@ export function OrderDeviceUnlockEditor({
     }
   };
 
-  return <div className="min-w-0 w-full rounded-xl border border-border bg-surface/50 p-3">
+  return <div className="min-w-0 w-full">
     <div className="mb-3 flex items-center gap-2">
       <LockKeyhole size={18} className="text-primary" />
       <div>
@@ -239,7 +239,7 @@ export function OrderDeviceUnlockReadOnly({ orderId }: { orderId: string }) {
       setBusy(false);
     }
   };
-  return <div className="sm:col-span-2 rounded-xl border border-border p-3">
+  return <div className="sm:col-span-2 min-w-0 w-full">
     <p className="mb-1 text-xs font-bold text-foreground">Desbloqueio do aparelho</p>
     {meta?.has_value && <p className="mb-2 text-xs text-muted-foreground">Tipo: {labels[meta.type]} · Registro protegido</p>}
     {meta?.has_value && <button type="button" disabled={busy} onClick={() => revealed ? setRevealed(null) : void reveal()}
