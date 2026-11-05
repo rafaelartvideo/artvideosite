@@ -26,9 +26,12 @@ test("Central WhatsApp e Ferramentas não se liberam só por visualizar conversa
     assert.match(source, /hasPermission\("whatsapp\.inbox\.view"\) && hasPermission\("whatsapp\.inbox\.menu\.view"\)/);
   }
   assert.match(admin, /const canAccessWhatsAppTool = [\s\S]*?hasPermission\("whatsapp\.inbox\.menu\.view"\)/);
-  const integration = admin.split('if (tab === "integrations")')[1].split(";")[0];
+  const integration = admin.split('if (tab === "integrations" && isPlatformOperatorOrganization && !crmMode)')[1].split(";")[0];
   assert.doesNotMatch(integration, /whatsapp\.inbox\.view/);
-  assert.match(integration, /settings\.channels\.view/);
+  assert.match(integration, /organizations\.view/);
+  const tools = admin.split('if (tab === "tools")')[1].split('return hasPermission(permissionForTab')[0];
+  assert.match(tools, /settings\.channels\.view/);
+  assert.match(tools, /sac_digital\.settings\.manage/);
 });
 
 test("Navegação é opção visual com dependência de leitura do módulo", () => {
