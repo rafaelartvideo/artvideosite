@@ -346,7 +346,7 @@ export function AdminDashboard({
   const canManagePbxTool = canAccessPbxTool && hasPermission("pbx.manage");
   const unionQueueUrl = "https://fila.unionworld.com.br";
   const toolItems = [
-    { id: "anatel", label: "Anatel", icon: ShieldCheck, description: "Consulte restrições de IMEI por roubo, furto ou extravio.", href: "https://www.consultaaparelhoimpedido.com.br/public-web/welcome" },
+    { id: "anatel", label: "Anatel", icon: ShieldCheck, description: "Consulte restrições de IMEI por roubo, furto ou extravio.", href: "https://www.gov.br/anatel/pt-br/assuntos/celular-legal/consulte-sua-situacao" },
     ...(canAccessUnionCatalogTool ? [{ id: "catalogo-inteligente", label: "Catálogo Inteligente", icon: Database, description: "Gerencie segmentos, equipamentos e marcas do catálogo oficial da Union.", href: null }] : []),
     ...((hasPermission("field_tracking.view") || hasPermission("field_tracking.share"))
       && (isPlatformOperatorOrganization || isAdminModuleEnabled("fieldTracking", hasModule)) ? [
