@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { Eye, EyeOff, LockKeyhole, RotateCcw } from "lucide-react";
+import { CircleHelp, Eye, EyeOff, LockKeyhole, RotateCcw } from "lucide-react";
 import { getOrderDeviceUnlockMeta, revealOrderDeviceUnlock, type DeviceUnlockType } from "../infrastructure/order-device-unlock.repository";
 
 export function isMobileDeviceType(name: string | null | undefined): boolean {
@@ -100,7 +100,6 @@ function PatternGrid({
           />
         ))}
       </div>
-      {onChange && <p className="mt-1 text-xs text-muted-foreground">Deslize entre os pontos ou toque na sequência. Mínimo de 4 pontos.</p>}
     </div>
   );
 }
@@ -180,12 +179,26 @@ export function OrderDeviceUnlockEditor({
           <div className="min-w-0">
             {type === "pattern" ? (
               <>
-                <p className="mb-1 text-xs font-semibold text-muted-foreground">Desenhe o padrão de desbloqueio</p>
+                <div className="mb-2 flex min-w-0 items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-start gap-1.5">
+                    <p className="text-xs font-semibold text-muted-foreground">Desenhe o padrão de desbloqueio</p>
+                    <details className="group relative shrink-0">
+                      <summary className="flex h-5 w-5 cursor-pointer list-none items-center justify-center rounded-full text-muted-foreground hover:text-primary focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                        aria-label="Instruções para desenhar o padrão de desbloqueio" title="Como desenhar o padrão">
+                        <CircleHelp size={15} />
+                      </summary>
+                      <div role="note" className="absolute right-0 top-full z-30 mt-1 w-56 max-w-[75vw] rounded-lg border border-border bg-background p-2 text-xs font-normal leading-relaxed text-foreground shadow-lg">
+                        Deslize entre os pontos ou toque na sequência. Mínimo de 4 pontos.
+                      </div>
+                    </details>
+                  </div>
+                  <button type="button" onClick={() => onUpdate({ unlock_value: "", unlock_dirty: true })}
+                    className="inline-flex h-6 shrink-0 items-center gap-1 text-xs font-semibold text-primary hover:underline"
+                    aria-label="Limpar desenho" title="Limpar desenho">
+                    <RotateCcw size={14} /><span className="hidden lg:inline">Limpar desenho</span>
+                  </button>
+                </div>
                 <PatternGrid value={value} onChange={next => onUpdate({ unlock_value: next, unlock_dirty: true })} />
-                <button type="button" onClick={() => onUpdate({ unlock_value: "", unlock_dirty: true })}
-                  className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline">
-                  <RotateCcw size={13} /> Limpar desenho
-                </button>
               </>
             ) : (
               <>
@@ -205,7 +218,7 @@ export function OrderDeviceUnlockEditor({
         <label className="mt-3 flex items-start gap-2 text-xs text-muted-foreground">
           <input type="checkbox" className="mt-0.5 accent-primary" checked={authorized}
             onChange={event => onUpdate({ unlock_authorized: event.target.checked, unlock_dirty: true })} />
-          Cliente autorizou o acesso temporário ao aparelho para testes e reparo.
+          Cliente autorizou o desbloqueio para testes.
         </label>
       )}
     </> : <p className="text-xs text-muted-foreground">A edição do desbloqueio exige uma permissão específica na Union.</p>}
