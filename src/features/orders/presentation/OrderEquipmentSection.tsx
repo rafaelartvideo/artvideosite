@@ -131,6 +131,11 @@ export function OrderEquipmentSection({
     relation.technical_field?.field_key === "numero_serie"
       && relation.technical_field?.is_active !== false
   ) || Boolean(editingOS && String(form.serial_number || "").trim());
+  const showDeviceUnlock = isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name)
+    && (unlockCanManage || unlockCanView);
+  const extraFieldCount = (showSerial ? 1 : 0) + (showDeviceUnlock ? 1 : 0) + displayedTechnicalFields.length;
+  // Um campo sozinho, ou o último sem par, deve ocupar toda a largura da linha.
+  const extraFieldSpanClass = (index: number) => extraFieldCount % 2 === 1 && index === extraFieldCount - 1 ? "sm:col-span-2" : "";
   const labelImages = images.filter(image => image.kind === "label");
   const otherImages = images.filter(image => image.kind !== "label");
 
@@ -178,7 +183,7 @@ export function OrderEquipmentSection({
 
         <div className="min-w-0">
           <FSelect
-            label="Marca técnica"
+            label="Marca"
             value={form.equipment_brand_id}
             disabled={!form.equipment_type_id}
             onChange={(e: any) => {
@@ -199,10 +204,12 @@ export function OrderEquipmentSection({
           />
         </div>
 
-        {showSerial && <div className="flex min-w-0 items-end gap-2 sm:col-span-2">
-          <div className="min-w-0 flex-1">
+        {extraFieldCount > 0 && <div className="grid min-w-0 w-full grid-cols-1 gap-4 sm:col-span-2 sm:grid-cols-2">
+        {showSerial && <div className={`flex min-w-0 w-full items-end gap-2 ${extraFieldSpanClass(0)}`}>
+          <div className="min-w-0 w-full flex-1">
             <FInput
               label="NÚMERO DE SÉRIE"
+              className="w-full"
               type="text"
               value={form.serial_number || ""}
               disabled={editingOS}
@@ -274,27 +281,9 @@ export function OrderEquipmentSection({
             </div>
           </AdminDialog>
         </div>}
-
-        {displayedTechnicalFields.map(relation => {
-          const field = relation.technical_field;
-          if (!field) return null;
-          const isCurrentField = technicalFields.some(item => item.technical_field_id === relation.technical_field_id);
-          return (
-            <div key={relation.technical_field_id} className="min-w-0">
-              <FInput
-                label={field.label}
-                required={relation.required}
-                type="text"
-                value={technicalValues[relation.technical_field_id] || ""}
-                disabled={!isCurrentField}
-                onChange={(e: any) => onTechnicalValueChange(relation.technical_field_id, e.target.value)}
-              />
-            </div>
-          );
-        })}
-
-        {isMobileDeviceType(equipmentTypes.find(type => type.id === form.equipment_type_id)?.name) && (unlockCanManage || unlockCanView) && (
-          <OrderDeviceUnlockEditor
+        {showDeviceUnlock && (
+          <div className={`min-w-0 w-full ${extraFieldSpanClass(showSerial ? 1 : 0)}`}>
+            <OrderDeviceUnlockEditor
             type={form.unlock_type || "none"}
             value={form.unlock_value || ""}
             authorized={Boolean(form.unlock_authorized)}
@@ -304,9 +293,28 @@ export function OrderEquipmentSection({
             canManage={unlockCanManage}
             canView={unlockCanView}
             onUpdate={onUnlockUpdate}
-          />
+            />
+          </div>
         )}
-
+        {displayedTechnicalFields.map((relation, index) => {
+          const field = relation.technical_field;
+          if (!field) return null;
+          const isCurrentField = technicalFields.some(item => item.technical_field_id === relation.technical_field_id);
+          return (
+            <div key={relation.technical_field_id} className={`min-w-0 w-full ${extraFieldSpanClass((showSerial ? 1 : 0) + (showDeviceUnlock ? 1 : 0) + index)}`}>
+              <FInput
+                label={field.label}
+                className="w-full"
+                required={relation.required}
+                type="text"
+                value={technicalValues[relation.technical_field_id] || ""}
+                disabled={!isCurrentField}
+                onChange={(e: any) => onTechnicalValueChange(relation.technical_field_id, e.target.value)}
+              />
+            </div>
+          );
+        })}
+        </div>}
         {showImages && (
           <div className="min-w-0 border-t border-border pt-4 sm:col-span-2">
             <p className="mb-3 text-[10px] font-black uppercase tracking-widest text-[#0d1b2e]">Fotos do equipamento</p>
