@@ -27,11 +27,10 @@ function userAgent(request: Request) {
   return text(request.headers.get("user-agent"), 500) || null;
 }
 
-function publicBaseUrl(request: Request) {
-  const configured = text(Deno.env.get("SIGNATURE_PUBLIC_BASE_URL") || Deno.env.get("SITE_URL") || Deno.env.get("APP_URL"), 500);
-  const fallback = text(request.headers.get("origin"), 500);
-  const value = (configured || fallback).replace(/\/+$/, "");
-  return /^https?:\/\//i.test(value) ? value : null;
+// A assinatura e a verificacao de documentos pertencem ao portal unico Union.
+// Nao usar SITE_URL, APP_URL ou o Origin da requisicao (podem ser da Artvideo).
+function publicBaseUrl(_request: Request) {
+  return "https://unionworld.com.br";
 }
 
 function bytesToBase64(bytes: Uint8Array) {
