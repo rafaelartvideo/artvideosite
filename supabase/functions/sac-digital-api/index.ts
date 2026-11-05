@@ -3811,12 +3811,8 @@ Deno.serve(async request => {
       if (linkUrl.protocol !== "https:" || !/\/assinatura\//.test(linkUrl.pathname)) {
         return json({ success: false, error: "Link de assinatura inválido." }, 400);
       }
-      const configuredSignatureBase = String(
-        Deno.env.get("SIGNATURE_PUBLIC_BASE_URL")
-        || Deno.env.get("SITE_URL")
-        || Deno.env.get("APP_URL")
-        || "",
-      ).trim().replace(/\/+$/, "");
+      // Links de assinatura sao sempre emitidos pelo portal da Union.
+      const configuredSignatureBase = "https://unionworld.com.br";
       if (configuredSignatureBase) {
         let configuredOrigin = "";
         try { configuredOrigin = new URL(configuredSignatureBase).origin; } catch { /* validated by signature service */ }
