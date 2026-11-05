@@ -162,7 +162,7 @@ export function OrderEquipmentSection({
                 upF("equipment_brand_id", "");
                 upF("equipment_model_id", "");
                 upF("technicalValues", {});
-                onUnlockUpdate({ unlock_type: "none", unlock_value: "", unlock_authorized: false, unlock_dirty: false, unlock_has_existing: false });
+                onUnlockUpdate({ unlock_type: "none", unlock_value: "", unlock_dirty: false, unlock_has_existing: false });
               }}
               options={[{ value: "", label: "Selecionar equipamento..." }, ...equipmentTypes.map(type => ({ value: type.id, label: type.name }))]}
             />
@@ -306,7 +306,6 @@ export function OrderEquipmentSection({
             <OrderDeviceUnlockEditor
               type={form.unlock_type || "none"}
               value={form.unlock_value || ""}
-              authorized={Boolean(form.unlock_authorized)}
               existing={Boolean(form.unlock_has_existing)}
               editing={editing}
               orderId={editing ? orderId : undefined}
