@@ -157,7 +157,7 @@ export function OrderDeviceUnlockEditor({
     }
   };
 
-  return <div className="min-w-0 rounded-xl border border-border bg-surface/50 p-3 sm:col-span-2">
+  return <div className="min-w-0 w-full rounded-xl border border-border bg-surface/50 p-3">
     <div className="mb-3 flex items-center gap-2">
       <LockKeyhole size={18} className="text-primary" />
       <div>
