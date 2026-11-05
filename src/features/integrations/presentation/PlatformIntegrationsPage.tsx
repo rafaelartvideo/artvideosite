@@ -1,5 +1,4 @@
 import { lazy, useEffect, useState } from "react";
-import { useSearchParams } from "react-router";
 import { ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, Headphones, LockKeyhole, MessageCircle, Phone, Search, Store, Ticket, WandSparkles } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
@@ -8,7 +7,6 @@ import { setOrganizationModuleEnabled } from "@/features/partner-companies/infra
 import { OlxIntegrationPage } from "./OlxIntegrationPage";
 
 const UnionWhatsAppEnginePage = lazy(() => import("@/features/management/presentation/UnionWhatsAppEnginePage").then(module => ({ default: module.UnionWhatsAppEnginePage })));
-const WhatsAppChannelsPage = lazy(() => import("@/features/whatsapp-channels/presentation/WhatsAppChannelsPage").then(module => ({ default: module.WhatsAppChannelsPage })));
 
 const INTEGRATIONS = [
   { key: "olx", title: "OLX", category: "Marketplace externo", description: "Publicação e sincronização de anúncios elegíveis, após homologação e autorização OAuth.", icon: Store, ready: false },
@@ -27,12 +25,9 @@ const PAGE_SIZE = 15;
 type IntegrationTool = "sac-digital" | "union-whatsapp" | "union-pbx" | "union-senhas" | "union-ia";
 
 export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () => void; onOpenTool: (tool: IntegrationTool) => void }) {
-  const { hasPermission, hasModule, user } = useAuth();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const showingOwnChannels = searchParams.get("channels") === "1";
-  const canViewOwnChannels = hasModule("whatsapp") && (hasPermission("settings.channels.view") || hasPermission("settings.channels.manage") || hasPermission("settings.channels.delete"));
+  const { hasPermission, user } = useAuth();
   const canManage = hasPermission("organizations.modules.manage");
-  const [selected, setSelected] = useState<IntegrationKey>(showingOwnChannels ? "whatsapp" : "olx");
+  const [selected, setSelected] = useState<IntegrationKey>("olx");
   const [showOlxGuide, setShowOlxGuide] = useState(false);
   const [showEngine, setShowEngine] = useState(false);
   const [searchText, setSearchText] = useState("");
@@ -55,7 +50,6 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
     : selected === "pbx" ? hasPermission("pbx.view") : selected === "queue" ? hasPermission("queue.manage")
     : selected === "ai" ? hasPermission("ai.view") : selected === "whatsapp" ? hasPermission("whatsapp.inbox.view") : false;
   useEffect(() => {
-    if (showingOwnChannels) return;
     let cancelled = false;
     async function load() {
       setLoading(true);
@@ -95,7 +89,7 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
     }
     void load();
     return () => { cancelled = true; };
-  }, [selected, page, search, showingOwnChannels]);
+  }, [selected, page, search]);
 
   async function updateCompany(company: PartnerRow, enabled: boolean) {
     if (!canManage || savingId || !availableKeys.includes(selected)) return;
@@ -113,9 +107,6 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
     }
   }
 
-  if (showingOwnChannels) return canViewOwnChannels
-    ? <WhatsAppChannelsPage onBack={() => { setSelected("whatsapp"); setSearchParams({}, { replace: true }); }} />
-    : <div role="alert" className="p-5 text-sm text-muted-foreground">O WhatsApp não está habilitado ou você não tem permissão para visualizar os canais da Union.</div>;
   if (showOlxGuide) return <OlxIntegrationPage onBack={() => setShowOlxGuide(false)} />;
   if (showEngine) return <UnionWhatsAppEnginePage onBack={() => setShowEngine(false)} />;
   return <div className="space-y-5">
@@ -154,7 +145,6 @@ export function PlatformIntegrationsPage({ onBack, onOpenTool }: { onBack: () =>
         <div className="flex flex-wrap gap-2">
           {selected === "olx" && <AdminButton variant="secondary" onClick={() => setShowOlxGuide(true)}>Requisitos da OLX</AdminButton>}
           {selected === "whatsapp" && hasPermission("platform.management.manage") && <AdminButton variant="secondary" onClick={() => setShowEngine(true)}>Gerenciar motor WuzAPI</AdminButton>}
-          {selected === "whatsapp" && canViewOwnChannels && <AdminButton variant="secondary" onClick={() => setSearchParams({ channels: "1" })}>Canais da Union</AdminButton>}
           {relatedTool && canOpenRelatedTool && <AdminButton variant="secondary" onClick={() => onOpenTool(relatedTool)}>{selected === "whatsapp" ? "Atendimentos da Union" : "Abrir módulo"}</AdminButton>}
         </div>
       </div>
