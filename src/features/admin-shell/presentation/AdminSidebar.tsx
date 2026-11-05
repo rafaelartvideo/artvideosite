@@ -78,7 +78,8 @@ export function AdminSidebar({
   );
   const canAccessTools = (hasPermission("tools.view") || (hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view")))
     && (
-      (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
+      hasPermission("tools.view")
+      ||       (isPlatformOperatorOrganization && hasPermission("platform.catalog.view"))
       || canAccessTab("fieldTracking")
       || ((isPlatformOperatorOrganization || hasModule("sac_digital")) && hasPermission("sac_digital.view"))
       || ((isPlatformOperatorOrganization || hasModule("whatsapp")) && hasPermission("whatsapp.inbox.view") && hasPermission("whatsapp.inbox.menu.view"))
