@@ -15,7 +15,7 @@ test("send dialog reuses the previously fetched signature requests and hides all
   assert.match(dialog, /if \(!open \|\| providedRequests \|\| !order\?\.organization_id \|\| !order\?\.id\) return/);
   assert.match(dialog, /listOrderSignatureRequests\(order\.organization_id, order\.id\)/);
   assert.match(dialog, /const checkingRequests = providedRequests \?/);
-  assert.match(dialog, /const preparing = requestsLoading/);
+  assert.match(dialog, /const preparing = checkingRequests/);
   assert.match(dialog, /min-h-\[240px\].*items-center justify-center/);
   assert.match(dialog, /LoadingState text="Preparando envio para assinatura\.\.\."/);
   assert.doesNotMatch(dialog, /Verificando assinaturas ativas da OS/);
