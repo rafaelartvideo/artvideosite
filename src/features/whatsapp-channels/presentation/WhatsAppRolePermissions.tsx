@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { systemErrorMessage } from "@/shared/domain/error-message";
-import { AdminButton, AdminDialog, AdminSegmentedControl } from "@/shared/ui/admin/AdminLayout";
+import { AdminButton, AdminDialog, AdminSegmentedControl, AdminStickyToolbar } from "@/shared/ui/admin/AdminLayout";
 import { Checkbox } from "@/shared/ui/primitives/checkbox";
 import { LoadingSpinner, notifyAdmin } from "@/shared/ui/admin/AdminFeedback";
 import { operateUnionWhatsAppInbox } from "../infrastructure/union-whatsapp-inbox.repository";
@@ -24,7 +24,7 @@ const emptyValues = (): Values => ({ manager: {}, operator: {} });
 const notifyError=(message:string)=>{if(message)notifyAdmin(message,"error");};
 const notifySuccess=(message:string)=>{if(message)notifyAdmin(message,"success");};
 
-export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => void; onClose?: () => void }) {
+export function WhatsAppRolePermissions({ onSaved, onClose, onBack }: { onSaved?: () => void; onClose?: () => void; onBack?: () => void }) {
   const { activeOrganizationId } = useAuth();
   const [profile, setProfile] = useState<Profile>("operator");
   const [rows, setRows] = useState<Permission[]>([]);
@@ -179,6 +179,14 @@ export function WhatsAppRolePermissions({ onSaved, onClose }: { onSaved?: () => 
 
   return <div className="space-y-4">
     {content}
-    <div className="border-t border-border bg-card px-4 py-4">{footer}</div>
+    {onBack ? <AdminStickyToolbar className="justify-between">
+      <AdminButton variant="secondary" onClick={onBack}>Voltar</AdminButton>
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <AdminButton variant="secondary" disabled={!pendingCount || saving || loading} onClick={discard}>Descartar</AdminButton>
+        <AdminButton disabled={!pendingCount || saving || loading} loading={saving} onClick={() => void save()}>
+          Salvar permissões
+        </AdminButton>
+      </div>
+    </AdminStickyToolbar> : <div className="border-t border-border bg-card px-4 py-4">{footer}</div>}
   </div>;
 }
