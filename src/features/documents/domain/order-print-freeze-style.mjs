@@ -31,7 +31,7 @@ export function freezeRasterOptions() {
   return {
     imageType: "jpeg",
     imageQuality: 0.92,
-    scale: 2.25,
+    scale: 2,
   };
 }
 
