@@ -62,7 +62,6 @@ const createEmptyOrderForm = () => ({
   technicalHistory: [] as ServiceOrderTechnicalValue[],
   unlock_type: "none" as DeviceUnlockType,
   unlock_value: "",
-  unlock_authorized: false,
   unlock_dirty: false,
   unlock_has_existing: false,
 });
@@ -173,7 +172,7 @@ export function useOrderFormState() {
   };
 
   const closeOrderForm = () => {
-    setForm(current => ({ ...current, unlock_value: "", unlock_authorized: false, unlock_dirty: false }));
+    setForm(current => ({ ...current, unlock_value: "", unlock_dirty: false }));
     setFormOpen(false);
     updateField("external_os_number", "");
   };
