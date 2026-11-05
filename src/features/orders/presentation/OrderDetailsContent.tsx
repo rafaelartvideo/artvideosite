@@ -12,6 +12,7 @@ import {
 import { OrderImageDownloadMenu, OrderImageThumb, type OrderImage } from "./OrderImages";
 import { CompanyWhatsAppAction } from "@/features/sac-digital/presentation/CompanyWhatsAppAction";
 import { SiteQuoteMediaGallery } from "@/features/quotes/presentation/SiteQuoteMediaGallery";
+import { isMobileDeviceType, OrderDeviceUnlockReadOnly } from "./OrderDeviceUnlockField";
 
 export function InfoRow({
   label,
@@ -169,6 +170,7 @@ export function OrderDetailsContent({
             <InfoRow label="Modelo" value={(detail.equipment_model as any)?.name || detail.model || undefined} />
             <InfoRow label="Número de série" value={detail.serial_number || undefined} />
             {technicalValues.map((value: any) => <InfoRow key={value.id || value.technical_field_id} label={value.label_snapshot} value={value.value_text ?? (value.value_number == null ? undefined : String(value.value_number))} />)}
+            {isMobileDeviceType((detail.equipment_type as any)?.name) && hasPermission("orders.unlock.view") && <OrderDeviceUnlockReadOnly orderId={detail.id} />}
             </div>
           {hasPermission("orders.section.images") && (
             <div className="min-w-0 space-y-4 border-t border-border/70 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0">
