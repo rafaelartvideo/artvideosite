@@ -42,9 +42,8 @@ export function PlatformCrmHub({
         ...item,
         description: mainDescriptions[item.id] || `Acesse o módulo ${item.label}.`,
       })),
-    // SAC integration settings remain in company administration, not on the
-    // Union CRM's main modules menu alongside day-to-day work.
-    ...operationItems.filter((item) => item.id !== "integrations").map((item) => ({
+    // Configurações dos atendimentos ficam nos próprios módulos em Ferramentas.
+    ...operationItems.map((item) => ({
       id: item.id,
       label: item.label,
       icon: item.icon,
